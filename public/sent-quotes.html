@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sent Quotes | Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            min-height: 100vh;
+        }
+
+        /* ─── Sidebar ───────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-brand img {
+            height: 80px;
+            width: 80px;
+            border-radius: 50%;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section { margin-bottom: 24px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--forest);
+        }
+
+        .nav-item.active {
+            background: rgba(46, 64, 61, 0.08);
+            color: var(--forest);
+        }
+
+        .nav-item svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+
+        .nav-item.active svg { opacity: 1; }
+
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--forest);
+            color: var(--lime);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .nav-item.disabled {
+            opacity: 0.35;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .nav-item.disabled::after {
+            content: 'Soon';
+            margin-left: auto;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.6;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+
+        .sidebar-user .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main {
+            margin-left: var(--sidebar-w);
+            padding: 32px 40px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-family: 'Qualy', sans-serif;
+            font-size: 28px;
+            color: var(--forest);
+        }
+
+        .btn-new {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: var(--forest);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .btn-new:hover {
+            background: var(--forest-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46,64,61,0.15);
+        }
+        .btn-new svg { width: 18px; height: 18px; }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid var(--gray-200);
+            transition: all 0.15s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--gray-300);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-family: 'Qualy', sans-serif;
+            font-size: 28px;
+            color: var(--gray-700);
+        }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--gray-600);
+            transition: all 0.15s ease;
+        }
+
+        .filter-btn:hover { border-color: var(--gray-400); }
+        .filter-btn.active { background: var(--forest); color: white; border-color: var(--forest); }
+
+        .search-box {
+            flex: 1;
+            max-width: 300px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: all 0.15s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            color: var(--gray-400);
+        }
+
+        .quotes-table {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+        }
+
+        .quotes-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .quotes-table th {
+            text-align: left;
+            padding: 14px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .quotes-table td {
+            padding: 16px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--gray-100);
+            vertical-align: middle;
+        }
+
+        .quotes-table tr:last-child td { border-bottom: none; }
+
+        .quotes-table tbody tr {
+            transition: background 0.15s ease;
+        }
+
+        .quotes-table tbody tr:hover { background: var(--gray-50); }
+
+        .customer-info .name {
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 2px;
+        }
+
+        .customer-info .email {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        .quote-type {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+
+        .quote-type.monthly { background: var(--purple-bg); color: var(--purple); }
+        .quote-type.regular { background: var(--gray-100); color: var(--gray-600); }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.15s ease;
+        }
+
+        .status-badge.draft { background: var(--gray-100); color: var(--gray-600); }
+        .status-badge.sent { background: var(--blue-bg); color: var(--blue); }
+        .status-badge.viewed { background: var(--amber-bg); color: var(--amber); }
+        .status-badge.signed { background: var(--green-bg); color: var(--green); }
+        .status-badge.contracted { background: #dcfce7; color: #166534; }
+        .status-badge.declined { background: var(--red-bg); color: var(--red); }
+        .status-badge.changes_requested { background: #fef3c7; color: #b45309; }
+
+        .status-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .amount {
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .date {
+            color: var(--gray-500);
+            font-size: 13px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--gray-200);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-500);
+            transition: all 0.15s ease;
+        }
+
+        .btn-icon:hover { border-color: var(--gray-400); color: var(--gray-700); }
+        .btn-icon svg { width: 16px; height: 16px; }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--gray-500);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+
+        .empty-state h3 {
+            font-size: 16px;
+            color: var(--gray-600);
+            margin-bottom: 8px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--forest);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 1200px) {
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 20px; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .filters { flex-wrap: wrap; }
+        }
+
+        /* Universal Search */
+        .universal-search-wrapper { position:relative; flex:1; max-width:380px; margin:0 24px; }
+        .search-input-group { position:relative; display:flex; align-items:center; }
+        .search-icon { position:absolute; left:12px; width:18px; height:18px; color:var(--gray-400, #9ca09c); pointer-events:none; }
+        .search-input { width:100%; padding:8px 36px 8px 40px; border:1px solid #e2e5e2; border-radius:8px; font-size:13px; font-family:inherit; background:#fff; transition:all 0.15s ease; }
+        .search-input:focus { outline:none; border-color:#2e403d; box-shadow:0 0 0 3px rgba(46,64,61,0.1); }
+        .search-input::placeholder { color:#9ca09c; }
+        .search-clear-btn { position:absolute; right:8px; background:none; border:none; cursor:pointer; padding:4px; color:#9ca09c; display:flex; }
+        .search-clear-btn:hover { color:#4a4e4a; }
+        .search-clear-btn svg { width:16px; height:16px; }
+        .search-results-dropdown { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e5e2; border-top:none; border-radius:0 0 8px 8px; max-height:400px; overflow-y:auto; box-shadow:0 8px 16px rgba(0,0,0,0.1); z-index:200; }
+        .search-results-group { padding:8px 0; border-bottom:1px solid #f0f2f0; }
+        .search-results-group:last-child { border-bottom:none; }
+        .search-group-label { padding:6px 16px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#9ca09c; }
+        .search-result-item { display:flex; align-items:center; gap:12px; padding:10px 16px; text-decoration:none; cursor:pointer; transition:background 0.15s ease; color:#333633; }
+        .search-result-item:hover { background:#f8faf8; }
+        .search-result-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:14px; }
+        .search-result-icon.customer { background:#eff6ff; color:#3b82f6; }
+        .search-result-icon.quote { background:#f5f3ff; color:#7c3aed; }
+        .search-result-icon.property { background:#ecfdf5; color:#059669; }
+        .search-result-content { flex:1; min-width:0; }
+        .search-result-title { font-size:13px; font-weight:600; color:#333633; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .search-result-subtitle { font-size:12px; color:#6e726e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .search-result-badge { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; text-transform:uppercase; white-space:nowrap; flex-shrink:0; }
+        .search-empty { text-align:center; padding:24px 16px; color:#9ca09c; font-size:13px; }
+        .search-loading { text-align:center; padding:16px; color:#6e726e; }
+        @media (max-width:768px) { .universal-search-wrapper { display:none; } }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas & Company Landscaping">
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a class="nav-item" href="quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Quote Requests
+            </a>
+            <a class="nav-item" href="quote-calculator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                Quote Calculator
+            </a>
+            <a class="nav-item" href="quote-generator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Quote Generator
+            </a>
+            <a class="nav-item active" href="sent-quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Sent Quotes
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="customers.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Customers
+            </a>
+            <a class="nav-item" href="properties.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Properties
+            </a>
+            <a class="nav-item" href="scheduling.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Scheduling
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Messages & Calls
+            </a>
+            <a class="nav-item" href="cancellations.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                Cancellations
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a class="nav-item" href="campaigns.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Campaigns
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a class="nav-item" href="expenses.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
+                Expenses
+            </a>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Invoicing
+            </a>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Revenue
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Crew
+            </a>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                Reports
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<main class="main">
+    <div class="page-header">
+        <h1 class="page-title">Sent Quotes</h1>
+        <!-- Universal Search -->
+        <div class="universal-search-wrapper">
+            <div class="search-input-group">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
+                <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+        </div>
+        <a href="quote-generator.html" class="btn-new">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Quote
+        </a>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="label">Total Quotes</div>
+            <div class="value" id="statTotal">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Drafts</div>
+            <div class="value" id="statDraft">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Sent</div>
+            <div class="value" id="statSent">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Signed</div>
+            <div class="value" id="statSigned">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Contracted</div>
+            <div class="value" id="statContracted">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Declined</div>
+            <div class="value" id="statDeclined">0</div>
+        </div>
+    </div>
+
+    <div class="filters">
+        <button class="filter-btn active" data-status="">All</button>
+        <button class="filter-btn" data-status="draft">Drafts</button>
+        <button class="filter-btn" data-status="sent">Sent</button>
+        <button class="filter-btn" data-status="viewed">Viewed</button>
+        <button class="filter-btn" data-status="signed">Signed</button>
+        <button class="filter-btn" data-status="contracted">Contracted</button>
+        <button class="filter-btn" data-status="changes_requested">Changes</button>
+        <button class="filter-btn" data-status="declined">Declined</button>
+        <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" id="searchInput" placeholder="Search by name or email...">
+        </div>
+    </div>
+
+    <div class="quotes-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="quotesBody">
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <h3>No quotes yet</h3>
+                            <p>Create your first quote to get started</p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    let currentStatus = '';
+    let searchQuery = '';
+
+    // Load quotes
+    async function loadQuotes() {
+        try {
+            let url = '/api/sent-quotes?limit=100';
+            if (currentStatus) url += `&status=${currentStatus}`;
+            if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data.success) {
+                renderStats(data.counts);
+                renderQuotes(data.quotes);
+            }
+        } catch (e) {
+            console.error('Error loading quotes:', e);
+        }
+    }
+
+    function renderStats(counts) {
+        document.getElementById('statTotal').textContent = counts.total || 0;
+        document.getElementById('statDraft').textContent = counts.draft || 0;
+        document.getElementById('statSent').textContent = (counts.sent || 0) + (counts.viewed || 0);
+        document.getElementById('statSigned').textContent = counts.signed || 0;
+        document.getElementById('statContracted').textContent = counts.contracted || 0;
+        document.getElementById('statDeclined').textContent = counts.declined || 0;
+    }
+
+    function renderQuotes(quotes) {
+        const tbody = document.getElementById('quotesBody');
+
+        if (!quotes || quotes.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <h3>No quotes found</h3>
+                            <p>${currentStatus ? 'No quotes with this status' : 'Create your first quote to get started'}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = quotes.map(q => {
+            const statusLabels = {
+                'draft': 'Draft',
+                'sent': 'Sent',
+                'viewed': 'Viewed',
+                'signed': 'Signed',
+                'contracted': 'Contracted',
+                'declined': 'Declined',
+                'changes_requested': 'Changes Requested'
+            };
+            const statusLabel = statusLabels[q.status] || q.status;
+            
+            return `
+            <tr>
+                <td>
+                    <div class="customer-info">
+                        <div class="name">${q.customer_name}</div>
+                        <div class="email">${q.customer_email || 'No email'}</div>
+                    </div>
+                </td>
+                <td>
+                    <span class="quote-type ${q.quote_type === 'monthly_plan' ? 'monthly' : 'regular'}">
+                        ${q.quote_type === 'monthly_plan' ? 'Monthly Plan' : 'Regular'}
+                    </span>
+                </td>
+                <td>
+                    <div class="amount">$${parseFloat(q.total).toFixed(2)}</div>
+                    ${q.monthly_payment ? `<div class="date">$${parseFloat(q.monthly_payment).toFixed(2)}/mo</div>` : ''}
+                </td>
+                <td>
+                    <span class="status-badge ${q.status}">${statusLabel}</span>
+                </td>
+                <td>
+                    <div class="date">${new Date(q.created_at).toLocaleDateString()}</div>
+                </td>
+                <td>
+                    <div class="actions">
+                        ${q.status === 'draft' ? `
+                            <button class="btn-icon" onclick="sendQuote(${q.id})" title="Send">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                            </button>
+                        ` : ''}
+                        ${q.status === 'sent' || q.status === 'viewed' ? `
+                            <button class="btn-icon" onclick="resendQuote(${q.id})" title="Resend">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                            </button>
+                        ` : ''}
+                        ${(q.status === 'signed' || q.status === 'contracted') ? `
+                            <button class="btn-icon" onclick="downloadQuote(${q.id})" title="Download Quote PDF">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            </button>
+                        ` : ''}
+                        ${q.status === 'contracted' ? `
+                            <button class="btn-icon" onclick="downloadContract(${q.id})" title="Download Signed Contract" style="color:#22c55e;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+                            </button>
+                        ` : ''}
+                        <button class="btn-icon" onclick="viewQuote(${q.id})" title="View">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button class="btn-icon" onclick="deleteQuote(${q.id})" title="Delete">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `}).join('');
+    }
+
+    // Send quote
+    async function sendQuote(id) {
+        if (!confirm('Send this quote to the customer?')) return;
+        
+        showToast('Sending...');
+        try {
+            const res = await fetch(`/api/sent-quotes/${id}/send`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Quote sent!');
+                loadQuotes();
+            } else {
+                showToast(data.error || 'Error sending', true);
+            }
+        } catch (e) {
+            showToast('Error sending quote', true);
+        }
+    }
+
+    // Resend quote
+    async function resendQuote(id) {
+        if (!confirm('Resend this quote to the customer?')) return;
+        
+        showToast('Resending...');
+        try {
+            const res = await fetch(`/api/sent-quotes/${id}/send`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Quote resent!');
+                loadQuotes();
+            } else {
+                showToast(data.error || 'Error', true);
+            }
+        } catch (e) {
+            showToast('Error resending quote', true);
+        }
+    }
+
+    // View quote (open modal with details)
+    async function viewQuote(id) {
+        try {
+            const res = await fetch(`/api/sent-quotes/${id}`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
+            if (data.success && data.quote) {
+                showQuoteModal(data.quote);
+            } else {
+                showToast('Error loading quote', true);
+            }
+        } catch (e) {
+            console.error('viewQuote error:', e);
+            showToast('Error loading quote', true);
+        }
+    }
+    
+    // Show quote details in modal
+    function showQuoteModal(quote) {
+        const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+        const servicesHtml = services.map(s => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;"><span>${s.name}</span><span>$${parseFloat(s.amount).toFixed(2)}</span></div>`).join('');
+        const quoteNumber = quote.quote_number || 'Q-' + quote.id;
+        const isContracted = quote.status === 'contracted';
+        
+        const modal = document.createElement('div');
+        modal.id = 'quoteModal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
+        modal.innerHTML = `
+            <div style="background:white;border-radius:12px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                <div style="background:#2e403d;color:white;padding:20px 24px;border-radius:12px 12px 0 0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <h2 style="margin:0;font-size:18px;">Quote #${quoteNumber}</h2>
+                            <p style="margin:4px 0 0;opacity:0.8;font-size:13px;">${quote.customer_name}</p>
+                        </div>
+                        <button onclick="document.getElementById('quoteModal').remove()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button>
+                    </div>
+                </div>
+                <div style="padding:24px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                        <div style="background:#f8f8f8;padding:12px;border-radius:8px;">
+                            <p style="margin:0 0 4px;font-size:11px;color:#666;text-transform:uppercase;">Customer</p>
+                            <p style="margin:0;font-weight:600;">${quote.customer_name}</p>
+                            <p style="margin:4px 0 0;font-size:13px;color:#666;">${quote.customer_email || ''}</p>
+                            <p style="margin:2px 0 0;font-size:13px;color:#666;">${quote.customer_phone || ''}</p>
+                        </div>
+                        <div style="background:#f8f8f8;padding:12px;border-radius:8px;">
+                            <p style="margin:0 0 4px;font-size:11px;color:#666;text-transform:uppercase;">Status</p>
+                            <span class="status-badge ${quote.status}" style="display:inline-flex;margin-top:4px;">${quote.status}</span>
+                            <p style="margin:8px 0 0;font-size:12px;color:#666;">Created: ${new Date(quote.created_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background:#ffffff;border:2px solid #c9dd80;border-radius:8px;padding:16px;margin-bottom:20px;">
+                        <h3 style="margin:0 0 12px;color:#2e403d;font-size:13px;">Services</h3>
+                        ${servicesHtml}
+                        <div style="display:flex;justify-content:space-between;padding:12px 0 0;margin-top:12px;border-top:2px solid #c9dd80;font-weight:bold;">
+                            <span>Total</span>
+                            <span style="font-size:18px;">$${parseFloat(quote.total).toFixed(2)}</span>
+                        </div>
+                        ${quote.monthly_payment ? `<div style="display:flex;justify-content:space-between;padding:8px 0 0;color:#2e403d;"><span>Monthly Payment</span><span>$${parseFloat(quote.monthly_payment).toFixed(2)}/mo</span></div>` : ''}
+                    </div>
+                    
+                    ${isContracted ? `
+                    <div style="background:#f8faf5;border:1px solid #c9dd80;border-radius:8px;padding:16px;margin-bottom:20px;">
+                        <h3 style="margin:0 0 8px;color:#2e403d;font-size:13px;">✓ Contract Signed</h3>
+                        <p style="margin:0;font-size:13px;color:#2e403d;"><strong>Signed by:</strong> ${quote.contract_signer_name}</p>
+                        <p style="margin:4px 0 0;font-size:13px;color:#2e403d;"><strong>Date:</strong> ${new Date(quote.contract_signed_at).toLocaleString()}</p>
+                        <p style="margin:4px 0 0;font-size:13px;color:#2e403d;"><strong>IP:</strong> ${quote.contract_signer_ip || 'Recorded'}</p>
+                    </div>
+                    ` : ''}
+                    
+                    <div style="display:flex;gap:12px;justify-content:flex-end;">
+                        ${isContracted ? `<button onclick="document.getElementById('quoteModal').remove();downloadContract(${quote.id})" style="padding:10px 20px;background:#2e403d;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Download Contract PDF</button>` : ''}
+                        <button onclick="document.getElementById('quoteModal').remove();downloadQuote(${quote.id})" style="padding:10px 20px;background:#f0f0f0;color:#333;border:none;border-radius:6px;cursor:pointer;font-weight:500;">Download Quote PDF</button>
+                        <button onclick="document.getElementById('quoteModal').remove()" style="padding:10px 20px;background:none;border:1px solid #ddd;border-radius:6px;cursor:pointer;">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    }
+
+    // Delete quote
+    async function deleteQuote(id) {
+        if (!confirm('Delete this quote? This cannot be undone.')) return;
+        
+        try {
+            const res = await fetch(`/api/sent-quotes/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Quote deleted');
+                loadQuotes();
+            } else {
+                showToast(data.error || 'Error deleting', true);
+            }
+        } catch (e) {
+            showToast('Error deleting quote', true);
+        }
+    }
+
+    // Download quote PDF
+    async function downloadQuote(id) {
+        showToast('Generating PDF...');
+        try {
+            const res = await fetch(`/api/sent-quotes/${id}/download-quote`);
+            const data = await res.json();
+            if (data.success) {
+                generateQuotePDF(data.quote);
+                showToast('PDF downloaded!');
+            } else {
+                showToast(data.error || 'Error downloading', true);
+            }
+        } catch (e) {
+            showToast('Error downloading quote', true);
+        }
+    }
+
+    // Download signed contract PDF
+    async function downloadContract(id) {
+        showToast('Generating contract PDF...');
+        try {
+            // Use the new server-side PDF generation endpoint
+            const res = await fetch(`/api/sent-quotes/${id}/download-pdf`);
+            
+            if (res.ok) {
+                // Get the PDF blob and download it
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // Get filename from Content-Disposition header if available
+                const contentDisposition = res.headers.get('Content-Disposition');
+                let filename = 'Service-Agreement.pdf';
+                if (contentDisposition) {
+                    const match = contentDisposition.match(/filename="(.+)"/);
+                    if (match) filename = match[1];
+                }
+                
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showToast('Contract PDF downloaded!');
+            } else {
+                // If server PDF fails, fall back to client-side generation
+                const errorData = await res.json();
+                console.log('Server PDF failed, using client-side:', errorData.error);
+                
+                const quoteRes = await fetch(`/api/sent-quotes/${id}/download-contract`);
+                const quoteData = await quoteRes.json();
+                if (quoteData.success) {
+                    generateContractPDF(quoteData.quote);
+                    showToast('Contract PDF generated (fallback)');
+                } else {
+                    showToast(quoteData.error || 'Error downloading', true);
+                }
+            }
+        } catch (e) {
+            console.error('Download error:', e);
+            showToast('Error downloading contract', true);
+        }
+    }
+
+    // Generate Quote PDF (client-side using browser print) - Branded version
+    function generateQuotePDF(quote) {
+        const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+        const servicesHtml = services.map(s => `
+            <tr>
+                <td style="padding:14px 16px;border-bottom:1px solid #e5e5e5;">${s.name}</td>
+                <td style="padding:14px 16px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:500;">$${parseFloat(s.amount).toFixed(2)}</td>
+            </tr>
+        `).join('');
+        
+        const quoteNumber = quote.quote_number || 'Q-' + quote.id;
+        const logoUrl = 'https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=100w';
+        
+        const html = `
+            <!DOCTYPE html>
+            <html><head>
+            <title>Quote ${quoteNumber} - ${quote.customer_name}</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; background: white; color: #333; }
+                .page { max-width: 800px; margin: 0 auto; padding: 30px 40px; }
+                
+                .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 4px solid #c9dd80; margin-bottom: 20px; }
+                .header-left { display: flex; align-items: center; gap: 12px; }
+                .header-logo { width: 50px; height: 50px; border-radius: 50%; }
+                .header-title h1 { color: #2e403d; font-size: 20px; margin: 0 0 2px; }
+                .header-title p { color: #64748b; font-size: 12px; margin: 0; }
+                .header-right { text-align: right; font-size: 11px; color: #64748b; line-height: 1.4; }
+                
+                .quote-badge { display: inline-block; background: #2e403d; color: #c9dd80; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
+                
+                .info-section { display: flex; gap: 30px; margin-bottom: 20px; }
+                .info-box { flex: 1; }
+                .info-box.highlight { background: #f8faf5; border: 2px solid #c9dd80; border-radius: 10px; padding: 14px; }
+                .info-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 6px; font-weight: 600; }
+                .info-box h3 { color: #2e403d; font-size: 15px; margin: 0 0 4px; }
+                .info-box p { color: #374151; font-size: 12px; line-height: 1.5; margin: 0; }
+                
+                .services-section { margin-bottom: 20px; }
+                .services-header { background: #2e403d; color: white; padding: 10px 16px; border-radius: 10px 10px 0 0; }
+                .services-header h2 { font-size: 14px; margin: 0; font-weight: 600; }
+                .services-table { width: 100%; border-collapse: collapse; background: white; border: 2px solid #2e403d; border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; }
+                .services-table th { background: #f8f8f8; padding: 8px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 1px solid #e5e5e5; }
+                .services-table th:last-child { text-align: right; }
+                .services-table td { padding: 10px 14px; border-bottom: 1px solid #eee; }
+                .services-table td:last-child { text-align: right; font-weight: 500; }
+                .services-table tr:last-child td { border-bottom: none; }
+                
+                .totals-section { background: #f8faf5; border: 2px solid #c9dd80; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+                .totals-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e5e5e5; font-size: 13px; }
+                .totals-row:last-child { border-bottom: none; }
+                .totals-row.subtotal, .totals-row.tax { color: #64748b; }
+                .totals-row.total { font-size: 18px; font-weight: 700; color: #2e403d; padding-top: 10px; margin-top: 6px; border-top: 2px solid #c9dd80; }
+                .totals-row.monthly { background: #2e403d; color: white; margin: 12px -14px -14px; padding: 12px 14px; border-radius: 0 0 8px 8px; font-weight: 600; }
+                
+                .validity { background: #ffffff; border: 1px solid #d4d4d4; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
+                .validity p { color: #525252; font-size: 12px; margin: 0; }
+                
+                .footer { border-top: 3px solid #c9dd80; padding-top: 12px; text-align: center; }
+                .footer p { color: #64748b; font-size: 10px; margin: 0; }
+                .footer strong { color: #2e403d; }
+                
+                .download-btn { position: fixed; top: 20px; right: 20px; background: #2e403d; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 100; }
+                .download-btn:hover { background: #232f2d; }
+                
+                @media print { 
+                    .download-btn { display: none; }
+                    .page { padding: 15px 20px; max-width: 100%; }
+                    @page { size: letter; margin: 0.4in; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            </style>
+            </head>
+            <body>
+                <button class="download-btn" onclick="window.print()">⬇ Download PDF</button>
+                
+                <div class="page">
+                    <div class="header">
+                        <div class="header-left">
+                            <img src="${logoUrl}" alt="Logo" class="header-logo" onerror="this.style.display='none'">
+                            <div class="header-title">
+                                <h1>Pappas & Co. Landscaping</h1>
+                                <p>Professional Lawn Care Services</p>
+                            </div>
+                        </div>
+                        <div class="header-right">
+                            pappaslandscaping.com<br>
+                            hello@pappaslandscaping.com<br>
+                            (440) 886-7318
+                        </div>
+                    </div>
+                    
+                    <div class="quote-badge">Quote #${quoteNumber}</div>
+                    
+                    <div class="info-section">
+                        <div class="info-box highlight">
+                            <div class="info-label">Prepared For</div>
+                            <h3>${quote.customer_name}</h3>
+                            <p>${quote.customer_address || ''}</p>
+                            <p>${quote.customer_email || ''}</p>
+                            <p>${quote.customer_phone || ''}</p>
+                        </div>
+                        <div class="info-box">
+                            <div class="info-label">Quote Details</div>
+                            <p><strong>Date:</strong> ${new Date(quote.created_at).toLocaleDateString()}</p>
+                            <p><strong>Valid For:</strong> 30 Days</p>
+                            <p><strong>Quote #:</strong> ${quoteNumber}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="services-section">
+                        <div class="services-header">
+                            <h2>Services Included</h2>
+                        </div>
+                        <table class="services-table">
+                            <thead>
+                                <tr>
+                                    <th>Service Description</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${servicesHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="totals-section">
+                        <div class="totals-row subtotal">
+                            <span>Subtotal</span>
+                            <span>$${parseFloat(quote.subtotal).toFixed(2)}</span>
+                        </div>
+                        <div class="totals-row tax">
+                            <span>Tax (${quote.tax_rate || 8}%)</span>
+                            <span>$${parseFloat(quote.tax_amount).toFixed(2)}</span>
+                        </div>
+                        <div class="totals-row total">
+                            <span>Total</span>
+                            <span>$${parseFloat(quote.total).toFixed(2)}</span>
+                        </div>
+                        ${quote.monthly_payment ? `
+                        <div class="totals-row monthly">
+                            <span>Monthly Payment Plan</span>
+                            <span>$${parseFloat(quote.monthly_payment).toFixed(2)}/mo</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="validity">
+                        <p><strong>⏰ This quote is valid for 30 days.</strong> Prices subject to change after expiration. Questions? Call (440) 886-7318</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p><strong>Pappas & Co. Landscaping</strong> | PO Box 770057, Lakewood, OH 44107 | (440) 886-7318 | hello@pappaslandscaping.com</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+    }
+
+    // Generate Contract PDF - Full version with all terms and signature (matches sign-contract.html)
+    function generateContractPDF(quote) {
+        const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+        const servicesText = services.map(s => s.name).join(', ');
+        const servicesHtml = services.map(s => `<li>${s.name} - $${parseFloat(s.amount).toFixed(2)}</li>`).join('');
+        const signedDate = quote.contract_signed_at ? new Date(quote.contract_signed_at).toLocaleString() : 'N/A';
+        const quoteNumber = quote.quote_number || 'Q-' + quote.id;
+        
+        // Check if signature is an image (base64)
+        const isDrawnSignature = quote.contract_signature_data && quote.contract_signature_data.startsWith('data:image');
+        const signatureDisplay = isDrawnSignature 
+            ? `<img src="${quote.contract_signature_data}" style="max-height:80px;margin:12px 0;" alt="Signature">`
+            : `<p style="font-family:'Brush Script MT',cursive;font-size:32px;margin:12px 0;">${quote.contract_signature_data || quote.contract_signer_name}</p>`;
+        
+        const logoUrl = 'https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=100w';
+        
+        const html = `
+            <!DOCTYPE html>
+            <html><head>
+            <title>Service Agreement - ${quote.customer_name} - ${quoteNumber}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 30px 40px; max-width: 800px; margin: 0 auto; font-size: 11px; line-height: 1.5; color: #333; }
+                h1 { color: #2e403d; margin-bottom: 4px; font-size: 22px; }
+                h2 { color: #2e403d; font-size: 13px; margin: 20px 0 8px; border-bottom: 2px solid #c9dd80; padding-bottom: 4px; }
+                .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #c9dd80; padding-bottom: 16px; margin-bottom: 20px; }
+                .header-left { display: flex; align-items: center; gap: 16px; }
+                .header-logo { width: 70px; height: 70px; }
+                .header-title h1 { margin: 0; }
+                .header-title p { margin: 4px 0 0; color: #666; font-size: 12px; }
+                .header-right { text-align: right; font-size: 11px; color: #666; }
+                .parties-table { width: 100%; margin: 16px 0; border-collapse: separate; border-spacing: 12px 0; }
+                .parties-table td { width: 48%; vertical-align: top; padding: 16px; background: #f8f8f8; border-radius: 8px; border-left: 3px solid #2e403d; }
+                .party-label { font-size: 10px; text-transform: uppercase; color: #666; margin: 0 0 8px; font-weight: bold; letter-spacing: 1px; }
+                .services-box { background: #ffffff; border: 2px solid #c9dd80; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+                .services-box h3 { margin: 0 0 12px; color: #2e403d; font-size: 13px; font-weight: bold; }
+                .services-list { margin: 0; padding-left: 20px; }
+                .services-list li { margin: 6px 0; }
+                .total-line { font-size: 14px; font-weight: bold; margin-top: 12px; padding-top: 12px; border-top: 2px solid #c9dd80; color: #2e403d; }
+                .section p { margin: 6px 0; text-align: justify; }
+                .section ul { margin: 6px 0 6px 20px; padding: 0; }
+                .section li { margin: 4px 0; }
+                .highlight-box { background: #fafdf5; border-left: 4px solid #c9dd80; padding: 12px 14px; margin: 12px 0; font-size: 10px; border-radius: 0 6px 6px 0; }
+                .signature-section { margin-top: 30px; border: 2px solid #2e403d; border-radius: 8px; padding: 24px; background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%); page-break-inside: avoid; }
+                .signature-section h3 { margin: 0 0 16px; color: #2e403d; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+                .signature-section h3::before { content: '✓'; color: #2e403d; background: #c9dd80; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+                .signature-line { border-bottom: 1px solid #333; margin: 8px 0; }
+                .signature-meta { font-size: 10px; color: #666; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd; }
+                .signature-meta p { margin: 4px 0; }
+                .footer { margin-top: 24px; padding-top: 16px; border-top: 3px solid #c9dd80; font-size: 10px; color: #666; text-align: center; }
+                .footer p { margin: 4px 0; }
+                .download-btn { position: fixed; top: 20px; right: 20px; background: #2e403d; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 100; }
+                .download-btn:hover { background: #232f2d; }
+                @media print { 
+                    body { padding: 15px; font-size: 10px; } 
+                    h2 { font-size: 12px; } 
+                    .download-btn { display: none; }
+                }
+            </style>
+            </head>
+            <body>
+                <button class="download-btn" onclick="window.print()">⬇ Download PDF</button>
+                
+                <div class="header">
+                    <div class="header-left">
+                        <img src="${logoUrl}" alt="Logo" class="header-logo" onerror="this.style.display='none'">
+                        <div class="header-title">
+                            <h1>Pappas & Co. Landscaping</h1>
+                            <p><strong>SERVICE AGREEMENT</strong> | Quote #${quoteNumber}</p>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <p>pappaslandscaping.com</p>
+                        <p>hello@pappaslandscaping.com</p>
+                        <p>(440) 886-7318</p>
+                    </div>
+                </div>
+                
+                <table class="parties-table"><tr>
+                    <td>
+                        <p class="party-label">Service Provider</p>
+                        <p style="margin:0;"><strong>Pappas & Co. Landscaping</strong><br>
+                        T T Pappas Enterprises LLC<br>
+                        PO Box 770057<br>
+                        Lakewood, OH 44107<br>
+                        (440) 886-7318<br>
+                        hello@pappaslandscaping.com</p>
+                    </td>
+                    <td>
+                        <p class="party-label">Client</p>
+                        <p style="margin:0;"><strong>${quote.customer_name}</strong><br>
+                        ${quote.customer_address || ''}<br>
+                        ${quote.customer_email || ''}<br>
+                        ${quote.customer_phone || ''}</p>
+                    </td>
+                </tr></table>
+                
+                <div class="services-box">
+                    <h3>Services & Pricing</h3>
+                    <ul class="services-list">${servicesHtml}</ul>
+                    <div class="total-line">
+                        Total: $${parseFloat(quote.total).toFixed(2)}
+                        ${quote.monthly_payment ? ` | Monthly Payment: $${parseFloat(quote.monthly_payment).toFixed(2)}/mo` : ''}
+                    </div>
+                </div>
+                
+                <h2>I. Scope of Agreement</h2>
+                <div class="section">
+                    <p><strong>A. Associated Quote:</strong> This Agreement is directly tied to Quote/Proposal Number: <strong>${quoteNumber}</strong>.</p>
+                    <p><strong>B. Scope of Services:</strong> The Contractor agrees to provide services at the Client Service Address as detailed in the Proposal, which outlines the specific services, schedule, and pricing. This Proposal is hereby incorporated into and made a part of this Agreement.</p>
+                    <p><strong>C. Additional Work:</strong> Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved quote.</p>
+                </div>
+                
+                <h2>II. Terms and Renewal</h2>
+                <div class="section">
+                    <p><strong>A. Term:</strong> This Agreement begins on the Effective Date and remains in effect until canceled as outlined in Section IX.</p>
+                    <p><strong>B. Automatic Renewal:</strong> The Agreement automatically renews each year at the start of the new season, which begins in March, unless canceled in writing by either party at least 30 days before the new season begins.</p>
+                </div>
+                
+                <h2>III. Payment Terms</h2>
+                <div class="section">
+                    <p><strong>A. Mowing Services Invoicing:</strong></p>
+                    <ul>
+                        <li><strong>Per-Service Mowing:</strong> Invoices will be sent on the final day of each month.</li>
+                        <li><strong>Monthly Mowing Contracts:</strong> Invoices will be sent on the first day of each month.</li>
+                    </ul>
+                    <p><strong>B. All Other Services Invoicing:</strong> Invoices will be sent upon job completion.</p>
+                    <p><strong>C. Due Date:</strong> Payments are due upon receipt of the invoice.</p>
+                    <p><strong>D. Accepted Payment Methods:</strong> Major credit cards, Zelle, cash, checks, money orders, and bank transfers.</p>
+                    <p><strong>E. Fuel Surcharge:</strong> A small flat-rate fuel surcharge will be added to each invoice to help offset transportation-related costs.</p>
+                    <p><strong>F. Returned Checks:</strong> A $25 fee will be applied for any returned checks.</p>
+                </div>
+                
+                <h2>IV. Card on File Authorization and Fees</h2>
+                <div class="section">
+                    <p>By placing a credit or debit card on file, the Client authorizes Pappas & Co. Landscaping to charge that card for any services rendered under this Agreement, including applicable fees and surcharges.</p>
+                    <p><strong>Processing Fee:</strong> A processing fee of 2.9% + $0.30 applies to each successful domestic card transaction.</p>
+                    <div class="highlight-box">
+                        <strong>⚠️ For Monthly Service Contracts with card-on-file billing:</strong> If a scheduled payment fails, the Client will be notified and given 5 business days to update payment information. If payment is not resolved, the account will revert to per-service invoicing and standard late fee terms (Section V) will apply.
+                    </div>
+                </div>
+                
+                <h2>V. Late Fees and Suspension of Service</h2>
+                <div class="section">
+                    <p>Pappas & Co. Landscaping incurs upfront costs for labor, materials, and equipment. Late payments disrupt business operations, and the following fees and policies apply:</p>
+                    <ul>
+                        <li><strong>30-Day Late Fee:</strong> A 10% late fee will be applied if payment is not received within 30 days of the invoice date.</li>
+                        <li><strong>Recurring Late Fee:</strong> An additional 5% late fee will be applied for each additional 30-day period past due.</li>
+                        <li><strong>Service Suspension and Collections:</strong> If payment is not received within 60 days, services will be suspended, and Pappas & Co. Landscaping reserves the right to initiate collection proceedings.</li>
+                    </ul>
+                </div>
+                
+                <h2>VI. Client Responsibilities</h2>
+                <div class="section">
+                    <p>The Client agrees to the following:</p>
+                    <ul>
+                        <li><strong>Accessibility:</strong> All gates must be unlocked, and service areas must be accessible on the scheduled service day.</li>
+                        <li><strong>Return Trip Fee:</strong> A $25 return trip fee may be charged if rescheduling is needed due to Client-related access issues.</li>
+                        <li><strong>Property Clearance:</strong> The property must be free of hazards, obstacles, and pre-existing damage.</li>
+                        <li><strong>Personal Items:</strong> Our crew may move personal items if necessary to perform work, but we are not responsible for any damage caused by moving such items.</li>
+                        <li><strong>Pet Waste:</strong> All dog feces must be picked up prior to service. A $15 cleanup fee may be added if pet waste is present.</li>
+                        <li><strong>Underground Infrastructure:</strong> Pappas & Co. Landscaping is not liable for damage to underground utilities, irrigation lines, or invisible fences unless clearly marked and disclosed in advance.</li>
+                    </ul>
+                </div>
+                
+                <h2>VII. Lawn/Plant Installs (If Applicable)</h2>
+                <div class="section">
+                    <p>The Client is responsible for watering newly installed lawns and plants twice daily or as recommended. Pappas & Co. Landscaping is not responsible for plant or lawn failure due to lack of watering or improper care after installation.</p>
+                </div>
+                
+                <h2>VIII. Weather and Materials</h2>
+                <div class="section">
+                    <p><strong>A. Materials and Equipment:</strong> Pappas & Co. Landscaping will supply all materials, tools, and equipment necessary to perform the agreed-upon services unless specified otherwise.</p>
+                    <p><strong>B. Weather Disruptions:</strong> If inclement weather prevents services, Pappas & Co. Landscaping will make reasonable efforts to complete the service the following business day. Refunds or credits will not be issued for weather-related delays unless the service is permanently canceled.</p>
+                </div>
+                
+                <h2>IX. Cancellation and Termination</h2>
+                <div class="section">
+                    <p><strong>A. Non-Renewal:</strong> To stop the automatic renewal of this Agreement, the Client must provide written notice at least 30 days before the renewal date (March).</p>
+                    <p><strong>B. Mid-Season Cancellation by Client:</strong> To cancel service mid-season, the Client must provide 15 days' written notice. No refunds are given for prepaid services or unused portions of seasonal contracts.</p>
+                    <p><strong>C. Termination by Contractor:</strong> Pappas & Co. Landscaping may cancel service at any time with 15 days' notice.</p>
+                </div>
+                
+                <h2>X. Liability, Insurance, and Quality</h2>
+                <div class="section">
+                    <p><strong>A. Quality of Workmanship:</strong> Pappas & Co. Landscaping will perform all services with due care and in accordance with industry standards. If defects occur, the Client must notify us within 7 days of service completion.</p>
+                    <p><strong>B. Independent Contractor:</strong> Pappas & Co. Landscaping is an independent contractor and is not an employee, partner, or agent of the Client.</p>
+                    <p><strong>C. Indemnification:</strong> Pappas & Co. Landscaping agrees to indemnify and hold harmless the Client from claims arising directly from its performance of work.</p>
+                    <p><strong>D. Limitation of Liability:</strong> The total liability of Pappas & Co. Landscaping for any claim shall not exceed the total amount paid by the Client under this agreement.</p>
+                    <p><strong>E. Insurance:</strong> Pappas & Co. Landscaping carries general liability insurance, automobile liability insurance, and workers' compensation insurance as required by law.</p>
+                    <p><strong>F. Force Majeure:</strong> Neither party shall be held liable for delays caused by events beyond their reasonable control.</p>
+                </div>
+                
+                <h2>XI. Governing Law and Dispute Resolution</h2>
+                <div class="section">
+                    <p><strong>A. Jurisdiction:</strong> This agreement shall be governed by the laws of the State of Ohio. Any disputes shall be resolved in the county courts of Cuyahoga County, Ohio.</p>
+                    <p><strong>B. Dispute Resolution:</strong> Any disputes will first be subject to good-faith negotiations between the parties.</p>
+                </div>
+                
+                <h2>XII. Acceptance of Agreement</h2>
+                <div class="section">
+                    <p>By signing below, the parties acknowledge that they have read, understand, and agree to the terms and conditions of this Landscaping Services Agreement and the incorporated Proposal/Quote.</p>
+                </div>
+                
+                <div class="signature-section">
+                    <h3>Agreement Accepted & Digitally Signed</h3>
+                    <p>By signing below, the Client agrees to all terms and conditions of this Service Agreement.</p>
+                    
+                    <div style="margin: 20px 0;">
+                        <p style="margin:0;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px;">Client Signature</p>
+                        ${signatureDisplay}
+                        <div class="signature-line"></div>
+                        <p style="margin:8px 0 0;"><strong>${quote.contract_signer_name || quote.signed_by_name}</strong></p>
+                    </div>
+                    
+                    <div class="signature-meta">
+                        <p><strong>Date Signed:</strong> ${signedDate}</p>
+                        <p><strong>Signature Method:</strong> ${quote.contract_signature_type === 'draw' ? 'Hand-drawn digital signature' : 'Typed signature'}</p>
+                        <p><strong>IP Address:</strong> ${quote.contract_signer_ip || 'Recorded'}</p>
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <p><strong>Pappas & Co. Landscaping</strong> | T T Pappas Enterprises LLC</p>
+                    <p>PO Box 770057, Lakewood, OH 44107 | (440) 886-7318 | hello@pappaslandscaping.com | pappaslandscaping.com</p>
+                    <p style="margin-top:8px;font-style:italic;">This document serves as a legally binding agreement between the parties.</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+        // Don't auto-print - let user click the download button
+    }
+
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentStatus = btn.dataset.status;
+            loadQuotes();
+        });
+    });
+
+    // Search
+    let searchTimeout;
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchQuery = e.target.value;
+            loadQuotes();
+        }, 300);
+    });
+
+    // Toast
+    function showToast(msg, err = false) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.style.background = err ? '#dc2626' : '#2e403d';
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+
+    // Universal Search
+    let searchDebounceTimer = null;
+    function initUniversalSearch() {
+        const input = document.getElementById('universalSearch');
+        const results = document.getElementById('searchResults');
+        const clear = document.getElementById('searchClear');
+        if (!input) return;
+        document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey)&&e.key==='k') { e.preventDefault(); input.focus(); } });
+        input.addEventListener('input', () => {
+            clearTimeout(searchDebounceTimer);
+            const q = input.value.trim();
+            if (!q) { results.style.display='none'; clear.style.display='none'; return; }
+            clear.style.display='flex';
+            searchDebounceTimer = setTimeout(() => performSearch(q), 300);
+        });
+        clear.addEventListener('click', () => { input.value=''; results.style.display='none'; clear.style.display='none'; input.focus(); });
+        input.addEventListener('blur', () => setTimeout(() => results.style.display='none', 200));
+        input.addEventListener('keydown', e => { if (e.key==='Escape') { results.style.display='none'; input.blur(); } });
+    }
+    function escHtml(t) { const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+    async function performSearch(query) {
+        const el = document.getElementById('searchResults');
+        el.innerHTML = '<div class="search-loading">Searching...</div>';
+        el.style.display = 'block';
+        try {
+            const [cRes, qRes, pRes] = await Promise.all([
+                fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),
+                fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),
+                fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')
+            ]);
+            const customers = ((await cRes.json()).customers||[]).slice(0,4);
+            const quotes = ((await qRes.json()).quotes||[]).slice(0,4);
+            const properties = ((await pRes.json()).properties||[]).slice(0,4);
+            let html = '';
+            if (customers.length) {
+                html += '<div class="search-results-group"><div class="search-group-label">Customers</div>';
+                customers.forEach(c => { html += '<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+escHtml(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+escHtml(c.email||c.phone||'')+'</div></div></a>'; });
+                html += '</div>';
+            }
+            if (quotes.length) {
+                html += '<div class="search-results-group"><div class="search-group-label">Quotes</div>';
+                quotes.forEach(q => { html += '<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+escHtml(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+escHtml(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+escHtml(q.status||'')+'</span></a>'; });
+                html += '</div>';
+            }
+            if (properties.length) {
+                html += '<div class="search-results-group"><div class="search-group-label">Properties</div>';
+                properties.forEach(p => { html += '<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+escHtml(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+escHtml([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'; });
+                html += '</div>';
+            }
+            if (!html) html = '<div class="search-empty">No results found for "'+escHtml(query)+'"</div>';
+            el.innerHTML = html;
+        } catch(e) {
+            el.innerHTML = '<div class="search-empty">Search failed. Please try again.</div>';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', initUniversalSearch);
+    // Initial load
+    loadQuotes();
+</script>
+</body>
+</html>

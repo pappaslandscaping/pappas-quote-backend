@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Generator | Pappas & Co.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            min-height: 100vh;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-brand img { height: 80px; width: 80px; border-radius: 50%; }
+
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 24px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover { background: var(--gray-100); color: var(--forest); }
+        .nav-item.active { background: rgba(46,64,61,0.08); color: var(--forest); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+        .nav-item.active svg { opacity: 1; }
+
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--forest);
+            color: var(--lime);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .nav-item.disabled {
+            opacity: 0.35;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .nav-item.disabled::after {
+            content: 'Soon';
+            margin-left: auto;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.6;
+        }
+
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-200); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+
+        .sidebar-user .avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 13px;
+        }
+
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); padding: 32px 40px; }
+        .page-header { margin-bottom: 32px; }
+        .page-title { font-family: 'Qualy', sans-serif; font-size: 28px; color: var(--forest); }
+
+        .layout { display: grid; grid-template-columns: 380px 1fr; gap: 32px; }
+
+        .panel { background: var(--white); border-radius: 12px; border: 1px solid var(--gray-200); }
+        .panel-body { padding: 24px; }
+
+        /* Quote Type Toggle */
+        .quote-type-toggle {
+            display: flex;
+            background: var(--gray-100);
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-500);
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn.active {
+            background: var(--white);
+            color: var(--forest);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+        }
+
+        .toggle-btn:hover:not(.active) {
+            color: var(--gray-700);
+        }
+
+        .upload-area {
+            border: 2px dashed var(--gray-200);
+            border-radius: 10px;
+            padding: 28px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover { border-color: var(--forest); background: #f5f5f5; }
+        .upload-area svg { width: 28px; height: 28px; color: var(--forest); margin-bottom: 8px; }
+        .upload-area p { font-size: 13px; color: var(--gray-500); }
+        .upload-area strong { color: var(--forest); }
+        .upload-area.has-file { border-color: var(--forest); background: #f0f7f0; }
+        .upload-area.has-file p { color: var(--forest); }
+
+        .divider { text-align: center; font-size: 11px; color: var(--gray-400); margin: 20px 0; display: flex; align-items: center; gap: 12px; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+
+        .field { margin-bottom: 16px; }
+        .field label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+        .field input, .field select { width: 100%; padding: 10px 14px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 14px; font-family: inherit; }
+        .field input:focus, .field select:focus { outline: none; border-color: var(--forest); }
+
+        .services-head { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 12px; padding-top: 20px; border-top: 1px solid var(--gray-100); }
+        .services-head span { font-size: 12px; font-weight: 600; color: var(--gray-600); }
+        .btn-add { font-size: 12px; color: var(--forest); background: #f0f0f0; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 600; }
+        .btn-add:hover { background: var(--forest); color: white; }
+
+        .svc-row { display: grid; grid-template-columns: 1fr 90px 28px; gap: 8px; margin-bottom: 10px; align-items: center; }
+        .svc-row select, .svc-row input { padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 13px; font-family: inherit; }
+        .svc-row select:focus, .svc-row input:focus { outline: none; border-color: var(--forest); }
+        .svc-row .custom-input { display: none; margin-top: 8px; }
+        .svc-row .custom-input.show { display: block; }
+        .svc-desc { 
+            width: 100%; 
+            margin-top: 8px; 
+            padding: 10px 12px; 
+            border: 1px solid var(--gray-200); 
+            border-radius: 6px; 
+            font-size: 12px; 
+            font-family: inherit; 
+            resize: vertical;
+            min-height: 60px;
+            line-height: 1.5;
+        }
+        .svc-desc:focus { outline: none; border-color: var(--forest); }
+        .svc-wrapper { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--gray-100); }
+        .btn-del { width: 28px; height: 28px; border: none; background: none; color: var(--gray-400); cursor: pointer; border-radius: 5px; font-size: 16px; }
+        .btn-del:hover { background: #fef2f2; color: #dc2626; }
+
+        .svc-wrapper { margin-bottom: 10px; }
+
+        .summary { background: #f5f5f5; border-radius: 10px; padding: 16px; margin-top: 20px; }
+        .sum-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; color: var(--gray-600); }
+        .sum-row.total { font-weight: 600; color: var(--gray-700); padding-top: 10px; margin-top: 6px; border-top: 1px solid rgba(74,124,89,0.2); }
+        .sum-row.monthly { font-size: 16px; font-weight: 700; color: var(--forest); padding-top: 10px; margin-top: 6px; border-top: 1px solid rgba(74,124,89,0.2); }
+
+        .btn-generate { width: 100%; padding: 14px; background: var(--forest); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 20px; }
+        .btn-generate:hover { background: var(--forest-dark); }
+
+        .preview-wrapper { background: var(--gray-200); border-radius: 10px; padding: 32px; display: flex; justify-content: center; min-height: 900px; }
+
+        .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--gray-400); }
+        .placeholder svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+        /* === QUOTE DOCUMENT === */
+        /* ===== BRANDED QUOTE PREVIEW ===== */
+        .quote-doc {
+            background: white;
+            width: 100%;
+            max-width: 680px;
+            position: relative;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .quote-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 24px 32px;
+            border-bottom: 4px solid var(--lime);
+        }
+
+        .quote-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .quote-header-logo {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+        }
+
+        .quote-header-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--forest);
+            margin: 0 0 2px;
+        }
+
+        .quote-header-subtitle {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin: 0;
+        }
+
+        .quote-header-right {
+            text-align: right;
+        }
+
+        .quote-header-right p {
+            font-size: 11px;
+            color: var(--gray-500);
+            margin: 2px 0;
+        }
+
+        .quote-content {
+            padding: 24px 32px;
+        }
+
+        .quote-badge {
+            display: inline-block;
+            background: var(--forest);
+            color: var(--lime);
+            padding: 8px 18px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .quote-info-row {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .quote-info-box {
+            flex: 1;
+        }
+
+        .quote-info-box.prepared-for {
+            background: white;
+            border: 2px solid var(--forest);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .quote-info-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--gray-500);
+            margin-bottom: 8px;
+        }
+
+        .quote-info-box h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--forest);
+            margin: 0 0 6px;
+        }
+
+        .quote-info-box p {
+            font-size: 12px;
+            color: var(--gray-600);
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+
+        .quote-details p {
+            margin: 4px 0;
+        }
+
+        .services-section {
+            margin-bottom: 20px;
+        }
+
+        .services-header {
+            background: var(--forest);
+            color: var(--lime);
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .quote-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            border: 2px solid var(--forest);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .quote-table th {
+            background: #f8f8f8;
+            padding: 10px 16px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--gray-500);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .quote-table th:last-child {
+            text-align: right;
+        }
+
+        .quote-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            color: var(--gray-700);
+            background: white;
+        }
+
+        .quote-table td:last-child {
+            text-align: right;
+            font-weight: 500;
+        }
+
+        .quote-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .svc-title {
+            font-weight: 600;
+            color: var(--forest);
+            margin-bottom: 6px;
+        }
+
+        .svc-description {
+            font-size: 11px;
+            color: var(--gray-500);
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .svc-amount {
+            vertical-align: top;
+            padding-top: 14px !important;
+        }
+
+        .quote-totals-box {
+            background: white;
+            border: 2px solid var(--forest);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .totals-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            color: var(--gray-600);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .totals-line:last-child {
+            border-bottom: none;
+        }
+
+        .totals-line.total-line {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--forest);
+            padding-top: 12px;
+            margin-top: 8px;
+            border-top: 2px solid var(--forest);
+            border-bottom: none;
+        }
+
+        .quote-monthly {
+            background: var(--forest);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .quote-monthly-label {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .quote-monthly-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--lime);
+        }
+
+        .quote-validity {
+            background: white;
+            border: 2px solid var(--forest);
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 12px;
+            color: var(--forest);
+            line-height: 1.5;
+        }
+
+        .preview-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+        .btn-action { padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .btn-action.primary { background: var(--forest); color: white; border: none; }
+        .btn-action.primary:hover { background: var(--forest-dark); }
+        .btn-action.secondary { background: white; color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-action.secondary:hover { border-color: var(--gray-400); }
+
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; opacity: 0; transform: translateY(10px); transition: all 0.3s; z-index: 1000; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+        
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+        
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+        }
+        
+        /* Customer Autocomplete */
+        .customer-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        .customer-dropdown.show { display: block; }
+        .customer-option {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .customer-option:last-child { border-bottom: none; }
+        .customer-option:hover { background: var(--gray-100); }
+        .customer-option .name { font-weight: 600; color: var(--gray-700); }
+        .customer-option .details { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas & Company Landscaping">
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a class="nav-item" href="quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Quote Requests
+            </a>
+            <a class="nav-item" href="quote-calculator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h8M8 14h4"/></svg>
+                Quote Calculator
+            </a>
+            <a class="nav-item active" href="quote-generator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Quote Generator
+            </a>
+            <a class="nav-item" href="sent-quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Sent Quotes
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="customers.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Customers
+            </a>
+            <a class="nav-item" href="properties.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Properties
+            </a>
+            <a class="nav-item" href="scheduling.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Scheduling
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Messages & Calls
+            </a>
+            <a class="nav-item" href="cancellations.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                Cancellations
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a class="nav-item" href="campaigns.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Campaigns
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a class="nav-item" href="expenses.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
+                Expenses
+            </a>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Invoicing
+            </a>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Revenue
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Crew
+            </a>
+            <a class="nav-item disabled">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                Reports
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<main class="main">
+    <div class="page-header">
+        <h1 class="page-title">Quote Generator</h1>
+    </div>
+
+    <div class="layout">
+        <div class="panel">
+            <div class="panel-body">
+                <!-- Quote Type Toggle -->
+                <div class="quote-type-toggle">
+                    <button class="toggle-btn active" data-type="regular" onclick="setQuoteType('regular')">Regular Quote</button>
+                    <button class="toggle-btn" data-type="monthly" onclick="setQuoteType('monthly')">Monthly Plan</button>
+                </div>
+
+                <div class="upload-area" id="uploadArea">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <p><strong>Upload estimate PDF</strong></p>
+                    <p id="fileName" style="margin-top:8px; font-size:12px; color:var(--forest); display:none;"></p>
+                    <input type="file" id="pdfInput" accept=".pdf" style="display:none">
+                </div>
+
+                <div class="divider">or enter manually</div>
+
+                <div class="field">
+                    <label>Quote/Estimate Number</label>
+                    <input type="text" id="quoteNum" placeholder="1501">
+                </div>
+
+                <div class="field" id="custNameField" style="position:relative;">
+                    <label>Customer Name</label>
+                    <input type="text" id="custName" placeholder="John Smith" autocomplete="off">
+                    <div class="customer-dropdown" id="customerDropdown"></div>
+                </div>
+
+                <div class="field">
+                    <label>Customer Email</label>
+                    <input type="email" id="custEmail" placeholder="john@example.com">
+                </div>
+
+                <div class="field">
+                    <label>Customer Phone</label>
+                    <input type="tel" id="custPhone" placeholder="440-555-1234">
+                </div>
+
+                <div class="field">
+                    <label>Property Address</label>
+                    <input type="text" id="custAddr" placeholder="123 Main St, Lakewood, OH 44107">
+                </div>
+
+                <div class="services-head">
+                    <span>Services (Pre-Tax)</span>
+                    <button class="btn-add" onclick="addSvc()">+ Add</button>
+                </div>
+
+                <div id="svcList"></div>
+
+                <div class="summary">
+                    <div class="sum-row"><span>Subtotal</span><span id="sumSub">$0.00</span></div>
+                    <div class="sum-row"><span>Tax (8%)</span><span id="sumTax">$0.00</span></div>
+                    <div class="sum-row total"><span id="totalLabel">Total</span><span id="sumTotal">$0.00</span></div>
+                    <div class="sum-row monthly" id="monthlyRow"><span>Monthly</span><span id="sumMonthly">$0.00/mo</span></div>
+                </div>
+
+                <button class="btn-generate" onclick="generateQuote()">Generate Quote</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-body">
+                <div class="preview-wrapper">
+                    <div class="placeholder" id="placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <p>Enter details to preview</p>
+                    </div>
+
+                    <div class="quote-doc" id="quoteDoc" style="display:none">
+                        <!-- Branded Header -->
+                        <div class="quote-header">
+                            <div class="quote-header-left">
+                                <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=100w" alt="Logo" class="quote-header-logo">
+                                <div>
+                                    <h1 class="quote-header-title">Pappas & Co. Landscaping</h1>
+                                    <p class="quote-header-subtitle">Professional Lawn Care Services</p>
+                                </div>
+                            </div>
+                            <div class="quote-header-right">
+                                <p>pappaslandscaping.com</p>
+                                <p>hello@pappaslandscaping.com</p>
+                                <p>(440) 886-7318</p>
+                            </div>
+                        </div>
+
+                        <div class="quote-content">
+                            <div class="quote-badge" id="quoteBadge">Quote #</div>
+
+                            <div class="quote-info-row">
+                                <div class="quote-info-box prepared-for">
+                                    <div class="quote-info-label">PREPARED FOR</div>
+                                    <h3 id="docName">Customer Name</h3>
+                                    <p id="docAddr">Address</p>
+                                    <p id="docEmail"></p>
+                                    <p id="docPhone"></p>
+                                </div>
+                                <div class="quote-info-box quote-details">
+                                    <div class="quote-info-label">QUOTE DETAILS</div>
+                                    <p><strong>Date:</strong> <span id="docDate"></span></p>
+                                    <p><strong>Valid For:</strong> 30 Days</p>
+                                    <p><strong>Quote #:</strong> <span id="docQuoteNum"></span></p>
+                                </div>
+                            </div>
+
+                            <div class="services-section">
+                                <div class="services-header">Services Included</div>
+                                <table class="quote-table">
+                                    <thead>
+                                        <tr>
+                                            <th>SERVICE DESCRIPTION</th>
+                                            <th>AMOUNT</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="docServices"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="quote-totals-box">
+                                <div class="totals-line">
+                                    <span>Subtotal</span>
+                                    <span id="docSub">$0.00</span>
+                                </div>
+                                <div class="totals-line">
+                                    <span>Tax (8.00%)</span>
+                                    <span id="docTax">$0.00</span>
+                                </div>
+                                <div class="totals-line total-line">
+                                    <span id="docTotalLabel">Total</span>
+                                    <span id="docTotal">$0.00</span>
+                                </div>
+                            </div>
+
+                            <div class="quote-monthly" id="monthlyBox" style="display:none">
+                                <span class="quote-monthly-label">Monthly Payment Plan</span>
+                                <span class="quote-monthly-amount" id="docMonthly">$0.00/mo</span>
+                            </div>
+
+                            <div class="quote-validity">
+                                ⏰ <strong>This quote is valid for 30 days.</strong> Prices are subject to change after the expiration date. Contact us to lock in your rate today!
+                            </div>
+                        </div>
+                        
+                        <!-- Hidden elements for JS compatibility -->
+                        <div style="display:none">
+                            <span id="docTitle"></span>
+                            <span id="quoteNumDisplay"></span>
+                            <span id="docValidDate"></span>
+                            <div id="termsContent"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-actions" id="actions" style="display:none">
+                    <button class="btn-action primary" onclick="saveAndSendQuote()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                        Save & Send
+                    </button>
+                    <button class="btn-action secondary" onclick="saveQuote()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Save Draft
+                    </button>
+                    <button class="btn-action secondary" onclick="downloadPDF()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    // Initialize PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // Services list
+    const SERVICES = [
+        'Mowing (Weekly)',
+        'Mowing (Bi-Weekly)',
+        'Mowing (Monthly)',
+        'Mowing (One Time Cut)',
+        'Spring Cleanup',
+        'Fall Cleanup',
+        'Fall Cleanup (One Time Charge)',
+        'Fertilizing - Early Spring',
+        'Fertilizing - Late Spring',
+        'Fertilizing - Early Summer',
+        'Fertilizing - Late Summer',
+        'Fertilizing - Fall',
+        'Fertilizing (Per Application)',
+        'Aeration',
+        'Dethatching',
+        'Overseeding',
+        'Mulching',
+        'Shrub Trimming (Per Occurrence)',
+        'Shrub & Hedge Trimming',
+        'Bed Edging',
+        'Bed Cleanup',
+        'Weed Control (Monthly)',
+        'Snow Removal Contract',
+        'Snow Removal Per Push',
+        'Salt Application (Per Visit)',
+        'Power Washing',
+        'Yard Cleanup',
+        'Storm Cleanup',
+        'Stump Grinding',
+        'Top Dressing',
+        'Sod Installation',
+        'Landscaping',
+        '— Custom —'
+    ];
+
+    let quoteType = 'regular'; // 'regular' or 'monthly'
+
+    // Toggle quote type
+    function setQuoteType(type) {
+        quoteType = type;
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === type);
+        });
+        
+        // Show/hide monthly row in summary
+        document.getElementById('monthlyRow').style.display = type === 'monthly' ? 'flex' : 'none';
+        document.getElementById('totalLabel').textContent = type === 'monthly' ? 'Annual Total' : 'Total';
+        
+        calcTotals();
+    }
+
+    // PDF Upload - attach handlers immediately (elements exist at this point)
+    (function() {
+        const uploadArea = document.getElementById('uploadArea');
+        const pdfInput = document.getElementById('pdfInput');
+        
+        if (uploadArea && pdfInput) {
+            uploadArea.onclick = function() { pdfInput.click(); };
+            uploadArea.ondragover = function(e) { e.preventDefault(); uploadArea.style.borderColor = '#2e403d'; uploadArea.style.background = '#f4f9f6'; };
+            uploadArea.ondragleave = function() { uploadArea.style.borderColor = ''; uploadArea.style.background = ''; };
+            uploadArea.ondrop = function(e) { e.preventDefault(); uploadArea.style.borderColor = ''; uploadArea.style.background = ''; if (e.dataTransfer.files[0] && e.dataTransfer.files[0].type === 'application/pdf') processPDF(e.dataTransfer.files[0]); };
+            pdfInput.onchange = function(e) { if (e.target.files[0]) processPDF(e.target.files[0]); };
+            console.log('PDF upload handlers attached!');
+        } else {
+            console.error('Upload elements not found!', uploadArea, pdfInput);
+        }
+    })();
+
+    async function processPDF(file) {
+        try {
+            showToast('Processing PDF...');
+            uploadArea.classList.add('has-file');
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileName').style.display = 'block';
+            
+            const pdf = await pdfjsLib.getDocument(await file.arrayBuffer()).promise;
+            let text = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                // Join with newlines to preserve line structure for parsing
+                text += content.items.map(item => item.str).join('\n') + '\n';
+            }
+            console.log('Extracted PDF text:', text);
+            parseEstimate(text);
+            showToast('PDF loaded!');
+        } catch (e) {
+            console.error(e);
+            showToast('Error processing PDF', true);
+        }
+    }
+
+    function parseEstimate(text) {
+        console.log('=== RAW PDF TEXT ===');
+        console.log(text.substring(0, 2000));
+        
+        // Clear existing services
+        document.getElementById('svcList').innerHTML = '';
+        
+        // Extract Estimate/Quote number
+        const estimateNumMatch = text.match(/(?:Estimate|Quote)\s*#?\s*:?\s*(\d+)/i);
+        if (estimateNumMatch) {
+            document.getElementById('quoteNum').value = estimateNumMatch[1];
+        }
+        
+        // Extract customer name
+        const nameMatch = text.match(/www\.pappaslandscaping\.com\s+([A-Za-z][A-Za-z\s\.]+?)\s+\d{3,5}\s+/);
+        if (nameMatch) {
+            const customerName = nameMatch[1].trim();
+            document.getElementById('custName').value = customerName;
+            
+            // Try to look up customer details (email, phone) from database
+            lookupCustomer(customerName);
+        }
+
+        // Extract PROPERTY ADDRESS
+        const propertyAddrMatch = text.match(/Property Address:\s*(\d+\s+[A-Za-z]+\s+(?:Avenue|Ave|Street|St|Lane|Ln|Drive|Dr|Road|Rd|Boulevard|Blvd|Way)[^,]*),?\s*(Lakewood|Cleveland|Rocky River|Bay Village|Brook Park|Westlake|Fairview Park|Parma)?\s*(?:OH)?,?\s*(\d{5})?/i);
+        if (propertyAddrMatch) {
+            let addr = propertyAddrMatch[1].trim();
+            if (propertyAddrMatch[2]) addr += ', ' + propertyAddrMatch[2];
+            if (propertyAddrMatch[3]) addr += ' OH ' + propertyAddrMatch[3];
+            else addr += ' OH';
+            document.getElementById('custAddr').value = addr;
+        }
+
+        // Service descriptions
+        const SERVICE_DESCRIPTIONS = {
+            'Mowing (Weekly)': `1. Mowing: We use commercial-grade walk-behind mowers to cut your lawn weekly at the proper height for healthy growth and a well-maintained appearance. Cutting height is adjusted based on seasonal conditions.
+2. Trimming: We trim around trees, flower beds, and pathways to maintain a clean, uniform look in areas mowers can't reach.
+3. Cleanup: All grass clippings and debris will be removed, and all concrete surfaces (sidewalks, driveways, patios) will be blown off.
+Edging of concrete is available as an add-on for an additional cost.`,
+            'Mowing (Bi-Weekly)': `1. Mowing: We use commercial-grade walk-behind mowers to cut your lawn bi-weekly at the proper height for healthy growth and a well-maintained appearance. Cutting height is adjusted based on seasonal conditions.
+2. Trimming: We trim around trees, flower beds, and pathways to maintain a clean, uniform look in areas mowers can't reach.
+3. Cleanup: All grass clippings and debris will be removed, and all concrete surfaces (sidewalks, driveways, patios) will be blown off.
+Edging of concrete is available as an add-on for an additional cost.`,
+            'Mowing (Monthly)': `Mowing: We will use commercial-grade walk behind mowers to efficiently mow your lawn weekly to the appropriate height, promoting healthy growth and a lush appearance. We adjust the cutting height based on seasonal conditions and grass type to achieve optimal results.
+Trimming: We will trim around landscape features, such as trees, flower beds, and pathways, using string trimmers to reach areas inaccessible to mowers. This attention to detail ensures a clean and polished look for your entire lawn.
+Edging (Optional): We will carefully edge along sidewalks, driveways, and other hardscape surfaces using precision tools, creating crisp lines that enhance the overall appearance of your property. Edging also helps prevent grass from encroaching onto paved areas. Be aware, we do not edge asphalt driveways.
+Cleanup: After completing the mowing, trimming, and edging tasks, we thoroughly clean up any grass clippings and debris from your property.`,
+            'Mowing (One Time Cut)': `Mowing: We will use commercial-grade walk behind mowers to efficiently mow your lawn one time to the appropriate height, promoting healthy growth and a lush appearance. We adjust the cutting height based on seasonal conditions and grass type to achieve optimal results.
+Trimming: We will trim around landscape features, such as trees, flower beds, and pathways, using string trimmers to reach areas inaccessible to mowers. This attention to detail ensures a clean and polished look for your entire lawn.
+Edging: We will carefully edge along sidewalks, driveways, and other hardscape surfaces using precision tools, creating crisp lines that enhance the overall appearance of your property. Edging also helps prevent grass from encroaching onto paved areas. Be aware, we do not edge asphalt driveways.
+Cleanup: After completing the mowing, trimming, and edging tasks, we thoroughly clean up any grass clippings and debris from your property.`,
+            'Spring Cleanup': `1. Debris Removal: We will clear fallen branches, leaves, and dead plant material from your yard, landscaping beds, and around trees and shrubs.
+2. Lawn Blowing: We will blow through your lawn to remove thatch, dead grass, acorns, and small sticks, creating a clean surface for healthy growth.
+3. Perennial Trimming: We will trim back only overgrown perennials to prepare them for the growing season while leaving others undisturbed.`,
+            'Fall Cleanup': `Collection and removal of any leaves and debris littering your property as a result of the changing seasons. Multiple visits as needed throughout the fall season.`,
+            'Fall Cleanup (One Time Charge)': `Leaf Removal:
+1. Our fall cleanup service includes thorough weekly leaf removal from the end of October through the end of November, or early December, depending on the weather, to prevent the buildup of leaves on lawns, flower beds, and other landscape areas.
+2. We use specialized equipment to efficiently collect leaves, ensuring a tidy and debris-free environment.
+
+Debris Removal:
+1. In addition to leaves, our fall cleanup service addresses the removal of other debris such as branches.
+2. We dispose of the debris, leaving your property clean and clutter-free.`,
+            'Fertilizing - Early Spring': `Fertilization & Pre-Emergent Crabgrass Control
+
+Pre-Emergent is formulated to reduce unsightly infestation of annual grasses from emerging such as crabgrass, goosegrass, foxtail, and barnyard. This product works by establishing a barrier at the soil surface that interrupts the development of these grasses. Fertilizer is crucial to help the lawn recover from winter stresses and helps promote spring greening without excessive top growth.`,
+            'Fertilizing - Late Spring': `Weed Control & Fertilization
+
+This low-volume liquid product is formulated to control existing broadleaf weeds such as dandelions, plantain, chickweed, thistle, spurge, and clover. Fertilizer will provide the nutrients to improve your lawn's color, heartiness, and density.`,
+            'Fertilizing - Early Summer': `Fertilization, Insecticide, & Weed Control
+
+The insect-control product helps to prevent infestation of lawn-damaging surface insects such as chinch bugs, billbugs, and sod webworms and subsurface insects such as white grubs. Fertilizer provides nutrients to improve tolerance to summer heat and drought, which will help to sustain your lawn through the stresses of summer. Broadleaf weed control is applied as required to help maintain a weed-free lawn.`,
+            'Fertilizing - Late Summer': `Fertilization & Weed Control
+
+Fertilizer will help your lawn recover from the stresses of summer and help build new roots, tillers, and grass plants. Cooler temperatures and better moisture accelerate plant growth and increase density through early fall. Broadleaf weed control is applied as required to help maintain a weed-free lawn.`,
+            'Fertilizing - Fall': `Fertilization & Winterization
+
+Fertilizer promotes healthy root growth and development, which takes place from late fall into early winter. It replenishes important nutrient reserves in the soil, which provides extra energy for winter survival and is stored to be used for an early spring green-up.`,
+            'Fertilizing (Per Application)': `Fertilization Plan: We provide a five application fertilization plan throughout the landscaping season which includes an application in early spring, late spring, early summer, late summer and fall.
+High-Quality Fertilizers: We use premium-quality fertilizers specially formulated to deliver the essential nutrients your lawn needs for optimal growth and vitality.
+Weed and Pest Control: Our fertilization treatments may include weed and pest control measures to help keep your lawn healthy and free from unwanted invaders.`,
+            'Aeration': `Soil Aeration: We will perforate your lawn with small cores to improve air, water, and nutrient flow, reducing compaction and supporting stronger root growth.
+Full Coverage: We will aerate the entire lawn, focusing on compacted and high-traffic areas for maximum benefit.
+Optimal Timing: Service will be scheduled at the best time to promote healthy turf growth.
+Overseeding (Optional): For a thicker lawn, overseeding can be added to help fill in thin or bare spots after aeration.`,
+            'Dethatching': `Thorough Thatch Removal: We utilize professional-grade dethatching equipment to systematically remove excess thatch from your lawn, ensuring thorough coverage and optimal results.
+Enhanced Grass Health: By eliminating thatch buildup, our service promotes better air circulation, water penetration, and nutrient absorption, fostering healthier grass growth and root development.
+Improved Lawn Aesthetic: Dethatching not only enhances the health of your lawn but also improves its visual appeal, resulting in a lush, green lawn that enhances the beauty of your property.`,
+            'Overseeding': `Seed Selection: We offer grass seed tailored to suit your specific climate, soil type, and sun exposure, ensuring the best possible outcomes for your lawn.
+Thorough Site Preparation: Prior to overseeding, we prepare the lawn and address any existing weeds or debris, creating an ideal environment for seed germination and growth.
+Professional Application Techniques: We employ overseeding techniques to ensure even seed distribution and proper seed-to-soil contact, maximizing seed germination rates and promoting robust turf establishment.
+Seasonal Timing: We schedule overseeding services at optimal times of the year to coincide with favorable weather conditions and grass growth cycles, maximizing the success of seed establishment and minimizing potential competition from weeds.
+Post-Overseeding Care: Following overseeding, we provide guidance on post-care maintenance practices, including watering schedules, mowing heights, and fertilization routines, to support healthy seedling growth and long-term lawn vitality.`,
+            'Mulching': `Premium Mulch: We use triple-shredded mulch to enhance your landscape and refresh your beds.
+Professional Application: Mulch will be evenly spread to ensure proper coverage while avoiding buildup around plants and trees.
+Weed Prevention: We will apply Snapshot Weed Preventer to help suppress weed growth and reduce maintenance.`,
+            'Shrub Trimming (Per Occurrence)': `Precision Pruning: We will remove dead or overgrown branches to support healthy growth and maintain a neat appearance.
+Shape Enhancement: Shrubs will be trimmed to enhance their natural form and complement your landscape.
+Size Management: We will keep shrubs at a balanced size to prevent overgrowth and maintain curb appeal.
+Cleanup: All trimmings and debris will be removed, leaving your yard clean and tidy.`,
+            'Shrub & Hedge Trimming': `Professional trimming of shrubs and hedges to maintain shape, encourage healthy growth, and keep your landscape looking neat and well-maintained.`,
+            'Bed Edging': `Create Defined Edges: We cut a clean, defined edge between your lawn and landscape beds using a professional bed edger.
+Professional Equipment: All edging is done with a commercial-grade bed edger for clean, consistent results.
+Debris Cleanup: We remove any loose soil, grass, or debris created during the edging process.`,
+            'Weed Control (Monthly)': `Targeted Herbicide Application: We will apply a professional-grade herbicide to eliminate actively growing weeds in your landscape beds. This ensures effective weed control while minimizing disruption to surrounding plants.
+Thorough Coverage: Our application process ensures that all areas with weed growth receive proper treatment. We focus on high-growth areas and problem spots to maximize effectiveness.
+Drying and Absorption: To allow for maximum effectiveness, the herbicide needs time to absorb into the weeds. We recommend avoiding watering or disturbing the treated areas for at least 24 hours.
+Weed Decomposition: Treated weeds will begin to wither and die within 7–14 days. No manual removal is performed; weeds will naturally break down over time.
+Ongoing Monthly Service: This service will be performed once per month from April through September to maintain a weed-free landscape. Regular applications ensure continued control throughout the growing season.`,
+            'Snow Removal Contract': `Plowing: Driveway clearing after every snow event of two (2) inches or more, ensuring your driveway remains accessible throughout the season.
+
+Snow Removal Timing: Snow will be removed from the driveway upon completion of snowfall when it reaches two (2) inches or more. Plowing will occur at any time throughout the 24-hour period based on snow conditions.
+
+Specific Conditions: Must be two (2) inches of new snowfall, not drifting snow. Actual service times depend on various factors, such as the time of snowfall, its duration, and total accumulation.
+
+Fixed Seasonal Rate: No surprises—just a straightforward fee for peace of mind all season.
+
+Season Duration: December 1st - March 31st
+
+Important Terms:
+No Refunds or Rebates: There shall be no refund, rebate, or offset to the total amount paid, regardless of the total snowfall accumulation for the season.
+
+Disclaimer: While we make every effort to keep your driveway free of snow and ice, Pappas & Co. Landscaping is not responsible for any slips, falls, or accidents that may occur before, during, or after our service. Weather conditions can change rapidly, and it is the property owner's responsibility to take additional safety measures, such as applying salt or ice melt, to further reduce hazards. By choosing our services, you acknowledge and accept that snow and ice management ultimately remains your responsibility.`,
+            'Snow Removal Per Push': `Plowing: Driveway clearing after each snow event of 2 inches or more. Service is billed per visit.
+
+Snow Removal Timing: Snow will be plowed once snowfall has ended and accumulation reaches 2 inches or more. Plowing may occur at any time within a 24-hour period depending on snow conditions.
+
+Specific Conditions: Service applies only to 2 inches of new snowfall (not drifting snow). Timing will vary based on start, duration, and total accumulation of each event.
+
+Billing: Each plow is invoiced individually after service is completed. Rates are based on your property size and agreed per-push pricing.
+
+Season Duration: December 1st – March 31st
+
+Important Terms:
+No minimum or maximum number of visits guaranteed.
+Charges apply only when service is performed.
+
+Disclaimer: While we make every effort to keep your driveway/parking lot clear, Pappas & Co. Landscaping is not responsible for slips, falls, or accidents that may occur before, during, or after service. Weather conditions can change quickly. Property owners are responsible for applying salt or ice melt to further reduce hazards.`,
+            'Salt Application (Per Visit)': `Deicing Treatment: Application of salt (or ice melt as specified) to driveways, walkways, and/or parking lots after each qualifying snow or ice event. Service is billed per visit.
+
+Application Timing: Salt will be applied after plowing. In the event of an ongoing storm, salt and/or salt substitute shall be applied as needed to keep areas under control and safe for pedestrians and vehicles. Service may occur at any time within a 24-hour period depending on conditions.
+
+Specific Conditions: Timing depends on snowfall start, duration, and total accumulation. Additional visits may be required if ice refreezes or additional accumulation occurs.
+
+Billing: Each salt application is invoiced individually after service is completed. Rates are based on your property size.
+
+Season Duration: December 1st – March 31st
+
+Important Terms:
+No minimum or maximum number of applications guaranteed.
+
+Disclaimer: While salt greatly reduces ice hazards, Pappas & Co. Landscaping is not responsible for slips, falls, or accidents that may occur before, during, or after service. Weather conditions can change quickly, and salt effectiveness may vary. Property owners should monitor surfaces and may need to request additional treatments. By choosing this service, you accept that snow and ice management ultimately remains your responsibility.`,
+            'Power Washing': `Surface Cleaning: We will use professional-grade power washing equipment to remove dirt, grime, algae, and stains from your driveways, sidewalks, and patios. This deep cleaning process restores the original appearance of your surfaces and enhances your property's curb appeal.
+Pressure Adjustment: We will adjust the water pressure and technique based on the surface material to ensure effective cleaning without causing damage. This approach helps maintain the longevity and integrity of your hardscapes.
+Detail Work: We will focus on stubborn stains and high-traffic areas, using specialized methods to lift embedded dirt and restore a fresh, clean look.
+Final Rinse & Cleanup: After completing the power washing process, we will rinse all surfaces thoroughly and ensure your property is left clean and free of debris.`,
+            'Yard Cleanup': `Debris Removal: We remove leaves, sticks, branches, and other debris from the lawn, landscape beds, and open areas for a clean, maintained look.
+Weeding & Overgrowth Control: We remove weeds from beds and hard surfaces and cut back any overgrown plants or perennials as needed.
+Concrete Edging: We edge along sidewalks, driveways, and other concrete surfaces to create crisp, clean lines.
+Blowing & Surface Cleanup: All hard surfaces are blown clean of grass, mulch, and debris.
+Haul-Away: All collected yard waste and debris are removed from the property.`,
+            'Storm Cleanup': `Debris Removal: We'll remove fallen branches, leaves, and any other storm-related debris scattered across your yard, ensuring a clean and safe environment.
+Tree and Shrub Cleanup: Our team will clear away broken branches and damaged plants, carefully disposing of all storm-damaged vegetation.
+Lawn and Garden Bed Cleanup: We'll tidy up your lawn and garden beds, removing debris.
+Final Cleanup: We'll conduct a thorough final cleanup, leaving your yard neat, tidy, and ready for use.`,
+            'Stump Grinding': `Initial Assessment: Our team will conduct a thorough inspection of the stump(s) and surrounding area to determine the best approach for grinding.
+State-of-the-Art Equipment: We use professional stump grinding equipment to ensure precise and effective removal of stumps, minimizing disruption to your yard.
+Safety First: Our trained professionals prioritize safety, ensuring that all stump grinding operations are carried out with the utmost care to protect your property and nearby structures.
+Clean-Up: After grinding, we will clean up the debris, leaving your yard tidy and ready for your next landscaping project.
+Site Restoration: If requested, we can also fill the resulting hole with soil and seed it to blend seamlessly with your existing lawn.`,
+            'Top Dressing': `Soil Application: We'll spread a layer of soil to improve turf growth and support a healthy lawn.
+Starter Fertilizer: A fertilizer mix will be added to strengthen roots and encourage growth.
+Peat Moss Layer: Peat moss will help retain moisture and improve soil quality.
+Even Coverage: Materials will be applied evenly for a smooth and well-prepared surface.
+Cleanup: We'll remove any excess materials, leaving your yard neat and ready for growth.`
+        };
+        
+        const services = [];
+        
+        // Split text into blocks by finding price patterns
+        // Each service ends with: XX.00 1 8 XX.XX
+        const pricePattern = /(\d+\.\d{2})\s+1\s+8\s+(\d+\.\d{2})/g;
+        let priceMatch;
+        const prices = [];
+        
+        while ((priceMatch = pricePattern.exec(text)) !== null) {
+            prices.push({
+                rate: parseFloat(priceMatch[1]),
+                index: priceMatch.index,
+                endIndex: priceMatch.index + priceMatch[0].length
+            });
+        }
+        
+        console.log('Found', prices.length, 'prices');
+        
+        // For each price, extract the block of text before it (since last price)
+        for (let i = 0; i < prices.length; i++) {
+            const blockStart = i === 0 ? 0 : prices[i-1].endIndex;
+            const blockEnd = prices[i].index;
+            const block = text.substring(blockStart, blockEnd);
+            
+            console.log(`\n--- Block ${i+1} ($${prices[i].rate}) ---`);
+            console.log(block.substring(0, 150));
+            
+            let serviceName = null;
+            
+            // Check for specific service patterns in this block
+            // Order matters - check most specific first
+            
+            // Mowing
+            if (!serviceName && /Mowing\s*\(Weekly\)/i.test(block)) {
+                serviceName = 'Mowing (Weekly)';
+            }
+            if (!serviceName && /Mowing\s*\(Bi-Weekly\)/i.test(block)) {
+                serviceName = 'Mowing (Bi-Weekly)';
+            }
+            
+            // Spring Cleanup - but NOT if this block is about fertilizing
+            if (!serviceName && /Spring\s+Cleanup/i.test(block) && !/Fertilizing/i.test(block)) {
+                serviceName = 'Spring Cleanup';
+            }
+            
+            // Fall Cleanup - check for (One Time Charge) variant by looking at content
+            if (!serviceName && /Fall\s+Cleanup/i.test(block) && !/Fertilizing[\s\n]+Fall/i.test(block)) {
+                // Check if this is the One Time Charge version (has "Leaf Removal" header or numbered list)
+                if (/Fall\s+Cleanup\s*\(One\s*Time\s*Charge\)/i.test(block) || /Leaf\s+Removal:/i.test(block) || /thorough\s+weekly\s+leaf\s+removal/i.test(block)) {
+                    serviceName = 'Fall Cleanup (One Time Charge)';
+                } else {
+                    serviceName = 'Fall Cleanup';
+                }
+            }
+            
+            // Fertilizing - check for season keywords
+            // The header format is "Fertilizing" followed by "Early Spring", "Late Spring", etc.
+            // Be careful not to match "early fall" in the description text
+            if (!serviceName && /Fertilizing/i.test(block)) {
+                // Look for the specific header patterns - "Fertilizing" near the season name
+                // Check in order of specificity
+                if (/Fertilizing[\s\n]+Early[\s\n]+Spring/i.test(block)) {
+                    serviceName = 'Fertilizing - Early Spring';
+                } else if (/Fertilizing[\s\n]+Late[\s\n]+Spring/i.test(block)) {
+                    serviceName = 'Fertilizing - Late Spring';
+                } else if (/Fertilizing[\s\n]+Early[\s\n]+Summer/i.test(block)) {
+                    serviceName = 'Fertilizing - Early Summer';
+                } else if (/Fertilizing[\s\n]+Late[\s\n]+Summer/i.test(block)) {
+                    serviceName = 'Fertilizing - Late Summer';
+                } else if (/Fertilizing[\s\n]+Fall(?![\s\n]*Cleanup)/i.test(block)) {
+                    // "Fertilizing Fall" but not "Fertilizing Fall Cleanup"
+                    serviceName = 'Fertilizing - Fall';
+                }
+            }
+            
+            // Other services
+            if (!serviceName && /\bAeration\b/i.test(block)) serviceName = 'Aeration';
+            if (!serviceName && /Mulching/i.test(block)) serviceName = 'Mulching';
+            if (!serviceName && /Shrub.*Hedge.*Trim/i.test(block)) serviceName = 'Shrub & Hedge Trimming';
+            if (!serviceName && /Snow\s*Removal/i.test(block)) serviceName = 'Snow Removal';
+            if (!serviceName && /Overseeding/i.test(block)) serviceName = 'Overseeding';
+            if (!serviceName && /Dethatching/i.test(block)) serviceName = 'Dethatching';
+            
+            // Fallback
+            if (!serviceName) {
+                serviceName = 'Service ' + (i + 1);
+            }
+            
+            const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
+            services.push({ name: serviceName, rate: prices[i].rate, desc });
+            console.log(`=> "${serviceName}" = $${prices[i].rate}`);
+        }
+        
+        console.log('\n=== FINAL SERVICES ===');
+        services.forEach(s => console.log(`${s.name}: $${s.rate}`));
+        
+        // Add to form
+        if (services.length > 0) {
+            services.forEach(svc => addSvcWithValues(svc.name, svc.rate, svc.desc));
+            showToast(`Imported ${services.length} services!`);
+        } else {
+            addSvc();
+            showToast('Could not parse - enter manually', true);
+        }
+        
+        calcTotals();
+    }
+
+    function addSvc() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'svc-wrapper';
+        wrapper.innerHTML = `
+            <div class="svc-row">
+                <select class="svc-select" onchange="handleServiceChange(this)">
+                    <option value="">Select a service...</option>
+                    ${SERVICES.map(s => `<option value="${s}">${s}</option>`).join('')}
+                </select>
+                <input type="number" placeholder="0.00" class="svc-amt" step="0.01" oninput="calcTotals()">
+                <button class="btn-del" onclick="this.closest('.svc-wrapper').remove(); calcTotals()">×</button>
+            </div>
+            <input type="text" class="custom-input svc-name" placeholder="Enter custom service name">
+            <textarea class="svc-desc" placeholder="Service description (optional)" rows="3"></textarea>
+        `;
+        document.getElementById('svcList').appendChild(wrapper);
+    }
+
+    function addSvcWithValues(name, amt, description = '') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'svc-wrapper';
+        
+        // Check if this service name is in our dropdown list
+        const isInDropdown = SERVICES.includes(name) && name !== '— Custom —';
+        const selectedValue = isInDropdown ? name : '— Custom —';
+        
+        wrapper.innerHTML = `
+            <div class="svc-row">
+                <select class="svc-select" onchange="handleServiceChange(this)">
+                    <option value="">Select a service...</option>
+                    ${SERVICES.map(s => `<option value="${s}" ${s === selectedValue ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+                <input type="number" class="svc-amt" step="0.01" value="${amt.toFixed(2)}" oninput="calcTotals()">
+                <button class="btn-del" onclick="this.closest('.svc-wrapper').remove(); calcTotals()">×</button>
+            </div>
+            <input type="text" class="custom-input svc-name ${!isInDropdown ? 'show' : ''}" placeholder="Enter custom service name" value="${!isInDropdown ? name : ''}">
+            <textarea class="svc-desc" placeholder="Service description (optional)" rows="3">${description}</textarea>
+        `;
+        document.getElementById('svcList').appendChild(wrapper);
+    }
+
+    function handleServiceChange(select) {
+        const wrapper = select.closest('.svc-wrapper');
+        const customInput = wrapper.querySelector('.custom-input');
+        if (select.value === '— Custom —') {
+            customInput.classList.add('show');
+            customInput.focus();
+        } else {
+            customInput.classList.remove('show');
+            customInput.value = '';
+        }
+    }
+
+    function getServiceName(wrapper) {
+        const select = wrapper.querySelector('.svc-select');
+        const customInput = wrapper.querySelector('.custom-input');
+        if (select.value === '— Custom —') {
+            return customInput.value || 'Custom Service';
+        }
+        return select.value;
+    }
+
+    function calcTotals() {
+        let sub = 0;
+        document.querySelectorAll('.svc-amt').forEach(input => { sub += parseFloat(input.value) || 0; });
+        const tax = sub * 0.08;
+        const total = sub + tax;
+        const monthly = total / 12;
+
+        document.getElementById('sumSub').textContent = fmt(sub);
+        document.getElementById('sumTax').textContent = fmt(tax);
+        document.getElementById('sumTotal').textContent = fmt(total);
+        document.getElementById('sumMonthly').textContent = fmt(monthly) + '/mo';
+    }
+
+    function fmt(n) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n); }
+
+    function generateQuote() {
+        const name = document.getElementById('custName').value || 'Customer';
+        const addr = document.getElementById('custAddr').value || '';
+        const email = document.getElementById('custEmail').value || '';
+        const phone = document.getElementById('custPhone').value || '';
+        const quoteNum = document.getElementById('quoteNum').value || '';
+
+        // Update branded elements
+        document.getElementById('docName').textContent = name;
+        document.getElementById('docAddr').textContent = addr;
+        if (document.getElementById('docEmail')) {
+            document.getElementById('docEmail').textContent = email;
+        }
+        if (document.getElementById('docPhone')) {
+            document.getElementById('docPhone').textContent = phone;
+        }
+        
+        // Update quote badge and number
+        const quoteBadge = document.getElementById('quoteBadge');
+        const docQuoteNum = document.getElementById('docQuoteNum');
+        if (quoteNum) {
+            quoteBadge.textContent = 'Quote #' + quoteNum;
+            if (docQuoteNum) docQuoteNum.textContent = quoteNum;
+        } else {
+            quoteBadge.textContent = 'Quote';
+            if (docQuoteNum) docQuoteNum.textContent = '-';
+        }
+        
+        // Hidden elements for compatibility
+        const quoteNumDisplay = document.getElementById('quoteNumDisplay');
+        if (quoteNumDisplay) {
+            quoteNumDisplay.innerHTML = quoteNum ? 'Quote #: ' + quoteNum + '<br>' : '';
+        }
+        
+        const today = new Date();
+        const validDate = new Date(today);
+        validDate.setDate(validDate.getDate() + 30);
+        
+        document.getElementById('docDate').textContent = today.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+        
+        const docValidDate = document.getElementById('docValidDate');
+        if (docValidDate) {
+            docValidDate.textContent = validDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        }
+
+        // Set title based on quote type (hidden element)
+        const docTitle = document.getElementById('docTitle');
+        if (docTitle) {
+            docTitle.textContent = quoteType === 'monthly' ? 'Annual Landscape Care Plan' : 'Quote';
+        }
+        document.getElementById('docTotalLabel').textContent = quoteType === 'monthly' ? 'Annual Total' : 'Total';
+
+        let html = '';
+        let sub = 0;
+        document.querySelectorAll('.svc-wrapper').forEach(wrapper => {
+            const n = getServiceName(wrapper);
+            const a = parseFloat(wrapper.querySelector('.svc-amt').value) || 0;
+            const desc = wrapper.querySelector('.svc-desc')?.value || '';
+            if (n && a > 0) {
+                html += `<tr>
+                    <td>
+                        <div class="svc-title">${n}</div>
+                        ${desc ? `<div class="svc-description">${desc.replace(/\n/g, '<br>')}</div>` : ''}
+                    </td>
+                    <td class="svc-amount">${fmt(a)}</td>
+                </tr>`;
+                sub += a;
+            }
+        });
+        document.getElementById('docServices').innerHTML = html;
+
+        const tax = sub * 0.08;
+        const total = sub + tax;
+        const monthly = total / 12;
+
+        document.getElementById('docSub').textContent = fmt(sub);
+        document.getElementById('docTax').textContent = fmt(tax);
+        document.getElementById('docTotal').textContent = fmt(total);
+        document.getElementById('docMonthly').textContent = fmt(monthly) + '/mo';
+
+        // Show/hide monthly box
+        document.getElementById('monthlyBox').style.display = quoteType === 'monthly' ? 'flex' : 'none';
+
+        // Update terms (hidden element for compatibility)
+        const termsContent = document.getElementById('termsContent');
+        if (termsContent) {
+            if (quoteType === 'monthly') {
+                termsContent.innerHTML = `
+                    <li>12 equal monthly payments for the annual total</li>
+                    <li>First payment due April 1st</li>
+                    <li>This quote is valid for 30 days from issue date</li>
+                `;
+            } else {
+                termsContent.innerHTML = `
+                    <li>Payment due upon completion of services</li>
+                    <li>This quote is valid for 30 days from issue date</li>
+                `;
+            }
+        }
+
+        document.getElementById('placeholder').style.display = 'none';
+        document.getElementById('quoteDoc').style.display = 'block';
+        document.getElementById('actions').style.display = 'flex';
+        showToast('Quote ready!');
+    }
+
+    async function downloadPDF() {
+        // Open print dialog - user can "Save as PDF"
+        const quoteDoc = document.getElementById('quoteDoc');
+        
+        // Create a new window with just the quote
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Quote - ${document.getElementById('custName').value || 'Customer'}</title>
+                <style>
+                    @page {
+                        size: letter;
+                        margin: 0.4in;
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        margin: 0;
+                        padding: 0;
+                        color: #333;
+                        font-size: 10px;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    .quote-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding-bottom: 10px;
+                        border-bottom: 3px solid #8B9A46;
+                        margin-bottom: 15px;
+                    }
+                    .quote-header-left {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+                    .quote-header-logo {
+                        width: 40px;
+                        height: 40px;
+                    }
+                    .quote-header-title {
+                        font-size: 18px;
+                        font-weight: bold;
+                        color: #2E403D;
+                        margin: 0;
+                    }
+                    .quote-header-subtitle {
+                        font-size: 10px;
+                        color: #666;
+                        margin: 3px 0 0 0;
+                    }
+                    .quote-header-right {
+                        text-align: right;
+                        font-size: 9px;
+                        color: #666;
+                    }
+                    .quote-header-right p {
+                        margin: 2px 0;
+                    }
+                    .quote-badge {
+                        display: inline-block;
+                        background: #2E403D;
+                        color: white;
+                        padding: 6px 16px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        font-size: 11px;
+                        margin-bottom: 12px;
+                    }
+                    .quote-info-row {
+                        display: flex;
+                        gap: 20px;
+                        margin-bottom: 15px;
+                    }
+                    .quote-info-box {
+                        flex: 1;
+                    }
+                    .quote-info-box.prepared-for {
+                        border: 1px solid #ddd;
+                        border-radius: 5px;
+                        padding: 10px;
+                        max-width: 55%;
+                    }
+                    .quote-info-label {
+                        font-size: 8px;
+                        color: #888;
+                        font-weight: bold;
+                        letter-spacing: 0.5px;
+                        margin-bottom: 5px;
+                    }
+                    .quote-info-box h3 {
+                        margin: 0 0 3px 0;
+                        color: #2E403D;
+                        font-size: 13px;
+                    }
+                    .quote-info-box p {
+                        margin: 2px 0;
+                        font-size: 10px;
+                        color: #555;
+                    }
+                    .services-section {
+                        margin-bottom: 12px;
+                    }
+                    .services-header {
+                        background: #2E403D;
+                        color: white;
+                        padding: 8px 12px;
+                        font-weight: bold;
+                        font-size: 11px;
+                        border-radius: 5px 5px 0 0;
+                    }
+                    .quote-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        border: 1px solid #2E403D;
+                        border-top: none;
+                    }
+                    .quote-table th {
+                        background: #f5f5f5;
+                        padding: 6px 10px;
+                        text-align: left;
+                        font-size: 8px;
+                        color: #888;
+                        font-weight: bold;
+                        border-bottom: 1px solid #ddd;
+                    }
+                    .quote-table th:last-child {
+                        text-align: right;
+                    }
+                    .quote-table td {
+                        padding: 8px 10px;
+                        border-bottom: 1px solid #eee;
+                        vertical-align: top;
+                    }
+                    .quote-table td:last-child {
+                        text-align: right;
+                        white-space: nowrap;
+                        font-size: 11px;
+                    }
+                    .quote-table tr {
+                        page-break-inside: avoid;
+                    }
+                    .svc-title {
+                        font-weight: bold;
+                        color: #2E403D;
+                        margin-bottom: 4px;
+                        font-size: 11px;
+                    }
+                    .svc-description {
+                        font-size: 9px;
+                        color: #666;
+                        line-height: 1.4;
+                    }
+                    .quote-totals-box {
+                        border: 1px solid #2E403D;
+                        border-radius: 5px;
+                        padding: 10px;
+                        margin-top: 12px;
+                        max-width: 240px;
+                        margin-left: auto;
+                        page-break-inside: avoid;
+                    }
+                    .totals-line {
+                        display: flex;
+                        justify-content: space-between;
+                        padding: 5px 0;
+                        font-size: 11px;
+                    }
+                    .totals-line.total-line {
+                        border-top: 2px solid #2E403D;
+                        margin-top: 5px;
+                        padding-top: 8px;
+                        font-weight: bold;
+                        font-size: 14px;
+                    }
+                    .quote-validity {
+                        margin-top: 12px;
+                        padding: 8px 12px;
+                        background: #FEF3C7;
+                        border-radius: 5px;
+                        font-size: 9px;
+                        border-left: 3px solid #F59E0B;
+                        page-break-inside: avoid;
+                    }
+                    .quote-monthly {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        background: #ECFDF5;
+                        padding: 10px;
+                        border-radius: 5px;
+                        margin-top: 10px;
+                        font-size: 11px;
+                        page-break-inside: avoid;
+                    }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        .quote-table tr { page-break-inside: avoid; }
+                        .quote-totals-box { page-break-inside: avoid; }
+                        .quote-validity { page-break-inside: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${quoteDoc.innerHTML}
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                            window.close();
+                        }, 250);
+                    };
+                <\/script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        showToast('Print dialog opened - Save as PDF');
+    }
+
+    // Get quote data object
+    function getQuoteData() {
+        const services = [];
+        let subtotal = 0;
+        document.querySelectorAll('.svc-wrapper').forEach(wrapper => {
+            const name = getServiceName(wrapper);
+            const amount = parseFloat(wrapper.querySelector('.svc-amt').value) || 0;
+            if (name && amount > 0) {
+                services.push({ name, amount });
+                subtotal += amount;
+            }
+        });
+        const taxAmount = subtotal * 0.08;
+        const total = subtotal + taxAmount;
+        const monthlyPayment = quoteType === 'monthly' ? (total / 12) : null;
+
+        return {
+            quote_number: document.getElementById('quoteNum').value || null,
+            customer_name: document.getElementById('custName').value || 'Customer',
+            customer_email: document.getElementById('custEmail').value || '',
+            customer_phone: document.getElementById('custPhone').value || '',
+            customer_address: document.getElementById('custAddr').value || '',
+            quote_type: quoteType === 'monthly' ? 'monthly_plan' : 'regular',
+            services,
+            subtotal: subtotal.toFixed(2),
+            tax_rate: 8,
+            tax_amount: taxAmount.toFixed(2),
+            total: total.toFixed(2),
+            monthly_payment: monthlyPayment ? monthlyPayment.toFixed(2) : null
+        };
+    }
+
+    // Save quote as draft
+    async function saveQuote() {
+        const data = getQuoteData();
+        if (data.services.length === 0) {
+            showToast('Add at least one service', true);
+            return;
+        }
+
+        showToast('Saving...');
+        try {
+            const res = await fetch('/api/sent-quotes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                showToast('Quote saved!');
+                currentQuoteId = result.quote.id;
+            } else {
+                showToast(result.error || 'Error saving', true);
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Error saving quote', true);
+        }
+    }
+
+    // Save and send quote
+    async function saveAndSendQuote() {
+        const data = getQuoteData();
+        if (data.services.length === 0) {
+            showToast('Add at least one service', true);
+            return;
+        }
+        if (!data.customer_email) {
+            showToast('Customer email required to send', true);
+            return;
+        }
+
+        showToast('Saving & sending...');
+        try {
+            // First save the quote
+            const saveRes = await fetch('/api/sent-quotes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const saveResult = await saveRes.json();
+            if (!saveResult.success) {
+                showToast(saveResult.error || 'Error saving', true);
+                return;
+            }
+
+            const quoteId = saveResult.quote.id;
+            currentQuoteId = quoteId;
+
+            // Then send it
+            const sendRes = await fetch(`/api/sent-quotes/${quoteId}/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const sendResult = await sendRes.json();
+            if (sendResult.success) {
+                showToast('Quote sent to ' + data.customer_email);
+                
+                // Create follow-up sequence for automated reminders
+                try {
+                    const serviceNames = data.services.map(s => s.name).join(', ');
+                    await fetch('/api/quote-followups', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            quote_id: quoteId.toString(),
+                            quote_number: data.quote_number,
+                            customer_name: data.customer_name,
+                            customer_email: data.customer_email,
+                            customer_phone: data.customer_phone,
+                            quote_amount: data.total,
+                            services: serviceNames
+                        })
+                    });
+                    console.log('Follow-up sequence created');
+                } catch (followupErr) {
+                    console.log('Follow-up creation skipped:', followupErr.message);
+                }
+            } else {
+                showToast(sendResult.error || 'Error sending', true);
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Error sending quote', true);
+        }
+    }
+
+    let currentQuoteId = null;
+
+    function showToast(msg, err = false) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.style.background = err ? '#ef4444' : 'var(--forest)';
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // Auto-format phone number as xxx-xxx-xxxx
+    document.getElementById('custPhone').addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (value.length > 10) value = value.slice(0, 10); // Limit to 10 digits
+        
+        if (value.length >= 6) {
+            value = value.slice(0, 3) + '-' + value.slice(3, 6) + '-' + value.slice(6);
+        } else if (value.length >= 3) {
+            value = value.slice(0, 3) + '-' + value.slice(3);
+        }
+        e.target.value = value;
+    });
+
+    // Look up customer by name and fill in email/phone if found
+    async function lookupCustomer(name) {
+        if (!name || name.length < 2) return;
+        
+        try {
+            const res = await fetch(`/api/customers/search?name=${encodeURIComponent(name)}`);
+            const data = await res.json();
+            
+            if (data.success && data.customers.length > 0) {
+                // Find exact match first, otherwise use first result
+                const exactMatch = data.customers.find(c => c.name.toLowerCase() === name.toLowerCase());
+                const customer = exactMatch || data.customers[0];
+                
+                // Only fill if fields are empty
+                if (!document.getElementById('custEmail').value && customer.email) {
+                    document.getElementById('custEmail').value = customer.email;
+                }
+                if (!document.getElementById('custPhone').value && customer.phone) {
+                    document.getElementById('custPhone').value = customer.phone;
+                }
+                
+                console.log('Customer found:', customer.name, customer.email, customer.phone);
+            }
+        } catch (err) {
+            console.log('Customer lookup error:', err);
+        }
+    }
+
+    // Customer autocomplete
+    (function() {
+        const custNameInput = document.getElementById('custName');
+        const dropdown = document.getElementById('customerDropdown');
+        let searchTimeout = null;
+        
+        if (custNameInput && dropdown) {
+            custNameInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                
+                if (searchTimeout) clearTimeout(searchTimeout);
+                
+                if (query.length < 2) {
+                    dropdown.classList.remove('show');
+                    return;
+                }
+                
+                searchTimeout = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`/api/customers/search?name=${encodeURIComponent(query)}`);
+                        const data = await res.json();
+                        
+                        if (data.success && data.customers.length > 0) {
+                            dropdown.innerHTML = data.customers.map(c => `
+                                <div class="customer-option" data-customer='${JSON.stringify(c).replace(/'/g, "&#39;")}'>
+                                    <div class="name">${c.name}</div>
+                                    <div class="details">${c.email || ''} ${c.phone ? '• ' + c.phone : ''}</div>
+                                </div>
+                            `).join('');
+                            dropdown.classList.add('show');
+                            
+                            dropdown.querySelectorAll('.customer-option').forEach(opt => {
+                                opt.addEventListener('click', function() {
+                                    const customer = JSON.parse(this.dataset.customer);
+                                    document.getElementById('custName').value = customer.name || '';
+                                    document.getElementById('custEmail').value = customer.email || '';
+                                    document.getElementById('custPhone').value = customer.phone || '';
+                                    document.getElementById('custAddr').value = customer.address || '';
+                                    dropdown.classList.remove('show');
+                                    updatePreview();
+                                });
+                            });
+                        } else {
+                            dropdown.classList.remove('show');
+                        }
+                    } catch (err) {
+                        console.error('Customer search error:', err);
+                        dropdown.classList.remove('show');
+                    }
+                }, 300);
+            });
+            
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('#custNameField')) {
+                    dropdown.classList.remove('show');
+                }
+            });
+        }
+    })();
+</script>
+</body>
+</html>

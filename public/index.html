@@ -30,6 +30,11 @@
             --purple: #7c3aed;
             --purple-bg: #f5f3ff;
             --sidebar-w: 240px;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -39,22 +44,6 @@
             background: var(--gray-50);
             color: var(--gray-700);
             line-height: 1.5;
-            animation: fadeIn 0.4s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideInUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes shimmer {
-            0% { background-position: -1000px 0; }
-            100% { background-position: 1000px 0; }
         }
 
         /* Sidebar */
@@ -71,408 +60,219 @@
         }
 
         .sidebar-brand {
-            padding: 20px;
+            padding: var(--spacing-lg);
             text-align: center;
             border-bottom: 1px solid var(--gray-100);
         }
 
         .sidebar-brand img { height: 64px; width: 64px; border-radius: 12px; }
 
-        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
-        .nav-section { margin-bottom: 8px; }
+        .sidebar-nav { flex: 1; padding: var(--spacing-sm); overflow-y: auto; }
+        .nav-section { margin-bottom: var(--spacing-sm); }
 
         .nav-section-label {
-            color: var(--gray-400);
             font-size: 11px;
             font-weight: 600;
+            color: var(--gray-400);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            padding: 8px 12px 4px;
+            padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
         }
 
         .nav-item {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 8px 12px;
+            padding: var(--spacing-sm) var(--spacing-md);
             border-radius: 8px;
             color: var(--gray-600);
             text-decoration: none;
             font-size: 13px;
             font-weight: 500;
             transition: all 0.15s;
+            cursor: pointer;
         }
 
         .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
         .nav-item.active { background: var(--forest); color: var(--lime); }
-        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
 
-        .nav-item .badge {
-            margin-left: auto;
-            background: var(--forest);
-            color: var(--lime);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
+        .sidebar-footer {
+            padding: var(--spacing-md);
+            border-top: 1px solid var(--gray-100);
         }
 
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
         .sidebar-user { display: flex; align-items: center; gap: 10px; }
 
         .sidebar-user .avatar {
-            width: 36px; height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
+            width: 36px; height: 36px; border-radius: 10px;
+            background: var(--forest); color: var(--lime);
             display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 13px;
+            font-size: 13px; font-weight: 600;
         }
 
-        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+        .sidebar-user .name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
 
-        /* Main Content */
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        /* Main */
+        .main {
+            margin-left: var(--sidebar-w);
+            min-height: 100vh;
+        }
 
+        /* Topbar */
         .topbar {
-            position: sticky;
-            top: 0;
-            height: 64px;
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 32px;
+            padding: 12px 24px;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            position: sticky;
+            top: 0;
             z-index: 50;
-            gap: 16px;
         }
 
-        .topbar-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .topbar h2 { font-size: 18px; font-weight: 700; color: var(--gray-700); white-space: nowrap; }
-        .topbar p { font-size: 13px; color: var(--gray-400); white-space: nowrap; }
-
-        .topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .topbar-left { display: flex; align-items: center; gap: 12px; flex: 1; }
 
         .search-container {
             position: relative;
-            width: 300px;
-            max-width: 100%;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 8px 12px 8px 36px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            font-size: 13px;
-            background: var(--white);
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--forest);
-            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+            flex: 1;
+            max-width: 420px;
         }
 
         .search-icon {
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 16px;
-            height: 16px;
-            color: var(--gray-400);
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            width: 16px; height: 16px; color: var(--gray-400); pointer-events: none;
         }
+
+        .search-icon svg { width: 16px; height: 16px; }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 36px 8px 36px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            background: var(--gray-50);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .search-input:focus { border-color: var(--forest); background: var(--white); }
 
         .search-clear {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--gray-400);
-            cursor: pointer;
-            padding: 4px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s;
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer; padding: 4px;
+            color: var(--gray-400); display: none;
         }
 
-        .search-clear:hover { color: var(--gray-600); }
-        .search-clear.visible { display: flex; }
+        .search-clear.visible { display: block; }
+        .search-clear svg { width: 14px; height: 14px; }
 
         .search-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            display: none;
-            z-index: 200;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 8px; margin-top: 4px; display: none;
+            max-height: 320px; overflow-y: auto; z-index: 200;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
         }
 
         .search-dropdown.visible { display: block; }
 
         .search-group { padding: 8px 0; }
-
-        .search-group-title {
-            padding: 8px 12px 4px 12px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+        .search-group + .search-group { border-top: 1px solid var(--gray-100); }
+        .search-group-title { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; padding: 4px 14px; }
 
         .search-item {
-            padding: 8px 12px;
-            font-size: 13px;
-            color: var(--gray-700);
-            cursor: pointer;
-            transition: background 0.15s;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            display: block; padding: 8px 14px; font-size: 13px;
+            color: var(--gray-700); text-decoration: none;
         }
 
         .search-item:hover { background: var(--gray-50); }
 
-        .search-empty {
-            padding: 16px 12px;
-            text-align: center;
-            font-size: 13px;
-            color: var(--gray-400);
-        }
+        .search-empty { padding: 16px; text-align: center; font-size: 13px; color: var(--gray-400); }
 
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-            font-family: inherit;
-            white-space: nowrap;
-        }
-
-        .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(46,64,61,0.15); }
+        .topbar-actions { display: flex; gap: 8px; }
 
         .btn-icon {
-            padding: 8px;
-            background: var(--white);
-            color: var(--gray-600);
-            border: 1px solid var(--gray-200);
-        }
-
-        .btn-icon:hover {
-            background: var(--gray-50);
-            color: var(--forest);
-            border-color: var(--gray-300);
-        }
-
-        .page-content { padding: 28px 32px; animation: slideInUp 0.5s ease-out 0.1s backwards; }
-
-        /* Greeting Banner */
-        .greeting {
-            margin-bottom: 24px;
-            animation: slideInUp 0.5s ease-out 0.05s backwards;
-        }
-
-        .greeting h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--gray-700);
-            margin-bottom: 4px;
-        }
-
-        .greeting .date-line {
-            font-size: 14px;
-            color: var(--gray-400);
-        }
-
-        /* ─── Workflow Columns (Jobber-inspired) ─── */
-        .workflow-columns {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 24px;
-        }
-
-        .wf-col {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            overflow: hidden;
-            animation: slideInUp 0.5s ease-out backwards;
-        }
-
-        .wf-col:nth-child(1) { animation-delay: 0.1s; }
-        .wf-col:nth-child(2) { animation-delay: 0.15s; }
-        .wf-col:nth-child(3) { animation-delay: 0.2s; }
-
-        .wf-col-header {
-            padding: 16px 20px 12px;
-            border-top: 3px solid var(--gray-300);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .wf-col:nth-child(1) .wf-col-header { border-top-color: var(--blue); }
-        .wf-col:nth-child(2) .wf-col-header { border-top-color: var(--amber); }
-        .wf-col:nth-child(3) .wf-col-header { border-top-color: var(--forest); }
-
-        .wf-col-header h3 {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--gray-700);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .wf-col-header h3 svg { width: 18px; height: 18px; opacity: 0.5; }
-
-        .wf-col-header a {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--forest);
-            text-decoration: none;
-        }
-
-        .wf-col-header a:hover { text-decoration: underline; }
-
-        .wf-rows { padding: 0; }
-
-        .wf-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 20px;
-            border-top: 1px solid var(--gray-100);
-            transition: background 0.15s;
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .wf-row:hover { background: var(--gray-50); }
-
-        .wf-row-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .wf-row-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .wf-row-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-600);
-        }
-
-        .wf-row-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .wf-row-count {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--gray-700);
-            min-width: 24px;
-            text-align: right;
-        }
-
-        .wf-row-count.highlight { color: var(--amber); }
-        .wf-row-count.success { color: var(--green); }
-
-        .wf-row-amount {
-            font-size: 12px;
-            color: var(--gray-400);
-            min-width: 70px;
-            text-align: right;
-        }
-
-        .wf-cta {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px 20px;
-            background: var(--gray-50);
-            border-top: 1px solid var(--gray-100);
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--forest);
-            text-decoration: none;
+            display: flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; border-radius: 8px;
+            border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-600); cursor: pointer; text-decoration: none;
             transition: all 0.15s;
         }
 
-        .wf-cta:hover { background: var(--gray-100); color: var(--forest-dark); }
-        .wf-cta svg { width: 14px; height: 14px; }
+        .btn-icon:hover { background: var(--gray-50); color: var(--forest); }
+        .btn-icon svg { width: 18px; height: 18px; }
 
-        /* ─── Action Required Section ─── */
-        .action-section {
-            background: linear-gradient(135deg, var(--amber-bg) 0%, rgba(255,251,235,0) 100%);
-            border: 2px solid var(--amber);
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        /* Page Content */
+        .page-content { padding: 24px; }
+
+        /* Greeting */
+        .greeting h1 { font-size: 22px; font-weight: 700; color: var(--forest); }
+        .greeting .date-line { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
+
+        /* Stat Cards Row */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
             border-radius: 12px;
-            padding: 18px 20px;
-            margin-bottom: 24px;
-            animation: slideInUp 0.5s ease-out 0.05s backwards;
+            padding: 18px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .stat-card .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--forest);
+            margin-top: 4px;
+            line-height: 1.1;
+        }
+
+        .stat-card .stat-sub {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 4px;
+        }
+
+        .stat-card .stat-sub .up { color: var(--green); font-weight: 600; }
+        .stat-card .stat-sub .down { color: var(--red); font-weight: 600; }
+
+        /* Action Required */
+        .action-section {
+            margin-top: 20px;
+            background: var(--amber-bg);
+            border: 1px solid #fcd34d;
+            border-radius: 12px;
+            padding: 16px;
         }
 
         .action-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--amber);
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 15px;
-            color: var(--amber);
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .action-section h3 svg { width: 18px; height: 18px; }
@@ -483,52 +283,123 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 10px 14px;
-            background: rgba(255,255,255,0.7);
+            padding: 10px 12px;
+            background: var(--white);
             border-radius: 8px;
             text-decoration: none;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--gray-700);
+            transition: all 0.15s;
         }
 
-        .action-item:hover {
-            background: #fef3c7;
-            transform: translateX(4px);
-            box-shadow: 0 2px 8px rgba(217,119,6,0.1);
-        }
+        .action-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 
         .action-item-info { display: flex; align-items: center; gap: 10px; }
+        .action-item-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--amber-bg); color: var(--amber); display: flex; align-items: center; justify-content: center; }
+        .action-item-icon svg { width: 16px; height: 16px; }
+        .action-item-text strong { font-size: 13px; display: block; }
+        .action-item-text span { font-size: 12px; color: var(--gray-500); }
+        .action-item-count { font-size: 18px; font-weight: 700; color: var(--amber); }
 
-        .action-item-icon {
-            width: 32px;
-            height: 32px;
-            background: white;
+        /* Workflow Columns */
+        .workflow-columns {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .wf-col {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .wf-col-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .wf-col-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wf-col-header a {
+            font-size: 12px;
+            color: var(--gray-400);
+            text-decoration: none;
+        }
+
+        .wf-col-header a:hover { color: var(--forest); }
+        .wf-col-header svg { width: 16px; height: 16px; color: var(--gray-400); }
+
+        .wf-rows { padding: 8px; }
+
+        .wf-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
             border-radius: 8px;
+            text-decoration: none;
+            color: var(--gray-700);
+            transition: background 0.15s;
+        }
+
+        .wf-row:hover { background: var(--gray-50); }
+        .wf-row-left { display: flex; align-items: center; gap: 10px; }
+        .wf-row-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .wf-row-label { font-size: 13px; font-weight: 500; }
+        .wf-row-right { display: flex; align-items: center; gap: 8px; }
+
+        .wf-row-count {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-500);
+            background: var(--gray-100);
+            padding: 2px 8px;
+            border-radius: 10px;
+            min-width: 28px;
+            text-align: center;
+        }
+
+        .wf-row-count.highlight { background: var(--amber-bg); color: var(--amber); }
+        .wf-row-count.success { background: var(--green-bg); color: var(--green); }
+
+        .wf-row-amount { font-size: 12px; color: var(--gray-400); }
+
+        .wf-cta {
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .action-item-icon svg { width: 16px; height: 16px; color: var(--amber); }
-
-        .action-item-text strong { display: block; font-size: 13px; color: var(--gray-700); }
-        .action-item-text span { font-size: 11px; color: var(--gray-500); }
-
-        .action-item-count {
-            background: var(--amber);
-            color: white;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 12px;
+            gap: 6px;
+            padding: 10px;
+            margin: 8px;
+            border-radius: 8px;
+            background: var(--gray-50);
+            color: var(--forest);
+            text-decoration: none;
+            font-size: 13px;
             font-weight: 600;
-            flex-shrink: 0;
+            transition: all 0.15s;
         }
 
-        /* ─── Bottom Grid: Appointments + Messages + Customers ─── */
-        .dashboard-grid {
+        .wf-cta:hover { background: var(--gray-100); }
+        .wf-cta svg { width: 16px; height: 16px; }
+
+        /* Bottom Grid */
+        .bottom-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 16px;
+            margin-top: 20px;
         }
 
         .card {
@@ -536,25 +407,19 @@
             border: 1px solid var(--gray-200);
             border-radius: 12px;
             overflow: hidden;
-            animation: slideInUp 0.5s ease-out backwards;
         }
-
-        .card:nth-child(1) { animation-delay: 0.25s; }
-        .card:nth-child(2) { animation-delay: 0.3s; }
 
         .card-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 18px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--gray-100);
-            background: var(--gray-50);
         }
 
         .card-header h3 {
             font-size: 14px;
-            font-weight: 700;
-            color: var(--gray-700);
+            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -564,119 +429,58 @@
 
         .card-header a {
             font-size: 12px;
-            font-weight: 600;
-            color: var(--forest);
+            color: var(--gray-400);
             text-decoration: none;
-            transition: color 0.2s;
         }
 
-        .card-header a:hover { color: var(--forest-dark); text-decoration: underline; }
+        .card-header a:hover { color: var(--forest); }
 
-        .card-body { padding: 12px 14px; }
-
-        /* Recent Items List */
-        .recent-list { display: flex; flex-direction: column; gap: 4px; }
+        .card-body { padding: 8px; }
 
         .recent-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 10px 12px;
-            background: var(--white);
+            padding: 10px 10px;
             border-radius: 8px;
             text-decoration: none;
-            transition: all 0.15s;
-            border-left: 3px solid transparent;
+            color: var(--gray-700);
+            transition: background 0.15s;
         }
 
-        .recent-item:hover {
-            background: var(--gray-50);
-            border-left-color: var(--forest);
-        }
-
+        .recent-item:hover { background: var(--gray-50); }
         .recent-item-info { flex: 1; min-width: 0; }
-        .recent-item-name { font-size: 13px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .recent-item-sub { font-size: 11px; color: var(--gray-400); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .recent-item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .recent-item-sub { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .status-badge {
-            padding: 3px 8px;
-            border-radius: 6px;
             font-size: 11px;
             font-weight: 600;
-            text-transform: capitalize;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
             flex-shrink: 0;
-            margin-left: 10px;
         }
 
         .status-new { background: var(--blue-bg); color: var(--blue); }
-        .status-contacted { background: var(--amber-bg); color: var(--amber); }
-        .status-quoted { background: var(--purple-bg); color: var(--purple); }
-        .status-scheduled, .status-completed, .status-active { background: var(--green-bg); color: var(--green); }
-        .status-pending, .status-processed { background: var(--amber-bg); color: var(--amber); }
-        .status-sent { background: var(--purple-bg); color: var(--purple); }
-        .status-viewed { background: var(--blue-bg); color: var(--blue); }
+        .status-active, .status-read { background: var(--green-bg); color: var(--green); }
+        .status-unread { background: var(--amber-bg); color: var(--amber); }
 
-        .empty-state {
-            text-align: center;
-            padding: 24px 16px;
-            color: var(--gray-400);
-            font-size: 13px;
-        }
+        .empty-state { padding: 24px; text-align: center; font-size: 13px; color: var(--gray-400); }
 
-        .skeleton {
-            background: linear-gradient(90deg, var(--gray-100) 0%, var(--gray-200) 50%, var(--gray-100) 100%);
-            background-size: 1000px 100%;
-            animation: shimmer 2s infinite;
-            border-radius: 6px;
-        }
-
-        .loading {
-            display: flex;
-            justify-content: center;
-            padding: 24px;
-        }
-
-        .spinner {
-            width: 24px;
-            height: 24px;
-            border: 2px solid var(--gray-200);
-            border-top-color: var(--forest);
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-
+        .loading { padding: 24px; text-align: center; }
+        .spinner { width: 24px; height: 24px; border: 2px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Toast Notifications */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 13px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            z-index: 1000;
-            animation: slideInUp 0.3s ease-out;
-        }
+        /* Toast */
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; background: var(--forest); color: var(--white); font-size: 13px; font-weight: 500; z-index: 9999; animation: toastIn 0.3s ease-out; }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .toast.success { border-left: 4px solid var(--green); }
-        .toast.error { border-left: 4px solid var(--red); }
-        .toast.info { border-left: 4px solid var(--blue); }
-
-        /* Mobile */
-        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
-
-        @media (max-width: 1200px) {
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
             .workflow-columns { grid-template-columns: 1fr; }
-        }
-
-        @media (max-width: 1024px) {
-            .dashboard-grid { grid-template-columns: 1fr; }
-            .search-container { width: 250px; }
+            .bottom-grid { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 768px) {
@@ -684,19 +488,7 @@
             .sidebar.open { transform: translateX(0); }
             .main { margin-left: 0; }
             .mobile-menu-btn { display: block; }
-            .page-content { padding: 20px 16px; }
-            .topbar { padding: 0 16px; flex-wrap: wrap; height: auto; gap: 12px; }
-            .topbar-left { width: 100%; flex-wrap: wrap; }
-            .topbar h2, .topbar p { flex: 0 0 100%; }
-            .search-container { width: 100%; }
-            .topbar-actions { width: 100%; justify-content: flex-start; }
-            .workflow-columns { grid-template-columns: 1fr; gap: 16px; }
-            .greeting h1 { font-size: 20px; }
-        }
-
-        @media (max-width: 480px) {
-            .search-container { width: 100%; }
-            .btn { padding: 8px 12px; font-size: 12px; }
+            .stat-row { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -704,115 +496,63 @@
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-            <img src="/logo.png" alt="Pappas & Co. Landscaping">
-        </div>
+        <img src="/logo.png" alt="Pappas & Co. Landscaping">
+    </div>
     <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item active">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-        </nav>
-            <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
+        <!-- Overview -->
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item active">
+                <span>📊</span>
+                <span>Dashboard</span>
+            </a>
+        </div>
+        <!-- Sales -->
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
+            <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+        </div>
+        <!-- Operations -->
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+        </div>
+        <!-- Communications -->
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
+        </div>
+        <!-- Marketing -->
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+        </div>
+        <!-- Finance -->
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
+        </div>
+        <!-- Team -->
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
             </div>
         </div>
     </div>
@@ -828,7 +568,7 @@
                 <div class="search-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                 </div>
-                <input type="text" class="search-input" id="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
+                <input type="text" class="search-input" id="search-input" placeholder="Search customers, quotes, properties..." autocomplete="off">
                 <button class="search-clear" id="search-clear" type="button">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
@@ -836,10 +576,10 @@
             </div>
         </div>
         <div class="topbar-actions">
-            <a href="quote-generator.html" class="btn btn-icon" title="New Quote">
+            <a href="quote-generator.html" class="btn-icon" title="New Quote">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             </a>
-            <button class="btn btn-icon" onclick="loadAll()" title="Refresh">
+            <button class="btn-icon" onclick="loadAll()" title="Refresh">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
             </button>
         </div>
@@ -852,7 +592,31 @@
             <div class="date-line" id="date-line"></div>
         </div>
 
-        <!-- Action Required Section (shows only when needed) -->
+        <!-- Stat Cards -->
+        <div class="stat-row">
+            <div class="stat-card">
+                <div class="stat-label">Revenue This Month</div>
+                <div class="stat-value" id="stat-revenue">—</div>
+                <div class="stat-sub" id="stat-revenue-sub"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Outstanding Invoices</div>
+                <div class="stat-value" id="stat-outstanding">—</div>
+                <div class="stat-sub" id="stat-outstanding-sub"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Quotes Sent</div>
+                <div class="stat-value" id="stat-quotes">—</div>
+                <div class="stat-sub" id="stat-quotes-sub"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Customers</div>
+                <div class="stat-value" id="stat-customers">—</div>
+                <div class="stat-sub" id="stat-customers-sub"></div>
+            </div>
+        </div>
+
+        <!-- Action Required -->
         <div class="action-section" id="action-section" style="display:none;">
             <h3>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -861,183 +625,103 @@
             <div class="action-items" id="action-items"></div>
         </div>
 
-        <!-- Workflow Columns: Requests → Quotes → Jobs -->
+        <!-- Workflow Columns -->
         <div class="workflow-columns">
-            <!-- REQUESTS Column -->
+            <!-- REQUESTS -->
             <div class="wf-col">
                 <div class="wf-col-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
-                        Requests
-                    </h3>
+                    <h3>📋 Requests</h3>
                     <a href="quotes.html">View All →</a>
                 </div>
                 <div class="wf-rows">
                     <a href="quotes.html?status=new" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--blue)"></div>
-                            <span class="wf-row-label">New</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count" id="wf-req-new">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">New</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-new">—</span></div>
                     </a>
                     <a href="quotes.html?status=contacted" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--amber)"></div>
-                            <span class="wf-row-label">Contacted</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count" id="wf-req-contacted">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">Contacted</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-contacted">—</span></div>
                     </a>
                     <a href="quotes.html?status=quoted" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--purple)"></div>
-                            <span class="wf-row-label">Quoted</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count" id="wf-req-quoted">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--purple)"></div><span class="wf-row-label">Quoted</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-quoted">—</span></div>
                     </a>
                 </div>
-                <a href="quotes.html" class="wf-cta">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
-                    Review Requests
-                </a>
+                <a href="quotes.html" class="wf-cta">📋 Review Requests</a>
             </div>
 
-            <!-- QUOTES Column -->
+            <!-- QUOTES -->
             <div class="wf-col">
                 <div class="wf-col-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-                        Quotes
-                    </h3>
+                    <h3>📤 Quotes</h3>
                     <a href="sent-quotes.html">View All →</a>
                 </div>
                 <div class="wf-rows">
                     <a href="sent-quotes.html?status=sent" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--blue)"></div>
-                            <span class="wf-row-label">Sent / Viewed</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-amount" id="wf-q-sent-amt"></span>
-                            <span class="wf-row-count" id="wf-q-sent">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">Sent / Viewed</span></div>
+                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-sent-amt"></span><span class="wf-row-count" id="wf-q-sent">—</span></div>
                     </a>
                     <a href="sent-quotes.html?status=signed" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--green)"></div>
-                            <span class="wf-row-label">Signed</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-amount" id="wf-q-signed-amt"></span>
-                            <span class="wf-row-count success" id="wf-q-signed">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--green)"></div><span class="wf-row-label">Signed</span></div>
+                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-signed-amt"></span><span class="wf-row-count success" id="wf-q-signed">—</span></div>
                     </a>
                     <a href="sent-quotes.html?status=changes_requested" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--amber)"></div>
-                            <span class="wf-row-label">Changes Requested</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count highlight" id="wf-q-changes">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">Changes Requested</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count highlight" id="wf-q-changes">—</span></div>
                     </a>
                     <a href="sent-quotes.html?status=contracted" class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--forest)"></div>
-                            <span class="wf-row-label">Contracted</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count success" id="wf-q-contracted">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--forest)"></div><span class="wf-row-label">Contracted</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count success" id="wf-q-contracted">—</span></div>
                     </a>
                 </div>
-                <a href="quote-generator.html" class="wf-cta">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Create New Quote
-                </a>
+                <a href="quote-generator.html" class="wf-cta">✨ Create New Quote</a>
             </div>
 
-            <!-- JOBS Column -->
+            <!-- JOBS -->
             <div class="wf-col">
                 <div class="wf-col-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        Jobs
-                    </h3>
+                    <h3>📅 Jobs</h3>
                     <a href="scheduling.html">View All →</a>
                 </div>
                 <div class="wf-rows">
                     <div class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--blue)"></div>
-                            <span class="wf-row-label">Today</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count" id="wf-j-today">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">Today</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-today">—</span></div>
                     </div>
                     <div class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--amber)"></div>
-                            <span class="wf-row-label">This Week</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count" id="wf-j-week">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">This Week</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-week">—</span></div>
                     </div>
                     <div class="wf-row">
-                        <div class="wf-row-left">
-                            <div class="wf-row-dot" style="background:var(--green)"></div>
-                            <span class="wf-row-label">Pending</span>
-                        </div>
-                        <div class="wf-row-right">
-                            <span class="wf-row-count" id="wf-j-pending">—</span>
-                        </div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--green)"></div><span class="wf-row-label">Pending</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-pending">—</span></div>
                     </div>
                 </div>
-                <a href="scheduling.html" class="wf-cta">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    View Schedule
-                </a>
+                <a href="scheduling.html" class="wf-cta">📅 View Schedule</a>
             </div>
         </div>
 
-        <!-- Bottom Grid: Messages + Customers -->
-        <div class="dashboard-grid">
+        <!-- Bottom Grid -->
+        <div class="bottom-grid">
             <!-- Recent Messages -->
             <div class="card">
                 <div class="card-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                        Recent Messages
-                    </h3>
+                    <h3>💬 Recent Messages</h3>
                     <a href="communications.html">View All →</a>
                 </div>
                 <div class="card-body">
-                    <div id="messages-list" class="recent-list">
-                        <div class="loading"><div class="spinner"></div></div>
-                    </div>
+                    <div id="messages-list"><div class="loading"><div class="spinner"></div></div></div>
                 </div>
             </div>
 
             <!-- Recent Customers -->
             <div class="card">
                 <div class="card-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                        Recent Customers
-                    </h3>
+                    <h3>👥 Recent Customers</h3>
                     <a href="customers.html">View All →</a>
                 </div>
                 <div class="card-body">
-                    <div id="customers-list" class="recent-list">
-                        <div class="loading"><div class="spinner"></div></div>
-                    </div>
+                    <div id="customers-list"><div class="loading"><div class="spinner"></div></div></div>
                 </div>
             </div>
         </div>
@@ -1045,7 +729,6 @@
 </div>
 
 <script>
-const COMMS_API = 'https://pappas-twilio-webhook-production.up.railway.app';
 let searchDebounceTimer = null;
 
 function esc(s) {
@@ -1075,6 +758,11 @@ function timeAgo(dateStr) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function fmtMoney(n) {
+    if (!n || isNaN(n)) return '$0';
+    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
 function renderItem(name, sub, status, href) {
     return `<a href="${href}" class="recent-item">
         <div class="recent-item-info">
@@ -1089,14 +777,6 @@ function showEmpty(el, msg) {
     el.innerHTML = `<div class="empty-state">${msg}</div>`;
 }
 
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
-
 // Greeting
 function updateGreeting() {
     const now = new Date();
@@ -1104,129 +784,75 @@ function updateGreeting() {
     let greeting = 'Good evening';
     if (hour < 12) greeting = 'Good morning';
     else if (hour < 17) greeting = 'Good afternoon';
-
     document.getElementById('greeting-text').textContent = greeting + ', Theresa';
-
-    const options = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
-    document.getElementById('date-line').textContent = now.toLocaleDateString('en-US', options);
+    document.getElementById('date-line').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-// Universal Search
+// Search
 const searchInput = document.getElementById('search-input');
 const searchDropdown = document.getElementById('search-dropdown');
 const searchClear = document.getElementById('search-clear');
 
-function closeSearch() {
-    searchDropdown.classList.remove('visible');
-}
+function closeSearch() { searchDropdown.classList.remove('visible'); }
 
 document.addEventListener('click', (e) => {
-    const container = document.getElementById('search-container');
-    if (container && !container.contains(e.target)) {
-        closeSearch();
-    }
+    if (!document.getElementById('search-container').contains(e.target)) closeSearch();
 });
 
 document.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        searchInput.focus();
-    }
-    if (e.key === 'Escape') {
-        closeSearch();
-    }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); searchInput.focus(); }
+    if (e.key === 'Escape') closeSearch();
 });
 
 searchInput.addEventListener('input', (e) => {
     const query = e.target.value.trim();
-
-    if (searchClear) {
-        searchClear.classList.toggle('visible', query.length > 0);
-    }
-
-    if (query.length < 2) {
-        closeSearch();
-        return;
-    }
-
+    searchClear.classList.toggle('visible', query.length > 0);
+    if (query.length < 2) { closeSearch(); return; }
     clearTimeout(searchDebounceTimer);
-    searchDropdown.innerHTML = '<div style="padding: 16px; text-align: center; font-size: 13px; color: var(--gray-400);">Searching...</div>';
+    searchDropdown.innerHTML = '<div class="search-empty">Searching...</div>';
     searchDropdown.classList.add('visible');
-
     searchDebounceTimer = setTimeout(() => performSearch(query), 300);
 });
 
-searchClear.addEventListener('click', () => {
-    searchInput.value = '';
-    searchClear.classList.remove('visible');
-    closeSearch();
-});
+searchClear.addEventListener('click', () => { searchInput.value = ''; searchClear.classList.remove('visible'); closeSearch(); });
 
 async function performSearch(query) {
     try {
-        const [customersRes, quotesRes, propertiesRes] = await Promise.all([
+        const [cRes, qRes, pRes] = await Promise.all([
             fetch(`/api/customers?search=${encodeURIComponent(query)}&limit=5`).catch(() => null),
             fetch(`/api/sent-quotes?search=${encodeURIComponent(query)}&limit=5`).catch(() => null),
             fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=5`).catch(() => null)
         ]);
-
-        const customers = customersRes && customersRes.ok ? await customersRes.json() : { customers: [] };
-        const quotes = quotesRes && quotesRes.ok ? await quotesRes.json() : { quotes: [] };
-        const properties = propertiesRes && propertiesRes.ok ? await propertiesRes.json() : { properties: [] };
-
-        const customerList = customers.customers || [];
-        const quoteList = quotes.quotes || [];
-        const propertyList = properties.properties || [];
+        const customers = (cRes && cRes.ok ? await cRes.json() : {}).customers || [];
+        const quotes = (qRes && qRes.ok ? await qRes.json() : {}).quotes || [];
+        const properties = (pRes && pRes.ok ? await pRes.json() : {}).properties || [];
 
         let html = '';
-
-        if (customerList.length > 0) {
-            html += '<div class="search-group">';
-            html += '<div class="search-group-title">Customers</div>';
-            customerList.forEach(c => {
-                const name = c.name || c.customer_company_name || 'Unknown';
-                html += `<a href="customer-detail.html?id=${c.id || c.customer_id}" class="search-item">${esc(name)}</a>`;
-            });
+        if (customers.length) {
+            html += '<div class="search-group"><div class="search-group-title">Customers</div>';
+            customers.forEach(c => { html += `<a href="customer-detail.html?id=${c.id}" class="search-item">${esc(c.name || 'Unknown')}</a>`; });
             html += '</div>';
         }
-
-        if (quoteList.length > 0) {
-            html += '<div class="search-group">';
-            html += '<div class="search-group-title">Quotes</div>';
-            quoteList.forEach(q => {
-                const name = q.customer_name || q.name || 'Unknown Quote';
-                html += `<a href="sent-quotes.html?quote=${q.id || q.quote_id}" class="search-item">${esc(name)}</a>`;
-            });
+        if (quotes.length) {
+            html += '<div class="search-group"><div class="search-group-title">Quotes</div>';
+            quotes.forEach(q => { html += `<a href="sent-quotes.html?quote=${q.id}" class="search-item">${esc(q.customer_name || 'Unknown')}</a>`; });
             html += '</div>';
         }
-
-        if (propertyList.length > 0) {
-            html += '<div class="search-group">';
-            html += '<div class="search-group-title">Properties</div>';
-            propertyList.forEach(p => {
-                const name = p.address || p.property_address || 'Unknown Property';
-                html += `<a href="properties.html?id=${p.id || p.property_id}" class="search-item">${esc(name)}</a>`;
-            });
+        if (properties.length) {
+            html += '<div class="search-group"><div class="search-group-title">Properties</div>';
+            properties.forEach(p => { html += `<a href="properties.html?id=${p.id}" class="search-item">${esc(p.property_name || p.street || 'Unknown')}</a>`; });
             html += '</div>';
         }
-
-        if (html === '') {
-            html = '<div class="search-empty">No results found</div>';
-        }
-
-        searchDropdown.innerHTML = html;
+        searchDropdown.innerHTML = html || '<div class="search-empty">No results found</div>';
     } catch (e) {
-        console.error('Search error:', e);
-        searchDropdown.innerHTML = '<div class="search-empty">Search error. Please try again.</div>';
+        searchDropdown.innerHTML = '<div class="search-empty">Search error</div>';
     }
 }
 
-function fmtMoney(n) {
-    if (!n || isNaN(n)) return '';
-    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
+// ── Data Loading ──────────────────────────────────────────
 
 async function loadAll() {
+    loadStatCards();
     loadRequestsColumn();
     loadQuotesColumn();
     loadJobsColumn();
@@ -1234,27 +860,77 @@ async function loadAll() {
     loadCustomers();
 }
 
+async function loadStatCards() {
+    try {
+        const [finRes, invRes, custRes] = await Promise.all([
+            fetch('/api/finance/summary').catch(() => null),
+            fetch('/api/invoices/stats').catch(() => null),
+            fetch('/api/customers/stats').catch(() => null)
+        ]);
+
+        // Revenue
+        const fin = finRes && finRes.ok ? await finRes.json() : {};
+        const revMonth = parseFloat(fin.revenueMonth) || 0;
+        const revYear = parseFloat(fin.revenueYear) || 0;
+        document.getElementById('stat-revenue').textContent = fmtMoney(revMonth);
+        document.getElementById('stat-revenue-sub').textContent = fmtMoney(revYear) + ' this year';
+
+        // Outstanding invoices
+        const inv = invRes && invRes.ok ? await invRes.json() : {};
+        const outstanding = parseFloat(inv.outstanding) || 0;
+        const overdue = parseInt(inv.overdue_count) || 0;
+        document.getElementById('stat-outstanding').textContent = fmtMoney(outstanding);
+        if (overdue > 0) {
+            document.getElementById('stat-outstanding-sub').innerHTML = `<span class="down">${overdue} overdue</span>`;
+        } else {
+            document.getElementById('stat-outstanding-sub').textContent = 'All current';
+        }
+
+        // Quotes sent (this month)
+        const sentRes = await fetch('/api/sent-quotes?limit=200').catch(() => null);
+        const sentData = sentRes && sentRes.ok ? await sentRes.json() : {};
+        const allQuotes = sentData.quotes || [];
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const thisMonthQuotes = allQuotes.filter(q => new Date(q.created_at) >= monthStart);
+        const signedThisMonth = thisMonthQuotes.filter(q => q.status === 'signed' || q.status === 'contracted').length;
+        document.getElementById('stat-quotes').textContent = thisMonthQuotes.length;
+        if (thisMonthQuotes.length > 0) {
+            const rate = Math.round((signedThisMonth / thisMonthQuotes.length) * 100);
+            document.getElementById('stat-quotes-sub').textContent = rate + '% conversion rate';
+        }
+
+        // Customers
+        const cust = custRes && custRes.ok ? await custRes.json() : {};
+        document.getElementById('stat-customers').textContent = cust.total || 0;
+        if (cust.trend) {
+            const pct = cust.trend.pct;
+            if (pct > 0) {
+                document.getElementById('stat-customers-sub').innerHTML = `<span class="up">↑ ${pct}%</span> last 30 days`;
+            } else if (pct < 0) {
+                document.getElementById('stat-customers-sub').innerHTML = `<span class="down">↓ ${Math.abs(pct)}%</span> last 30 days`;
+            } else {
+                document.getElementById('stat-customers-sub').textContent = 'Steady last 30 days';
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load stat cards:', e);
+    }
+}
+
 async function loadRequestsColumn() {
     try {
         const res = await fetch('/api/quotes?limit=200');
         const data = await res.json();
         const quotes = data.quotes || [];
-
         const newCount = quotes.filter(q => q.status === 'new').length;
         const contactedCount = quotes.filter(q => q.status === 'contacted').length;
         const quotedCount = quotes.filter(q => q.status === 'quoted').length;
-
         document.getElementById('wf-req-new').textContent = newCount;
         document.getElementById('wf-req-contacted').textContent = contactedCount;
         document.getElementById('wf-req-quoted').textContent = quotedCount;
-
-        // Highlight new if > 0
-        if (newCount > 0) {
-            document.getElementById('wf-req-new').classList.add('highlight');
-        }
-    } catch (e) {
-        console.error('Failed to load requests:', e);
-    }
+        if (newCount > 0) document.getElementById('wf-req-new').classList.add('highlight');
+    } catch (e) { console.error('Requests:', e); }
 }
 
 async function loadQuotesColumn() {
@@ -1270,142 +946,79 @@ async function loadQuotesColumn() {
         document.getElementById('wf-q-changes').textContent = counts.changes_requested || 0;
         document.getElementById('wf-q-contracted').textContent = counts.contracted || 0;
 
-        // Calculate dollar amounts for sent/viewed and signed
         const sentQuotes = quotes.filter(q => q.status === 'sent' || q.status === 'viewed');
         const signedQuotes = quotes.filter(q => q.status === 'signed');
         const sentTotal = sentQuotes.reduce((sum, q) => sum + (parseFloat(q.total_price) || 0), 0);
         const signedTotal = signedQuotes.reduce((sum, q) => sum + (parseFloat(q.total_price) || 0), 0);
-
         document.getElementById('wf-q-sent-amt').textContent = sentTotal ? fmtMoney(sentTotal) : '';
         document.getElementById('wf-q-signed-amt').textContent = signedTotal ? fmtMoney(signedTotal) : '';
 
-        // Build action items for the attention section
-        const actionItems = [];
+        // Action items
+        const actions = [];
+        if (counts.signed > 0) actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: counts.signed, href: 'sent-quotes.html?status=signed' });
+        if (counts.changes_requested > 0) actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: counts.changes_requested, href: 'sent-quotes.html?status=changes_requested' });
+        if (counts.contracted > 0) actions.push({ title: 'Send Portal Invites', sub: 'New customers need card on file', count: counts.contracted, href: 'sent-quotes.html?status=contracted' });
 
-        if ((counts.signed || 0) > 0) {
-            actionItems.push({
-                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-                title: 'Pending Contract Signatures',
-                subtitle: 'Accepted quotes awaiting contract signing',
-                count: counts.signed,
-                href: 'sent-quotes.html?status=signed'
-            });
-        }
-
-        if ((counts.changes_requested || 0) > 0) {
-            actionItems.push({
-                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-                title: 'Quote Change Requests',
-                subtitle: 'Customers want modifications to their quotes',
-                count: counts.changes_requested,
-                href: 'sent-quotes.html?status=changes_requested'
-            });
-        }
-
-        if ((counts.contracted || 0) > 0) {
-            actionItems.push({
-                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
-                title: 'Send Portal Invites',
-                subtitle: 'New customers need card on file in CopilotCRM',
-                count: counts.contracted,
-                href: 'sent-quotes.html?status=contracted'
-            });
-        }
-
-        const actionSection = document.getElementById('action-section');
-        const actionItemsEl = document.getElementById('action-items');
-
-        if (actionItems.length > 0) {
-            actionSection.style.display = 'block';
-            actionItemsEl.innerHTML = actionItems.map(item => `
-                <a href="${item.href}" class="action-item">
+        const section = document.getElementById('action-section');
+        if (actions.length > 0) {
+            section.style.display = 'block';
+            document.getElementById('action-items').innerHTML = actions.map(a => `
+                <a href="${a.href}" class="action-item">
                     <div class="action-item-info">
-                        <div class="action-item-icon">${item.icon}</div>
-                        <div class="action-item-text">
-                            <strong>${item.title}</strong>
-                            <span>${item.subtitle}</span>
-                        </div>
+                        <div class="action-item-icon">⚠️</div>
+                        <div class="action-item-text"><strong>${a.title}</strong><span>${a.sub}</span></div>
                     </div>
-                    <span class="action-item-count">${item.count}</span>
-                </a>
-            `).join('');
+                    <span class="action-item-count">${a.count}</span>
+                </a>`).join('');
         } else {
-            actionSection.style.display = 'none';
+            section.style.display = 'none';
         }
-
-    } catch (e) {
-        console.error('Failed to load quotes column:', e);
-    }
+    } catch (e) { console.error('Quotes:', e); }
 }
 
 async function loadJobsColumn() {
     try {
         const res = await fetch('/api/jobs/dashboard');
         const data = await res.json();
-
         if (data.success) {
             document.getElementById('wf-j-today').textContent = data.stats?.today || 0;
             document.getElementById('wf-j-week').textContent = data.stats?.thisWeek || data.stats?.week || 0;
             document.getElementById('wf-j-pending').textContent = data.stats?.pending || 0;
         }
-    } catch (e) {
-        console.error('Failed to load jobs column:', e);
-    }
+    } catch (e) { console.error('Jobs:', e); }
 }
 
 async function loadMessages() {
     const list = document.getElementById('messages-list');
-    const badge = document.getElementById('nav-badge');
-
     try {
-        const [unreadRes, msgRes] = await Promise.all([
-            fetch(COMMS_API + '/api/messages/unread-count').catch(() => null),
-            fetch(COMMS_API + '/api/messages?limit=5').catch(() => null)
-        ]);
-
-        const unread = unreadRes && unreadRes.ok ? await unreadRes.json() : {};
-        const data = msgRes && msgRes.ok ? await msgRes.json() : {};
+        const res = await fetch('/api/messages?limit=5');
+        const data = res.ok ? await res.json() : {};
         const messages = data.messages || [];
 
-        const count = unread.count || 0;
-        if (count > 0 && badge) {
-            badge.textContent = count;
-            badge.style.display = '';
-        }
-
-        if (!messages.length) {
-            showEmpty(list, 'No recent messages');
-            return;
-        }
+        if (!messages.length) { showEmpty(list, 'No recent messages'); return; }
 
         list.innerHTML = messages.slice(0, 5).map(m => {
             const body = (m.body || '').substring(0, 40);
-            const ago = timeAgo(m.created_at);
-            const sub = ago ? body + ' · ' + ago : body;
+            const ago = timeAgo(m.created_at || m.timestamp);
+            const sub = [body, ago].filter(Boolean).join(' · ');
             return renderItem(
-                m.customer_name || fmtPhone(m.from_number),
+                m.customer_name || m.customerName || fmtPhone(m.from_number || m.from),
                 sub,
-                m.read ? 'active' : 'new',
+                m.read ? 'read' : 'unread',
                 'communications.html'
             );
         }).join('');
-    } catch (e) {
-        showEmpty(list, 'Unable to load messages');
-    }
+    } catch (e) { showEmpty(list, 'Unable to load messages'); }
 }
 
 async function loadCustomers() {
     const list = document.getElementById('customers-list');
-
     try {
         const res = await fetch('/api/customers?limit=5&sort=newest');
         const data = await res.json();
         const customers = data.customers || [];
 
-        if (!customers.length) {
-            showEmpty(list, 'No customers yet');
-            return;
-        }
+        if (!customers.length) { showEmpty(list, 'No customers yet'); return; }
 
         list.innerHTML = customers.slice(0, 5).map(c => {
             const ago = timeAgo(c.created_at);
@@ -1413,13 +1026,11 @@ async function loadCustomers() {
             return renderItem(
                 c.name || c.customer_company_name || 'Unknown',
                 sub,
-                (c.status || 'active').toLowerCase(),
+                'active',
                 `customer-detail.html?id=${c.id || c.customer_id}`
             );
         }).join('');
-    } catch (e) {
-        showEmpty(list, 'Unable to load customers');
-    }
+    } catch (e) { showEmpty(list, 'Unable to load customers'); }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

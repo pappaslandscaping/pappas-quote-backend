@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Detail | Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --green: #22c55e;
+            --green-bg: #f0fdf4;
+            --amber: #f59e0b;
+            --amber-bg: #fffbeb;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --sidebar-w: 240px;
+            --header-h: 60px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', sans-serif; background: var(--gray-50); color: var(--gray-700); }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0;
+            width: var(--sidebar-w); background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex; flex-direction: column;
+            z-index: 100; overflow-y: auto;
+        }
+        .sidebar-brand { padding: 20px; border-bottom: 1px solid var(--gray-200); }
+        .sidebar-brand img { height: 36px; }
+        .sidebar-nav { padding: 12px; flex: 1; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--gray-400); padding: 8px 12px 4px; font-weight: 600; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-50); color: var(--forest); }
+        .nav-item.active { background: var(--forest); color: var(--lime); font-weight: 600; }
+        .sidebar-footer { padding: 16px; border-top: 1px solid var(--gray-200); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        /* Main */
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+        /* Topbar */
+        .topbar {
+            height: var(--header-h); background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px; position: sticky; top: 0; z-index: 50;
+        }
+        .topbar-left { display: flex; align-items: center; gap: 16px; }
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border-radius: 8px; border: 1px solid var(--gray-200);
+            background: var(--white); color: var(--gray-600); font-size: 13px;
+            font-weight: 500; cursor: pointer; text-decoration: none;
+            transition: all 0.15s;
+        }
+        .back-btn:hover { background: var(--gray-50); color: var(--forest); }
+        .back-btn svg { width: 16px; height: 16px; }
+        .topbar-left h1 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .topbar-actions { display: flex; gap: 8px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 16px; border-radius: 8px; font-size: 13px;
+            font-weight: 600; border: none; cursor: pointer;
+            transition: all 0.15s; font-family: inherit; text-decoration: none;
+        }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-outline { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-outline:hover { background: var(--gray-50); color: var(--forest); }
+        .btn-danger { background: var(--white); color: var(--red); border: 1px solid #fca5a5; }
+        .btn-danger:hover { background: #fef2f2; }
+
+        /* Content */
+        .content { padding: 32px; max-width: 1100px; }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-flex; align-items: center; padding: 4px 12px;
+            border-radius: 20px; font-size: 12px; font-weight: 600;
+        }
+        .status-badge.draft { background: var(--gray-100); color: var(--gray-600); }
+        .status-badge.sent { background: var(--blue-bg); color: var(--blue); }
+        .status-badge.viewed { background: var(--amber-bg); color: var(--amber); }
+        .status-badge.signed { background: var(--green-bg); color: var(--green); }
+        .status-badge.contracted { background: var(--green-bg); color: var(--green); }
+        .status-badge.declined { background: #fef0f0; color: var(--red); }
+        .status-badge.changes_requested { background: var(--amber-bg); color: var(--amber); }
+
+        /* Grid layout */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 24px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--white); border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .card-header h3 {
+            font-size: 14px; font-weight: 700; color: var(--forest);
+        }
+        .card-body { padding: 20px; }
+
+        /* Customer info */
+        .customer-header {
+            display: flex; align-items: center; gap: 16px;
+            margin-bottom: 20px;
+        }
+        .customer-avatar {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--forest); color: var(--lime);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; font-weight: 700; flex-shrink: 0;
+        }
+        .customer-name { font-size: 18px; font-weight: 700; color: var(--forest); }
+        .customer-email { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
+
+        .info-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .info-item label {
+            display: block; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--gray-400); font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .info-item span {
+            font-size: 14px; font-weight: 500; color: var(--gray-700);
+        }
+
+        /* Services table */
+        .services-table { width: 100%; border-collapse: collapse; }
+        .services-table th {
+            text-align: left; padding: 10px 16px; font-size: 11px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--gray-400); font-weight: 600;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .services-table td {
+            padding: 12px 16px; border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+        }
+        .services-table tr:last-child td { border-bottom: none; }
+        .services-table .svc-name { font-weight: 500; color: var(--gray-700); }
+        .services-table .svc-desc { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+        .services-table .svc-amount { text-align: right; font-weight: 600; color: var(--forest); }
+
+        /* Totals */
+        .totals-section { padding: 16px 20px; background: var(--gray-50); border-top: 1px solid var(--gray-200); }
+        .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+        .totals-row.subtotal, .totals-row.tax { color: var(--gray-500); }
+        .totals-row.total {
+            font-size: 18px; font-weight: 700; color: var(--forest);
+            padding-top: 10px; margin-top: 6px; border-top: 2px solid var(--lime);
+        }
+        .totals-row.monthly {
+            background: var(--forest); color: var(--white);
+            margin: 12px -20px -16px; padding: 12px 20px;
+            border-radius: 0 0 12px 12px; font-weight: 600;
+        }
+
+        /* Timeline */
+        .timeline { padding: 0; }
+        .timeline-item {
+            display: flex; gap: 16px; padding: 16px 0;
+            border-bottom: 1px solid var(--gray-100);
+            position: relative;
+        }
+        .timeline-item:last-child { border-bottom: none; }
+        .timeline-icon {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; font-size: 16px;
+        }
+        .timeline-icon.created { background: var(--gray-100); }
+        .timeline-icon.sent { background: var(--blue-bg); }
+        .timeline-icon.viewed { background: var(--amber-bg); }
+        .timeline-icon.signed { background: var(--green-bg); }
+        .timeline-icon.contracted { background: var(--green-bg); }
+        .timeline-icon.declined { background: #fef0f0; }
+        .timeline-icon.changes { background: var(--amber-bg); }
+        .timeline-icon.updated { background: var(--blue-bg); }
+        .timeline-content { flex: 1; min-width: 0; }
+        .timeline-title { font-size: 14px; font-weight: 600; color: var(--gray-700); }
+        .timeline-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+        .timeline-time { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+
+        /* Contract badge */
+        .contract-badge {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 16px; background: var(--green-bg);
+            border: 1px solid #bbf7d0; border-radius: 10px;
+            margin-bottom: 16px;
+        }
+        .contract-badge svg { width: 20px; height: 20px; color: var(--green); flex-shrink: 0; }
+        .contract-badge .label { font-size: 13px; font-weight: 600; color: #166534; }
+        .contract-badge .sub { font-size: 12px; color: #15803d; }
+
+        /* Notes */
+        .notes-text { font-size: 14px; color: var(--gray-600); line-height: 1.6; white-space: pre-wrap; }
+
+        /* Mobile */
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; color: var(--gray-600); }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .detail-grid { grid-template-columns: 1fr; }
+            .content { padding: 16px; }
+            .topbar { padding: 0 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/logo.png" alt="Pappas & Co. Landscaping"></div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
+            <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
+            <a href="sent-quotes.html" class="nav-item active"><span>📤</span><span>Sent Quotes</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <a href="sent-quotes.html" class="back-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                Back
+            </a>
+            <h1 id="pageTitle">Quote Detail</h1>
+        </div>
+        <div class="topbar-actions" id="topbarActions"></div>
+    </div>
+
+    <div class="content">
+        <div id="loading" style="text-align:center;padding:60px;color:var(--gray-400);font-size:14px;">Loading quote...</div>
+        <div id="detailContent" style="display:none;">
+            <div class="detail-grid">
+                <!-- Left Column -->
+                <div class="left-col">
+                    <!-- Customer Info Card -->
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-body">
+                            <div class="customer-header">
+                                <div class="customer-avatar" id="custAvatar"></div>
+                                <div>
+                                    <div class="customer-name" id="custName"></div>
+                                    <div class="customer-email" id="custEmail"></div>
+                                </div>
+                                <span class="status-badge" id="statusBadge" style="margin-left:auto;"></span>
+                            </div>
+                            <div id="contractBadge"></div>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label>Phone</label>
+                                    <span id="custPhone">—</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Address</label>
+                                    <span id="custAddr">—</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Quote Number</label>
+                                    <span id="quoteNum">—</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Quote Type</label>
+                                    <span id="quoteType">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Services Card -->
+                    <div class="card" style="margin-bottom:24px;">
+                        <div class="card-header">
+                            <h3>Services</h3>
+                        </div>
+                        <table class="services-table">
+                            <thead>
+                                <tr>
+                                    <th>Service</th>
+                                    <th style="text-align:right;">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="servicesBody"></tbody>
+                        </table>
+                        <div class="totals-section" id="totalsSection"></div>
+                    </div>
+
+                    <!-- Notes Card -->
+                    <div class="card" id="notesCard" style="margin-bottom:24px;display:none;">
+                        <div class="card-header">
+                            <h3>Notes</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="notes-text" id="notesText"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column - Quote History -->
+                <div class="right-col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Quote History</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline" id="timeline"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const quoteId = new URLSearchParams(window.location.search).get('id');
+    if (!quoteId) { window.location.href = 'sent-quotes.html'; }
+
+    let quoteData = null;
+
+    async function loadQuote() {
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}`);
+            const data = await res.json();
+            if (!data.success || !data.quote) {
+                document.getElementById('loading').textContent = 'Quote not found.';
+                return;
+            }
+            quoteData = data.quote;
+            renderQuote(quoteData);
+
+            // Also load view history
+            loadViews();
+        } catch (e) {
+            console.error('Error loading quote:', e);
+            document.getElementById('loading').textContent = 'Failed to load quote.';
+        }
+    }
+
+    function renderQuote(q) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('detailContent').style.display = 'block';
+
+        // Page title
+        const qNum = q.quote_number || ('Q-' + q.id);
+        document.getElementById('pageTitle').textContent = 'Quote #' + qNum;
+        document.title = 'Quote #' + qNum + ' | Pappas & Co.';
+
+        // Customer info
+        const initials = (q.customer_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        document.getElementById('custAvatar').textContent = initials;
+        document.getElementById('custName').textContent = q.customer_name || 'Unknown';
+        document.getElementById('custEmail').textContent = q.customer_email || 'No email';
+        document.getElementById('custPhone').textContent = q.customer_phone || '—';
+        document.getElementById('custAddr').textContent = q.customer_address || '—';
+        document.getElementById('quoteNum').textContent = qNum;
+        document.getElementById('quoteType').textContent = q.quote_type === 'monthly_plan' ? 'Monthly Plan' : 'Regular';
+
+        // Status badge
+        const badge = document.getElementById('statusBadge');
+        const statusLabels = {
+            'draft': 'Draft', 'sent': 'Sent', 'viewed': 'Viewed',
+            'signed': 'Signed', 'contracted': 'Contracted',
+            'declined': 'Declined', 'changes_requested': 'Changes Requested'
+        };
+        badge.className = 'status-badge ' + q.status;
+        badge.textContent = statusLabels[q.status] || q.status;
+
+        // Contract signed badge
+        if (q.contract_signed_at || q.status === 'contracted') {
+            document.getElementById('contractBadge').innerHTML = `
+                <div class="contract-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+                    <div>
+                        <div class="label">Contract Signed</div>
+                        <div class="sub">${q.contract_signer_name ? 'By ' + q.contract_signer_name + ' — ' : ''}${q.contract_signed_at ? new Date(q.contract_signed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}</div>
+                    </div>
+                </div>`;
+        }
+
+        // Services
+        const services = typeof q.services === 'string' ? JSON.parse(q.services) : (q.services || []);
+        const tbody = document.getElementById('servicesBody');
+        tbody.innerHTML = services.map(s => `
+            <tr>
+                <td>
+                    <div class="svc-name">${s.name || s.service || 'Service'}</div>
+                    ${s.description ? `<div class="svc-desc">${s.description}</div>` : ''}
+                </td>
+                <td class="svc-amount">$${parseFloat(s.amount || s.price || 0).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        // Totals
+        const sub = parseFloat(q.subtotal || 0);
+        const tax = parseFloat(q.tax_amount || 0);
+        const total = parseFloat(q.total || 0);
+        const monthly = parseFloat(q.monthly_payment || 0);
+        let totalsHtml = `
+            <div class="totals-row subtotal"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+            <div class="totals-row tax"><span>Tax</span><span>$${tax.toFixed(2)}</span></div>
+            <div class="totals-row total"><span>${q.quote_type === 'monthly_plan' ? 'Annual Total' : 'Total'}</span><span>$${total.toFixed(2)}</span></div>
+        `;
+        if (monthly > 0) {
+            totalsHtml += `<div class="totals-row monthly"><span>Monthly Payment</span><span>$${monthly.toFixed(2)}/mo</span></div>`;
+        }
+        document.getElementById('totalsSection').innerHTML = totalsHtml;
+
+        // Notes
+        if (q.notes) {
+            document.getElementById('notesCard').style.display = 'block';
+            document.getElementById('notesText').textContent = q.notes;
+        }
+
+        // Topbar actions
+        const actions = document.getElementById('topbarActions');
+        let actionsHtml = '';
+        if (q.status === 'draft') {
+            actionsHtml += `<button class="btn btn-primary" onclick="sendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Send Quote</button>`;
+        }
+        if (q.status === 'sent' || q.status === 'viewed') {
+            actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
+        }
+        actionsHtml += `<button class="btn btn-outline" onclick="downloadQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF</button>`;
+        if (q.status === 'contracted') {
+            actionsHtml += `<button class="btn btn-primary" onclick="downloadContract()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg> Download Contract</button>`;
+        }
+        actionsHtml += `<button class="btn btn-danger" onclick="deleteQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>`;
+        actions.innerHTML = actionsHtml;
+
+        // Build timeline
+        buildTimeline(q);
+    }
+
+    function buildTimeline(q) {
+        const timeline = document.getElementById('timeline');
+        const events = [];
+
+        // Created
+        if (q.created_at) {
+            events.push({
+                icon: '📝', cls: 'created',
+                title: 'Quote Created',
+                desc: 'Quote was created and saved as draft',
+                time: new Date(q.created_at)
+            });
+        }
+
+        // Sent
+        if (q.sent_at) {
+            events.push({
+                icon: '📤', cls: 'sent',
+                title: 'Sent by Email',
+                desc: q.customer_email ? 'Emailed to ' + q.customer_email : 'Quote sent to customer',
+                time: new Date(q.sent_at)
+            });
+        }
+
+        // Viewed (from sent_quotes table)
+        if (q.viewed_at) {
+            events.push({
+                icon: '👁', cls: 'viewed',
+                title: 'Viewed by Customer',
+                desc: 'Customer opened the quote link',
+                time: new Date(q.viewed_at)
+            });
+        }
+
+        // Signed
+        if (q.signed_at || (q.contract_signed_at && q.status === 'signed')) {
+            const signTime = q.signed_at || q.contract_signed_at;
+            events.push({
+                icon: '✍️', cls: 'signed',
+                title: 'Quote Accepted',
+                desc: q.contract_signer_name ? 'Accepted by ' + q.contract_signer_name : 'Customer accepted the quote',
+                time: new Date(signTime)
+            });
+        }
+
+        // Contract signed
+        if (q.contract_signed_at && q.status === 'contracted') {
+            events.push({
+                icon: '✅', cls: 'contracted',
+                title: 'Contract Signed',
+                desc: q.contract_signer_name ? 'Signed by ' + q.contract_signer_name + (q.contract_signer_ip ? ' (IP: ' + q.contract_signer_ip + ')' : '') : 'Contract was signed',
+                time: new Date(q.contract_signed_at)
+            });
+        }
+
+        // Declined
+        if (q.status === 'declined') {
+            events.push({
+                icon: '❌', cls: 'declined',
+                title: 'Quote Declined',
+                desc: 'Customer declined this quote',
+                time: new Date(q.updated_at || q.created_at)
+            });
+        }
+
+        // Changes requested
+        if (q.status === 'changes_requested') {
+            events.push({
+                icon: '🔄', cls: 'changes',
+                title: 'Changes Requested',
+                desc: q.change_request_message || 'Customer requested changes to this quote',
+                time: new Date(q.updated_at || q.created_at)
+            });
+        }
+
+        // Sort by time ascending (oldest first)
+        events.sort((a, b) => a.time - b.time);
+
+        if (events.length === 0) {
+            timeline.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px;">No history yet</div>';
+            return;
+        }
+
+        timeline.innerHTML = events.map(e => `
+            <div class="timeline-item">
+                <div class="timeline-icon ${e.cls}">${e.icon}</div>
+                <div class="timeline-content">
+                    <div class="timeline-title">${e.title}</div>
+                    <div class="timeline-desc">${e.desc}</div>
+                    <div class="timeline-time">${formatDateTime(e.time)}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // View history from quote_views table
+    async function loadViews() {
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}/views`);
+            const data = await res.json();
+            if (data.success && data.views && data.views.length > 0) {
+                const timeline = document.getElementById('timeline');
+                // Insert view events into timeline
+                data.views.forEach(v => {
+                    const dt = new Date(v.viewed_at);
+                    const ua = v.user_agent || '';
+                    let device = 'Unknown device';
+                    if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone')) device = 'Mobile device';
+                    else if (ua.includes('Windows')) device = 'Windows computer';
+                    else if (ua.includes('Mac')) device = 'Mac computer';
+                    else if (ua.includes('Linux')) device = 'Linux computer';
+
+                    const item = document.createElement('div');
+                    item.className = 'timeline-item';
+                    item.innerHTML = `
+                        <div class="timeline-icon viewed">👁</div>
+                        <div class="timeline-content">
+                            <div class="timeline-title">Quote Viewed</div>
+                            <div class="timeline-desc">${device}${v.ip_address ? ' · ' + v.ip_address : ''}</div>
+                            <div class="timeline-time">${formatDateTime(dt)}</div>
+                        </div>
+                    `;
+
+                    // Insert in chronological order
+                    const existing = timeline.querySelectorAll('.timeline-item');
+                    let inserted = false;
+                    for (const ex of existing) {
+                        const exTime = ex.querySelector('.timeline-time')?.textContent;
+                        if (exTime && new Date(exTime) > dt) {
+                            // Skip — we're adding at end and re-sorting
+                        }
+                    }
+                    timeline.appendChild(item);
+                });
+
+                // Re-sort all timeline items by date
+                const items = Array.from(timeline.querySelectorAll('.timeline-item'));
+                items.sort((a, b) => {
+                    const ta = parseTimelineDate(a.querySelector('.timeline-time')?.textContent || '');
+                    const tb = parseTimelineDate(b.querySelector('.timeline-time')?.textContent || '');
+                    return ta - tb;
+                });
+                timeline.innerHTML = '';
+                items.forEach(item => timeline.appendChild(item));
+            }
+        } catch (e) {
+            console.error('Error loading views:', e);
+        }
+    }
+
+    function parseTimelineDate(str) {
+        // Try to parse our formatted date strings
+        const d = new Date(str);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    }
+
+    function formatDateTime(dt) {
+        return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) +
+               ' at ' +
+               dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+
+    // Actions
+    async function sendQuote() {
+        if (!confirm('Send this quote to ' + (quoteData.customer_email || 'the customer') + '?')) return;
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}/send`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { alert('Quote sent!'); location.reload(); }
+            else alert('Failed to send: ' + (data.error || 'Unknown error'));
+        } catch (e) { alert('Error sending quote'); }
+    }
+
+    async function resendQuote() {
+        if (!confirm('Resend this quote to ' + (quoteData.customer_email || 'the customer') + '?')) return;
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}/send`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { alert('Quote resent!'); location.reload(); }
+            else alert('Failed to resend: ' + (data.error || 'Unknown error'));
+        } catch (e) { alert('Error resending quote'); }
+    }
+
+    async function downloadQuote() {
+        window.open(`/api/sent-quotes/${quoteId}/pdf`, '_blank');
+    }
+
+    async function downloadContract() {
+        window.open(`/api/sent-quotes/${quoteId}/contract-pdf`, '_blank');
+    }
+
+    async function deleteQuote() {
+        if (!confirm('Are you sure you want to delete this quote? This cannot be undone.')) return;
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) { window.location.href = 'sent-quotes.html'; }
+            else alert('Failed to delete: ' + (data.error || 'Unknown error'));
+        } catch (e) { alert('Error deleting quote'); }
+    }
+
+    // Init
+    loadQuote();
+</script>
+</body>
+</html>

@@ -781,8 +781,10 @@ function updateStats() {
     document.getElementById('cn-voicemail').textContent = vms;
 
     const badge = document.getElementById('nav-badge');
-    badge.textContent = unread;
-    badge.style.display = unread > 0 ? '' : 'none';
+    if (badge) {
+        badge.textContent = unread;
+        badge.style.display = unread > 0 ? '' : 'none';
+    }
 }
 
 // ─── Render Feed ───────────────────────────────────────────────────────────

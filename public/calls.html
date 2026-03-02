@@ -793,7 +793,8 @@ async function loadData() {
         document.getElementById('statVoicemail').textContent = counts.voicemail;
         document.getElementById('statAnswered').textContent = counts.answered;
         document.getElementById('statNew').textContent = counts.new;
-        document.getElementById('nav-badge').textContent = counts.new;
+        const navBadge = document.getElementById('nav-badge');
+        if (navBadge) navBadge.textContent = counts.new;
 
         renderTable();
     } catch (e) {

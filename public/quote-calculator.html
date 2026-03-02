@@ -1765,9 +1765,9 @@ ANNUAL TOTAL: ${total}
         const quoteData = {
             address: currentAddress,
             lotSize: parseInt(document.getElementById('lotSizeInput')?.value) || 0,
-            lawnArea: parseInt(document.getElementById('lawnInput').value) || 0,
-            bedArea: parseInt(document.getElementById('bedInput').value) || 0,
-            hardscape: parseInt(document.getElementById('hardscapeInput').value) || 0,
+            lawnArea: parseInt(document.getElementById('lawnArea')?.value) || 0,
+            bedArea: parseInt(document.getElementById('bedArea')?.value) || 0,
+            hardscape: parseInt(document.getElementById('hardscapeArea')?.value) || 0,
             shrubs: parseInt(document.getElementById('shrubCount').textContent) || 0,
             services: selectedServices.map(s => ({
                 name: s.name,

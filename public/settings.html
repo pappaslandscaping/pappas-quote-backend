@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Pappas & Co. Landscaping</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+            --white: #ffffff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', sans-serif; background: var(--gray-50); color: var(--gray-700); }
+
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; overflow-y: auto; padding: 12px; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .sidebar-footer { padding: 12px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 8px; }
+        .sidebar-user .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+        .sidebar-user .name { font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); }
+        .topbar h1 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .content { padding: 32px; max-width: 900px; }
+
+        /* Cards */
+        .integration-card {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+        .integration-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .integration-title {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .integration-title h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+        .integration-title .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .qb-icon { background: #2ca01c; color: white; font-weight: 800; font-size: 20px; }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-connected { background: var(--green-bg); color: var(--green); }
+        .badge-disconnected { background: var(--gray-100); color: var(--gray-500); }
+
+        .integration-body p {
+            font-size: 14px;
+            color: var(--gray-500);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+        .btn-primary { background: var(--forest); color: white; }
+        .btn-primary:hover { background: var(--forest-dark); }
+        .btn-success { background: #2ca01c; color: white; }
+        .btn-success:hover { background: #248a16; }
+        .btn-outline { background: none; border: 1px solid var(--gray-300); color: var(--gray-600); }
+        .btn-outline:hover { background: var(--gray-100); }
+        .btn-danger { background: none; border: 1px solid var(--red); color: var(--red); }
+        .btn-danger:hover { background: var(--red-bg); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+        /* Sync Results */
+        .sync-results {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 16px;
+            display: none;
+        }
+        .sync-results.show { display: block; }
+        .sync-results h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+        }
+        .sync-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        .sync-stat {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+        .sync-stat .number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+        .sync-stat .label {
+            font-size: 11px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-top: 4px;
+        }
+
+        /* Sync Log */
+        .sync-log {
+            margin-top: 20px;
+            display: none;
+        }
+        .sync-log.show { display: block; }
+        .sync-log h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+        }
+        .log-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+        }
+        .log-entry .time { color: var(--gray-500); font-size: 12px; }
+        .log-entry .summary { color: var(--gray-600); }
+        .log-entry .error { color: var(--red); font-size: 12px; }
+
+        /* Setup Guide */
+        .setup-guide {
+            background: var(--blue-bg);
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 16px;
+        }
+        .setup-guide h4 {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 10px;
+        }
+        .setup-guide ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 13px;
+            color: #1e40af;
+            line-height: 1.8;
+        }
+        .setup-guide a { color: #2563eb; }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: white; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/logo.png" alt="Pappas & Co. Landscaping">
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-label">Overview</div>
+                <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">Sales</div>
+                <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+                <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
+                <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
+                <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">Operations</div>
+                <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+                <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+                <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">Communications</div>
+                <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
+                <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">Marketing</div>
+                <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">Finance</div>
+                <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+                <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+                <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">Team</div>
+                <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
+            </div>
+            <div class="nav-section">
+                <div class="nav-section-label">System</div>
+                <a href="settings.html" class="nav-item active"><span>⚙️</span><span>Settings</span></a>
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="avatar">TP</div>
+                <div>
+                    <div class="name">Theresa Pappas</div>
+                    <div class="role">Admin</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="topbar">
+            <h1>Settings</h1>
+        </div>
+
+        <div class="content">
+            <!-- QuickBooks Integration Card -->
+            <div class="integration-card" id="qbCard">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon qb-icon">QB</div>
+                        <div>
+                            <h2>QuickBooks Online</h2>
+                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Sync customers, invoices, payments & expenses</div>
+                        </div>
+                    </div>
+                    <span class="badge badge-disconnected" id="qbBadge">
+                        <span id="qbBadgeDot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                        <span id="qbBadgeText">Not Connected</span>
+                    </span>
+                </div>
+
+                <div class="integration-body">
+                    <!-- Disconnected State -->
+                    <div id="qbDisconnected">
+                        <p>Connect your QuickBooks Online account to automatically pull customers, invoices, payments, and expenses into your Pappas dashboard.</p>
+                        <div class="actions">
+                            <a href="/api/quickbooks/auth" class="btn btn-success" id="qbConnectBtn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                                Connect to QuickBooks
+                            </a>
+                        </div>
+                        <div class="setup-guide" id="setupGuide">
+                            <h4>Setup Guide</h4>
+                            <ol>
+                                <li>Go to <a href="https://developer.intuit.com" target="_blank">developer.intuit.com</a> and sign in with your Intuit account</li>
+                                <li>Click "Create an app" and select "QuickBooks Online and Payments"</li>
+                                <li>In your app settings, add the redirect URI shown below</li>
+                                <li>Copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+                                <li>Add them to your server environment as <code>QB_CLIENT_ID</code> and <code>QB_CLIENT_SECRET</code></li>
+                                <li>Set <code>QB_REDIRECT_URI</code> to: <code id="redirectUri"></code></li>
+                                <li>Restart the server, then click "Connect to QuickBooks" above</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Connected State -->
+                    <div id="qbConnected" style="display:none;">
+                        <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 16px;">
+                            <span>Connected to Company ID: <strong id="qbRealmId"></strong></span>
+                            <span style="margin-left: 16px;">Last synced: <strong id="qbLastSync">Never</strong></span>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-primary" id="syncBtn" onclick="runSync()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                                Sync Now
+                            </button>
+                            <button class="btn btn-outline" onclick="toggleSyncLog()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                Sync History
+                            </button>
+                            <button class="btn btn-danger" onclick="disconnectQB()">Disconnect</button>
+                        </div>
+
+                        <!-- Sync Results (shown after sync) -->
+                        <div class="sync-results" id="syncResults">
+                            <h4>Sync Results</h4>
+                            <div class="sync-stats">
+                                <div class="sync-stat">
+                                    <div class="number" id="syncCustomers">0</div>
+                                    <div class="label">Customers</div>
+                                </div>
+                                <div class="sync-stat">
+                                    <div class="number" id="syncInvoices">0</div>
+                                    <div class="label">Invoices</div>
+                                </div>
+                                <div class="sync-stat">
+                                    <div class="number" id="syncPayments">0</div>
+                                    <div class="label">Payments</div>
+                                </div>
+                                <div class="sync-stat">
+                                    <div class="number" id="syncExpenses">0</div>
+                                    <div class="label">Expenses</div>
+                                </div>
+                            </div>
+                            <div id="syncErrors" style="margin-top: 12px; display: none;">
+                                <p style="font-size: 12px; color: var(--red);"></p>
+                            </div>
+                        </div>
+
+                        <!-- Sync History Log -->
+                        <div class="sync-log" id="syncLog">
+                            <h4>Sync History</h4>
+                            <div id="syncLogEntries"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Future Integrations Placeholder -->
+            <div class="integration-card" style="opacity: 0.5;">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background: #635bff; color: white; font-weight: 800; font-size: 16px;">S</div>
+                        <div>
+                            <h2>Stripe</h2>
+                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Online payment processing</div>
+                        </div>
+                    </div>
+                    <span class="badge badge-disconnected">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Set redirect URI display
+        document.getElementById('redirectUri').textContent = window.location.origin + '/api/quickbooks/callback';
+
+        // Check URL params for connection result
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('qb') === 'connected') {
+            showToast('QuickBooks connected successfully!');
+            history.replaceState(null, '', 'settings.html');
+        } else if (params.get('qb') === 'error') {
+            showToast('Connection failed: ' + (params.get('msg') || 'Unknown error'), true);
+            history.replaceState(null, '', 'settings.html');
+        }
+
+        // Load QB status on page load
+        loadQBStatus();
+
+        async function loadQBStatus() {
+            try {
+                const res = await fetch('/api/quickbooks/status');
+                const data = await res.json();
+
+                if (data.connected) {
+                    showConnected(data);
+                } else {
+                    showDisconnected();
+                }
+            } catch (e) {
+                showDisconnected();
+            }
+        }
+
+        function showConnected(data) {
+            document.getElementById('qbDisconnected').style.display = 'none';
+            document.getElementById('qbConnected').style.display = 'block';
+            document.getElementById('qbBadge').className = 'badge badge-connected';
+            document.getElementById('qbBadgeText').textContent = 'Connected';
+            document.getElementById('qbRealmId').textContent = data.realmId || '—';
+
+            if (data.lastSync && data.lastSync.completed_at) {
+                const d = new Date(data.lastSync.completed_at);
+                document.getElementById('qbLastSync').textContent = d.toLocaleString();
+            }
+        }
+
+        function showDisconnected() {
+            document.getElementById('qbDisconnected').style.display = 'block';
+            document.getElementById('qbConnected').style.display = 'none';
+            document.getElementById('qbBadge').className = 'badge badge-disconnected';
+            document.getElementById('qbBadgeText').textContent = 'Not Connected';
+        }
+
+        async function runSync() {
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Syncing...';
+
+            try {
+                const res = await fetch('/api/quickbooks/sync', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    const r = data.results;
+                    document.getElementById('syncCustomers').textContent = r.customers;
+                    document.getElementById('syncInvoices').textContent = r.invoices;
+                    document.getElementById('syncPayments').textContent = r.payments;
+                    document.getElementById('syncExpenses').textContent = r.expenses;
+                    document.getElementById('syncResults').classList.add('show');
+
+                    if (r.errors && r.errors.length > 0) {
+                        const errEl = document.getElementById('syncErrors');
+                        errEl.style.display = 'block';
+                        errEl.querySelector('p').textContent = r.errors.join('; ');
+                    } else {
+                        document.getElementById('syncErrors').style.display = 'none';
+                    }
+
+                    document.getElementById('qbLastSync').textContent = new Date().toLocaleString();
+                    showToast(`Synced: ${r.customers} customers, ${r.invoices} invoices, ${r.payments} payments, ${r.expenses} expenses`);
+                } else {
+                    showToast(data.error || 'Sync failed', true);
+                }
+            } catch (e) {
+                showToast('Sync failed: ' + e.message, true);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
+        }
+
+        async function disconnectQB() {
+            if (!confirm('Disconnect QuickBooks? Your synced data will remain in the dashboard.')) return;
+
+            try {
+                const res = await fetch('/api/quickbooks/disconnect', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showDisconnected();
+                    document.getElementById('syncResults').classList.remove('show');
+                    document.getElementById('syncLog').classList.remove('show');
+                    showToast('QuickBooks disconnected');
+                }
+            } catch (e) {
+                showToast('Failed to disconnect', true);
+            }
+        }
+
+        async function toggleSyncLog() {
+            const logEl = document.getElementById('syncLog');
+            if (logEl.classList.contains('show')) {
+                logEl.classList.remove('show');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/quickbooks/sync-log');
+                const data = await res.json();
+
+                const entries = data.logs || [];
+                const el = document.getElementById('syncLogEntries');
+
+                if (entries.length === 0) {
+                    el.innerHTML = '<p style="font-size:13px;color:var(--gray-400);padding:8px 0;">No sync history yet.</p>';
+                } else {
+                    el.innerHTML = entries.map(e => {
+                        const time = e.completed_at ? new Date(e.completed_at).toLocaleString() : 'In progress...';
+                        const summary = `${e.customers_synced || 0} customers, ${e.invoices_synced || 0} invoices, ${e.payments_synced || 0} payments, ${e.expenses_synced || 0} expenses`;
+                        return `<div class="log-entry">
+                            <div>
+                                <span class="summary">${summary}</span>
+                                ${e.errors ? `<div class="error">${e.errors}</div>` : ''}
+                            </div>
+                            <span class="time">${time}</span>
+                        </div>`;
+                    }).join('');
+                }
+
+                logEl.classList.add('show');
+            } catch (e) {
+                showToast('Failed to load sync log', true);
+            }
+        }
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.background = isError ? 'var(--red)' : 'var(--forest)';
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+    </script>
+</body>
+</html>

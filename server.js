@@ -8,6 +8,7 @@ const multer = require('multer');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
+const OAuthClient = require('intuit-oauth');
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -5592,6 +5593,439 @@ app.get('/api/reports/customer-acquisition', async (req, res) => {
     res.json({ success: true, months: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// QUICKBOOKS INTEGRATION (One-Way Sync: QB → Pappas)
+// ═══════════════════════════════════════════════════════════
+
+// --- QB Database Tables ---
+async function ensureQBTables() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS qb_tokens (
+    id SERIAL PRIMARY KEY,
+    realm_id VARCHAR(100) NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    token_type VARCHAR(50) DEFAULT 'bearer',
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS qb_sync_log (
+    id SERIAL PRIMARY KEY,
+    sync_type VARCHAR(50),
+    customers_synced INTEGER DEFAULT 0,
+    invoices_synced INTEGER DEFAULT 0,
+    payments_synced INTEGER DEFAULT 0,
+    expenses_synced INTEGER DEFAULT 0,
+    errors TEXT,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+  )`);
+  // Add qb_id columns if they don't exist
+  try { await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
+}
+ensureQBTables().catch(e => console.error('QB tables init error:', e));
+
+// --- QB OAuth Client Factory ---
+function createOAuthClient() {
+  return new OAuthClient({
+    clientId: process.env.QB_CLIENT_ID || '',
+    clientSecret: process.env.QB_CLIENT_SECRET || '',
+    environment: process.env.QB_ENVIRONMENT || 'sandbox',
+    redirectUri: process.env.QB_REDIRECT_URI || 'http://localhost:3000/api/quickbooks/callback',
+    logging: false
+  });
+}
+
+// --- Get authenticated QB client with auto-refresh ---
+async function getQBClient() {
+  const tokenRow = await pool.query('SELECT * FROM qb_tokens ORDER BY id DESC LIMIT 1');
+  if (tokenRow.rows.length === 0) throw new Error('QuickBooks not connected');
+
+  const t = tokenRow.rows[0];
+  const oauthClient = createOAuthClient();
+  oauthClient.setToken({
+    access_token: t.access_token,
+    refresh_token: t.refresh_token,
+    token_type: t.token_type,
+    expires_in: Math.floor((new Date(t.expires_at) - new Date()) / 1000),
+    realmId: t.realm_id
+  });
+
+  // Auto-refresh if expired or expiring within 5 minutes
+  if (new Date(t.expires_at) <= new Date(Date.now() + 5 * 60 * 1000)) {
+    try {
+      const authResponse = await oauthClient.refresh();
+      const newToken = authResponse.getJson();
+      const expiresAt = new Date(Date.now() + (newToken.expires_in || 3600) * 1000);
+      await pool.query(
+        `UPDATE qb_tokens SET access_token=$1, refresh_token=$2, expires_at=$3, updated_at=NOW() WHERE id=$4`,
+        [newToken.access_token, newToken.refresh_token || t.refresh_token, expiresAt, t.id]
+      );
+    } catch (e) {
+      console.error('QB token refresh failed:', e.message);
+      throw new Error('QuickBooks token expired. Please reconnect.');
+    }
+  }
+
+  return { oauthClient, realmId: t.realm_id };
+}
+
+// --- QB API Helper ---
+async function qbApiGet(endpoint) {
+  const { oauthClient, realmId } = await getQBClient();
+  const baseUrl = process.env.QB_ENVIRONMENT === 'production'
+    ? 'https://quickbooks.api.intuit.com'
+    : 'https://sandbox-quickbooks.api.intuit.com';
+  const url = `${baseUrl}/v3/company/${realmId}/${endpoint}`;
+  const response = await oauthClient.makeApiCall({ url, method: 'GET' });
+  return JSON.parse(response.text());
+}
+
+// --- OAuth Routes ---
+
+// GET /api/quickbooks/auth - Start OAuth flow
+app.get('/api/quickbooks/auth', (req, res) => {
+  if (!process.env.QB_CLIENT_ID) {
+    return res.status(400).json({ success: false, error: 'QuickBooks credentials not configured. Set QB_CLIENT_ID and QB_CLIENT_SECRET.' });
+  }
+  const oauthClient = createOAuthClient();
+  const authUri = oauthClient.authorizeUri({
+    scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
+    state: 'pappas-qb-connect'
+  });
+  res.redirect(authUri);
+});
+
+// GET /api/quickbooks/callback - Handle OAuth callback
+app.get('/api/quickbooks/callback', async (req, res) => {
+  try {
+    const oauthClient = createOAuthClient();
+    const authResponse = await oauthClient.createToken(req.url);
+    const token = authResponse.getJson();
+    const realmId = req.query.realmId;
+    const expiresAt = new Date(Date.now() + (token.expires_in || 3600) * 1000);
+
+    // Clear old tokens and store new ones
+    await pool.query('DELETE FROM qb_tokens');
+    await pool.query(
+      `INSERT INTO qb_tokens (realm_id, access_token, refresh_token, token_type, expires_at) VALUES ($1,$2,$3,$4,$5)`,
+      [realmId, token.access_token, token.refresh_token, token.token_type || 'bearer', expiresAt]
+    );
+
+    console.log('✅ QuickBooks connected. Realm ID:', realmId);
+    res.redirect('/settings.html?qb=connected');
+  } catch (e) {
+    console.error('QB callback error:', e);
+    res.redirect('/settings.html?qb=error&msg=' + encodeURIComponent(e.message));
+  }
+});
+
+// GET /api/quickbooks/status - Check connection
+app.get('/api/quickbooks/status', async (req, res) => {
+  try {
+    const tokenRow = await pool.query('SELECT realm_id, expires_at, updated_at FROM qb_tokens ORDER BY id DESC LIMIT 1');
+    const lastSync = await pool.query('SELECT * FROM qb_sync_log ORDER BY id DESC LIMIT 1');
+
+    if (tokenRow.rows.length === 0) {
+      return res.json({ success: true, connected: false });
+    }
+
+    const t = tokenRow.rows[0];
+    const isExpired = new Date(t.expires_at) <= new Date();
+
+    res.json({
+      success: true,
+      connected: !isExpired,
+      realmId: t.realm_id,
+      tokenExpiresAt: t.expires_at,
+      connectedAt: t.updated_at,
+      lastSync: lastSync.rows[0] || null
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST /api/quickbooks/disconnect - Remove tokens
+app.post('/api/quickbooks/disconnect', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM qb_tokens');
+    res.json({ success: true, message: 'QuickBooks disconnected' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// --- Sync Functions ---
+
+async function syncQBCustomers() {
+  let count = 0;
+  let startPos = 1;
+  const pageSize = 100;
+
+  while (true) {
+    const query = `SELECT * FROM Customer STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+    const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
+    const customers = data?.QueryResponse?.Customer || [];
+    if (customers.length === 0) break;
+
+    for (const c of customers) {
+      const qbId = String(c.Id);
+      const name = c.DisplayName || ((c.GivenName || '') + ' ' + (c.FamilyName || '')).trim();
+      const email = c.PrimaryEmailAddr?.Address || null;
+      const phone = c.PrimaryPhone?.FreeFormNumber || null;
+      const mobile = c.Mobile?.FreeFormNumber || null;
+      const addr = c.BillAddr || {};
+      const street = addr.Line1 || null;
+      const street2 = addr.Line2 || null;
+      const city = addr.City || null;
+      const state = addr.CountrySubDivisionCode || null;
+      const zip = addr.PostalCode || null;
+      const company = c.CompanyName || null;
+
+      // Upsert: match on qb_id, or insert new
+      const existing = await pool.query('SELECT id FROM customers WHERE qb_id = $1', [qbId]);
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE customers SET name=$1, email=$2, phone=$3, mobile=$4, street=$5, street2=$6,
+           city=$7, state=$8, postal_code=$9, customer_company_name=$10, updated_at=NOW() WHERE qb_id=$11`,
+          [name, email, phone, mobile, street, street2, city, state, zip, company, qbId]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO customers (name, email, phone, mobile, street, street2, city, state, postal_code,
+           customer_company_name, qb_id, status, type, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Active','Customer',NOW())`,
+          [name, email, phone, mobile, street, street2, city, state, zip, company, qbId]
+        );
+      }
+      count++;
+    }
+
+    if (customers.length < pageSize) break;
+    startPos += pageSize;
+  }
+  return count;
+}
+
+async function syncQBInvoices() {
+  let count = 0;
+  let startPos = 1;
+  const pageSize = 100;
+
+  while (true) {
+    const query = `SELECT * FROM Invoice STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+    const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
+    const invoices = data?.QueryResponse?.Invoice || [];
+    if (invoices.length === 0) break;
+
+    for (const inv of invoices) {
+      const qbId = String(inv.Id);
+      const custRef = inv.CustomerRef;
+
+      // Find local customer by QB customer ID
+      let customerId = null;
+      let customerName = custRef?.name || 'Unknown';
+      let customerEmail = inv.BillEmail?.Address || null;
+      if (custRef?.value) {
+        const localCust = await pool.query('SELECT id, name, email FROM customers WHERE qb_id = $1', [String(custRef.value)]);
+        if (localCust.rows.length > 0) {
+          customerId = localCust.rows[0].id;
+          customerName = localCust.rows[0].name || customerName;
+          customerEmail = localCust.rows[0].email || customerEmail;
+        }
+      }
+
+      // Build line items
+      const lineItems = (inv.Line || [])
+        .filter(l => l.DetailType === 'SalesItemLineDetail')
+        .map(l => ({
+          name: l.Description || l.SalesItemLineDetail?.ItemRef?.name || 'Service',
+          amount: l.Amount || 0,
+          quantity: l.SalesItemLineDetail?.Qty || 1,
+          rate: l.SalesItemLineDetail?.UnitPrice || l.Amount || 0
+        }));
+
+      const total = parseFloat(inv.TotalAmt) || 0;
+      const balance = parseFloat(inv.Balance) || 0;
+      const amountPaid = total - balance;
+      const status = balance <= 0 && total > 0 ? 'paid' : (inv.DueDate && new Date(inv.DueDate) < new Date() ? 'overdue' : 'sent');
+      const invoiceNumber = inv.DocNumber || `QB-${qbId}`;
+
+      // Upsert
+      const existing = await pool.query('SELECT id FROM invoices WHERE qb_invoice_id = $1', [qbId]);
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE invoices SET customer_id=$1, customer_name=$2, customer_email=$3, status=$4,
+           subtotal=$5, total=$6, amount_paid=$7, due_date=$8, line_items=$9,
+           paid_at=$10, updated_at=NOW() WHERE qb_invoice_id=$11`,
+          [customerId, customerName, customerEmail, status,
+           total, total, amountPaid, inv.DueDate || null, JSON.stringify(lineItems),
+           status === 'paid' ? (inv.MetaData?.LastUpdatedTime || new Date()) : null, qbId]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, status,
+           subtotal, total, amount_paid, due_date, qb_invoice_id, line_items, paid_at, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())`,
+          [invoiceNumber, customerId, customerName, customerEmail, status,
+           total, total, amountPaid, inv.DueDate || null, qbId, JSON.stringify(lineItems),
+           status === 'paid' ? (inv.MetaData?.LastUpdatedTime || new Date()) : null]
+        );
+      }
+      count++;
+    }
+
+    if (invoices.length < pageSize) break;
+    startPos += pageSize;
+  }
+  return count;
+}
+
+async function syncQBPayments() {
+  let count = 0;
+  let startPos = 1;
+  const pageSize = 100;
+
+  while (true) {
+    const query = `SELECT * FROM Payment STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+    const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
+    const payments = data?.QueryResponse?.Payment || [];
+    if (payments.length === 0) break;
+
+    for (const pmt of payments) {
+      const lines = pmt.Line || [];
+      for (const line of lines) {
+        const invoiceRef = line.LinkedTxn?.find(lt => lt.TxnType === 'Invoice');
+        if (!invoiceRef) continue;
+
+        const qbInvId = String(invoiceRef.TxnId);
+        const localInv = await pool.query('SELECT id, total FROM invoices WHERE qb_invoice_id = $1', [qbInvId]);
+        if (localInv.rows.length === 0) continue;
+
+        const invId = localInv.rows[0].id;
+        const invTotal = parseFloat(localInv.rows[0].total) || 0;
+
+        // Sum all payments for this invoice
+        const paidAmount = parseFloat(line.Amount) || 0;
+        await pool.query(
+          `UPDATE invoices SET amount_paid = LEAST(amount_paid + $1, total),
+           status = CASE WHEN amount_paid + $1 >= total THEN 'paid' ELSE status END,
+           paid_at = CASE WHEN amount_paid + $1 >= total THEN $2 ELSE paid_at END,
+           updated_at = NOW() WHERE id = $3 AND qb_invoice_id = $4`,
+          [paidAmount, pmt.TxnDate || new Date(), invId, qbInvId]
+        );
+        count++;
+      }
+    }
+
+    if (payments.length < pageSize) break;
+    startPos += pageSize;
+  }
+  return count;
+}
+
+async function syncQBExpenses() {
+  let count = 0;
+
+  // Sync Purchases (Bills, Expenses, Checks)
+  for (const entityType of ['Purchase', 'Bill']) {
+    let startPos = 1;
+    const pageSize = 100;
+
+    while (true) {
+      const query = `SELECT * FROM ${entityType} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+      const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
+      const items = data?.QueryResponse?.[entityType] || [];
+      if (items.length === 0) break;
+
+      for (const item of items) {
+        const qbId = `${entityType}-${item.Id}`;
+        const lines = item.Line || [];
+        const description = lines.map(l => l.Description).filter(Boolean).join('; ') || `${entityType} #${item.Id}`;
+        const amount = parseFloat(item.TotalAmt) || 0;
+        const vendor = item.EntityRef?.name || null;
+        const category = lines[0]?.AccountBasedExpenseLineDetail?.AccountRef?.name
+                       || lines[0]?.ItemBasedExpenseLineDetail?.ItemRef?.name
+                       || entityType;
+        const expenseDate = item.TxnDate || null;
+
+        const existing = await pool.query('SELECT id FROM expenses WHERE qb_id = $1', [qbId]);
+        if (existing.rows.length > 0) {
+          await pool.query(
+            `UPDATE expenses SET description=$1, amount=$2, category=$3, vendor=$4, expense_date=$5 WHERE qb_id=$6`,
+            [description, amount, category, vendor, expenseDate, qbId]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO expenses (description, amount, category, vendor, expense_date, qb_id, created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW())`,
+            [description, amount, category, vendor, expenseDate, qbId]
+          );
+        }
+        count++;
+      }
+
+      if (items.length < pageSize) break;
+      startPos += pageSize;
+    }
+  }
+  return count;
+}
+
+// POST /api/quickbooks/sync - Run full sync
+app.post('/api/quickbooks/sync', async (req, res) => {
+  try {
+    // Verify connection first
+    await getQBClient();
+
+    // Create sync log entry
+    const logEntry = await pool.query(
+      `INSERT INTO qb_sync_log (sync_type, started_at) VALUES ('full', NOW()) RETURNING id`
+    );
+    const logId = logEntry.rows[0].id;
+
+    const results = { customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] };
+
+    // Sync in order: customers first (so invoice customer lookups work)
+    try { results.customers = await syncQBCustomers(); }
+    catch (e) { results.errors.push('Customers: ' + e.message); console.error('QB sync customers error:', e); }
+
+    try { results.invoices = await syncQBInvoices(); }
+    catch (e) { results.errors.push('Invoices: ' + e.message); console.error('QB sync invoices error:', e); }
+
+    try { results.payments = await syncQBPayments(); }
+    catch (e) { results.errors.push('Payments: ' + e.message); console.error('QB sync payments error:', e); }
+
+    try { results.expenses = await syncQBExpenses(); }
+    catch (e) { results.errors.push('Expenses: ' + e.message); console.error('QB sync expenses error:', e); }
+
+    // Update sync log
+    await pool.query(
+      `UPDATE qb_sync_log SET customers_synced=$1, invoices_synced=$2, payments_synced=$3,
+       expenses_synced=$4, errors=$5, completed_at=NOW() WHERE id=$6`,
+      [results.customers, results.invoices, results.payments, results.expenses,
+       results.errors.length ? results.errors.join('; ') : null, logId]
+    );
+
+    res.json({ success: true, results });
+  } catch (e) {
+    console.error('QB sync error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /api/quickbooks/sync-log - Get sync history
+app.get('/api/quickbooks/sync-log', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM qb_sync_log ORDER BY id DESC LIMIT 20');
+    res.json({ success: true, logs: result.rows });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

@@ -1574,6 +1574,50 @@ app.get('/api/customers/:id/quotes', async (req, res) => {
   }
 });
 
+// GET /api/customers/:id/jobs - Get all scheduled jobs for a customer
+app.get('/api/customers/:id/jobs', async (req, res) => {
+  try {
+    const customerResult = await pool.query('SELECT name, first_name, last_name FROM customers WHERE id = $1', [req.params.id]);
+    if (customerResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const c = customerResult.rows[0];
+    const customerName = c.name || ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
+
+    const jobsResult = await pool.query(
+      `SELECT id, job_date, customer_name, service_type, service_price, address, status, completed_at, crew_assigned
+       FROM scheduled_jobs
+       WHERE customer_id = $1 OR LOWER(customer_name) = LOWER($2)
+       ORDER BY job_date DESC LIMIT 50`,
+      [req.params.id, customerName]
+    );
+    res.json({ success: true, jobs: jobsResult.rows });
+  } catch (error) {
+    console.error('Error fetching customer jobs:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/customers/:id/invoices - Get all invoices for a customer
+app.get('/api/customers/:id/invoices', async (req, res) => {
+  try {
+    const customerResult = await pool.query('SELECT name, first_name, last_name, email FROM customers WHERE id = $1', [req.params.id]);
+    if (customerResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const c = customerResult.rows[0];
+    const customerName = c.name || ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
+
+    const invoicesResult = await pool.query(
+      `SELECT id, invoice_number, customer_name, customer_email, total, status, due_date, paid_at, created_at
+       FROM invoices
+       WHERE LOWER(customer_name) = LOWER($1) OR LOWER(customer_email) = LOWER($2)
+       ORDER BY created_at DESC LIMIT 50`,
+      [customerName, c.email || '']
+    );
+    res.json({ success: true, invoices: invoicesResult.rows });
+  } catch (error) {
+    console.error('Error fetching customer invoices:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════
 // CALLS ENDPOINTS
 // ═══════════════════════════════════════════════════════════
@@ -3402,6 +3446,35 @@ app.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
         servicesHtml = services.map(s => `<li style="margin:6px 0;">${s.name} - $${parseFloat(s.amount).toFixed(2)}</li>`).join('');
       }
     } catch (e) {}
+
+    // ── Auto-create a scheduled job from the signed contract ──
+    try {
+      const nextMonday = new Date();
+      nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7));
+      const jobDate = nextMonday.toISOString().split('T')[0];
+
+      await pool.query(
+        `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, status, estimated_duration)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          jobDate,
+          updatedQuote.customer_name,
+          updatedQuote.customer_id || null,
+          servicesText || 'Landscaping Services',
+          updatedQuote.quote_type === 'monthly_plan' ? 'weekly' : 'one-time',
+          parseFloat(updatedQuote.total) || 0,
+          updatedQuote.customer_address || '',
+          updatedQuote.customer_phone || '',
+          `Auto-created from signed contract. Quote #${updatedQuote.quote_number || updatedQuote.id}`,
+          'pending',
+          60
+        ]
+      );
+      console.log(`Auto-created job for ${updatedQuote.customer_name} on ${jobDate}`);
+    } catch (jobErr) {
+      console.error('Failed to auto-create job from contract:', jobErr.message);
+      // Don't fail the contract signing if job creation fails
+    }
 
     // Generate the contract HTML attachment (matches Canva template style)
     const quoteNumber = updatedQuote.quote_number || 'Q-' + updatedQuote.id;

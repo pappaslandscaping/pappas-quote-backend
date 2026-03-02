@@ -187,8 +187,15 @@
         }
 
         .btn svg { width: 16px; height: 16px; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover { background: var(--forest-dark); box-shadow: 0 2px 8px rgba(46, 64, 61, 0.25); }
+        .btn-primary {
+            background: var(--forest);
+            color: var(--lime);
+        }
+        .btn-primary:hover {
+            background: var(--forest-dark, #1f2b29);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+        }
         .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
         .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
 

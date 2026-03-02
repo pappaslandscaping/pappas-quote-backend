@@ -106,14 +106,29 @@
         .topbar-left p { font-size: 13px; color: var(--gray-400); }
         .topbar-actions { display: flex; gap: 12px; }
         .btn {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 8px 16px; border-radius: 8px; font-size: 13px;
-            font-weight: 600; border: none; cursor: pointer;
-            transition: all 0.15s; font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            text-decoration: none;
         }
         .btn svg { width: 16px; height: 16px; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-primary {
+            background: var(--forest);
+            color: var(--lime);
+        }
+        .btn-primary:hover {
+            background: var(--forest-dark, #1f2b29);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+        }
         .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); transition: all 0.15s ease; }
         .btn-secondary:hover { background: var(--gray-50); }
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }

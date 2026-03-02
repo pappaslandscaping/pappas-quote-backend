@@ -191,25 +191,26 @@
         .btn {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 16px;
+            gap: 6px;
+            padding: 8px 16px;
             border-radius: 8px;
-            border: none;
             font-size: 13px;
             font-weight: 600;
+            border: none;
             cursor: pointer;
             transition: all 0.15s;
+            font-family: inherit;
             text-decoration: none;
-            font-family: 'DM Sans', sans-serif;
         }
 
         .btn-primary {
             background: var(--forest);
             color: var(--lime);
         }
-
         .btn-primary:hover {
             background: var(--forest-dark, #1f2b29);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
         }
 
         .btn-secondary {
@@ -1398,6 +1399,25 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadStats();
             loadInvoices();
+
+            // Auto-open create modal if coming from scheduling with pre-fill data
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('create') === 'true') {
+                openCreateModal();
+                setTimeout(() => {
+                    const nameEl = document.getElementById('customerName');
+                    const addrEl = document.getElementById('customerAddress');
+                    if (nameEl && params.get('customer')) nameEl.value = params.get('customer');
+                    if (addrEl && params.get('address')) addrEl.value = params.get('address');
+                    // Pre-fill line item
+                    const lineItems = document.querySelectorAll('.line-item');
+                    if (lineItems.length > 0) {
+                        const inputs = lineItems[0].querySelectorAll('input');
+                        if (inputs[0] && params.get('service')) inputs[0].value = params.get('service');
+                        if (inputs[1] && params.get('amount')) inputs[1].value = params.get('amount');
+                    }
+                }, 100);
+            }
         });
     </script>
 </body>

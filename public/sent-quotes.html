@@ -188,25 +188,26 @@
         }
 
         .btn-new {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
+            gap: 6px;
+            padding: 8px 16px;
             background: var(--forest);
-            color: white;
+            color: var(--lime);
             border: none;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.15s ease;
+            transition: all 0.15s;
+            font-family: inherit;
         }
 
         .btn-new:hover {
-            background: var(--forest-dark);
+            background: var(--forest-dark, #1f2b29);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46,64,61,0.15);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
         }
         .btn-new svg { width: 18px; height: 18px; }
 

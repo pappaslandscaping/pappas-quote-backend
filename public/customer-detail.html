@@ -54,10 +54,30 @@
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
         .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
 
-        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s ease; font-family: inherit; text-decoration: none; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            text-decoration: none;
+        }
         .btn svg { width: 16px; height: 16px; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover { background: var(--forest-dark); box-shadow: 0 4px 12px rgba(46,64,61,0.15); transform: translateY(-1px); }
+        .btn-primary {
+            background: var(--forest);
+            color: var(--lime);
+        }
+        .btn-primary:hover {
+            background: var(--forest-dark, #1f2b29);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+        }
         .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); transition: all 0.15s ease; }
         .btn-secondary:hover { background: var(--gray-50); }
         .btn-danger { background: var(--red); color: white; }
@@ -687,6 +707,28 @@
             </div>
         </div>
 
+        <!-- Jobs Section -->
+        <div class="comms-card" id="jobsSection" style="display:none;">
+            <div class="comms-card-header">
+                <h3>Jobs</h3>
+                <a href="scheduling.html">View All →</a>
+            </div>
+            <div id="jobsList" class="quotes-list">
+                <div class="comms-loading"><div class="loading-spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- Invoices Section -->
+        <div class="comms-card" id="invoicesSection" style="display:none;">
+            <div class="comms-card-header">
+                <h3>Invoices</h3>
+                <a href="invoices.html">View All →</a>
+            </div>
+            <div id="invoicesList" class="quotes-list">
+                <div class="comms-loading"><div class="loading-spinner"></div></div>
+            </div>
+        </div>
+
 </div>
 
         <!-- Communications Section (always shown below customer info) -->
@@ -736,6 +778,8 @@ async function loadCustomer() {
         loadProperties();
         loadCommunications();
         loadQuotes();
+        loadJobs();
+        loadInvoices();
     } catch (e) {
         document.getElementById('customerContent').innerHTML = '<p style="color:var(--red)">Customer not found.</p>';
     }
@@ -1263,6 +1307,69 @@ async function loadQuotes() {
         console.error('Error loading quotes:', e);
         document.getElementById('quotesList').innerHTML = '<div class="quotes-empty">Unable to load quotes.</div>';
     }
+}
+
+async function loadJobs() {
+    document.getElementById('jobsSection').style.display = 'block';
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/jobs');
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        renderJobs(data.jobs || []);
+    } catch (e) {
+        console.error('Error loading jobs:', e);
+        document.getElementById('jobsList').innerHTML = '<div class="quotes-empty">Unable to load jobs.</div>';
+    }
+}
+
+function renderJobs(jobs) {
+    const el = document.getElementById('jobsList');
+    if (!jobs.length) {
+        el.innerHTML = '<div class="quotes-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>No jobs scheduled for this customer.</div>';
+        return;
+    }
+    el.innerHTML = jobs.map(j => {
+        const statusLabels = { pending:'Pending', confirmed:'Confirmed', 'in-progress':'In Progress', completed:'Completed', cancelled:'Cancelled' };
+        const date = j.job_date ? new Date(j.job_date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+        return '<div class="quote-item">' +
+            '<div class="quote-icon">📅</div>' +
+            '<div class="quote-info"><div class="quote-title">' + esc(j.service_type || 'Job') + '</div><div class="quote-subtitle">' + date + (j.crew_assigned ? ' • Crew: ' + esc(j.crew_assigned) : '') + '</div></div>' +
+            '<div class="quote-meta"><div class="quote-amount">$' + parseFloat(j.service_price || 0).toFixed(2) + '</div>' +
+            '<span class="quote-status status-' + (j.status || 'pending') + '">' + (statusLabels[j.status] || j.status || 'Pending') + '</span>' +
+            '</div></div>';
+    }).join('');
+}
+
+async function loadInvoices() {
+    document.getElementById('invoicesSection').style.display = 'block';
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/invoices');
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        renderInvoices(data.invoices || []);
+    } catch (e) {
+        console.error('Error loading invoices:', e);
+        document.getElementById('invoicesList').innerHTML = '<div class="quotes-empty">Unable to load invoices.</div>';
+    }
+}
+
+function renderInvoices(invoices) {
+    const el = document.getElementById('invoicesList');
+    if (!invoices.length) {
+        el.innerHTML = '<div class="quotes-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>No invoices for this customer yet.</div>';
+        return;
+    }
+    el.innerHTML = invoices.map(inv => {
+        const statusLabels = { draft:'Draft', sent:'Sent', paid:'Paid', overdue:'Overdue', cancelled:'Cancelled' };
+        const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+        const isPaid = inv.status === 'paid';
+        return '<div class="quote-item">' +
+            '<div class="quote-icon">' + (isPaid ? '✅' : '📄') + '</div>' +
+            '<div class="quote-info"><div class="quote-title">Invoice #' + esc(inv.invoice_number || String(inv.id)) + '</div><div class="quote-subtitle">' + date + (inv.due_date ? ' • Due: ' + new Date(inv.due_date).toLocaleDateString() : '') + '</div></div>' +
+            '<div class="quote-meta"><div class="quote-amount">$' + parseFloat(inv.total || 0).toFixed(2) + '</div>' +
+            '<span class="quote-status status-' + (inv.status || 'draft') + '">' + (statusLabels[inv.status] || inv.status || 'Draft') + '</span>' +
+            '</div></div>';
+    }).join('');
 }
 
 function renderQuotes(quotes) {

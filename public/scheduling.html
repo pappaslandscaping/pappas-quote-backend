@@ -249,11 +249,10 @@
             background: var(--forest);
             color: var(--lime);
         }
-
         .btn-primary:hover {
-            background: var(--forest-dark);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+            background: var(--forest-dark, #1f2b29);
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
         }
 
         .btn-secondary {
@@ -2342,6 +2341,16 @@ async function submitJobCompletion() {
         closeCompleteModal();
         closePanel();
         loadJobs();
+
+        // Offer to create invoice for completed job
+        const job = jobs.find(j => j.id == currentCompleteJobId);
+        if (job) {
+            setTimeout(() => {
+                if (confirm(`Job completed! Create an invoice for ${job.customer_name} ($${parseFloat(job.service_price || 0).toFixed(2)})?`)) {
+                    window.location.href = `invoices.html?create=true&customer=${encodeURIComponent(job.customer_name)}&amount=${job.service_price || 0}&service=${encodeURIComponent(job.service_type || '')}&address=${encodeURIComponent(job.address || '')}`;
+                }
+            }, 500);
+        }
     } catch (e) {
         showToast('Failed to complete');
     } finally {

@@ -718,7 +718,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const COMMS_API = 'https://pappas-twilio-webhook-production.up.railway.app';
+const COMMS_API = '';
 const customerId = new URLSearchParams(window.location.search).get('id');
 let customer = null;
 let editMode = false;
@@ -1107,7 +1107,7 @@ function getProxiedRecordingUrl(recordingUrl) {
     // Extract recording SID from URL like https://api.twilio.com/2010-04-01/Accounts/xxx/Recordings/RExxxxx
     const match = recordingUrl.match(/Recordings\/(RE[a-zA-Z0-9]+)/);
     if (match) {
-        return `https://pappas-twilio-webhook-production.up.railway.app/api/recordings/${match[1]}`;
+        return `/api/recordings/${match[1]}`;
     }
     return recordingUrl;
 }

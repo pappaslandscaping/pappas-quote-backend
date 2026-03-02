@@ -768,7 +768,7 @@
                 const response = await fetch('/api/finance/summary');
                 if (!response.ok) throw new Error('Failed to load finance data');
 
-                const data = response.json();
+                const data = await response.json();
                 populateFinanceData(data);
             } catch (error) {
                 console.error('Error loading finance data:', error);

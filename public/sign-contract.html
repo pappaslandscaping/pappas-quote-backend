@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Service Agreement | Pappas & Co. Landscaping</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             background: #f8fafc;
             color: #1e293b;
             line-height: 1.6;
@@ -76,7 +76,7 @@
         }
 
         .progress-step.completed {
-            color: #22c55e;
+            color: #c9dd80;
         }
 
         .progress-step.active {
@@ -97,7 +97,7 @@
         }
 
         .progress-step.completed .progress-dot {
-            background: #22c55e;
+            background: #c9dd80;
             color: white;
         }
 
@@ -113,7 +113,7 @@
         }
 
         .progress-step.completed + .progress-line {
-            background: #22c55e;
+            background: #c9dd80;
         }
 
         /* Quote Summary Card */
@@ -556,7 +556,7 @@
             height: 20px;
             margin-top: 2px;
             flex-shrink: 0;
-            accent-color: #22c55e;
+            accent-color: #c9dd80;
         }
 
         /* Submit Button */
@@ -668,7 +668,7 @@
         .success-icon {
             width: 80px;
             height: 80px;
-            background: #22c55e;
+            background: #c9dd80;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -840,7 +840,7 @@
     <!-- Header -->
     <div class="header">
         <div class="header-content">
-            <img src="https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png" alt="Pappas & Co. Landscaping" class="logo">
+            <img src="/logo.png" alt="Pappas & Co. Landscaping" class="logo">
             <div class="header-info">
                 <strong>Service Agreement</strong>
                 pappaslandscaping.com • (440) 886-7318
@@ -856,7 +856,7 @@
                 <div class="progress-dot">✓</div>
                 <span>Review Quote</span>
             </div>
-            <div class="progress-line" style="background: #22c55e;"></div>
+            <div class="progress-line" style="background: #c9dd80;"></div>
             <div class="progress-step completed">
                 <div class="progress-dot">✓</div>
                 <span>Accept Quote</span>
@@ -1002,9 +1002,7 @@
 
     <script>
         // Configuration
-        const API_BASE = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000' 
-            : 'https://pappas-quote-backend-production.up.railway.app';
+        const API_BASE = '';
 
         // State
         let quoteData = null;
@@ -1407,12 +1405,12 @@
                 <html>
                 <head>
                     <title>Service Agreement - ${quoteData.quote_number || 'Q-' + quoteData.id}</title>
-                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
                         
                         body { 
-                            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
                             padding: 40px 50px;
                             line-height: 1.6;
                             color: #1e293b;

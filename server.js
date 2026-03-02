@@ -566,7 +566,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     console.log('Contract PDF generated successfully, size:', pdfBytes.length, 'bytes');
     return pdfBytes;
     
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error generating PDF:', error.message);
     console.error('Stack trace:', error.stack);
     return null;
@@ -802,7 +802,7 @@ async function generateQuotePDF(quote) {
     console.log('Quote PDF generated successfully, size:', pdfBytes.length, 'bytes');
     return pdfBytes;
     
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error generating quote PDF:', error.message);
     console.error('Stack trace:', error.stack);
     return null;
@@ -925,7 +925,7 @@ app.get('/api/properties', async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching properties:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -986,7 +986,7 @@ app.get('/api/properties/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     res.json({ success: true, property: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1011,7 +1011,7 @@ app.post('/api/properties', async (req, res) => {
     ]);
     
     res.json({ success: true, property: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error creating property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1047,7 +1047,7 @@ app.put('/api/properties/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     res.json({ success: true, property: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error updating property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1094,7 +1094,7 @@ app.patch('/api/properties/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     res.json({ success: true, property: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error updating property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1108,7 +1108,7 @@ app.delete('/api/properties/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error deleting property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1190,7 +1190,7 @@ app.post('/api/import-properties', upload.single('csvfile'), async (req, res) =>
           `, [propertyName, street, street2, city, state, country, zip, lotSize, tags, status, notes]);
           imported++;
         }
-      } catch (error) { res.status(500).json({ numbers: [] });
+      } catch (error) {
         console.error('Import error:', error.message);
         errors.push({ address: prop['street'], error: error.message });
         skipped++;
@@ -1204,7 +1204,7 @@ app.post('/api/import-properties', upload.single('csvfile'), async (req, res) =>
       message: 'Properties import completed',
       stats: { total: properties.length, imported, updated, skipped, errors: errors.slice(0, 10) }
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Import failed:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1265,7 +1265,7 @@ app.post('/api/quotes', async (req, res) => {
     `;
     
     sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${fullName}`, emailHtml);
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1279,7 +1279,7 @@ app.get('/api/quotes', async (req, res) => {
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
     res.json({ success: true, quotes: result.rows });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1485,7 +1485,7 @@ app.post('/api/customers', async (req, res) => {
 
     console.log('👤 Customer created from Zapier:', finalName, email);
     res.json({ success: true, customer: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error creating customer:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2026,7 +2026,7 @@ async function getParcelData(lat, lng) {
       acres: props.ll_gisacre || null,
       rawData: props
     };
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Regrid API error:', error);
     return null;
   }
@@ -2181,7 +2181,7 @@ app.post('/api/analyze-property', async (req, res) => {
       }
     });
     
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Property analysis error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2244,7 +2244,7 @@ async function estimatePixelRatio(maskUrl) {
     if (fileSize < 100000) return 0.55;
     return 0.65;
     
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error estimating pixel ratio:', error);
     return 0;
   }
@@ -2274,7 +2274,7 @@ app.get('/api/expenses', async (req, res) => {
     query += ' ORDER BY expense_date DESC, created_at DESC';
     const result = await pool.query(query, params);
     res.json({ success: true, expenses: result.rows });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching expenses:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2312,7 +2312,7 @@ app.get('/api/expenses/stats', async (req, res) => {
         byCategory: byCategory.rows
       }
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching expense stats:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2334,7 +2334,7 @@ app.post('/api/expenses', async (req, res) => {
     );
     
     res.json({ success: true, expense: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error creating expense:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2348,7 +2348,7 @@ app.get('/api/expenses/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Expense not found' });
     }
     res.json({ success: true, expense: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching expense:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2384,7 +2384,7 @@ app.patch('/api/expenses/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Expense not found' });
     }
     res.json({ success: true, expense: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error updating expense:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2398,7 +2398,7 @@ app.delete('/api/expenses/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Expense not found' });
     }
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error deleting expense:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2465,7 +2465,7 @@ app.post('/api/ocr/receipt', async (req, res) => {
       }
     });
 
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('OCR error:', error);
     res.status(500).json({ success: false, error: 'Failed to process receipt' });
   }
@@ -2604,7 +2604,7 @@ app.get('/api/campaigns', async (req, res) => {
       campaigns: result.rows,
       new_this_week: parseInt(weekResult.rows[0]?.count || 0)
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching campaigns:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2623,7 +2623,7 @@ app.post('/api/campaigns', async (req, res) => {
       RETURNING *
     `, [name, description, form_url, status]);
     res.json({ success: true, campaign: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error creating campaign:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2638,7 +2638,7 @@ app.get('/api/campaigns/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Campaign not found' });
     }
     res.json({ success: true, campaign: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching campaign:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2669,7 +2669,7 @@ app.patch('/api/campaigns/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Campaign not found' });
     }
     res.json({ success: true, campaign: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error updating campaign:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2683,7 +2683,7 @@ app.delete('/api/campaigns/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Campaign not found' });
     }
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error deleting campaign:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2712,7 +2712,7 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
       submissions: result.rows,
       total: parseInt(countResult.rows[0]?.total || 0)
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching submissions:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2758,7 +2758,7 @@ app.post('/api/campaigns/submissions', async (req, res) => {
       <p><a href="${dashboardUrl}">View in Dashboard</a></p>
     `;
     sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml);
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error creating submission:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2787,7 +2787,7 @@ app.patch('/api/campaigns/submissions/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Submission not found' });
     }
     res.json({ success: true, submission: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error updating submission:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2804,7 +2804,7 @@ app.delete('/api/campaigns/submissions/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Submission not found' });
     }
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error deleting submission:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2862,7 +2862,7 @@ app.get('/api/sent-quotes', async (req, res) => {
     });
 
     res.json({ success: true, quotes: result.rows, counts });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching sent quotes:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2876,7 +2876,7 @@ app.get('/api/sent-quotes/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
     res.json({ success: true, quote: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2946,7 +2946,7 @@ app.post('/api/sent-quotes', async (req, res) => {
     );
 
     res.json({ success: true, quote: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error creating quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2993,7 +2993,7 @@ app.put('/api/sent-quotes/:id', async (req, res) => {
     }
 
     res.json({ success: true, quote: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error updating quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3073,7 +3073,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     );
 
     res.json({ success: true, message: 'Quote sent successfully' });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error sending quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3087,7 +3087,7 @@ app.delete('/api/sent-quotes/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error deleting quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3143,7 +3143,7 @@ app.get('/api/sign/:token', async (req, res) => {
     delete quote.sign_token;
     
     res.json({ success: true, quote });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error fetching quote for signing:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3251,7 +3251,7 @@ app.post('/api/sign/:token/decline', async (req, res) => {
     await sendEmail(NOTIFICATION_EMAIL, `❌ Quote Declined: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
 
     res.json({ success: true, message: 'Quote declined' });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error declining quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3345,7 +3345,7 @@ app.post('/api/sign/:token/request-changes', async (req, res) => {
     await sendEmail(NOTIFICATION_EMAIL, `📝 Change Request: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
 
     res.json({ success: true, message: 'Changes requested' });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error requesting changes:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3723,7 +3723,7 @@ h2 { color: #2e403d; font-size: 14px; margin: 24px 0 12px; padding-bottom: 4px; 
     console.log(`📝 Contract signed for quote ${id} by ${printed_name}`);
     res.json({ success: true, quote: updatedQuote });
 
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error signing contract:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3751,7 +3751,7 @@ app.get('/api/sent-quotes/:id/contract-status', async (req, res) => {
       status: quote.status
     });
 
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error getting contract status:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3790,7 +3790,7 @@ app.get('/api/sent-quotes/:id/download-pdf', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="Service-Agreement-${quoteNumber}.pdf"`);
     res.send(Buffer.from(pdfBytes));
     
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error downloading PDF:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3807,7 +3807,7 @@ app.get('/api/sent-quotes/:id/download-quote', async (req, res) => {
     
     // Return quote data for client-side PDF generation
     res.json({ success: true, quote, type: 'quote' });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error downloading quote:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3828,7 +3828,7 @@ app.get('/api/sent-quotes/:id/download-contract', async (req, res) => {
     
     // Return contract data for client-side PDF generation
     res.json({ success: true, quote, type: 'contract' });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Error downloading contract:', error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -3880,7 +3880,7 @@ app.post('/api/app/calls/outbound', authenticateToken, async (req, res) => {
     });
     console.log(`📞 Outbound call initiated: ${call.sid} to ${to} via ${userPhone} from ${callFromNumber}`);
     res.json({ success: true, callSid: call.sid, contactName });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Outbound call error:', error);
     res.status(500).json({ message: 'Failed to initiate call', error: error.message });
   }
@@ -3903,7 +3903,7 @@ app.get('/api/app/calls/status/:callSid', authenticateToken, async (req, res) =>
   try {
     const call = await twilioClient.calls(req.params.callSid).fetch();
     res.json({ status: call.status, duration: call.duration, direction: call.direction });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Call status error:', error);
     res.status(500).json({ message: 'Failed to get call status' });
   }
@@ -3914,7 +3914,7 @@ app.post('/api/app/calls/end/:callSid', authenticateToken, async (req, res) => {
   try {
     await twilioClient.calls(req.params.callSid).update({ status: 'completed' });
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('End call error:', error);
     res.status(500).json({ message: 'Failed to end call' });
   }
@@ -3930,7 +3930,7 @@ app.post('/api/app/calls/hold/:callSid', authenticateToken, async (req, res) => 
       });
     }
     res.json({ success: true, onHold: req.body.hold });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Hold call error:', error);
     res.status(500).json({ message: 'Failed to hold call' });
   }
@@ -3963,7 +3963,7 @@ if (customerResult.rows.length > 0) contactName = customerResult.rows[0].name;
     const todayCalls = enrichedCalls.filter(c => new Date(c.timestamp) >= today).length;
     const missedCalls = enrichedCalls.filter(c => c.status === 'no-answer' || c.status === 'busy' || c.status === 'canceled').length;
     res.json({ calls: enrichedCalls, todayCalls, missedCalls });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Recent calls error:', error);
     res.status(500).json({ message: 'Failed to fetch calls', calls: [], todayCalls: 0, missedCalls: 0 });
   }
@@ -3994,7 +3994,7 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
       };
     }));
     res.json({ calls: enrichedCalls });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Call history error:', error);
     res.status(500).json({ message: 'Failed to fetch call history', calls: [] });
   }
@@ -4018,7 +4018,7 @@ app.get('/api/app/customers', authenticateToken, async (req, res) => {
       ORDER BY name ASC
     `);
     res.json({ customers: result.rows });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Customers error:', error);
     res.status(500).json({ message: 'Failed to fetch customers', customers: [] });
   }
@@ -4032,7 +4032,7 @@ app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
     await pool.query(`INSERT INTO app_devices (email, push_token, platform, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (email, platform) DO UPDATE SET push_token = $2, updated_at = CURRENT_TIMESTAMP`, [req.user.email, pushToken, platform]);
     console.log(`📱 Device registered for ${req.user.email} (${platform})`);
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Device registration error:', error);
     res.status(500).json({ message: 'Failed to register device' });
   }
@@ -4130,7 +4130,7 @@ app.post('/api/sms/webhook', async (req, res) => {
 
     // Send TwiML response (empty - don't auto-reply)
     res.type('text/xml').send('<Response></Response>');
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('SMS webhook error:', error);
     res.type('text/xml').send('<Response></Response>');
   }
@@ -4251,7 +4251,7 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
     }));
 
     res.json({ conversations });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Get conversations error:', error);
     res.status(500).json({ message: 'Failed to fetch conversations', conversations: [] });
   }
@@ -4295,7 +4295,7 @@ app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, 
       messages: result.rows,
       customer: customerResult.rows[0] || null
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Get thread error:', error);
     res.status(500).json({ message: 'Failed to fetch messages', messages: [] });
   }
@@ -4375,7 +4375,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
         created_at: new Date().toISOString()
       }
     });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Send SMS error:', error);
     res.status(500).json({ message: 'Failed to send message', error: error.message });
   }
@@ -4388,7 +4388,7 @@ app.get('/api/app/messages/unread-count', authenticateToken, async (req, res) =>
       SELECT COUNT(*) FROM messages WHERE direction = 'inbound' AND read = false
     `);
     res.json({ count: parseInt(result.rows[0].count) });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     res.status(500).json({ count: 0 });
   }
 });
@@ -4403,7 +4403,7 @@ app.get('/api/app/twilio-numbers', authenticateToken, async (req, res) => {
       label: key === '4408867318' ? 'Primary' : 'Secondary'
     }));
     res.json({ numbers });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
   }
 });
 
@@ -4473,7 +4473,7 @@ app.get('/api/messages/conversations', async (req, res) => {
     }));
 
     res.json({ success: true, conversations });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Get conversations error:', error);
     res.status(500).json({ success: false, conversations: [] });
   }
@@ -4512,7 +4512,7 @@ app.get('/api/messages/thread/:phoneNumber', async (req, res) => {
     }));
 
     res.json({ success: true, messages });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Get thread error:', error);
     res.status(500).json({ success: false, messages: [] });
   }
@@ -4560,7 +4560,7 @@ app.get('/api/messages', async (req, res) => {
     }));
 
     res.json({ success: true, messages });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Get messages error:', error);
     res.status(500).json({ success: false, messages: [] });
   }
@@ -4600,7 +4600,7 @@ app.post('/api/messages/send', async (req, res) => {
     `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, customerResult.rows[0]?.id || null]);
 
     res.json({ success: true, sid: twilioMessage.sid });
-  } catch (error) { res.status(500).json({ numbers: [] });
+  } catch (error) {
     console.error('Send SMS error:', error);
     res.status(500).json({ success: false, message: error.message });
   }

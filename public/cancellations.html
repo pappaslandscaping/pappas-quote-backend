@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customers — Pappas & Co.</title>
+    <title>Cancellations — Pappas & Co.</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
     <style>
         @font-face {
@@ -273,27 +273,26 @@
 
         .btn-primary:hover {
             background: var(--forest-dark);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
         }
 
         .btn-secondary {
             background: var(--white);
             color: var(--gray-600);
             border: 1px solid var(--gray-200);
-            transition: all 0.15s ease;
         }
 
         .btn-secondary:hover {
             background: var(--gray-50);
             border-color: var(--gray-300);
+            transition: all 0.15s ease;
         }
 
         .btn-ghost {
             background: transparent;
             color: var(--gray-500);
             padding: 8px;
-            transition: all 0.15s ease;
         }
 
         .btn-ghost:hover { background: var(--gray-100); }
@@ -336,7 +335,7 @@
         }
 
         .stat-card:hover {
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
             transform: translateY(-2px);
         }
 
@@ -371,34 +370,6 @@
             line-height: 1;
         }
 
-        .stat-card .stat-footer {
-            margin-top: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .stat-card .trend {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            padding: 2px 7px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .trend.up { background: var(--green-bg); color: var(--green); }
-        .trend.down { background: var(--red-bg); color: var(--red); }
-        .trend.flat { background: var(--gray-100); color: var(--gray-500); }
-
-        .stat-card .trend-label {
-            color: var(--gray-400);
-            font-size: 12px;
-        }
-
         .icon-blue { background: var(--blue-bg); color: var(--blue); }
         .icon-amber { background: var(--amber-bg); color: var(--amber); }
         .icon-green { background: var(--green-bg); color: var(--green); }
@@ -410,6 +381,7 @@
             border: 1px solid var(--gray-200);
             border-radius: 12px;
             overflow: hidden;
+            transition: all 0.15s ease;
         }
 
         .table-toolbar {
@@ -424,7 +396,6 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            flex-wrap: wrap;
         }
 
         .table-toolbar h3 {
@@ -462,6 +433,7 @@
             color: var(--gray-600);
             width: 200px;
             background: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%239ca09c' stroke-width='2'/%3E%3Cpath d='M16 16L20 20' stroke='%239ca09c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 10px center;
+            transition: all 0.15s ease;
         }
 
         .search-input:focus {
@@ -470,9 +442,7 @@
             box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
         }
 
-        input:focus,
-        select:focus,
-        textarea:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: var(--forest);
             box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
@@ -504,10 +474,12 @@
         tr:last-child td { border-bottom: none; }
 
         tbody tr {
-            transition: background 0.15s ease;
+            transition: all 0.15s ease;
         }
 
-        tbody tr:hover td { background: var(--gray-50); }
+        tbody tr:hover {
+            background: var(--gray-50);
+        }
 
         .td-name {
             font-weight: 600;
@@ -526,7 +498,9 @@
             transition: all 0.15s ease;
         }
 
-        .td-phone a:hover { color: var(--forest); }
+        .td-phone a:hover {
+            color: var(--forest);
+        }
 
         .status-pill {
             display: inline-flex;
@@ -580,7 +554,6 @@
         .row-btn:hover {
             border-color: var(--forest);
             color: var(--forest);
-            transition: all 0.15s ease;
         }
 
         .row-btn.delete {
@@ -626,26 +599,161 @@
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(8px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ─── Slide-over Panel ──────────────────────────────── */
+        .panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 200;
+            animation: fadeIn 0.2s;
         }
 
-        @keyframes slideUp {
-            from {
-                transform: translateY(80px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
+        .panel-overlay.show { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .panel {
+            position: fixed;
+            top: 0;
+            right: -500px;
+            width: 480px;
+            max-width: 100vw;
+            height: 100vh;
+            background: var(--white);
+            box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+            z-index: 201;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .panel.open { right: 0; }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+
+        .panel-header h2 {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .panel-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: var(--gray-100);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--gray-500);
+            transition: background 0.15s;
+        }
+
+        .panel-close:hover { background: var(--gray-200); }
+
+        .panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .panel-section {
+            margin-bottom: 28px;
+        }
+
+        .panel-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .panel-field {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 8px 0;
+        }
+
+        .panel-field-label {
+            font-size: 13px;
+            color: var(--gray-400);
+            font-weight: 500;
+            min-width: 120px;
+        }
+
+        .panel-field-value {
+            font-size: 13px;
+            color: var(--gray-700);
+            font-weight: 600;
+            text-align: right;
+            flex: 1;
+        }
+
+        .panel-field-value a {
+            color: var(--forest);
+            text-decoration: none;
+        }
+
+        .panel-field-value a:hover { text-decoration: underline; }
+
+        .panel-notes {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            color: var(--gray-600);
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        .panel-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .panel-footer select {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 500;
+        }
+
+        .panel-footer select:focus {
+            outline: none;
+            border-color: var(--lime);
+        }
+
+        .panel-footer .btn { flex-shrink: 0; }
+
+        .panel-meta {
+            font-size: 11px;
+            color: var(--gray-400);
+            margin-top: 12px;
+            text-align: center;
         }
 
         /* toast */
@@ -667,7 +775,8 @@
         }
 
         .toast.show {
-            animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            transform: translateY(0);
+            opacity: 1;
         }
 
         /* ─── Responsive ────────────────────────────────────── */
@@ -706,6 +815,8 @@
 
             .table-toolbar-left { flex-wrap: wrap; }
 
+            .panel { width: 100vw; }
+
             .search-input { width: 100%; }
         }
     
@@ -724,29 +835,13 @@
         .icon-red { background: var(--red-bg); color: var(--red); }
 
     
-        .pagination { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-top: 1px solid var(--gray-100); font-size: 13px; color: var(--gray-500); }
-        .pagination button { padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 6px; background: var(--white); font-family: inherit; font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
-        .pagination button:hover { background: var(--gray-50); }
-        .pagination button:disabled { opacity: 0.4; cursor: default; }
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--gray-100); color: var(--gray-600); margin: 1px; }
-
-        .type-pill {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 5px;
-            font-size: 11px;
-            font-weight: 600;
-            background: var(--purple-bg);
-            color: var(--purple);
-        }
-        
 /* Universal Search */
 .universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
 .search-input-group{position:relative;display:flex;align-items:center}
-.search-icon{position:absolute;left:12px;width:18px;height:18px;color:var(--gray-400,#9ca09c);pointer-events:none}
-.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid var(--gray-200,#e2e5e2);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
-.search-input:focus{outline:none;border-color:var(--forest,#2e403d);box-shadow:0 0 0 3px rgba(46,64,61,.1)}
-.search-input::placeholder{color:var(--gray-400,#9ca09c)}
+.search-icon{position:absolute;left:12px;width:18px;height:18px;color:#9ca09c;pointer-events:none}
+.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid #e2e5e2;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
+.search-input:focus{outline:none;border-color:#2e403d;box-shadow:0 0 0 3px rgba(46,64,61,.1)}
+.search-input::placeholder{color:#9ca09c}
 .search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
 .search-clear-btn:hover{color:#4a4e4a}
 .search-clear-btn svg{width:16px;height:16px}
@@ -754,7 +849,7 @@
 .search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
 .search-results-group:last-child{border-bottom:none}
 .search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
-.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:all 0.15s ease;color:#333633}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
 .search-result-item:hover{background:#f8faf8}
 .search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
 .search-result-icon.customer{background:#eff6ff;color:#3b82f6}
@@ -768,7 +863,7 @@
 .search-loading{text-align:center;padding:16px;color:#6e726e}
 @media(max-width:768px){.universal-search-wrapper{display:none}}
 
-    </style>
+</style>
 </head>
 <body>
 
@@ -805,7 +900,7 @@
         </div>
         <div class="nav-section">
             <div class="nav-section-label">Operations</div>
-            <a class="nav-item active" href="customers.html">
+            <a class="nav-item" href="customers.html">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                 Customers
             </a>
@@ -824,7 +919,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 Messages & Calls
             </a>
-            <a class="nav-item" href="cancellations.html">
+            <a class="nav-item active" href="cancellations.html">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
                 Cancellations
             </a>
@@ -881,271 +976,126 @@
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div class="topbar-left"><h2>Customers</h2><p>Manage your customer directory</p></div>
+            <div class="topbar-left"><h2>Cancellations</h2><p>Track service cancellation requests</p></div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-primary" onclick="loadData()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Refresh</button>
         </div>
         <div class="universal-search-wrapper">
-            <div class="search-input-group">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
-                <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
-        </div>
-                <div class="topbar-actions">
-            <a href="import.html" class="btn btn-secondary">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Import
-            </a>
-            <button class="btn btn-secondary" onclick="exportCSV()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export
-            </button>
-            <button class="btn btn-primary" onclick="loadStats();loadCustomers()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                Refresh
-            </button>
-        </div>
+    <div class="search-input-group">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
+        <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+</div>
+        
     </div>
     <div class="page-content">
-        <div class="stats-row" style="grid-template-columns: repeat(3, 1fr);">
-            <div class="stat-card">
-                <div class="stat-header"><span class="stat-label">Total Customers</span><div class="stat-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div></div>
-                <div class="stat-value" id="statTotal">—</div>
-                <div class="stat-footer" id="trendFooter" style="display:none">
-                    <span class="trend" id="trendBadge"></span>
-                    <span class="trend-label">vs last 30 days</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header"><span class="stat-label">Active</span><div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div></div>
-                <div class="stat-value" id="statActive">—</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header"><span class="stat-label">Inactive</span><div class="stat-icon icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div></div>
-                <div class="stat-value" id="statInactive">—</div>
-            </div>
+        <div class="stats-row">
+            <div class="stat-card"><div class="stat-header"><span class="stat-label">Total Cancellations</span><div class="stat-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div></div><div class="stat-value" id="statTotal">—</div></div>
+            <div class="stat-card"><div class="stat-header"><span class="stat-label">New</span><div class="stat-icon icon-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div></div><div class="stat-value" id="statNew">—</div></div>
+            <div class="stat-card"><div class="stat-header"><span class="stat-label">Processed</span><div class="stat-icon icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div></div><div class="stat-value" id="statProcessed">—</div></div>
+            <div class="stat-card"><div class="stat-header"><span class="stat-label">Completed</span><div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div></div><div class="stat-value" id="statCompleted">—</div></div>
         </div>
         <div class="table-card">
-            <div class="table-toolbar">
-                <div class="table-toolbar-left">
-                    <h3>All Customers</h3>
-                    <select class="filter-select" id="statusFilter" onchange="currentOffset=0;loadCustomers()">
-                        <option value="">All Statuses</option>
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                    </select>
-                    <select class="filter-select" id="typeFilter" onchange="currentOffset=0;loadCustomers()">
-                        <option value="">All Types</option>
-                    </select>
-                    <select class="filter-select" id="cityFilter" onchange="currentOffset=0;loadCustomers()">
-                        <option value="">All Cities</option>
-                    </select>
-                    <select class="filter-select" id="sortSelect" onchange="currentOffset=0;loadCustomers()">
-                        <option value="name_asc">Name (A-Z)</option>
-                        <option value="name_desc">Name (Z-A)</option>
-                        <option value="type_asc">Type (A-Z)</option>
-                        <option value="type_desc">Type (Z-A)</option>
-                        <option value="city_asc">City (A-Z)</option>
-                        <option value="city_desc">City (Z-A)</option>
-                        <option value="newest">Newest First</option>
-                        <option value="oldest">Oldest First</option>
-                        <option value="customer_number_asc">Customer # (Low-High)</option>
-                        <option value="customer_number_desc">Customer # (High-Low)</option>
-                    </select>
-                    <input type="text" class="search-input" id="searchInput" placeholder="Search name, email, address..." oninput="debounceSearch()">
-                </div>
-            </div>
-            <div id="loadingState" class="loading-state"><div class="loading-spinner"></div>Loading customers...</div>
-            <table id="dataTable" style="display:none;">
-                <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>City</th><th>Type</th><th>Tags</th><th>Status</th></tr></thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-            <div class="pagination" id="pagination" style="display:none"><span id="pageInfo"></span><div style="display:flex;gap:8px"><button id="prevBtn" onclick="prevPage()">Previous</button><button id="nextBtn" onclick="nextPage()">Next</button></div></div>
+            <div class="table-toolbar"><div class="table-toolbar-left"><h3>All Cancellations</h3>
+                <select class="filter-select" id="statusFilter" onchange="renderTable()"><option value="">All Statuses</option><option value="new">New</option><option value="processed">Processed</option><option value="completed">Completed</option></select>
+                <input type="text" class="search-input" id="searchInput" placeholder="Search name or address..." oninput="renderTable()">
+            </div></div>
+            <div id="loadingState" class="loading-state"><div class="loading-spinner"></div>Loading cancellations...</div>
+            <table id="dataTable" style="display:none;"><thead><tr><th>Date</th><th>Customer</th><th>Email</th><th>Address</th><th>Reason</th><th>Status</th><th>CRM</th><th>Actions</th></tr></thead><tbody id="tableBody"></tbody></table>
         </div>
     </div>
 </div>
+
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+<div class="panel" id="detailPanel">
+    <div class="panel-header"><h2>Cancellation Details</h2><button class="panel-close" onclick="closePanel()">&times;</button></div>
+    <div class="panel-body" id="panelBody"></div>
+    <div class="panel-footer" id="panelFooter"></div>
+</div>
 <div class="toast" id="toast"></div>
+
 <script>
-let allCustomers=[];
-let allTypes=[];
-let currentOffset=0;
-const PAGE_SIZE=50;
-let searchTimeout;
-
-async function loadStats(){
+let allData = [];
+async function loadData() {
+    document.getElementById('loadingState').style.display='block'; document.getElementById('dataTable').style.display='none';
     try {
-        const r=await fetch('/api/customers/stats');
-        const d=await r.json();
-        const s=d.stats;
-        document.getElementById('statTotal').textContent=s.total;
-        document.getElementById('statActive').textContent=s.active;
-        document.getElementById('statInactive').textContent=s.inactive;
-
-        // Trend indicator
-        if(s.trend){
-            const foot=document.getElementById('trendFooter');
-            const badge=document.getElementById('trendBadge');
-            const pct=s.trend.pct;
-            const arrow=pct>0?'↑':pct<0?'↓':'→';
-            const cls=pct>0?'up':pct<0?'down':'flat';
-            badge.className='trend '+cls;
-            badge.textContent=arrow+' '+Math.abs(pct)+'%';
-            foot.style.display='';
-        }
-
-        // Populate city filter
-        const cs=document.getElementById('cityFilter');
-        const cv=cs.value;
-        cs.innerHTML='<option value="">All Cities</option>';
-        if(s.topCities) s.topCities.forEach(c=>{
-            if(c.city){
-                const o=document.createElement('option');
-                o.value=c.city;
-                o.textContent=c.city+' ('+c.count+')';
-                cs.appendChild(o);
-            }
-        });
-        cs.value=cv;
-        
-        // Load types for filter
-        loadTypes();
-    } catch(e) {
-        console.error(e);
-    }
-}
-
-async function loadTypes(){
-    try {
-        const r=await fetch('/api/customers?limit=5000');
-        const d=await r.json();
-        const customers=d.customers||[];
-        
-        // Get unique types
-        const typeMap={};
-        customers.forEach(c=>{
-            if(c.type && c.type.trim()){
-                const t=c.type.trim();
-                typeMap[t]=(typeMap[t]||0)+1;
-            }
-        });
-        
-        // Sort by count
-        allTypes=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]);
-        
-        // Populate type filter
-        const ts=document.getElementById('typeFilter');
-        const tv=ts.value;
-        ts.innerHTML='<option value="">All Types</option>';
-        allTypes.forEach(([type,count])=>{
-            const o=document.createElement('option');
-            o.value=type;
-            o.textContent=type+' ('+count+')';
-            ts.appendChild(o);
-        });
-        ts.value=tv;
-    } catch(e) {
-        console.error(e);
-    }
-}
-
-async function loadCustomers(){
-    document.getElementById('loadingState').style.display='block';
-    document.getElementById('dataTable').style.display='none';
-    try {
-        const search=document.getElementById('searchInput').value;
-        const status=document.getElementById('statusFilter').value;
-        const type=document.getElementById('typeFilter').value;
-        const city=document.getElementById('cityFilter').value;
-        const sort=document.getElementById('sortSelect').value;
-        
-        const p=new URLSearchParams({limit:PAGE_SIZE,offset:currentOffset});
-        if(search) p.set('search',search);
-        if(status) p.set('status',status);
-        if(type) p.set('type',type);
-        if(city) p.set('city',city);
-        if(sort) p.set('sort',sort);
-        
-        const r=await fetch('/api/customers?'+p);
-        const d=await r.json();
-        allCustomers=d.customers||[];
+        const res = await fetch('/api/cancellations'); const data = await res.json(); allData = data.cancellations || [];
+        const counts = { total: allData.length, new: 0, processed: 0, completed: 0 };
+        allData.forEach(c => { if (counts[c.status] !== undefined) counts[c.status]++; });
+        document.getElementById('statTotal').textContent = counts.total;
+        document.getElementById('statNew').textContent = counts.new;
+        document.getElementById('statProcessed').textContent = counts.processed;
+        document.getElementById('statCompleted').textContent = counts.completed;
         renderTable();
-        
-        const total=d.total||0;
-        const pag=document.getElementById('pagination');
-        if(total>PAGE_SIZE){
-            pag.style.display='flex';
-            document.getElementById('pageInfo').textContent='Showing '+(currentOffset+1)+'–'+Math.min(currentOffset+PAGE_SIZE,total)+' of '+total;
-            document.getElementById('prevBtn').disabled=currentOffset===0;
-            document.getElementById('nextBtn').disabled=currentOffset+PAGE_SIZE>=total;
-        } else {
-            pag.style.display='none';
-        }
-    } catch(e) {
-        console.error(e);
-        document.getElementById('loadingState').innerHTML='<p>Failed to load</p>';
-    }
+    } catch (e) { document.getElementById('loadingState').innerHTML = '<p>Failed to load</p>'; }
 }
 
-function renderTable(){
-    document.getElementById('loadingState').style.display='none';
-    document.getElementById('dataTable').style.display='table';
-    const tb=document.getElementById('tableBody');
-    
-    if(!allCustomers.length){
-        tb.innerHTML='<tr><td colspan="8"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No customers found</p></div></td></tr>';
-        return;
-    }
-    
-    tb.innerHTML=allCustomers.map(c=>{
-        const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'—';
-        const tags=c.tags?c.tags.split(',').map(t=>'<span class="tag">'+esc(t.trim())+'</span>').join(' '):'—';
-        const isA=(c.status||'').toLowerCase()==='active';
-        const typePill=c.type?'<span class="type-pill">'+esc(c.type)+'</span>':'—';
-        
-        return '<tr style="cursor:pointer" onclick="window.location.href=\'customer-detail.html?id='+c.id+'\'">'+
-            '<td style="color:var(--gray-400);font-size:12px">'+esc(c.customer_number||'—')+'</td>'+
-            '<td><div class="td-name">'+esc(name)+'</div></td>'+
-            '<td>'+esc(c.email||'—')+'</td>'+
-            '<td>'+esc(c.phone||c.mobile||'—')+'</td>'+
-            '<td>'+esc(c.city||'—')+'</td>'+
-            '<td>'+typePill+'</td>'+
-            '<td>'+tags+'</td>'+
-            '<td><span class="status-pill status-'+(isA?'active':'inactive')+'">'+esc(c.status||'—')+'</span></td>'+
-            '</tr>';
-    }).join('');
+function renderTable() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    let filtered = allData.filter(c => {
+        if (status && c.status !== status) return false;
+        if (search) { const h = (c.customer_name+' '+c.customer_email+' '+c.customer_address+' '+c.cancellation_reason).toLowerCase(); if (!h.includes(search)) return false; }
+        return true;
+    });
+    document.getElementById('loadingState').style.display = 'none'; document.getElementById('dataTable').style.display = 'table';
+    const tbody = document.getElementById('tableBody');
+    if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg><p>No cancellations found</p></div></td></tr>'; return; }
+    tbody.innerHTML = filtered.map(c => '<tr style="cursor:pointer" onclick="openPanel('+c.id+')">' +
+        '<td style="color:var(--gray-400);font-size:12px">'+new Date(c.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</td>' +
+        '<td><div class="td-name">'+esc(c.customer_name||'Unknown')+'</div></td>' +
+        '<td>'+esc(c.customer_email||'—')+'</td>' +
+        '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.customer_address||'—')+'</td>' +
+        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((c.cancellation_reason||'').substring(0,50))+'</td>' +
+        '<td><span class="status-pill status-'+c.status+'">'+c.status+'</span></td>' +
+        '<td><span style="font-size:12px;font-weight:600;color:'+(c.copilot_crm_updated?'var(--green)':'var(--gray-400)')+'">'+( c.copilot_crm_updated?'✓ Updated':'Pending')+'</span></td>' +
+        '<td><div class="row-actions"><button class="row-btn" onclick="event.stopPropagation();openPanel('+c.id+')">View</button><button class="row-btn delete" onclick="event.stopPropagation();deleteCancellation('+c.id+')">Delete</button></div></td></tr>'
+    ).join('');
 }
 
-function prevPage(){if(currentOffset>0){currentOffset-=PAGE_SIZE;loadCustomers();}}
-function nextPage(){currentOffset+=PAGE_SIZE;loadCustomers();}
-function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(()=>{currentOffset=0;loadCustomers();},300);}
-
-function exportCSV(){
-    if(!allCustomers.length) return showToast('No data');
-    const h=['Number','Name','Email','Phone','City','State','Address','Type','Tags','Status'];
-    const r=allCustomers.map(c=>[c.customer_number||'',c.name||'',c.email||'',c.phone||'',c.city||'',c.state||'',c.street||'',c.type||'',c.tags||'',c.status||'']);
-    let csv=h.join(',')+String.fromCharCode(10);
-    r.forEach(row=>{csv+=row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')+String.fromCharCode(10);});
-    const blob=new Blob([csv],{type:'text/csv'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='pappas-customers-'+new Date().toISOString().split('T')[0]+'.csv';
-    a.click();
-    showToast('CSV exported');
+function openPanel(id) {
+    const c = allData.find(x => x.id === id); if (!c) return;
+    document.getElementById('panelBody').innerHTML =
+        '<div class="panel-section"><div class="panel-section-title">Customer</div>'+
+        '<div class="panel-field"><span class="panel-field-label">Name</span><span class="panel-field-value">'+esc(c.customer_name||'Unknown')+'</span></div>'+
+        '<div class="panel-field"><span class="panel-field-label">Email</span><span class="panel-field-value">'+(c.customer_email?'<a href="mailto:'+esc(c.customer_email)+'">'+esc(c.customer_email)+'</a>':'—')+'</span></div>'+
+        '<div class="panel-field"><span class="panel-field-label">Address</span><span class="panel-field-value">'+esc(c.customer_address||'—')+'</span></div>'+
+        '<div class="panel-field"><span class="panel-field-label">Date</span><span class="panel-field-value">'+new Date(c.created_at).toLocaleString()+'</span></div></div>'+
+        '<div class="panel-section"><div class="panel-section-title">Reason</div><div class="panel-notes">'+esc(c.cancellation_reason||'Not specified')+'</div></div>'+
+        (c.original_email_body?'<div class="panel-section"><div class="panel-section-title">Original Email</div><div class="panel-notes">'+esc(c.original_email_body)+'</div></div>':'')+
+        '<div class="panel-section"><div class="panel-section-title">Status</div>'+
+        '<div class="panel-field"><span class="panel-field-label">CRM Updated</span><span class="panel-field-value" style="color:'+(c.copilot_crm_updated?'var(--green)':'var(--gray-400)')+'">'+( c.copilot_crm_updated?'✓ Updated':'Pending')+'</span></div></div>';
+    document.getElementById('panelFooter').innerHTML =
+        '<select id="panelStatus"><option value="new"'+(c.status==='new'?' selected':'')+'>New</option><option value="processed"'+(c.status==='processed'?' selected':'')+'>Processed</option><option value="completed"'+(c.status==='completed'?' selected':'')+'>Completed</option></select>'+
+        '<button class="btn btn-primary" onclick="updateCancellation('+c.id+')">Update</button>'+
+        '<button class="btn btn-secondary" onclick="markCRM('+c.id+')">'+(c.copilot_crm_updated?'✓ CRM Done':'Mark CRM Updated')+'</button>';
+    document.getElementById('panelOverlay').classList.add('show'); document.getElementById('detailPanel').classList.add('open');
 }
 
-function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
-function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';}
-document.addEventListener('DOMContentLoaded',()=>{loadStats();loadCustomers();});
+function closePanel() { document.getElementById('panelOverlay').classList.remove('show'); document.getElementById('detailPanel').classList.remove('open'); }
+
+async function updateCancellation(id) { try { await fetch('/api/cancellations/'+id, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:document.getElementById('panelStatus').value})}); showToast('Updated'); closePanel(); loadData(); } catch(e) { showToast('Failed'); } }
+async function markCRM(id) { try { await fetch('/api/cancellations/'+id, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({copilot_crm_updated:true})}); showToast('CRM updated'); closePanel(); loadData(); } catch(e) { showToast('Failed'); } }
+async function deleteCancellation(id) { if (!confirm('Delete this cancellation?')) return; try { await fetch('/api/cancellations/'+id, {method:'DELETE'}); showToast('Deleted'); closePanel(); loadData(); } catch(e) { showToast('Failed'); } }
+
+
+    function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+    function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+document.addEventListener('DOMContentLoaded', loadData);
+document.addEventListener('keydown', e => { if (e.key==='Escape') closePanel(); });
+setInterval(loadData, 60000);
 
 // Universal Search
 let searchDebounceTimer=null;
-function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>performSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
-function searchEscHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
-async function performSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEscHtml(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEscHtml(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEscHtml(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEscHtml(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEscHtml(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEscHtml(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEscHtml([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEscHtml(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>uniSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
+function searchEsc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+async function uniSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEsc(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEsc(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEsc(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEsc(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEsc([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEsc(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
 document.addEventListener('DOMContentLoaded',initUniversalSearch);
 
 </script>
-
-
 </body>
 </html>

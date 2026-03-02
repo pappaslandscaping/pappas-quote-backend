@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Pappas & Co. Landscaping</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('/fonts/Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root {
+            --forest: #2e403d;
+            --lime: #c9dd80;
+            --white: #ffffff;
+            --gray-50: #fafafa;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #1f2937;
+            --status-success: #10b981;
+            --status-danger: #ef4444;
+            --status-warning: #f59e0b;
+            --status-info: #3b82f6;
+            --sidebar-w: 240px;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background-color: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.6;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            padding: var(--spacing-lg);
+            text-align: center;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .sidebar-brand img {
+            height: 64px;
+            width: 64px;
+            border-radius: 12px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--spacing-sm);
+        }
+
+        .nav-section {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .nav-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: 8px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .nav-item.active {
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .nav-item svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-footer {
+            padding: var(--spacing-md);
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-user .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .sidebar-user .name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .sidebar-user .role {
+            font-size: 11px;
+            color: var(--gray-400);
+        }
+
+        /* Main Content */
+        .main {
+            margin-left: var(--sidebar-w);
+            padding: var(--spacing-xl);
+            min-height: 100vh;
+        }
+
+        /* Topbar */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .topbar h1 {
+            font-family: 'Qualy', serif;
+            font-size: 32px;
+            color: var(--forest);
+            font-weight: 700;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--lime);
+            color: var(--forest);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        /* Period Selector */
+        .period-selector {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-xl);
+            flex-wrap: wrap;
+        }
+
+        .period-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--gray-300);
+            background: var(--white);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--gray-600);
+        }
+
+        .period-btn:hover {
+            border-color: var(--forest);
+            color: var(--forest);
+        }
+
+        .period-btn.active {
+            background: var(--forest);
+            color: var(--lime);
+            border-color: var(--forest);
+        }
+
+        .date-picker {
+            display: none;
+            gap: var(--spacing-md);
+            align-items: flex-end;
+            padding: var(--spacing-md);
+            background: var(--white);
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .date-picker.active {
+            display: flex;
+        }
+
+        .date-picker label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .date-picker input {
+            padding: 8px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* KPI Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-lg);
+        }
+
+        .kpi-card {
+            background: var(--gray-50);
+            padding: var(--spacing-lg);
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--forest);
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .kpi-positive {
+            color: var(--status-success);
+        }
+
+        .kpi-negative {
+            color: var(--status-danger);
+        }
+
+        /* Tables */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: var(--gray-50);
+        }
+
+        th {
+            padding: var(--spacing-md);
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        td {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--gray-200);
+            font-size: 13px;
+        }
+
+        tr:hover {
+            background: var(--gray-50);
+        }
+
+        tr.total-row {
+            background: var(--gray-100);
+            font-weight: 600;
+        }
+
+        tr.total-row td {
+            color: var(--forest);
+        }
+
+        /* Chart */
+        .chart-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+
+        .chart-bar-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+
+        .chart-label {
+            width: 80px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--gray-600);
+            text-align: right;
+        }
+
+        .chart-bar {
+            flex: 1;
+            height: 24px;
+            background: var(--lime);
+            border-radius: 4px;
+            position: relative;
+            min-width: 20px;
+        }
+
+        .chart-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            width: 40px;
+            text-align: right;
+        }
+
+        /* Utilities */
+        .text-muted {
+            color: var(--gray-500);
+        }
+
+        .text-success {
+            color: var(--status-success);
+        }
+
+        .text-danger {
+            color: var(--status-danger);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 200px;
+            }
+
+            .main {
+                margin-left: 200px;
+                padding: var(--spacing-lg);
+            }
+
+            .topbar h1 {
+                font-size: 24px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                width: 100%;
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main {
+                margin-left: 0;
+                padding: var(--spacing-md);
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .period-selector {
+                flex-direction: column;
+            }
+
+            .period-btn {
+                flex: 1;
+            }
+
+            .date-picker {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .date-picker label {
+                flex-direction: row;
+                justify-content: space-between;
+            }
+
+            .date-picker input {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/logo.png" alt="Pappas & Co. Landscaping">
+        </div>
+
+        <nav class="sidebar-nav">
+            <!-- Overview -->
+            <div class="nav-section">
+                <div class="nav-section-label">Overview</div>
+                <a href="/dashboard" class="nav-item">
+                    <span>📊</span>
+                    <span>Dashboard</span>
+                </a>
+            </div>
+
+            <!-- Sales -->
+            <div class="nav-section">
+                <div class="nav-section-label">Sales</div>
+                <a href="/quote-requests" class="nav-item">
+                    <span>📋</span>
+                    <span>Quote Requests</span>
+                </a>
+                <a href="/quote-calculator" class="nav-item">
+                    <span>🧮</span>
+                    <span>Quote Calculator</span>
+                </a>
+                <a href="/quote-generator" class="nav-item">
+                    <span>✨</span>
+                    <span>Quote Generator</span>
+                </a>
+                <a href="/sent-quotes" class="nav-item">
+                    <span>📤</span>
+                    <span>Sent Quotes</span>
+                </a>
+            </div>
+
+            <!-- Operations -->
+            <div class="nav-section">
+                <div class="nav-section-label">Operations</div>
+                <a href="/customers" class="nav-item">
+                    <span>👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="/properties" class="nav-item">
+                    <span>🏡</span>
+                    <span>Properties</span>
+                </a>
+                <a href="/scheduling" class="nav-item">
+                    <span>📅</span>
+                    <span>Scheduling</span>
+                </a>
+            </div>
+
+            <!-- Communications -->
+            <div class="nav-section">
+                <div class="nav-section-label">Communications</div>
+                <a href="/messages" class="nav-item">
+                    <span>💬</span>
+                    <span>Messages & Calls</span>
+                </a>
+                <a href="/cancellations" class="nav-item">
+                    <span>❌</span>
+                    <span>Cancellations</span>
+                </a>
+            </div>
+
+            <!-- Marketing -->
+            <div class="nav-section">
+                <div class="nav-section-label">Marketing</div>
+                <a href="/campaigns" class="nav-item">
+                    <span>📢</span>
+                    <span>Campaigns</span>
+                </a>
+            </div>
+
+            <!-- Finance -->
+            <div class="nav-section">
+                <div class="nav-section-label">Finance</div>
+                <a href="/expenses" class="nav-item">
+                    <span>💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="/invoices" class="nav-item">
+                    <span>📄</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="/revenue" class="nav-item">
+                    <span>💰</span>
+                    <span>Revenue</span>
+                </a>
+            </div>
+
+            <!-- Team -->
+            <div class="nav-section">
+                <div class="nav-section-label">Team</div>
+                <a href="/crew" class="nav-item">
+                    <span>👷</span>
+                    <span>Crew</span>
+                </a>
+                <a href="/reports" class="nav-item active">
+                    <span>📈</span>
+                    <span>Reports</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="avatar">TP</div>
+                <div>
+                    <div class="name">Theresa Pappas</div>
+                    <div class="role">Admin</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Topbar -->
+        <div class="topbar">
+            <h1>Reports</h1>
+            <button class="btn btn-primary" onclick="exportCSV()">
+                <span>📥</span>
+                Export CSV
+            </button>
+        </div>
+
+        <!-- Period Selector -->
+        <div class="period-selector" id="periodSelector">
+            <button class="period-btn active" data-period="month" onclick="selectPeriod('month')">
+                This Month
+            </button>
+            <button class="period-btn" data-period="last-month" onclick="selectPeriod('last-month')">
+                Last Month
+            </button>
+            <button class="period-btn" data-period="quarter" onclick="selectPeriod('quarter')">
+                This Quarter
+            </button>
+            <button class="period-btn" data-period="year" onclick="selectPeriod('year')">
+                This Year
+            </button>
+            <button class="period-btn" data-period="custom" onclick="selectPeriod('custom')">
+                Custom
+            </button>
+        </div>
+
+        <!-- Date Picker (Hidden by default) -->
+        <div class="date-picker" id="datePicker">
+            <label>
+                Start Date
+                <input type="date" id="startDate" onchange="loadReport()">
+            </label>
+            <label>
+                End Date
+                <input type="date" id="endDate" onchange="loadReport()">
+            </label>
+        </div>
+
+        <!-- Business Summary -->
+        <div class="card">
+            <h2 class="card-title">📊 Business Summary</h2>
+            <div class="kpi-grid" id="kpiGrid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Quotes Sent</div>
+                    <div class="kpi-value" id="quotesSent">0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Conversion Rate</div>
+                    <div class="kpi-value" id="conversionRate">0%</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Jobs Completed</div>
+                    <div class="kpi-value" id="jobsCompleted">0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Revenue</div>
+                    <div class="kpi-value" id="revenue">$0.00</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Expenses</div>
+                    <div class="kpi-value" id="expenses">$0.00</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Profit</div>
+                    <div class="kpi-value" id="profit">$0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Breakdown -->
+        <div class="card">
+            <h2 class="card-title">🛠️ Service Breakdown</h2>
+            <div class="table-wrapper">
+                <table id="serviceTable">
+                    <thead>
+                        <tr>
+                            <th>Service Type</th>
+                            <th>Jobs</th>
+                            <th>Revenue</th>
+                            <th>% of Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="serviceBody">
+                        <tr>
+                            <td colspan="4" class="text-muted">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Customer Acquisition -->
+        <div class="card">
+            <h2 class="card-title">📈 Customer Acquisition (Last 12 Months)</h2>
+            <div class="chart-container" id="customerChart">
+                <div class="chart-bar-item">
+                    <div class="chart-label">Loading...</div>
+                    <div class="chart-bar" style="width: 0;"></div>
+                    <div class="chart-value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Crew Performance -->
+        <div class="card">
+            <h2 class="card-title">👷 Crew Performance</h2>
+            <div class="table-wrapper">
+                <table id="crewTable">
+                    <thead>
+                        <tr>
+                            <th>Crew Name</th>
+                            <th>Jobs Completed</th>
+                            <th>Total Revenue</th>
+                            <th>Avg per Job</th>
+                        </tr>
+                    </thead>
+                    <tbody id="crewBody">
+                        <tr>
+                            <td colspan="4" class="text-muted">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // State
+        let currentPeriod = 'month';
+        let reportData = {
+            summary: null,
+            services: [],
+            customers: [],
+            crew: []
+        };
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        // Format percentage
+        function formatPercent(value) {
+            return (value * 100).toFixed(1) + '%';
+        }
+
+        // Select period
+        function selectPeriod(period) {
+            currentPeriod = period;
+
+            // Update active button
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-period="${period}"]`).classList.add('active');
+
+            // Show/hide date picker
+            if (period === 'custom') {
+                document.getElementById('datePicker').classList.add('active');
+            } else {
+                document.getElementById('datePicker').classList.remove('active');
+            }
+
+            loadReport();
+        }
+
+        // Load report data
+        async function loadReport() {
+            try {
+                let endpoint = `/api/reports/business-summary?period=${currentPeriod}`;
+
+                if (currentPeriod === 'custom') {
+                    const startDate = document.getElementById('startDate').value;
+                    const endDate = document.getElementById('endDate').value;
+                    if (startDate && endDate) {
+                        endpoint = `/api/reports/business-summary?startDate=${startDate}&endDate=${endDate}`;
+                    } else {
+                        return;
+                    }
+                }
+
+                const response = await fetch(endpoint);
+                const data = await response.json();
+
+                reportData.summary = data;
+                updateSummaryCards();
+                updateServiceTable();
+                loadCrewPerformance();
+                loadCustomerAcquisition();
+            } catch (error) {
+                console.error('Error loading report:', error);
+                showError('Failed to load report data');
+            }
+        }
+
+        // Update KPI cards
+        function updateSummaryCards() {
+            const data = reportData.summary;
+            if (!data) return;
+
+            document.getElementById('quotesSent').textContent = data.quotesSent || 0;
+
+            const conversionRate = data.conversionRate || 0;
+            const convElement = document.getElementById('conversionRate');
+            convElement.textContent = (conversionRate * 100).toFixed(1) + '%';
+            convElement.className = 'kpi-value ' + (conversionRate >= 0.3 ? 'kpi-positive' : 'kpi-negative');
+
+            document.getElementById('jobsCompleted').textContent = data.jobsCompleted || 0;
+            document.getElementById('revenue').textContent = formatCurrency(data.revenue || 0);
+            document.getElementById('expenses').textContent = formatCurrency(data.expenses || 0);
+
+            const profit = (data.revenue || 0) - (data.expenses || 0);
+            const profitElement = document.getElementById('profit');
+            profitElement.textContent = formatCurrency(profit);
+            profitElement.className = 'kpi-value ' + (profit >= 0 ? 'kpi-positive' : 'kpi-negative');
+        }
+
+        // Update service table
+        function updateServiceTable() {
+            const data = reportData.summary;
+            if (!data || !data.services) return;
+
+            const tbody = document.getElementById('serviceBody');
+            tbody.innerHTML = '';
+
+            let totalRevenue = 0;
+            const services = data.services.sort((a, b) => b.revenue - a.revenue);
+
+            services.forEach(service => {
+                totalRevenue += service.revenue;
+            });
+
+            services.forEach(service => {
+                const percent = totalRevenue > 0 ? (service.revenue / totalRevenue) * 100 : 0;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${service.name}</strong></td>
+                    <td>${service.jobs}</td>
+                    <td>${formatCurrency(service.revenue)}</td>
+                    <td>${percent.toFixed(1)}%</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Total row
+            const totalRow = document.createElement('tr');
+            totalRow.className = 'total-row';
+            totalRow.innerHTML = `
+                <td><strong>Total</strong></td>
+                <td><strong>${services.reduce((sum, s) => sum + s.jobs, 0)}</strong></td>
+                <td><strong>${formatCurrency(totalRevenue)}</strong></td>
+                <td><strong>100%</strong></td>
+            `;
+            tbody.appendChild(totalRow);
+
+            reportData.services = services;
+        }
+
+        // Load crew performance
+        async function loadCrewPerformance() {
+            try {
+                const response = await fetch('/api/reports/crew-performance');
+                const data = await response.json();
+
+                const tbody = document.getElementById('crewBody');
+                tbody.innerHTML = '';
+
+                const crew = data.sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+                crew.forEach(member => {
+                    const avgPerJob = member.jobsCompleted > 0 ? member.totalRevenue / member.jobsCompleted : 0;
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><strong>${member.name}</strong></td>
+                        <td>${member.jobsCompleted}</td>
+                        <td>${formatCurrency(member.totalRevenue)}</td>
+                        <td>${formatCurrency(avgPerJob)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                reportData.crew = crew;
+            } catch (error) {
+                console.error('Error loading crew performance:', error);
+            }
+        }
+
+        // Load customer acquisition
+        async function loadCustomerAcquisition() {
+            try {
+                const response = await fetch('/api/reports/customer-acquisition');
+                const data = await response.json();
+
+                const chartContainer = document.getElementById('customerChart');
+                chartContainer.innerHTML = '';
+
+                if (!data || data.length === 0) {
+                    chartContainer.innerHTML = '<div class="text-muted">No data available</div>';
+                    return;
+                }
+
+                const maxCount = Math.max(...data.map(d => d.count));
+
+                data.forEach(item => {
+                    const percent = (item.count / maxCount) * 100;
+                    const barItem = document.createElement('div');
+                    barItem.className = 'chart-bar-item';
+                    barItem.innerHTML = `
+                        <div class="chart-label">${item.month}</div>
+                        <div class="chart-bar" style="width: ${percent}%;"></div>
+                        <div class="chart-value">${item.count}</div>
+                    `;
+                    chartContainer.appendChild(barItem);
+                });
+
+                reportData.customers = data;
+            } catch (error) {
+                console.error('Error loading customer acquisition:', error);
+            }
+        }
+
+        // Export CSV
+        function exportCSV() {
+            let csv = '';
+            let filename = `reports_${currentPeriod}_${new Date().toISOString().split('T')[0]}.csv`;
+
+            // Summary section
+            csv += 'BUSINESS SUMMARY\n';
+            csv += 'Metric,Value\n';
+            const data = reportData.summary;
+            if (data) {
+                csv += `Quotes Sent,${data.quotesSent || 0}\n`;
+                csv += `Conversion Rate,${((data.conversionRate || 0) * 100).toFixed(1)}%\n`;
+                csv += `Jobs Completed,${data.jobsCompleted || 0}\n`;
+                csv += `Revenue,${data.revenue || 0}\n`;
+                csv += `Expenses,${data.expenses || 0}\n`;
+                const profit = (data.revenue || 0) - (data.expenses || 0);
+                csv += `Profit,${profit}\n`;
+            }
+
+            csv += '\n\nSERVICE BREAKDOWN\n';
+            csv += 'Service Type,Jobs,Revenue,% of Total\n';
+            let totalRevenue = 0;
+            reportData.services.forEach(service => {
+                totalRevenue += service.revenue;
+            });
+            reportData.services.forEach(service => {
+                const percent = totalRevenue > 0 ? ((service.revenue / totalRevenue) * 100).toFixed(1) : 0;
+                csv += `${service.name},${service.jobs},${service.revenue},${percent}%\n`;
+            });
+
+            csv += '\n\nCREW PERFORMANCE\n';
+            csv += 'Crew Name,Jobs Completed,Total Revenue,Avg per Job\n';
+            reportData.crew.forEach(member => {
+                const avgPerJob = member.jobsCompleted > 0 ? (member.totalRevenue / member.jobsCompleted).toFixed(2) : 0;
+                csv += `${member.name},${member.jobsCompleted},${member.totalRevenue},${avgPerJob}\n`;
+            });
+
+            csv += '\n\nCUSTOMER ACQUISITION\n';
+            csv += 'Month,New Customers\n';
+            reportData.customers.forEach(item => {
+                csv += `${item.month},${item.count}\n`;
+            });
+
+            downloadCSV(csv, filename);
+        }
+
+        // Download CSV helper
+        function downloadCSV(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        // Show error
+        function showError(message) {
+            console.error(message);
+            // Could integrate with a toast notification system
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set today's date as default end date for custom range
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('endDate').value = today;
+
+            // Set start date to 30 days ago
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            document.getElementById('startDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+
+            loadReport();
+        });
+    </script>
+</body>
+</html>

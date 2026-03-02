@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Properties — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --cream: #ffffff;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* ─── Sidebar ───────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-brand img {
+            height: 80px;
+            width: 80px;
+            border-radius: 50%;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section { margin-bottom: 24px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--forest);
+        }
+
+        .nav-item.active {
+            background: rgba(46, 64, 61, 0.08);
+            color: var(--forest);
+        }
+
+        .nav-item svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+
+        .nav-item.active svg { opacity: 1; }
+
+        .nav-item.disabled {
+            color: var(--gray-300);
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* ─── Main Content ───────────────────────────────────── */
+        .main {
+            margin-left: var(--sidebar-w);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            height: var(--header-h);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .topbar h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--forest);
+        }
+
+        .topbar-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .content {
+            flex: 1;
+            padding: 32px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        /* ─── Stats Row ───────────────────────────────────── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--gray-200);
+            transition: all 0.15s ease;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        .stat-sub {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 4px;
+        }
+
+        /* ─── Toolbar ───────────────────────────────────── */
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 220px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px 10px 40px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--white);
+            transition: all 0.15s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            color: var(--gray-400);
+        }
+
+        .filter-select {
+            padding: 10px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--white);
+            min-width: 140px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .btn-primary {
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .btn-primary:hover {
+            background: var(--forest-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46,64,61,0.15);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--forest);
+            border: 1px solid var(--gray-200);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-50);
+            transform: translateY(-1px);
+        }
+
+        /* ─── Table ───────────────────────────────────── */
+        .table-card {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+            transition: all 0.15s ease;
+        }
+
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--forest);
+        }
+
+        .table-count {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        th {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-500);
+            background: var(--gray-50);
+        }
+
+        tbody tr {
+            transition: all 0.15s ease;
+        }
+
+        tbody tr:hover {
+            background: var(--gray-50);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .property-name {
+            font-weight: 500;
+            color: var(--forest);
+        }
+
+        .property-name a {
+            color: inherit;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .property-name a:hover {
+            text-decoration: underline;
+        }
+
+        .address-cell {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .city-cell {
+            font-size: 13px;
+        }
+
+        .lot-size {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .status-inactive {
+            background: var(--gray-100);
+            color: var(--gray-500);
+        }
+
+        .customer-link {
+            font-size: 13px;
+            color: var(--blue);
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .customer-link:hover {
+            text-decoration: underline;
+        }
+
+        .no-customer {
+            font-size: 12px;
+            color: var(--gray-400);
+            font-style: italic;
+        }
+
+        .actions-cell {
+            text-align: right;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            padding: 6px;
+            cursor: pointer;
+            color: var(--gray-400);
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+
+        .action-btn:hover {
+            background: var(--gray-100);
+            color: var(--forest);
+        }
+
+        .action-btn.delete:hover {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* ─── Modal ───────────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--forest);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            padding: 6px;
+            cursor: pointer;
+            color: var(--gray-400);
+            border-radius: 6px;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* ─── Import Area ───────────────────────────────────── */
+        .import-area {
+            border: 2px dashed var(--gray-300);
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            background: var(--gray-50);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .import-area:hover {
+            border-color: var(--forest);
+            background: var(--white);
+            transform: translateY(-2px);
+        }
+
+        .import-area svg {
+            width: 40px;
+            height: 40px;
+            color: var(--gray-400);
+            margin-bottom: 12px;
+        }
+
+        .import-area p {
+            color: var(--gray-600);
+            font-size: 14px;
+        }
+
+        .import-area small {
+            color: var(--gray-400);
+            font-size: 12px;
+        }
+
+        /* ─── Empty State ───────────────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            color: var(--gray-300);
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            color: var(--gray-600);
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            color: var(--gray-500);
+            font-size: 14px;
+        }
+
+        /* ─── Loading ───────────────────────────────────── */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--gray-200);
+            border-top-color: var(--forest);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ─── Toast ───────────────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--forest);
+            color: var(--white);
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.error {
+            background: var(--red);
+        }
+
+        /* ─── Responsive ───────────────────────────────────── */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .main {
+                margin-left: 0;
+            }
+            .content {
+                padding: 20px;
+            }
+            .toolbar {
+                flex-direction: column;
+            }
+            .search-box {
+                width: 100%;
+            }
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+        
+/* Universal Search */
+.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
+.search-input-group{position:relative;display:flex;align-items:center}
+.search-icon{position:absolute;left:12px;width:18px;height:18px;color:var(--gray-400,#9ca09c);pointer-events:none}
+.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid var(--gray-200,#e2e5e2);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
+.search-input:focus{outline:none;border-color:var(--forest,#2e403d);box-shadow:0 0 0 3px rgba(46,64,61,.1)}
+.search-input::placeholder{color:var(--gray-400,#9ca09c)}
+.search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
+.search-clear-btn:hover{color:#4a4e4a}
+.search-clear-btn svg{width:16px;height:16px}
+.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
+.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
+.search-results-group:last-child{border-bottom:none}
+.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
+.search-result-item:hover{background:#f8faf8}
+.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
+.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
+.search-result-icon.property{background:#ecfdf5;color:#059669}
+.search-result-content{flex:1;min-width:0}
+.search-result-title{font-size:13px;font-weight:600;color:#333633;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
+.search-loading{text-align:center;padding:16px;color:#6e726e}
+@media(max-width:768px){.universal-search-wrapper{display:none}}
+
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas & Company Landscaping">
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a class="nav-item" href="quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Quote Requests
+            </a>
+            <a class="nav-item" href="quote-calculator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                Quote Calculator
+            </a>
+            <a class="nav-item" href="quote-generator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Quote Generator
+            </a>
+            <a class="nav-item" href="sent-quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Sent Quotes
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="customers.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Customers
+            </a>
+            <a class="nav-item active" href="properties.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Properties
+            </a>
+            <a class="nav-item" href="scheduling.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Scheduling
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Messages & Calls
+            </a>
+            <a class="nav-item" href="cancellations.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                Cancellations
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a class="nav-item" href="campaigns.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Campaigns
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a class="nav-item" href="expenses.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
+                Expenses
+            </a>
+            <a class="nav-item" href="invoices.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Invoices
+            </a>
+            <a class="nav-item" href="finance.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Revenue
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a class="nav-item" href="crew.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Crew
+            </a>
+            <a class="nav-item" href="reports.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                Reports
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+    <!-- Main Content -->
+    <main class="main">
+        <header class="topbar">
+            <h1>Properties</h1>
+            <div class="universal-search-wrapper">
+            <div class="search-input-group">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
+                <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+        </div>
+        <div class="topbar-actions">
+                <button class="btn btn-secondary" onclick="openImportModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Import CSV
+                </button>
+                <button class="btn btn-primary" onclick="openAddModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Property
+                </button>
+            </div>
+        </header>
+
+        <section class="content">
+            <!-- Stats -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-label">Total Properties</div>
+                    <div class="stat-value" id="statTotal">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active</div>
+                    <div class="stat-value" id="statActive">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">With Pricing</div>
+                    <div class="stat-value" id="statLinked">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Cities Served</div>
+                    <div class="stat-value" id="statCities">—</div>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="search-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    <input type="text" id="searchInput" placeholder="Search properties..." oninput="debounceSearch()">
+                </div>
+                <select class="filter-select" id="statusFilter" onchange="loadProperties()">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+                <select class="filter-select" id="cityFilter" onchange="loadProperties()">
+                    <option value="">All Cities</option>
+                </select>
+                <select class="filter-select" id="sortSelect" onchange="loadProperties()">
+                    <option value="address_asc">Address A-Z</option>
+                    <option value="address_desc">Address Z-A</option>
+                    <option value="customer_asc">Customer A-Z</option>
+                    <option value="customer_desc">Customer Z-A</option>
+                    <option value="city_asc">City A-Z</option>
+                    <option value="city_desc">City Z-A</option>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                </select>
+            </div>
+
+            <!-- Table -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h2>Property List</h2>
+                    <span class="table-count" id="tableCount">Loading...</span>
+                </div>
+                <div id="tableContainer">
+                    <div class="loading"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="propertyModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Add Property</h3>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="propertyForm">
+                    <input type="hidden" id="propertyId">
+                    <div class="form-group">
+                        <label>Customer Name</label>
+                        <input type="text" id="customerName" placeholder="e.g., John Smith">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <input type="text" id="address" placeholder="Full address" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Street</label>
+                        <input type="text" id="street" placeholder="123 Main St">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="city" placeholder="Cleveland">
+                        </div>
+                        <div class="form-group">
+                            <label>State</label>
+                            <input type="text" id="state" value="OH" placeholder="OH">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>ZIP Code</label>
+                            <input type="text" id="postalCode" placeholder="44111">
+                        </div>
+                        <div class="form-group">
+                            <label>Lot Size (sq ft)</label>
+                            <input type="number" id="lawnSqft" placeholder="0" step="0.001">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Mowing Price</label>
+                            <input type="number" id="mowingPrice" placeholder="0.00" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Link to Customer</label>
+                        <select id="customerId">
+                            <option value="">— No Customer —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tags</label>
+                        <input type="text" id="tags" placeholder="Comma-separated tags">
+                    </div>
+                    <div class="form-group">
+                        <label>Property Notes</label>
+                        <textarea id="propertyNotes" placeholder="Additional notes about this property..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveProperty()">Save Property</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Import Properties</h3>
+                <button class="modal-close" onclick="closeImportModal()">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="import-area" onclick="document.getElementById('csvFile').click()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <p>Click to select a CSV file</p>
+                    <small>Expected columns: Property Name, Street, City, State, zip, Lot Size, Status</small>
+                </div>
+                <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+                <div id="importStatus" style="margin-top: 16px; display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+                <button class="btn btn-primary" id="importBtn" onclick="importCSV()" disabled>Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : '';
+        
+        let properties = [];
+        let customers = [];
+        let cities = new Set();
+        let searchTimeout;
+        let selectedFile = null;
+
+        // ─── Init ───────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadProperties();
+            loadCustomers();
+        });
+
+        // ─── Load Stats ───────────────────────────────────────────────────────
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/properties/stats`);
+                const data = await res.json();
+                if (data.success && data.stats) {
+                    const s = data.stats;
+                    document.getElementById('statTotal').textContent = Number(s.total || 0).toLocaleString();
+                    document.getElementById('statActive').textContent = Number(s.active || 0).toLocaleString();
+                    const pricedCount = s.withPricing || s.revenue?.pricedProperties || 0;
+                    document.getElementById('statLinked').textContent = Number(pricedCount).toLocaleString();
+                    const citiesCount = s.citiesServed || s.topCities?.length || 0;
+                    document.getElementById('statCities').textContent = Number(citiesCount).toLocaleString();
+                } else {
+                    // Fallback: compute from properties list
+                    computeStatsFromProperties();
+                }
+            } catch (e) {
+                console.error('Error loading stats:', e);
+                // Fallback: compute from properties list
+                computeStatsFromProperties();
+            }
+        }
+
+        // ─── Compute Stats from Properties ────────────────────────────────────────
+        async function computeStatsFromProperties() {
+            try {
+                const res = await fetch(`${API_BASE}/api/properties?limit=10000`);
+                const data = await res.json();
+                if (data.success) {
+                    const props = data.properties || [];
+                    const total = data.total || props.length;
+                    
+                    // Case-insensitive status check
+                    const active = props.filter(p => 
+                        p.status && p.status.toLowerCase() === 'active'
+                    ).length;
+                    
+                    // Check multiple possible pricing field names
+                    const withPricing = props.filter(p => 
+                        p.mow_price || p.weekly_price || p.price || 
+                        p.mowPrice || p.weeklyPrice || p.service_price
+                    ).length;
+                    
+                    const citiesSet = new Set(props.map(p => p.city).filter(Boolean));
+                    
+                    document.getElementById('statTotal').textContent = Number(total).toLocaleString();
+                    document.getElementById('statActive').textContent = Number(active).toLocaleString();
+                    document.getElementById('statLinked').textContent = Number(withPricing).toLocaleString();
+                    document.getElementById('statCities').textContent = Number(citiesSet.size).toLocaleString();
+                    
+                    // Debug: log first property to see field names
+                    if (props.length > 0) {
+                        console.log('Sample property fields:', Object.keys(props[0]));
+                        console.log('Sample property:', props[0]);
+                    }
+                }
+            } catch (e) {
+                console.error('Error computing stats:', e);
+            }
+        }
+
+        // ─── Load Properties ───────────────────────────────────────────────────
+        async function loadProperties() {
+            const search = document.getElementById('searchInput').value;
+            const status = document.getElementById('statusFilter').value;
+            const city = document.getElementById('cityFilter').value;
+            const sort = document.getElementById('sortSelect').value;
+
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (status) params.append('status', status);
+            if (city) params.append('city', city);
+            if (sort) params.append('sort', sort);
+
+            try {
+                const res = await fetch(`${API_BASE}/api/properties?${params}`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    properties = data.properties;
+                    
+                    // Build cities filter
+                    cities = new Set(properties.map(p => p.city).filter(Boolean));
+                    updateCityFilter();
+                    
+                    renderTable();
+                    document.getElementById('tableCount').textContent = 
+                        `${data.total.toLocaleString()} properties`;
+                }
+            } catch (e) {
+                console.error('Error loading properties:', e);
+                document.getElementById('tableContainer').innerHTML = 
+                    '<div class="empty-state"><p>Error loading properties</p></div>';
+            }
+        }
+
+        // ─── Load Customers (for dropdown) ─────────────────────────────────────
+        async function loadCustomers() {
+            try {
+                const res = await fetch(`${API_BASE}/api/customers?limit=2000`);
+                const data = await res.json();
+                if (data.success) {
+                    customers = data.customers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+                }
+            } catch (e) {
+                console.error('Error loading customers:', e);
+            }
+        }
+
+        // ─── Update City Filter ─────────────────────────────────────────────────
+        function updateCityFilter() {
+            const select = document.getElementById('cityFilter');
+            const current = select.value;
+            const options = ['<option value="">All Cities</option>'];
+            
+            [...cities].sort().forEach(city => {
+                options.push(`<option value="${esc(city)}" ${city === current ? 'selected' : ''}>${esc(city)}</option>`);
+            });
+            
+            select.innerHTML = options.join('');
+        }
+
+        // ─── Render Table ───────────────────────────────────────────────────────
+        function renderTable() {
+            if (properties.length === 0) {
+                document.getElementById('tableContainer').innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        <h3>No properties found</h3>
+                        <p>Add your first property or import from CSV</p>
+                    </div>`;
+                return;
+            }
+
+            const rows = properties.map(p => {
+                // Use correct column names from database
+                const statusClass = (p.status || '').toLowerCase() === 'active' ? 'status-active' : 'status-inactive';
+                const lotSizeDisplay = p.lawn_sqft > 0 ? Number(p.lawn_sqft).toLocaleString() + ' sq ft' : (p.lot_size || '—');
+                
+                // customer_name is stored on property, customer_id links to customers table
+                // customer_display_name comes from the JOIN in the API
+                const displayName = p.customer_display_name || p.customer_name || '';
+                const customerLink = displayName 
+                    ? `<a href="customers.html?id=${p.customer_id}" class="customer-link">${esc(displayName)}</a>`
+                    : '<span class="no-customer">Not linked</span>';
+                
+                // Build address display - use street or address field
+                const streetDisplay = p.street || p.address || '';
+                const locationDisplay = [p.city, p.state, p.postal_code].filter(Boolean).join(', ');
+
+                return `
+                    <tr>
+                        <td class="property-name">${esc(streetDisplay || 'Unnamed')}</td>
+                        <td class="city-cell">${esc(locationDisplay)}</td>
+                        <td class="lot-size">${lotSizeDisplay}</td>
+                        <td><span class="status-badge ${statusClass}">${esc(p.status || 'active')}</span></td>
+                        <td>${customerLink}</td>
+                        <td class="actions-cell">
+                            <button class="action-btn" onclick="editProperty(${p.id})" title="Edit">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="action-btn delete" onclick="deleteProperty(${p.id})" title="Delete">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            document.getElementById('tableContainer').innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Address</th>
+                            <th>Location</th>
+                            <th>Lot Size</th>
+                            <th>Status</th>
+                            <th>Customer</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
+        // ─── Search Debounce ────────────────────────────────────────────────────
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(loadProperties, 300);
+        }
+
+        // ─── Modal Functions ────────────────────────────────────────────────────
+        function openAddModal() {
+            document.getElementById('modalTitle').textContent = 'Add Property';
+            document.getElementById('propertyForm').reset();
+            document.getElementById('propertyId').value = '';
+            document.getElementById('state').value = 'OH';
+            populateCustomerDropdown();
+            document.getElementById('propertyModal').classList.add('active');
+        }
+
+        function editProperty(id) {
+            const p = properties.find(x => x.id === id);
+            if (!p) return;
+
+            document.getElementById('modalTitle').textContent = 'Edit Property';
+            document.getElementById('propertyId').value = p.id;
+            document.getElementById('customerName').value = p.customer_name || '';
+            document.getElementById('address').value = p.address || '';
+            document.getElementById('street').value = p.street || '';
+            document.getElementById('city').value = p.city || '';
+            document.getElementById('state').value = p.state || 'OH';
+            document.getElementById('postalCode').value = p.postal_code || '';
+            document.getElementById('lawnSqft').value = p.lawn_sqft || p.lot_size || '';
+            document.getElementById('mowingPrice').value = p.mowing_price || '';
+            document.getElementById('status').value = (p.status || 'active').toLowerCase();
+            document.getElementById('tags').value = p.tags || '';
+            document.getElementById('propertyNotes').value = p.property_notes || '';
+            
+            populateCustomerDropdown(p.customer_id);
+            document.getElementById('propertyModal').classList.add('active');
+        }
+
+        function populateCustomerDropdown(selectedId = null) {
+            const select = document.getElementById('customerId');
+            const options = ['<option value="">— No Customer —</option>'];
+            
+            customers.forEach(c => {
+                const selected = c.id == selectedId ? 'selected' : '';
+                options.push(`<option value="${c.id}" ${selected}>${esc(c.name || 'Unnamed')}</option>`);
+            });
+            
+            select.innerHTML = options.join('');
+        }
+
+        function closeModal() {
+            document.getElementById('propertyModal').classList.remove('active');
+        }
+
+        // ─── Save Property ──────────────────────────────────────────────────────
+        async function saveProperty() {
+            const id = document.getElementById('propertyId').value;
+            const customerId = document.getElementById('customerId').value;
+            const street = document.getElementById('street').value;
+            const city = document.getElementById('city').value;
+            const state = document.getElementById('state').value;
+            const postalCode = document.getElementById('postalCode').value;
+            
+            // Build full address if not provided
+            let address = document.getElementById('address').value;
+            if (!address && street) {
+                address = [street, city, state, postalCode].filter(Boolean).join(', ');
+            }
+            
+            const data = {
+                customer_name: document.getElementById('customerName').value,
+                address: address,
+                street: street,
+                city: city,
+                state: state,
+                postal_code: postalCode,
+                lawn_sqft: parseFloat(document.getElementById('lawnSqft').value) || null,
+                mowing_price: parseFloat(document.getElementById('mowingPrice').value) || null,
+                status: document.getElementById('status').value,
+                tags: document.getElementById('tags').value,
+                property_notes: document.getElementById('propertyNotes').value,
+                customer_id: customerId ? parseInt(customerId) : null
+            };
+
+            if (!data.address) {
+                showToast('Address is required', true);
+                return;
+            }
+
+            try {
+                const url = id ? `${API_BASE}/api/properties/${id}` : `${API_BASE}/api/properties`;
+                const method = id ? 'PUT' : 'POST';
+                
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+                
+                if (result.success) {
+                    showToast(id ? 'Property updated' : 'Property created');
+                    closeModal();
+                    loadStats();
+                    loadProperties();
+                } else {
+                    showToast(result.error || 'Error saving property', true);
+                }
+            } catch (e) {
+                showToast('Error saving property', true);
+            }
+        }
+
+        // ─── Delete Property ────────────────────────────────────────────────────
+        async function deleteProperty(id) {
+            if (!confirm('Are you sure you want to delete this property?')) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/properties/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+                
+                if (result.success) {
+                    showToast('Property deleted');
+                    loadStats();
+                    loadProperties();
+                } else {
+                    showToast(result.error || 'Error deleting property', true);
+                }
+            } catch (e) {
+                showToast('Error deleting property', true);
+            }
+        }
+
+        // ─── Import Functions ───────────────────────────────────────────────────
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            document.getElementById('importStatus').style.display = 'none';
+            document.getElementById('importBtn').disabled = true;
+            selectedFile = null;
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+            document.getElementById('csvFile').value = '';
+        }
+
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                document.getElementById('importStatus').style.display = 'block';
+                document.getElementById('importStatus').innerHTML = 
+                    `<p>Selected: <strong>${esc(selectedFile.name)}</strong> (${(selectedFile.size/1024).toFixed(1)} KB)</p>`;
+                document.getElementById('importBtn').disabled = false;
+            }
+        }
+
+        async function importCSV() {
+            if (!selectedFile) return;
+            
+            const formData = new FormData();
+            formData.append('csvfile', selectedFile);
+            
+            document.getElementById('importBtn').disabled = true;
+            document.getElementById('importStatus').innerHTML = '<p>Importing...</p>';
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/import-properties`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await res.json();
+                
+                if (result.success) {
+                    const stats = result.stats || {};
+                    document.getElementById('importStatus').innerHTML = 
+                        `<p style="color:var(--green)">✓ ${result.message}<br>
+                        Imported: ${stats.imported || 0}, Updated: ${stats.updated || 0}, Skipped: ${stats.skipped || 0}</p>`;
+                    showToast(`Imported ${stats.imported || 0} properties`);
+                    loadStats();
+                    loadProperties();
+                    setTimeout(closeImportModal, 2000);
+                } else {
+                    document.getElementById('importStatus').innerHTML = 
+                        `<p style="color:var(--red)">Error: ${result.error}</p>`;
+                    document.getElementById('importBtn').disabled = false;
+                }
+            } catch (e) {
+                document.getElementById('importStatus').innerHTML = 
+                    `<p style="color:var(--red)">Import failed: ${e.message}</p>`;
+                document.getElementById('importBtn').disabled = false;
+            }
+        }
+
+        // ─── Helpers ────────────────────────────────────────────────────────────
+        function esc(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    
+// Universal Search
+let searchDebounceTimer=null;
+function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>performSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
+function searchEscHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+async function performSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEscHtml(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEscHtml(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEscHtml(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEscHtml(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEscHtml(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEscHtml(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEscHtml([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEscHtml(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+document.addEventListener('DOMContentLoaded',initUniversalSearch);
+
+</script>
+</body>
+</html>

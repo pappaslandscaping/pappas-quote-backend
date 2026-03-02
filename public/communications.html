@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Communications — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --lime: #c9dd80;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0;
+            --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb;
+            --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+            --stats-h: 89px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow: hidden;
+        }
+
+        /* ─── Sidebar ─────────────────────────────────────── */
+        .sidebar {
+            position: fixed; top: 0; left: 0;
+            width: var(--sidebar-w); height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex; flex-direction: column;
+            z-index: 100; transition: transform 0.3s;
+        }
+        .sidebar-brand {
+            padding: 20px; border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sidebar-brand img { height: 80px; width: 80px; border-radius: 50%; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 24px; }
+        .nav-section-label {
+            color: var(--gray-400); font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1.2px;
+            padding: 0 12px; margin-bottom: 8px;
+        }
+        .nav-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 12px; border-radius: 8px;
+            color: var(--gray-500); text-decoration: none;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: all 0.15s; margin-bottom: 2px;
+        }
+        .nav-item:hover { background: var(--gray-100); color: var(--forest); }
+        .nav-item.active { background: rgba(46,64,61,0.08); color: var(--forest); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+        .nav-item.active svg { opacity: 1; }
+        .nav-item .badge {
+            margin-left: auto; background: var(--forest); color: var(--lime);
+            font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+        }
+        .nav-item.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+        .nav-item.disabled::after {
+            content: 'Soon'; margin-left: auto; font-size: 10px;
+            text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6;
+        }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-200); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--forest); color: var(--lime);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 13px;
+        }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        /* ─── Main ────────────────────────────────────────── */
+        .main {
+            margin-left: var(--sidebar-w);
+            height: 100vh;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .topbar {
+            height: var(--header-h);
+            background: var(--white); border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px; flex-shrink: 0;
+        }
+        .topbar-left h2 { font-size: 18px; font-weight: 700; color: var(--gray-700); font-family: 'Qualy', serif; }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+        .topbar-actions { display: flex; gap: 12px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 16px; border-radius: 8px; font-size: 13px;
+            font-weight: 600; border: none; cursor: pointer;
+            transition: all 0.15s; font-family: inherit;
+        }
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); transition: all 0.15s ease; }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        /* ─── Stats Bar ───────────────────────────────────── */
+        .stats-bar {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            background: var(--white); border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0; height: var(--stats-h);
+        }
+        .stat-item {
+            padding: 18px 24px; border-right: 1px solid var(--gray-200);
+            cursor: pointer; transition: background 0.15s ease; position: relative;
+        }
+        .stat-item:last-child { border-right: none; }
+        .stat-item:hover { background: var(--gray-50); }
+        .stat-item.active-filter::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+            height: 2px; background: var(--forest);
+        }
+        .stat-num {
+            font-size: 26px; font-weight: 700; color: var(--gray-700);
+            line-height: 1; margin-bottom: 4px; font-family: 'Qualy', serif;
+        }
+        .stat-item.highlight .stat-num { color: var(--forest); }
+        .stat-label { font-size: 12px; color: var(--gray-400); font-weight: 500; }
+
+        /* ─── Communications Layout ───────────────────────── */
+        .comms-layout {
+            flex: 1;
+            display: grid; grid-template-columns: 360px 1fr;
+            overflow: hidden;
+        }
+
+        /* ─── Feed Panel ──────────────────────────────────── */
+        .feed-panel {
+            border-right: 1px solid var(--gray-200);
+            display: flex; flex-direction: column;
+            background: var(--white); overflow: hidden;
+        }
+        .feed-toolbar {
+            padding: 10px 14px; border-bottom: 1px solid var(--gray-100);
+        }
+        .feed-search {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: 8px; padding: 7px 12px;
+        }
+        .feed-search svg { width: 14px; height: 14px; color: var(--gray-400); flex-shrink: 0; }
+        .feed-search input {
+            border: none; background: none; outline: none;
+            font-size: 13px; font-family: inherit; color: var(--gray-700); width: 100%;
+        }
+        .feed-search input::placeholder { color: var(--gray-400); }
+
+        /* Form Input Focus Ring */
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+        .filter-tabs {
+            display: flex; gap: 2px; padding: 8px 12px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .filter-tab {
+            padding: 5px 10px; border-radius: 6px; font-size: 12px;
+            font-weight: 600; color: var(--gray-500); cursor: pointer;
+            border: none; background: none; font-family: inherit; transition: all 0.15s ease;
+        }
+        .filter-tab:hover { background: var(--gray-100); color: var(--gray-700); }
+        .filter-tab.active { background: var(--forest); color: var(--lime); }
+        .feed-list { flex: 1; overflow-y: auto; }
+
+        .feed-item {
+            display: flex; align-items: flex-start; gap: 11px;
+            padding: 13px 16px; border-bottom: 1px solid var(--gray-100);
+            cursor: pointer; transition: background 0.15s ease; position: relative;
+        }
+        .feed-item:hover { background: var(--gray-50); }
+        .feed-item.selected { background: rgba(46,64,61,0.06); border-left: 2px solid var(--forest); }
+        .feed-item.unread { background: #fafcfa; }
+        .unread-dot {
+            position: absolute; left: 5px; top: 50%; transform: translateY(-50%);
+            width: 6px; height: 6px; border-radius: 50%; background: var(--forest);
+        }
+        .feed-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; flex-shrink: 0; letter-spacing: -0.5px;
+        }
+        .av-sms { background: var(--green-bg); color: var(--green); }
+        .av-call { background: var(--blue-bg); color: var(--blue); }
+        .av-vm { background: var(--amber-bg); color: var(--amber); }
+        .feed-body { flex: 1; min-width: 0; }
+        .feed-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .feed-name { font-size: 13px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+        .feed-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
+        .feed-preview { font-size: 12px; color: var(--gray-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+        .type-pill {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: 4px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .pill-sms { background: var(--green-bg); color: var(--green); }
+        .pill-call { background: var(--blue-bg); color: var(--blue); }
+        .pill-vm { background: var(--amber-bg); color: var(--amber); }
+        .pill-mms { background: var(--purple-bg); color: var(--purple); }
+        .pill-archived { background: var(--gray-100); color: var(--gray-500); }
+        .pill-handled { background: var(--green-bg); color: var(--green); }
+
+        /* ─── Detail Panel ────────────────────────────────── */
+        .detail-panel {
+            display: flex; flex-direction: column; overflow: hidden; background: var(--gray-50);
+        }
+        .detail-empty {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 12px; color: var(--gray-300);
+        }
+        .detail-empty svg { width: 52px; height: 52px; }
+        .detail-empty p { font-size: 14px; color: var(--gray-400); }
+
+        /* ─── Thread ──────────────────────────────────────── */
+        .thread-back-btn {
+            display: none;
+            align-items: center; gap: 6px;
+            background: none; border: none; cursor: pointer;
+            color: var(--forest); font-size: 13px; font-weight: 600;
+            padding: 0; margin-right: 10px; font-family: inherit;
+        }
+        .thread-back-btn svg { width: 16px; height: 16px; }
+        .thread-header {
+            padding: 14px 24px; background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .thread-who { display: flex; align-items: center; gap: 12px; }
+        .thread-av {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: var(--green-bg); color: var(--green);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px;
+        }
+        .thread-name { font-size: 15px; font-weight: 700; color: var(--gray-700); }
+        .thread-num { font-size: 12px; color: var(--gray-400); }
+
+        .thread-messages {
+            flex: 1; overflow-y: auto; padding: 20px 24px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .bubble { display: flex; flex-direction: column; max-width: 68%; }
+        .bubble.inbound { align-self: flex-start; }
+        .bubble.outbound { align-self: flex-end; }
+        .bubble-body {
+            padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5;
+        }
+        .inbound .bubble-body {
+            background: var(--white); color: var(--gray-700);
+            border: 1px solid var(--gray-200); border-bottom-left-radius: 4px;
+        }
+        .outbound .bubble-body {
+            background: var(--forest); color: var(--lime); border-bottom-right-radius: 4px;
+        }
+        .bubble-time { font-size: 11px; color: var(--gray-400); margin-top: 3px; padding: 0 2px; }
+        .inbound .bubble-time { align-self: flex-start; }
+        .outbound .bubble-time { align-self: flex-end; }
+        .bubble-img { max-width: 220px; border-radius: 12px; overflow: hidden; margin-top: 4px; }
+        .bubble-img img { width: 100%; display: block; cursor: pointer; }
+
+        .reply-box {
+            padding: 14px 24px; background: var(--white);
+            border-top: 1px solid var(--gray-200); flex-shrink: 0;
+        }
+        .reply-wrap {
+            display: flex; align-items: flex-end; gap: 10px;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: 12px; padding: 9px 12px; transition: border-color 0.15s;
+        }
+        .reply-wrap:focus-within { border-color: var(--forest); }
+        .reply-input {
+            flex: 1; border: none; background: none; outline: none;
+            font-family: inherit; font-size: 14px; color: var(--gray-700);
+            resize: none; max-height: 100px; min-height: 22px; line-height: 1.5;
+        }
+        .reply-input::placeholder { color: var(--gray-400); }
+        .reply-btn {
+            width: 32px; height: 32px; border-radius: 8px;
+            background: var(--forest); color: var(--lime);
+            border: none; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+        .reply-btn:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .reply-btn:disabled { opacity: 0.4; cursor: default; }
+        .reply-btn svg { width: 15px; height: 15px; }
+
+        /* ─── Call Detail ─────────────────────────────────── */
+        .call-detail { padding: 28px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+        .call-hero {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 12px; padding: 22px; display: flex; align-items: center; gap: 18px;
+            transition: all 0.15s ease;
+        }
+        .call-hero:hover {
+            background: var(--white);
+            border-color: var(--gray-300);
+        }
+        .call-icon {
+            width: 52px; height: 52px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .call-icon svg { width: 22px; height: 22px; }
+        .ci-call { background: var(--blue-bg); color: var(--blue); }
+        .ci-vm { background: var(--amber-bg); color: var(--amber); }
+        .call-hero h3 { font-size: 17px; font-weight: 700; color: var(--gray-700); margin-bottom: 3px; font-family: 'Qualy', serif; }
+        .call-hero p { font-size: 12px; color: var(--gray-400); }
+        .call-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        .meta-card {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 10px; padding: 14px 18px;
+            transition: all 0.15s ease;
+        }
+        .meta-card:hover {
+            background: var(--white);
+            border-color: var(--gray-300);
+            box-shadow: 0 2px 8px rgba(46,64,61,0.08);
+        }
+        .meta-label { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+        .meta-val { font-size: 14px; font-weight: 600; color: var(--gray-700); }
+        .vm-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; transition: all 0.15s ease; }
+        .vm-card:hover { border-color: var(--gray-300); box-shadow: 0 2px 8px rgba(46,64,61,0.08); }
+        .vm-card-head {
+            padding: 14px 18px; border-bottom: 1px solid var(--gray-100);
+            font-size: 12px; font-weight: 700; color: var(--gray-600);
+            display: flex; align-items: center; gap: 7px;
+        }
+        .vm-card-head svg { width: 14px; height: 14px; color: var(--amber); }
+        .vm-player { padding: 18px; display: flex; align-items: center; gap: 14px; }
+        .play-btn {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: var(--forest); color: var(--lime);
+            border: none; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+        .play-btn:hover { background: var(--forest-dark); transform: scale(1.05) translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .play-btn svg { width: 17px; height: 17px; }
+        .audio-track { flex: 1; height: 4px; background: var(--gray-200); border-radius: 2px; }
+        .audio-fill { height: 100%; background: var(--forest); border-radius: 2px; width: 0%; transition: width 0.1s; }
+        .audio-dur { font-size: 12px; color: var(--gray-400); font-weight: 500; flex-shrink: 0; }
+        .vm-transcript { padding: 16px 18px; border-top: 1px solid var(--gray-100); }
+        .transcript-label { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .transcript-text { font-size: 14px; color: var(--gray-600); line-height: 1.6; font-style: italic; }
+
+        /* ─── Voicemail Actions ─────────────────────────────── */
+        .vm-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+        .vm-action-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 16px; border-radius: 8px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-600); transition: all 0.15s ease;
+        }
+        .vm-action-btn:hover { background: var(--gray-50); border-color: var(--gray-300); transform: translateY(-1px); }
+        .vm-action-btn svg { width: 16px; height: 16px; }
+        .vm-action-btn.archive { color: var(--forest); }
+        .vm-action-btn.archive:hover { background: rgba(46,64,61,0.08); border-color: var(--forest); }
+        .vm-action-btn.delete { color: var(--red); }
+        .vm-action-btn.delete:hover { background: var(--red-bg); border-color: var(--red); }
+        .vm-action-btn.handled { color: var(--green); }
+        .vm-action-btn.handled:hover { background: var(--green-bg); border-color: var(--green); }
+
+        /* ─── Toast ─────────────────────────────────────────── */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: var(--forest); color: var(--lime);
+            padding: 12px 20px; border-radius: 8px;
+            font-size: 14px; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0; transform: translateY(10px);
+            transition: all 0.3s; z-index: 1000;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        /* ─── Misc ────────────────────────────────────────── */
+        .spinner { width: 20px; height: 20px; border: 2px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 40px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Page Fade-in Animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .main {
+            animation: fadeIn 0.4s ease;
+        }
+        .feed-empty { text-align: center; padding: 48px 20px; color: var(--gray-400); }
+        .feed-empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: 0.35; display: block; margin-left: auto; margin-right: auto; }
+        .feed-empty p { font-size: 13px; }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .comms-layout { grid-template-columns: 1fr; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .feed-panel { display: flex; }
+            .detail-panel { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 200; background: var(--white); }
+            .detail-panel.mobile-open { display: flex; }
+            .thread-back-btn { display: flex !important; }
+        }
+    
+/* Universal Search */
+.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
+.search-input-group{position:relative;display:flex;align-items:center}
+.search-icon{position:absolute;left:12px;width:18px;height:18px;color:#9ca09c;pointer-events:none}
+.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid #e2e5e2;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all 0.15s ease}
+.search-input:focus{outline:none;border-color:#2e403d;box-shadow:0 0 0 3px rgba(46,64,61,.1)}
+.search-input::placeholder{color:#9ca09c}
+.search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
+.search-clear-btn:hover{color:#4a4e4a}
+.search-clear-btn svg{width:16px;height:16px}
+.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
+.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
+.search-results-group:last-child{border-bottom:none}
+.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background 0.15s ease;color:#333633}
+.search-result-item:hover{background:#f8faf8}
+.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
+.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
+.search-result-icon.property{background:#ecfdf5;color:#059669}
+.search-result-content{flex:1;min-width:0}
+.search-result-title{font-size:13px;font-weight:600;color:#333633;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
+.search-loading{text-align:center;padding:16px;color:#6e726e}
+@media(max-width:768px){.universal-search-wrapper{display:none}}
+
+</style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas & Company Landscaping">
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a class="nav-item" href="quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Quote Requests
+            </a>
+            <a class="nav-item" href="quote-calculator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                Quote Calculator
+            </a>
+            <a class="nav-item" href="quote-generator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Quote Generator
+            </a>
+            <a class="nav-item" href="sent-quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Sent Quotes
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="customers.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Customers
+            </a>
+            <a class="nav-item" href="properties.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Properties
+            </a>
+            <a class="nav-item" href="scheduling.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Scheduling
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a class="nav-item active" href="communications.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Messages & Calls
+            </a>
+            <a class="nav-item" href="cancellations.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                Cancellations
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a class="nav-item" href="campaigns.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Campaigns
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a class="nav-item" href="expenses.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
+                Expenses
+            </a>
+            <a class="nav-item" href="invoices.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Invoices
+            </a>
+            <a class="nav-item" href="finance.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Revenue
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a class="nav-item" href="crew.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Crew
+            </a>
+            <a class="nav-item" href="reports.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                Reports
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<div class="main">
+    <!-- Topbar -->
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left">
+                <h2>Communications</h2>
+                <p>Calls and messages in one place</p>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-secondary" onclick="loadFeed()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Refresh
+            </button>
+        </div>
+        <div class="universal-search-wrapper">
+    <div class="search-input-group">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
+        <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+</div>
+        
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item highlight" onclick="setFilter('unread')" id="si-unread">
+            <div class="stat-num" id="cn-unread">—</div>
+            <div class="stat-label">Unread Texts</div>
+        </div>
+        <div class="stat-item" onclick="setFilter('sms')" id="si-sms">
+            <div class="stat-num" id="cn-sms">—</div>
+            <div class="stat-label">Total Texts</div>
+        </div>
+        <div class="stat-item" onclick="setFilter('calls')" id="si-calls">
+            <div class="stat-num" id="cn-calls">—</div>
+            <div class="stat-label">Calls Today</div>
+        </div>
+        <div class="stat-item" onclick="setFilter('voicemail')" id="si-voicemail">
+            <div class="stat-num" id="cn-voicemail">—</div>
+            <div class="stat-label">Voicemails</div>
+        </div>
+    </div>
+
+    <!-- Layout -->
+    <div class="comms-layout">
+        <!-- Feed -->
+        <div class="feed-panel">
+            <div class="feed-toolbar">
+                <div class="feed-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" placeholder="Search..." id="search-input" oninput="renderFeed()">
+                </div>
+            </div>
+            <div class="filter-tabs">
+                <button class="filter-tab active" onclick="setFilter('all')" id="tab-all">All</button>
+                <button class="filter-tab" onclick="setFilter('sms')" id="tab-sms">Texts</button>
+                <button class="filter-tab" onclick="setFilter('calls')" id="tab-calls">Calls</button>
+                <button class="filter-tab" onclick="setFilter('voicemail')" id="tab-voicemail">Voicemail</button>
+                <button class="filter-tab" onclick="setFilter('unread')" id="tab-unread">Unread</button>
+                <button class="filter-tab" onclick="setFilter('archived')" id="tab-archived">Archived</button>
+            </div>
+            <div class="feed-list" id="feed-list">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Detail -->
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-empty" id="detail-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                <p>Select a conversation to view</p>
+            </div>
+            <div id="detail-content" style="display:none;flex:1;flex-direction:column;overflow:hidden;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = 'https://pappas-twilio-webhook-production.up.railway.app';
+let allItems = [];
+let currentFilter = 'all';
+let selectedId = null;
+let currentThread = [];
+let currentAudio = null;
+
+// ─── Load ──────────────────────────────────────────────────────────────────
+async function loadFeed() {
+    try {
+        // Always fetch all calls including archived
+        const [msgRes, callRes] = await Promise.all([
+            fetch(`${API}/api/messages?limit=200`).catch(() => null),
+            fetch(`${API}/api/calls?limit=200&include_archived=true`).catch(() => null)
+        ]);
+
+        const messages = (msgRes && msgRes.ok) ? (await msgRes.json()).messages || [] : [];
+        const calls = (callRes && callRes.ok) ? (await callRes.json()).calls || [] : [];
+
+        // Group messages by phone number (conversation)
+        const conversationMap = new Map();
+        messages.forEach(m => {
+            // Determine the contact phone number (the other party, not our business number)
+            const contactPhone = m.direction === 'inbound' ? (m.from || m.from_number) : (m.to || m.to_number);
+            if (!contactPhone) return;
+            
+            // Clean the phone number for grouping
+            const cleanPhone = contactPhone.replace(/\D/g, '').slice(-10);
+            
+            const existing = conversationMap.get(cleanPhone);
+            const msgTime = new Date(m.timestamp || m.created_at);
+            
+            if (!existing || msgTime > existing.time) {
+                conversationMap.set(cleanPhone, {
+                    id: `conv-${cleanPhone}`,
+                    rawId: m.id,
+                    type: (m.mediaUrls && m.mediaUrls.length > 0) || (m.media_urls && m.media_urls.length > 0) ? 'mms' : 'sms',
+                    from: contactPhone,
+                    direction: m.direction,
+                    body: m.body,
+                    mediaUrls: m.mediaUrls || m.media_urls || [],
+                    name: m.customerName || m.customer_name || (m.first_name ? `${m.first_name} ${m.last_name||''}`.trim() : null),
+                    read: m.read,
+                    time: msgTime,
+                    raw: m,
+                    phoneKey: cleanPhone
+                });
+            } else if (existing && !m.read) {
+                // If any message in the thread is unread, mark conversation as unread
+                existing.read = false;
+            }
+        });
+        
+        const msgItems = Array.from(conversationMap.values());
+
+        const callItems = calls.map(c => {
+            // Determine if this is a voicemail based on call_type or having a recording
+            const isVoicemail = c.call_type === 'voicemail' || c.call_type?.includes('Voicemail') || 
+                               (c.recording_url && c.status !== 'completed');
+            return {
+                id: `call-${c.id}`, rawId: c.id,
+                type: isVoicemail ? 'voicemail' : 'call',
+                status: c.status,
+                from: c.from_number || c.caller_number,
+                direction: 'inbound',
+                body: c.transcription || (isVoicemail ? 'Voicemail' : `Call • ${c.option_selected||''}`),
+                recordingUrl: c.recording_url, transcription: c.transcription,
+                duration: c.duration, option: c.option_selected,
+                name: c.customer_name || (c.first_name ? `${c.first_name} ${c.last_name||''}`.trim() : null),
+                read: c.read !== false, time: new Date(c.created_at), raw: c
+            };
+        });
+
+        allItems = [...msgItems, ...callItems].sort((a,b) => b.time - a.time);
+        updateStats();
+        renderFeed();
+    } catch(e) {
+        console.error(e);
+        document.getElementById('feed-list').innerHTML = '<div class="feed-empty"><p>Unable to load</p></div>';
+    }
+}
+
+function updateStats() {
+    const textConvos = allItems.filter(i => i.type==='sms'||i.type==='mms');
+    const unread = textConvos.filter(i => !i.read).length;
+    const sms = textConvos.length;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const callsToday = allItems.filter(i => i.type==='call' && i.time>=today).length;
+    const vms = allItems.filter(i => i.type==='voicemail').length;
+
+    document.getElementById('cn-unread').textContent = unread;
+    document.getElementById('cn-sms').textContent = sms;
+    document.getElementById('cn-calls').textContent = callsToday;
+    document.getElementById('cn-voicemail').textContent = vms;
+
+    const badge = document.getElementById('nav-badge');
+    badge.textContent = unread;
+    badge.style.display = unread > 0 ? '' : 'none';
+}
+
+// ─── Render Feed ───────────────────────────────────────────────────────────
+function renderFeed() {
+    const search = document.getElementById('search-input').value.toLowerCase();
+    const items = allItems.filter(item => {
+        if (currentFilter === 'sms' && item.type!=='sms' && item.type!=='mms') return false;
+        if (currentFilter === 'calls' && item.type!=='call' && item.type!=='voicemail') return false;
+        if (currentFilter === 'voicemail' && item.type!=='voicemail') return false;
+        if (currentFilter === 'unread' && item.read) return false;
+        if (currentFilter === 'archived' && item.status !== 'archived' && item.status !== 'handled') return false;
+        // Don't hide archived items from Calls view - only hide from All, Voicemail, Unread
+        if (currentFilter !== 'archived' && currentFilter !== 'calls' && (item.status === 'archived' || item.status === 'handled')) return false;
+        if (search) {
+            const s = `${item.from} ${item.name||''} ${item.body||''}`.toLowerCase();
+            if (!s.includes(search)) return false;
+        }
+        return true;
+    });
+
+    const container = document.getElementById('feed-list');
+    if (!items.length) {
+        container.innerHTML = `<div class="feed-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><p>${currentFilter === 'archived' ? 'No archived items' : 'No communications found'}</p></div>`;
+        return;
+    }
+
+    container.innerHTML = items.map(item => {
+        const name = item.name || fmtPhone(item.from);
+        const letter = name.charAt(0).toUpperCase();
+        const isSelected = item.id === selectedId;
+        const isUnread = !item.read;
+
+        let avClass = 'av-sms', pill = '';
+        if (item.status === 'archived') { avClass = 'av-vm'; pill = '<span class="type-pill pill-archived">Archived</span>'; }
+        else if (item.status === 'handled') { avClass = 'av-vm'; pill = '<span class="type-pill pill-handled">Handled</span>'; }
+        else if (item.type === 'call') { avClass = 'av-call'; pill = '<span class="type-pill pill-call">Call</span>'; }
+        else if (item.type === 'voicemail') { avClass = 'av-vm'; pill = '<span class="type-pill pill-vm">Voicemail</span>'; }
+        else if (item.type === 'mms') { pill = '<span class="type-pill pill-mms">📷 Photo</span>'; }
+        else { pill = '<span class="type-pill pill-sms">Text</span>'; }
+
+        return `<div class="feed-item ${isSelected?'selected':''} ${isUnread?'unread':''}" onclick="selectItem('${item.id}')">
+            ${isUnread ? '<div class="unread-dot"></div>' : ''}
+            <div class="feed-avatar ${avClass}">${letter}</div>
+            <div class="feed-body">
+                <div class="feed-top">
+                    <div class="feed-name">${esc(name)}</div>
+                    <div class="feed-time">${fmtTime(item.time)}</div>
+                </div>
+                <div class="feed-preview">${esc((item.body||'').substring(0,55))}</div>
+                <div>${pill}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function setFilter(f) {
+    currentFilter = f;
+    ['all','sms','calls','voicemail','unread','archived'].forEach(x => {
+        const t = document.getElementById(`tab-${x}`);
+        if (t) t.classList.toggle('active', x === f);
+    });
+    renderFeed();
+}
+
+// ─── Select ────────────────────────────────────────────────────────────────
+function selectItem(id) {
+    selectedId = id;
+    const item = allItems.find(i => i.id === id);
+    if (!item) return;
+    
+    // Mark as read if it's unread
+    if (!item.read && (item.type === 'voicemail' || item.type === 'call')) {
+        item.read = true;
+        fetch(`${API}/api/calls/${item.rawId}/read`, { method: 'PATCH' }).catch(console.error);
+        updateStats();
+    }
+    
+    renderFeed();
+    if (item.type === 'sms' || item.type === 'mms') openThread(item);
+    else openCallDetail(item);
+}
+
+// ─── Thread ────────────────────────────────────────────────────────────────
+async function openThread(item) {
+    const name = item.name || fmtPhone(item.from);
+    showDetail(`
+        <div class="thread-header">
+            <div class="thread-who">
+                <button class="thread-back-btn" onclick="closeMobileDetail()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    Back
+                </button>
+                <div class="thread-av">${name.charAt(0).toUpperCase()}</div>
+                <div>
+                    <div class="thread-name">${esc(name)}</div>
+                    <div class="thread-num">${esc(fmtPhone(item.from))}</div>
+                </div>
+            </div>
+        </div>
+        <div class="thread-messages" id="thread-msgs"><div class="spinner"></div></div>
+        <div class="reply-box">
+            <div class="reply-wrap">
+                <textarea class="reply-input" id="reply-txt" placeholder="Type a message…" rows="1"
+                    onkeydown="replyKey(event,'${item.from}')" oninput="autoH(this)"></textarea>
+                <button class="reply-btn" id="reply-btn" onclick="sendReply('${item.from}')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+        </div>
+    `);
+
+    // Mark read
+    if (!item.read) {
+        fetch(`${API}/api/messages/${item.rawId}/read`, {method:'PATCH'}).catch(()=>{});
+        item.read = true;
+        updateStats();
+    }
+
+    // Load full thread
+    try {
+        const res = await fetch(`${API}/api/messages/thread/${encodeURIComponent(item.from)}`);
+        const data = await res.json();
+        currentThread = data.messages || [item.raw];
+    } catch(e) {
+        currentThread = [item.raw];
+    }
+    renderThread();
+}
+
+function renderThread() {
+    const el = document.getElementById('thread-msgs');
+    if (!el) return;
+    el.innerHTML = currentThread.map(m => {
+        const out = m.direction === 'outbound';
+        const hasMedia = m.media_urls && m.media_urls.length > 0;
+        return `<div class="bubble ${out?'outbound':'inbound'}">
+            ${m.body ? `<div class="bubble-body">${esc(m.body)}</div>` : ''}
+            ${hasMedia ? m.media_urls.map(u=>`<div class="bubble-img"><img src="${u}" onclick="window.open('${u}','_blank')" loading="lazy"></div>`).join('') : ''}
+            <div class="bubble-time">${fmtTime(new Date(m.created_at))}</div>
+        </div>`;
+    }).join('');
+    el.scrollTop = el.scrollHeight;
+}
+
+async function sendReply(to) {
+    const txt = document.getElementById('reply-txt');
+    const btn = document.getElementById('reply-btn');
+    const body = txt.value.trim();
+    if (!body) return;
+    btn.disabled = true; txt.disabled = true;
+    try {
+        const res = await fetch(`${API}/api/messages/send`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({to, body})
+        });
+        if (res.ok) {
+            txt.value = ''; txt.style.height = 'auto';
+            currentThread.push({direction:'outbound', body, media_urls:[], created_at:new Date().toISOString()});
+            renderThread();
+            loadFeed();
+        } else { alert('Failed to send. Please try again.'); }
+    } catch(e) { alert('Failed to send.'); }
+    finally { btn.disabled = false; txt.disabled = false; txt.focus(); }
+}
+
+function replyKey(e, to) {
+    if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendReply(to); }
+}
+function autoH(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+
+// ─── Call Detail ───────────────────────────────────────────────────────────
+function openCallDetail(item) {
+    const name = item.name || fmtPhone(item.from);
+    // Show as voicemail if type is voicemail OR if it has a recording
+    const isVm = item.type === 'voicemail' || item.recordingUrl;
+    const proxiedUrl = getProxiedRecordingUrl(item.recordingUrl);
+
+    const iconSvg = isVm
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.128.96.347 1.903.65 2.818a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>`;
+
+    let vmHtml = '';
+    if (proxiedUrl) {
+        vmHtml = `<div class="vm-card">
+            <div class="vm-card-head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                Voicemail Recording
+            </div>
+            <div class="vm-player">
+                <button class="play-btn" onclick="playVm('${proxiedUrl}',this)">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </button>
+                <div class="audio-track"><div class="audio-fill" id="vm-fill"></div></div>
+                <span class="audio-dur">${item.duration ? fmtDur(item.duration) : '—'}</span>
+            </div>
+            ${item.transcription && item.transcription !== 'No transcription available' ? `<div class="vm-transcript"><div class="transcript-label">Transcription</div><div class="transcript-text">"${esc(item.transcription)}"</div></div>` : '<div class="vm-transcript"><div class="transcript-label">Transcription</div><div class="transcript-text" style="color:var(--gray-400);font-style:italic">"No transcription available"</div></div>'}
+        </div>`;
+    }
+
+    showDetail(`<div class="call-detail">
+        <div class="call-hero">
+            <button class="thread-back-btn" onclick="closeMobileDetail()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Back
+            </button>
+            <div class="call-icon ${isVm?'ci-vm':'ci-call'}">${iconSvg}</div>
+            <div>
+                <h3>${esc(name)}</h3>
+                <p>${esc(fmtPhone(item.from))} • ${fmtTime(item.time)}</p>
+            </div>
+        </div>
+        <div class="call-meta">
+            <div class="meta-card"><div class="meta-label">Type</div><div class="meta-val">${isVm?'Voicemail':'Answered Call'}${item.status === 'archived' ? ' (Archived)' : item.status === 'handled' ? ' (Handled)' : ''}</div></div>
+            <div class="meta-card"><div class="meta-label">Reason</div><div class="meta-val">${esc(item.option||'—')}</div></div>
+            <div class="meta-card"><div class="meta-label">Duration</div><div class="meta-val">${item.duration?fmtDur(item.duration):'—'}</div></div>
+        </div>
+        ${vmHtml}
+        ${isVm ? `
+        <div class="vm-actions">
+            ${item.status !== 'handled' ? `<button class="vm-action-btn handled" onclick="markCallHandled(${item.rawId})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Mark Handled
+            </button>` : ''}
+            ${item.status !== 'archived' ? `<button class="vm-action-btn archive" onclick="archiveCall(${item.rawId})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                Archive
+            </button>` : ''}
+            <button class="vm-action-btn delete" onclick="deleteCall(${item.rawId})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                Delete
+            </button>
+        </div>
+        ` : ''}
+    </div>`);
+}
+
+function playVm(url, btn) {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    const audio = new Audio(url);
+    currentAudio = audio;
+    audio.play();
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+    audio.addEventListener('ended', () => {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+    });
+    audio.addEventListener('timeupdate', () => {
+        const el = document.getElementById('vm-fill');
+        if (el) el.style.width = (audio.currentTime/audio.duration*100)+'%';
+    });
+}
+
+// ─── Voicemail Actions ──────────────────────────────────────────────────────
+async function markCallHandled(callId) {
+    try {
+        const res = await fetch(`${API}/api/calls/${callId}/status`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status: 'handled' })
+        });
+        // Remove from current view regardless of response (optimistic update)
+        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
+        closeMobileDetail();
+        renderFeed();
+        updateStats();
+        showToast('Voicemail marked as handled');
+    } catch(e) { 
+        console.error(e); 
+        // Still update UI even on error since it usually works
+        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
+        closeMobileDetail();
+        renderFeed();
+        updateStats();
+    }
+}
+
+async function archiveCall(callId) {
+    try {
+        const res = await fetch(`${API}/api/calls/${callId}/status`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ status: 'archived' })
+        });
+        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
+        closeMobileDetail();
+        renderFeed();
+        updateStats();
+        showToast('Voicemail archived');
+    } catch(e) { 
+        console.error(e);
+        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
+        closeMobileDetail();
+        renderFeed();
+        updateStats();
+    }
+}
+
+async function deleteCall(callId) {
+    if (!confirm('Are you sure you want to delete this voicemail? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`${API}/api/calls/${callId}`, { method: 'DELETE' });
+        if (res.ok) {
+            allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
+            closeMobileDetail();
+            renderFeed();
+            updateStats();
+            showToast('Voicemail deleted');
+        }
+    } catch(e) { console.error(e); alert('Failed to delete'); }
+}
+
+function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// ─── Detail Panel ──────────────────────────────────────────────────────────
+function showDetail(html) {
+    document.getElementById('detail-empty').style.display = 'none';
+    const c = document.getElementById('detail-content');
+    c.style.display = 'flex';
+    c.innerHTML = html;
+    // On mobile, slide the detail panel into view over the feed
+    if (window.innerWidth <= 768) {
+        document.getElementById('detail-panel').classList.add('mobile-open');
+    }
+}
+
+function closeMobileDetail() {
+    document.getElementById('detail-panel').classList.remove('mobile-open');
+    selectedId = null;
+    renderFeed();
+}
+
+// ─── Utils ─────────────────────────────────────────────────────────────────
+function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+function fmtPhone(p) {
+    if (!p) return 'Unknown';
+    const d = p.replace(/\D/g,'');
+    if (d.length===11 && d[0]==='1') return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+    if (d.length===10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+    return p;
+}
+
+function fmtTime(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '—';
+    const now = new Date(), diff = now - date;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (date >= today) return date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const yest = new Date(today); yest.setDate(yest.getDate()-1);
+    if (date >= yest) return 'Yesterday';
+    return date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+function fmtDur(s) {
+    const sec = parseInt(s), m = Math.floor(sec/60), r = sec%60;
+    return `${m}:${r.toString().padStart(2,'0')}`;
+}
+
+// Convert Twilio recording URL to proxied URL that doesn't require login
+function getProxiedRecordingUrl(recordingUrl) {
+    if (!recordingUrl) return '';
+    // If it's already a proxied URL, return as-is
+    if (recordingUrl.includes('/api/recordings/')) return recordingUrl;
+    // Extract recording SID from URL like https://api.twilio.com/2010-04-01/Accounts/xxx/Recordings/RExxxxx
+    const match = recordingUrl.match(/Recordings\/(RE[a-zA-Z0-9]+)/);
+    if (match) {
+        return `https://pappas-twilio-webhook-production.up.railway.app/api/recordings/${match[1]}`;
+    }
+    return recordingUrl;
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    loadFeed();
+    setInterval(loadFeed, 30000);
+});
+
+// Universal Search
+let searchDebounceTimer=null;
+function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>uniSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
+function searchEsc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+async function uniSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEsc(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEsc(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEsc(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEsc(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEsc([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEsc(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+document.addEventListener('DOMContentLoaded',initUniversalSearch);
+
+</script>
+</body>
+</html>

@@ -3102,7 +3102,24 @@ app.get('/api/sign/:token', async (req, res) => {
     }
 
     const quote = result.rows[0];
-    
+
+    // Ensure quote_views table exists
+    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
+      id SERIAL PRIMARY KEY,
+      sent_quote_id INTEGER NOT NULL,
+      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(45),
+      user_agent TEXT
+    )`);
+
+    // Log every view
+    const ip = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || '';
+    const ua = req.headers['user-agent'] || '';
+    await pool.query(
+      'INSERT INTO quote_views (sent_quote_id, ip_address, user_agent) VALUES ($1, $2, $3)',
+      [quote.id, ip.split(',')[0].trim(), ua]
+    );
+
     // Mark as viewed if first time
     if (quote.status === 'sent' && !quote.viewed_at) {
       await pool.query(
@@ -3236,6 +3253,45 @@ app.post('/api/sign/:token/decline', async (req, res) => {
     res.json({ success: true, message: 'Quote declined' });
   } catch (error) { res.status(500).json({ numbers: [] });
     console.error('Error declining quote:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sent-quotes/:id/views - Full view history for a quote
+app.get('/api/sent-quotes/:id/views', async (req, res) => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
+      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
+      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(45), user_agent TEXT
+    )`);
+    const views = await pool.query(
+      'SELECT id, viewed_at, ip_address, user_agent FROM quote_views WHERE sent_quote_id = $1 ORDER BY viewed_at DESC',
+      [req.params.id]
+    );
+    res.json({ success: true, views: views.rows, total: views.rows.length });
+  } catch (error) {
+    console.error('Error fetching quote views:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sent-quotes/view-counts - Bulk view counts for all sent quotes
+app.get('/api/sent-quotes/view-counts', async (req, res) => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
+      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
+      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(45), user_agent TEXT
+    )`);
+    const counts = await pool.query(
+      'SELECT sent_quote_id, COUNT(*) as view_count, MAX(viewed_at) as last_viewed FROM quote_views GROUP BY sent_quote_id'
+    );
+    const map = {};
+    counts.rows.forEach(r => { map[r.sent_quote_id] = { count: parseInt(r.view_count), lastViewed: r.last_viewed }; });
+    res.json({ success: true, viewCounts: map });
+  } catch (error) {
+    console.error('Error fetching view counts:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -5076,6 +5132,364 @@ app.get('/api/cron/process-followups', async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 // GENERAL ROUTES
+// ═══════════════════════════════════════════════════════════
+// ═══ INVOICING ════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+const INVOICES_TABLE = `CREATE TABLE IF NOT EXISTS invoices (
+  id SERIAL PRIMARY KEY,
+  invoice_number VARCHAR(50) UNIQUE,
+  customer_id INTEGER,
+  customer_name VARCHAR(255),
+  customer_email VARCHAR(255),
+  customer_address TEXT,
+  sent_quote_id INTEGER,
+  job_id INTEGER,
+  status VARCHAR(20) DEFAULT 'draft',
+  subtotal DECIMAL(10,2) DEFAULT 0,
+  tax_rate DECIMAL(5,3) DEFAULT 0,
+  tax_amount DECIMAL(10,2) DEFAULT 0,
+  total DECIMAL(10,2) DEFAULT 0,
+  amount_paid DECIMAL(10,2) DEFAULT 0,
+  due_date DATE,
+  paid_at TIMESTAMP,
+  sent_at TIMESTAMP,
+  qb_invoice_id VARCHAR(100),
+  notes TEXT,
+  line_items JSONB DEFAULT '[]',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+async function ensureInvoicesTable() {
+  await pool.query(INVOICES_TABLE);
+}
+
+async function nextInvoiceNumber() {
+  const r = await pool.query("SELECT invoice_number FROM invoices ORDER BY id DESC LIMIT 1");
+  if (r.rows.length === 0) return 'INV-1001';
+  const last = r.rows[0].invoice_number || 'INV-1000';
+  const num = parseInt(last.replace(/\D/g, '')) || 1000;
+  return `INV-${num + 1}`;
+}
+
+// GET /api/invoices - List invoices
+app.get('/api/invoices', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const { status, customer_id, limit = 100 } = req.query;
+    let q = 'SELECT * FROM invoices';
+    const params = [];
+    const where = [];
+    if (status) { params.push(status); where.push(`status = $${params.length}`); }
+    if (customer_id) { params.push(customer_id); where.push(`customer_id = $${params.length}`); }
+    if (where.length) q += ' WHERE ' + where.join(' AND ');
+    q += ' ORDER BY created_at DESC';
+    params.push(limit); q += ` LIMIT $${params.length}`;
+    const result = await pool.query(q, params);
+    res.json({ success: true, invoices: result.rows });
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/invoices/stats - Invoice statistics
+app.get('/api/invoices/stats', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const all = await pool.query('SELECT status, total, amount_paid, due_date FROM invoices');
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    let stats = { total: 0, draft: 0, sent: 0, viewed: 0, paid: 0, overdue: 0, void: 0,
+      outstanding: 0, overdueAmount: 0, paidThisMonth: 0, totalRevenue: 0 };
+    all.rows.forEach(inv => {
+      stats.total++;
+      stats[inv.status] = (stats[inv.status] || 0) + 1;
+      const t = parseFloat(inv.total) || 0;
+      const p = parseFloat(inv.amount_paid) || 0;
+      if (inv.status === 'paid') {
+        stats.totalRevenue += t;
+        if (inv.paid_at && new Date(inv.paid_at) >= thisMonth) stats.paidThisMonth += t;
+      }
+      if (['sent', 'viewed'].includes(inv.status)) {
+        stats.outstanding += (t - p);
+        if (inv.due_date && new Date(inv.due_date) < now) {
+          stats.overdue++;
+          stats.overdueAmount += (t - p);
+        }
+      }
+    });
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error fetching invoice stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/invoices/:id - Single invoice
+app.get('/api/invoices/:id', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices - Create invoice
+app.post('/api/invoices', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const { customer_id, customer_name, customer_email, customer_address, sent_quote_id, job_id,
+      subtotal, tax_rate, tax_amount, total, due_date, notes, line_items } = req.body;
+    const invNum = await nextInvoiceNumber();
+    const r = await pool.query(`INSERT INTO invoices
+      (invoice_number, customer_id, customer_name, customer_email, customer_address, sent_quote_id, job_id,
+       subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [invNum, customer_id||null, customer_name, customer_email, customer_address||'',
+       sent_quote_id||null, job_id||null, subtotal||0, tax_rate||0, tax_amount||0, total||0,
+       due_date||null, notes||'', JSON.stringify(line_items||[])]);
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices/from-quote/:quoteId - Create invoice from signed quote
+app.post('/api/invoices/from-quote/:quoteId', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const q = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [req.params.quoteId]);
+    if (q.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
+    const quote = q.rows[0];
+    const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : (quote.services || []);
+    const lineItems = services.map(s => ({ description: s.name || s.description, amount: parseFloat(s.price || s.amount || 0) }));
+    const invNum = await nextInvoiceNumber();
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
+    const r = await pool.query(`INSERT INTO invoices
+      (invoice_number, customer_id, customer_name, customer_email, customer_address, sent_quote_id,
+       subtotal, tax_rate, tax_amount, total, due_date, line_items, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [invNum, quote.customer_id||null, quote.customer_name, quote.customer_email, quote.customer_address||'',
+       quote.id, parseFloat(quote.subtotal)||0, 0, parseFloat(quote.tax_amount)||0,
+       parseFloat(quote.total)||0, dueDate.toISOString().split('T')[0], JSON.stringify(lineItems),
+       `Generated from Quote ${quote.quote_number || 'Q-'+quote.id}`]);
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    console.error('Error creating invoice from quote:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/invoices/:id - Update invoice
+app.patch('/api/invoices/:id', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const fields = ['status','customer_name','customer_email','customer_address','subtotal','tax_rate','tax_amount','total','amount_paid','due_date','paid_at','sent_at','qb_invoice_id','notes','line_items'];
+    const sets = []; const params = [];
+    fields.forEach(f => {
+      if (req.body[f] !== undefined) {
+        params.push(f === 'line_items' ? JSON.stringify(req.body[f]) : req.body[f]);
+        sets.push(`${f} = $${params.length}`);
+      }
+    });
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(req.params.id);
+    const r = await pool.query(`UPDATE invoices SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices/:id/send - Email invoice to customer
+app.post('/api/invoices/:id/send', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = r.rows[0];
+    if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
+    const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
+    const itemsHtml = items.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">${i.description}</td><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;">$${parseFloat(i.amount).toFixed(2)}</td></tr>`).join('');
+    const content = `
+      <h2 style="color:#2e403d;margin:0 0 16px;">Invoice ${inv.invoice_number}</h2>
+      <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+      <p>Here's your invoice from <strong>Pappas & Co. Landscaping</strong>.</p>
+      <div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr><th style="text-align:left;padding:8px 0;border-bottom:2px solid #2e403d;">Description</th><th style="text-align:right;padding:8px 0;border-bottom:2px solid #2e403d;">Amount</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+        <div style="margin-top:16px;text-align:right;">
+          ${inv.tax_amount > 0 ? `<p style="margin:4px 0;color:#666;">Subtotal: $${parseFloat(inv.subtotal).toFixed(2)}</p><p style="margin:4px 0;color:#666;">Tax: $${parseFloat(inv.tax_amount).toFixed(2)}</p>` : ''}
+          <p style="margin:8px 0 0;font-size:20px;font-weight:700;color:#2e403d;">Total: $${parseFloat(inv.total).toFixed(2)}</p>
+          ${inv.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due by ${new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</p>` : ''}
+        </div>
+      </div>
+      <p>If you have any questions, feel free to reply to this email or call us.</p>
+    `;
+    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content));
+    await pool.query("UPDATE invoices SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
+    res.json({ success: true, message: 'Invoice sent' });
+  } catch (error) {
+    console.error('Error sending invoice:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices/:id/mark-paid - Mark invoice as paid
+app.post('/api/invoices/:id/mark-paid', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const r = await pool.query(
+      "UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/invoices/:id - Delete invoice
+app.delete('/api/invoices/:id', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const r = await pool.query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ FINANCE / REPORTS ════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/finance/summary - Financial overview
+app.get('/api/finance/summary', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const thisYearStart = new Date(now.getFullYear(), 0, 1).toISOString();
+
+    const [paidMonth, paidYear, expMonth, expYear, outstanding, byService, monthly] = await Promise.all([
+      pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1", [thisMonthStart]),
+      pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1", [thisYearStart]),
+      pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1", [thisMonthStart]),
+      pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1", [thisYearStart]),
+      pool.query("SELECT COALESCE(SUM(total - amount_paid),0) as amt FROM invoices WHERE status IN ('sent','viewed')"),
+      pool.query(`SELECT COALESCE(li->>'description','Other') as service, SUM((li->>'amount')::numeric) as revenue
+        FROM invoices, jsonb_array_elements(line_items) li WHERE status='paid' AND paid_at >= $1
+        GROUP BY service ORDER BY revenue DESC`, [thisYearStart]),
+      pool.query(`SELECT to_char(paid_at,'YYYY-MM') as month,
+        SUM(total) as revenue FROM invoices WHERE status='paid' AND paid_at >= NOW() - INTERVAL '12 months'
+        GROUP BY month ORDER BY month`)
+    ]);
+
+    const expMonthly = await pool.query(`SELECT to_char(expense_date,'YYYY-MM') as month,
+      SUM(amount) as expenses FROM expenses WHERE expense_date >= NOW() - INTERVAL '12 months'
+      GROUP BY month ORDER BY month`);
+
+    const revenueMonth = parseFloat(paidMonth.rows[0].amt);
+    const expensesMonth = parseFloat(expMonth.rows[0].amt);
+
+    res.json({ success: true, summary: {
+      revenueMonth, revenueYear: parseFloat(paidYear.rows[0].amt),
+      expensesMonth, expensesYear: parseFloat(expYear.rows[0].amt),
+      profitMonth: revenueMonth - expensesMonth,
+      profitYear: parseFloat(paidYear.rows[0].amt) - parseFloat(expYear.rows[0].amt),
+      outstanding: parseFloat(outstanding.rows[0].amt),
+      byService: byService.rows,
+      monthlyRevenue: monthly.rows,
+      monthlyExpenses: expMonthly.rows
+    }});
+  } catch (error) {
+    console.error('Error fetching finance summary:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/reports/business-summary - KPIs for a period
+app.get('/api/reports/business-summary', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const { period = 'month' } = req.query;
+    const now = new Date();
+    let start;
+    if (period === 'year') start = new Date(now.getFullYear(), 0, 1);
+    else if (period === 'quarter') start = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3, 1);
+    else start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const s = start.toISOString();
+
+    const [quotes, invoices, jobs, expenses, customers] = await Promise.all([
+      pool.query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='signed') as signed FROM sent_quotes WHERE created_at >= $1", [s]),
+      pool.query("SELECT COUNT(*) as total, COALESCE(SUM(CASE WHEN status='paid' THEN total ELSE 0 END),0) as revenue, COALESCE(SUM(CASE WHEN status IN ('sent','viewed') THEN total-amount_paid ELSE 0 END),0) as outstanding FROM invoices WHERE created_at >= $1", [s]),
+      pool.query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status='completed') as completed FROM scheduled_jobs WHERE job_date >= $1", [s]),
+      pool.query("SELECT COALESCE(SUM(amount),0) as total FROM expenses WHERE expense_date >= $1", [s]),
+      pool.query("SELECT COUNT(*) as new_customers FROM customers WHERE created_at >= $1", [s])
+    ]);
+
+    const qr = quotes.rows[0]; const ir = invoices.rows[0]; const jr = jobs.rows[0];
+    res.json({ success: true, summary: {
+      period, start: s,
+      quotesSent: parseInt(qr.total), quotesSigned: parseInt(qr.signed),
+      conversionRate: qr.total > 0 ? Math.round((qr.signed / qr.total) * 100) : 0,
+      invoicesTotal: parseInt(ir.total), revenue: parseFloat(ir.revenue), outstanding: parseFloat(ir.outstanding),
+      jobsTotal: parseInt(jr.total), jobsCompleted: parseInt(jr.completed),
+      expenses: parseFloat(expenses.rows[0].total),
+      profit: parseFloat(ir.revenue) - parseFloat(expenses.rows[0].total),
+      newCustomers: parseInt(customers.rows[0].new_customers)
+    }});
+  } catch (error) {
+    console.error('Error fetching business summary:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/reports/crew-performance - Crew stats
+app.get('/api/reports/crew-performance', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT crew_assigned as crew, COUNT(*) as jobs_total,
+        COUNT(*) FILTER (WHERE status='completed') as jobs_completed,
+        COALESCE(SUM(service_price),0) as total_revenue
+      FROM scheduled_jobs WHERE crew_assigned IS NOT NULL
+      GROUP BY crew_assigned ORDER BY total_revenue DESC
+    `);
+    res.json({ success: true, crews: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/reports/customer-acquisition - New customers per month
+app.get('/api/reports/customer-acquisition', async (req, res) => {
+  try {
+    const { months = 12 } = req.query;
+    const result = await pool.query(`
+      SELECT to_char(created_at,'YYYY-MM') as month, COUNT(*) as count
+      FROM customers WHERE created_at >= NOW() - INTERVAL '${parseInt(months)} months'
+      GROUP BY month ORDER BY month
+    `);
+    res.json({ success: true, months: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

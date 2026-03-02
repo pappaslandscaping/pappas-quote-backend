@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revenue & Finance - Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --lime: #c9dd80;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: white;
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 80px;
+        }
+
+        .sidebar-brand img {
+            max-width: 100%;
+            max-height: 60px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            margin-bottom: 20px;
+        }
+
+        .nav-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--gray-500);
+            padding: 8px 20px;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .nav-item:hover {
+            color: var(--forest);
+            background: var(--gray-50);
+        }
+
+        .nav-item.active {
+            color: var(--lime);
+            background: linear-gradient(90deg, rgba(201, 221, 128, 0.1) 0%, transparent 100%);
+            border-left: 3px solid var(--lime);
+            padding-left: 17px;
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--forest);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .sidebar-user .name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--gray-700);
+        }
+
+        .sidebar-user .role {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-w);
+            padding: 40px;
+            min-height: 100vh;
+        }
+
+        /* Topbar */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .topbar h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: white;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            color: var(--gray-600);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-400);
+        }
+
+        .refresh-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Stat Cards Grid */
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stat-card-icon.green {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .stat-card-icon.red {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+
+        .stat-card-icon.blue {
+            background: var(--blue-bg);
+            color: var(--blue);
+        }
+
+        .stat-card-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .stat-card-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .stat-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .trend-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .trend-badge.up {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .trend-badge.down {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+
+        /* Chart Card */
+        .chart-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 40px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 24px;
+        }
+
+        .chart-container {
+            overflow-x: auto;
+            min-height: 320px;
+        }
+
+        .chart-svg {
+            display: block;
+            width: 100%;
+            min-width: 800px;
+        }
+
+        /* Two Column Grid */
+        .two-col-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        /* Service Breakdown Table */
+        .service-table-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .service-table-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 20px;
+        }
+
+        .service-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .service-table th {
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--gray-500);
+            padding: 12px 0;
+            border-bottom: 1px solid var(--gray-200);
+            letter-spacing: 0.5px;
+        }
+
+        .service-table td {
+            padding: 16px 0;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+        }
+
+        .service-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .service-name {
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        .service-revenue {
+            text-align: right;
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        /* Outstanding Invoices Card */
+        .outstanding-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .outstanding-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .outstanding-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .outstanding-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .outstanding-label {
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+
+        .outstanding-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .outstanding-overdue {
+            padding: 12px;
+            background: var(--amber-bg);
+            border: 1px solid var(--amber);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--amber);
+            font-weight: 500;
+        }
+
+        .outstanding-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--blue);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 8px 0;
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .outstanding-link:hover {
+            border-bottom-color: var(--blue);
+        }
+
+        .outstanding-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-500);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--gray-300);
+            border-top-color: var(--forest);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Error State */
+        .error-message {
+            background: var(--red-bg);
+            border: 1px solid var(--red);
+            color: var(--red);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand"><img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas"></div>
+        <nav class="sidebar-nav">
+            <div class="nav-section"><div class="nav-section-label">Overview</div><a class="nav-item" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a></div>
+            <div class="nav-section"><div class="nav-section-label">Sales</div>
+                <a class="nav-item" href="quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Quote Requests</a>
+                <a class="nav-item" href="quote-calculator.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>Quote Calculator</a>
+                <a class="nav-item" href="quote-generator.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Quote Generator</a>
+                <a class="nav-item" href="sent-quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>Sent Quotes</a>
+            </div>
+            <div class="nav-section"><div class="nav-section-label">Operations</div>
+                <a class="nav-item" href="customers.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customers</a>
+                <a class="nav-item" href="properties.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Properties</a>
+                <a class="nav-item" href="scheduling.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Scheduling</a>
+            </div>
+            <div class="nav-section"><div class="nav-section-label">Communications</div>
+                <a class="nav-item" href="communications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages & Calls</a>
+                <a class="nav-item" href="cancellations.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Cancellations</a>
+            </div>
+            <div class="nav-section"><div class="nav-section-label">Marketing</div>
+                <a class="nav-item" href="campaigns.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Campaigns</a>
+            </div>
+            <div class="nav-section"><div class="nav-section-label">Finance</div>
+                <a class="nav-item" href="expenses.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>Expenses</a>
+                <a class="nav-item" href="invoices.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>Invoices</a>
+                <a class="nav-item active" href="finance.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Revenue</a>
+            </div>
+            <div class="nav-section"><div class="nav-section-label">Team</div>
+                <a class="nav-item" href="crew.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Crew</a>
+                <a class="nav-item" href="reports.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Reports</a>
+            </div>
+        </nav>
+        <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div></div></div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <h1>Revenue</h1>
+            <button class="refresh-btn" onclick="loadFinance()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"></path>
+                </svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" style="display: none;"></div>
+
+        <!-- Stat Cards -->
+        <div class="stat-cards">
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20m10-10H2"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="stat-card-title">Revenue This Month</div>
+                <div class="stat-card-value" id="revenueThisMonth">$0.00</div>
+                <div class="stat-card-footer">
+                    <span id="revenueTrend" class="trend-badge up">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;">
+                            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                            <polyline points="17 6 23 6 23 12"></polyline>
+                        </svg>
+                        <span id="revenueTrendText">+0%</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon red">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="1"/><path d="M19.07 4.93L5.95 18.05M19.07 18.05L5.95 4.93"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="stat-card-title">Expenses This Month</div>
+                <div class="stat-card-value" id="expensesThisMonth">$0.00</div>
+                <div class="stat-card-footer">
+                    <span style="color: var(--gray-500); font-size: 13px;"></span>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="stat-card-title">Profit This Month</div>
+                <div class="stat-card-value" id="profitThisMonth">$0.00</div>
+                <div class="stat-card-footer">
+                    <span style="color: var(--gray-500); font-size: 13px;"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue vs Expenses Chart -->
+        <div class="chart-card">
+            <h2 class="chart-title">Revenue vs Expenses (Last 12 Months)</h2>
+            <div class="chart-container">
+                <svg id="revenueChart" class="chart-svg" viewBox="0 0 1000 280">
+                    <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading chart...</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Two Column Grid -->
+        <div class="two-col-grid">
+            <!-- Service Breakdown Table -->
+            <div class="service-table-card">
+                <h3>Revenue by Service Type</h3>
+                <table class="service-table" id="serviceTable">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th style="text-align: right;">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="2" style="text-align: center; padding: 40px 0; color: var(--gray-400);">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Outstanding Invoices -->
+            <div class="outstanding-card">
+                <h3>Outstanding Invoices</h3>
+                <div class="outstanding-stats">
+                    <div class="outstanding-stat">
+                        <span class="outstanding-label">Total Outstanding</span>
+                        <span class="outstanding-value" id="outstandingAmount">$0.00</span>
+                    </div>
+                    <div class="outstanding-stat">
+                        <span class="outstanding-label">Overdue Invoices</span>
+                        <span class="outstanding-value" id="overdueCount">0</span>
+                    </div>
+                </div>
+                <div id="overdueWarning" style="display: none;" class="outstanding-overdue">
+                    <strong id="overdueText">0 invoices</strong> are overdue
+                </div>
+                <a href="invoices.html" class="outstanding-link">
+                    View Invoices
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        // Format number for chart
+        function formatNumber(num) {
+            if (num >= 1000000) return '$' + (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return '$' + (num / 1000).toFixed(0) + 'K';
+            return '$' + num;
+        }
+
+        // Load finance data
+        async function loadFinance() {
+            try {
+                const errorEl = document.getElementById('errorMessage');
+                errorEl.style.display = 'none';
+
+                const response = await fetch('/api/finance/summary');
+                if (!response.ok) throw new Error('Failed to load finance data');
+
+                const data = response.json();
+                populateFinanceData(data);
+            } catch (error) {
+                console.error('Error loading finance data:', error);
+                const errorEl = document.getElementById('errorMessage');
+                errorEl.className = 'error-message';
+                errorEl.textContent = 'Failed to load finance data. Please try again.';
+                errorEl.style.display = 'block';
+
+                // Use sample data for demonstration
+                const sampleData = getSampleFinanceData();
+                populateFinanceData(sampleData);
+            }
+        }
+
+        // Populate all finance data
+        function populateFinanceData(data) {
+            // Stat cards
+            const revenueThisMonth = data.thisMonth?.revenue || 0;
+            const expensesThisMonth = data.thisMonth?.expenses || 0;
+            const profitThisMonth = revenueThisMonth - expensesThisMonth;
+
+            document.getElementById('revenueThisMonth').textContent = formatCurrency(revenueThisMonth);
+            document.getElementById('expensesThisMonth').textContent = formatCurrency(expensesThisMonth);
+            document.getElementById('profitThisMonth').textContent = formatCurrency(profitThisMonth);
+
+            // Revenue trend
+            const lastMonthRevenue = data.lastMonth?.revenue || 0;
+            const revenueDiff = lastMonthRevenue > 0 ? ((revenueThisMonth - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+            const trendElement = document.getElementById('revenueTrend');
+            const trendTextElement = document.getElementById('revenueTrendText');
+
+            if (revenueDiff >= 0) {
+                trendElement.className = 'trend-badge up';
+                trendTextElement.textContent = '+' + revenueDiff.toFixed(0) + '%';
+            } else {
+                trendElement.className = 'trend-badge down';
+                trendTextElement.textContent = revenueDiff.toFixed(0) + '%';
+            }
+
+            // Chart
+            buildRevenueChart(data.monthlyRevenue || [], data.monthlyExpenses || []);
+
+            // Service breakdown table
+            populateServiceTable(data.serviceBreakdown || []);
+
+            // Outstanding invoices
+            populateOutstandingInvoices(data.outstanding || {});
+        }
+
+        // Build chart
+        function buildRevenueChart(monthlyRevenue, monthlyExpenses) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const chartElement = document.getElementById('revenueChart');
+
+            // Ensure arrays have 12 months
+            const revenue = monthlyRevenue.slice(0, 12);
+            const expenses = monthlyExpenses.slice(0, 12);
+
+            // Pad with zeros if needed
+            while (revenue.length < 12) revenue.push(0);
+            while (expenses.length < 12) expenses.push(0);
+
+            // Calculate max for scaling
+            const allValues = [...revenue, ...expenses];
+            const maxValue = Math.max(...allValues, 1);
+            const chartHeight = 200;
+            const chartWidth = 920;
+            const bottomMargin = 40;
+            const topMargin = 40;
+            const leftMargin = 50;
+
+            // Build SVG
+            let svg = `<svg viewBox="0 0 1000 280" style="width: 100%;">
+                <defs>
+                    <linearGradient id="gridGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" style="stop-color:var(--gray-100);stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:var(--gray-50);stop-opacity:0" />
+                    </linearGradient>
+                </defs>`;
+
+            // Grid lines and labels
+            const gridLines = 4;
+            for (let i = 0; i <= gridLines; i++) {
+                const y = topMargin + (i * chartHeight / gridLines);
+                const value = maxValue - (i * maxValue / gridLines);
+                svg += `<line x1="${leftMargin}" y1="${y}" x2="${leftMargin + chartWidth}" y2="${y}" stroke="var(--gray-200)" stroke-width="1" stroke-dasharray="2"/>`;
+                svg += `<text x="${leftMargin - 10}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--gray-500)">${formatNumber(value)}</text>`;
+            }
+
+            // Bar spacing
+            const barSpacing = chartWidth / 12;
+            const barWidth = (barSpacing - 8) / 2;
+            const gap = 4;
+
+            // Draw bars
+            for (let i = 0; i < 12; i++) {
+                const x = leftMargin + (i * barSpacing) + (barSpacing - (barWidth * 2 + gap)) / 2;
+
+                // Revenue bar (green)
+                const revHeight = (revenue[i] / maxValue) * chartHeight;
+                const revY = topMargin + chartHeight - revHeight;
+                svg += `<rect x="${x}" y="${revY}" width="${barWidth}" height="${revHeight}" fill="var(--green)" rx="2"/>`;
+
+                // Expense bar (red)
+                const expHeight = (expenses[i] / maxValue) * chartHeight;
+                const expY = topMargin + chartHeight - expHeight;
+                svg += `<rect x="${x + barWidth + gap}" y="${expY}" width="${barWidth}" height="${expHeight}" fill="var(--red)" rx="2"/>`;
+
+                // Month label
+                const labelX = x + barWidth + (gap / 2) + (barWidth / 2);
+                const labelY = topMargin + chartHeight + 20;
+                svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="12" fill="var(--gray-500)">${months[i]}</text>`;
+            }
+
+            // Legend
+            svg += `
+                <g>
+                    <rect x="50" y="250" width="12" height="12" fill="var(--green)"/>
+                    <text x="70" y="259" font-size="12" fill="var(--gray-600)">Revenue</text>
+                    <rect x="200" y="250" width="12" height="12" fill="var(--red)"/>
+                    <text x="220" y="259" font-size="12" fill="var(--gray-600)">Expenses</text>
+                </g>
+            </svg>`;
+
+            chartElement.innerHTML = svg;
+        }
+
+        // Populate service breakdown table
+        function populateServiceTable(services) {
+            const tbody = document.querySelector('.service-table tbody');
+
+            if (!services || services.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; padding: 40px 0; color: var(--gray-400);">No service data</td></tr>';
+                return;
+            }
+
+            // Sort by revenue descending
+            const sorted = [...services].sort((a, b) => (b.revenue || 0) - (a.revenue || 0));
+
+            let html = '';
+            sorted.forEach(service => {
+                html += `
+                    <tr>
+                        <td class="service-name">${service.name || 'Unknown'}</td>
+                        <td class="service-revenue">${formatCurrency(service.revenue || 0)}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // Populate outstanding invoices
+        function populateOutstandingInvoices(outstanding) {
+            const amount = outstanding.totalOutstanding || 0;
+            const overdue = outstanding.overdueCount || 0;
+
+            document.getElementById('outstandingAmount').textContent = formatCurrency(amount);
+            document.getElementById('overdueCount').textContent = overdue;
+
+            const overdueWarning = document.getElementById('overdueWarning');
+            const overdueText = document.getElementById('overdueText');
+
+            if (overdue > 0) {
+                overdueText.textContent = overdue + (overdue === 1 ? ' invoice' : ' invoices');
+                overdueWarning.style.display = 'block';
+            } else {
+                overdueWarning.style.display = 'none';
+            }
+        }
+
+        // Sample data for demonstration
+        function getSampleFinanceData() {
+            return {
+                thisMonth: {
+                    revenue: 24500,
+                    expenses: 8900
+                },
+                lastMonth: {
+                    revenue: 21200,
+                    expenses: 8200
+                },
+                monthlyRevenue: [
+                    18200, 19500, 20800, 19200, 22400, 23100,
+                    24500, 21800, 23900, 22100, 25300, 24500
+                ],
+                monthlyExpenses: [
+                    7200, 7500, 8100, 7900, 8400, 8200,
+                    8900, 8500, 8700, 8300, 8600, 8900
+                ],
+                serviceBreakdown: [
+                    { name: 'Lawn Maintenance', revenue: 145200 },
+                    { name: 'Landscape Design', revenue: 98500 },
+                    { name: 'Hardscaping', revenue: 87300 },
+                    { name: 'Tree & Shrub Care', revenue: 65800 },
+                    { name: 'Mulching', revenue: 52400 }
+                ],
+                outstanding: {
+                    totalOutstanding: 12850,
+                    overdueCount: 3
+                }
+            };
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', loadFinance);
+    </script>
+</body>
+</html>

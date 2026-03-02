@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Quote - Pappas & Co. Landscaping</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .quote-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .header {
+            background: #2e403d;
+            padding: 30px 32px;
+            text-align: center;
+        }
+        .logo {
+            margin: 0 auto;
+        }
+        .logo img {
+            max-height: 80px;
+            max-width: 350px;
+            object-fit: contain;
+        }
+        .content {
+            padding: 32px;
+        }
+        .status-banner {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .status-banner.accepted {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status-banner.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .quote-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .detail-item {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+        }
+        .detail-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .detail-value {
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .services-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 24px 0;
+        }
+        .services-table th {
+            background: #2e403d;
+            color: white;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .services-table th:last-child {
+            text-align: right;
+        }
+        .services-table td {
+            padding: 16px;
+            border-bottom: 1px solid #e5e5e5;
+            vertical-align: top;
+        }
+        .services-table td:last-child {
+            text-align: right;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .service-name {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 6px;
+        }
+        .service-description {
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        .totals-row td {
+            background: #f8f8f8;
+            padding: 12px 16px;
+        }
+        .totals-row.final td {
+            background: #c9dd80;
+            font-weight: 700;
+            color: #2e403d;
+            font-size: 18px;
+        }
+        .terms {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 24px 0;
+        }
+        .terms h4 {
+            margin-bottom: 12px;
+            color: #1e293b;
+        }
+        .terms ul {
+            margin-left: 20px;
+            color: #475569;
+        }
+        .terms li {
+            margin-bottom: 8px;
+        }
+        .accept-form {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #e5e5e5;
+        }
+        .accept-form h3 {
+            margin-bottom: 16px;
+            color: #1e293b;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #374151;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e5e5;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #c9dd80;
+        }
+        .accept-btn {
+            width: 100%;
+            padding: 18px;
+            background: #2e403d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .accept-btn:hover {
+            background: #1e2e2c;
+        }
+        .accept-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .contact-info {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-top: 1px solid #e5e5e5;
+        }
+        .contact-info p {
+            color: #64748b;
+            font-size: 14px;
+        }
+        .contact-info a {
+            color: #2e403d;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #64748b;
+        }
+        .error {
+            text-align: center;
+            padding: 60px;
+            color: #dc2626;
+        }
+        @media (max-width: 600px) {
+            .container { margin: 20px auto; padding: 0 12px; }
+            .header { padding: 24px; }
+            .content { padding: 20px; }
+            .quote-details { grid-template-columns: 1fr; }
+            .services-table th, .services-table td { padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="quote-card" id="quoteCard">
+            <div class="loading" id="loading">
+                <p>Loading your quote...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const LOGO_URL = 'https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png';
+        const COMPANY_NAME = 'Pappas & Co. Landscaping';
+        
+        async function loadQuote() {
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+            
+            if (!token) {
+                showError('Invalid quote link');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/sign/${token}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showError(data.error || 'Quote not found');
+                    return;
+                }
+                
+                renderQuote(data.quote);
+            } catch (err) {
+                console.error('Error loading quote:', err);
+                showError('Failed to load quote');
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('quoteCard').innerHTML = `
+                <div class="error">
+                    <p>${message}</p>
+                    <p style="margin-top:16px;font-size:14px;">Please contact us at (440) 886-7318</p>
+                </div>
+            `;
+        }
+        
+        function renderQuote(quote) {
+            const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+            const quoteNumber = quote.quote_number || `Q-${quote.id}`;
+            const isSigned = quote.status === 'signed';
+            
+            // Build services HTML with descriptions
+            const servicesHtml = services.map(s => {
+                const description = s.description || '';
+                return `
+                    <tr>
+                        <td>
+                            <div class="service-name">${s.name}</div>
+                            ${description ? `<div class="service-description">${description}</div>` : ''}
+                        </td>
+                        <td>$${parseFloat(s.amount).toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            document.getElementById('quoteCard').innerHTML = `
+                <div class="header">
+                    <div class="logo">
+                        <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping">
+                    </div>
+                </div>
+                
+                <div class="content">
+                    <h2 style="font-family:Georgia,serif;color:#1e293b;font-size:26px;font-weight:400;text-align:center;margin:0 0 24px;">Your Quote</h2>
+                    ${isSigned ? `
+                        <div class="status-banner accepted">
+                            ✓ This quote was accepted on ${new Date(quote.signed_at).toLocaleDateString()}
+                        </div>
+                    ` : ''}
+                    
+                    <div class="quote-details">
+                        <div class="detail-item">
+                            <div class="detail-label">PREPARED FOR</div>
+                            <div class="detail-value">${quote.customer_name}</div>
+                            <div style="font-size:13px;color:#64748b;margin-top:4px;">${quote.customer_address || ''}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">QUOTE DETAILS</div>
+                            <div class="detail-value">Quote #${quoteNumber}</div>
+                            <div style="font-size:13px;color:#64748b;margin-top:4px;">Date: ${new Date(quote.created_at).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                    
+                    <table class="services-table">
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${servicesHtml}
+                            <tr class="totals-row">
+                                <td style="text-align:right;color:#64748b;">Subtotal:</td>
+                                <td>$${parseFloat(quote.subtotal).toFixed(2)}</td>
+                            </tr>
+                            <tr class="totals-row">
+                                <td style="text-align:right;color:#64748b;">Tax (${quote.tax_rate || 8}%):</td>
+                                <td>$${parseFloat(quote.tax_amount).toFixed(2)}</td>
+                            </tr>
+                            <tr class="totals-row final">
+                                <td style="text-align:right;">Total:</td>
+                                <td>$${parseFloat(quote.total).toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    ${quote.monthly_payment ? `
+                        <div style="background:#f0f9f0;border:2px solid #c9dd80;border-radius:8px;padding:16px;text-align:center;margin-bottom:24px;">
+                            <p style="color:#2e403d;font-weight:600;">Annual Care Plan Option</p>
+                            <p style="color:#2e403d;font-size:24px;font-weight:700;">$${parseFloat(quote.monthly_payment).toFixed(2)}/month</p>
+                            <p style="color:#64748b;font-size:13px;">Split into 12 equal payments</p>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="terms">
+                        <h4>TERMS</h4>
+                        <ul>
+                            <li>Quote valid for 30 days</li>
+                            <li>By accepting, you agree to proceed with the services listed above</li>
+                            <li>A service agreement will be presented for your signature</li>
+                        </ul>
+                    </div>
+                    
+                    ${!isSigned ? `
+                        <div class="accept-form">
+                            <h3>Accept This Quote</h3>
+                            <div class="form-group">
+                                <label for="signedName">Type your full name to accept:</label>
+                                <input type="text" id="signedName" placeholder="Your full name" autocomplete="name">
+                            </div>
+                            <button class="accept-btn" id="acceptBtn" onclick="acceptQuote()">
+                                Accept Quote & Continue →
+                            </button>
+                            
+                            <div style="display:flex;gap:12px;margin-top:16px;">
+                                <button onclick="showRequestChanges()" style="flex:1;padding:14px 20px;border:2px solid #2e403d;background:white;color:#2e403d;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">
+                                    Request Changes
+                                </button>
+                                <button onclick="showDecline()" style="flex:1;padding:14px 20px;border:2px solid #dc2626;background:white;color:#dc2626;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">
+                                    Decline
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Request Changes Modal -->
+                        <div id="changesModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;padding:20px;">
+                            <div style="max-width:500px;margin:60px auto;background:white;border-radius:12px;padding:32px;">
+                                <h3 style="margin:0 0 16px;color:#1e293b;">Request Changes</h3>
+                                <p style="color:#64748b;margin-bottom:20px;">Let us know what you'd like to change about this quote:</p>
+                                <textarea id="changesText" style="width:100%;height:120px;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-family:inherit;resize:vertical;" placeholder="Describe the changes you'd like..."></textarea>
+                                <div style="display:flex;gap:12px;margin-top:20px;">
+                                    <button onclick="hideModals()" style="flex:1;padding:12px;border:1px solid #d1d5db;background:white;border-radius:8px;cursor:pointer;">Cancel</button>
+                                    <button onclick="submitChanges()" style="flex:1;padding:12px;border:none;background:#2e403d;color:white;border-radius:8px;cursor:pointer;font-weight:600;">Submit Request</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Decline Modal -->
+                        <div id="declineModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;padding:20px;">
+                            <div style="max-width:500px;margin:60px auto;background:white;border-radius:12px;padding:32px;">
+                                <h3 style="margin:0 0 16px;color:#1e293b;">Decline Quote</h3>
+                                <p style="color:#64748b;margin-bottom:20px;">We're sorry to hear that! Could you let us know why?</p>
+                                <select id="declineReason" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:16px;">
+                                    <option value="">Select a reason...</option>
+                                    <option value="price">Price too high</option>
+                                    <option value="timing">Not the right time</option>
+                                    <option value="other_provider">Going with another provider</option>
+                                    <option value="not_needed">No longer needed</option>
+                                    <option value="other">Other</option>
+                                </select>
+                                <textarea id="declineComments" style="width:100%;height:80px;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-family:inherit;resize:vertical;" placeholder="Additional comments (optional)"></textarea>
+                                <div style="display:flex;gap:12px;margin-top:20px;">
+                                    <button onclick="hideModals()" style="flex:1;padding:12px;border:1px solid #d1d5db;background:white;border-radius:8px;cursor:pointer;">Cancel</button>
+                                    <button onclick="submitDecline()" style="flex:1;padding:12px;border:none;background:#dc2626;color:white;border-radius:8px;cursor:pointer;font-weight:600;">Decline Quote</button>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="contact-info">
+                    <p>Questions? Call us at <a href="tel:4408867318">(440) 886-7318</a> or email <a href="mailto:hello@pappaslandscaping.com">hello@pappaslandscaping.com</a></p>
+                </div>
+            `;
+        }
+        
+        async function acceptQuote() {
+            const name = document.getElementById('signedName').value.trim();
+            if (!name) {
+                alert('Please enter your name to accept the quote');
+                return;
+            }
+            
+            const btn = document.getElementById('acceptBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+            
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token');
+                
+                const response = await fetch(`/api/sign/${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ signed_by_name: name })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Redirect to contract signing page
+                    if (data.contractUrl) {
+                        window.location.href = data.contractUrl;
+                    } else {
+                        // Show success and reload
+                        alert('Thank you! Your quote has been accepted. We will be in touch shortly.');
+                        window.location.reload();
+                    }
+                } else {
+                    alert(data.error || 'Failed to accept quote');
+                    btn.disabled = false;
+                    btn.textContent = 'Accept Quote & Continue →';
+                }
+            } catch (err) {
+                console.error('Error accepting quote:', err);
+                alert('Failed to accept quote. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Accept Quote & Continue →';
+            }
+        }
+        
+        function showRequestChanges() {
+            document.getElementById('changesModal').style.display = 'block';
+        }
+        
+        function showDecline() {
+            document.getElementById('declineModal').style.display = 'block';
+        }
+        
+        function hideModals() {
+            document.getElementById('changesModal').style.display = 'none';
+            document.getElementById('declineModal').style.display = 'none';
+        }
+        
+        async function submitChanges() {
+            const changes = document.getElementById('changesText').value.trim();
+            if (!changes) {
+                alert('Please describe the changes you would like');
+                return;
+            }
+            
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token');
+                
+                const response = await fetch(`/api/sign/${token}/request-changes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ change_request: changes })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    hideModals();
+                    document.querySelector('.accept-form').innerHTML = `
+                        <div style="text-align:center;padding:24px;background:#e0f2fe;border-radius:12px;">
+                            <p style="font-size:24px;margin-bottom:12px;">📝</p>
+                            <h3 style="color:#0369a1;margin:0 0 8px;">Change Request Submitted</h3>
+                            <p style="color:#0369a1;margin:0;">We'll review your request and get back to you shortly.</p>
+                        </div>
+                    `;
+                } else {
+                    alert(data.error || 'Failed to submit request');
+                }
+            } catch (err) {
+                console.error('Error submitting changes:', err);
+                alert('Failed to submit request. Please try again.');
+            }
+        }
+        
+        async function submitDecline() {
+            const reason = document.getElementById('declineReason').value;
+            const comments = document.getElementById('declineComments').value.trim();
+            
+            if (!reason) {
+                alert('Please select a reason');
+                return;
+            }
+            
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('token');
+                
+                const response = await fetch(`/api/sign/${token}/decline`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ decline_reason: reason, decline_comments: comments })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    hideModals();
+                    document.querySelector('.accept-form').innerHTML = `
+                        <div style="text-align:center;padding:24px;background:#fef2f2;border-radius:12px;">
+                            <p style="font-size:24px;margin-bottom:12px;">👋</p>
+                            <h3 style="color:#dc2626;margin:0 0 8px;">Quote Declined</h3>
+                            <p style="color:#991b1b;margin:0;">Thank you for letting us know. If you change your mind, feel free to reach out!</p>
+                        </div>
+                    `;
+                } else {
+                    alert(data.error || 'Failed to decline quote');
+                }
+            } catch (err) {
+                console.error('Error declining quote:', err);
+                alert('Failed to decline quote. Please try again.');
+            }
+        }
+        
+        // Load quote on page load
+        loadQuote();
+    </script>
+</body>
+</html>

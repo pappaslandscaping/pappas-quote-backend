@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calls — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --cream: #ffffff;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-brand img {
+            height: 80px;
+            width: 80px;
+            border-radius: 50%;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section { margin-bottom: 24px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover { background: var(--gray-100); color: var(--forest); }
+        .nav-item.active { background: rgba(46, 64, 61, 0.08); color: var(--forest); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+        .nav-item.active svg { opacity: 1; }
+
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--forest);
+            color: var(--lime);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .nav-item.disabled {
+            opacity: 0.35;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .nav-item.disabled::after {
+            content: 'Soon';
+            margin-left: auto;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.6;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+
+        .sidebar-user .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            height: var(--header-h);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            z-index: 50;
+        }
+
+        .topbar-left h2 { font-size: 18px; font-weight: 700; color: var(--gray-700); }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); box-shadow: 0 2px 8px rgba(46, 64, 61, 0.25); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
+
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .page-content { padding: 28px 32px; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .stat-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); transform: translateY(-2px); }
+        .stat-card .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .stat-card .stat-label { font-size: 13px; font-weight: 500; color: var(--gray-500); }
+
+        .stat-card .stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stat-card .stat-icon svg { width: 18px; height: 18px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--gray-700); line-height: 1; }
+
+        .icon-blue { background: var(--blue-bg); color: var(--blue); }
+        .icon-amber { background: var(--amber-bg); color: var(--amber); }
+        .icon-green { background: var(--green-bg); color: var(--green); }
+        .icon-purple { background: var(--purple-bg); color: var(--purple); }
+        .icon-red { background: var(--red-bg); color: var(--red); }
+
+        .table-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .table-toolbar-left { display: flex; align-items: center; gap: 12px; }
+        .table-toolbar h3 { font-size: 15px; font-weight: 700; }
+
+        .filter-select {
+            padding: 6px 28px 6px 10px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--gray-600);
+            background: var(--white);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%239ca09c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        .filter-select:focus { outline: none; border-color: var(--lime); }
+
+        .search-input {
+            padding: 6px 10px 6px 32px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--gray-600);
+            width: 200px;
+            background: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%239ca09c' stroke-width='2'/%3E%3Cpath d='M16 16L20 20' stroke='%239ca09c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 10px center;
+        }
+
+        .search-input:focus { outline: none; border-color: var(--lime); }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            padding: 10px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--gray-50); }
+
+        .td-name { font-weight: 600; color: var(--gray-700); }
+        .td-sub { font-size: 12px; color: var(--gray-400); margin-top: 1px; }
+        .td-phone a { color: var(--gray-600); text-decoration: none; }
+        .td-phone a:hover { color: var(--forest); }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+
+        .status-answered { background: var(--green-bg); color: var(--green); }
+        .status-answered::before { background: var(--green); }
+        .status-voicemail { background: var(--amber-bg); color: var(--amber); }
+        .status-voicemail::before { background: var(--amber); }
+        .status-missed { background: var(--red-bg); color: var(--red); }
+        .status-missed::before { background: var(--red); }
+        .status-new { background: var(--blue-bg); color: var(--blue); }
+        .status-new::before { background: var(--blue); }
+
+        .call-type-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .row-actions { display: flex; gap: 4px; }
+
+        .row-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            background: var(--white);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .row-btn:hover { border-color: var(--forest); color: var(--forest); }
+        .row-btn.delete { color: var(--red); }
+        .row-btn.delete:hover { border-color: var(--red); background: var(--red-bg); }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.4; }
+        .empty-state p { font-size: 14px; }
+
+        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
+
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--forest);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .panel-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 200;
+            animation: fadeIn 0.2s;
+        }
+
+        .panel-overlay.show { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .panel {
+            position: fixed;
+            top: 0;
+            right: -500px;
+            width: 480px;
+            max-width: 100vw;
+            height: 100vh;
+            background: var(--white);
+            box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+            z-index: 201;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .panel.open { right: 0; }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+
+        .panel-header h2 { font-size: 16px; font-weight: 700; }
+
+        .panel-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: var(--gray-100);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--gray-500);
+            transition: background 0.15s;
+        }
+
+        .panel-close:hover { background: var(--gray-200); }
+
+        .panel-body { flex: 1; overflow-y: auto; padding: 24px; }
+        .panel-section { margin-bottom: 28px; }
+
+        .panel-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .panel-field { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; }
+        .panel-field-label { font-size: 13px; color: var(--gray-400); font-weight: 500; min-width: 120px; }
+        .panel-field-value { font-size: 13px; color: var(--gray-700); font-weight: 600; text-align: right; flex: 1; }
+        .panel-field-value a { color: var(--forest); text-decoration: none; }
+        .panel-field-value a:hover { text-decoration: underline; }
+
+        .panel-notes {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            color: var(--gray-600);
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .panel-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .panel-footer select {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 500;
+        }
+
+        .panel-footer select:focus { outline: none; border-color: var(--lime); }
+        .panel-footer .btn { flex-shrink: 0; }
+        .panel-meta { font-size: 11px; color: var(--gray-400); margin-top: 12px; text-align: center; }
+
+        .audio-player {
+            width: 100%;
+            margin-top: 8px;
+            border-radius: 8px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--forest);
+            color: var(--lime);
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 300;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .page-content { padding: 20px 16px; }
+            .topbar { padding: 0 16px; }
+            .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stat-card { padding: 16px; }
+            .stat-card .stat-value { font-size: 24px; }
+            .table-toolbar { flex-direction: column; gap: 10px; align-items: stretch; }
+            .table-toolbar-left { flex-wrap: wrap; }
+            .panel { width: 100vw; }
+            .search-input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas & Company Landscaping">
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Manage</div>
+            <a class="nav-item" href="quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Quote Requests
+            </a>
+            <a class="nav-item active" href="calls.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+                Calls
+            </a>
+            <a class="nav-item" href="cancellations.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                Cancellations
+            </a>
+            <a class="nav-item" href="customers.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Customers
+            </a>
+            <a class="nav-item" href="scheduling.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Scheduling
+            </a>
+            <a class="nav-item" href="invoices.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Invoices
+            </a>
+            <a class="nav-item" href="crew.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Crew
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Insights</div>
+            <a class="nav-item" href="finance.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Revenue
+            </a>
+            <a class="nav-item" href="reports.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                Reports
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left">
+                <h2>Phone Calls</h2>
+                <p>Track incoming calls and voicemails</p>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-primary" onclick="loadData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="page-content">
+        <div class="stats-row">
+            <div class="stat-card" onclick="filterBy('')">
+                <div class="stat-header">
+                    <span class="stat-label">Total Calls</span>
+                    <div class="stat-icon icon-blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statTotal">—</div>
+            </div>
+            <div class="stat-card" onclick="filterBy('voicemail')">
+                <div class="stat-header">
+                    <span class="stat-label">Voicemails</span>
+                    <div class="stat-icon icon-amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5.5" cy="11.5" r="4.5"/><circle cx="18.5" cy="11.5" r="4.5"/><line x1="5.5" y1="16" x2="18.5" y2="16"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statVoicemail">—</div>
+            </div>
+            <div class="stat-card" onclick="filterBy('answered')">
+                <div class="stat-header">
+                    <span class="stat-label">Answered</span>
+                    <div class="stat-icon icon-green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statAnswered">—</div>
+            </div>
+            <div class="stat-card" onclick="filterBy('new')">
+                <div class="stat-header">
+                    <span class="stat-label">New / Unread</span>
+                    <div class="stat-icon icon-purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statNew">—</div>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <div class="table-toolbar">
+                <div class="table-toolbar-left">
+                    <h3>All Calls</h3>
+                    <select class="filter-select" id="statusFilter" onchange="renderTable()">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="voicemail">Voicemail</option>
+                        <option value="answered">Answered</option>
+                        <option value="reviewed">Reviewed</option>
+                    </select>
+                    <select class="filter-select" id="typeFilter" onchange="renderTable()">
+                        <option value="">All Types</option>
+                        <option value="New Quote Request">New Quote</option>
+                        <option value="Customer Service">Customer Service</option>
+                        <option value="Skip Mowing">Skip Mowing</option>
+                        <option value="Billing">Billing</option>
+                        <option value="Other Inquiry">Other Inquiry</option>
+                    </select>
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search phone number..." oninput="renderTable()">
+                </div>
+            </div>
+
+            <div id="loadingState" class="loading-state">
+                <div class="loading-spinner"></div>
+                Loading calls...
+            </div>
+
+            <table id="dataTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>From</th>
+                        <th>Type</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Transcription</th>
+                        <th style="width: 140px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+<div class="panel" id="detailPanel">
+    <div class="panel-header">
+        <h2>Call Details</h2>
+        <button class="panel-close" onclick="closePanel()">&times;</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+    <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let allData = [];
+
+async function loadData() {
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('dataTable').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/calls');
+        const data = await res.json();
+        allData = data.calls || [];
+
+        // Calculate stats
+        const counts = { total: allData.length, voicemail: 0, answered: 0, new: 0 };
+        allData.forEach(c => {
+            if (c.status === 'voicemail') counts.voicemail++;
+            if (c.status === 'answered') counts.answered++;
+            if (c.status === 'new') counts.new++;
+        });
+
+        document.getElementById('statTotal').textContent = counts.total;
+        document.getElementById('statVoicemail').textContent = counts.voicemail;
+        document.getElementById('statAnswered').textContent = counts.answered;
+        document.getElementById('statNew').textContent = counts.new;
+        document.getElementById('nav-badge').textContent = counts.new;
+
+        renderTable();
+    } catch (e) {
+        console.error('Load error:', e);
+        document.getElementById('loadingState').innerHTML = '<p>Failed to load calls</p>';
+    }
+}
+
+function renderTable() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const type = document.getElementById('typeFilter').value;
+
+    let filtered = allData.filter(c => {
+        if (status && c.status !== status) return false;
+        if (type && c.call_type !== type) return false;
+        if (search && !c.from_number.toLowerCase().includes(search)) return false;
+        return true;
+    });
+
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('dataTable').style.display = 'table';
+
+    const tbody = document.getElementById('tableBody');
+
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72"/></svg><p>No calls found</p></div></td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(c => {
+        const date = new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const time = new Date(c.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        const duration = c.duration ? formatDuration(c.duration) : '—';
+        const transcriptPreview = c.transcription ? c.transcription.substring(0, 40) + (c.transcription.length > 40 ? '...' : '') : '—';
+
+        return `<tr style="cursor:pointer" onclick="openPanel(${c.id})">
+            <td style="color:var(--gray-400);font-size:12px">${date}<br><span style="font-size:11px">${time}</span></td>
+            <td class="td-phone"><a href="tel:${c.from_number}">${formatPhone(c.from_number)}</a></td>
+            <td><span class="call-type-pill">${esc(c.call_type || 'Unknown')}</span></td>
+            <td style="font-size:12px;color:var(--gray-500)">${duration}</td>
+            <td><span class="status-pill status-${c.status}">${c.status}</span></td>
+            <td style="font-size:12px;color:var(--gray-500);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(transcriptPreview)}</td>
+            <td>
+                <div class="row-actions">
+                    <button class="row-btn" onclick="event.stopPropagation();openPanel(${c.id})">View</button>
+                    <button class="row-btn delete" onclick="event.stopPropagation();deleteCall(${c.id})">Delete</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function filterBy(status) {
+    document.getElementById('statusFilter').value = status;
+    renderTable();
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function formatPhone(phone) {
+    if (!phone) return '—';
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 11 && cleaned.startsWith('1')) {
+        return `(${cleaned.slice(1,4)}) ${cleaned.slice(4,7)}-${cleaned.slice(7)}`;
+    }
+    if (cleaned.length === 10) {
+        return `(${cleaned.slice(0,3)}) ${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+    }
+    return phone;
+}
+
+function openPanel(id) {
+    const c = allData.find(x => x.id === id);
+    if (!c) return;
+
+    // Mark as reviewed if new
+    if (c.status === 'new') {
+        markReviewed(id);
+    }
+
+    const body = document.getElementById('panelBody');
+    body.innerHTML = `
+        <div class="panel-section">
+            <div class="panel-section-title">Call Information</div>
+            <div class="panel-field"><span class="panel-field-label">From</span><span class="panel-field-value"><a href="tel:${c.from_number}">${formatPhone(c.from_number)}</a></span></div>
+            <div class="panel-field"><span class="panel-field-label">Type</span><span class="panel-field-value">${esc(c.call_type || 'Unknown')}</span></div>
+            <div class="panel-field"><span class="panel-field-label">Status</span><span class="panel-field-value"><span class="status-pill status-${c.status}">${c.status}</span></span></div>
+            <div class="panel-field"><span class="panel-field-label">Duration</span><span class="panel-field-value">${formatDuration(c.duration)}</span></div>
+            <div class="panel-field"><span class="panel-field-label">Date</span><span class="panel-field-value">${new Date(c.created_at).toLocaleString()}</span></div>
+        </div>
+        ${c.recording_url ? `
+        <div class="panel-section">
+            <div class="panel-section-title">Recording</div>
+            <audio controls class="audio-player">
+                <source src="${c.recording_url}" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+        ` : ''}
+        ${c.transcription ? `
+        <div class="panel-section">
+            <div class="panel-section-title">Transcription</div>
+            <div class="panel-notes">${esc(c.transcription)}</div>
+        </div>
+        ` : ''}
+    `;
+
+    document.getElementById('panelFooter').innerHTML = `
+        <select id="panelStatus">
+            <option value="new" ${c.status === 'new' ? 'selected' : ''}>New</option>
+            <option value="voicemail" ${c.status === 'voicemail' ? 'selected' : ''}>Voicemail</option>
+            <option value="answered" ${c.status === 'answered' ? 'selected' : ''}>Answered</option>
+            <option value="reviewed" ${c.status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+        </select>
+        <button class="btn btn-primary" onclick="updateCall(${c.id})">Update</button>
+    `;
+
+    document.getElementById('panelOverlay').classList.add('show');
+    document.getElementById('detailPanel').classList.add('open');
+}
+
+function closePanel() {
+    document.getElementById('panelOverlay').classList.remove('show');
+    document.getElementById('detailPanel').classList.remove('open');
+}
+
+async function markReviewed(id) {
+    try {
+        await fetch(`/api/calls/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'reviewed' })
+        });
+        // Update local data
+        const c = allData.find(x => x.id === id);
+        if (c && c.status === 'new') {
+            c.status = 'reviewed';
+        }
+    } catch (e) {
+        console.error('Mark reviewed error:', e);
+    }
+}
+
+async function updateCall(id) {
+    const status = document.getElementById('panelStatus').value;
+    try {
+        await fetch(`/api/calls/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        showToast('Call updated');
+        closePanel();
+        loadData();
+    } catch (e) {
+        console.error('Update error:', e);
+        showToast('Update failed');
+    }
+}
+
+async function deleteCall(id) {
+    if (!confirm('Delete this call record?')) return;
+    try {
+        await fetch(`/api/calls/${id}`, { method: 'DELETE' });
+        showToast('Call deleted');
+        closePanel();
+        loadData();
+    } catch (e) {
+        console.error('Delete error:', e);
+        showToast('Delete failed');
+    }
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function esc(s) {
+    return s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
+}
+
+document.addEventListener('DOMContentLoaded', loadData);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+// Auto-refresh every 60 seconds
+setInterval(loadData, 60000);
+</script>
+
+</body>
+</html>

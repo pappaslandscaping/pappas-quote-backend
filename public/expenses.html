@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expenses — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --cream: #ffffff;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-brand img { height: 80px; width: 80px; border-radius: 50%; }
+
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 24px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover { background: var(--gray-100); color: var(--forest); }
+        .nav-item.active { background: rgba(46, 64, 61, 0.08); color: var(--forest); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+        .nav-item.active svg { opacity: 1; }
+
+        .nav-item.disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+        .nav-item.disabled::after { content: 'Soon'; margin-left: auto; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6; }
+
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-200); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+
+        .sidebar-user .avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 13px;
+        }
+
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+        .topbar {
+            position: sticky; top: 0;
+            height: var(--header-h);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px;
+            z-index: 50;
+        }
+
+        .topbar-left h2 { font-size: 18px; font-weight: 700; color: var(--gray-700); }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 13px; font-weight: 600;
+            border: none; cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit; text-decoration: none;
+        }
+
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover {
+            background: var(--forest-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+        }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); transition: all 0.15s ease; }
+        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
+
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .page-content {
+            padding: 28px 32px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 28px; }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.15s ease;
+        }
+
+        .stat-card .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .stat-card .stat-label { font-size: 13px; font-weight: 500; color: var(--gray-500); }
+
+        .stat-card .stat-icon {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .stat-card .stat-icon svg { width: 18px; height: 18px; }
+        .stat-card .stat-value { font-size: 26px; font-weight: 700; color: var(--gray-700); line-height: 1; }
+        .stat-card .stat-sub { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+
+        .icon-blue { background: var(--blue-bg); color: var(--blue); }
+        .icon-amber { background: var(--amber-bg); color: var(--amber); }
+        .icon-green { background: var(--green-bg); color: var(--green); }
+        .icon-purple { background: var(--purple-bg); color: var(--purple); }
+
+        /* UPLOAD ZONE */
+        .upload-zone {
+            background: var(--white);
+            border: 2px dashed var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--forest);
+            background: rgba(46,64,61,0.02);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute; inset: 0;
+            opacity: 0; cursor: pointer;
+            width: 100%; height: 100%;
+        }
+
+        .upload-zone svg { width: 28px; height: 28px; color: var(--gray-300); margin-bottom: 8px; }
+        .upload-zone h3 { font-size: 14px; font-weight: 600; color: var(--gray-600); margin-bottom: 3px; }
+        .upload-zone p { font-size: 12px; color: var(--gray-400); }
+
+        /* TABLE */
+        .table-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.15s ease;
+        }
+
+        .table-toolbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-100);
+            flex-wrap: wrap; gap: 10px;
+        }
+
+        .table-toolbar-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .table-toolbar h3 { font-size: 15px; font-weight: 700; }
+
+        .filter-select {
+            padding: 6px 28px 6px 10px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--gray-600);
+            background: var(--white);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%239ca09c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th {
+            padding: 10px 16px;
+            text-align: left;
+            font-size: 11px; font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: 0.8px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+        tr:last-child td { border-bottom: none; }
+        tbody tr {
+            transition: all 0.15s ease;
+        }
+        tbody tr:hover { background: var(--gray-50); }
+
+        .receipt-thumb {
+            width: 36px; height: 36px;
+            border-radius: 6px; object-fit: cover;
+            border: 1px solid var(--gray-200);
+            cursor: pointer; display: block;
+        }
+
+        .receipt-placeholder {
+            width: 36px; height: 36px;
+            border-radius: 6px;
+            background: var(--gray-100);
+            border: 1px dashed var(--gray-300);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .receipt-placeholder svg { width: 16px; height: 16px; color: var(--gray-400); }
+
+        .category-pill {
+            display: inline-flex; align-items: center;
+            padding: 3px 9px; border-radius: 6px;
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .cat-fuel { background: var(--amber-bg); color: var(--amber); }
+        .cat-equipment { background: var(--blue-bg); color: var(--blue); }
+        .cat-supplies { background: var(--green-bg); color: var(--green); }
+        .cat-service-repairs { background: var(--red-bg); color: var(--red); }
+        .cat-operating-costs { background: #f3e8ff; color: #7c3aed; }
+        .cat-cost-of-goods-sold { background: #fce7f3; color: #db2777; }
+        .cat-losses { background: #fee2e2; color: #dc2626; }
+        .cat-advertising\/accounting { background: #e0f2fe; color: #0284c7; }
+        .cat-utilities { background: #f0fdf4; color: #16a34a; }
+
+        .month-divider td {
+            background: var(--gray-50);
+            padding: 8px 16px;
+            font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1px;
+            color: var(--gray-500);
+            border-bottom: 1px solid var(--gray-100);
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .row-actions { display: flex; gap: 4px; }
+
+        .row-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            background: var(--white);
+            font-size: 12px; font-weight: 600;
+            color: var(--gray-600);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s ease;
+        }
+
+        .row-btn:hover { border-color: var(--forest); color: var(--forest); }
+        .row-btn.delete { color: var(--red); transition: all 0.15s ease; }
+        .row-btn.delete:hover { border-color: var(--red); background: var(--red-bg); }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.4; display: block; margin-left: auto; margin-right: auto; }
+        .empty-state p { font-size: 14px; }
+
+        /* SLIDE-IN PANEL */
+        .panel-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: 200;
+            animation: fadeIn 0.2s;
+        }
+
+        .panel-overlay.show { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .panel {
+            position: fixed;
+            top: 0; right: -520px;
+            width: 480px; max-width: 100vw;
+            height: 100vh;
+            background: var(--white);
+            box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+            z-index: 201;
+            display: flex; flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        .panel.open { right: 0; }
+
+        .panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+
+        .panel-header h2 { font-size: 16px; font-weight: 700; }
+
+        .panel-close {
+            width: 32px; height: 32px;
+            border-radius: 8px; border: none;
+            background: var(--gray-100);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: var(--gray-500);
+            transition: background 0.15s;
+        }
+
+        .panel-close:hover { background: var(--gray-200); }
+
+        .panel-body { flex: 1; overflow-y: auto; padding: 24px; }
+
+        .form-group { margin-bottom: 16px; }
+
+        .form-group label {
+            display: block;
+            font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            color: var(--gray-400);
+            margin-bottom: 6px;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 13px; font-family: inherit;
+            color: var(--gray-700); background: var(--white);
+            transition: all 0.15s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+        }
+
+        .receipt-preview-img {
+            width: 100%; max-height: 220px;
+            object-fit: contain;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .receipt-preview-img.show { display: block; }
+
+        /* SCAN STATUS */
+        .scan-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--blue-bg);
+            border: 1px solid var(--blue);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            color: var(--blue);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .scan-status.success {
+            background: var(--green-bg);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .scan-status.error {
+            background: var(--red-bg);
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .scan-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--blue);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .scan-status.success .scan-spinner,
+        .scan-status.error .scan-spinner { display: none; }
+
+        .panel-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-200);
+            display: flex; gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .panel-footer .btn { flex: 1; justify-content: center; }
+
+        /* LIGHTBOX */
+        .lightbox {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 300;
+            align-items: center; justify-content: center;
+        }
+
+        .lightbox.open { display: flex; }
+        .lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+
+        .lightbox-close {
+            position: absolute; top: 1.5rem; right: 1.5rem;
+            color: #fff; font-size: 1.8rem;
+            cursor: pointer; background: none; border: none;
+        }
+
+        /* TOAST */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: var(--forest); color: var(--lime);
+            padding: 12px 20px; border-radius: 10px;
+            font-size: 13px; font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 400;
+            transform: translateY(80px); opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2,1fr); } }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .page-content { padding: 20px 16px; }
+            .topbar { padding: 0 16px; }
+            .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .panel { width: 100vw; }
+        }
+    
+/* Universal Search */
+.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
+.search-input-group{position:relative;display:flex;align-items:center}
+.search-icon{position:absolute;left:12px;width:18px;height:18px;color:#9ca09c;pointer-events:none}
+.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid #e2e5e2;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
+.search-input:focus{outline:none;border-color:#2e403d;box-shadow:0 0 0 3px rgba(46,64,61,.1)}
+.search-input::placeholder{color:#9ca09c}
+.search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
+.search-clear-btn:hover{color:#4a4e4a}
+.search-clear-btn svg{width:16px;height:16px}
+.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
+.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
+.search-results-group:last-child{border-bottom:none}
+.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
+.search-result-item:hover{background:#f8faf8}
+.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
+.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
+.search-result-icon.property{background:#ecfdf5;color:#059669}
+.search-result-content{flex:1;min-width:0}
+.search-result-title{font-size:13px;font-weight:600;color:#333633;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
+.search-loading{text-align:center;padding:16px;color:#6e726e}
+@media(max-width:768px){.universal-search-wrapper{display:none}}
+
+</style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <img src="https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=300w" alt="Pappas & Company Landscaping">
+    </div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Dashboard
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a class="nav-item" href="quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Quote Requests
+            </a>
+            <a class="nav-item" href="quote-calculator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                Quote Calculator
+            </a>
+            <a class="nav-item" href="quote-generator.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Quote Generator
+            </a>
+            <a class="nav-item" href="sent-quotes.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Sent Quotes
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="customers.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                Customers
+            </a>
+            <a class="nav-item" href="properties.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Properties
+            </a>
+            <a class="nav-item" href="scheduling.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Scheduling
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Messages & Calls
+            </a>
+            <a class="nav-item" href="cancellations.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                Cancellations
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a class="nav-item" href="campaigns.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Campaigns
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a class="nav-item active" href="expenses.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
+                Expenses
+            </a>
+            <a class="nav-item" href="invoices.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                Invoices
+            </a>
+            <a class="nav-item" href="finance.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Revenue
+            </a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a class="nav-item" href="crew.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Crew
+            </a>
+            <a class="nav-item" href="reports.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                Reports
+            </a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left">
+                <h2>Expenses</h2>
+                <p>Upload receipts and track spending by month</p>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-secondary" onclick="exportCSV()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+            </button>
+            <button class="btn btn-primary" onclick="openPanel()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Expense
+            </button>
+        </div>
+        <div class="universal-search-wrapper">
+    <div class="search-input-group">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
+        <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+</div>
+        
+    </div>
+
+    <div class="page-content">
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Year Total</span>
+                    <div class="stat-icon icon-blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statYearTotal">$0.00</div>
+                <div class="stat-sub" id="statYearLabel">2026</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">This Month</span>
+                    <div class="stat-icon icon-green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statMonthTotal">$0.00</div>
+                <div class="stat-sub" id="statMonthLabel">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Receipts</span>
+                    <div class="stat-icon icon-amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statCount">0</div>
+                <div class="stat-sub">total entries</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Top Category</span>
+                    <div class="stat-icon icon-purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    </div>
+                </div>
+                <div class="stat-value" id="statTopCat" style="font-size:15px;padding-top:6px">—</div>
+                <div class="stat-sub" id="statTopCatAmt"></div>
+            </div>
+        </div>
+
+        <!-- hidden file inputs -->
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleQuickUpload(this)">
+        <input type="file" id="libraryInput" accept="image/*,.pdf" style="display:none" onchange="handleQuickUpload(this)">
+
+        <div class="upload-zone" id="uploadZone">
+            <input type="file" id="quickUpload" accept="image/*,.pdf" multiple onchange="handleQuickUpload(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <h3>Drop receipt photos here to add an expense</h3>
+            <p>or use the buttons below — works on phone too</p>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-bottom:20px;margin-top:-10px;">
+            <button class="btn btn-secondary" style="flex:1;justify-content:center;" onclick="document.getElementById('cameraInput').click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Take Photo
+            </button>
+            <button class="btn btn-secondary" style="flex:1;justify-content:center;" onclick="document.getElementById('libraryInput').click()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Choose from Library
+            </button>
+        </div>
+
+        <div class="table-card">
+            <div class="table-toolbar">
+                <div class="table-toolbar-left">
+                    <h3>All Expenses</h3>
+                    <select class="filter-select" id="filterYear" onchange="renderTable()">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                    <select class="filter-select" id="filterCat" onchange="renderTable()">
+                        <option value="">All Categories</option>
+                        <option value="Supplies">Supplies</option>
+                        <option value="Service Repairs">Service Repairs</option>
+                        <option value="Equipment">Equipment</option>
+                        <option value="Operating Costs">Operating Costs</option>
+                        <option value="Cost of Goods Sold">Cost of Goods Sold</option>
+                        <option value="Fuel">Fuel</option>
+                        <option value="Losses">Losses</option>
+                        <option value="Advertising/Accounting">Advertising/Accounting</option>
+                        <option value="Utilities">Utilities</option>
+                    </select>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Receipt</th>
+                        <th>Date</th>
+                        <th>Vendor</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th style="width:120px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ADD EXPENSE PANEL -->
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+<div class="panel" id="addPanel">
+    <div class="panel-header">
+        <h2>Add Expense</h2>
+        <button class="panel-close" onclick="closePanel()">&times;</button>
+    </div>
+    <div class="panel-body">
+        <img id="receiptPreview" class="receipt-preview-img" src="" alt="Receipt preview">
+        <div id="scanStatus" class="scan-status" style="display:none">
+            <div class="scan-spinner"></div>
+            <span>Scanning receipt...</span>
+        </div>
+        <div class="form-group">
+            <label>Receipt Photo</label>
+            <input type="file" id="receiptFile" accept="image/*,.pdf" onchange="handleReceiptUpload(this)">
+        </div>
+        <div class="form-group">
+            <label>Vendor / Description</label>
+            <input type="text" id="inputVendor" placeholder="e.g. Sunoco, Home Depot, Costco">
+        </div>
+        <div class="form-group">
+            <label>Amount ($)</label>
+            <input type="number" id="inputAmount" placeholder="0.00" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="inputDate">
+        </div>
+        <div class="form-group">
+            <label>Category</label>
+            <select id="inputCategory">
+                <option value="Supplies">Supplies</option>
+                <option value="Service Repairs">Service Repairs</option>
+                <option value="Equipment">Equipment</option>
+                <option value="Operating Costs">Operating Costs</option>
+                <option value="Cost of Goods Sold">Cost of Goods Sold</option>
+                <option value="Fuel">Fuel</option>
+                <option value="Losses">Losses</option>
+                <option value="Advertising/Accounting">Advertising/Accounting</option>
+                <option value="Utilities">Utilities</option>
+            </select>
+        </div>
+    </div>
+    <div class="panel-footer">
+        <button class="btn btn-secondary" onclick="closePanel()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+    </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <img id="lightboxImg" src="" alt="Receipt">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+const API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:3000' 
+    : '';
+
+let expenses = [];
+
+// ── LOAD DATA FROM API ───────────────────────────
+async function loadExpenses() {
+    const year = document.getElementById('filterYear').value;
+    const cat = document.getElementById('filterCat').value;
+    
+    try {
+        let url = `${API_BASE}/api/expenses?year=${year}`;
+        if (cat) url += `&category=${cat}`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.success) {
+            expenses = data.expenses.map(e => ({
+                id: e.id,
+                vendor: e.vendor,
+                amount: e.amount,
+                date: e.expense_date ? e.expense_date.split('T')[0] : '',
+                category: e.category,
+                image: e.receipt_image
+            }));
+            renderTable();
+        }
+    } catch (err) {
+        console.error('Failed to load expenses:', err);
+        showToast('Failed to load expenses');
+    }
+}
+
+async function loadStats() {
+    const year = document.getElementById('filterYear').value;
+    try {
+        const res = await fetch(`${API_BASE}/api/expenses/stats?year=${year}`);
+        const data = await res.json();
+        
+        if (data.success) {
+            const { yearTotal, yearCount, monthTotal, monthCount } = data.stats;
+            document.getElementById('statYearTotal').textContent = '$' + yearTotal.toFixed(2);
+            document.getElementById('statYearLabel').textContent = year;
+            document.getElementById('statMonthTotal').textContent = '$' + monthTotal.toFixed(2);
+            document.getElementById('statMonthLabel').textContent = MONTHS[new Date().getMonth()];
+            document.getElementById('statCount').textContent = yearCount;
+        }
+    } catch (err) {
+        console.error('Failed to load stats:', err);
+    }
+}
+
+function renderTable() {
+    const year = parseInt(document.getElementById('filterYear').value);
+    const cat = document.getElementById('filterCat').value;
+
+    const filtered = expenses.filter(e => {
+        const d = new Date(e.date + 'T12:00:00');
+        return d.getFullYear() === year && (!cat || e.category === cat);
+    });
+
+    updateLocalStats(filtered, year);
+
+    const tbody = document.getElementById('tableBody');
+
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <p>No expenses for ${year}${cat ? ' · ' + cat : ''}.<br>Add your first receipt above!</p>
+        </div></td></tr>`;
+        return;
+    }
+
+    const byMonth = {};
+    filtered.forEach(e => {
+        const m = new Date(e.date + 'T12:00:00').getMonth();
+        if (!byMonth[m]) byMonth[m] = [];
+        byMonth[m].push(e);
+    });
+
+    const sortedMonths = Object.keys(byMonth).map(Number).sort((a,b) => b-a);
+    let rows = '';
+
+    sortedMonths.forEach(m => {
+        const items = byMonth[m].sort((a,b) => new Date(b.date) - new Date(a.date));
+        const total = items.reduce((s,e) => s + parseFloat(e.amount), 0);
+
+        rows += `<tr class="month-divider"><td colspan="6">${MONTHS[m]} &nbsp;·&nbsp; <span style="font-weight:400;color:var(--gray-400)">$${total.toFixed(2)} total · ${items.length} receipt${items.length !== 1 ? 's' : ''}</span></td></tr>`;
+
+        items.forEach(e => {
+            const imgSrc = e.image || '';
+            const catClass = e.category.toLowerCase().replace(/\s+/g, '-');
+            rows += `<tr>
+                <td>${imgSrc
+                    ? `<img class="receipt-thumb" src="${imgSrc}" onclick="openLightbox('${imgSrc.replace(/'/g, "\\'")}')" alt="receipt">`
+                    : `<div class="receipt-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg></div>`
+                }</td>
+                <td style="font-size:12px;color:var(--gray-400)">${formatDate(e.date)}</td>
+                <td style="font-weight:600">${esc(e.vendor)}</td>
+                <td><span class="category-pill cat-${catClass}">${e.category}</span></td>
+                <td style="font-weight:700">$${parseFloat(e.amount).toFixed(2)}</td>
+                <td><div class="row-actions">
+                    <button class="row-btn delete" onclick="deleteExpense(${e.id})">Delete</button>
+                </div></td>
+            </tr>`;
+        });
+    });
+
+    tbody.innerHTML = rows;
+}
+
+function updateLocalStats(filtered, year) {
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const monthItems = filtered.filter(e => new Date(e.date + 'T12:00:00').getMonth() === thisMonth);
+    const yearTotal = filtered.reduce((s,e) => s + parseFloat(e.amount), 0);
+    const monthTotal = monthItems.reduce((s,e) => s + parseFloat(e.amount), 0);
+
+    document.getElementById('statYearTotal').textContent = '$' + yearTotal.toFixed(2);
+    document.getElementById('statYearLabel').textContent = year;
+    document.getElementById('statMonthTotal').textContent = '$' + monthTotal.toFixed(2);
+    document.getElementById('statMonthLabel').textContent = MONTHS[thisMonth];
+    document.getElementById('statCount').textContent = filtered.length;
+}
+
+function formatDate(d) {
+    return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── PANEL ─────────────────────────────────────
+function openPanel() {
+    document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('panelOverlay').classList.add('show');
+    document.getElementById('addPanel').classList.add('open');
+}
+
+function closePanel() {
+    document.getElementById('panelOverlay').classList.remove('show');
+    document.getElementById('addPanel').classList.remove('open');
+    document.getElementById('scanStatus').style.display = 'none';
+    setTimeout(() => {
+        document.getElementById('receiptPreview').classList.remove('show');
+        document.getElementById('receiptPreview').src = '';
+        document.getElementById('receiptFile').value = '';
+        document.getElementById('inputVendor').value = '';
+        document.getElementById('inputAmount').value = '';
+        document.getElementById('inputCategory').value = 'Supplies';
+    }, 300);
+}
+
+function previewReceipt(input) {
+    const file = input.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = document.getElementById('receiptPreview');
+        img.src = e.target.result;
+        img.classList.add('show');
+    };
+    reader.readAsDataURL(file);
+}
+
+async function saveExpense() {
+    const vendor = document.getElementById('inputVendor').value.trim();
+    const amount = document.getElementById('inputAmount').value;
+    const date = document.getElementById('inputDate').value;
+    const category = document.getElementById('inputCategory').value;
+    const fileInput = document.getElementById('receiptFile');
+
+    if (!vendor || !amount || !date) {
+        showToast('Please fill in vendor, amount, and date');
+        return;
+    }
+
+    // Get image if present
+    let receiptImage = null;
+    if (fileInput.files[0] && fileInput.files[0].type.startsWith('image/')) {
+        receiptImage = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(fileInput.files[0]);
+        });
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/expenses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                vendor,
+                amount: parseFloat(amount),
+                expense_date: date,
+                category,
+                receipt_image: receiptImage
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            closePanel();
+            loadExpenses();
+            showToast('Expense saved!');
+        } else {
+            showToast('Failed to save: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('Save error:', err);
+        showToast('Failed to save expense');
+    }
+}
+
+async function deleteExpense(id) {
+    if (!confirm('Delete this expense?')) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/api/expenses/${id}`, {
+            method: 'DELETE'
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            loadExpenses();
+            showToast('Expense deleted');
+        } else {
+            showToast('Failed to delete');
+        }
+    } catch (err) {
+        console.error('Delete error:', err);
+        showToast('Failed to delete expense');
+    }
+}
+
+async function scanReceipt(base64Image) {
+    const scanStatus = document.getElementById('scanStatus');
+    scanStatus.style.display = 'flex';
+    scanStatus.className = 'scan-status';
+    scanStatus.innerHTML = '<div class="scan-spinner"></div><span>Scanning receipt...</span>';
+
+    try {
+        const res = await fetch(`${API_BASE}/api/ocr/receipt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Image })
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.data) {
+            const { vendor, amount, date, category } = data.data;
+            
+            // Auto-fill the form fields
+            if (vendor) document.getElementById('inputVendor').value = vendor;
+            if (amount) document.getElementById('inputAmount').value = amount;
+            if (date) document.getElementById('inputDate').value = date;
+            if (category) document.getElementById('inputCategory').value = category;
+
+            scanStatus.className = 'scan-status success';
+            scanStatus.innerHTML = '<span>✓ Receipt scanned! Review the details below.</span>';
+            
+            // Hide success message after 3 seconds
+            setTimeout(() => { scanStatus.style.display = 'none'; }, 3000);
+        } else {
+            throw new Error(data.error || 'Could not read receipt');
+        }
+    } catch (err) {
+        console.error('OCR error:', err);
+        scanStatus.className = 'scan-status error';
+        scanStatus.innerHTML = '<span>Could not scan receipt. Please enter details manually.</span>';
+        
+        // Hide error message after 4 seconds
+        setTimeout(() => { scanStatus.style.display = 'none'; }, 4000);
+    }
+}
+
+// Handle receipt file upload (from the form input)
+function handleReceiptUpload(input) {
+    const file = input.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = document.getElementById('receiptPreview');
+        img.src = e.target.result;
+        img.classList.add('show');
+        
+        // Scan the receipt
+        scanReceipt(e.target.result);
+    };
+    reader.readAsDataURL(file);
+}
+
+// ── QUICK UPLOAD ──────────────────────────────
+function handleQuickUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Set default date to today
+    document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+    
+    // Open the panel
+    document.getElementById('panelOverlay').classList.add('show');
+    document.getElementById('addPanel').classList.add('open');
+    
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = document.getElementById('receiptPreview');
+            img.src = e.target.result;
+            img.classList.add('show');
+            
+            // Set the file input
+            try {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                document.getElementById('receiptFile').files = dt.files;
+            } catch(err) {}
+            
+            // Scan the receipt automatically
+            scanReceipt(e.target.result);
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handleQuickUpload({ files: e.dataTransfer.files });
+});
+
+// ── EXPORT ────────────────────────────────────
+function exportCSV() {
+    const year = parseInt(document.getElementById('filterYear').value);
+    const cat = document.getElementById('filterCat').value;
+    const filtered = expenses
+        .filter(e => {
+            const d = new Date(e.date + 'T12:00:00');
+            return d.getFullYear() === year && (!cat || e.category === cat);
+        })
+        .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    if (!filtered.length) { showToast('No expenses to export'); return; }
+
+    const rows = [['Date','Vendor','Category','Amount']];
+    filtered.forEach(e => rows.push([e.date, `"${e.vendor}"`, e.category, parseFloat(e.amount).toFixed(2)]));
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pappas-expenses-${year}${cat ? '-' + cat.toLowerCase() : ''}.csv`;
+    a.click();
+    showToast('CSV exported!');
+}
+
+// ── LIGHTBOX ──────────────────────────────────
+function openLightbox(src) {
+    document.getElementById('lightboxImg').src = src;
+    document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+
+// ── UTILS ─────────────────────────────────────
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function esc(s) {
+    return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+}
+
+// ── FILTER CHANGES ────────────────────────────
+document.getElementById('filterYear').addEventListener('change', loadExpenses);
+document.getElementById('filterCat').addEventListener('change', loadExpenses);
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+// ── INIT ──────────────────────────────────────
+loadExpenses();
+
+// Universal Search
+let searchDebounceTimer=null;
+function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>uniSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
+function searchEsc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+async function uniSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEsc(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEsc(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEsc(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEsc(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEsc([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEsc(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+document.addEventListener('DOMContentLoaded',initUniversalSearch);
+
+</script>
+</body>
+</html>

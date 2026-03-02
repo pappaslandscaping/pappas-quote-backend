@@ -513,6 +513,116 @@
         .search-empty { text-align:center; padding:24px 16px; color:#9ca09c; font-size:13px; }
         .search-loading { text-align:center; padding:16px; color:#6e726e; }
         @media (max-width:768px) { .universal-search-wrapper { display:none; } }
+
+        /* ─── View Count Badge ───────────────────────────────── */
+        .view-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .view-badge.has-views {
+            background: var(--blue-bg);
+            color: var(--blue);
+        }
+        .view-badge.has-views:hover {
+            background: #dbeafe;
+            transform: translateY(-1px);
+        }
+        .view-badge.no-views {
+            background: var(--gray-100);
+            color: var(--gray-400);
+            cursor: default;
+        }
+        .view-badge svg { width: 14px; height: 14px; }
+
+        /* ─── View History Modal ─────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            width: 560px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            transform: scale(0.95);
+            transition: transform 0.2s;
+        }
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .modal-header h3 { font-size: 16px; font-weight: 600; color: var(--gray-700); }
+        .modal-close {
+            width: 32px; height: 32px;
+            border: none; background: var(--gray-100);
+            border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--gray-500);
+            transition: all 0.15s;
+        }
+        .modal-close:hover { background: var(--gray-200); color: var(--gray-700); }
+        .modal-body {
+            padding: 16px 24px 24px;
+            overflow-y: auto;
+            max-height: 60vh;
+        }
+        .view-list { list-style: none; padding: 0; margin: 0; }
+        .view-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .view-item:last-child { border-bottom: none; }
+        .view-item .view-icon {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            background: var(--blue-bg);
+            color: var(--blue);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .view-item .view-icon svg { width: 16px; height: 16px; }
+        .view-item .view-details { flex: 1; }
+        .view-item .view-time {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+        .view-item .view-device {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -587,22 +697,22 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
                 Expenses
             </a>
-            <a class="nav-item disabled">
+            <a class="nav-item" href="invoices.html">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
-                Invoicing
+                Invoices
             </a>
-            <a class="nav-item disabled">
+            <a class="nav-item" href="finance.html">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                 Revenue
             </a>
         </div>
         <div class="nav-section">
             <div class="nav-section-label">Team</div>
-            <a class="nav-item disabled">
+            <a class="nav-item" href="crew.html">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                 Crew
             </a>
-            <a class="nav-item disabled">
+            <a class="nav-item" href="reports.html">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
                 Reports
             </a>
@@ -687,13 +797,14 @@
                     <th>Type</th>
                     <th>Amount</th>
                     <th>Status</th>
+                    <th>Views</th>
                     <th>Created</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="quotesBody">
                 <tr>
-                    <td colspan="6">
+                    <td colspan="7">
                         <div class="empty-state">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             <h3>No quotes yet</h3>
@@ -705,6 +816,20 @@
         </table>
     </div>
 </main>
+
+<div class="modal-overlay" id="viewModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="viewModalTitle">View History</h3>
+            <button class="modal-close" onclick="closeViewModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <ul class="view-list" id="viewList"></ul>
+        </div>
+    </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -746,7 +871,7 @@
         if (!quotes || quotes.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6">
+                    <td colspan="7">
                         <div class="empty-state">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             <h3>No quotes found</h3>
@@ -789,6 +914,16 @@
                 </td>
                 <td>
                     <span class="status-badge ${q.status}">${statusLabel}</span>
+                </td>
+                <td>
+                    ${(() => {
+                        const vc = window.viewCounts[q.id];
+                        const count = vc ? vc.count : 0;
+                        if (count > 0) {
+                            return '<span class="view-badge has-views" onclick="showViewHistory(' + q.id + ', \'' + (q.customer_name || '').replace(/'/g, "\\'") + '\')" title="Click to see view history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' + count + '</span>';
+                        }
+                        return '<span class="view-badge no-views"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>0</span>';
+                    })()}
                 </td>
                 <td>
                     <div class="date">${new Date(q.created_at).toLocaleDateString()}</div>
@@ -1519,8 +1654,72 @@
         }
     }
     document.addEventListener('DOMContentLoaded', initUniversalSearch);
+
+    // ─── View Counts ─────────────────────────────────────
+    window.viewCounts = {};
+
+    async function loadViewCounts() {
+        try {
+            const res = await fetch('/api/sent-quotes/view-counts');
+            const data = await res.json();
+            if (data.success) window.viewCounts = data.viewCounts || {};
+        } catch(e) { console.error('Failed to load view counts', e); }
+    }
+
+    async function showViewHistory(quoteId, customerName) {
+        const modal = document.getElementById('viewModal');
+        const list = document.getElementById('viewList');
+        const title = document.getElementById('viewModalTitle');
+        title.textContent = 'View History — ' + customerName;
+        list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--gray-400)">Loading...</li>';
+        modal.classList.add('active');
+
+        try {
+            const res = await fetch('/api/sent-quotes/' + quoteId + '/views');
+            const data = await res.json();
+            if (!data.views || data.views.length === 0) {
+                list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--gray-400)">No views recorded</li>';
+                return;
+            }
+            list.innerHTML = data.views.map(v => {
+                const dt = new Date(v.viewed_at);
+                const date = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                const device = parseDevice(v.user_agent || '');
+                return '<li class="view-item">' +
+                    '<div class="view-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>' +
+                    '<div class="view-details"><div class="view-time">' + date + ' at ' + time + '</div>' +
+                    '<div class="view-device">' + device + (v.ip_address ? ' · ' + v.ip_address : '') + '</div></div></li>';
+            }).join('');
+        } catch(e) {
+            list.innerHTML = '<li style="padding:20px;text-align:center;color:var(--red)">Failed to load views</li>';
+        }
+    }
+
+    function parseDevice(ua) {
+        if (!ua) return 'Unknown device';
+        if (ua.includes('iPhone')) return 'iPhone';
+        if (ua.includes('iPad')) return 'iPad';
+        if (ua.includes('Android')) return 'Android';
+        if (ua.includes('Mac OS')) return 'Mac';
+        if (ua.includes('Windows')) return 'Windows';
+        if (ua.includes('Linux')) return 'Linux';
+        return 'Unknown device';
+    }
+
+    function closeViewModal() {
+        document.getElementById('viewModal').classList.remove('active');
+    }
+
+    document.getElementById('viewModal').addEventListener('click', function(e) {
+        if (e.target === this) closeViewModal();
+    });
+
     // Initial load
-    loadQuotes();
+    (async () => {
+        await loadViewCounts();
+        loadQuotes();
+    })();
 </script>
 </body>
 </html>

@@ -693,7 +693,7 @@
         <div class="chart-card">
             <h2 class="chart-title">Revenue vs Expenses (Last 12 Months)</h2>
             <div class="chart-container">
-                <svg id="revenueChart" class="chart-svg" viewBox="0 0 1000 280">
+                <svg id="revenueChart" class="chart-svg" viewBox="0 0 1000 310">
                     <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading chart...</text>
                 </svg>
             </div>
@@ -830,6 +830,10 @@
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             const chartElement = document.getElementById('revenueChart');
 
+            // Use hardcoded colors (CSS vars don't work reliably in SVG)
+            const revenueColor = '#2e403d'; // forest green
+            const expenseColor = '#dc4a4a'; // red
+
             // Ensure arrays have 12 months
             const revenue = monthlyRevenue.slice(0, 12);
             const expenses = monthlyExpenses.slice(0, 12);
@@ -843,60 +847,53 @@
             const maxValue = Math.max(...allValues, 1);
             const chartHeight = 200;
             const chartWidth = 920;
-            const bottomMargin = 40;
-            const topMargin = 40;
-            const leftMargin = 50;
+            const topMargin = 20;
+            const leftMargin = 60;
 
-            // Build SVG
-            let svg = `<svg viewBox="0 0 1000 280" style="width: 100%;">
-                <defs>
-                    <linearGradient id="gridGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" style="stop-color:var(--gray-100);stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:var(--gray-50);stop-opacity:0" />
-                    </linearGradient>
-                </defs>`;
+            // Build SVG with extra height for legend
+            let svg = `<svg viewBox="0 0 1000 310" style="width: 100%;">`;
 
             // Grid lines and labels
             const gridLines = 4;
             for (let i = 0; i <= gridLines; i++) {
                 const y = topMargin + (i * chartHeight / gridLines);
                 const value = maxValue - (i * maxValue / gridLines);
-                svg += `<line x1="${leftMargin}" y1="${y}" x2="${leftMargin + chartWidth}" y2="${y}" stroke="var(--gray-200)" stroke-width="1" stroke-dasharray="2"/>`;
-                svg += `<text x="${leftMargin - 10}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--gray-500)">${formatNumber(value)}</text>`;
+                svg += `<line x1="${leftMargin}" y1="${y}" x2="${leftMargin + chartWidth}" y2="${y}" stroke="#e2e5e2" stroke-width="1" stroke-dasharray="4,4"/>`;
+                svg += `<text x="${leftMargin - 12}" y="${y + 4}" text-anchor="end" font-size="11" fill="#6e726e" font-family="DM Sans, sans-serif">${formatNumber(value)}</text>`;
             }
 
             // Bar spacing
             const barSpacing = chartWidth / 12;
-            const barWidth = (barSpacing - 8) / 2;
+            const barWidth = (barSpacing - 12) / 2;
             const gap = 4;
 
             // Draw bars
             for (let i = 0; i < 12; i++) {
                 const x = leftMargin + (i * barSpacing) + (barSpacing - (barWidth * 2 + gap)) / 2;
 
-                // Revenue bar (green)
-                const revHeight = (revenue[i] / maxValue) * chartHeight;
+                // Revenue bar
+                const revHeight = Math.max((revenue[i] / maxValue) * chartHeight, revenue[i] > 0 ? 2 : 0);
                 const revY = topMargin + chartHeight - revHeight;
-                svg += `<rect x="${x}" y="${revY}" width="${barWidth}" height="${revHeight}" fill="var(--green)" rx="2"/>`;
+                svg += `<rect x="${x}" y="${revY}" width="${barWidth}" height="${revHeight}" fill="${revenueColor}" rx="3"/>`;
 
-                // Expense bar (red)
-                const expHeight = (expenses[i] / maxValue) * chartHeight;
+                // Expense bar
+                const expHeight = Math.max((expenses[i] / maxValue) * chartHeight, expenses[i] > 0 ? 2 : 0);
                 const expY = topMargin + chartHeight - expHeight;
-                svg += `<rect x="${x + barWidth + gap}" y="${expY}" width="${barWidth}" height="${expHeight}" fill="var(--red)" rx="2"/>`;
+                svg += `<rect x="${x + barWidth + gap}" y="${expY}" width="${barWidth}" height="${expHeight}" fill="${expenseColor}" rx="3"/>`;
 
                 // Month label
-                const labelX = x + barWidth + (gap / 2) + (barWidth / 2);
-                const labelY = topMargin + chartHeight + 20;
-                svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="12" fill="var(--gray-500)">${months[i]}</text>`;
+                const labelX = x + barWidth + (gap / 2);
+                const labelY = topMargin + chartHeight + 24;
+                svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="12" fill="#6e726e" font-family="DM Sans, sans-serif">${months[i]}</text>`;
             }
 
-            // Legend
+            // Legend - positioned well below month labels
             svg += `
-                <g>
-                    <rect x="50" y="250" width="12" height="12" fill="var(--green)"/>
-                    <text x="70" y="259" font-size="12" fill="var(--gray-600)">Revenue</text>
-                    <rect x="200" y="250" width="12" height="12" fill="var(--red)"/>
-                    <text x="220" y="259" font-size="12" fill="var(--gray-600)">Expenses</text>
+                <g transform="translate(0, 0)">
+                    <rect x="${leftMargin}" y="280" width="14" height="14" rx="3" fill="${revenueColor}"/>
+                    <text x="${leftMargin + 22}" y="291" font-size="13" fill="#4a4e4a" font-family="DM Sans, sans-serif" font-weight="500">Revenue</text>
+                    <rect x="${leftMargin + 120}" y="280" width="14" height="14" rx="3" fill="${expenseColor}"/>
+                    <text x="${leftMargin + 142 + 22}" y="291" font-size="13" fill="#4a4e4a" font-family="DM Sans, sans-serif" font-weight="500">Expenses</text>
                 </g>
             </svg>`;
 

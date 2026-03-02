@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoices - Pappas & Co. Landscaping</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="./Qualy.otf" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+        }
         :root {
             --forest: #2e403d;
             --forest-dark: #1f2b29;
@@ -183,9 +186,10 @@
         }
 
         .topbar-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--gray-700);
+            font-family: 'Qualy', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--forest);
         }
 
         .btn {

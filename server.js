@@ -5454,19 +5454,28 @@ app.delete('/api/invoices/:id', async (req, res) => {
 app.get('/api/finance/summary', async (req, res) => {
   try {
     await ensureInvoicesTable();
+    await pool.query(`CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY, description TEXT, amount NUMERIC(10,2) DEFAULT 0,
+      category VARCHAR(100), vendor VARCHAR(255), expense_date DATE DEFAULT CURRENT_DATE,
+      receipt_url TEXT, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
     const thisYearStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-    const [paidMonth, paidYear, expMonth, expYear, outstanding, byService, monthly] = await Promise.all([
+    const [paidMonth, paidLastMonth, paidYear, expMonth, expLastMonth, expYear, outstanding, overdue, byService, monthly] = await Promise.all([
       pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1", [thisMonthStart]),
+      pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1 AND paid_at < $2", [lastMonthStart, thisMonthStart]),
       pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1", [thisYearStart]),
       pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1", [thisMonthStart]),
+      pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1 AND expense_date < $2", [lastMonthStart, thisMonthStart]),
       pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1", [thisYearStart]),
       pool.query("SELECT COALESCE(SUM(total - amount_paid),0) as amt FROM invoices WHERE status IN ('sent','viewed')"),
-      pool.query(`SELECT COALESCE(li->>'description','Other') as service, SUM((li->>'amount')::numeric) as revenue
+      pool.query("SELECT COUNT(*) as cnt FROM invoices WHERE status IN ('sent','viewed') AND due_date < CURRENT_DATE"),
+      pool.query(`SELECT COALESCE(li->>'description','Other') as name, SUM((li->>'amount')::numeric) as revenue
         FROM invoices, jsonb_array_elements(line_items) li WHERE status='paid' AND paid_at >= $1
-        GROUP BY service ORDER BY revenue DESC`, [thisYearStart]),
+        GROUP BY name ORDER BY revenue DESC`, [thisYearStart]),
       pool.query(`SELECT to_char(paid_at,'YYYY-MM') as month,
         SUM(total) as revenue FROM invoices WHERE status='paid' AND paid_at >= NOW() - INTERVAL '12 months'
         GROUP BY month ORDER BY month`)
@@ -5476,19 +5485,42 @@ app.get('/api/finance/summary', async (req, res) => {
       SUM(amount) as expenses FROM expenses WHERE expense_date >= NOW() - INTERVAL '12 months'
       GROUP BY month ORDER BY month`);
 
+    // Build 12-month arrays (current month backwards)
+    const monthlyRevenueArr = new Array(12).fill(0);
+    const monthlyExpensesArr = new Array(12).fill(0);
+    monthly.rows.forEach(r => {
+      const [y, m] = r.month.split('-').map(Number);
+      const idx = (y - now.getFullYear()) * 12 + (m - 1);
+      const currentIdx = now.getMonth();
+      const offset = m - 1;
+      if (offset >= 0 && offset < 12) monthlyRevenueArr[offset] = parseFloat(r.revenue);
+    });
+    expMonthly.rows.forEach(r => {
+      const [y, m] = r.month.split('-').map(Number);
+      const offset = m - 1;
+      if (offset >= 0 && offset < 12) monthlyExpensesArr[offset] = parseFloat(r.expenses);
+    });
+
     const revenueMonth = parseFloat(paidMonth.rows[0].amt);
     const expensesMonth = parseFloat(expMonth.rows[0].amt);
+    const revenueLastMonth = parseFloat(paidLastMonth.rows[0].amt);
+    const expensesLastMonth = parseFloat(expLastMonth.rows[0].amt);
 
-    res.json({ success: true, summary: {
-      revenueMonth, revenueYear: parseFloat(paidYear.rows[0].amt),
-      expensesMonth, expensesYear: parseFloat(expYear.rows[0].amt),
-      profitMonth: revenueMonth - expensesMonth,
-      profitYear: parseFloat(paidYear.rows[0].amt) - parseFloat(expYear.rows[0].amt),
-      outstanding: parseFloat(outstanding.rows[0].amt),
-      byService: byService.rows,
-      monthlyRevenue: monthly.rows,
-      monthlyExpenses: expMonthly.rows
-    }});
+    res.json({
+      thisMonth: { revenue: revenueMonth, expenses: expensesMonth },
+      lastMonth: { revenue: revenueLastMonth, expenses: expensesLastMonth },
+      yearToDate: {
+        revenue: parseFloat(paidYear.rows[0].amt),
+        expenses: parseFloat(expYear.rows[0].amt)
+      },
+      monthlyRevenue: monthlyRevenueArr,
+      monthlyExpenses: monthlyExpensesArr,
+      serviceBreakdown: byService.rows,
+      outstanding: {
+        totalOutstanding: parseFloat(outstanding.rows[0].amt),
+        overdueCount: parseInt(overdue.rows[0].cnt)
+      }
+    });
   } catch (error) {
     console.error('Error fetching finance summary:', error);
     res.status(500).json({ success: false, error: error.message });

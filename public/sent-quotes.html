@@ -339,8 +339,12 @@
 
         .customer-info .name {
             font-weight: 600;
-            color: var(--gray-700);
+            color: var(--forest);
             margin-bottom: 2px;
+            cursor: pointer;
+        }
+        .customer-info .name:hover {
+            text-decoration: underline;
         }
 
         .customer-info .email {
@@ -893,7 +897,7 @@
             <tr>
                 <td>
                     <div class="customer-info">
-                        <div class="name">${q.customer_name}</div>
+                        <div class="name" onclick="viewQuote(${q.id})">${q.customer_name}</div>
                         <div class="email">${q.customer_email || 'No email'}</div>
                     </div>
                 </td>

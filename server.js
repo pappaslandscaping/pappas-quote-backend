@@ -1470,6 +1470,15 @@ app.post('/api/customers/deduplicate', async (req, res) => {
         for (const f of fields) {
           if (!k[f] && d[f]) { updates.push(`${f}=$${p++}`); vals.push(d[f]); }
         }
+        // Merge tags: combine from both records, deduplicate
+        const kTags = (k.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        const dTags = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        const mergedTags = [...new Set([...kTags, ...dTags])].join(', ');
+        if (mergedTags && mergedTags !== (k.tags || '')) {
+          updates.push(`tags=$${p++}`);
+          vals.push(mergedTags);
+          k.tags = mergedTags;
+        }
         if (updates.length > 0) {
           vals.push(keepId);
           await pool.query(`UPDATE customers SET ${updates.join(',')} WHERE id=$${p}`, vals);

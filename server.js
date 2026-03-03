@@ -5458,15 +5458,20 @@ app.get('/api/payments', async (req, res) => {
 app.get('/api/invoices', async (req, res) => {
   try {
     await ensureInvoicesTable();
-    const { status, customer_id, limit = 100 } = req.query;
-    let q = 'SELECT * FROM invoices';
+    const { status, customer_id, search, limit = 9999, offset = 0 } = req.query;
+    let q = 'SELECT i.*, c.name as customer_name FROM invoices i LEFT JOIN customers c ON i.customer_id = c.id';
     const params = [];
     const where = [];
-    if (status) { params.push(status); where.push(`status = $${params.length}`); }
-    if (customer_id) { params.push(customer_id); where.push(`customer_id = $${params.length}`); }
+    if (status) { params.push(status); where.push(`i.status = $${params.length}`); }
+    if (customer_id) { params.push(customer_id); where.push(`i.customer_id = $${params.length}`); }
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(i.invoice_number ILIKE $${params.length} OR c.name ILIKE $${params.length})`);
+    }
     if (where.length) q += ' WHERE ' + where.join(' AND ');
-    q += ' ORDER BY created_at DESC';
+    q += ' ORDER BY i.created_at DESC';
     params.push(limit); q += ` LIMIT $${params.length}`;
+    params.push(offset); q += ` OFFSET $${params.length}`;
     const result = await pool.query(q, params);
     res.json({ success: true, invoices: result.rows });
   } catch (error) {

@@ -5706,6 +5706,19 @@ async function qbApiGet(endpoint) {
 
 // --- OAuth Routes ---
 
+// GET /api/quickbooks/debug - Show QB config for debugging redirect_uri issues
+app.get('/api/quickbooks/debug', (req, res) => {
+  const redirectUri = process.env.QB_REDIRECT_URI || 'http://localhost:3000/api/quickbooks/callback';
+  const env = process.env.QB_ENVIRONMENT || 'sandbox';
+  res.json({
+    redirectUri,
+    environment: env,
+    hasClientId: !!process.env.QB_CLIENT_ID,
+    hasClientSecret: !!process.env.QB_CLIENT_SECRET,
+    clientIdPrefix: process.env.QB_CLIENT_ID ? process.env.QB_CLIENT_ID.substring(0, 8) + '...' : null
+  });
+});
+
 // GET /api/quickbooks/auth - Start OAuth flow
 app.get('/api/quickbooks/auth', (req, res) => {
   if (!process.env.QB_CLIENT_ID) {
@@ -5716,6 +5729,8 @@ app.get('/api/quickbooks/auth', (req, res) => {
     scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
     state: 'pappas-qb-connect'
   });
+  console.log('🔑 QB Auth - redirect_uri:', process.env.QB_REDIRECT_URI);
+  console.log('🔑 QB Auth - environment:', process.env.QB_ENVIRONMENT);
   res.redirect(authUri);
 });
 

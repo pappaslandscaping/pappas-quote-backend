@@ -1706,8 +1706,8 @@ app.get('/api/customers/search', async (req, res) => {
     }
     
     const result = await pool.query(
-      `SELECT id, name, email, phone, address 
-       FROM customers 
+      `SELECT id, name, email, phone, mobile, street, city, state, postal_code
+       FROM customers
        WHERE LOWER(name) LIKE LOWER($1)
        ORDER BY name
        LIMIT 10`,

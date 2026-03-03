@@ -1876,12 +1876,24 @@ app.post('/api/calls', async (req, res) => {
 app.get('/api/calls', async (req, res) => {
   try {
     const { status, call_type, limit = 100 } = req.query;
-    let query = 'SELECT * FROM calls WHERE 1=1';
+    // Join customers table so each call returns the matching customer name
+    // Match on from_number (inbound) or to_number (outbound) against customer phone/mobile
+    let query = `
+      SELECT calls.*,
+        COALESCE(cu_from.name, cu_to.name) AS customer_name
+      FROM calls
+      LEFT JOIN customers cu_from
+        ON REGEXP_REPLACE(cu_from.phone,  '[^0-9]', '', 'g') = RIGHT(REGEXP_REPLACE(calls.from_number, '[^0-9]', '', 'g'), 10)
+        OR REGEXP_REPLACE(cu_from.mobile, '[^0-9]', '', 'g') = RIGHT(REGEXP_REPLACE(calls.from_number, '[^0-9]', '', 'g'), 10)
+      LEFT JOIN customers cu_to
+        ON REGEXP_REPLACE(cu_to.phone,  '[^0-9]', '', 'g') = RIGHT(REGEXP_REPLACE(calls.to_number, '[^0-9]', '', 'g'), 10)
+        OR REGEXP_REPLACE(cu_to.mobile, '[^0-9]', '', 'g') = RIGHT(REGEXP_REPLACE(calls.to_number, '[^0-9]', '', 'g'), 10)
+      WHERE 1=1`;
     const params = [];
     let p = 1;
-    if (status) { query += ` AND status = $${p++}`; params.push(status); }
-    if (call_type) { query += ` AND call_type = $${p++}`; params.push(call_type); }
-    query += ` ORDER BY created_at DESC LIMIT $${p}`;
+    if (status) { query += ` AND calls.status = $${p++}`; params.push(status); }
+    if (call_type) { query += ` AND calls.call_type = $${p++}`; params.push(call_type); }
+    query += ` ORDER BY calls.created_at DESC LIMIT $${p}`;
     params.push(limit);
     const result = await pool.query(query, params);
     res.json({ success: true, calls: result.rows });

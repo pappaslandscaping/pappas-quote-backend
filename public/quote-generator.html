@@ -1260,118 +1260,109 @@ Photo documentation before/after available upon request.`
             }
         }
 
-        // Split text into blocks by finding price patterns
-        // Each service line ends with: RATE  QTY  TAX  TOTAL  (e.g. 2,000.00 1 8 2,160.00)
-        // Handles comma-formatted numbers (1,800.00) and zero-tax lines (400.00 1 0 400.00)
-        const pricePattern = /([\d,]+\.\d{2})\s+1\s+\d+\s+([\d,]+\.\d{2})/g;
-        let priceMatch;
-        const prices = [];
-
-        while ((priceMatch = pricePattern.exec(text)) !== null) {
-            prices.push({
-                rate: parseFloat(priceMatch[1].replace(/,/g, '')),
-                index: priceMatch.index,
-                endIndex: priceMatch.index + priceMatch[0].length
-            });
+        // ── Helper: detect service name from a block of text (shared by both parsers) ──
+        function detectSvcName(block, idx) {
+            let sn = null;
+            if (/Mowing\s*\(Weekly\)/i.test(block))   sn = 'Mowing (Weekly)';
+            if (!sn && /Mowing\s*\(Bi-Weekly\)/i.test(block)) sn = 'Mowing (Bi-Weekly)';
+            if (!sn && /Spring\s+Cleanup/i.test(block) && !/Fertilizing/i.test(block)) sn = 'Spring Cleanup';
+            if (!sn && /Fall\s+Cleanup/i.test(block) && !/Fertilizing[\s\n]+Fall/i.test(block)) {
+                if (/Fall\s+Cleanup\s*\(One\s*Time\s*Charge\)/i.test(block) || /Leaf\s+Removal:/i.test(block)) sn = 'Fall Cleanup (One Time Charge)';
+                else sn = 'Fall Cleanup';
+            }
+            if (!sn && /Fertilizing/i.test(block)) {
+                if      (/Fertilizing[\s\n]+Early[\s\n]+Spring/i.test(block))  sn = 'Fertilizing - Early Spring';
+                else if (/Fertilizing[\s\n]+Late[\s\n]+Spring/i.test(block))   sn = 'Fertilizing - Late Spring';
+                else if (/Fertilizing[\s\n]+Early[\s\n]+Summer/i.test(block))  sn = 'Fertilizing - Early Summer';
+                else if (/Fertilizing[\s\n]+Late[\s\n]+Summer/i.test(block))   sn = 'Fertilizing - Late Summer';
+                else if (/Fertilizing[\s\n]+Fall(?![\s\n]*Cleanup)/i.test(block)) sn = 'Fertilizing - Fall';
+            }
+            if (!sn && /\bAeration\b/i.test(block))       sn = 'Aeration';
+            if (!sn && /Dethatching/i.test(block))         sn = 'Dethatching';
+            if (!sn && /Overseeding/i.test(block))         sn = 'Overseeding';
+            if (!sn && /Top\s*Dressing/i.test(block))      sn = 'Top Dressing';
+            if (!sn && /Mulching/i.test(block))            sn = 'Mulching';
+            if (!sn && /Bed\s*Edging/i.test(block))        sn = 'Bed Edging';
+            if (!sn && /Bed\s*Cleanup/i.test(block))       sn = 'Backyard Bed Cleanup';
+            if (!sn && /Shrub.*Hedge.*Trim|Hedge.*Shrub.*Trim/i.test(block)) sn = 'Shrub & Hedge Trimming';
+            if (!sn && /Shrub.*Trim/i.test(block))         sn = 'Shrub Trimming (Per Occurrence)';
+            if (!sn && /Weed\s*Control.*Monthly/i.test(block)) sn = 'Weed Control (Monthly)';
+            if (!sn && /Weed\s*Control/i.test(block))      sn = 'Weed Control (Per Visit)';
+            if (!sn && /Power\s*Wash/i.test(block))        sn = 'Power Washing';
+            if (!sn && /Stump\s*Grind/i.test(block))       sn = 'Stump Grinding';
+            if (!sn && /Salt\s*Application/i.test(block))  sn = 'Salt Application (Per Visit)';
+            if (!sn && /Snow\s*Removal.*Per\s*Push|Per\s*Push.*Snow/i.test(block)) sn = 'Snow Removal Per Push';
+            if (!sn && /Snow\s*Removal.*Monthly|Monthly.*Snow/i.test(block)) sn = 'Snow Removal Contract (Monthly)';
+            if (!sn && /Snow\s*Removal|Snow\s*Contract/i.test(block)) sn = 'Snow Removal Contract';
+            if (!sn && /Snow\s*Clear/i.test(block))        sn = 'Snow Clearing Add-On';
+            if (!sn && /Litter\s*Pickup.*Bi.Weekly|Bi.Weekly.*Litter/i.test(block)) sn = 'Litter Pickup Service (Bi-Weekly)';
+            if (!sn && /Litter\s*Pickup.*Weekly|Weekly.*Litter/i.test(block)) sn = 'Litter Pickup Service (Weekly)';
+            if (!sn && /Garbage.*Debris|Debris.*Remov/i.test(block)) sn = 'Garbage & Debris Removal';
+            if (!sn && /Yard\s*Cleanup/i.test(block))      sn = 'Yard Cleanup';
+            if (!sn && /Storm\s*Cleanup/i.test(block))     sn = 'Storm Cleanup';
+            if (!sn && /Dylox/i.test(block))               sn = 'Dylox Application';
+            if (!sn && /Grass\s*Seed.*Peat|Peat.*Grass\s*Seed/i.test(block)) sn = 'Grass Seed and Peat Moss Installation';
+            if (!sn && /Cut\s*Back\s*Perennial/i.test(block)) sn = 'Cut Back Perennials (Seasonal)';
+            if (!sn && /Ornamental\s*Grass/i.test(block))  sn = 'Ornamental Grass & Debris Cleanup';
+            if (!sn && /Soil\s*Repair/i.test(block))       sn = 'Soil Repair';
+            return sn || ('Service ' + (idx + 1));
         }
-        
-        console.log('Found', prices.length, 'prices');
-        
-        // For each price, extract the block of text before it (since last price)
-        for (let i = 0; i < prices.length; i++) {
-            const blockStart = i === 0 ? 0 : prices[i-1].endIndex;
-            const blockEnd = prices[i].index;
-            const block = text.substring(blockStart, blockEnd);
-            
-            console.log(`\n--- Block ${i+1} ($${prices[i].rate}) ---`);
-            console.log(block.substring(0, 150));
-            
-            let serviceName = null;
-            
-            // Check for specific service patterns in this block
-            // Order matters - check most specific first
-            
-            // Mowing
-            if (!serviceName && /Mowing\s*\(Weekly\)/i.test(block)) {
-                serviceName = 'Mowing (Weekly)';
+
+        // Split text into blocks by finding price patterns
+        // Two formats:
+        //   A) Pappas-generated Quote PDF: amounts are "$50.00" right after service name
+        //   B) Jobber Estimate: amounts are "50.00 1 8 54.00" (rate qty tax total)
+        if (prepIdx !== -1) {
+            // ── Format A: Pappas-generated Quote PDF ──
+            // Stream order: service_name → $amount → description lines → next service...
+            // Amounts have a "$" prefix; totals section starts with "Subtotal\n$"
+            const dollarsPattern = /\$([\d,]+\.\d{2})/g;
+            let dm;
+            const dollarAmounts = [];
+            while ((dm = dollarsPattern.exec(text)) !== null) {
+                dollarAmounts.push({
+                    value: parseFloat(dm[1].replace(/,/g, '')),
+                    index: dm.index,
+                    endIndex: dm.index + dm[0].length
+                });
             }
-            if (!serviceName && /Mowing\s*\(Bi-Weekly\)/i.test(block)) {
-                serviceName = 'Mowing (Bi-Weekly)';
+            // Stop before the totals section (Subtotal/Tax/Total at the end)
+            // The totals are the last 3 consecutive dollar amounts — find first "Subtotal$" in text
+            const subtotalBoundary = text.search(/\bSubtotal\s*\n\s*\$/);
+            const serviceAmounts = subtotalBoundary > 0
+                ? dollarAmounts.filter(a => a.index < subtotalBoundary)
+                : dollarAmounts.slice(0, -3);
+
+            for (let i = 0; i < serviceAmounts.length; i++) {
+                const blockStart = i === 0 ? 0 : serviceAmounts[i - 1].endIndex;
+                const blockEnd = serviceAmounts[i].index;
+                const block = text.substring(blockStart, blockEnd);
+                const serviceName = detectSvcName(block, i);
+                const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
+                services.push({ name: serviceName, rate: serviceAmounts[i].value, desc });
+                console.log(`[PappasQuote] "${serviceName}" = $${serviceAmounts[i].value}`);
             }
-            
-            // Spring Cleanup - but NOT if this block is about fertilizing
-            if (!serviceName && /Spring\s+Cleanup/i.test(block) && !/Fertilizing/i.test(block)) {
-                serviceName = 'Spring Cleanup';
+        } else {
+            // ── Format B: Jobber Estimate ──
+            // Stream order (row-by-row): service_name → desc → rate → "1" → tax% → total
+            // Pattern: "50.00\n1\n8\n54.00" — \s+ matches newlines
+            const jobberPattern = /([\d,]+\.\d{2})\s+1\s+\d+\s+([\d,]+\.\d{2})/g;
+            let jm;
+            while ((jm = jobberPattern.exec(text)) !== null) {
+                prices.push({
+                    rate: parseFloat(jm[1].replace(/,/g, '')),
+                    index: jm.index,
+                    endIndex: jm.index + jm[0].length
+                });
             }
-            
-            // Fall Cleanup - check for (One Time Charge) variant by looking at content
-            if (!serviceName && /Fall\s+Cleanup/i.test(block) && !/Fertilizing[\s\n]+Fall/i.test(block)) {
-                // Check if this is the One Time Charge version (has "Leaf Removal" header or numbered list)
-                if (/Fall\s+Cleanup\s*\(One\s*Time\s*Charge\)/i.test(block) || /Leaf\s+Removal:/i.test(block) || /thorough\s+weekly\s+leaf\s+removal/i.test(block)) {
-                    serviceName = 'Fall Cleanup (One Time Charge)';
-                } else {
-                    serviceName = 'Fall Cleanup';
-                }
+            for (let i = 0; i < prices.length; i++) {
+                const blockStart = i === 0 ? 0 : prices[i - 1].endIndex;
+                const block = text.substring(blockStart, prices[i].index);
+                const serviceName = detectSvcName(block, i);
+                const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
+                services.push({ name: serviceName, rate: prices[i].rate, desc });
+                console.log(`[Jobber] "${serviceName}" = $${prices[i].rate}`);
             }
-            
-            // Fertilizing - check for season keywords
-            // The header format is "Fertilizing" followed by "Early Spring", "Late Spring", etc.
-            // Be careful not to match "early fall" in the description text
-            if (!serviceName && /Fertilizing/i.test(block)) {
-                // Look for the specific header patterns - "Fertilizing" near the season name
-                // Check in order of specificity
-                if (/Fertilizing[\s\n]+Early[\s\n]+Spring/i.test(block)) {
-                    serviceName = 'Fertilizing - Early Spring';
-                } else if (/Fertilizing[\s\n]+Late[\s\n]+Spring/i.test(block)) {
-                    serviceName = 'Fertilizing - Late Spring';
-                } else if (/Fertilizing[\s\n]+Early[\s\n]+Summer/i.test(block)) {
-                    serviceName = 'Fertilizing - Early Summer';
-                } else if (/Fertilizing[\s\n]+Late[\s\n]+Summer/i.test(block)) {
-                    serviceName = 'Fertilizing - Late Summer';
-                } else if (/Fertilizing[\s\n]+Fall(?![\s\n]*Cleanup)/i.test(block)) {
-                    // "Fertilizing Fall" but not "Fertilizing Fall Cleanup"
-                    serviceName = 'Fertilizing - Fall';
-                }
-            }
-            
-            // Other services — ordered from most specific to least
-            if (!serviceName && /\bAeration\b/i.test(block)) serviceName = 'Aeration';
-            if (!serviceName && /Dethatching/i.test(block)) serviceName = 'Dethatching';
-            if (!serviceName && /Overseeding/i.test(block)) serviceName = 'Overseeding';
-            if (!serviceName && /Top\s*Dressing/i.test(block)) serviceName = 'Top Dressing';
-            if (!serviceName && /Mulching/i.test(block)) serviceName = 'Mulching';
-            if (!serviceName && /Bed\s*Edging/i.test(block)) serviceName = 'Bed Edging';
-            if (!serviceName && /Bed\s*Cleanup/i.test(block)) serviceName = 'Backyard Bed Cleanup';
-            if (!serviceName && /Shrub.*Hedge.*Trim|Hedge.*Shrub.*Trim/i.test(block)) serviceName = 'Shrub & Hedge Trimming';
-            if (!serviceName && /Shrub.*Trim/i.test(block)) serviceName = 'Shrub Trimming (Per Occurrence)';
-            if (!serviceName && /Weed\s*Control.*Monthly/i.test(block)) serviceName = 'Weed Control (Monthly)';
-            if (!serviceName && /Weed\s*Control/i.test(block)) serviceName = 'Weed Control (Per Visit)';
-            if (!serviceName && /Power\s*Wash/i.test(block)) serviceName = 'Power Washing';
-            if (!serviceName && /Stump\s*Grind/i.test(block)) serviceName = 'Stump Grinding';
-            if (!serviceName && /Salt\s*Application/i.test(block)) serviceName = 'Salt Application (Per Visit)';
-            if (!serviceName && /Snow\s*Removal.*Per\s*Push|Per\s*Push.*Snow/i.test(block)) serviceName = 'Snow Removal Per Push';
-            if (!serviceName && /Snow\s*Removal.*Monthly|Monthly.*Snow/i.test(block)) serviceName = 'Snow Removal Contract (Monthly)';
-            if (!serviceName && /Snow\s*Removal|Snow\s*Contract/i.test(block)) serviceName = 'Snow Removal Contract';
-            if (!serviceName && /Snow\s*Clear/i.test(block)) serviceName = 'Snow Clearing Add-On';
-            if (!serviceName && /Litter\s*Pickup.*Bi.Weekly|Bi.Weekly.*Litter/i.test(block)) serviceName = 'Litter Pickup Service (Bi-Weekly)';
-            if (!serviceName && /Litter\s*Pickup.*Weekly|Weekly.*Litter/i.test(block)) serviceName = 'Litter Pickup Service (Weekly)';
-            if (!serviceName && /Garbage.*Debris|Debris.*Remov/i.test(block)) serviceName = 'Garbage & Debris Removal';
-            if (!serviceName && /Yard\s*Cleanup/i.test(block)) serviceName = 'Yard Cleanup';
-            if (!serviceName && /Storm\s*Cleanup/i.test(block)) serviceName = 'Storm Cleanup';
-            if (!serviceName && /Dylox/i.test(block)) serviceName = 'Dylox Application';
-            if (!serviceName && /Grass\s*Seed.*Peat|Peat.*Grass\s*Seed/i.test(block)) serviceName = 'Grass Seed and Peat Moss Installation';
-            if (!serviceName && /Cut\s*Back\s*Perennial/i.test(block)) serviceName = 'Cut Back Perennials (Seasonal)';
-            if (!serviceName && /Ornamental\s*Grass/i.test(block)) serviceName = 'Ornamental Grass & Debris Cleanup';
-            if (!serviceName && /Soil\s*Repair/i.test(block)) serviceName = 'Soil Repair';
-            
-            // Fallback
-            if (!serviceName) {
-                serviceName = 'Service ' + (i + 1);
-            }
-            
-            const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
-            services.push({ name: serviceName, rate: prices[i].rate, desc });
-            console.log(`=> "${serviceName}" = $${prices[i].rate}`);
         }
         
         console.log('\n=== FINAL SERVICES ===');

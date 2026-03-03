@@ -5986,7 +5986,7 @@ app.post('/api/quickbooks/disconnect', async (req, res) => {
 
 // --- Sync Functions ---
 
-async function syncQBCustomers() {
+async function syncQBCustomers(changedSince = null) {
   let count = 0;
   let startPos = 1;
   const pageSize = 100;
@@ -5994,8 +5994,9 @@ async function syncQBCustomers() {
   // Ensure qb_id column exists on customers table
   try { await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
 
+  const sinceFilter = changedSince ? ` WHERE Metadata.LastUpdatedTime >= '${changedSince}'` : '';
   while (true) {
-    const query = `SELECT * FROM Customer STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+    const query = `SELECT * FROM Customer${sinceFilter} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
     const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
     const customers = data?.QueryResponse?.Customer || [];
     if (customers.length === 0) break;
@@ -6039,13 +6040,14 @@ async function syncQBCustomers() {
   return count;
 }
 
-async function syncQBInvoices() {
+async function syncQBInvoices(changedSince = null) {
   let count = 0;
   let startPos = 1;
   const pageSize = 100;
 
+  const sinceFilter = changedSince ? ` WHERE Metadata.LastUpdatedTime >= '${changedSince}'` : '';
   while (true) {
-    const query = `SELECT * FROM Invoice STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+    const query = `SELECT * FROM Invoice${sinceFilter} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
     const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
     const invoices = data?.QueryResponse?.Invoice || [];
     if (invoices.length === 0) break;
@@ -6124,13 +6126,14 @@ async function syncQBInvoices() {
   return count;
 }
 
-async function syncQBPayments() {
+async function syncQBPayments(changedSince = null) {
   let count = 0;
   let startPos = 1;
   const pageSize = 100;
 
   while (true) {
-    const query = `SELECT * FROM Payment STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+    const sinceFilter = changedSince ? ` WHERE Metadata.LastUpdatedTime >= '${changedSince}'` : '';
+    const query = `SELECT * FROM Payment${sinceFilter} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
     const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
     const payments = data?.QueryResponse?.Payment || [];
     if (payments.length === 0) break;
@@ -6167,7 +6170,7 @@ async function syncQBPayments() {
   return count;
 }
 
-async function syncQBExpenses() {
+async function syncQBExpenses(changedSince = null) {
   let count = 0;
 
   // Ensure all required columns exist on expenses table (may have been created with different schema)
@@ -6195,7 +6198,8 @@ async function syncQBExpenses() {
     const pageSize = 100;
 
     while (true) {
-      const query = `SELECT * FROM ${entityType} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
+      const sinceFilter = changedSince ? ` WHERE Metadata.LastUpdatedTime >= '${changedSince}'` : '';
+      const query = `SELECT * FROM ${entityType}${sinceFilter} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
       const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
       const items = data?.QueryResponse?.[entityType] || [];
       if (items.length === 0) break;
@@ -6264,9 +6268,25 @@ app.post('/api/quickbooks/sync', async (req, res) => {
     (async () => {
       const results = { customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] };
 
+      // Get last successful sync time so we only fetch records changed since then
+      let changedSince = null;
+      try {
+        const lastSync = await pool.query(
+          `SELECT completed_at FROM qb_sync_log WHERE completed_at IS NOT NULL ORDER BY id DESC LIMIT 1`
+        );
+        if (lastSync.rows.length > 0) {
+          changedSince = lastSync.rows[0].completed_at.toISOString().split('T')[0]; // YYYY-MM-DD
+          console.log(`QB incremental sync: only fetching records changed since ${changedSince}`);
+        } else {
+          console.log('QB full sync: no previous sync found, fetching all records');
+        }
+      } catch (e) {
+        console.error('Could not determine last sync time, running full sync:', e.message);
+      }
+
       try {
         activeSyncProgress.stage = 'customers';
-        results.customers = await syncQBCustomers();
+        results.customers = await syncQBCustomers(changedSince);
         activeSyncProgress.customers = results.customers;
       } catch (e) {
         results.errors.push('Customers: ' + e.message);
@@ -6276,7 +6296,7 @@ app.post('/api/quickbooks/sync', async (req, res) => {
 
       try {
         activeSyncProgress.stage = 'invoices';
-        results.invoices = await syncQBInvoices();
+        results.invoices = await syncQBInvoices(changedSince);
         activeSyncProgress.invoices = results.invoices;
       } catch (e) {
         results.errors.push('Invoices: ' + e.message);
@@ -6286,7 +6306,7 @@ app.post('/api/quickbooks/sync', async (req, res) => {
 
       try {
         activeSyncProgress.stage = 'payments';
-        results.payments = await syncQBPayments();
+        results.payments = await syncQBPayments(changedSince);
         activeSyncProgress.payments = results.payments;
       } catch (e) {
         results.errors.push('Payments: ' + e.message);
@@ -6296,7 +6316,7 @@ app.post('/api/quickbooks/sync', async (req, res) => {
 
       try {
         activeSyncProgress.stage = 'expenses';
-        results.expenses = await syncQBExpenses();
+        results.expenses = await syncQBExpenses(changedSince);
         activeSyncProgress.expenses = results.expenses;
       } catch (e) {
         results.errors.push('Expenses: ' + e.message);

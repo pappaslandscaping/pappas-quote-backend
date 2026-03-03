@@ -333,6 +333,13 @@
             border-bottom: 1px solid var(--gray-200);
         }
 
+        th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+        th.sortable:hover { background: var(--gray-100); }
+        th.sortable.active { color: var(--forest); }
+        .sort-icon { margin-left: 4px; font-size: 10px; opacity: 0.4; }
+        .sort-icon.asc::after { content: '▲'; opacity: 1; }
+        .sort-icon.desc::after { content: '▼'; opacity: 1; }
+
         th {
             padding: 16px;
             text-align: left;
@@ -880,12 +887,12 @@
                 <table id="invoicesTable">
                     <thead>
                         <tr>
-                            <th>Invoice #</th>
-                            <th>Customer</th>
-                            <th style="text-align: right;">Amount</th>
-                            <th>Status</th>
-                            <th>Due Date</th>
-                            <th>Created</th>
+                            <th class="sortable" onclick="sortBy('invoice_number')"><span>Invoice #</span><span class="sort-icon" id="sort-invoice_number"></span></th>
+                            <th class="sortable" onclick="sortBy('customer_name')"><span>Customer</span><span class="sort-icon" id="sort-customer_name"></span></th>
+                            <th class="sortable" onclick="sortBy('total')" style="text-align: right;"><span>Amount</span><span class="sort-icon" id="sort-total"></span></th>
+                            <th class="sortable" onclick="sortBy('status')"><span>Status</span><span class="sort-icon" id="sort-status"></span></th>
+                            <th class="sortable" onclick="sortBy('due_date')"><span>Due Date</span><span class="sort-icon" id="sort-due_date"></span></th>
+                            <th class="sortable" onclick="sortBy('created_at')"><span>Created</span><span class="sort-icon" id="sort-created_at"></span></th>
                             <th style="text-align: right;">Actions</th>
                         </tr>
                     </thead>
@@ -1019,6 +1026,25 @@
         const API_BASE = '/api';
         let invoices = [];
         let quotes = [];
+        let sortCol = 'created_at';
+        let sortDir = 'desc';
+
+        function sortBy(col) {
+            if (sortCol === col) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortCol = col;
+                sortDir = col === 'total' ? 'desc' : 'asc';
+            }
+            // Update header icons
+            document.querySelectorAll('.sort-icon').forEach(el => { el.className = 'sort-icon'; });
+            const icon = document.getElementById('sort-' + col);
+            if (icon) icon.className = 'sort-icon ' + sortDir;
+            document.querySelectorAll('th.sortable').forEach(th => th.classList.remove('active'));
+            const activeTh = document.querySelector(`th[onclick="sortBy('${col}')"]`);
+            if (activeTh) activeTh.classList.add('active');
+            renderInvoices();
+        }
 
         // Format currency
         function formatCurrency(amount) {
@@ -1081,6 +1107,24 @@
         function renderInvoices() {
             const tbody = document.getElementById('invoicesBody');
 
+            // Sort
+            const sorted = [...invoices].sort((a, b) => {
+                let aVal = a[sortCol] ?? a[sortCol.replace('_','')]; // snake_case fallback
+                let bVal = b[sortCol] ?? b[sortCol.replace('_','')];
+                // Numeric sort for total
+                if (sortCol === 'total') { aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0; }
+                // Date sort
+                else if (sortCol === 'due_date' || sortCol === 'created_at') {
+                    aVal = aVal ? new Date(aVal).getTime() : 0;
+                    bVal = bVal ? new Date(bVal).getTime() : 0;
+                }
+                // String sort
+                else { aVal = (aVal || '').toString().toLowerCase(); bVal = (bVal || '').toString().toLowerCase(); }
+                if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
             if (invoices.length === 0) {
                 tbody.innerHTML = `
                     <tr>
@@ -1096,7 +1140,7 @@
                 return;
             }
 
-            tbody.innerHTML = invoices.map(inv => {
+            tbody.innerHTML = sorted.map(inv => {
                 const invNum = inv.invoice_number || inv.invoiceNumber || 'INV-' + inv.id;
                 const custName = inv.customer_name || inv.customerName || '-';
                 const dueDate = inv.due_date || inv.dueDate;

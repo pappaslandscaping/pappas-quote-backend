@@ -289,17 +289,46 @@
             // Build the payment/overdue info card
             let paymentHtml = '';
             if (status === 'paid') {
+                const isPartial = amountPaid < total;
                 paymentHtml = `<div class="payment-card">
-                    <h4>✓ Payment Received</h4>
-                    <div class="detail"><strong>Amount:</strong> ${formatCurrency(amountPaid)}</div>
-                    ${paidAt ? `<div class="detail"><strong>Date:</strong> ${formatDate(paidAt)}</div>` : ''}
+                    <h4>✓ ${isPartial ? 'Partial Payment Received' : 'Payment Received in Full'}</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-top:8px;">
+                        <div class="detail"><strong>Amount paid:</strong> ${formatCurrency(amountPaid)}</div>
+                        ${isPartial ? `<div class="detail"><strong>Balance remaining:</strong> ${formatCurrency(balance)}</div>` : `<div class="detail"><strong>Invoice total:</strong> ${formatCurrency(total)}</div>`}
+                        ${paidAt ? `<div class="detail"><strong>Payment date:</strong> ${formatDate(paidAt)}</div>` : ''}
+                        ${dueDate ? `<div class="detail"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                        ${qbId ? `<div class="detail"><strong>QuickBooks ID:</strong> ${qbId}</div>` : ''}
+                        ${inv.customer_email ? `<div class="detail"><strong>Billing email:</strong> ${inv.customer_email}</div>` : ''}
+                    </div>
+                </div>`;
+            } else if (amountPaid > 0 && status !== 'paid') {
+                // Partial payment on a non-"paid" status invoice
+                paymentHtml = `<div class="payment-card" style="background:#fffbeb; border-color:#fde68a;">
+                    <h4 style="color:#d97706;">⚡ Partial Payment — ${formatCurrency(amountPaid)} of ${formatCurrency(total)}</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-top:8px;">
+                        <div class="detail" style="color:#92400e;"><strong>Remaining:</strong> ${formatCurrency(balance)}</div>
+                        ${paidAt ? `<div class="detail" style="color:#92400e;"><strong>Last payment:</strong> ${formatDate(paidAt)}</div>` : ''}
+                        ${dueDate ? `<div class="detail" style="color:#92400e;"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                    </div>
                 </div>`;
             } else if (status === 'overdue') {
                 const daysOverdue = dueDate ? Math.ceil((new Date() - new Date(dueDate)) / (1000*60*60*24)) : 0;
                 paymentHtml = `<div class="overdue-card">
                     <h4>⚠ Overdue${daysOverdue > 0 ? ` — ${daysOverdue} days` : ''}</h4>
-                    <div class="detail"><strong>Balance due:</strong> ${formatCurrency(balance)}</div>
-                    ${dueDate ? `<div class="detail"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-top:8px;">
+                        <div class="detail"><strong>Balance due:</strong> ${formatCurrency(balance)}</div>
+                        <div class="detail"><strong>Invoice total:</strong> ${formatCurrency(total)}</div>
+                        ${dueDate ? `<div class="detail"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                        ${qbId ? `<div class="detail"><strong>QuickBooks ID:</strong> ${qbId}</div>` : ''}
+                    </div>
+                </div>`;
+            } else if (status === 'sent') {
+                paymentHtml = `<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:16px; margin-bottom:20px;">
+                    <h4 style="color:#1d4ed8; font-size:13px; margin-bottom:8px;">📬 Invoice Sent — Awaiting Payment</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px;">
+                        <div class="detail" style="color:#1e40af;"><strong>Amount due:</strong> ${formatCurrency(total)}</div>
+                        ${dueDate ? `<div class="detail" style="color:#1e40af;"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                    </div>
                 </div>`;
             }
 

@@ -1095,34 +1095,39 @@
                 return;
             }
 
-            tbody.innerHTML = invoices.map(inv => `
-                <tr>
-                    <td><strong>${inv.invoiceNumber || 'INV-' + inv.id}</strong></td>
-                    <td>${inv.customerName || '-'}</td>
+            tbody.innerHTML = invoices.map(inv => {
+                const invNum = inv.invoice_number || inv.invoiceNumber || 'INV-' + inv.id;
+                const custName = inv.customer_name || inv.customerName || '-';
+                const dueDate = inv.due_date || inv.dueDate;
+                const createdAt = inv.created_at || inv.createdAt;
+                return `<tr>
+                    <td><strong>${invNum}</strong></td>
+                    <td>${custName}</td>
                     <td style="text-align: right;"><strong>${formatCurrency(inv.total || 0)}</strong></td>
                     <td>${getStatusBadge(inv.status)}</td>
-                    <td>${inv.dueDate ? formatDate(inv.dueDate) : '-'}</td>
-                    <td>${inv.createdAt ? formatDate(inv.createdAt) : '-'}</td>
+                    <td>${dueDate ? formatDate(dueDate) : '-'}</td>
+                    <td>${createdAt ? formatDate(createdAt) : '-'}</td>
                     <td style="text-align: right;">
                         <div class="actions-cell">
                             ${inv.status === 'draft' ? `<button class="action-btn action-btn-send" onclick="sendInvoice('${inv.id}')">Send</button>` : ''}
-                            ${inv.status === 'sent' ? `<button class="action-btn action-btn-paid" onclick="markPaid('${inv.id}')">Mark Paid</button>` : ''}
+                            ${inv.status === 'sent' || inv.status === 'overdue' ? `<button class="action-btn action-btn-paid" onclick="markPaid('${inv.id}')">Mark Paid</button>` : ''}
                             <button class="action-btn action-btn-view" onclick="viewInvoice('${inv.id}')">View</button>
                             <button class="action-btn action-btn-delete" onclick="deleteInvoice('${inv.id}')">Delete</button>
                         </div>
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
         }
 
         // Load stats
         async function loadStats() {
             try {
                 const response = await fetch(`${API_BASE}/invoices/stats`);
-                const stats = await response.json();
+                const data = await response.json();
+                const stats = data.stats || data;
 
                 document.getElementById('outstandingStat').textContent = formatCurrency(stats.outstanding || 0);
-                document.getElementById('overdueStat').textContent = formatCurrency(stats.overdue || 0);
+                document.getElementById('overdueStat').textContent = formatCurrency(stats.overdueAmount || stats.overdue || 0);
                 document.getElementById('paidMonthStat').textContent = formatCurrency(stats.paidThisMonth || 0);
                 document.getElementById('totalRevenueStat').textContent = formatCurrency(stats.totalRevenue || 0);
             } catch (error) {

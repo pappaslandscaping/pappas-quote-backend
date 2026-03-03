@@ -1431,6 +1431,71 @@ app.get('/api/customers/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// POST /api/customers/deduplicate - Merge duplicate customers (same name)
+app.post('/api/customers/deduplicate', async (req, res) => {
+  try {
+    // Find groups of customers with the same name (case-insensitive)
+    const dupes = await pool.query(`
+      SELECT LOWER(TRIM(name)) as norm_name, array_agg(id ORDER BY
+        CASE WHEN qb_id IS NOT NULL THEN 0 ELSE 1 END, id ASC
+      ) as ids, COUNT(*) as cnt
+      FROM customers
+      WHERE name IS NOT NULL AND TRIM(name) != ''
+      GROUP BY LOWER(TRIM(name))
+      HAVING COUNT(*) > 1
+    `);
+
+    let merged = 0;
+    let deleted = 0;
+
+    for (const row of dupes.rows) {
+      const ids = row.ids; // First id = keeper (has qb_id or lowest id)
+      const keepId = ids[0];
+      const removeIds = ids.slice(1);
+
+      // Merge any fields the keeper is missing from the duplicates
+      const keeper = await pool.query('SELECT * FROM customers WHERE id = $1', [keepId]);
+      const k = keeper.rows[0];
+
+      for (const dupId of removeIds) {
+        const dup = await pool.query('SELECT * FROM customers WHERE id = $1', [dupId]);
+        const d = dup.rows[0];
+        if (!d) continue;
+
+        // Fill in any blank fields on keeper from duplicate
+        const updates = [];
+        const vals = [];
+        let p = 1;
+        const fields = ['email','phone','mobile','street','street2','city','state','postal_code','qb_id','notes','customer_company_name'];
+        for (const f of fields) {
+          if (!k[f] && d[f]) { updates.push(`${f}=$${p++}`); vals.push(d[f]); }
+        }
+        if (updates.length > 0) {
+          vals.push(keepId);
+          await pool.query(`UPDATE customers SET ${updates.join(',')} WHERE id=$${p}`, vals);
+          k[fields.find((f,i) => updates[i])] = vals[0]; // keep local state updated
+        }
+
+        // Re-point all FK references from dupId → keepId
+        await pool.query('UPDATE invoices SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
+        await pool.query('UPDATE properties SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
+        await pool.query('UPDATE scheduled_jobs SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
+        await pool.query('UPDATE messages SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
+
+        // Delete the duplicate
+        await pool.query('DELETE FROM customers WHERE id=$1', [dupId]);
+        deleted++;
+      }
+      merged++;
+    }
+
+    res.json({ success: true, groupsMerged: merged, duplicatesRemoved: deleted });
+  } catch (e) {
+    console.error('Dedup error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/customers - Create new customer (from Zapier/CopilotCRM sync)
 app.post('/api/customers', async (req, res) => {
   try {

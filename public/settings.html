@@ -416,6 +416,32 @@
                     <span class="badge badge-disconnected">Coming Soon</span>
                 </div>
             </div>
+
+            <!-- Data Tools -->
+            <div class="integration-card" style="margin-top: 24px;">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background: var(--gray-700); color: white; font-size: 18px;">🧹</div>
+                        <div>
+                            <h2>Data Tools</h2>
+                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Clean up and maintain your data</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 0 20px 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-top: 1px solid var(--gray-100);">
+                        <div>
+                            <div style="font-weight: 500; font-size: 14px;">Deduplicate Customers</div>
+                            <div style="font-size: 12px; color: var(--gray-500); margin-top: 2px;">Merge customers with the same name, keeping QuickBooks records when available</div>
+                        </div>
+                        <button id="dedupBtn" onclick="deduplicateCustomers()"
+                            style="padding: 8px 16px; background: var(--gray-800); color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; margin-left: 24px;">
+                            Run Deduplication
+                        </button>
+                    </div>
+                    <div id="dedupResult" style="display:none; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px;"></div>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -561,6 +587,35 @@
                 btn.disabled = false;
                 btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
             }
+        }
+
+        async function deduplicateCustomers() {
+            const btn = document.getElementById('dedupBtn');
+            const result = document.getElementById('dedupResult');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            try {
+                const res = await fetch('/api/customers/deduplicate', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    result.style.display = 'block';
+                    result.style.background = '#f0fdf4';
+                    result.style.border = '1px solid #bbf7d0';
+                    result.style.color = '#166534';
+                    result.textContent = `✓ Done — merged ${data.groupsMerged} duplicate group${data.groupsMerged !== 1 ? 's' : ''}, removed ${data.duplicatesRemoved} duplicate${data.duplicatesRemoved !== 1 ? 's' : ''}.`;
+                    showToast(`Removed ${data.duplicatesRemoved} duplicate customers`);
+                } else {
+                    result.style.display = 'block';
+                    result.style.background = '#fef2f2';
+                    result.style.border = '1px solid #fecaca';
+                    result.style.color = '#991b1b';
+                    result.textContent = 'Error: ' + (data.error || 'Unknown error');
+                }
+            } catch (e) {
+                showToast('Deduplication failed: ' + e.message, true);
+            }
+            btn.disabled = false;
+            btn.textContent = 'Run Deduplication';
         }
 
         async function disconnectQB() {

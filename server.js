@@ -258,16 +258,29 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
   try {
     console.log('Starting PDF generation for contract...');
     const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+    const fs = require('fs');
+    const path = require('path');
     console.log('pdf-lib loaded successfully');
-    
+
     // Create a new PDF document
     const pdfDoc = await PDFDocument.create();
     console.log('PDF document created');
-    
+
     // Embed fonts
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     console.log('Fonts embedded');
+
+    // Try to embed logo
+    let logoImage = null;
+    try {
+      const logoPath = path.join(__dirname, 'public', 'logo.png');
+      if (fs.existsSync(logoPath)) {
+        logoImage = await pdfDoc.embedPng(fs.readFileSync(logoPath));
+      }
+    } catch (logoErr) {
+      console.log('Could not embed logo in contract PDF:', logoErr.message);
+    }
     
     // Page dimensions (US Letter)
     const pageWidth = 612;
@@ -327,20 +340,25 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     // ========== PAGE 1 ==========
     let page = addPage();
     let y = pageHeight - margin;
-    
-    // Header
-    page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: helveticaBold, color: darkGreen });
-    y -= 18;
-    page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 12, font: helveticaBold, color: gray });
-    page.drawText(`Quote #${quoteNumber}`, { x: margin + 150, y, size: 12, font: helvetica, color: gray });
-    
-    // Contact info (right side)
-    page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 120, y: pageHeight - margin, size: 9, font: helvetica, color: gray });
-    page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 120, y: pageHeight - margin - 12, size: 9, font: helvetica, color: gray });
-    page.drawText('(440) 886-7318', { x: pageWidth - margin - 120, y: pageHeight - margin - 24, size: 9, font: helvetica, color: gray });
-    
+
+    // Header: logo (or text fallback) + contact info on right
+    if (logoImage) {
+      const logoDims = logoImage.scale(0.26);
+      page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
+      y -= logoDims.height + 4;
+    } else {
+      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: helveticaBold, color: darkGreen });
+      y -= 24;
+    }
+    page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: pageHeight - margin, size: 9, font: helvetica, color: gray });
+    page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 130, y: pageHeight - margin - 12, size: 9, font: helvetica, color: gray });
+    page.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: pageHeight - margin - 24, size: 9, font: helvetica, color: gray });
+
+    page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 11, font: helveticaBold, color: gray });
+    page.drawText(`Quote #${quoteNumber}`, { x: margin + 155, y, size: 11, font: helvetica, color: gray });
+
     // Lime accent line
-    y -= 15;
+    y -= 14;
     page.drawRectangle({ x: margin, y, width: contentWidth, height: 3, color: limeGreen });
     y -= 25;
     
@@ -3712,17 +3730,16 @@ app.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
 <title>Service Agreement - ${updatedQuote.customer_name}</title>
 <style>
 body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 40px; color: #333; font-size: 11px; line-height: 1.5; }
-.header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
-.logo { font-size: 24px; font-weight: bold; color: #2e403d; }
-.logo-icon { color: #84cc16; font-size: 28px; }
-.contact-info { text-align: right; font-size: 11px; color: #666; }
-h1 { text-align: center; color: #2e403d; font-size: 24px; margin: 30px 0 10px; }
-.intro { text-align: center; color: #666; font-size: 12px; margin-bottom: 20px; }
+.header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 4px solid #c9dd80; margin-bottom: 28px; }
+.logo img { max-height: 56px; max-width: 180px; display: block; }
+.contact-info { text-align: right; font-size: 10.5px; color: #666; line-height: 1.7; }
+h1 { text-align: center; color: #2e403d; font-size: 22px; margin: 0 0 8px; font-weight: 700; letter-spacing: 0.5px; }
+.intro { text-align: center; color: #666; font-size: 11px; margin-bottom: 20px; }
 .parties { display: flex; gap: 40px; margin: 20px 0 30px; }
 .party { flex: 1; }
 .party-label { font-weight: bold; color: #333; margin-bottom: 8px; }
-h2 { color: #2e403d; font-size: 14px; margin: 24px 0 12px; padding-bottom: 4px; }
-.accent-bar { height: 4px; background: linear-gradient(90deg, #84cc16, #bef264); margin: 0 0 30px; }
+h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; border-bottom: 2px solid #c9dd80; }
+.accent-bar { height: 4px; background: linear-gradient(90deg, #c9dd80, #bef264); margin: 0 0 24px; }
 .section { margin-bottom: 16px; }
 .section p { margin: 6px 0; text-align: justify; }
 .section ul { margin: 8px 0 8px 20px; padding: 0; }
@@ -3739,11 +3756,9 @@ h2 { color: #2e403d; font-size: 14px; margin: 24px 0 12px; padding-bottom: 4px; 
 </head>
 <body>
 <div class="header">
-  <div class="logo"><span class="logo-icon">🌿</span> pappas &<br>company<br>landscaping</div>
-  <div class="contact-info">pappaslandscaping.com<br>hello@pappaslandscaping.com<br>440-886-7318</div>
+  <div class="logo"><img src="${LOGO_URL}" alt="Pappas &amp; Co. Landscaping"></div>
+  <div class="contact-info">pappaslandscaping.com<br>hello@pappaslandscaping.com<br>(440) 886-7318</div>
 </div>
-
-<div class="accent-bar"></div>
 
 <h1>Service Agreement</h1>
 <p class="intro">This Agreement is made effective on the date the Client accepts a<br>quote from Pappas & Co. Landscaping (the "Effective Date") between:</p>

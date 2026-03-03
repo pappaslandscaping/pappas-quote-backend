@@ -473,42 +473,94 @@
             document.getElementById('qbBadgeText').textContent = 'Not Connected';
         }
 
+        let syncPollInterval = null;
+
+        function updateSyncDisplay(progress) {
+            document.getElementById('syncCustomers').textContent = progress.customers || 0;
+            document.getElementById('syncInvoices').textContent = progress.invoices || 0;
+            document.getElementById('syncPayments').textContent = progress.payments || 0;
+            document.getElementById('syncExpenses').textContent = progress.expenses || 0;
+            document.getElementById('syncResults').classList.add('show');
+
+            const btn = document.getElementById('syncBtn');
+            if (progress.stage === 'done' || !progress.stage) {
+                // Sync complete
+                btn.disabled = false;
+                btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
+
+                if (progress.errors && progress.errors.length > 0) {
+                    const errEl = document.getElementById('syncErrors');
+                    errEl.style.display = 'block';
+                    errEl.querySelector('p').textContent = (Array.isArray(progress.errors) ? progress.errors.join('; ') : progress.errors);
+                } else {
+                    document.getElementById('syncErrors').style.display = 'none';
+                }
+
+                document.getElementById('qbLastSync').textContent = new Date().toLocaleString();
+                showToast(`Sync complete: ${progress.customers||0} customers, ${progress.invoices||0} invoices, ${progress.payments||0} payments, ${progress.expenses||0} expenses`);
+
+                if (syncPollInterval) { clearInterval(syncPollInterval); syncPollInterval = null; }
+            } else {
+                const stageLabel = { customers: 'Syncing customers...', invoices: 'Syncing invoices...', payments: 'Syncing payments...', expenses: 'Syncing expenses...' };
+                btn.innerHTML = `<span class="spinner"></span> ${stageLabel[progress.stage] || 'Syncing...'}`;
+            }
+        }
+
         async function runSync() {
             const btn = document.getElementById('syncBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Syncing...';
+            btn.innerHTML = '<span class="spinner"></span> Starting sync...';
 
             try {
                 const res = await fetch('/api/quickbooks/sync', { method: 'POST' });
                 const data = await res.json();
 
                 if (data.success) {
-                    const r = data.results;
-                    document.getElementById('syncCustomers').textContent = r.customers;
-                    document.getElementById('syncInvoices').textContent = r.invoices;
-                    document.getElementById('syncPayments').textContent = r.payments;
-                    document.getElementById('syncExpenses').textContent = r.expenses;
+                    // Show initial results panel
                     document.getElementById('syncResults').classList.add('show');
+                    document.getElementById('syncCustomers').textContent = '…';
+                    document.getElementById('syncInvoices').textContent = '…';
+                    document.getElementById('syncPayments').textContent = '…';
+                    document.getElementById('syncExpenses').textContent = '…';
+                    btn.innerHTML = '<span class="spinner"></span> Syncing customers...';
 
-                    if (r.errors && r.errors.length > 0) {
-                        const errEl = document.getElementById('syncErrors');
-                        errEl.style.display = 'block';
-                        errEl.querySelector('p').textContent = r.errors.join('; ');
-                    } else {
-                        document.getElementById('syncErrors').style.display = 'none';
-                    }
+                    // Poll for progress every 2 seconds
+                    syncPollInterval = setInterval(async () => {
+                        try {
+                            const progRes = await fetch('/api/quickbooks/sync-progress');
+                            const progData = await progRes.json();
 
-                    document.getElementById('qbLastSync').textContent = new Date().toLocaleString();
-                    showToast(`Synced: ${r.customers} customers, ${r.invoices} invoices, ${r.payments} payments, ${r.expenses} expenses`);
+                            if (progData.running && progData.progress) {
+                                updateSyncDisplay(progData.progress);
+                            } else if (!progData.running) {
+                                // Sync finished — show final result from DB
+                                const lastSync = progData.lastSync;
+                                if (lastSync) {
+                                    updateSyncDisplay({
+                                        stage: 'done',
+                                        customers: lastSync.customers_synced || 0,
+                                        invoices: lastSync.invoices_synced || 0,
+                                        payments: lastSync.payments_synced || 0,
+                                        expenses: lastSync.expenses_synced || 0,
+                                        errors: lastSync.errors ? [lastSync.errors] : []
+                                    });
+                                } else {
+                                    updateSyncDisplay({ stage: 'done', customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] });
+                                }
+                            }
+                        } catch (e) { /* keep polling */ }
+                    }, 2000);
+
                 } else {
                     showToast(data.error || 'Sync failed', true);
+                    btn.disabled = false;
+                    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
                 }
             } catch (e) {
                 showToast('Sync failed: ' + e.message, true);
+                btn.disabled = false;
+                btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
             }
-
-            btn.disabled = false;
-            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
         }
 
         async function disconnectQB() {

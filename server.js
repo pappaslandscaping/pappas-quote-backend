@@ -6033,46 +6033,112 @@ async function syncQBExpenses() {
   return count;
 }
 
-// POST /api/quickbooks/sync - Run full sync
+// Track active sync state in memory
+let activeSyncLogId = null;
+let activeSyncProgress = null; // { stage, customers, invoices, payments, expenses, errors }
+
+// POST /api/quickbooks/sync - Start background sync (returns immediately)
 app.post('/api/quickbooks/sync', async (req, res) => {
   try {
     // Verify connection first
     await getQBClient();
+
+    // If a sync is already running, return its log ID
+    if (activeSyncLogId !== null) {
+      return res.json({ success: true, logId: activeSyncLogId, status: 'already_running' });
+    }
 
     // Create sync log entry
     const logEntry = await pool.query(
       `INSERT INTO qb_sync_log (sync_type, started_at) VALUES ('full', NOW()) RETURNING id`
     );
     const logId = logEntry.rows[0].id;
+    activeSyncLogId = logId;
+    activeSyncProgress = { stage: 'customers', customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] };
 
-    const results = { customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] };
+    // Return immediately — sync runs in background
+    res.json({ success: true, logId, status: 'started' });
 
-    // Sync in order: customers first (so invoice customer lookups work)
-    try { results.customers = await syncQBCustomers(); }
-    catch (e) { results.errors.push('Customers: ' + e.message); console.error('QB sync customers error:', e); }
+    // Run sync in background (no await here)
+    (async () => {
+      const results = { customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] };
 
-    try { results.invoices = await syncQBInvoices(); }
-    catch (e) { results.errors.push('Invoices: ' + e.message); console.error('QB sync invoices error:', e); }
+      try {
+        activeSyncProgress.stage = 'customers';
+        results.customers = await syncQBCustomers();
+        activeSyncProgress.customers = results.customers;
+      } catch (e) {
+        results.errors.push('Customers: ' + e.message);
+        activeSyncProgress.errors.push('Customers: ' + e.message);
+        console.error('QB sync customers error:', e);
+      }
 
-    try { results.payments = await syncQBPayments(); }
-    catch (e) { results.errors.push('Payments: ' + e.message); console.error('QB sync payments error:', e); }
+      try {
+        activeSyncProgress.stage = 'invoices';
+        results.invoices = await syncQBInvoices();
+        activeSyncProgress.invoices = results.invoices;
+      } catch (e) {
+        results.errors.push('Invoices: ' + e.message);
+        activeSyncProgress.errors.push('Invoices: ' + e.message);
+        console.error('QB sync invoices error:', e);
+      }
 
-    try { results.expenses = await syncQBExpenses(); }
-    catch (e) { results.errors.push('Expenses: ' + e.message); console.error('QB sync expenses error:', e); }
+      try {
+        activeSyncProgress.stage = 'payments';
+        results.payments = await syncQBPayments();
+        activeSyncProgress.payments = results.payments;
+      } catch (e) {
+        results.errors.push('Payments: ' + e.message);
+        activeSyncProgress.errors.push('Payments: ' + e.message);
+        console.error('QB sync payments error:', e);
+      }
 
-    // Update sync log
-    await pool.query(
-      `UPDATE qb_sync_log SET customers_synced=$1, invoices_synced=$2, payments_synced=$3,
-       expenses_synced=$4, errors=$5, completed_at=NOW() WHERE id=$6`,
-      [results.customers, results.invoices, results.payments, results.expenses,
-       results.errors.length ? results.errors.join('; ') : null, logId]
-    );
+      try {
+        activeSyncProgress.stage = 'expenses';
+        results.expenses = await syncQBExpenses();
+        activeSyncProgress.expenses = results.expenses;
+      } catch (e) {
+        results.errors.push('Expenses: ' + e.message);
+        activeSyncProgress.errors.push('Expenses: ' + e.message);
+        console.error('QB sync expenses error:', e);
+      }
 
-    res.json({ success: true, results });
+      // Update sync log as completed
+      await pool.query(
+        `UPDATE qb_sync_log SET customers_synced=$1, invoices_synced=$2, payments_synced=$3,
+         expenses_synced=$4, errors=$5, completed_at=NOW() WHERE id=$6`,
+        [results.customers, results.invoices, results.payments, results.expenses,
+         results.errors.length ? results.errors.join('; ') : null, logId]
+      );
+
+      activeSyncProgress.stage = 'done';
+      activeSyncLogId = null;
+      console.log('✅ QB sync complete:', results);
+    })();
+
   } catch (e) {
+    activeSyncLogId = null;
+    activeSyncProgress = null;
     console.error('QB sync error:', e);
     res.status(500).json({ success: false, error: e.message });
   }
+});
+
+// GET /api/quickbooks/sync-progress - Poll progress of running sync
+app.get('/api/quickbooks/sync-progress', async (req, res) => {
+  if (activeSyncLogId === null) {
+    // No active sync — return last completed log entry
+    const last = await pool.query('SELECT * FROM qb_sync_log ORDER BY id DESC LIMIT 1');
+    return res.json({
+      running: false,
+      lastSync: last.rows[0] || null
+    });
+  }
+  res.json({
+    running: true,
+    logId: activeSyncLogId,
+    progress: activeSyncProgress
+  });
 });
 
 // GET /api/quickbooks/sync-log - Get sync history

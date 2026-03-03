@@ -987,33 +987,56 @@
             document.getElementById('quoteNum').value = estimateNumMatch[1];
         }
         
-        // Extract customer name from "PREPARED FOR" section
-        // PDF format: "PREPARED FOR  Date:X/X/XXXX\n<Customer Name> [junk]\n<Address>"
-        const preparedForMatch = text.match(/PREPARED\s+FOR[^\n]*\n([^\n]+)/i);
-        if (preparedForMatch) {
-            let customerName = preparedForMatch[1]
-                .replace(/Valid\s+For.*$/i, '')     // strip "Valid For: 30 Days"
-                .replace(/LLC\s*PO.*/i, 'LLC')      // handle "Exchange Street LLCPO Box..." → "Exchange Street LLC"
-                .replace(/\s*PO\s*Box.*$/i, '')     // strip any remaining "PO Box ..."
-                .replace(/\s*Quote\s*#.*$/i, '')    // strip "Quote #:1506" if on same line
-                .trim();
-            if (customerName) {
-                document.getElementById('custName').value = customerName;
-                // Look up customer details (email, phone) from database
-                lookupCustomer(customerName);
-            }
-        }
+        // Extract customer name and address from "PREPARED FOR" section.
+        // PDF text items are each on their own line when joined with \n, so we
+        // can't rely on layout — instead scan line-by-line after "PREPARED FOR".
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        const prepIdx = lines.findIndex(l => /PREPARED\s*FOR/i.test(l));
+        if (prepIdx !== -1) {
+            // Skip date / validity / quote-number lines; first remaining line is customer name
+            const skipLine = l =>
+                /^Date:/i.test(l) ||
+                /^Valid\s+For/i.test(l) ||
+                /^Quote\s*#/i.test(l) ||
+                /^Estimate\s*#/i.test(l) ||
+                /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(l) ||   // bare date
+                l.length < 2;
 
-        // Extract address: line after the customer name in the PREPARED FOR block
-        const addrLineMatch = text.match(/PREPARED\s+FOR[^\n]*\n[^\n]+\n([^\n]+)/i);
-        if (addrLineMatch) {
-            let addr = addrLineMatch[1]
-                .replace(/Quote\s*#?\s*:?\s*\d+.*/i, '')   // strip "Quote #:1506" and everything after
-                .replace(/Valid\s+For.*$/i, '')              // strip "Valid For:..." if on same line
-                .replace(/\b([A-Z]{2})\s+\1\b/g, '$1')     // fix double state code: "OH OH" → "OH"
-                .trim();
-            if (addr) {
-                document.getElementById('custAddr').value = addr;
+            let nameFound = false;
+            for (let li = prepIdx + 1; li < Math.min(prepIdx + 8, lines.length); li++) {
+                const line = lines[li];
+                if (skipLine(line)) continue;
+
+                // Clean up the customer name line
+                let customerName = line
+                    .replace(/Valid\s+For.*$/i, '')
+                    .replace(/LLC\s*PO.*/i, 'LLC')      // "Exchange Street LLCPO Box" → "Exchange Street LLC"
+                    .replace(/\s*PO\s*Box.*$/i, '')
+                    .replace(/\s*Quote\s*#.*$/i, '')
+                    .replace(/\s*Estimate\s*#.*$/i, '')
+                    .trim();
+
+                if (customerName && customerName.length > 2) {
+                    document.getElementById('custName').value = customerName;
+                    lookupCustomer(customerName);
+                    nameFound = true;
+
+                    // Now look for the address: the next line that starts with a street number
+                    for (let ai = li + 1; ai < Math.min(li + 5, lines.length); ai++) {
+                        const aLine = lines[ai];
+                        if (/^\d+\s+[A-Za-z]/.test(aLine)) {  // starts with house number
+                            let addr = aLine
+                                .replace(/Quote\s*#?\s*:?\s*\d+.*/i, '')
+                                .replace(/Estimate\s*#?\s*:?\s*\d+.*/i, '')
+                                .replace(/Valid\s+For.*$/i, '')
+                                .replace(/\b([A-Z]{2})\s+\1\b/g, '$1')   // "OH OH" → "OH"
+                                .trim();
+                            if (addr) document.getElementById('custAddr').value = addr;
+                            break;
+                        }
+                    }
+                    break;
+                }
             }
         }
 
@@ -1751,8 +1774,9 @@ Photo documentation before/after available upon request.`
         document.querySelectorAll('.svc-wrapper').forEach(wrapper => {
             const name = getServiceName(wrapper);
             const amount = parseFloat(wrapper.querySelector('.svc-amt').value) || 0;
+            const description = wrapper.querySelector('.svc-desc')?.value?.trim() || '';
             if (name && amount > 0) {
-                services.push({ name, amount });
+                services.push({ name, amount, description });
                 subtotal += amount;
             }
         });

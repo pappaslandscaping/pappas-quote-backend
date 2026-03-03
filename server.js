@@ -579,230 +579,277 @@ async function generateQuotePDF(quote) {
   try {
     console.log('Starting Quote PDF generation...');
     const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+    const fs = require('fs');
+    const path = require('path');
     console.log('pdf-lib loaded for quote PDF');
-    
+
     const pdfDoc = await PDFDocument.create();
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    
+
+    // Try to embed logo
+    let logoImage = null;
+    try {
+      const logoPath = path.join(__dirname, 'public', 'logo.png');
+      if (fs.existsSync(logoPath)) {
+        const logoBytes = fs.readFileSync(logoPath);
+        logoImage = await pdfDoc.embedPng(logoBytes);
+      }
+    } catch (logoErr) {
+      console.log('Could not embed logo:', logoErr.message);
+    }
+
     const pageWidth = 612;
     const pageHeight = 792;
     const margin = 50;
     const contentWidth = pageWidth - (margin * 2);
-    
+
     // Brand colors
     const darkGreen = rgb(0.18, 0.25, 0.24); // #2e403d
     const limeGreen = rgb(0.79, 0.87, 0.50); // #c9dd80
     const black = rgb(0, 0, 0);
     const gray = rgb(0.4, 0.45, 0.45);
+    const midGray = rgb(0.55, 0.58, 0.58);
     const lightGray = rgb(0.97, 0.98, 0.96);
-    
+
     let services = [];
     try {
       services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
     } catch (e) {
       services = [];
     }
-    
+
     const quoteNumber = quote.quote_number || 'Q-' + quote.id;
     const quoteDate = new Date(quote.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const validUntil = new Date(new Date(quote.created_at).getTime() + 30*24*60*60*1000).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    
+
+    // Helper: word-wrap text and return final Y position
+    function wrapText(page, text, x, y, maxWidth, font, size, color, lineHeight = 1.4) {
+      const words = text.split(' ');
+      let line = '';
+      let curY = y;
+      for (const word of words) {
+        const test = line + (line ? ' ' : '') + word;
+        if (font.widthOfTextAtSize(test, size) > maxWidth && line) {
+          page.drawText(line, { x, y: curY, size, font, color });
+          line = word;
+          curY -= size * lineHeight;
+        } else {
+          line = test;
+        }
+      }
+      if (line) { page.drawText(line, { x, y: curY, size, font, color }); curY -= size * lineHeight; }
+      return curY;
+    }
+
+    // Helper: estimate wrapped text height
+    function wrapHeight(text, maxWidth, font, size, lineHeight = 1.4) {
+      const words = text.split(' ');
+      let line = '';
+      let lines = 0;
+      for (const word of words) {
+        const test = line + (line ? ' ' : '') + word;
+        if (font.widthOfTextAtSize(test, size) > maxWidth && line) {
+          lines++;
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines++;
+      return lines * size * lineHeight;
+    }
+
+    // Helper: add a new continuation page
+    function addContinuationPage() {
+      const newPage = pdfDoc.addPage([pageWidth, pageHeight]);
+      let py = pageHeight - margin;
+      if (logoImage) {
+        const logoDims = logoImage.scale(0.22);
+        newPage.drawImage(logoImage, { x: margin, y: py - logoDims.height, width: logoDims.width, height: logoDims.height });
+      }
+      newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin + (logoImage ? logoImage.scale(0.22).width + 10 : 0), y: py - 10, size: 10, font: helvetica, color: gray });
+      py -= 40;
+      newPage.drawRectangle({ x: margin, y: py, width: contentWidth, height: 3, color: limeGreen });
+      py -= 20;
+      return { page: newPage, y: py };
+    }
+
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
     let y = pageHeight - margin;
-    
+
     // ===== HEADER =====
-    // Company name
-    page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 22, font: helveticaBold, color: darkGreen });
-    y -= 18;
-    page.drawText('Professional Lawn Care Services', { x: margin, y, size: 11, font: helvetica, color: gray });
-    
-    // Contact info on right
-    page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 120, y: pageHeight - margin, size: 10, font: helvetica, color: gray });
-    page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 120, y: pageHeight - margin - 13, size: 10, font: helvetica, color: gray });
-    page.drawText('(440) 886-7318', { x: pageWidth - margin - 120, y: pageHeight - margin - 26, size: 10, font: helvetica, color: gray });
-    
-    y -= 15;
-    
+    if (logoImage) {
+      const logoDims = logoImage.scale(0.28);
+      page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
+      // Contact info to the right of logo
+      const cx = pageWidth - margin - 145;
+      page.drawText('pappaslandscaping.com', { x: cx, y, size: 9, font: helvetica, color: gray });
+      page.drawText('hello@pappaslandscaping.com', { x: cx, y: y - 13, size: 9, font: helvetica, color: gray });
+      page.drawText('(440) 886-7318', { x: cx, y: y - 26, size: 9, font: helvetica, color: gray });
+      y -= logoDims.height + 8;
+    } else {
+      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: helveticaBold, color: darkGreen });
+      page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 145, y, size: 9, font: helvetica, color: gray });
+      page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 145, y: y - 13, size: 9, font: helvetica, color: gray });
+      page.drawText('(440) 886-7318', { x: pageWidth - margin - 145, y: y - 26, size: 9, font: helvetica, color: gray });
+      y -= 28;
+    }
+
     // Lime green accent line
     page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
-    
-    y -= 35;
-    
+    y -= 30;
+
     // ===== QUOTE BADGE =====
-    page.drawRectangle({ x: margin, y: y - 8, width: 130, height: 28, color: darkGreen });
-    page.drawText(`Quote #${quoteNumber}`, { x: margin + 12, y: y - 2, size: 12, font: helveticaBold, color: limeGreen });
-    
-    y -= 50;
-    
+    page.drawRectangle({ x: margin, y: y - 8, width: 140, height: 26, color: darkGreen });
+    page.drawText(`QUOTE  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
+    y -= 46;
+
     // ===== PREPARED FOR / QUOTE DETAILS =====
-    // Left box - Prepared For (with lime border)
-    page.drawRectangle({ x: margin, y: y - 85, width: 240, height: 90, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
-    page.drawText('PREPARED FOR', { x: margin + 15, y: y - 5, size: 9, font: helveticaBold, color: gray });
-    page.drawText(quote.customer_name || '', { x: margin + 15, y: y - 22, size: 14, font: helveticaBold, color: darkGreen });
-    page.drawText(quote.customer_address || '', { x: margin + 15, y: y - 38, size: 10, font: helvetica, color: black });
+    const infoBoxH = 95;
+    page.drawRectangle({ x: margin, y: y - infoBoxH, width: 250, height: infoBoxH, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
+    page.drawText('PREPARED FOR', { x: margin + 14, y: y - 10, size: 8, font: helveticaBold, color: midGray });
+    page.drawText(quote.customer_name || '', { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
+    let infoY = y - 42;
+    if (quote.customer_address) {
+      page.drawText(quote.customer_address, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+      infoY -= 14;
+    }
     if (quote.customer_email) {
-      page.drawText(quote.customer_email, { x: margin + 15, y: y - 52, size: 10, font: helvetica, color: black });
+      page.drawText(quote.customer_email, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+      infoY -= 14;
     }
     if (quote.customer_phone) {
-      page.drawText(quote.customer_phone, { x: margin + 15, y: y - 66, size: 10, font: helvetica, color: black });
+      page.drawText(quote.customer_phone, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
     }
-    
+
     // Right side - Quote Details
-    page.drawText('QUOTE DETAILS', { x: margin + 270, y: y - 5, size: 9, font: helveticaBold, color: gray });
-    page.drawText(`Date: ${quoteDate}`, { x: margin + 270, y: y - 22, size: 10, font: helvetica, color: black });
-    page.drawText('Valid For: 30 Days', { x: margin + 270, y: y - 38, size: 10, font: helvetica, color: black });
-    page.drawText(`Quote #: ${quoteNumber}`, { x: margin + 270, y: y - 54, size: 10, font: helvetica, color: black });
-    
-    y -= 110;
-    
-    // ===== SERVICES SECTION =====
-    // Dark green header
+    const dx = margin + 275;
+    page.drawText('QUOTE DETAILS', { x: dx, y: y - 10, size: 8, font: helveticaBold, color: midGray });
+    page.drawText(`Date:`, { x: dx, y: y - 26, size: 9, font: helveticaBold, color: gray });
+    page.drawText(quoteDate, { x: dx + 30, y: y - 26, size: 9, font: helvetica, color: black });
+    page.drawText(`Valid For:`, { x: dx, y: y - 40, size: 9, font: helveticaBold, color: gray });
+    page.drawText('30 Days', { x: dx + 48, y: y - 40, size: 9, font: helvetica, color: black });
+    page.drawText(`Quote #:`, { x: dx, y: y - 54, size: 9, font: helveticaBold, color: gray });
+    page.drawText(String(quoteNumber), { x: dx + 44, y: y - 54, size: 9, font: helvetica, color: black });
+    page.drawText(`Type:`, { x: dx, y: y - 68, size: 9, font: helveticaBold, color: gray });
+    page.drawText(quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Standard Quote', { x: dx + 28, y: y - 68, size: 9, font: helvetica, color: black });
+
+    y -= infoBoxH + 18;
+
+    // ===== SERVICES SECTION HEADER =====
     page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Services Included', { x: margin + 15, y: y + 2, size: 12, font: helveticaBold, color: rgb(1, 1, 1) });
-    
-    y -= 35;
-    
-    // Conditional layout: two columns for 6+ services, single column for fewer
-    const useTwoColumns = services.length >= 6;
-    const colWidth = (contentWidth - 2) / 2;
-    const rowHeight = 22;
+    page.drawText('Services Included', { x: margin + 14, y: y + 2, size: 12, font: helveticaBold, color: rgb(1, 1, 1) });
+    y -= 33;
 
-    if (useTwoColumns) {
-      // Two-column table header
-      page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 22, color: rgb(0.95, 0.95, 0.95) });
-      page.drawText('Service', { x: margin + 10, y: y, size: 9, font: helveticaBold, color: gray });
-      page.drawText('Amount', { x: margin + colWidth - 50, y: y, size: 9, font: helveticaBold, color: gray });
-      page.drawText('Service', { x: margin + colWidth + 10, y: y, size: 9, font: helveticaBold, color: gray });
-      page.drawText('Amount', { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: gray });
-      page.drawLine({ start: { x: margin + colWidth, y: y + 5 }, end: { x: margin + colWidth, y: y - 17 }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
-      y -= 24;
+    // Table column header
+    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.93, 0.94, 0.93) });
+    page.drawText('SERVICE / DESCRIPTION', { x: margin + 10, y: y - 1, size: 8, font: helveticaBold, color: gray });
+    page.drawText('AMOUNT', { x: pageWidth - margin - 55, y: y - 1, size: 8, font: helveticaBold, color: gray });
+    y -= 22;
 
-      // Service rows - two columns
-      for (let i = 0; i < services.length; i += 2) {
-        if (y - rowHeight < 80) {
-          const newPage = pdfDoc.addPage([pageWidth, pageHeight]);
-          y = pageHeight - margin;
-          newPage.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 16, font: helveticaBold, color: darkGreen });
-          newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin, y: y - 18, size: 10, font: helvetica, color: gray });
-          y -= 50;
-          newPage.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 22, color: rgb(0.95, 0.95, 0.95) });
-          newPage.drawText('Service', { x: margin + 10, y: y, size: 9, font: helveticaBold, color: gray });
-          newPage.drawText('Amount', { x: margin + colWidth - 50, y: y, size: 9, font: helveticaBold, color: gray });
-          newPage.drawText('Service', { x: margin + colWidth + 10, y: y, size: 9, font: helveticaBold, color: gray });
-          newPage.drawText('Amount', { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: gray });
-          newPage.drawLine({ start: { x: margin + colWidth, y: y + 5 }, end: { x: margin + colWidth, y: y - 17 }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
-          y -= 24;
+    // ===== SERVICE ROWS (single column with descriptions) =====
+    for (let i = 0; i < services.length; i++) {
+      const svc = services[i];
+      const desc = svc.description || '';
+      const descLineHeight = 1.35;
+      const descSize = 8;
+      const nameSize = 10;
+      const descMaxWidth = contentWidth - 75; // leave room for amount column
+
+      // Calculate row height
+      let rowH = nameSize * 1.6 + 6; // name + padding
+      if (desc) {
+        const descLines = desc.split('\n');
+        for (const dLine of descLines) {
+          if (!dLine.trim()) { rowH += 4; continue; }
+          rowH += wrapHeight(dLine, descMaxWidth, helvetica, descSize, descLineHeight);
         }
-
-        const currentPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-        const bgColor = (i / 2) % 2 === 0 ? rgb(1, 1, 1) : rgb(0.98, 0.98, 0.98);
-        currentPage.drawRectangle({ x: margin, y: y - rowHeight + 15, width: contentWidth, height: rowHeight, color: bgColor });
-
-        const service1 = services[i];
-        currentPage.drawText(service1.name, { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
-        currentPage.drawText(`$${parseFloat(service1.amount).toFixed(2)}`, { x: margin + colWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
-
-        if (i + 1 < services.length) {
-          const service2 = services[i + 1];
-          currentPage.drawText(service2.name, { x: margin + colWidth + 10, y: y, size: 9, font: helvetica, color: black });
-          currentPage.drawText(`$${parseFloat(service2.amount).toFixed(2)}`, { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
-        }
-
-        currentPage.drawLine({ start: { x: margin + colWidth, y: y + 7 }, end: { x: margin + colWidth, y: y - rowHeight + 15 }, thickness: 1, color: rgb(0.9, 0.9, 0.9) });
-        y -= rowHeight;
+        rowH += 8; // bottom padding
       }
-    } else {
-      // Single-column table header
-      page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 22, color: rgb(0.95, 0.95, 0.95) });
-      page.drawText('Service', { x: margin + 10, y: y, size: 9, font: helveticaBold, color: gray });
-      page.drawText('Amount', { x: pageWidth - margin - 60, y: y, size: 9, font: helveticaBold, color: gray });
-      y -= 24;
 
-      // Service rows - single column
-      for (let i = 0; i < services.length; i++) {
-        if (y - rowHeight < 80) {
-          const newPage = pdfDoc.addPage([pageWidth, pageHeight]);
-          y = pageHeight - margin;
-          newPage.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 16, font: helveticaBold, color: darkGreen });
-          newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin, y: y - 18, size: 10, font: helvetica, color: gray });
-          y -= 50;
-          newPage.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 22, color: rgb(0.95, 0.95, 0.95) });
-          newPage.drawText('Service', { x: margin + 10, y: y, size: 9, font: helveticaBold, color: gray });
-          newPage.drawText('Amount', { x: pageWidth - margin - 60, y: y, size: 9, font: helveticaBold, color: gray });
-          y -= 24;
-        }
-
-        const currentPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-        const bgColor = i % 2 === 0 ? rgb(1, 1, 1) : rgb(0.98, 0.98, 0.98);
-        currentPage.drawRectangle({ x: margin, y: y - rowHeight + 15, width: contentWidth, height: rowHeight, color: bgColor });
-
-        const service = services[i];
-        currentPage.drawText(service.name, { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
-        currentPage.drawText(`$${parseFloat(service.amount).toFixed(2)}`, { x: pageWidth - margin - 60, y: y, size: 9, font: helveticaBold, color: black });
-        y -= rowHeight;
+      // New page if needed
+      if (y - rowH < 100) {
+        const cont = addContinuationPage();
+        page = cont.page;
+        y = cont.y;
+        const cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+        cp.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.93, 0.94, 0.93) });
+        cp.drawText('SERVICE / DESCRIPTION', { x: margin + 10, y: y - 1, size: 8, font: helveticaBold, color: gray });
+        cp.drawText('AMOUNT', { x: pageWidth - margin - 55, y: y - 1, size: 8, font: helveticaBold, color: gray });
+        y -= 22;
       }
+
+      const cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+      const bg = i % 2 === 0 ? rgb(1, 1, 1) : rgb(0.97, 0.98, 0.97);
+      cp.drawRectangle({ x: margin, y: y - rowH + nameSize * 0.4, width: contentWidth, height: rowH, color: bg });
+
+      // Service name (bold dark green)
+      cp.drawText(svc.name, { x: margin + 10, y, size: nameSize, font: helveticaBold, color: darkGreen });
+      // Amount (right-aligned bold)
+      const amtStr = `$${parseFloat(svc.amount).toFixed(2)}`;
+      cp.drawText(amtStr, { x: pageWidth - margin - 55, y, size: nameSize, font: helveticaBold, color: black });
+
+      // Description lines
+      if (desc) {
+        let dy = y - nameSize * 1.5;
+        const descLines = desc.split('\n');
+        for (const dLine of descLines) {
+          if (!dLine.trim()) { dy -= 4; continue; }
+          dy = wrapText(cp, dLine, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
+        }
+      }
+
+      y -= rowH;
     }
-    
-    y -= 15;
-    
-    // Get current page (last page in document) for remaining content
-    let currentPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-    
-    // Check if we need a new page for totals
-    if (y < 200) {
-      currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
-      y = pageHeight - margin - 30;
-    }
-    
-    // ===== TOTALS BOX =====
-    currentPage.drawRectangle({ x: margin, y: y - 95, width: contentWidth, height: 100, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
-    
-    // Subtotal
-    currentPage.drawText('Subtotal', { x: margin + 15, y: y - 15, size: 10, font: helvetica, color: gray });
-    currentPage.drawText(`$${parseFloat(quote.subtotal).toFixed(2)}`, { x: pageWidth - margin - 80, y: y - 15, size: 10, font: helvetica, color: black });
-    
-    // Tax
-    currentPage.drawText(`Tax (${quote.tax_rate || 8}%)`, { x: margin + 15, y: y - 32, size: 10, font: helvetica, color: gray });
-    currentPage.drawText(`$${parseFloat(quote.tax_amount).toFixed(2)}`, { x: pageWidth - margin - 80, y: y - 32, size: 10, font: helvetica, color: black });
-    
-    // Lime divider
-    currentPage.drawRectangle({ x: margin + 15, y: y - 45, width: contentWidth - 30, height: 3, color: limeGreen });
-    
-    // Total
-    currentPage.drawText('Total', { x: margin + 15, y: y - 65, size: 14, font: helveticaBold, color: darkGreen });
-    currentPage.drawText(`$${parseFloat(quote.total).toFixed(2)}`, { x: pageWidth - margin - 90, y: y - 65, size: 18, font: helveticaBold, color: darkGreen });
-    
-    y -= 100;
-    
-    // Monthly payment if applicable
-    if (quote.monthly_payment) {
-      currentPage.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 32, color: darkGreen });
-      currentPage.drawText('Monthly Payment Plan', { x: margin + 15, y: y + 3, size: 11, font: helveticaBold, color: rgb(1, 1, 1) });
-      currentPage.drawText(`$${parseFloat(quote.monthly_payment).toFixed(2)}/mo`, { x: pageWidth - margin - 90, y: y + 3, size: 14, font: helveticaBold, color: limeGreen });
-      y -= 45;
-    }
-    
+
     y -= 10;
-    
-    // ===== VALIDITY WARNING =====
-    currentPage.drawRectangle({ x: margin, y: y - 30, width: contentWidth, height: 35, color: rgb(1, 1, 1), borderColor: rgb(0.83, 0.83, 0.83), borderWidth: 1 });
-    currentPage.drawText('This quote is valid for 30 days. Prices subject to change. Call (440) 886-7318', { x: margin + 12, y: y - 18, size: 9, font: helvetica, color: gray });
-    
-    y -= 50;
-    
+
+    // ===== TOTALS BOX =====
+    let cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+    if (y < 180) {
+      const cont = addContinuationPage();
+      cp = cont.page;
+      y = cont.y;
+    }
+
+    cp.drawRectangle({ x: margin, y: y - 100, width: contentWidth, height: 105, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
+    cp.drawText('Subtotal', { x: margin + 15, y: y - 16, size: 10, font: helvetica, color: gray });
+    cp.drawText(`$${parseFloat(quote.subtotal).toFixed(2)}`, { x: pageWidth - margin - 80, y: y - 16, size: 10, font: helvetica, color: black });
+    cp.drawText(`Tax (${quote.tax_rate || 8}%)`, { x: margin + 15, y: y - 33, size: 10, font: helvetica, color: gray });
+    cp.drawText(`$${parseFloat(quote.tax_amount).toFixed(2)}`, { x: pageWidth - margin - 80, y: y - 33, size: 10, font: helvetica, color: black });
+    cp.drawRectangle({ x: margin + 15, y: y - 48, width: contentWidth - 30, height: 2, color: limeGreen });
+    cp.drawText('TOTAL', { x: margin + 15, y: y - 70, size: 14, font: helveticaBold, color: darkGreen });
+    cp.drawText(`$${parseFloat(quote.total).toFixed(2)}`, { x: pageWidth - margin - 95, y: y - 70, size: 18, font: helveticaBold, color: darkGreen });
+    y -= 115;
+
+    // Monthly payment banner
+    if (quote.monthly_payment) {
+      cp.drawRectangle({ x: margin, y: y - 6, width: contentWidth, height: 32, color: darkGreen });
+      cp.drawText('Monthly Payment Plan', { x: margin + 14, y: y + 3, size: 11, font: helveticaBold, color: rgb(1, 1, 1) });
+      cp.drawText(`$${parseFloat(quote.monthly_payment).toFixed(2)}/mo`, { x: pageWidth - margin - 100, y: y + 3, size: 14, font: helveticaBold, color: limeGreen });
+      y -= 46;
+    }
+
+    y -= 10;
+
+    // ===== NEXT STEPS =====
+    cp.drawRectangle({ x: margin, y: y - 48, width: contentWidth, height: 52, color: rgb(0.97, 0.99, 0.97), borderColor: limeGreen, borderWidth: 1 });
+    cp.drawText('How to Accept This Quote', { x: margin + 14, y: y - 10, size: 10, font: helveticaBold, color: darkGreen });
+    cp.drawText('Review your quote email and click "View Your Quote" to accept online and sign your service agreement.', { x: margin + 14, y: y - 25, size: 8, font: helvetica, color: gray });
+    cp.drawText('Questions? Call or text (440) 886-7318 — we\'re happy to help!', { x: margin + 14, y: y - 38, size: 8, font: helvetica, color: gray });
+    y -= 65;
+
     // ===== FOOTER =====
-    currentPage.drawRectangle({ x: margin, y: y + 5, width: contentWidth, height: 3, color: limeGreen });
-    y -= 12;
-    currentPage.drawText('Pappas & Co. Landscaping | PO Box 770057, Lakewood, OH 44107 | (440) 886-7318 | hello@pappaslandscaping.com', { x: margin, y, size: 8, font: helvetica, color: gray });
-    
-    // No signature section - signing is done digitally
-    
+    cp.drawRectangle({ x: margin, y: y + 5, width: contentWidth, height: 3, color: limeGreen });
+    y -= 14;
+    cp.drawText('Pappas & Co. Landscaping  |  PO Box 770057, Lakewood, OH 44107  |  (440) 886-7318  |  hello@pappaslandscaping.com', { x: margin, y, size: 8, font: helvetica, color: gray });
+    cp.drawText(`This quote is valid for 30 days from ${quoteDate}. Prices subject to change after expiration.`, { x: margin, y: y - 12, size: 7.5, font: helvetica, color: rgb(0.65, 0.67, 0.67) });
+
     console.log('Saving Quote PDF...');
     const pdfBytes = await pdfDoc.save();
     console.log('Quote PDF generated successfully, size:', pdfBytes.length, 'bytes');
     return pdfBytes;
-    
+
   } catch (error) {
     console.error('Error generating quote PDF:', error.message);
     console.error('Stack trace:', error.stack);

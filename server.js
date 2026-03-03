@@ -5508,12 +5508,24 @@ app.get('/api/finance/summary', async (req, res) => {
     const revenueLastMonth = parseFloat(paidLastMonth.rows[0].amt);
     const expensesLastMonth = parseFloat(expLastMonth.rows[0].amt);
 
+    // All-time totals (useful when current period has no data, e.g. sandbox QB data)
+    const allTimeRev = await pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid'");
+    const allTimeExp = await pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses");
+    const totalInvoices = await pool.query("SELECT COUNT(*) as cnt FROM invoices");
+    const totalCustomers = await pool.query("SELECT COUNT(*) as cnt FROM customers");
+
     res.json({
       thisMonth: { revenue: revenueMonth, expenses: expensesMonth },
       lastMonth: { revenue: revenueLastMonth, expenses: expensesLastMonth },
       yearToDate: {
         revenue: parseFloat(paidYear.rows[0].amt),
         expenses: parseFloat(expYear.rows[0].amt)
+      },
+      allTime: {
+        revenue: parseFloat(allTimeRev.rows[0].amt),
+        expenses: parseFloat(allTimeExp.rows[0].amt),
+        invoiceCount: parseInt(totalInvoices.rows[0].cnt),
+        customerCount: parseInt(totalCustomers.rows[0].cnt)
       },
       monthlyRevenue: monthlyRevenueArr,
       monthlyExpenses: monthlyExpensesArr,

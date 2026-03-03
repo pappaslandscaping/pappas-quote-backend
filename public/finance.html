@@ -796,9 +796,23 @@
 
         // Populate all finance data
         function populateFinanceData(data) {
-            // Stat cards
-            const revenueThisMonth = data.thisMonth?.revenue || 0;
-            const expensesThisMonth = data.thisMonth?.expenses || 0;
+            // Stat cards — show this month if available, otherwise show all-time
+            let revenueThisMonth = data.thisMonth?.revenue || 0;
+            let expensesThisMonth = data.thisMonth?.expenses || 0;
+            const allTime = data.allTime || {};
+
+            // If this month is empty, show all-time totals with a label change
+            let periodLabel = 'This Month';
+            if (revenueThisMonth === 0 && expensesThisMonth === 0 && allTime.revenue > 0) {
+                revenueThisMonth = allTime.revenue;
+                expensesThisMonth = allTime.expenses;
+                periodLabel = 'All Time';
+                // Update card labels
+                document.querySelectorAll('.stat-card .label').forEach(el => {
+                    if (el.textContent.includes('This Month')) el.textContent = el.textContent.replace('This Month', 'All Time');
+                });
+            }
+
             const profitThisMonth = revenueThisMonth - expensesThisMonth;
 
             document.getElementById('revenueThisMonth').textContent = formatCurrency(revenueThisMonth);
@@ -807,7 +821,7 @@
 
             // Revenue trend
             const lastMonthRevenue = data.lastMonth?.revenue || 0;
-            const revenueDiff = lastMonthRevenue > 0 ? ((revenueThisMonth - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+            const revenueDiff = lastMonthRevenue > 0 ? ((data.thisMonth?.revenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
             const trendElement = document.getElementById('revenueTrend');
             const trendTextElement = document.getElementById('revenueTrendText');
 

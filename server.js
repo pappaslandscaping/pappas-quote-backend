@@ -1498,7 +1498,61 @@ app.post('/api/customers/deduplicate', async (req, res) => {
       merged++;
     }
 
-    res.json({ success: true, groupsMerged: merged, duplicatesRemoved: deleted });
+    // --- Deduplicate invoices by qb_invoice_id (keep lowest id) ---
+    let invoicesDuped = 0;
+    const dupInvoices = await pool.query(`
+      SELECT qb_invoice_id, array_agg(id ORDER BY id ASC) as ids
+      FROM invoices
+      WHERE qb_invoice_id IS NOT NULL
+      GROUP BY qb_invoice_id HAVING COUNT(*) > 1
+    `);
+    for (const row of dupInvoices.rows) {
+      const [keepId, ...removeIds] = row.ids;
+      for (const rid of removeIds) {
+        await pool.query('DELETE FROM invoices WHERE id=$1', [rid]);
+        invoicesDuped++;
+      }
+    }
+
+    // Also deduplicate invoices by invoice_number (keep the one with qb_invoice_id, else lowest id)
+    const dupInvByNum = await pool.query(`
+      SELECT invoice_number, array_agg(id ORDER BY
+        CASE WHEN qb_invoice_id IS NOT NULL THEN 0 ELSE 1 END, id ASC
+      ) as ids
+      FROM invoices
+      WHERE invoice_number IS NOT NULL
+      GROUP BY invoice_number HAVING COUNT(*) > 1
+    `);
+    for (const row of dupInvByNum.rows) {
+      const [keepId, ...removeIds] = row.ids;
+      for (const rid of removeIds) {
+        await pool.query('DELETE FROM invoices WHERE id=$1', [rid]);
+        invoicesDuped++;
+      }
+    }
+
+    // --- Deduplicate expenses by qb_id (keep lowest id) ---
+    let expensesDuped = 0;
+    const dupExpenses = await pool.query(`
+      SELECT qb_id, array_agg(id ORDER BY id ASC) as ids
+      FROM expenses
+      WHERE qb_id IS NOT NULL
+      GROUP BY qb_id HAVING COUNT(*) > 1
+    `);
+    for (const row of dupExpenses.rows) {
+      const [keepId, ...removeIds] = row.ids;
+      for (const rid of removeIds) {
+        await pool.query('DELETE FROM expenses WHERE id=$1', [rid]);
+        expensesDuped++;
+      }
+    }
+
+    res.json({
+      success: true,
+      customers: { groupsMerged: merged, duplicatesRemoved: deleted },
+      invoices: { duplicatesRemoved: invoicesDuped },
+      expenses: { duplicatesRemoved: expensesDuped }
+    });
   } catch (e) {
     console.error('Dedup error:', e);
     res.status(500).json({ success: false, error: e.message });

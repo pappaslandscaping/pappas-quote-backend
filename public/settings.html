@@ -603,8 +603,14 @@
                     result.style.background = '#f0fdf4';
                     result.style.border = '1px solid #bbf7d0';
                     result.style.color = '#166534';
-                    result.textContent = `✓ Done — merged ${data.groupsMerged} duplicate group${data.groupsMerged !== 1 ? 's' : ''}, removed ${data.duplicatesRemoved} duplicate${data.duplicatesRemoved !== 1 ? 's' : ''}.`;
-                    showToast(`Removed ${data.duplicatesRemoved} duplicate customers`);
+                    const c = data.customers, inv = data.invoices, exp = data.expenses;
+                    const parts = [];
+                    if (c.duplicatesRemoved > 0) parts.push(`${c.duplicatesRemoved} duplicate customer${c.duplicatesRemoved !== 1 ? 's' : ''} (${c.groupsMerged} group${c.groupsMerged !== 1 ? 's' : ''} merged, tags preserved)`);
+                    if (inv.duplicatesRemoved > 0) parts.push(`${inv.duplicatesRemoved} duplicate invoice${inv.duplicatesRemoved !== 1 ? 's' : ''}`);
+                    if (exp.duplicatesRemoved > 0) parts.push(`${exp.duplicatesRemoved} duplicate expense${exp.duplicatesRemoved !== 1 ? 's' : ''}`);
+                    result.textContent = parts.length > 0 ? `✓ Removed ${parts.join(', ')}.` : '✓ No duplicates found — your data is clean!';
+                    const total = c.duplicatesRemoved + inv.duplicatesRemoved + exp.duplicatesRemoved;
+                    showToast(total > 0 ? `Removed ${total} duplicates` : 'No duplicates found');
                 } else {
                     result.style.display = 'block';
                     result.style.background = '#fef2f2';

@@ -1434,14 +1434,25 @@ app.get('/api/customers/:id', async (req, res) => {
 // POST /api/customers/deduplicate - Merge duplicate customers (same name)
 app.post('/api/customers/deduplicate', async (req, res) => {
   try {
-    // Find groups of customers with the same name (case-insensitive)
+    // Find groups of customers with the same name (case-insensitive, collapse whitespace, strip emails/QB IDs)
     const dupes = await pool.query(`
-      SELECT LOWER(TRIM(name)) as norm_name, array_agg(id ORDER BY
+      SELECT norm_name, array_agg(id ORDER BY
         CASE WHEN qb_id IS NOT NULL THEN 0 ELSE 1 END, id ASC
       ) as ids, COUNT(*) as cnt
-      FROM customers
-      WHERE name IS NOT NULL AND TRIM(name) != ''
-      GROUP BY LOWER(TRIM(name))
+      FROM (
+        SELECT id, qb_id,
+          TRIM(LOWER(
+            regexp_replace(
+              regexp_replace(
+                regexp_replace(name, '\\s*\\([^)]*@[^)]*\\)', '', 'g'),
+              '\\s+#\\d+.*$', ''),
+            '\\s+', ' ', 'g')
+          )) as norm_name
+        FROM customers
+        WHERE name IS NOT NULL AND TRIM(name) != ''
+      ) sub
+      WHERE norm_name != ''
+      GROUP BY norm_name
       HAVING COUNT(*) > 1
     `);
 
@@ -1559,17 +1570,35 @@ app.post('/api/customers/deduplicate', async (req, res) => {
   }
 });
 
-// POST /api/customers/clean-names - Strip QB ID junk from customer names (e.g. "John Smith #1234 John Smith" → "John Smith")
+// POST /api/customers/clean-names - Strip QB ID junk and embedded emails from customer names
 app.post('/api/customers/clean-names', async (req, res) => {
   try {
-    // Pattern: "Name #digits ..." → "Name"
-    const result = await pool.query(`
+    let totalCleaned = 0;
+
+    // Step 1: Strip " #digits ..." suffix  e.g. "John Smith #1053406 John Smith" → "John Smith"
+    const r1 = await pool.query(`
       UPDATE customers
       SET name = TRIM(regexp_replace(name, '\\s+#\\d+.*$', ''))
       WHERE name ~ '\\s+#\\d+'
-      RETURNING id, name
     `);
-    res.json({ success: true, cleaned: result.rowCount });
+    totalCleaned += r1.rowCount;
+
+    // Step 2: Strip embedded emails in parens  e.g. "Ada VanMoulken (ada@gmail.com)" → "Ada VanMoulken"
+    const r2 = await pool.query(`
+      UPDATE customers
+      SET name = TRIM(regexp_replace(name, '\\s*\\([^)]*@[^)]*\\)', '', 'g'))
+      WHERE name ~ '\\([^)]*@[^)]*\\)'
+    `);
+    totalCleaned += r2.rowCount;
+
+    // Step 3: Collapse multiple spaces left over
+    await pool.query(`
+      UPDATE customers
+      SET name = TRIM(regexp_replace(name, '\\s+', ' ', 'g'))
+      WHERE name ~ '\\s{2,}'
+    `);
+
+    res.json({ success: true, cleaned: totalCleaned });
   } catch (e) {
     console.error('Clean names error:', e);
     res.status(500).json({ success: false, error: e.message });

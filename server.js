@@ -5963,11 +5963,15 @@ async function syncQBExpenses() {
   for (const [col, type] of expCols) {
     try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ${col} ${type}`); } catch(e) {}
   }
-  // Drop NOT NULL constraints that may exist from original schema
+  // Drop NOT NULL constraints and widen columns that may be too narrow
   try { await pool.query(`ALTER TABLE expenses ALTER COLUMN vendor DROP NOT NULL`); } catch(e) {}
   try { await pool.query(`ALTER TABLE expenses ALTER COLUMN description DROP NOT NULL`); } catch(e) {}
   try { await pool.query(`ALTER TABLE expenses ALTER COLUMN category DROP NOT NULL`); } catch(e) {}
   try { await pool.query(`ALTER TABLE expenses ALTER COLUMN expense_date DROP NOT NULL`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE expenses ALTER COLUMN vendor TYPE VARCHAR(500)`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE expenses ALTER COLUMN category TYPE VARCHAR(500)`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE expenses ALTER COLUMN qb_id TYPE VARCHAR(255)`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE expenses ALTER COLUMN description TYPE TEXT`); } catch(e) {}
 
   // Sync Purchases (Bills, Expenses, Checks)
   for (const entityType of ['Purchase', 'Bill']) {

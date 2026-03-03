@@ -869,6 +869,7 @@
         'Mowing (Bi-Weekly)',
         'Mowing (Monthly)',
         'Mowing (One Time Cut)',
+        'Edging (Add-On)',
         // Seasonal Cleanups
         'Spring Cleanup',
         'Fall Cleanup',
@@ -1057,9 +1058,10 @@
             }
         } else {
             // Format 2: Jobber/external estimate
-            // Company info ends at the last line containing "pappaslandscaping.com" or phone
+            // Company info is in the HEADER (first ~15 lines), not footer
             let companyEndIdx = 0;
-            for (let li = 0; li < lines.length; li++) {
+            const headerLimit = Math.min(15, lines.length);
+            for (let li = 0; li < headerLimit; li++) {
                 if (/pappaslandscaping\.com/i.test(lines[li]) ||
                     /^440-886-7318/.test(lines[li]) ||
                     /hello@pappas/i.test(lines[li])) {
@@ -1158,6 +1160,7 @@ Effectiveness: Dylox begins working within 24 hours, penetrating the soil to rea
             'Mulching': `Premium Mulch: We use triple-shredded mulch to enhance your landscape and refresh your beds.
 Professional Application: Mulch will be evenly spread to ensure proper coverage while avoiding buildup around plants and trees.
 Weed Prevention: We will apply Snapshot Weed Preventer to help suppress weed growth and reduce maintenance.`,
+            'Edging (Add-On)': `Edging along sidewalks, driveways (excluding asphalt), and hardscapes. This creates clean lines and helps prevent grass overgrowth. Available as an add-on to mowing service.`,
             'Bed Edging': `Create Defined Edges: We cut a clean, defined edge between your lawn and landscape beds using a professional bed edger.
 Professional Equipment: All edging is done with a commercial-grade bed edger for clean, consistent results.
 Debris Cleanup: We remove any loose soil, grass, or debris created during the edging process.`,
@@ -1282,8 +1285,9 @@ Photo documentation before/after available upon request.`
             if (!sn && /Overseeding/i.test(block))         sn = 'Overseeding';
             if (!sn && /Top\s*Dressing/i.test(block))      sn = 'Top Dressing';
             if (!sn && /Mulching/i.test(block))            sn = 'Mulching';
-            if (!sn && /Bed\s*Edging/i.test(block))        sn = 'Bed Edging';
+            if (!sn && /Add.On.*Edging|Edging.*Add.On/i.test(block)) sn = 'Edging (Add-On)';
             if (!sn && /Bed\s*Cleanup/i.test(block))       sn = 'Backyard Bed Cleanup';
+            if (!sn && /Bed\s*Edging/i.test(block))        sn = 'Bed Edging';
             if (!sn && /Shrub.*Hedge.*Trim|Hedge.*Shrub.*Trim/i.test(block)) sn = 'Shrub & Hedge Trimming';
             if (!sn && /Shrub.*Trim/i.test(block))         sn = 'Shrub Trimming (Per Occurrence)';
             if (!sn && /Weed\s*Control.*Monthly/i.test(block)) sn = 'Weed Control (Monthly)';

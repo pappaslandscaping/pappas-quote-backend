@@ -735,7 +735,7 @@
                         <option value="Billing">Billing</option>
                         <option value="Other Inquiry">Other Inquiry</option>
                     </select>
-                    <input type="text" class="search-input" id="searchInput" placeholder="Search phone number..." oninput="renderTable()">
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search name or phone..." oninput="renderTable()">
                 </div>
             </div>
 
@@ -816,7 +816,7 @@ function renderTable() {
     let filtered = allData.filter(c => {
         if (status && c.status !== status) return false;
         if (type && c.call_type !== type) return false;
-        if (search && !c.from_number.toLowerCase().includes(search)) return false;
+        if (search && !c.from_number.toLowerCase().includes(search) && !(c.customer_name && c.customer_name.toLowerCase().includes(search))) return false;
         return true;
     });
 
@@ -838,7 +838,7 @@ function renderTable() {
 
         return `<tr style="cursor:pointer" onclick="openPanel(${c.id})">
             <td style="color:var(--gray-400);font-size:12px">${date}<br><span style="font-size:11px">${time}</span></td>
-            <td class="td-phone"><a href="tel:${c.from_number}">${formatPhone(c.from_number)}</a></td>
+            <td class="td-phone"><div class="td-name">${c.customer_name ? esc(c.customer_name) : ''}</div><a href="tel:${c.from_number}">${formatPhone(c.from_number)}</a></td>
             <td><span class="call-type-pill">${esc(c.call_type || 'Unknown')}</span></td>
             <td style="font-size:12px;color:var(--gray-500)">${duration}</td>
             <td><span class="status-pill status-${c.status}">${c.status}</span></td>
@@ -890,6 +890,7 @@ function openPanel(id) {
     body.innerHTML = `
         <div class="panel-section">
             <div class="panel-section-title">Call Information</div>
+            ${c.customer_name ? `<div class="panel-field"><span class="panel-field-label">Customer</span><span class="panel-field-value">${esc(c.customer_name)}</span></div>` : ''}
             <div class="panel-field"><span class="panel-field-label">From</span><span class="panel-field-value"><a href="tel:${c.from_number}">${formatPhone(c.from_number)}</a></span></div>
             <div class="panel-field"><span class="panel-field-label">Type</span><span class="panel-field-value">${esc(c.call_type || 'Unknown')}</span></div>
             <div class="panel-field"><span class="panel-field-label">Status</span><span class="panel-field-value"><span class="status-pill status-${c.status}">${c.status}</span></span></div>

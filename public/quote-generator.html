@@ -709,6 +709,7 @@
                     <label>Customer Name</label>
                     <input type="text" id="custName" placeholder="John Smith" autocomplete="off">
                     <div class="customer-dropdown" id="customerDropdown"></div>
+                    <div id="custLookupHint" style="display:none;font-size:12px;color:#e07b39;margin-top:3px;"></div>
                 </div>
 
                 <div class="field">
@@ -996,7 +997,7 @@
 
         // Helper: lines to skip when looking for customer name
         const skipNameLine = l =>
-            /^Date(\s*:)?$/i.test(l) ||
+            /^Date\b/i.test(l) ||           // "Date", "Date:", "Date: 3/3/2026", "Date:3/3/2026"
             /^Valid\s+For/i.test(l) ||
             /^Quote\s*#/i.test(l) ||
             /^Estimate\s*#/i.test(l) ||
@@ -1957,16 +1958,18 @@ Photo documentation before/after available upon request.`
     // Look up customer by name and fill in email/phone if found
     async function lookupCustomer(name) {
         if (!name || name.length < 2) return;
-        
+        const hint = document.getElementById('custLookupHint');
+        if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+
         try {
             const res = await fetch(`/api/customers/search?name=${encodeURIComponent(name)}`);
             const data = await res.json();
-            
+
             if (data.success && data.customers.length > 0) {
                 // Find exact match first, otherwise use first result
                 const exactMatch = data.customers.find(c => c.name.toLowerCase() === name.toLowerCase());
                 const customer = exactMatch || data.customers[0];
-                
+
                 // Only fill if fields are empty
                 if (!document.getElementById('custEmail').value && customer.email) {
                     document.getElementById('custEmail').value = customer.email;
@@ -1975,8 +1978,21 @@ Photo documentation before/after available upon request.`
                 if (!document.getElementById('custPhone').value && bestPhone) {
                     document.getElementById('custPhone').value = bestPhone;
                 }
-                
+
+                // Show hint if customer found but missing contact info
+                if (hint && !customer.email && !bestPhone) {
+                    hint.style.display = 'block';
+                    hint.textContent = 'Customer found but no email/phone on file — enter manually.';
+                }
+
                 console.log('Customer found:', customer.name, customer.email, customer.phone);
+            } else if (data.success) {
+                // Customer not in database
+                if (hint) {
+                    hint.style.display = 'block';
+                    hint.textContent = 'Not in customer database — enter email/phone manually.';
+                }
+                console.log('Customer not found in DB:', name);
             }
         } catch (err) {
             console.log('Customer lookup error:', err);
@@ -1992,9 +2008,11 @@ Photo documentation before/after available upon request.`
         if (custNameInput && dropdown) {
             custNameInput.addEventListener('input', function() {
                 const query = this.value.trim();
-                
+                const hint = document.getElementById('custLookupHint');
+                if (hint) { hint.style.display = 'none'; hint.textContent = ''; }
+
                 if (searchTimeout) clearTimeout(searchTimeout);
-                
+
                 if (query.length < 2) {
                     dropdown.classList.remove('show');
                     return;

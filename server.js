@@ -5942,8 +5942,15 @@ async function syncQBPayments() {
 async function syncQBExpenses() {
   let count = 0;
 
-  // Ensure qb_id column exists on expenses table
-  try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
+  // Ensure all required columns exist on expenses table (may have been created with different schema)
+  const expCols = [
+    ['description', 'TEXT'], ['amount', 'NUMERIC(10,2) DEFAULT 0'], ['category', 'VARCHAR(100)'],
+    ['vendor', 'VARCHAR(255)'], ['expense_date', 'DATE'], ['receipt_url', 'TEXT'],
+    ['notes', 'TEXT'], ['qb_id', 'VARCHAR(100)']
+  ];
+  for (const [col, type] of expCols) {
+    try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS ${col} ${type}`); } catch(e) {}
+  }
 
   // Sync Purchases (Bills, Expenses, Checks)
   for (const entityType of ['Purchase', 'Bill']) {

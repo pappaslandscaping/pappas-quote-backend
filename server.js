@@ -5893,22 +5893,33 @@ async function syncQBInvoices() {
       const status = balance <= 0 && total > 0 ? 'paid' : (inv.DueDate && new Date(inv.DueDate) < new Date() ? 'overdue' : 'sent');
       const invoiceNumber = inv.DocNumber || `QB-${qbId}`;
 
-      // Upsert
-      const existing = await pool.query('SELECT id FROM invoices WHERE qb_invoice_id = $1', [qbId]);
+      // Upsert: match on qb_invoice_id first, then fall back to invoice_number
+      // Use ON CONFLICT to handle the unique constraint on invoice_number
+      const existing = await pool.query(
+        'SELECT id FROM invoices WHERE qb_invoice_id = $1 OR invoice_number = $2 LIMIT 1',
+        [qbId, invoiceNumber]
+      );
       if (existing.rows.length > 0) {
         await pool.query(
-          `UPDATE invoices SET customer_id=$1, customer_name=$2, customer_email=$3, status=$4,
-           subtotal=$5, total=$6, amount_paid=$7, due_date=$8, line_items=$9,
-           paid_at=$10, updated_at=NOW() WHERE qb_invoice_id=$11`,
-          [customerId, customerName, customerEmail, status,
+          `UPDATE invoices SET qb_invoice_id=$1, customer_id=$2, customer_name=$3, customer_email=$4,
+           status=$5, subtotal=$6, total=$7, amount_paid=$8, due_date=$9, line_items=$10,
+           paid_at=$11, updated_at=NOW() WHERE id=$12`,
+          [qbId, customerId, customerName, customerEmail, status,
            total, total, amountPaid, inv.DueDate || null, JSON.stringify(lineItems),
-           status === 'paid' ? (inv.MetaData?.LastUpdatedTime || new Date()) : null, qbId]
+           status === 'paid' ? (inv.MetaData?.LastUpdatedTime || new Date()) : null,
+           existing.rows[0].id]
         );
       } else {
         await pool.query(
           `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, status,
            subtotal, total, amount_paid, due_date, qb_invoice_id, line_items, paid_at, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())
+           ON CONFLICT (invoice_number) DO UPDATE SET
+             qb_invoice_id=EXCLUDED.qb_invoice_id, customer_id=EXCLUDED.customer_id,
+             customer_name=EXCLUDED.customer_name, customer_email=EXCLUDED.customer_email,
+             status=EXCLUDED.status, subtotal=EXCLUDED.subtotal, total=EXCLUDED.total,
+             amount_paid=EXCLUDED.amount_paid, due_date=EXCLUDED.due_date,
+             line_items=EXCLUDED.line_items, paid_at=EXCLUDED.paid_at, updated_at=NOW()`,
           [invoiceNumber, customerId, customerName, customerEmail, status,
            total, total, amountPaid, inv.DueDate || null, qbId, JSON.stringify(lineItems),
            status === 'paid' ? (inv.MetaData?.LastUpdatedTime || new Date()) : null]

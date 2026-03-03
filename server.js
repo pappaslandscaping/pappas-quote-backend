@@ -5312,6 +5312,68 @@ async function nextInvoiceNumber() {
   return `INV-${num + 1}`;
 }
 
+// GET /api/payments - List received payments (paid/partial invoices)
+app.get('/api/payments', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const { search, year, month, limit = 200, offset = 0 } = req.query;
+
+    const params = [];
+    const where = ['amount_paid > 0'];
+    let p = 1;
+
+    if (search) {
+      where.push(`(customer_name ILIKE $${p} OR invoice_number ILIKE $${p})`);
+      params.push('%' + search + '%'); p++;
+    }
+    if (year) {
+      where.push(`EXTRACT(YEAR FROM COALESCE(paid_at, updated_at)) = $${p}`);
+      params.push(parseInt(year)); p++;
+    }
+    if (month) {
+      where.push(`EXTRACT(MONTH FROM COALESCE(paid_at, updated_at)) = $${p}`);
+      params.push(parseInt(month)); p++;
+    }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    params.push(parseInt(limit)); params.push(parseInt(offset));
+
+    const result = await pool.query(
+      `SELECT id, invoice_number, customer_id, customer_name, customer_email,
+              total, amount_paid, status, paid_at, due_date, created_at, qb_invoice_id
+       FROM invoices ${whereClause}
+       ORDER BY COALESCE(paid_at, updated_at) DESC
+       LIMIT $${p} OFFSET $${p+1}`,
+      params
+    );
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_paid),0) as total_received
+       FROM invoices ${whereClause}`,
+      params.slice(0, -2)
+    );
+
+    const monthly = await pool.query(`
+      SELECT to_char(COALESCE(paid_at, updated_at),'YYYY-MM') as month,
+             COUNT(*) as count, SUM(amount_paid) as total
+      FROM invoices
+      WHERE amount_paid > 0 AND COALESCE(paid_at, updated_at) >= NOW() - INTERVAL '12 months'
+      GROUP BY month ORDER BY month
+    `);
+
+    res.json({
+      success: true,
+      payments: result.rows,
+      total: parseInt(countResult.rows[0].cnt),
+      totalReceived: parseFloat(countResult.rows[0].total_received),
+      monthly: monthly.rows
+    });
+  } catch (e) {
+    console.error('Payments API error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // GET /api/invoices - List invoices
 app.get('/api/invoices', async (req, res) => {
   try {

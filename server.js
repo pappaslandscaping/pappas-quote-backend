@@ -1559,6 +1559,23 @@ app.post('/api/customers/deduplicate', async (req, res) => {
   }
 });
 
+// POST /api/customers/clean-names - Strip QB ID junk from customer names (e.g. "John Smith #1234 John Smith" → "John Smith")
+app.post('/api/customers/clean-names', async (req, res) => {
+  try {
+    // Pattern: "Name #digits ..." → "Name"
+    const result = await pool.query(`
+      UPDATE customers
+      SET name = TRIM(regexp_replace(name, '\\s+#\\d+.*$', ''))
+      WHERE name ~ '\\s+#\\d+'
+      RETURNING id, name
+    `);
+    res.json({ success: true, cleaned: result.rowCount });
+  } catch (e) {
+    console.error('Clean names error:', e);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST /api/customers - Create new customer (from Zapier/CopilotCRM sync)
 app.post('/api/customers', async (req, res) => {
   try {

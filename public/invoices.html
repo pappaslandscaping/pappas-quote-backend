@@ -1111,8 +1111,9 @@
             const sorted = [...invoices].sort((a, b) => {
                 let aVal = a[sortCol] ?? a[sortCol.replace('_','')]; // snake_case fallback
                 let bVal = b[sortCol] ?? b[sortCol.replace('_','')];
-                // Numeric sort for total
+                // Numeric sort for total and invoice number
                 if (sortCol === 'total') { aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0; }
+                else if (sortCol === 'invoice_number') { aVal = parseInt(aVal) || 0; bVal = parseInt(bVal) || 0; }
                 // Date sort
                 else if (sortCol === 'due_date' || sortCol === 'created_at') {
                     aVal = aVal ? new Date(aVal).getTime() : 0;

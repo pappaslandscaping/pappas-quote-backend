@@ -441,6 +441,17 @@
                         </button>
                     </div>
                     <div id="dedupResult" style="display:none; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px;"></div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-top: 1px solid var(--gray-100);">
+                        <div>
+                            <div style="font-weight: 500; font-size: 14px;">Clean Up Customer Names</div>
+                            <div style="font-size: 12px; color: var(--gray-500); margin-top: 2px;">Removes QuickBooks ID clutter from names (e.g. "John Smith #1053406 John Smith" → "John Smith")</div>
+                        </div>
+                        <button id="cleanNamesBtn" onclick="cleanCustomerNames()"
+                            style="padding: 8px 16px; background: #1f2b29; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; margin-left: 24px;">
+                            Clean Names
+                        </button>
+                    </div>
+                    <div id="cleanNamesResult" style="display:none; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px;"></div>
                 </div>
             </div>
         </div>
@@ -623,6 +634,35 @@
             }
             btn.disabled = false;
             btn.textContent = 'Run Deduplication';
+        }
+
+        async function cleanCustomerNames() {
+            const btn = document.getElementById('cleanNamesBtn');
+            const result = document.getElementById('cleanNamesResult');
+            btn.disabled = true;
+            btn.textContent = 'Cleaning...';
+            result.style.display = 'none';
+            try {
+                const res = await fetch('/api/customers/clean-names', { method: 'POST' });
+                const data = await res.json();
+                result.style.display = 'block';
+                if (data.success) {
+                    result.style.background = '#f0fdf4';
+                    result.style.border = '1px solid #bbf7d0';
+                    result.style.color = '#166534';
+                    result.textContent = data.cleaned > 0 ? `✓ Cleaned ${data.cleaned} customer name${data.cleaned !== 1 ? 's' : ''}.` : '✓ No messy names found — all clean!';
+                    showToast(data.cleaned > 0 ? `Cleaned ${data.cleaned} names` : 'Names already clean');
+                } else {
+                    result.style.background = '#fef2f2';
+                    result.style.border = '1px solid #fecaca';
+                    result.style.color = '#991b1b';
+                    result.textContent = 'Error: ' + (data.error || 'Unknown error');
+                }
+            } catch (e) {
+                showToast('Name cleanup failed: ' + e.message, true);
+            }
+            btn.disabled = false;
+            btn.textContent = 'Clean Names';
         }
 
         async function disconnectQB() {

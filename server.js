@@ -6033,7 +6033,14 @@ app.get('/api/quickbooks/sync-log', async (req, res) => {
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.get('/api/config/maps-key', (req, res) => res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('*', (req, res) => {
+  // Only fall back to index.html for routes that don't match a static file
+  const filePath = path.join(__dirname, 'public', req.path);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    return res.sendFile(filePath);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

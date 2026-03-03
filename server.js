@@ -5682,7 +5682,13 @@ async function qbApiGet(endpoint) {
     : 'https://sandbox-quickbooks.api.intuit.com';
   const url = `${baseUrl}/v3/company/${realmId}/${endpoint}`;
   const response = await oauthClient.makeApiCall({ url, method: 'GET' });
-  return JSON.parse(response.text());
+  // Handle different intuit-oauth response formats
+  if (response.getJson) return response.getJson();
+  if (response.json) return typeof response.json === 'function' ? await response.json() : response.json;
+  if (response.body) return typeof response.body === 'string' ? JSON.parse(response.body) : response.body;
+  if (typeof response.text === 'function') return JSON.parse(response.text());
+  if (typeof response === 'string') return JSON.parse(response);
+  return response;
 }
 
 // --- OAuth Routes ---

@@ -987,24 +987,34 @@
             document.getElementById('quoteNum').value = estimateNumMatch[1];
         }
         
-        // Extract customer name
-        const nameMatch = text.match(/www\.pappaslandscaping\.com\s+([A-Za-z][A-Za-z\s\.]+?)\s+\d{3,5}\s+/);
-        if (nameMatch) {
-            const customerName = nameMatch[1].trim();
-            document.getElementById('custName').value = customerName;
-            
-            // Try to look up customer details (email, phone) from database
-            lookupCustomer(customerName);
+        // Extract customer name from "PREPARED FOR" section
+        // PDF format: "PREPARED FOR  Date:X/X/XXXX\n<Customer Name> [junk]\n<Address>"
+        const preparedForMatch = text.match(/PREPARED\s+FOR[^\n]*\n([^\n]+)/i);
+        if (preparedForMatch) {
+            let customerName = preparedForMatch[1]
+                .replace(/Valid\s+For.*$/i, '')     // strip "Valid For: 30 Days"
+                .replace(/LLC\s*PO.*/i, 'LLC')      // handle "Exchange Street LLCPO Box..." → "Exchange Street LLC"
+                .replace(/\s*PO\s*Box.*$/i, '')     // strip any remaining "PO Box ..."
+                .replace(/\s*Quote\s*#.*$/i, '')    // strip "Quote #:1506" if on same line
+                .trim();
+            if (customerName) {
+                document.getElementById('custName').value = customerName;
+                // Look up customer details (email, phone) from database
+                lookupCustomer(customerName);
+            }
         }
 
-        // Extract PROPERTY ADDRESS
-        const propertyAddrMatch = text.match(/Property Address:\s*(\d+\s+[A-Za-z]+\s+(?:Avenue|Ave|Street|St|Lane|Ln|Drive|Dr|Road|Rd|Boulevard|Blvd|Way)[^,]*),?\s*(Lakewood|Cleveland|Rocky River|Bay Village|Brook Park|Westlake|Fairview Park|Parma)?\s*(?:OH)?,?\s*(\d{5})?/i);
-        if (propertyAddrMatch) {
-            let addr = propertyAddrMatch[1].trim();
-            if (propertyAddrMatch[2]) addr += ', ' + propertyAddrMatch[2];
-            if (propertyAddrMatch[3]) addr += ' OH ' + propertyAddrMatch[3];
-            else addr += ' OH';
-            document.getElementById('custAddr').value = addr;
+        // Extract address: line after the customer name in the PREPARED FOR block
+        const addrLineMatch = text.match(/PREPARED\s+FOR[^\n]*\n[^\n]+\n([^\n]+)/i);
+        if (addrLineMatch) {
+            let addr = addrLineMatch[1]
+                .replace(/Quote\s*#?\s*:?\s*\d+.*/i, '')   // strip "Quote #:1506" and everything after
+                .replace(/Valid\s+For.*$/i, '')              // strip "Valid For:..." if on same line
+                .replace(/\b([A-Z]{2})\s+\1\b/g, '$1')     // fix double state code: "OH OH" → "OH"
+                .trim();
+            if (addr) {
+                document.getElementById('custAddr').value = addr;
+            }
         }
 
         // Service descriptions — sourced from Pappas & Co. services list
@@ -1448,6 +1458,13 @@ Photo documentation before/after available upon request.`
         }
         document.getElementById('docTotalLabel').textContent = quoteType === 'monthly' ? 'Annual Total' : 'Total';
 
+        // Format description: bold any "Label:" text at the start of each line
+        function formatDesc(desc) {
+            return desc
+                .replace(/\n/g, '<br>')
+                .replace(/(^|<br>)([^<:]{1,50}):/g, '$1<strong>$2:</strong>');
+        }
+
         let html = '';
         let sub = 0;
         document.querySelectorAll('.svc-wrapper').forEach(wrapper => {
@@ -1458,7 +1475,7 @@ Photo documentation before/after available upon request.`
                 html += `<tr>
                     <td>
                         <div class="svc-title">${n}</div>
-                        ${desc ? `<div class="svc-description">${desc.replace(/\n/g, '<br>')}</div>` : ''}
+                        ${desc ? `<div class="svc-description">${formatDesc(desc)}</div>` : ''}
                     </td>
                     <td class="svc-amount">${fmt(a)}</td>
                 </tr>`;

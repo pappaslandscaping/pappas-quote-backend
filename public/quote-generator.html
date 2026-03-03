@@ -987,56 +987,92 @@
             document.getElementById('quoteNum').value = estimateNumMatch[1];
         }
         
-        // Extract customer name and address from "PREPARED FOR" section.
-        // PDF text items are each on their own line when joined with \n, so we
-        // can't rely on layout — instead scan line-by-line after "PREPARED FOR".
+        // ── Extract customer name & address ──
+        // Supports two PDF formats:
+        //   1) Pappas-generated quote: has "PREPARED FOR" header
+        //   2) Jobber/estimate: customer name listed after company info block,
+        //      property address labeled "Property Address: ..."
         const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-        const prepIdx = lines.findIndex(l => /PREPARED\s*FOR/i.test(l));
-        if (prepIdx !== -1) {
-            // Skip date / validity / quote-number lines; first remaining line is customer name
-            const skipLine = l =>
-                /^Date:/i.test(l) ||
-                /^Valid\s+For/i.test(l) ||
-                /^Quote\s*#/i.test(l) ||
-                /^Estimate\s*#/i.test(l) ||
-                /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(l) ||   // bare date
-                l.length < 2;
 
-            let nameFound = false;
+        // Helper: lines to skip when looking for customer name
+        const skipNameLine = l =>
+            /^Date(\s*:)?$/i.test(l) ||
+            /^Valid\s+For/i.test(l) ||
+            /^Quote\s*#/i.test(l) ||
+            /^Estimate\s*#/i.test(l) ||
+            /^Property Address/i.test(l) ||
+            /^Description$/i.test(l) ||
+            /^Cost\/Rate$/i.test(l) ||
+            /^Qty\/Hr$/i.test(l) ||
+            /^Qty$/i.test(l) ||
+            /^Total$/i.test(l) ||
+            /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(l) ||            // bare date 3/3/2026
+            /^[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}$/.test(l) ||    // "Mar 03, 2026"
+            /^\d{3,6}$/.test(l) ||                               // bare number (estimate #)
+            /^PO Box\b/i.test(l) ||                              // billing PO Box
+            /\b(OH|IN|PA|MI|KY|WV|NY|FL|CA|TX)\s+\d{5}/.test(l) || // city/state/zip line
+            l.length < 2;
+
+        // ── Property Address label (Jobber format) → address field ──
+        const propAddrLine = lines.find(l => /^Property Address:\s*/i.test(l));
+        if (propAddrLine) {
+            const addr = propAddrLine.replace(/^Property Address:\s*/i, '').trim();
+            if (addr) document.getElementById('custAddr').value = addr;
+        }
+
+        // ── Customer name ──
+        const prepIdx = lines.findIndex(l => /PREPARED\s*FOR/i.test(l));
+
+        if (prepIdx !== -1) {
+            // Format 1: Pappas-generated quote with PREPARED FOR header
             for (let li = prepIdx + 1; li < Math.min(prepIdx + 8, lines.length); li++) {
                 const line = lines[li];
-                if (skipLine(line)) continue;
-
-                // Clean up the customer name line
+                if (skipNameLine(line)) continue;
                 let customerName = line
                     .replace(/Valid\s+For.*$/i, '')
-                    .replace(/LLC\s*PO.*/i, 'LLC')      // "Exchange Street LLCPO Box" → "Exchange Street LLC"
+                    .replace(/LLC\s*PO.*/i, 'LLC')
                     .replace(/\s*PO\s*Box.*$/i, '')
                     .replace(/\s*Quote\s*#.*$/i, '')
                     .replace(/\s*Estimate\s*#.*$/i, '')
                     .trim();
-
                 if (customerName && customerName.length > 2) {
                     document.getElementById('custName').value = customerName;
                     lookupCustomer(customerName);
-                    nameFound = true;
-
-                    // Now look for the address: the next line that starts with a street number
-                    for (let ai = li + 1; ai < Math.min(li + 5, lines.length); ai++) {
-                        const aLine = lines[ai];
-                        if (/^\d+\s+[A-Za-z]/.test(aLine)) {  // starts with house number
-                            let addr = aLine
-                                .replace(/Quote\s*#?\s*:?\s*\d+.*/i, '')
-                                .replace(/Estimate\s*#?\s*:?\s*\d+.*/i, '')
-                                .replace(/Valid\s+For.*$/i, '')
-                                .replace(/\b([A-Z]{2})\s+\1\b/g, '$1')   // "OH OH" → "OH"
-                                .trim();
-                            if (addr) document.getElementById('custAddr').value = addr;
-                            break;
+                    // Address fallback if no Property Address label was found
+                    if (!document.getElementById('custAddr').value) {
+                        for (let ai = li + 1; ai < Math.min(li + 5, lines.length); ai++) {
+                            if (/^\d+\s+[A-Za-z]/.test(lines[ai])) {
+                                let addr = lines[ai]
+                                    .replace(/Quote\s*#?\s*:?\s*\d+.*/i, '')
+                                    .replace(/\b([A-Z]{2})\s+\1\b/g, '$1')
+                                    .trim();
+                                if (addr) document.getElementById('custAddr').value = addr;
+                                break;
+                            }
                         }
                     }
                     break;
                 }
+            }
+        } else {
+            // Format 2: Jobber/external estimate
+            // Company info ends at the last line containing "pappaslandscaping.com" or phone
+            let companyEndIdx = 0;
+            for (let li = 0; li < lines.length; li++) {
+                if (/pappaslandscaping\.com/i.test(lines[li]) ||
+                    /^440-886-7318/.test(lines[li]) ||
+                    /hello@pappas/i.test(lines[li])) {
+                    companyEndIdx = li;
+                }
+            }
+            // Scan lines after the company block for the first valid customer name
+            const searchLimit = Math.min(companyEndIdx + 20, lines.length);
+            for (let li = companyEndIdx + 1; li < searchLimit; li++) {
+                const line = lines[li];
+                if (skipNameLine(line)) continue;
+                document.getElementById('custName').value = line;
+                lookupCustomer(line);
+                break;
             }
         }
 
@@ -1935,8 +1971,9 @@ Photo documentation before/after available upon request.`
                 if (!document.getElementById('custEmail').value && customer.email) {
                     document.getElementById('custEmail').value = customer.email;
                 }
-                if (!document.getElementById('custPhone').value && customer.phone) {
-                    document.getElementById('custPhone').value = customer.phone;
+                const bestPhone = customer.phone || customer.mobile || '';
+                if (!document.getElementById('custPhone').value && bestPhone) {
+                    document.getElementById('custPhone').value = bestPhone;
                 }
                 
                 console.log('Customer found:', customer.name, customer.email, customer.phone);

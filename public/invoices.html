@@ -1066,7 +1066,8 @@
                 if (params.toString()) url += '?' + params.toString();
 
                 const response = await fetch(url);
-                invoices = await response.json();
+                const data = await response.json();
+                invoices = data.invoices || data || [];
 
                 renderInvoices();
             } catch (error) {

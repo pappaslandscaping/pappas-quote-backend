@@ -5458,8 +5458,9 @@ app.get('/api/finance/summary', async (req, res) => {
     await pool.query(`CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY, description TEXT, amount NUMERIC(10,2) DEFAULT 0,
       category VARCHAR(100), vendor VARCHAR(255), expense_date DATE DEFAULT CURRENT_DATE,
-      receipt_url TEXT, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      receipt_url TEXT, notes TEXT, qb_id VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+    try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
@@ -5773,6 +5774,9 @@ async function syncQBCustomers() {
   let startPos = 1;
   const pageSize = 100;
 
+  // Ensure qb_id column exists on customers table
+  try { await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
+
   while (true) {
     const query = `SELECT * FROM Customer STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
     const data = await qbApiGet(`query?query=${encodeURIComponent(query)}`);
@@ -5937,6 +5941,9 @@ async function syncQBPayments() {
 
 async function syncQBExpenses() {
   let count = 0;
+
+  // Ensure qb_id column exists on expenses table
+  try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
 
   // Sync Purchases (Bills, Expenses, Checks)
   for (const entityType of ['Purchase', 'Bill']) {

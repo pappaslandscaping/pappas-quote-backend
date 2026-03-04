@@ -448,9 +448,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
     y -= 30;
 
-    // SERVICE AGREEMENT badge (dark green bar with Qualy font)
+    // Service Agreement badge (dark green bar with Qualy font)
     page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 26, color: darkGreen });
-    page.drawText(`SERVICE AGREEMENT  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: qualyFont, color: limeGreen });
+    page.drawText(`Service Agreement  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: qualyFont, color: limeGreen });
     y -= 46;
     
     // Two column layout for parties

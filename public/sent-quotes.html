@@ -842,6 +842,18 @@
     let currentStatus = '';
     let searchQuery = '';
 
+    function fmtAddr(addr) {
+        if (!addr) return '';
+        const clean = addr.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+        const m = clean.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+        if (m) {
+            const rm = m[1].match(/^(.+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy)\.?)\s+(.+)$/i);
+            if (rm) return rm[1] + '<br>' + rm[2] + ', ' + m[2] + ' ' + m[3];
+            return m[1] + '<br>' + m[2] + ' ' + m[3];
+        }
+        return addr;
+    }
+
     // Load quotes
     async function loadQuotes() {
         try {
@@ -1198,7 +1210,7 @@
                         <div class="info-box highlight">
                             <div class="info-label">Prepared For</div>
                             <h3>${quote.customer_name}</h3>
-                            <p>${quote.customer_address || ''}</p>
+                            <p>${fmtAddr(quote.customer_address)}</p>
                             <p>${quote.customer_email || ''}</p>
                             <p>${quote.customer_phone || ''}</p>
                         </div>
@@ -1357,7 +1369,7 @@
                     <td>
                         <p class="party-label">Client</p>
                         <p style="margin:0;"><strong>${quote.customer_name}</strong><br>
-                        ${quote.customer_address || ''}<br>
+                        ${fmtAddr(quote.customer_address)}<br>
                         ${quote.customer_email || ''}<br>
                         ${quote.customer_phone || ''}</p>
                     </td>

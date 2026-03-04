@@ -581,11 +581,10 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
         y = pageHeight - margin;
       }
       
-      // Section title with lime underline
-      page.drawText(section.title, { x: margin, y, size: 11, font: helveticaBold, color: darkGreen });
-      y -= 3;
-      page.drawRectangle({ x: margin, y, width: contentWidth, height: 2, color: limeGreen });
-      y -= 14;
+      // Section title — dark green bar with Qualy font (matching Services & Pricing header)
+      page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 22, color: darkGreen });
+      page.drawText(section.title, { x: margin + 10, y: y - 1, size: 10, font: qualyFont, color: limeGreen });
+      y -= 28;
       
       // Section content
       const lines = section.content.split('\n');
@@ -3564,12 +3563,16 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     const pdfBytes = await generateQuotePDF(quote);
     let attachments = null;
 
+    let pdfAttached = false;
     if (pdfBytes) {
-      console.log('✅ Quote PDF generated: ' + pdfBytes.length + ' bytes');
+      const pdfSize = pdfBytes.length;
+      console.log('✅ Quote PDF generated: ' + pdfSize + ' bytes (' + Math.round(pdfSize / 1024) + ' KB)');
       attachments = [{
         filename: `Quote-${quoteNumber}-${quote.customer_name.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
         content: Buffer.from(pdfBytes).toString('base64'),
+        type: 'application/pdf'
       }];
+      pdfAttached = true;
     } else {
       console.error('❌ Quote PDF generation returned null — no attachment will be sent');
     }
@@ -3587,7 +3590,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
       ['sent', id]
     );
 
-    res.json({ success: true, message: 'Quote sent successfully' });
+    res.json({ success: true, message: 'Quote sent successfully', pdfAttached, pdfSize: pdfBytes ? pdfBytes.length : 0 });
   } catch (error) {
     console.error('Error sending quote:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -4190,10 +4193,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
           <h3 style="font-family:'Playfair Display',Georgia,serif;margin:0 0 16px;color:#2e403d;font-size:18px;font-weight:400;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">Agreement Details</h3>
           <p style="margin:0 0 6px;"><span style="color:#64748b;font-size:13px;">Quote Number</span><br><span style="color:#1e293b;font-size:15px;font-weight:600;">#${quoteNumber}</span></p>
           <p style="margin:12px 0 6px;"><span style="color:#64748b;font-size:13px;">Service Address</span><br><span style="color:#1e293b;font-size:15px;">${(() => { const al = formatAddressLines(updatedQuote.customer_address); return al.line2 ? al.line1 + '<br>' + al.line2 : al.line1; })()}</span></p>
-          <div style="margin:12px 0 0;border-top:1px solid #e2e8f0;padding-top:12px;">
-            <span style="color:#64748b;font-size:13px;">Services</span>
-            <div style="margin-top:6px;">${services.map(s => `<span style="display:inline-block;background:#e8f5e9;color:#2e403d;padding:4px 10px;border-radius:4px;font-size:13px;margin:2px 4px 2px 0;">${s.name || s}</span>`).join('')}</div>
-          </div>
+          <p style="margin:12px 0 6px;border-top:1px solid #e2e8f0;padding-top:12px;"><span style="color:#64748b;font-size:13px;">Services</span><br><span style="color:#1e293b;font-size:15px;">${servicesText}</span></p>
           <table style="width:100%;margin-top:16px;border-top:2px solid #c9dd80;border-collapse:collapse;">
             <tr><td style="padding:12px 0;color:#64748b;font-size:14px;">Total</td><td style="padding:12px 0;color:#2e403d;font-size:22px;text-align:right;font-weight:700;">$${parseFloat(updatedQuote.total).toFixed(2)}</td></tr>
             ${updatedQuote.monthly_payment ? `<tr><td style="padding:4px 0;color:#64748b;font-size:14px;">Monthly Payment</td><td style="padding:4px 0;color:#2e403d;font-size:16px;text-align:right;font-weight:600;">$${parseFloat(updatedQuote.monthly_payment).toFixed(2)}/mo</td></tr>` : ''}

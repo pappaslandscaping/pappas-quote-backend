@@ -3916,18 +3916,22 @@ app.get('/api/sent-quotes/view-counts', async (req, res) => {
 // POST /api/sign/:token/request-changes - Request changes to quote (public)
 app.post('/api/sign/:token/request-changes', async (req, res) => {
   try {
-    const { change_type, change_details } = req.body;
-    
-    if (!change_type || !change_details) {
-      return res.status(400).json({ success: false, error: 'Change type and details required' });
+    const { change_type, change_details, change_request } = req.body;
+
+    // Support both formats: {change_type, change_details} and {change_request}
+    const type = change_type || 'general';
+    const details = change_details || change_request;
+
+    if (!details) {
+      return res.status(400).json({ success: false, error: 'Please describe the changes you would like' });
     }
 
     const result = await pool.query(
-      `UPDATE sent_quotes 
+      `UPDATE sent_quotes
        SET status = 'changes_requested', change_type = $1, change_details = $2, changes_requested_at = CURRENT_TIMESTAMP
        WHERE sign_token = $3 AND status NOT IN ('signed', 'contracted', 'declined')
        RETURNING *`,
-      [change_type, change_details, req.params.token]
+      [type, details, req.params.token]
     );
 
     if (result.rows.length === 0) {

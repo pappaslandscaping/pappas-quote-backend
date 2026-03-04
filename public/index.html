@@ -960,11 +960,15 @@ async function loadQuotesColumn() {
         document.getElementById('wf-q-sent-amt').textContent = sentTotal ? fmtMoney(sentTotal) : '';
         document.getElementById('wf-q-signed-amt').textContent = signedTotal ? fmtMoney(signedTotal) : '';
 
-        // Action items
+        // Action items - only show recent (last 30 days) as pending action
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const recentSigned = quotes.filter(q => q.status === 'signed' && new Date(q.signed_at || q.created_at) > thirtyDaysAgo).length;
+        const recentChanges = quotes.filter(q => q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo).length;
+        const recentContracted = quotes.filter(q => q.status === 'contracted' && new Date(q.contract_signed_at || q.created_at) > thirtyDaysAgo).length;
         const actions = [];
-        if (counts.signed > 0) actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: counts.signed, href: 'sent-quotes.html?status=signed' });
-        if (counts.changes_requested > 0) actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: counts.changes_requested, href: 'sent-quotes.html?status=changes_requested' });
-        if (counts.contracted > 0) actions.push({ title: 'Send Portal Invites', sub: 'New customers need card on file', count: counts.contracted, href: 'sent-quotes.html?status=contracted' });
+        if (recentSigned > 0) actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed' });
+        if (recentChanges > 0) actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested' });
+        if (recentContracted > 0) actions.push({ title: 'Send Portal Invites', sub: 'New customers need card on file', count: recentContracted, href: 'sent-quotes.html?status=contracted' });
 
         const section = document.getElementById('action-section');
         if (actions.length > 0) {

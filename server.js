@@ -5528,20 +5528,12 @@ function getFollowupEmailContent(followup, stage) {
   const bs = 'font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;'; // body style
 
   const quoteRef = `
-    <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-      <table cellpadding="0" cellspacing="0" style="background:#f8faf3;border:1px solid #e4ebd4;border-radius:10px;">
-        <tr><td style="padding:14px 28px;text-align:center;">
-          <span style="font-size:13px;color:#64748b;">\u{1F4CB} Quote #${followup.quote_number || 'N/A'}</span>
-          <span style="font-size:13px;color:#cbd5e1;padding:0 10px;">|</span>
-          <span style="font-size:13px;color:#64748b;">\u{1F4B0} $${parseFloat(followup.quote_amount || 0).toFixed(2)}</span>
-        </td></tr>
-      </table>
-    </td></tr></table>
+    <p style="font-size:13px;color:#94a3b8;text-align:center;margin:18px 0 0;letter-spacing:0.3px;">Quote #${followup.quote_number || 'N/A'} &nbsp;&middot;&nbsp; $${parseFloat(followup.quote_amount || 0).toFixed(2)}</p>
   `;
 
   const ctaButton = followup.sign_url ? `
     <div style="text-align:center;margin:28px 0 20px;">
-      <a href="${followup.sign_url}" style="background:#2e403d;color:#c9dd80;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:600;font-size:15px;display:inline-block;letter-spacing:0.3px;">View Your Quote \u{2192}</a>
+      <a href="${followup.sign_url}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">View Your Quote \u{2192}</a>
     </div>
     <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 8px;">Or just reply to this email with any questions</p>
   ` : '';
@@ -5554,38 +5546,42 @@ function getFollowupEmailContent(followup, stage) {
     </tr></table>
   `;
 
+  // White social media icons for dark footer
+  const SOCIAL_FB_WHITE = `${baseUrl}/email-assets/fb-white.png`;
+  const SOCIAL_IG_WHITE = `${baseUrl}/email-assets/ig-white.png`;
+  const SOCIAL_ND_WHITE = `${baseUrl}/email-assets/nd-white.png`;
+
   // Build full HTML for follow-up emails
   function followupTemplate(headingImg, bodyContent) {
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
 <style>@font-face{font-family:'Qualy';src:url('${baseUrl}/Qualy.otf') format('opentype');}</style>
 </head>
-<body style="margin:0;padding:0;background:#f0f2eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2eb;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(46,64,61,0.10);">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
   <tr><td style="background:#2e403d;padding:36px 48px;text-align:center;">
     <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
   </td></tr>
-  <tr><td style="background:linear-gradient(180deg, #eef3e4 0%, #ffffff 100%);padding:36px 48px 8px;text-align:center;">
+  <tr><td style="padding:40px 48px 8px;text-align:center;">
     <img src="${headingImg}" alt="" style="max-width:400px;width:auto;height:34px;" />
   </td></tr>
   <tr><td style="padding:24px 48px 12px;">
     ${bodyContent}
     ${limeDivider}
   </td></tr>
-  <tr><td style="padding:0 48px 32px;">
+  <tr><td style="padding:0 48px 36px;">
     <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:400px;width:100%;height:auto;">
   </td></tr>
   <tr><td style="background:#2e403d;padding:28px 40px;text-align:center;">
     <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
       <tr>
-        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FACEBOOK}" alt="Facebook" style="width:28px;height:28px;"></a></td>
-        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_INSTAGRAM}" alt="Instagram" style="width:28px;height:28px;"></a></td>
-        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_NEXTDOOR}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
       </tr>
     </table>
     <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
@@ -5632,18 +5628,7 @@ function getFollowupEmailContent(followup, stage) {
       html: followupTemplate(headingImages[4], `
         <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
-        <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-          <table cellpadding="0" cellspacing="0" style="background:#fef9ee;border:1px solid #f5e6b8;border-radius:10px;">
-            <tr><td style="padding:14px 28px;text-align:center;">
-              <span style="font-size:13px;color:#92400e;">\u{23F0} Quote #${followup.quote_number || 'N/A'}</span>
-              <span style="font-size:13px;color:#e5d5a0;padding:0 10px;">|</span>
-              <span style="font-size:13px;color:#92400e;">\u{1F4B0} $${parseFloat(followup.quote_amount || 0).toFixed(2)}</span>
-            </td></tr>
-            <tr><td style="padding:0 28px 12px;text-align:center;">
-              <span style="font-size:12px;color:#b45309;">Prices may change after expiration</span>
-            </td></tr>
-          </table>
-        </td></tr></table>
+        <p style="font-size:13px;color:#92400e;text-align:center;margin:18px 0 0;letter-spacing:0.3px;">Quote #${followup.quote_number || 'N/A'} &nbsp;&middot;&nbsp; $${parseFloat(followup.quote_amount || 0).toFixed(2)}</p>
         ${ctaButton}
       `)
     }

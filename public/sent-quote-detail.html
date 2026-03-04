@@ -233,6 +233,9 @@
         /* Notes */
         .notes-text { font-size: 14px; color: var(--gray-600); line-height: 1.6; white-space: pre-wrap; }
 
+        /* Edit modal service rows */
+        .edit-svc-row { display: flex; gap: 8px; align-items: center; }
+
         /* Mobile */
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; color: var(--gray-600); }
         @media (max-width: 768px) {
@@ -512,6 +515,10 @@
         if (q.status === 'sent' || q.status === 'viewed') {
             actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
         }
+        if (q.status === 'declined' || q.status === 'changes_requested') {
+            actionsHtml += `<button class="btn btn-primary" onclick="openEditModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Quote</button>`;
+            actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
+        }
         actionsHtml += `<button class="btn btn-outline" onclick="downloadQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF</button>`;
         if (q.status === 'contracted') {
             actionsHtml += `<button class="btn btn-primary" onclick="downloadContract()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg> Download Contract</button>`;
@@ -751,6 +758,192 @@
             if (data.success) { window.location.href = 'sent-quotes.html'; }
             else alert('Failed to delete: ' + (data.error || 'Unknown error'));
         } catch (e) { alert('Error deleting quote'); }
+    }
+
+    // Edit Quote Modal
+    function openEditModal() {
+        const q = quoteData;
+        const services = typeof q.services === 'string' ? JSON.parse(q.services) : (q.services || []);
+
+        let svcRows = services.map((s, i) => `
+            <div class="edit-svc-row" data-index="${i}">
+                <input type="text" class="edit-svc-name" value="${(s.name || s.service || '').replace(/"/g, '&quot;')}" placeholder="Service name" style="flex:2;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;">
+                <input type="text" class="edit-svc-desc" value="${(s.description || '').replace(/"/g, '&quot;')}" placeholder="Description (optional)" style="flex:3;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;">
+                <input type="number" class="edit-svc-amount" value="${parseFloat(s.amount || s.price || 0).toFixed(2)}" step="0.01" min="0" style="flex:1;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;text-align:right;">
+                <button onclick="this.parentElement.remove();updateEditTotal()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px;" title="Remove">&times;</button>
+            </div>
+        `).join('');
+
+        const modal = document.createElement('div');
+        modal.id = 'editModal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;';
+        modal.innerHTML = `
+            <div style="background:white;border-radius:12px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+                <div style="padding:24px 28px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">
+                    <h2 style="font-size:18px;font-weight:600;color:var(--forest);">Edit Quote #${q.quote_number || q.id}</h2>
+                    <button onclick="closeEditModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--gray-400);">&times;</button>
+                </div>
+                <div style="padding:24px 28px;">
+                    ${q.status === 'changes_requested' && q.change_details ? `
+                        <div style="background:var(--amber-bg);border:1px solid #fde68a;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+                            <div style="font-weight:600;color:#92400e;font-size:13px;margin-bottom:4px;">Customer's Change Request:</div>
+                            <div style="color:#78350f;font-size:14px;">${q.change_details}</div>
+                        </div>
+                    ` : ''}
+                    ${q.status === 'declined' ? `
+                        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+                            <div style="font-weight:600;color:#991b1b;font-size:13px;margin-bottom:4px;">Decline Reason: ${{
+                                'price':'Price too high','timing':'Not the right time','other_provider':'Going with another provider',
+                                'not_needed':'No longer needed','other':'Other','price_too_high':'Price too high',
+                                'found_another':'Found another provider','selling_home':'Selling the home','diy':'DIY','budget':'Budget constraints'
+                            }[q.decline_reason] || q.decline_reason || 'Not specified'}</div>
+                            ${q.decline_comments ? `<div style="color:#7f1d1d;font-size:14px;">${q.decline_comments}</div>` : ''}
+                        </div>
+                    ` : ''}
+                    <div style="font-weight:600;font-size:14px;color:var(--gray-600);margin-bottom:12px;">Services</div>
+                    <div id="editSvcList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+                        ${svcRows}
+                    </div>
+                    <button onclick="addServiceRow()" style="background:none;border:1px dashed var(--gray-300);border-radius:6px;padding:10px;width:100%;cursor:pointer;color:var(--gray-500);font-size:13px;margin-bottom:20px;">+ Add Service</button>
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:2px solid var(--lime);margin-bottom:16px;">
+                        <span style="font-weight:600;color:var(--gray-600);">Total</span>
+                        <span id="editTotal" style="font-size:20px;font-weight:700;color:var(--forest);">$${parseFloat(q.total || 0).toFixed(2)}</span>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="font-weight:600;font-size:14px;color:var(--gray-600);display:block;margin-bottom:6px;">Notes</label>
+                        <textarea id="editNotes" style="width:100%;height:80px;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;resize:vertical;">${(q.notes || '').replace(/</g, '&lt;')}</textarea>
+                    </div>
+                </div>
+                <div style="padding:16px 28px;border-top:1px solid var(--gray-200);display:flex;gap:12px;justify-content:flex-end;">
+                    <button onclick="closeEditModal()" style="padding:10px 20px;border:1px solid var(--gray-200);background:white;border-radius:8px;cursor:pointer;font-size:14px;">Cancel</button>
+                    <button onclick="saveAndResendQuote()" style="padding:10px 20px;border:none;background:var(--forest);color:white;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;">Save &amp; Resend</button>
+                    <button onclick="saveQuoteEdits()" style="padding:10px 20px;border:none;background:var(--lime);color:var(--forest);border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;">Save Changes</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Add change listeners for total
+        document.querySelectorAll('.edit-svc-amount').forEach(input => {
+            input.addEventListener('input', updateEditTotal);
+        });
+    }
+
+    function closeEditModal() {
+        const modal = document.getElementById('editModal');
+        if (modal) modal.remove();
+    }
+
+    function addServiceRow() {
+        const list = document.getElementById('editSvcList');
+        const row = document.createElement('div');
+        row.className = 'edit-svc-row';
+        row.innerHTML = `
+            <input type="text" class="edit-svc-name" value="" placeholder="Service name" style="flex:2;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;">
+            <input type="text" class="edit-svc-desc" value="" placeholder="Description (optional)" style="flex:3;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;">
+            <input type="number" class="edit-svc-amount" value="0.00" step="0.01" min="0" style="flex:1;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;text-align:right;" oninput="updateEditTotal()">
+            <button onclick="this.parentElement.remove();updateEditTotal()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px;" title="Remove">&times;</button>
+        `;
+        list.appendChild(row);
+        row.querySelector('.edit-svc-amount').addEventListener('input', updateEditTotal);
+        row.querySelector('.edit-svc-name').focus();
+    }
+
+    function updateEditTotal() {
+        let total = 0;
+        document.querySelectorAll('.edit-svc-amount').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('editTotal').textContent = '$' + total.toFixed(2);
+    }
+
+    function gatherEditData() {
+        const services = [];
+        document.querySelectorAll('.edit-svc-row').forEach(row => {
+            const name = row.querySelector('.edit-svc-name').value.trim();
+            const desc = row.querySelector('.edit-svc-desc').value.trim();
+            const amount = parseFloat(row.querySelector('.edit-svc-amount').value) || 0;
+            if (name) {
+                services.push({ name, description: desc, amount });
+            }
+        });
+        const total = services.reduce((sum, s) => sum + s.amount, 0);
+        const notes = document.getElementById('editNotes').value.trim();
+        return { services, total, subtotal: total, notes };
+    }
+
+    async function saveQuoteEdits() {
+        const editData = gatherEditData();
+        if (editData.services.length === 0) {
+            alert('Please add at least one service');
+            return;
+        }
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    services: editData.services,
+                    total: editData.total,
+                    subtotal: editData.subtotal,
+                    notes: editData.notes,
+                    status: 'draft'
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeEditModal();
+                alert('Quote updated! Status reset to Draft.');
+                location.reload();
+            } else {
+                alert('Failed to save: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Error saving quote');
+            console.error(e);
+        }
+    }
+
+    async function saveAndResendQuote() {
+        const editData = gatherEditData();
+        if (editData.services.length === 0) {
+            alert('Please add at least one service');
+            return;
+        }
+        if (!confirm('Save changes and resend to ' + (quoteData.customer_email || 'the customer') + '?')) return;
+        try {
+            // First save
+            const saveRes = await fetch(`/api/sent-quotes/${quoteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    services: editData.services,
+                    total: editData.total,
+                    subtotal: editData.subtotal,
+                    notes: editData.notes,
+                    status: 'sent'
+                })
+            });
+            const saveData = await saveRes.json();
+            if (!saveData.success) {
+                alert('Failed to save: ' + (saveData.error || 'Unknown error'));
+                return;
+            }
+            // Then resend
+            const sendRes = await fetch(`/api/sent-quotes/${quoteId}/send`, { method: 'POST' });
+            const sendData = await sendRes.json();
+            if (sendData.success) {
+                closeEditModal();
+                alert('Quote updated and resent!');
+                location.reload();
+            } else {
+                alert('Quote saved but failed to send: ' + (sendData.error || 'Unknown error'));
+                location.reload();
+            }
+        } catch (e) {
+            alert('Error saving/sending quote');
+            console.error(e);
+        }
     }
 
     // Init

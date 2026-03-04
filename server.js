@@ -160,13 +160,57 @@ async function sendEmail(to, subject, html, attachments = null) {
   if (!RESEND_API_KEY) return;
   try {
     const payload = { from: FROM_EMAIL, to: [to], subject, html };
-    if (attachments) payload.attachments = attachments;
-    await fetch('https://api.resend.com/emails', {
+    if (attachments) {
+      payload.attachments = attachments;
+      console.log(`📎 Email attachments: ${attachments.length} file(s), sizes: ${attachments.map(a => a.content ? Math.round(a.content.length * 0.75 / 1024) + 'KB' : 'unknown').join(', ')}`);
+    }
+    const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    const respBody = await resp.text();
+    if (!resp.ok) {
+      console.error(`❌ Resend API error (${resp.status}):`, respBody);
+    } else {
+      console.log(`✅ Email sent to ${to}:`, respBody);
+    }
   } catch (err) { console.error('Email failed:', err); }
+}
+
+// Helper: split address into street line + city/state/zip line
+function formatAddressLines(addr) {
+  if (!addr) return { line1: '', line2: '' };
+  const trimmed = addr.trim();
+
+  // First try comma-based split (e.g. "123 Main St, Lakewood, OH 44107")
+  const commaParts = trimmed.split(',').map(p => p.trim());
+  if (commaParts.length >= 3) {
+    return { line1: commaParts[0], line2: commaParts.slice(1).join(', ') };
+  }
+  if (commaParts.length === 2) {
+    return { line1: commaParts[0], line2: commaParts[1] };
+  }
+
+  // No commas — try to detect "STATE ZIP" at the end (e.g. "7777 Exchange Road Valley View OH 44125")
+  const stateZipMatch = trimmed.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (stateZipMatch) {
+    // Try to find where city starts by looking for common road suffixes
+    const beforeState = stateZipMatch[1];
+    const state = stateZipMatch[2];
+    const zip = stateZipMatch[3];
+    // Split on last occurrence of road-type word boundary
+    const roadSuffixes = /^(.+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy)\.?)\s+(.+)$/i;
+    const roadMatch = beforeState.match(roadSuffixes);
+    if (roadMatch) {
+      return { line1: roadMatch[1], line2: roadMatch[2] + ', ' + state + ' ' + zip };
+    }
+    // Fallback: everything before state+zip on line 1
+    return { line1: beforeState, line2: state + ' ' + zip };
+  }
+
+  // Can't parse — return as single line
+  return { line1: trimmed, line2: '' };
 }
 
 // Cohesive email template wrapper - matches CopilotCRM style
@@ -396,10 +440,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
     y -= 30;
 
-    // SERVICE AGREEMENT badge (dark green bar like quote PDF badge)
-    page.drawRectangle({ x: margin, y: y - 8, width: 250, height: 26, color: darkGreen });
-    page.drawText('SERVICE AGREEMENT', { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
-    page.drawText(`Quote #${quoteNumber}`, { x: margin + 160, y: y - 1, size: 10, font: helvetica, color: rgb(1, 1, 1) });
+    // SERVICE AGREEMENT badge (dark green bar matching quote PDF badge style)
+    page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 26, color: darkGreen });
+    page.drawText(`SERVICE AGREEMENT  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
     y -= 46;
     
     // Two column layout for parties
@@ -428,20 +471,12 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     clientY -= 14;
     page.drawText(quote.customer_name || '', { x: cx, y: clientY, size: 10, font: helveticaBold, color: black });
     clientY -= 12;
-    // Split address into street line and city/state line
-    const fullAddr = quote.customer_address || '';
-    const addrParts = fullAddr.split(',').map(p => p.trim());
-    if (addrParts.length >= 3) {
-      // e.g. "123 Main St, Lakewood, OH 44107"
-      page.drawText(addrParts[0], { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    // Split address into street line and city/state/zip line
+    const addrLines = formatAddressLines(quote.customer_address);
+    page.drawText(addrLines.line1, { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    if (addrLines.line2) {
       clientY -= 11;
-      page.drawText(addrParts.slice(1).join(', '), { x: cx, y: clientY, size: 9, font: helvetica, color: black });
-    } else if (addrParts.length === 2) {
-      page.drawText(addrParts[0], { x: cx, y: clientY, size: 9, font: helvetica, color: black });
-      clientY -= 11;
-      page.drawText(addrParts[1], { x: cx, y: clientY, size: 9, font: helvetica, color: black });
-    } else {
-      page.drawText(fullAddr, { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+      page.drawText(addrLines.line2, { x: cx, y: clientY, size: 9, font: helvetica, color: black });
     }
     clientY -= 11;
     page.drawText(quote.customer_email || '', { x: cx, y: clientY, size: 9, font: helvetica, color: black });
@@ -812,23 +847,13 @@ async function generateQuotePDF(quote) {
     page.drawText(quote.customer_name || '', { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
     let infoY = y - 42;
     if (quote.customer_address) {
-      const fullAddr = quote.customer_address;
-      const addrParts = fullAddr.split(',').map(p => p.trim());
-      if (addrParts.length >= 3) {
-        // "123 Main St, Lakewood, OH 44107" => street line + city/state/zip line
-        page.drawText(addrParts[0], { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+      const addrLines = formatAddressLines(quote.customer_address);
+      page.drawText(addrLines.line1, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+      if (addrLines.line2) {
         infoY -= 12;
-        page.drawText(addrParts.slice(1).join(', '), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-        infoY -= 14;
-      } else if (addrParts.length === 2) {
-        page.drawText(addrParts[0], { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-        infoY -= 12;
-        page.drawText(addrParts[1], { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-        infoY -= 14;
-      } else {
-        page.drawText(fullAddr, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-        infoY -= 14;
+        page.drawText(addrLines.line2, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
       }
+      infoY -= 14;
     }
     if (quote.customer_email) {
       page.drawText(quote.customer_email, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
@@ -3532,15 +3557,18 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     `;
 
     // Generate branded PDF attachment
+    console.log('📄 Generating quote PDF for quote #' + quoteNumber + '...');
     const pdfBytes = await generateQuotePDF(quote);
     let attachments = null;
-    
+
     if (pdfBytes) {
+      console.log('✅ Quote PDF generated: ' + pdfBytes.length + ' bytes');
       attachments = [{
         filename: `Quote-${quoteNumber}-${quote.customer_name.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
         content: Buffer.from(pdfBytes).toString('base64'),
-        type: 'application/pdf'
       }];
+    } else {
+      console.error('❌ Quote PDF generation returned null — no attachment will be sent');
     }
 
     await sendEmail(
@@ -4154,12 +4182,15 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
         
         <div style="background:#f8fafc;border-radius:12px;padding:24px;margin:24px 0;">
           <h3 style="font-family:'Playfair Display',Georgia,serif;margin:0 0 16px;color:#2e403d;font-size:18px;font-weight:400;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">Agreement Details</h3>
-          <table style="width:100%;border-collapse:collapse;">
-            <tr><td style="padding:10px 0;color:#64748b;font-size:14px;">Quote Number</td><td style="padding:10px 0;color:#1e293b;font-size:14px;text-align:right;font-weight:600;">${quoteNumber}</td></tr>
-            <tr><td style="padding:10px 0;color:#64748b;font-size:14px;">Service Address</td><td style="padding:10px 0;color:#1e293b;font-size:14px;text-align:right;">${updatedQuote.customer_address}</td></tr>
-            <tr><td style="padding:10px 0;color:#64748b;font-size:14px;">Services</td><td style="padding:10px 0;color:#1e293b;font-size:14px;text-align:right;">${servicesText}</td></tr>
-            <tr style="border-top:2px solid #e2e8f0;"><td style="padding:16px 0 10px;color:#64748b;font-size:14px;">Total</td><td style="padding:16px 0 10px;color:#2e403d;font-size:22px;text-align:right;font-weight:700;">$${parseFloat(updatedQuote.total).toFixed(2)}</td></tr>
-            ${updatedQuote.monthly_payment ? `<tr><td style="padding:10px 0;color:#64748b;font-size:14px;">Monthly Payment</td><td style="padding:10px 0;color:#2e403d;font-size:16px;text-align:right;font-weight:600;">$${parseFloat(updatedQuote.monthly_payment).toFixed(2)}/mo</td></tr>` : ''}
+          <p style="margin:0 0 6px;"><span style="color:#64748b;font-size:13px;">Quote Number</span><br><span style="color:#1e293b;font-size:15px;font-weight:600;">#${quoteNumber}</span></p>
+          <p style="margin:12px 0 6px;"><span style="color:#64748b;font-size:13px;">Service Address</span><br><span style="color:#1e293b;font-size:15px;">${(() => { const al = formatAddressLines(updatedQuote.customer_address); return al.line2 ? al.line1 + '<br>' + al.line2 : al.line1; })()}</span></p>
+          <div style="margin:12px 0 0;border-top:1px solid #e2e8f0;padding-top:12px;">
+            <span style="color:#64748b;font-size:13px;">Services</span>
+            <div style="margin-top:6px;">${services.map(s => `<span style="display:inline-block;background:#e8f5e9;color:#2e403d;padding:4px 10px;border-radius:4px;font-size:13px;margin:2px 4px 2px 0;">${s.name || s}</span>`).join('')}</div>
+          </div>
+          <table style="width:100%;margin-top:16px;border-top:2px solid #c9dd80;border-collapse:collapse;">
+            <tr><td style="padding:12px 0;color:#64748b;font-size:14px;">Total</td><td style="padding:12px 0;color:#2e403d;font-size:22px;text-align:right;font-weight:700;">$${parseFloat(updatedQuote.total).toFixed(2)}</td></tr>
+            ${updatedQuote.monthly_payment ? `<tr><td style="padding:4px 0;color:#64748b;font-size:14px;">Monthly Payment</td><td style="padding:4px 0;color:#2e403d;font-size:16px;text-align:right;font-weight:600;">$${parseFloat(updatedQuote.monthly_payment).toFixed(2)}/mo</td></tr>` : ''}
           </table>
         </div>
         

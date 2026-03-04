@@ -335,12 +335,15 @@
                             <div class="detail-label">PREPARED FOR</div>
                             <div class="detail-value">${quote.customer_name}</div>
                             <div style="font-size:13px;color:#64748b;margin-top:4px;">${(() => {
-                                const addr = quote.customer_address || '';
+                                const addr = (quote.customer_address || '').trim();
                                 const parts = addr.split(',').map(p => p.trim());
-                                if (parts.length >= 3) {
-                                    return parts[0] + '<br>' + parts.slice(1).join(', ');
-                                } else if (parts.length === 2) {
-                                    return parts[0] + '<br>' + parts[1];
+                                if (parts.length >= 3) return parts[0] + '<br>' + parts.slice(1).join(', ');
+                                if (parts.length === 2) return parts[0] + '<br>' + parts[1];
+                                const m = addr.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+                                if (m) {
+                                    const rm = m[1].match(/^(.+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy)\.?)\s+(.+)$/i);
+                                    if (rm) return rm[1] + '<br>' + rm[2] + ', ' + m[2] + ' ' + m[3];
+                                    return m[1] + '<br>' + m[2] + ' ' + m[3];
                                 }
                                 return addr;
                             })()}</div>

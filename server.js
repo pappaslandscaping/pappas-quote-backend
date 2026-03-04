@@ -272,44 +272,41 @@ function emailTemplate(content, options = {}) {
     </td></tr>
   ` : '';
 
+  const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+  const SOCIAL_FB_WHITE = `${baseUrl}/email-assets/fb-white.png`;
+  const SOCIAL_IG_WHITE = `${baseUrl}/email-assets/ig-white.png`;
+  const SOCIAL_ND_WHITE = `${baseUrl}/email-assets/nd-white.png`;
+
   return `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-  @font-face {
-    font-family: 'Qualy';
-    src: url('https://pappas-quote-backend-production.up.railway.app/Qualy.otf') format('opentype');
-    font-weight: normal;
-    font-style: normal;
-  }
-</style>
+<style>@font-face{font-family:'Qualy';src:url('${baseUrl}/Qualy.otf') format('opentype');}</style>
 </head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 20px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-  <tr><td style="background:#2e403d;padding:40px;text-align:center;">
-    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+  <tr><td style="background:#2e403d;padding:36px 48px;text-align:center;">
+    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
   </td></tr>
-  <tr><td style="padding:40px;">
+  <tr><td style="padding:40px 48px;">
     ${content}
     ${signatureHtml}
   </td></tr>
   ${featuresSection}
-  <tr><td style="background:#f8fafc;padding:24px 40px;text-align:center;border-top:3px solid #c9dd80;">
-    <p style="margin:0 0 16px;font-size:14px;color:#475569;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
+  <tr><td style="background:#2e403d;padding:28px 40px;text-align:center;">
+    <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
       <tr>
-        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FACEBOOK}" alt="Facebook" style="width:28px;height:28px;"></a></td>
-        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_INSTAGRAM}" alt="Instagram" style="width:28px;height:28px;"></a></td>
-        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_NEXTDOOR}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
       </tr>
     </table>
-    <p style="margin:0 0 4px;font-size:13px;color:#64748b;font-weight:600;">Pappas & Co. Landscaping</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">PO Box 770057 • Lakewood, Ohio 44107</p>
-    <p style="margin:0;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#2e403d;text-decoration:none;">pappaslandscaping.com</a></p>
+    <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
+    <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+    <p style="margin:0;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
   </td></tr>
 </table>
 </td></tr>
@@ -3628,29 +3625,30 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     const firstName = quote.customer_name.split(' ')[0];
     
     const emailContent = `
-      <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote is Ready</h2>
-      <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${firstName},</p>
-      
-      <p style="font-size:15px;color:#374151;line-height:1.6;">Thanks for reaching out to <strong>Pappas & Co. Landscaping</strong>! We've put together a custom quote for your property that includes the scope of work and pricing for your requested services.</p>
-      
-      <p style="font-size:15px;color:#374151;line-height:1.6;">Click the button below to view your full quote:</p>
-      
-      <div style="text-align:center;margin:32px 0;">
-        <a href="${signUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 48px;text-decoration:none;border-radius:6px;font-weight:bold;font-size:16px;display:inline-block;">View Your Quote →</a>
+      <div style="text-align:center;margin:0 0 28px;">
+        <img src="${process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-quote.png" alt="Your Quote is Ready" style="max-width:400px;width:auto;height:34px;" />
       </div>
-      
-      <p style="font-size:15px;color:#374151;line-height:1.6;font-weight:600;">What's Next?</p>
-      
-      <p style="font-size:15px;color:#374151;line-height:1.6;">From the quote page, you can:</p>
-      
-      <ul style="color:#374151;font-size:15px;line-height:1.8;padding-left:20px;">
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
+
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thanks for reaching out to Pappas & Co. Landscaping! We've put together a custom quote for your property that includes the scope of work and pricing for your requested services.</p>
+
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Click the button below to view your full quote:</p>
+
+      <div style="text-align:center;margin:28px 0 20px;">
+        <a href="${signUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">View Your Quote \u{2192}</a>
+      </div>
+      <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or just reply to this email with any questions</p>
+
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 8px;font-weight:600;">From the quote page, you can:</p>
+
+      <ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">
         <li><strong>Accept the quote</strong> to secure your spot on our schedule and sign the service agreement</li>
         <li><strong>Request changes</strong> if you'd like us to adjust the scope of work</li>
       </ul>
-      
-      <p style="font-size:15px;color:#374151;line-height:1.6;">If you have any questions, feel free to call or text us at <strong>440-886-7318</strong>. We're always happy to help!</p>
-      
-      <p style="font-size:15px;color:#374151;line-height:1.6;">We look forward to working with you!</p>
+
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">If you have any questions, feel free to call or text us at <strong>440-886-7318</strong>. We're always happy to help!</p>
+
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We look forward to working with you!</p>
     `;
 
     // Generate branded PDF attachment
@@ -4282,16 +4280,18 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
     if (updatedQuote.customer_email) {
       const firstName = updatedQuote.customer_name.split(' ')[0];
       const customerContent = `
-        <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Welcome to the Pappas Family!</h2>
-        
-        <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${firstName},</p>
-        
-        <p style="font-size:15px;color:#374151;line-height:1.6;">Thank you for signing your service agreement! We're excited to have you as a customer.</p>
-        
-        <p style="background:#e8f5e9;padding:16px;border-radius:8px;color:#166534;font-size:14px;margin:24px 0;">📎 Your signed service agreement is attached to this email.</p>
-        
-        <div style="background:#f8fafc;border-radius:12px;padding:24px;margin:24px 0;">
-          <h3 style="font-family:'Playfair Display',Georgia,serif;margin:0 0 16px;color:#2e403d;font-size:18px;font-weight:400;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">Agreement Details</h3>
+        <div style="text-align:center;margin:0 0 28px;">
+          <img src="${process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-welcome.png" alt="Welcome to the Pappas Family" style="max-width:400px;width:auto;height:34px;" />
+        </div>
+
+        <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
+
+        <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for signing your service agreement! We're excited to have you as a customer.</p>
+
+        <p style="background:#f0f2eb;padding:16px;border-radius:8px;color:#2e403d;font-size:14px;margin:0 0 24px;">Your signed service agreement is attached to this email.</p>
+
+        <div style="background:#f8faf6;border-radius:12px;padding:24px;margin:0 0 24px;">
+          <p style="margin:0 0 16px;color:#2e403d;font-size:16px;font-weight:700;border-bottom:2px solid #c9dd80;padding-bottom:12px;">Agreement Details</p>
           <p style="margin:0 0 6px;"><span style="color:#64748b;font-size:13px;">Quote Number</span><br><span style="color:#1e293b;font-size:15px;font-weight:600;">#${quoteNumber}</span></p>
           <p style="margin:12px 0 6px;"><span style="color:#64748b;font-size:13px;">Service Address</span><br><span style="color:#1e293b;font-size:15px;">${(() => { const al = formatAddressLines(updatedQuote.customer_address); return al.line2 ? al.line1 + '<br>' + al.line2 : al.line1; })()}</span></p>
           <p style="margin:12px 0 6px;border-top:1px solid #e2e8f0;padding-top:12px;"><span style="color:#64748b;font-size:13px;">Services</span><br><span style="color:#1e293b;font-size:15px;">${servicesText}</span></p>
@@ -4300,10 +4300,10 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
             ${updatedQuote.monthly_payment ? `<tr><td style="padding:4px 0;color:#64748b;font-size:14px;">Monthly Payment</td><td style="padding:4px 0;color:#2e403d;font-size:16px;text-align:right;font-weight:600;">$${parseFloat(updatedQuote.monthly_payment).toFixed(2)}/mo</td></tr>` : ''}
           </table>
         </div>
-        
-        <p style="font-size:15px;color:#374151;line-height:1.6;"><strong>What's next?</strong> If you haven't already, please add a payment method in your customer portal to complete your setup. Once that's done, we'll add you to the schedule!</p>
-        
-        <p style="font-size:15px;color:#374151;line-height:1.6;">We can't wait to get started!</p>
+
+        <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;"><strong>What's next?</strong> If you haven't already, please add a payment method in your customer portal to complete your setup. Once that's done, we'll add you to the schedule!</p>
+
+        <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We can't wait to get started!</p>
       `;
       await sendEmail(updatedQuote.customer_email, `You're All Set! Welcome to Pappas & Co. Landscaping`, emailTemplate(customerContent), [contractAttachment]);
     }
@@ -5600,13 +5600,13 @@ function getFollowupEmailContent(followup, stage) {
       subject: `Quick follow-up on your quote, Pappas & Co. Landscaping`,
       html: followupTemplate(headingImages[1], `
         <p style="${bs}">Hi ${followup.customer_name},</p>
-        <p style="${bs}">Thanks for giving us the chance to put together a quote for your property! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to take care of your lawn this season. Feel free to reply here or call us anytime.</p>
+        <p style="${bs}">Thanks for giving us the chance to put together a quote for you! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to help with your property this season. Feel free to reply here or call us anytime.</p>
         ${quoteRef}
         ${ctaButton}
       `)
     },
     2: {
-      subject: `Your landscaping quote is still available, Pappas & Co.`,
+      subject: `Your quote is still available, Pappas & Co.`,
       html: followupTemplate(headingImages[2], `
         <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">Just wanted to let you know your quote is still available whenever you're ready. If anything needs adjusting or you want to talk through the details, we're happy to help. We'd love to get you on the schedule!</p>
@@ -5615,7 +5615,7 @@ function getFollowupEmailContent(followup, stage) {
       `)
     },
     3: {
-      subject: `Checking in on your landscaping quote, Pappas & Co.`,
+      subject: `Checking in on your quote, Pappas & Co.`,
       html: followupTemplate(headingImages[3], `
         <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">It's been a couple weeks so I just wanted to touch base one more time. If the timing isn't right or you'd like to change anything about the quote, no problem at all. We're here whenever you're ready and would love the chance to work with you.</p>
@@ -5627,7 +5627,7 @@ function getFollowupEmailContent(followup, stage) {
       subject: `Your quote expires soon, Pappas & Co. Landscaping`,
       html: followupTemplate(headingImages[4], `
         <p style="${bs}">Hi ${followup.customer_name},</p>
-        <p style="${bs}">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
+        <p style="${bs}">Just a heads up that your quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
         <p style="font-size:13px;color:#92400e;text-align:center;margin:18px 0 0;letter-spacing:0.3px;">Quote #${followup.quote_number || 'N/A'} &nbsp;&middot;&nbsp; $${parseFloat(followup.quote_amount || 0).toFixed(2)}</p>
         ${ctaButton}
       `)
@@ -5639,9 +5639,9 @@ function getFollowupEmailContent(followup, stage) {
 // Follow-up SMS templates
 function getFollowupSMS(followup, stage) {
   const templates = {
-    2: `Hi ${followup.customer_name}, just wanted to let you know your landscaping quote is still available whenever you're ready. Any questions at all, we're here to help! View your quote: ${followup.sign_url || ''} - Tim, Pappas & Co.`,
-    3: `Hi ${followup.customer_name}, just touching base one more time on your landscaping quote. We'd love the chance to work with you! View your quote: ${followup.sign_url || ''} - Tim, Pappas & Co.`,
-    4: `Hi ${followup.customer_name}, heads up, your landscaping quote expires in about 5 days. Lock in your rate here: ${followup.sign_url || ''} - Tim, Pappas & Co.`
+    2: `Hi ${followup.customer_name}, just wanted to let you know your quote is still available whenever you're ready. Any questions at all, we're here to help! View your quote: ${followup.sign_url || ''} - Tim, Pappas & Co.`,
+    3: `Hi ${followup.customer_name}, just touching base one more time on your quote. We'd love the chance to work with you! View your quote: ${followup.sign_url || ''} - Tim, Pappas & Co.`,
+    4: `Hi ${followup.customer_name}, heads up, your quote expires in about 5 days. Lock in your rate here: ${followup.sign_url || ''} - Tim, Pappas & Co.`
   };
   return templates[stage];
 }

@@ -931,6 +931,8 @@
                 </td>
                 <td>
                     <span class="status-badge ${q.status}">${statusLabel}</span>
+                    ${q.status === 'declined' && q.decline_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:4px;">${{'price':'Price too high','timing':'Not the right time','other_provider':'Going with another provider','not_needed':'No longer needed','other':'Other','price_too_high':'Price too high','found_another':'Found another provider','selling_home':'Selling the home','diy':'DIY','budget':'Budget constraints'}[q.decline_reason] || q.decline_reason}${q.decline_comments ? ': ' + q.decline_comments : ''}</div>` : ''}
+                    ${q.status === 'changes_requested' && q.change_details ? `<div style="font-size:11px;color:#d97706;margin-top:4px;">${q.change_details}</div>` : ''}
                 </td>
                 <td>
                     ${(() => {

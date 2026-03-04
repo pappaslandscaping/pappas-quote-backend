@@ -992,8 +992,10 @@ async function generateQuotePDF(quote) {
       }
 
       const cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-      const bg = i % 2 === 0 ? rgb(1, 1, 1) : rgb(0.97, 0.98, 0.97);
-      cp.drawRectangle({ x: margin, y: y - rowH + nameSize * 0.4, width: contentWidth, height: rowH, color: bg });
+      // Thin separator line between services (skip for first service)
+      if (i > 0) {
+        cp.drawLine({ start: { x: margin, y: y + nameSize * 0.8 }, end: { x: margin + contentWidth, y: y + nameSize * 0.8 }, thickness: 0.5, color: rgb(0.85, 0.87, 0.85) });
+      }
 
       // Service name (bold dark green)
       cp.drawText(svcName, { x: margin + 10, y, size: nameSize, font: helveticaBold, color: darkGreen });

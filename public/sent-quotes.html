@@ -1091,10 +1091,21 @@
     // Generate Quote PDF (client-side using browser print) - Branded version
     function generateQuotePDF(quote) {
         const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+        // Format description with bold labels and line breaks
+        function fmtDesc(desc) {
+            if (!desc) return '';
+            return desc.replace(/(?:^|(?<=\s))([A-Z][A-Za-z &\/\-]*?):\s*/g, (m, label, offset) => {
+                const br = offset > 0 ? '<br>' : '';
+                return br + '<strong style="color:#1e293b;">' + label + ':</strong> ';
+            });
+        }
         const servicesHtml = services.map(s => `
             <tr>
-                <td style="padding:14px 16px;border-bottom:1px solid #e5e5e5;">${s.name}</td>
-                <td style="padding:14px 16px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:500;">$${parseFloat(s.amount).toFixed(2)}</td>
+                <td style="padding:14px 16px;border-bottom:1px solid #e5e5e5;">
+                    <div style="font-weight:600;color:#2e403d;margin-bottom:4px;">${s.name}</div>
+                    ${s.description ? '<div style="font-size:11px;color:#64748b;line-height:1.6;">' + fmtDesc(s.description) + '</div>' : ''}
+                </td>
+                <td style="padding:14px 16px;border-bottom:1px solid #e5e5e5;text-align:right;font-weight:500;vertical-align:top;">$${parseFloat(s.amount).toFixed(2)}</td>
             </tr>
         `).join('');
         
@@ -1266,7 +1277,7 @@
         const isDrawnSignature = quote.contract_signature_data && quote.contract_signature_data.startsWith('data:image');
         const signatureDisplay = isDrawnSignature 
             ? `<img src="${quote.contract_signature_data}" style="max-height:80px;margin:12px 0;" alt="Signature">`
-            : `<p style="font-family:'Brush Script MT',cursive;font-size:32px;margin:12px 0;">${quote.contract_signature_data || quote.contract_signer_name}</p>`;
+            : `<p style="font-family:'Dancing Script','Brush Script MT',cursive;font-size:32px;margin:12px 0;">${quote.contract_signature_data || quote.contract_signer_name}</p>`;
         
         const logoUrl = 'https://images.squarespace-cdn.com/content/v1/67082a408c7eba24e24e1da5/fa9f3bfb-32fa-4073-bb4d-ebe12a6326f3/Dark+Green+Modern+%26+Natural++Letter+H+Lawn+Logo+Design+%281000+x+1000+px%29+%282000+x+2000+px%29+%28200+x+200+px%29+%282000+x+2000+px%29.png?format=100w';
         
@@ -1274,6 +1285,7 @@
             <!DOCTYPE html>
             <html><head>
             <title>Service Agreement - ${quote.customer_name} - ${quoteNumber}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
             <style>
                 @font-face { font-family: 'Qualy'; src: url('/Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
                 body { font-family: Arial, sans-serif; padding: 30px 40px; max-width: 800px; margin: 0 auto; font-size: 11px; line-height: 1.5; color: #333; }

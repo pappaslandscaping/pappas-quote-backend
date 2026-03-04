@@ -187,7 +187,7 @@ function emailTemplate(content, options = {}) {
   
   const featuresSection = showFooterFeatures ? `
     <tr><td style="padding:32px 40px;border-top:1px solid #e5e5e5;">
-      <p style="text-align:center;font-family:Georgia,serif;font-size:22px;color:#1e293b;font-weight:400;margin:0 0 24px;">What's Inside</p>
+      <p style="text-align:center;font-family:'Playfair Display',Georgia,serif;font-size:22px;color:#1e293b;font-weight:400;margin:0 0 24px;">What's Inside</p>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
           <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;">
@@ -228,11 +228,13 @@ function emailTemplate(content, options = {}) {
   return `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 20px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:0;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
   <tr><td style="background:#2e403d;padding:40px;text-align:center;">
     <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;">
   </td></tr>
@@ -241,7 +243,7 @@ function emailTemplate(content, options = {}) {
     ${signatureHtml}
   </td></tr>
   ${featuresSection}
-  <tr><td style="background:#f8fafc;padding:24px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+  <tr><td style="background:#f8fafc;padding:24px 40px;text-align:center;border-top:3px solid #c9dd80;">
     <p style="margin:0 0 16px;font-size:14px;color:#475569;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
       <tr>
@@ -266,17 +268,32 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
   try {
     console.log('Starting PDF generation for contract...');
     const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+    const fontkit = require('@pdf-lib/fontkit');
     const fs = require('fs');
     const path = require('path');
     console.log('pdf-lib loaded successfully');
 
     // Create a new PDF document
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
     console.log('PDF document created');
 
     // Embed fonts
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Embed Qualy font for headers
+    let qualyFont = helveticaBold; // fallback
+    try {
+      const qualyPath = path.join(__dirname, 'public', 'Qualy.otf');
+      if (fs.existsSync(qualyPath)) {
+        const qualyBytes = fs.readFileSync(qualyPath);
+        qualyFont = await pdfDoc.embedFont(qualyBytes);
+        console.log('Qualy font embedded in contract PDF');
+      }
+    } catch (fontErr) {
+      console.log('Could not embed Qualy font in contract:', fontErr.message);
+    }
     console.log('Fonts embedded');
 
     // Try to embed logo
@@ -355,14 +372,14 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
       page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
       y -= logoDims.height + 4;
     } else {
-      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: helveticaBold, color: darkGreen });
+      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
       y -= 24;
     }
     page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: pageHeight - margin, size: 9, font: helvetica, color: gray });
     page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 130, y: pageHeight - margin - 12, size: 9, font: helvetica, color: gray });
     page.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: pageHeight - margin - 24, size: 9, font: helvetica, color: gray });
 
-    page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 11, font: helveticaBold, color: gray });
+    page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 11, font: qualyFont, color: gray });
     page.drawText(`Quote #${quoteNumber}`, { x: margin + 155, y, size: 11, font: helvetica, color: gray });
 
     // Lime accent line
@@ -405,7 +422,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     // ===== SERVICES & PRICING - Two Column Table =====
     // Dark green header bar
     page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Services & Pricing', { x: margin + 15, y: y + 2, size: 12, font: helveticaBold, color: rgb(1, 1, 1) });
+    page.drawText('Services & Pricing', { x: margin + 15, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
     y -= 35;
 
     // Conditional layout: two columns for 6+ services, single column for fewer
@@ -605,13 +622,28 @@ async function generateQuotePDF(quote) {
   try {
     console.log('Starting Quote PDF generation...');
     const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+    const fontkit = require('@pdf-lib/fontkit');
     const fs = require('fs');
     const path = require('path');
     console.log('pdf-lib loaded for quote PDF');
 
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Embed Qualy font for headers
+    let qualyFont = helveticaBold; // fallback
+    try {
+      const qualyPath = path.join(__dirname, 'public', 'Qualy.otf');
+      if (fs.existsSync(qualyPath)) {
+        const qualyBytes = fs.readFileSync(qualyPath);
+        qualyFont = await pdfDoc.embedFont(qualyBytes);
+        console.log('Qualy font embedded successfully');
+      }
+    } catch (fontErr) {
+      console.log('Could not embed Qualy font:', fontErr.message);
+    }
 
     // Try to embed logo
     let logoImage = null;
@@ -690,11 +722,17 @@ async function generateQuotePDF(quote) {
       const newPage = pdfDoc.addPage([pageWidth, pageHeight]);
       let py = pageHeight - margin;
       if (logoImage) {
-        const logoDims = logoImage.scale(0.22);
+        const logoDims = logoImage.scale(0.18);
         newPage.drawImage(logoImage, { x: margin, y: py - logoDims.height, width: logoDims.width, height: logoDims.height });
+        newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin + logoDims.width + 12, y: py - 14, size: 10, font: qualyFont, color: darkGreen });
+        // Right-aligned contact info
+        newPage.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: py, size: 8, font: helvetica, color: gray });
+        newPage.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: py - 11, size: 8, font: helvetica, color: gray });
+        py -= logoDims.height + 8;
+      } else {
+        newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin, y: py - 10, size: 10, font: qualyFont, color: darkGreen });
+        py -= 30;
       }
-      newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin + (logoImage ? logoImage.scale(0.22).width + 10 : 0), y: py - 10, size: 10, font: helvetica, color: gray });
-      py -= 40;
       newPage.drawRectangle({ x: margin, y: py, width: contentWidth, height: 3, color: limeGreen });
       py -= 20;
       return { page: newPage, y: py };
@@ -714,7 +752,7 @@ async function generateQuotePDF(quote) {
       page.drawText('(440) 886-7318', { x: cx, y: y - 26, size: 9, font: helvetica, color: gray });
       y -= logoDims.height + 8;
     } else {
-      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: helveticaBold, color: darkGreen });
+      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
       page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 145, y, size: 9, font: helvetica, color: gray });
       page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 145, y: y - 13, size: 9, font: helvetica, color: gray });
       page.drawText('(440) 886-7318', { x: pageWidth - margin - 145, y: y - 26, size: 9, font: helvetica, color: gray });
@@ -764,7 +802,7 @@ async function generateQuotePDF(quote) {
 
     // ===== SERVICES SECTION HEADER =====
     page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Services Included', { x: margin + 14, y: y + 2, size: 12, font: helveticaBold, color: rgb(1, 1, 1) });
+    page.drawText('Services Included', { x: margin + 14, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
     y -= 33;
 
     // Table column header
@@ -3326,7 +3364,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     const firstName = quote.customer_name.split(' ')[0];
     
     const emailContent = `
-      <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote is Ready</h2>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote is Ready</h2>
       <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${firstName},</p>
       
       <p style="font-size:15px;color:#374151;line-height:1.6;">Thanks for reaching out to <strong>Pappas & Co. Landscaping</strong>! We've put together a custom quote for your property that includes the scope of work and pricing for your requested services.</p>
@@ -3964,7 +4002,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
     if (updatedQuote.customer_email) {
       const firstName = updatedQuote.customer_name.split(' ')[0];
       const customerContent = `
-        <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Welcome to the Pappas Family!</h2>
+        <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Welcome to the Pappas Family!</h2>
         
         <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${firstName},</p>
         
@@ -3973,7 +4011,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
         <p style="background:#e8f5e9;padding:16px;border-radius:8px;color:#166534;font-size:14px;margin:24px 0;">📎 Your signed service agreement is attached to this email.</p>
         
         <div style="background:#f8fafc;border-radius:12px;padding:24px;margin:24px 0;">
-          <h3 style="font-family:Georgia,serif;margin:0 0 16px;color:#2e403d;font-size:18px;font-weight:400;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">Agreement Details</h3>
+          <h3 style="font-family:'Playfair Display',Georgia,serif;margin:0 0 16px;color:#2e403d;font-size:18px;font-weight:400;border-bottom:1px solid #e2e8f0;padding-bottom:12px;">Agreement Details</h3>
           <table style="width:100%;border-collapse:collapse;">
             <tr><td style="padding:10px 0;color:#64748b;font-size:14px;">Quote Number</td><td style="padding:10px 0;color:#1e293b;font-size:14px;text-align:right;font-weight:600;">${quoteNumber}</td></tr>
             <tr><td style="padding:10px 0;color:#64748b;font-size:14px;">Service Address</td><td style="padding:10px 0;color:#1e293b;font-size:14px;text-align:right;">${updatedQuote.customer_address}</td></tr>
@@ -5213,7 +5251,7 @@ function getFollowupEmailContent(followup, stage) {
     1: {
       subject: `Following up on your quote - Pappas & Co. Landscaping`,
       html: emailTemplate(`
-        <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Following Up on Your Quote</h2>
+        <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Following Up on Your Quote</h2>
         <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${followup.customer_name},</p>
         <p style="font-size:15px;color:#374151;line-height:1.6;">I wanted to follow up on the quote we sent you a few days ago for your property.</p>
         ${quoteRef}
@@ -5224,7 +5262,7 @@ function getFollowupEmailContent(followup, stage) {
     2: {
       subject: `Your quote is still available - Pappas & Co. Landscaping`,
       html: emailTemplate(`
-        <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote is Still Available</h2>
+        <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote is Still Available</h2>
         <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${followup.customer_name},</p>
         <p style="font-size:15px;color:#374151;line-height:1.6;">Just a friendly reminder that your landscaping quote is still available and valid for the next few weeks.</p>
         ${quoteRef}
@@ -5235,7 +5273,7 @@ function getFollowupEmailContent(followup, stage) {
     3: {
       subject: `Still interested? - Pappas & Co. Landscaping`,
       html: emailTemplate(`
-        <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Checking In</h2>
+        <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Checking In</h2>
         <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${followup.customer_name},</p>
         <p style="font-size:15px;color:#374151;line-height:1.6;">We haven't heard back from you regarding your landscaping quote, and wanted to check in.</p>
         <p style="font-size:15px;color:#374151;line-height:1.6;">Is there anything we can help clarify? We're happy to adjust the scope or answer any questions you might have.</p>
@@ -5246,7 +5284,7 @@ function getFollowupEmailContent(followup, stage) {
     4: {
       subject: `Your quote expires soon - Pappas & Co. Landscaping`,
       html: emailTemplate(`
-        <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote Expires Soon</h2>
+        <h2 style="font-family:'Playfair Display',Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:26px;font-weight:400;text-align:center;">Your Quote Expires Soon</h2>
         <p style="font-size:15px;color:#374151;line-height:1.6;">Hi ${followup.customer_name},</p>
         <p style="font-size:15px;color:#374151;line-height:1.6;">This is a final reminder that your landscaping quote will expire in just <strong>5 days</strong>.</p>
         <div style="background:#fff8e6;border-left:4px solid #f59e0b;padding:16px;margin:20px 0;">

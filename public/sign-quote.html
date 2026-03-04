@@ -121,7 +121,11 @@
         .service-description {
             font-size: 13px;
             color: #64748b;
-            line-height: 1.5;
+            line-height: 1.7;
+        }
+        .service-description .desc-label {
+            font-weight: 700;
+            color: #1e293b;
         }
         .totals-row td {
             background: #f8f8f8;
@@ -285,6 +289,18 @@
             const quoteNumber = quote.quote_number || `Q-${quote.id}`;
             const isSigned = quote.status === 'signed';
             
+            // Format description: bold labels like "Mowing:", "Trimming:", etc. with line breaks
+            function formatDescription(desc) {
+                if (!desc) return '';
+                // Split on known service label patterns (word(s) followed by colon)
+                // e.g. "Mowing: ...", "Bed Edging: ...", "Spring Cleanup: ..."
+                const formatted = desc.replace(/(?:^|(?<=\s))([A-Z][A-Za-z &\/\-]*?):\s*/g, (match, label, offset) => {
+                    const br = offset > 0 ? '<br>' : '';
+                    return `${br}<span class="desc-label">${label}:</span> `;
+                });
+                return formatted;
+            }
+
             // Build services HTML with descriptions
             const servicesHtml = services.map(s => {
                 const description = s.description || '';
@@ -292,7 +308,7 @@
                     <tr>
                         <td>
                             <div class="service-name">${s.name}</div>
-                            ${description ? `<div class="service-description">${description}</div>` : ''}
+                            ${description ? `<div class="service-description">${formatDescription(description)}</div>` : ''}
                         </td>
                         <td>$${parseFloat(s.amount).toFixed(2)}</td>
                     </tr>

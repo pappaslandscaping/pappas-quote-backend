@@ -812,6 +812,67 @@ async function generateQuotePDF(quote) {
       return lines * size * lineHeight;
     }
 
+    // Helper: render description text with inline bold labels (e.g. "Mowing: text... Trimming: text...")
+    function wrapTextWithLabels(page, desc, x, y, maxWidth, regularFont, boldFont, size, color, boldColor, lineHeight) {
+      // Parse into segments: [{text, bold}, ...]
+      const labelRegex = /([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
+      const segments = [];
+      let lastEnd = 0;
+      let match;
+      while ((match = labelRegex.exec(desc)) !== null) {
+        if (match.index > lastEnd) {
+          segments.push({ text: desc.slice(lastEnd, match.index).trim(), bold: false });
+        }
+        segments.push({ text: match[1] + ':', bold: true });
+        lastEnd = match.index + match[0].length;
+      }
+      if (lastEnd < desc.length) {
+        segments.push({ text: desc.slice(lastEnd).trim(), bold: false });
+      }
+      if (segments.length === 0) return y;
+
+      // If no labels found, just render as plain text
+      const hasLabels = segments.some(s => s.bold);
+      if (!hasLabels) {
+        return wrapText(page, desc, x, y, maxWidth, regularFont, size, color, lineHeight);
+      }
+
+      // Render segments inline with word wrapping
+      let curX = x;
+      let curY = y;
+      const spaceW = regularFont.widthOfTextAtSize(' ', size);
+
+      for (const seg of segments) {
+        if (!seg.text) continue;
+        const font = seg.bold ? boldFont : regularFont;
+        const segColor = seg.bold ? boldColor : color;
+
+        // Add line break before bold labels (except the first one)
+        if (seg.bold && curX > x) {
+          curX = x;
+          curY -= size * (lineHeight * 0.4); // small extra gap before new label
+        }
+
+        const words = seg.text.split(/\s+/).filter(w => w);
+        for (let wi = 0; wi < words.length; wi++) {
+          const word = words[wi];
+          const wordW = font.widthOfTextAtSize(word, size);
+
+          // Wrap to next line if this word doesn't fit
+          if (curX + wordW > x + maxWidth && curX > x) {
+            curX = x;
+            curY -= size * lineHeight;
+          }
+
+          page.drawText(word, { x: curX, y: curY, size, font, color: segColor });
+          curX += wordW + spaceW;
+        }
+      }
+
+      curY -= size * lineHeight; // after last line
+      return curY;
+    }
+
     // Helper: add a new continuation page
     function addContinuationPage() {
       const newPage = pdfDoc.addPage([pageWidth, pageHeight]);
@@ -821,8 +882,11 @@ async function generateQuotePDF(quote) {
           const logoDims = logoImage.scale(0.18);
           newPage.drawImage(logoImage, { x: margin, y: py - logoDims.height, width: logoDims.width, height: logoDims.height });
           newPage.drawText('Quote #' + quoteNumber + '  continued', { x: margin + logoDims.width + 12, y: py - 14, size: 10, font: qualyFont, color: darkGreen });
-          newPage.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: py, size: 8, font: helvetica, color: gray });
-          newPage.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: py - 11, size: 8, font: helvetica, color: gray });
+          const contRight = pageWidth - margin;
+          const ct1 = 'pappaslandscaping.com';
+          const ct2 = '(440) 886-7318';
+          newPage.drawText(ct1, { x: contRight - helvetica.widthOfTextAtSize(ct1, 8), y: py, size: 8, font: helvetica, color: gray });
+          newPage.drawText(ct2, { x: contRight - helvetica.widthOfTextAtSize(ct2, 8), y: py - 11, size: 8, font: helvetica, color: gray });
           py -= logoDims.height + 8;
         } else {
           newPage.drawText('Quote #' + quoteNumber + '  continued', { x: margin, y: py - 10, size: 10, font: qualyFont, color: darkGreen });
@@ -841,19 +905,25 @@ async function generateQuotePDF(quote) {
 
     // ===== HEADER =====
     try {
+      // Right-aligned contact info helper
+      const rightEdge = pageWidth - margin;
+      const contactTexts = ['pappaslandscaping.com', 'hello@pappaslandscaping.com', '(440) 886-7318'];
+      const contactSize = 9;
+
       if (logoImage) {
         const logoDims = logoImage.scale(0.28);
         page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
-        const cx = pageWidth - margin - 145;
-        page.drawText('pappaslandscaping.com', { x: cx, y, size: 9, font: helvetica, color: gray });
-        page.drawText('hello@pappaslandscaping.com', { x: cx, y: y - 13, size: 9, font: helvetica, color: gray });
-        page.drawText('(440) 886-7318', { x: cx, y: y - 26, size: 9, font: helvetica, color: gray });
+        for (let ci = 0; ci < contactTexts.length; ci++) {
+          const tw = helvetica.widthOfTextAtSize(contactTexts[ci], contactSize);
+          page.drawText(contactTexts[ci], { x: rightEdge - tw, y: y - (ci * 13), size: contactSize, font: helvetica, color: gray });
+        }
         y -= logoDims.height + 8;
       } else {
         page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
-        page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 145, y, size: 9, font: helvetica, color: gray });
-        page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 145, y: y - 13, size: 9, font: helvetica, color: gray });
-        page.drawText('(440) 886-7318', { x: pageWidth - margin - 145, y: y - 26, size: 9, font: helvetica, color: gray });
+        for (let ci = 0; ci < contactTexts.length; ci++) {
+          const tw = helvetica.widthOfTextAtSize(contactTexts[ci], contactSize);
+          page.drawText(contactTexts[ci], { x: rightEdge - tw, y: y - (ci * 13), size: contactSize, font: helvetica, color: gray });
+        }
         y -= 28;
       }
       page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
@@ -948,10 +1018,11 @@ async function generateQuotePDF(quote) {
       const svcAmount = svc.amount != null ? parseFloat(svc.amount) : 0;
       const desc = pdfSafe(svc.description || '');
 
-      // Calculate row height: name bar (24) + description text + padding
+      // Calculate row height: name bar (28) + description text + padding
       let rowH = 28; // service name bar height + gap
       if (desc) {
-        rowH += wrapHeight(desc, descMaxWidth, helvetica, descSize, descLineHeight) + 10;
+        // Add 20% buffer for bold label line breaks
+        rowH += wrapHeight(desc, descMaxWidth, helvetica, descSize, descLineHeight) * 1.2 + 12;
       }
 
       // New page if needed
@@ -975,10 +1046,10 @@ async function generateQuotePDF(quote) {
       cp.drawText(amtStr, { x: pageWidth - margin - 65, y: barY - 5, size: nameSize, font: helveticaBold, color: darkGreen });
       y -= 28;
 
-      // Description — clean wrapped text
+      // Description — with inline bold labels (Mowing:, Trimming:, etc.)
       if (desc) {
         y -= 2;
-        y = wrapText(cp, desc, descX, y, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
+        y = wrapTextWithLabels(cp, desc, descX, y, descMaxWidth, helvetica, helveticaBold, descSize, midGray, rgb(0.15, 0.2, 0.25), descLineHeight);
         y -= 8; // padding after description
       }
 

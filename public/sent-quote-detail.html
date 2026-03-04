@@ -214,6 +214,7 @@
         .timeline-icon.declined { background: #fef0f0; }
         .timeline-icon.changes { background: var(--amber-bg); }
         .timeline-icon.updated { background: var(--blue-bg); }
+        .timeline-icon.edited { background: #f0f4ff; }
         .timeline-content { flex: 1; min-width: 0; }
         .timeline-title { font-size: 14px; font-weight: 600; color: var(--gray-700); }
         .timeline-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
@@ -421,17 +422,14 @@
                 return;
             }
             quoteData = data.quote;
-            renderQuote(quoteData);
-
-            // Also load view history
-            loadViews();
+            await renderQuote(quoteData);
         } catch (e) {
             console.error('Error loading quote:', e);
             document.getElementById('loading').textContent = 'Failed to load quote.';
         }
     }
 
-    function renderQuote(q) {
+    async function renderQuote(q) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('detailContent').style.display = 'block';
 
@@ -525,113 +523,149 @@
         actionsHtml += `<button class="btn btn-danger" onclick="deleteQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>`;
         actions.innerHTML = actionsHtml;
 
-        // Build timeline
-        buildTimeline(q);
+        // Build timeline (async - loads events from API)
+        await buildTimeline(q);
     }
 
-    function buildTimeline(q) {
+    async function buildTimeline(q) {
         const timeline = document.getElementById('timeline');
         const events = [];
 
-        // Created
-        if (q.created_at) {
-            events.push({
-                icon: '📝', cls: 'created',
-                title: 'Quote Created',
-                desc: 'Quote was created and saved as draft',
-                time: new Date(q.created_at)
-            });
-        }
+        const reasonLabels = {
+            'price': 'Price too high',
+            'price_too_high': 'Price too high',
+            'timing': 'Not the right time',
+            'other_provider': 'Going with another provider',
+            'found_another': 'Found another provider',
+            'not_needed': 'No longer needed',
+            'selling_home': 'Selling the home',
+            'diy': 'Going to do it myself',
+            'budget': 'Budget constraints',
+            'other': 'Other'
+        };
 
-        // Sent
-        if (q.sent_at) {
-            events.push({
-                icon: '📤', cls: 'sent',
-                title: 'Sent by Email',
-                desc: q.customer_email ? 'Emailed to ' + q.customer_email : 'Quote sent to customer',
-                time: new Date(q.sent_at)
-            });
-        }
+        const changeLabels = {
+            'add_services': 'Add more services',
+            'remove_services': 'Remove some services',
+            'pricing': 'Question about pricing',
+            'schedule': 'Change schedule/frequency',
+            'scope': 'Adjust scope of work',
+            'other': 'Other'
+        };
 
-        // Viewed (from sent_quotes table)
-        if (q.viewed_at) {
-            events.push({
-                icon: '👁', cls: 'viewed',
-                title: 'Viewed by Customer',
-                desc: 'Customer opened the quote link',
-                time: new Date(q.viewed_at)
-            });
-        }
+        // Try to load events from the events API first
+        let dbEvents = [];
+        try {
+            const evRes = await fetch(`/api/sent-quotes/${quoteId}/events`);
+            const evData = await evRes.json();
+            if (evData.success && evData.events) dbEvents = evData.events;
+        } catch (e) { console.error('Error loading events:', e); }
 
-        // Signed
-        if (q.signed_at || (q.contract_signed_at && q.status === 'signed')) {
-            const signTime = q.signed_at || q.contract_signed_at;
-            events.push({
-                icon: '✍️', cls: 'signed',
-                title: 'Quote Accepted',
-                desc: q.contract_signer_name ? 'Accepted by ' + q.contract_signer_name : 'Customer accepted the quote',
-                time: new Date(signTime)
+        if (dbEvents.length > 0) {
+            // Build timeline from event records
+            dbEvents.forEach(ev => {
+                const details = typeof ev.details === 'string' ? JSON.parse(ev.details) : (ev.details || {});
+                let icon, cls, title, desc;
+                switch (ev.event_type) {
+                    case 'created':
+                        icon = '📝'; cls = 'created'; title = 'Quote Created';
+                        desc = 'Quote was created and saved as draft';
+                        break;
+                    case 'sent':
+                        icon = '📤'; cls = 'sent'; title = 'Sent by Email';
+                        desc = details.email ? 'Emailed to ' + details.email : 'Quote sent to customer';
+                        break;
+                    case 'resent':
+                        icon = '📤'; cls = 'sent'; title = 'Quote Resent';
+                        desc = details.email ? 'Resent to ' + details.email : 'Quote resent to customer';
+                        if (details.total) desc += ' · Total: $' + parseFloat(details.total).toFixed(2);
+                        break;
+                    case 'edited':
+                        icon = '✏️'; cls = 'edited'; title = 'Quote Edited';
+                        const fields = details.fields_changed || [];
+                        const fieldNames = fields.filter(f => !['status'].includes(f));
+                        desc = fieldNames.length > 0 ? 'Updated: ' + fieldNames.join(', ') : 'Quote was modified';
+                        if (details.new_total) desc += ' · New total: $' + parseFloat(details.new_total).toFixed(2);
+                        break;
+                    case 'viewed':
+                        icon = '👁'; cls = 'viewed'; title = 'Viewed by Customer';
+                        desc = 'Customer opened the quote link';
+                        break;
+                    case 'declined':
+                        icon = '❌'; cls = 'declined'; title = 'Quote Declined';
+                        desc = '<strong>Reason:</strong> ' + (reasonLabels[details.reason] || details.reason || 'No reason given');
+                        if (details.comments) desc += '<br><strong>Comments:</strong> ' + details.comments;
+                        break;
+                    case 'changes_requested':
+                        icon = '🔄'; cls = 'changes'; title = 'Changes Requested';
+                        desc = '';
+                        if (details.change_type && details.change_type !== 'general') {
+                            desc = '<strong>Type:</strong> ' + (changeLabels[details.change_type] || details.change_type) + '<br>';
+                        }
+                        desc += details.change_details || 'Customer requested changes';
+                        break;
+                    case 'contracted':
+                        icon = '✅'; cls = 'contracted'; title = 'Contract Signed';
+                        desc = details.signer_name ? 'Signed by ' + details.signer_name : 'Contract was signed';
+                        break;
+                    default:
+                        icon = '📌'; cls = 'created'; title = ev.event_type;
+                        desc = ev.description || '';
+                }
+                events.push({ icon, cls, title, desc, time: new Date(ev.created_at) });
             });
-        }
-
-        // Contract signed
-        if (q.contract_signed_at && q.status === 'contracted') {
-            events.push({
-                icon: '✅', cls: 'contracted',
-                title: 'Contract Signed',
-                desc: q.contract_signer_name ? 'Signed by ' + q.contract_signer_name + (q.contract_signer_ip ? ' (IP: ' + q.contract_signer_ip + ')' : '') : 'Contract was signed',
-                time: new Date(q.contract_signed_at)
-            });
-        }
-
-        // Declined
-        if (q.status === 'declined') {
-            const reasonLabels = {
-                'price': 'Price too high',
-                'price_too_high': 'Price too high',
-                'timing': 'Not the right time',
-                'other_provider': 'Going with another provider',
-                'found_another': 'Found another provider',
-                'not_needed': 'No longer needed',
-                'selling_home': 'Selling the home',
-                'diy': 'Going to do it myself',
-                'budget': 'Budget constraints',
-                'other': 'Other'
-            };
-            let declineDesc = '<strong>Reason:</strong> ' + (reasonLabels[q.decline_reason] || q.decline_reason || 'No reason given');
-            if (q.decline_comments) {
-                declineDesc += '<br><strong>Comments:</strong> ' + q.decline_comments;
+        } else {
+            // Fallback: build from quote fields (for quotes created before events table)
+            if (q.created_at) {
+                events.push({ icon: '📝', cls: 'created', title: 'Quote Created', desc: 'Quote was created and saved as draft', time: new Date(q.created_at) });
             }
-            events.push({
-                icon: '❌', cls: 'declined',
-                title: 'Quote Declined',
-                desc: declineDesc,
-                time: new Date(q.declined_at || q.updated_at || q.created_at)
-            });
+            if (q.sent_at) {
+                events.push({ icon: '📤', cls: 'sent', title: 'Sent by Email', desc: q.customer_email ? 'Emailed to ' + q.customer_email : 'Quote sent to customer', time: new Date(q.sent_at) });
+            }
+            if (q.viewed_at) {
+                events.push({ icon: '👁', cls: 'viewed', title: 'Viewed by Customer', desc: 'Customer opened the quote link', time: new Date(q.viewed_at) });
+            }
+            if (q.signed_at || (q.contract_signed_at && q.status === 'signed')) {
+                events.push({ icon: '✍️', cls: 'signed', title: 'Quote Accepted', desc: q.contract_signer_name ? 'Accepted by ' + q.contract_signer_name : 'Customer accepted', time: new Date(q.signed_at || q.contract_signed_at) });
+            }
+            if (q.contract_signed_at && q.status === 'contracted') {
+                events.push({ icon: '✅', cls: 'contracted', title: 'Contract Signed', desc: q.contract_signer_name ? 'Signed by ' + q.contract_signer_name : 'Contract was signed', time: new Date(q.contract_signed_at) });
+            }
+            if (q.status === 'declined') {
+                let declineDesc = '<strong>Reason:</strong> ' + (reasonLabels[q.decline_reason] || q.decline_reason || 'No reason given');
+                if (q.decline_comments) declineDesc += '<br><strong>Comments:</strong> ' + q.decline_comments;
+                events.push({ icon: '❌', cls: 'declined', title: 'Quote Declined', desc: declineDesc, time: new Date(q.declined_at || q.updated_at || q.created_at) });
+            }
+            if (q.status === 'changes_requested') {
+                let changesDesc = '';
+                if (q.change_type && q.change_type !== 'general') changesDesc = '<strong>Type:</strong> ' + (changeLabels[q.change_type] || q.change_type) + '<br>';
+                changesDesc += q.change_details || 'Customer requested changes to this quote';
+                events.push({ icon: '🔄', cls: 'changes', title: 'Changes Requested', desc: changesDesc, time: new Date(q.changes_requested_at || q.updated_at || q.created_at) });
+            }
         }
 
-        // Changes requested
-        if (q.status === 'changes_requested') {
-            let changesDesc = '';
-            if (q.change_type && q.change_type !== 'general') {
-                const changeLabels = {
-                    'add_services': 'Add more services',
-                    'remove_services': 'Remove some services',
-                    'pricing': 'Question about pricing',
-                    'schedule': 'Change schedule/frequency',
-                    'scope': 'Adjust scope of work',
-                    'other': 'Other'
-                };
-                changesDesc = '<strong>Type:</strong> ' + (changeLabels[q.change_type] || q.change_type) + '<br>';
+        // Load view events from quote_views table and merge in
+        try {
+            const vRes = await fetch(`/api/sent-quotes/${quoteId}/views`);
+            const vData = await vRes.json();
+            if (vData.success && vData.views && vData.views.length > 0) {
+                vData.views.forEach(v => {
+                    const dt = new Date(v.viewed_at);
+                    const ua = v.user_agent || '';
+                    let device = 'Unknown device';
+                    if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone')) device = 'Mobile device';
+                    else if (ua.includes('Windows')) device = 'Windows computer';
+                    else if (ua.includes('Mac')) device = 'Mac computer';
+                    else if (ua.includes('Linux')) device = 'Linux computer';
+                    events.push({
+                        icon: '👁', cls: 'viewed',
+                        title: 'Quote Viewed',
+                        desc: device + (v.ip_address ? ' · ' + v.ip_address : ''),
+                        time: dt
+                    });
+                });
             }
-            changesDesc += q.change_details ? q.change_details : 'Customer requested changes to this quote';
-            events.push({
-                icon: '🔄', cls: 'changes',
-                title: 'Changes Requested',
-                desc: changesDesc,
-                time: new Date(q.changes_requested_at || q.updated_at || q.created_at)
-            });
-        }
+        } catch (e) { console.error('Error loading views:', e); }
 
         // Sort by time ascending (oldest first)
         events.sort((a, b) => a.time - b.time);
@@ -651,67 +685,6 @@
                 </div>
             </div>
         `).join('');
-    }
-
-    // View history from quote_views table
-    async function loadViews() {
-        try {
-            const res = await fetch(`/api/sent-quotes/${quoteId}/views`);
-            const data = await res.json();
-            if (data.success && data.views && data.views.length > 0) {
-                const timeline = document.getElementById('timeline');
-                // Insert view events into timeline
-                data.views.forEach(v => {
-                    const dt = new Date(v.viewed_at);
-                    const ua = v.user_agent || '';
-                    let device = 'Unknown device';
-                    if (ua.includes('Mobile') || ua.includes('Android') || ua.includes('iPhone')) device = 'Mobile device';
-                    else if (ua.includes('Windows')) device = 'Windows computer';
-                    else if (ua.includes('Mac')) device = 'Mac computer';
-                    else if (ua.includes('Linux')) device = 'Linux computer';
-
-                    const item = document.createElement('div');
-                    item.className = 'timeline-item';
-                    item.innerHTML = `
-                        <div class="timeline-icon viewed">👁</div>
-                        <div class="timeline-content">
-                            <div class="timeline-title">Quote Viewed</div>
-                            <div class="timeline-desc">${device}${v.ip_address ? ' · ' + v.ip_address : ''}</div>
-                            <div class="timeline-time">${formatDateTime(dt)}</div>
-                        </div>
-                    `;
-
-                    // Insert in chronological order
-                    const existing = timeline.querySelectorAll('.timeline-item');
-                    let inserted = false;
-                    for (const ex of existing) {
-                        const exTime = ex.querySelector('.timeline-time')?.textContent;
-                        if (exTime && new Date(exTime) > dt) {
-                            // Skip — we're adding at end and re-sorting
-                        }
-                    }
-                    timeline.appendChild(item);
-                });
-
-                // Re-sort all timeline items by date
-                const items = Array.from(timeline.querySelectorAll('.timeline-item'));
-                items.sort((a, b) => {
-                    const ta = parseTimelineDate(a.querySelector('.timeline-time')?.textContent || '');
-                    const tb = parseTimelineDate(b.querySelector('.timeline-time')?.textContent || '');
-                    return ta - tb;
-                });
-                timeline.innerHTML = '';
-                items.forEach(item => timeline.appendChild(item));
-            }
-        } catch (e) {
-            console.error('Error loading views:', e);
-        }
-    }
-
-    function parseTimelineDate(str) {
-        // Try to parse our formatted date strings
-        const d = new Date(str);
-        return isNaN(d.getTime()) ? 0 : d.getTime();
     }
 
     function formatDateTime(dt) {

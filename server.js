@@ -3471,6 +3471,55 @@ app.get('/api/sent-quotes', async (req, res) => {
   }
 });
 
+// GET /api/sent-quotes/view-counts - Bulk view counts for all sent quotes
+// IMPORTANT: Must be registered BEFORE :id route
+app.get('/api/sent-quotes/view-counts', async (req, res) => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
+      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
+      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(45), user_agent TEXT
+    )`);
+    const counts = await pool.query(
+      'SELECT sent_quote_id, COUNT(*) as view_count, MAX(viewed_at) as last_viewed FROM quote_views GROUP BY sent_quote_id'
+    );
+    const map = {};
+    counts.rows.forEach(r => { map[r.sent_quote_id] = { count: parseInt(r.view_count), lastViewed: r.last_viewed }; });
+    res.json({ success: true, viewCounts: map });
+  } catch (error) {
+    console.error('Error fetching view counts:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sent-quotes/event-counts - Bulk event counts (resend/edit tracking)
+// IMPORTANT: Must be registered BEFORE :id route
+app.get('/api/sent-quotes/event-counts', async (req, res) => {
+  try {
+    await ensureQuoteEventsTable();
+    const result = await pool.query(
+      `SELECT sent_quote_id,
+        COUNT(*) FILTER (WHERE event_type = 'resent') as resend_count,
+        COUNT(*) FILTER (WHERE event_type = 'edited') as edit_count,
+        COUNT(*) FILTER (WHERE event_type IN ('sent', 'resent')) as total_sends
+       FROM quote_events
+       GROUP BY sent_quote_id`
+    );
+    const map = {};
+    result.rows.forEach(r => {
+      map[r.sent_quote_id] = {
+        resend_count: parseInt(r.resend_count),
+        edit_count: parseInt(r.edit_count),
+        total_sends: parseInt(r.total_sends)
+      };
+    });
+    res.json({ success: true, eventCounts: map });
+  } catch (error) {
+    console.error('Error fetching event counts:', error);
+    res.json({ success: true, eventCounts: {} });
+  }
+});
+
 // GET /api/sent-quotes/:id - Get single quote
 app.get('/api/sent-quotes/:id', async (req, res) => {
   try {
@@ -3484,6 +3533,32 @@ app.get('/api/sent-quotes/:id', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// ═══════════════════════════════════════════════════════════
+// QUOTE EVENT TRACKING
+// ═══════════════════════════════════════════════════════════
+async function ensureQuoteEventsTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS quote_events (
+    id SERIAL PRIMARY KEY,
+    sent_quote_id INTEGER NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    description TEXT,
+    details JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+
+async function logQuoteEvent(quoteId, eventType, description, details = null) {
+  try {
+    await ensureQuoteEventsTable();
+    await pool.query(
+      'INSERT INTO quote_events (sent_quote_id, event_type, description, details) VALUES ($1, $2, $3, $4)',
+      [quoteId, eventType, description, details ? JSON.stringify(details) : null]
+    );
+  } catch (e) {
+    console.error('Error logging quote event:', e);
+  }
+}
 
 // POST /api/sent-quotes - Create new quote
 app.post('/api/sent-quotes', async (req, res) => {
@@ -3548,6 +3623,12 @@ app.post('/api/sent-quotes', async (req, res) => {
       ]
     );
 
+    // Log creation event
+    await logQuoteEvent(result.rows[0].id, 'created', 'Quote created', {
+      total: total,
+      services_count: services ? services.length : 0
+    });
+
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) {
     console.error('Error creating quote:', error);
@@ -3594,6 +3675,13 @@ app.put('/api/sent-quotes/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
+
+    // Log edit event with what changed
+    const changedFields = allowedFields.filter(f => req.body[f] !== undefined);
+    await logQuoteEvent(id, 'edited', 'Quote edited', {
+      fields_changed: changedFields,
+      new_total: result.rows[0].total
+    });
 
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) {
@@ -3683,11 +3771,22 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
       attachments
     );
 
+    // Determine if this is first send or resend
+    const isResend = quote.sent_at !== null;
+
     // Update status to sent
     await pool.query(
       'UPDATE sent_quotes SET status = $1, sent_at = CURRENT_TIMESTAMP WHERE id = $2',
       ['sent', id]
     );
+
+    // Log send/resend event
+    await logQuoteEvent(id, isResend ? 'resent' : 'sent',
+      isResend ? 'Quote resent to ' + quote.customer_email : 'Quote sent to ' + quote.customer_email, {
+      email: quote.customer_email,
+      total: quote.total,
+      pdf_attached: pdfAttached
+    });
 
     res.json({ success: true, message: 'Quote sent successfully', pdfAttached, pdfType, pdfError, pdfSize: pdfResult && pdfResult.bytes ? pdfResult.bytes.length : 0 });
   } catch (error) {
@@ -3744,6 +3843,7 @@ app.get('/api/sign/:token', async (req, res) => {
         ['viewed', quote.id]
       );
       quote.status = 'viewed';
+      await logQuoteEvent(quote.id, 'viewed', 'Quote viewed by customer');
     }
 
     // Enrich services with descriptions
@@ -3867,6 +3967,12 @@ app.post('/api/sign/:token/decline', async (req, res) => {
     `;
     await sendEmail(NOTIFICATION_EMAIL, `❌ Quote Declined: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
 
+    // Log decline event
+    await logQuoteEvent(quote.id, 'declined', 'Quote declined by customer', {
+      reason: decline_reason,
+      comments: decline_comments || null
+    });
+
     res.json({ success: true, message: 'Quote declined' });
   } catch (error) {
     console.error('Error declining quote:', error);
@@ -3893,23 +3999,18 @@ app.get('/api/sent-quotes/:id/views', async (req, res) => {
   }
 });
 
-// GET /api/sent-quotes/view-counts - Bulk view counts for all sent quotes
-app.get('/api/sent-quotes/view-counts', async (req, res) => {
+// GET /api/sent-quotes/:id/events - Full event history for a quote
+app.get('/api/sent-quotes/:id/events', async (req, res) => {
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
-      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
-      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ip_address VARCHAR(45), user_agent TEXT
-    )`);
-    const counts = await pool.query(
-      'SELECT sent_quote_id, COUNT(*) as view_count, MAX(viewed_at) as last_viewed FROM quote_views GROUP BY sent_quote_id'
+    await ensureQuoteEventsTable();
+    const result = await pool.query(
+      'SELECT * FROM quote_events WHERE sent_quote_id = $1 ORDER BY created_at ASC',
+      [req.params.id]
     );
-    const map = {};
-    counts.rows.forEach(r => { map[r.sent_quote_id] = { count: parseInt(r.view_count), lastViewed: r.last_viewed }; });
-    res.json({ success: true, viewCounts: map });
+    res.json({ success: true, events: result.rows });
   } catch (error) {
-    console.error('Error fetching view counts:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Error fetching quote events:', error);
+    res.json({ success: true, events: [] });
   }
 });
 
@@ -3965,6 +4066,12 @@ app.post('/api/sign/:token/request-changes', async (req, res) => {
     `;
     await sendEmail(NOTIFICATION_EMAIL, `📝 Change Request: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
 
+    // Log changes requested event
+    await logQuoteEvent(quote.id, 'changes_requested', 'Customer requested changes', {
+      change_type: type,
+      change_details: details
+    });
+
     res.json({ success: true, message: 'Changes requested' });
   } catch (error) {
     console.error('Error requesting changes:', error);
@@ -4011,6 +4118,14 @@ app.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
     `, [signature_data, signature_type, signerIp, printed_name, id]);
 
     const updatedQuote = updateResult.rows[0];
+
+    // Log contract signed event
+    await logQuoteEvent(id, 'contracted', 'Contract signed by ' + printed_name, {
+      signer_name: printed_name,
+      signer_ip: signerIp,
+      signature_type: signature_type
+    });
+
     const signedDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     const signedTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 

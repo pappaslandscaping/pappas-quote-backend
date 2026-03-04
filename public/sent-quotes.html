@@ -931,6 +931,16 @@
                 </td>
                 <td>
                     <span class="status-badge ${q.status}">${statusLabel}</span>
+                    ${(() => {
+                        const ec = window.eventCounts[q.id];
+                        if (ec && (ec.resend_count > 0 || ec.edit_count > 0)) {
+                            let parts = [];
+                            if (ec.total_sends > 1) parts.push('Sent ' + ec.total_sends + 'x');
+                            if (ec.edit_count > 0) parts.push('Edited ' + ec.edit_count + 'x');
+                            return '<div style="font-size:11px;color:#6366f1;margin-top:3px;">' + parts.join(' · ') + '</div>';
+                        }
+                        return '';
+                    })()}
                     ${q.status === 'declined' && q.decline_reason ? `<div style="font-size:11px;color:#dc2626;margin-top:4px;">${{'price':'Price too high','timing':'Not the right time','other_provider':'Going with another provider','not_needed':'No longer needed','other':'Other','price_too_high':'Price too high','found_another':'Found another provider','selling_home':'Selling the home','diy':'DIY','budget':'Budget constraints'}[q.decline_reason] || q.decline_reason}${q.decline_comments ? ': ' + q.decline_comments : ''}</div>` : ''}
                     ${q.status === 'changes_requested' && q.change_details ? `<div style="font-size:11px;color:#d97706;margin-top:4px;">${q.change_details}</div>` : ''}
                 </td>
@@ -1604,6 +1614,17 @@
     }
     document.addEventListener('DOMContentLoaded', initUniversalSearch);
 
+    // ─── Event Counts (resend/edit tracking) ───────────────
+    window.eventCounts = {};
+
+    async function loadEventCounts() {
+        try {
+            const res = await fetch('/api/sent-quotes/event-counts');
+            const data = await res.json();
+            if (data.success) window.eventCounts = data.eventCounts || {};
+        } catch(e) { console.error('Failed to load event counts', e); }
+    }
+
     // ─── View Counts ─────────────────────────────────────
     window.viewCounts = {};
 
@@ -1666,7 +1687,7 @@
 
     // Initial load
     (async () => {
-        await loadViewCounts();
+        await Promise.all([loadViewCounts(), loadEventCounts()]);
         loadQuotes();
     })();
 </script>

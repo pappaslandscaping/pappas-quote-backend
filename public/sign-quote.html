@@ -294,7 +294,7 @@
                 if (!desc) return '';
                 // Split on known service label patterns (word(s) followed by colon)
                 // e.g. "Mowing: ...", "Bed Edging: ...", "Spring Cleanup: ..."
-                const formatted = desc.replace(/(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g, (match, label, offset) => {
+                const formatted = desc.replace(/(?:^|\s)([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g, (match, label, offset) => {
                     const br = offset > 0 ? '<br>' : '';
                     return `${br}<span class="desc-label">${label}:</span> `;
                 });

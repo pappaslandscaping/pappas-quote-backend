@@ -374,31 +374,26 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     let page = addPage();
     let y = pageHeight - margin;
 
-    // Header: logo on left, SERVICE AGREEMENT + contact info on right (matching quote PDF style)
+    // Header: logo on left, contact info on right
     const headerTop = y;
     if (logoImage) {
       const logoDims = logoImage.scale(0.18);
       page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
-      // SERVICE AGREEMENT text to the right of logo
-      page.drawText('SERVICE AGREEMENT', { x: margin + logoDims.width + 14, y: y - 14, size: 11, font: qualyFont, color: darkGreen });
-      page.drawText(`Quote #${quoteNumber}`, { x: margin + logoDims.width + 14, y: y - 30, size: 9, font: helvetica, color: gray });
       y -= logoDims.height + 4;
     } else {
       page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
-      y -= 24;
-      page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 11, font: qualyFont, color: gray });
-      page.drawText(`Quote #${quoteNumber}`, { x: margin + 155, y, size: 9, font: helvetica, color: gray });
-      y -= 16;
+      y -= 28;
     }
     // Contact info top-right
     page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: headerTop, size: 8, font: helvetica, color: gray });
     page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 130, y: headerTop - 11, size: 8, font: helvetica, color: gray });
     page.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: headerTop - 22, size: 8, font: helvetica, color: gray });
 
-    // Lime accent line
-    y -= 14;
-    page.drawRectangle({ x: margin, y, width: contentWidth, height: 3, color: limeGreen });
-    y -= 25;
+    // SERVICE AGREEMENT banner (dark green bar like "Services Included" on quote PDF)
+    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
+    page.drawText('Service Agreement', { x: margin + 14, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
+    page.drawText(`Quote #${quoteNumber}`, { x: pageWidth - margin - 90, y: y + 2, size: 10, font: helvetica, color: limeGreen });
+    y -= 40;
     
     // Two column layout for parties
     const colWidth = (contentWidth - 20) / 2;
@@ -420,16 +415,31 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     page.drawText('hello@pappaslandscaping.com', { x: margin, y, size: 9, font: helvetica, color: black });
 
     // Client (right column — starts at same Y as service provider)
+    const cx = margin + colWidth + 20;
     let clientY = partiesY;
-    page.drawText('CLIENT', { x: margin + colWidth + 20, y: clientY, size: 8, font: helveticaBold, color: gray });
+    page.drawText('CLIENT', { x: cx, y: clientY, size: 8, font: helveticaBold, color: gray });
     clientY -= 14;
-    page.drawText(quote.customer_name || '', { x: margin + colWidth + 20, y: clientY, size: 10, font: helveticaBold, color: black });
+    page.drawText(quote.customer_name || '', { x: cx, y: clientY, size: 10, font: helveticaBold, color: black });
     clientY -= 12;
-    page.drawText(quote.customer_address || '', { x: margin + colWidth + 20, y: clientY, size: 9, font: helvetica, color: black });
+    // Split address into street line and city/state line
+    const fullAddr = quote.customer_address || '';
+    const addrParts = fullAddr.split(',').map(p => p.trim());
+    if (addrParts.length >= 3) {
+      // e.g. "123 Main St, Lakewood, OH 44107"
+      page.drawText(addrParts[0], { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+      clientY -= 11;
+      page.drawText(addrParts.slice(1).join(', '), { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    } else if (addrParts.length === 2) {
+      page.drawText(addrParts[0], { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+      clientY -= 11;
+      page.drawText(addrParts[1], { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    } else {
+      page.drawText(fullAddr, { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    }
     clientY -= 11;
-    page.drawText(quote.customer_email || '', { x: margin + colWidth + 20, y: clientY, size: 9, font: helvetica, color: black });
+    page.drawText(quote.customer_email || '', { x: cx, y: clientY, size: 9, font: helvetica, color: black });
     clientY -= 11;
-    page.drawText(quote.customer_phone || '', { x: margin + colWidth + 20, y: clientY, size: 9, font: helvetica, color: black });
+    page.drawText(quote.customer_phone || '', { x: cx, y: clientY, size: 9, font: helvetica, color: black });
 
     y -= 40;
     
@@ -454,16 +464,22 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
       page.drawLine({ start: { x: margin + svcColWidth, y: y + 5 }, end: { x: margin + svcColWidth, y: y - 17 }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
       y -= 24;
 
-      for (let i = 0; i < services.length; i += 2) {
-        const bgColor = (i / 2) % 2 === 0 ? rgb(1, 1, 1) : rgb(0.98, 0.98, 0.98);
+      // Vertical ordering: fill left column top-to-bottom, then right column
+      const halfLen = Math.ceil(services.length / 2);
+      const numRows = halfLen;
+      for (let row = 0; row < numRows; row++) {
+        const bgColor = row % 2 === 0 ? rgb(1, 1, 1) : rgb(0.98, 0.98, 0.98);
         page.drawRectangle({ x: margin, y: y - svcRowHeight + 15, width: contentWidth, height: svcRowHeight, color: bgColor });
 
-        const svc1 = services[i];
+        // Left column: services[row]
+        const svc1 = services[row];
         page.drawText(svc1.name, { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
         page.drawText(`$${parseFloat(svc1.amount).toFixed(2)}`, { x: margin + svcColWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
 
-        if (i + 1 < services.length) {
-          const svc2 = services[i + 1];
+        // Right column: services[row + halfLen]
+        const rightIdx = row + halfLen;
+        if (rightIdx < services.length) {
+          const svc2 = services[rightIdx];
           page.drawText(svc2.name, { x: margin + svcColWidth + 10, y: y, size: 9, font: helvetica, color: black });
           page.drawText(`$${parseFloat(svc2.amount).toFixed(2)}`, { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
         }
@@ -837,26 +853,31 @@ async function generateQuotePDF(quote) {
       // Calculate row height (account for bold labels + line breaks between sections)
       let rowH = nameSize * 1.6 + 6; // name + padding
       if (desc) {
-        const labelRegexH = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
-        const matchesH = [];
-        let mh;
-        while ((mh = labelRegexH.exec(desc)) !== null) {
-          matchesH.push({ index: mh.index, end: mh.index + mh[0].length });
-        }
-        if (matchesH.length === 0) {
+        try {
+          const labelRegexH = /(?:^|\s)([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
+          const matchesH = [];
+          let mh;
+          while ((mh = labelRegexH.exec(desc)) !== null) {
+            const adjIdx = (mh.index > 0 && /\s/.test(desc[mh.index])) ? mh.index + 1 : mh.index;
+            matchesH.push({ index: adjIdx, end: mh.index + mh[0].length });
+          }
+          if (matchesH.length === 0) {
+            rowH += wrapHeight(desc, descMaxWidth, helvetica, descSize, descLineHeight);
+          } else {
+            if (matchesH[0].index > 0) {
+              const bef = desc.slice(0, matchesH[0].index).trim();
+              if (bef) rowH += wrapHeight(bef, descMaxWidth, helvetica, descSize, descLineHeight);
+            }
+            for (let mi = 0; mi < matchesH.length; mi++) {
+              const textEnd = mi + 1 < matchesH.length ? matchesH[mi + 1].index : desc.length;
+              const part = desc.slice(matchesH[mi].end, textEnd).trim();
+              rowH += wrapHeight(part || ' ', descMaxWidth, helvetica, descSize, descLineHeight);
+            }
+            rowH += (matchesH.length - 1) * 4;
+          }
+        } catch (hErr) {
+          console.error('Height calc error, using plain fallback:', hErr.message);
           rowH += wrapHeight(desc, descMaxWidth, helvetica, descSize, descLineHeight);
-        } else {
-          // Text before first label
-          if (matchesH[0].index > 0) {
-            const bef = desc.slice(0, matchesH[0].index).trim();
-            if (bef) rowH += wrapHeight(bef, descMaxWidth, helvetica, descSize, descLineHeight);
-          }
-          for (let mi = 0; mi < matchesH.length; mi++) {
-            const textEnd = mi + 1 < matchesH.length ? matchesH[mi + 1].index : desc.length;
-            const part = desc.slice(matchesH[mi].end, textEnd).trim();
-            rowH += wrapHeight(part || ' ', descMaxWidth, helvetica, descSize, descLineHeight);
-          }
-          rowH += (matchesH.length - 1) * 4; // inter-section spacing
         }
         rowH += 8; // bottom padding
       }
@@ -888,11 +909,12 @@ async function generateQuotePDF(quote) {
         let dy = y - nameSize * 1.5;
         try {
           // First, collect all label match positions
-          const labelRegex = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
+          const labelRegex = /(?:^|\s)([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
           const matches = [];
           let m;
           while ((m = labelRegex.exec(desc)) !== null) {
-            matches.push({ index: m.index, end: m.index + m[0].length, label: m[1] + ':' });
+            const adjIdx = (m.index > 0 && /\s/.test(desc[m.index])) ? m.index + 1 : m.index;
+            matches.push({ index: adjIdx, end: m.index + m[0].length, label: m[1] + ':' });
           }
 
           const sections = [];

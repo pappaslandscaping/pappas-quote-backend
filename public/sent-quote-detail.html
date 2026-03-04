@@ -509,14 +509,13 @@
         // Topbar actions
         const actions = document.getElementById('topbarActions');
         let actionsHtml = '';
+        if (q.status !== 'contracted') {
+            actionsHtml += `<button class="btn btn-primary" onclick="openEditModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Quote</button>`;
+        }
         if (q.status === 'draft') {
             actionsHtml += `<button class="btn btn-primary" onclick="sendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Send Quote</button>`;
         }
-        if (q.status === 'sent' || q.status === 'viewed') {
-            actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
-        }
-        if (q.status === 'declined' || q.status === 'changes_requested') {
-            actionsHtml += `<button class="btn btn-primary" onclick="openEditModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Quote</button>`;
+        if (q.status !== 'draft' && q.status !== 'contracted') {
             actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
         }
         actionsHtml += `<button class="btn btn-outline" onclick="downloadQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF</button>`;

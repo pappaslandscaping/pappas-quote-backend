@@ -966,7 +966,7 @@ async function loadQuotesColumn() {
         const recentChanges = quotes.filter(q => q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo).length;
         const recentContracted = quotes.filter(q => q.status === 'contracted' && new Date(q.contract_signed_at || q.created_at) > thirtyDaysAgo).length;
         const actions = [];
-        // Removed: 'Pending Contract Signatures' action - signed quotes are tracked in the Quotes section
+        if (recentSigned > 0) actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed' });
         if (recentChanges > 0) actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested' });
         if (recentContracted > 0) actions.push({ title: 'Send Portal Invites', sub: 'New customers need card on file', count: recentContracted, href: 'sent-quotes.html?status=contracted' });
 

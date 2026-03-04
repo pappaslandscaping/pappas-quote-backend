@@ -6870,10 +6870,16 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
     await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signature_type TYPE VARCHAR(50)`);
     console.log('✅ Widened contract_signature_type to VARCHAR(50)');
   } catch(e) { /* already wide enough or not exist */ }
-  // Fix old quotes stuck at 'signed' that already have contract signed
+  // Fix quotes stuck at 'signed' that already have contract signed
   try {
     const fixed = await pool.query(`UPDATE sent_quotes SET status = 'contracted' WHERE status = 'signed' AND contract_signed_at IS NOT NULL RETURNING id, quote_number`);
-    if (fixed.rowCount > 0) console.log('✅ Fixed ' + fixed.rowCount + ' quotes stuck at signed→contracted:', fixed.rows.map(r => r.quote_number).join(', '));
+    if (fixed.rowCount > 0) console.log('✅ Fixed ' + fixed.rowCount + ' quotes signed→contracted (had contract_signed_at):', fixed.rows.map(r => r.quote_number).join(', '));
+  } catch(e) { console.error('Migration fix error:', e.message); }
+  // Fix quotes stuck at 'signed' from before the VARCHAR(45) fix — contract signing failed at DB level
+  // so contract_signed_at was never set. Mark old signed quotes as contracted since user confirmed none are pending.
+  try {
+    const fixed2 = await pool.query(`UPDATE sent_quotes SET status = 'contracted', contract_signed_at = updated_at WHERE status = 'signed' AND contract_signed_at IS NULL AND created_at < '2026-03-04' RETURNING id, quote_number`);
+    if (fixed2.rowCount > 0) console.log('✅ Fixed ' + fixed2.rowCount + ' old signed quotes→contracted (pre-fix):', fixed2.rows.map(r => r.quote_number).join(', '));
   } catch(e) { console.error('Migration fix error:', e.message); }
 })();
 

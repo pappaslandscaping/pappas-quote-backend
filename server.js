@@ -1126,9 +1126,15 @@ async function generateQuotePDF(quote) {
     }
 
     console.log('=== QUOTE PDF: saving document...');
-    const pdfBytes = await pdfDoc.save();
-    console.log('=== QUOTE PDF: saved successfully, size=' + pdfBytes.length + ' bytes');
-    return pdfBytes;
+    try {
+      const pdfBytes = await pdfDoc.save();
+      console.log('=== QUOTE PDF: saved successfully, size=' + pdfBytes.length + ' bytes');
+      return { bytes: pdfBytes, error: null, type: 'branded' };
+    } catch (saveErr) {
+      console.error('=== QUOTE PDF: pdfDoc.save() FAILED:', saveErr.message);
+      console.error('=== QUOTE PDF: save stack:', saveErr.stack);
+      throw saveErr;
+    }
 
   } catch (error) {
     console.error('=== QUOTE PDF FATAL ERROR:', error.message);
@@ -1169,10 +1175,10 @@ async function generateQuotePDF(quote) {
       pg.drawText('(440) 886-7318 | hello@pappaslandscaping.com', { x: 50, y: fy, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
       const fallbackBytes = await fallbackDoc.save();
       console.log('=== QUOTE PDF: fallback PDF generated, size=' + fallbackBytes.length);
-      return fallbackBytes;
+      return { bytes: fallbackBytes, error: error.message, type: 'fallback' };
     } catch (fallbackErr) {
       console.error('=== QUOTE PDF: even fallback failed:', fallbackErr.message);
-      return null;
+      return { bytes: null, error: error.message + ' | fallback also failed: ' + fallbackErr.message, type: 'failed' };
     }
   }
 }
@@ -3648,26 +3654,32 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
 
     // Generate branded PDF attachment
     console.log('📄 Generating quote PDF for quote #' + quoteNumber + '...');
-    const pdfBytes = await generateQuotePDF(quote);
+    const pdfResult = await generateQuotePDF(quote);
     let attachments = null;
-
     let pdfAttached = false;
-    if (pdfBytes) {
-      const pdfSize = pdfBytes.length;
-      console.log('✅ Quote PDF generated: ' + pdfSize + ' bytes (' + Math.round(pdfSize / 1024) + ' KB)');
+    let pdfType = 'none';
+    let pdfError = null;
+
+    if (pdfResult && pdfResult.bytes) {
+      const pdfSize = pdfResult.bytes.length;
+      pdfType = pdfResult.type || 'unknown';
+      pdfError = pdfResult.error || null;
+      console.log('✅ Quote PDF generated (' + pdfType + '): ' + pdfSize + ' bytes (' + Math.round(pdfSize / 1024) + ' KB)');
+      if (pdfError) console.log('⚠️ Main PDF error (fallback used): ' + pdfError);
       attachments = [{
-        filename: `Quote-${quoteNumber}-${quote.customer_name.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`,
-        content: Buffer.from(pdfBytes).toString('base64'),
+        filename: 'Quote-' + quoteNumber + '-' + quote.customer_name.replace(/[^a-zA-Z0-9]/g, '-') + '.pdf',
+        content: Buffer.from(pdfResult.bytes).toString('base64'),
         type: 'application/pdf'
       }];
       pdfAttached = true;
     } else {
-      console.error('❌ Quote PDF generation returned null — no attachment will be sent');
+      pdfError = pdfResult ? pdfResult.error : 'generateQuotePDF returned null';
+      console.error('❌ Quote PDF generation failed:', pdfError);
     }
 
     await sendEmail(
       quote.customer_email,
-      `Your ${quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Quote'} from ${COMPANY_NAME}`,
+      'Your ' + (quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Quote') + ' from ' + COMPANY_NAME,
       emailTemplate(emailContent),
       attachments
     );
@@ -3678,7 +3690,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
       ['sent', id]
     );
 
-    res.json({ success: true, message: 'Quote sent successfully', pdfAttached, pdfSize: pdfBytes ? pdfBytes.length : 0 });
+    res.json({ success: true, message: 'Quote sent successfully', pdfAttached, pdfType, pdfError, pdfSize: pdfResult && pdfResult.bytes ? pdfResult.bytes.length : 0 });
   } catch (error) {
     console.error('Error sending quote:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -6830,11 +6842,17 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Quote not found' });
     const quote = result.rows[0];
     console.log('🧪 Testing PDF generation for quote #' + (quote.quote_number || quote.id));
-    const pdfBytes = await generateQuotePDF(quote);
-    if (!pdfBytes) return res.status(500).json({ error: 'PDF generation returned null — check server logs for details' });
+    const pdfResult = await generateQuotePDF(quote);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'PDF generation failed', pdfError: pdfResult ? pdfResult.error : 'returned null' });
+    if (pdfResult.error) {
+      console.log('⚠️ Test PDF used fallback. Main error: ' + pdfResult.error);
+    }
+    console.log('🧪 PDF type: ' + pdfResult.type + ', size: ' + pdfResult.bytes.length);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="test-quote-${quote.quote_number || quote.id}.pdf"`);
-    res.send(Buffer.from(pdfBytes));
+    res.setHeader('Content-Disposition', 'inline; filename="test-quote-' + (quote.quote_number || quote.id) + '.pdf"');
+    res.setHeader('X-PDF-Type', pdfResult.type);
+    if (pdfResult.error) res.setHeader('X-PDF-Error', pdfResult.error.substring(0, 200));
+    res.send(Buffer.from(pdfResult.bytes));
   } catch (err) {
     console.error('Test PDF error:', err);
     res.status(500).json({ error: err.message, stack: err.stack });

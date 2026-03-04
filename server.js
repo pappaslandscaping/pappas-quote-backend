@@ -5512,80 +5512,87 @@ app.post('/api/webhooks/customer-replied', async (req, res) => {
   }
 });
 
-// Follow-up email templates - CopilotCRM style
+// Follow-up email templates
 function getFollowupEmailContent(followup, stage) {
+  const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+
+  // Qualy heading rendered as image (pre-generated PNGs)
+  const headingImages = {
+    1: `${baseUrl}/email-assets/heading-1.png`,
+    2: `${baseUrl}/email-assets/heading-2.png`,
+    3: `${baseUrl}/email-assets/heading-3.png`,
+    4: `${baseUrl}/email-assets/heading-4.png`
+  };
+
+  // Heading banner with Qualy image + lime accent
+  const headingBanner = `
+    <div style="background:#2e403d;padding:30px 24px 24px;text-align:center;margin:-40px -40px 0 -40px;">
+      <img src="${headingImages[stage]}" alt="" style="max-width:380px;width:auto;height:36px;" />
+      <div style="width:50px;height:2px;background:#c9dd80;margin:16px auto 0;"></div>
+    </div>
+    <div style="height:3px;background:#c9dd80;margin:0 -40px 32px -40px;"></div>
+  `;
+
   // Small inline quote reference
   const quoteRef = `
-    <p style="font-size:14px;color:#64748b;text-align:center;margin:24px 0 4px;">
+    <p style="font-size:14px;color:#64748b;text-align:center;margin:28px 0 8px;letter-spacing:0.3px;">
       Quote #${followup.quote_number || 'N/A'} &bull; $${parseFloat(followup.quote_amount || 0).toFixed(2)}
     </p>
   `;
 
+  // CTA button + reply helper
   const viewQuoteButton = followup.sign_url ? `
-    <div style="text-align:center;margin:24px 0 8px;">
-      <a href="${followup.sign_url}" style="background:#2e403d;color:#c9dd80;padding:16px 48px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;display:inline-block;letter-spacing:0.3px;">View Your Quote</a>
+    <div style="text-align:center;margin:24px 0 12px;">
+      <a href="${followup.sign_url}" style="background:#2e403d;color:#c9dd80;padding:16px 52px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;display:inline-block;letter-spacing:0.3px;">View Your Quote</a>
     </div>
-    <p style="text-align:center;font-size:12px;color:#94a3b8;margin:8px 0 0;">Or reply to this email with any questions</p>
+    <p style="text-align:center;font-size:14px;color:#64748b;margin:12px 0 0;">Or reply to this email with any questions</p>
   ` : '';
 
-  const signoff = `
-    <p style="font-size:15px;color:#374151;line-height:1.6;margin-top:28px;">Thanks,<br><strong>Tim Pappas</strong></p>
-  `;
-
-  // Heading banner below logo - Qualy font with lime accent
-  const headingBanner = `
-    <div style="background:linear-gradient(135deg, #2e403d 0%, #3d5550 100%);padding:28px 24px;text-align:center;margin:-40px -40px 32px -40px;">
-      <h2 style="font-family:'Qualy','Playfair Display',Georgia,serif;color:#ffffff;margin:0;font-size:26px;font-weight:400;">HEADING_PLACEHOLDER</h2>
-      <div style="width:40px;height:2px;background:#c9dd80;margin:14px auto 0;"></div>
-    </div>
-  `;
+  // Body text style
+  const bodyStyle = 'font-size:15px;color:#374151;line-height:1.75;margin:0 0 16px;';
 
   const templates = {
     1: {
       subject: `Quick follow-up on your quote, Pappas & Co. Landscaping`,
       html: emailTemplate(`
-        ${headingBanner.replace('HEADING_PLACEHOLDER', 'Just Checking In')}
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Hi ${followup.customer_name},</p>
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Thanks for giving us the chance to put together a quote for your property! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to take care of your lawn this season. Feel free to reply here or call us anytime.</p>
+        ${headingBanner}
+        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
+        <p style="${bodyStyle}">Thanks for giving us the chance to put together a quote for your property! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to take care of your lawn this season. Feel free to reply here or call us anytime.</p>
         ${quoteRef}
         ${viewQuoteButton}
-        ${signoff}
       `)
     },
     2: {
       subject: `Your landscaping quote is still available, Pappas & Co.`,
       html: emailTemplate(`
-        ${headingBanner.replace('HEADING_PLACEHOLDER', 'Your Quote is Still Available')}
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Hi ${followup.customer_name},</p>
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Just wanted to let you know your quote is still available whenever you're ready. If anything needs adjusting or you want to talk through the details, we're happy to help. We'd love to get you on the schedule!</p>
+        ${headingBanner}
+        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
+        <p style="${bodyStyle}">Just wanted to let you know your quote is still available whenever you're ready. If anything needs adjusting or you want to talk through the details, we're happy to help. We'd love to get you on the schedule!</p>
         ${quoteRef}
         ${viewQuoteButton}
-        ${signoff}
       `)
     },
     3: {
       subject: `Checking in on your landscaping quote, Pappas & Co.`,
       html: emailTemplate(`
-        ${headingBanner.replace('HEADING_PLACEHOLDER', 'Checking In')}
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Hi ${followup.customer_name},</p>
-        <p style="font-size:15px;color:#374151;line-height:1.7;">It's been a couple weeks so I just wanted to touch base one more time. If the timing isn't right or you'd like to change anything about the quote, no problem at all. We're here whenever you're ready and would love the chance to work with you.</p>
+        ${headingBanner}
+        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
+        <p style="${bodyStyle}">It's been a couple weeks so I just wanted to touch base one more time. If the timing isn't right or you'd like to change anything about the quote, no problem at all. We're here whenever you're ready and would love the chance to work with you.</p>
         ${quoteRef}
         ${viewQuoteButton}
-        ${signoff}
       `)
     },
     4: {
       subject: `Your quote expires soon, Pappas & Co. Landscaping`,
       html: emailTemplate(`
-        ${headingBanner.replace('HEADING_PLACEHOLDER', 'Your Quote Expires Soon')}
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Hi ${followup.customer_name},</p>
-        <p style="font-size:15px;color:#374151;line-height:1.7;">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
-        <p style="font-size:14px;color:#92400e;text-align:center;margin:24px 0 4px;">
+        ${headingBanner}
+        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
+        <p style="${bodyStyle}">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
+        <p style="font-size:14px;color:#92400e;text-align:center;margin:28px 0 8px;">
           Quote #${followup.quote_number || 'N/A'} &bull; $${parseFloat(followup.quote_amount || 0).toFixed(2)}
-          <br><span style="font-size:13px;">Prices may change after expiration based on availability</span>
+          <br><span style="font-size:13px;color:#b45309;">Prices may change after expiration based on availability</span>
         </p>
         ${viewQuoteButton}
-        ${signoff}
       `)
     }
   };

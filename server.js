@@ -4151,35 +4151,6 @@ app.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
       }
     } catch (e) { services = []; }
 
-    // ── Auto-create a scheduled job from the signed contract ──
-    try {
-      const nextMonday = new Date();
-      nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7));
-      const jobDate = nextMonday.toISOString().split('T')[0];
-
-      await pool.query(
-        `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, status, estimated_duration)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [
-          jobDate,
-          updatedQuote.customer_name,
-          updatedQuote.customer_id || null,
-          servicesText || 'Landscaping Services',
-          updatedQuote.quote_type === 'monthly_plan' ? 'weekly' : 'one-time',
-          parseFloat(updatedQuote.total) || 0,
-          updatedQuote.customer_address || '',
-          updatedQuote.customer_phone || '',
-          `Auto-created from signed contract. Quote #${updatedQuote.quote_number || updatedQuote.id}`,
-          'pending',
-          60
-        ]
-      );
-      console.log(`Auto-created job for ${updatedQuote.customer_name} on ${jobDate}`);
-    } catch (jobErr) {
-      console.error('Failed to auto-create job from contract:', jobErr.message);
-      // Don't fail the contract signing if job creation fails
-    }
-
     // Generate the contract HTML attachment (matches Canva template style)
     const quoteNumber = updatedQuote.quote_number || 'Q-' + updatedQuote.id;
     const isDrawnSignature = signature_data && signature_data.startsWith('data:image');

@@ -443,9 +443,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
     y -= 30;
 
-    // SERVICE AGREEMENT badge (dark green bar matching quote PDF badge style)
+    // SERVICE AGREEMENT badge (dark green bar with Qualy font)
     page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 26, color: darkGreen });
-    page.drawText(`SERVICE AGREEMENT  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
+    page.drawText(`SERVICE AGREEMENT  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: qualyFont, color: limeGreen });
     y -= 46;
     
     // Two column layout for parties
@@ -489,9 +489,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     y -= 40;
     
     // ===== SERVICES & PRICING - Two Column Table =====
-    // Dark green header bar
+    // Dark green header bar with Qualy font in lime green
     page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Services & Pricing', { x: margin + 15, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
+    page.drawText('Services & Pricing', { x: margin + 15, y: y + 2, size: 12, font: qualyFont, color: limeGreen });
     y -= 35;
 
     // Conditional layout: two columns for 6+ services, single column for fewer
@@ -694,12 +694,13 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
 // Generate Quote PDF - Branded style with dark green and lime accents
 async function generateQuotePDF(quote) {
   try {
-    console.log('Starting Quote PDF generation...');
+    console.log('=== QUOTE PDF: Starting generation ===');
+    console.log('Quote data: id=' + quote.id + ', name=' + quote.customer_name + ', services type=' + typeof quote.services);
     const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
     const fontkit = require('@pdf-lib/fontkit');
     const fs = require('fs');
     const path = require('path');
-    console.log('pdf-lib loaded for quote PDF');
+    console.log('=== QUOTE PDF: pdf-lib loaded ===');
 
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
@@ -747,12 +748,16 @@ async function generateQuotePDF(quote) {
     let services = [];
     try {
       services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+      if (!Array.isArray(services)) services = [];
     } catch (e) {
+      console.log('=== QUOTE PDF: services parse error:', e.message);
       services = [];
     }
+    console.log('=== QUOTE PDF: services count=' + services.length);
 
     const quoteNumber = quote.quote_number || 'Q-' + quote.id;
     const quoteDate = new Date(quote.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    console.log('=== QUOTE PDF: quoteNumber=' + quoteNumber + ', date=' + quoteDate);
 
     // Helper: word-wrap text and return final Y position
     function wrapText(page, text, x, y, maxWidth, font, size, color, lineHeight = 1.4) {
@@ -795,19 +800,22 @@ async function generateQuotePDF(quote) {
     function addContinuationPage() {
       const newPage = pdfDoc.addPage([pageWidth, pageHeight]);
       let py = pageHeight - margin;
-      if (logoImage) {
-        const logoDims = logoImage.scale(0.18);
-        newPage.drawImage(logoImage, { x: margin, y: py - logoDims.height, width: logoDims.width, height: logoDims.height });
-        newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin + logoDims.width + 12, y: py - 14, size: 10, font: qualyFont, color: darkGreen });
-        // Right-aligned contact info
-        newPage.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: py, size: 8, font: helvetica, color: gray });
-        newPage.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: py - 11, size: 8, font: helvetica, color: gray });
-        py -= logoDims.height + 8;
-      } else {
-        newPage.drawText(`Quote #${quoteNumber} (continued)`, { x: margin, y: py - 10, size: 10, font: qualyFont, color: darkGreen });
-        py -= 30;
+      try {
+        if (logoImage) {
+          const logoDims = logoImage.scale(0.18);
+          newPage.drawImage(logoImage, { x: margin, y: py - logoDims.height, width: logoDims.width, height: logoDims.height });
+          newPage.drawText('Quote ' + quoteNumber + ' continued', { x: margin + logoDims.width + 12, y: py - 14, size: 10, font: helveticaBold, color: darkGreen });
+          newPage.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: py, size: 8, font: helvetica, color: gray });
+          newPage.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: py - 11, size: 8, font: helvetica, color: gray });
+          py -= logoDims.height + 8;
+        } else {
+          newPage.drawText('Quote ' + quoteNumber + ' continued', { x: margin, y: py - 10, size: 10, font: helveticaBold, color: darkGreen });
+          py -= 30;
+        }
+        newPage.drawRectangle({ x: margin, y: py, width: contentWidth, height: 3, color: limeGreen });
+      } catch (contErr) {
+        console.error('=== QUOTE PDF: continuation page header error:', contErr.message);
       }
-      newPage.drawRectangle({ x: margin, y: py, width: contentWidth, height: 3, color: limeGreen });
       py -= 20;
       return { page: newPage, y: py };
     }
@@ -836,6 +844,7 @@ async function generateQuotePDF(quote) {
     // Lime green accent line
     page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
     y -= 30;
+    console.log('=== QUOTE PDF: header drawn, y=' + y);
 
     // ===== QUOTE BADGE =====
     page.drawRectangle({ x: margin, y: y - 8, width: 140, height: 26, color: darkGreen });
@@ -878,6 +887,7 @@ async function generateQuotePDF(quote) {
     page.drawText(quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Standard Quote', { x: dx + 28, y: y - 68, size: 9, font: helvetica, color: black });
 
     y -= infoBoxH + 18;
+    console.log('=== QUOTE PDF: info box drawn, y=' + y);
 
     // ===== SERVICES SECTION HEADER =====
     page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
@@ -891,9 +901,13 @@ async function generateQuotePDF(quote) {
     y -= 22;
 
     // ===== SERVICE ROWS (single column with descriptions) =====
+    console.log('=== QUOTE PDF: starting service rows, count=' + services.length);
     for (let i = 0; i < services.length; i++) {
       const svc = services[i];
-      const desc = svc.description || '';
+      if (!svc || typeof svc !== 'object') { console.log('=== QUOTE PDF: skipping invalid service at index ' + i); continue; }
+      const svcName = (svc.name || 'Service ' + (i + 1)).toString();
+      const svcAmount = svc.amount != null ? parseFloat(svc.amount) : 0;
+      const desc = (svc.description || '').toString();
       const descLineHeight = 1.35;
       const descSize = 8;
       const nameSize = 10;
@@ -932,14 +946,15 @@ async function generateQuotePDF(quote) {
       }
 
       // New page if needed
+      try {
       if (y - rowH < 100) {
         const cont = addContinuationPage();
         page = cont.page;
         y = cont.y;
-        const cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-        cp.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.93, 0.94, 0.93) });
-        cp.drawText('SERVICE / DESCRIPTION', { x: margin + 10, y: y - 1, size: 8, font: helveticaBold, color: gray });
-        cp.drawText('AMOUNT', { x: pageWidth - margin - 55, y: y - 1, size: 8, font: helveticaBold, color: gray });
+        const cp2 = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+        cp2.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.93, 0.94, 0.93) });
+        cp2.drawText('SERVICE / DESCRIPTION', { x: margin + 10, y: y - 1, size: 8, font: helveticaBold, color: gray });
+        cp2.drawText('AMOUNT', { x: pageWidth - margin - 55, y: y - 1, size: 8, font: helveticaBold, color: gray });
         y -= 22;
       }
 
@@ -948,9 +963,9 @@ async function generateQuotePDF(quote) {
       cp.drawRectangle({ x: margin, y: y - rowH + nameSize * 0.4, width: contentWidth, height: rowH, color: bg });
 
       // Service name (bold dark green)
-      cp.drawText(svc.name, { x: margin + 10, y, size: nameSize, font: helveticaBold, color: darkGreen });
+      cp.drawText(svcName, { x: margin + 10, y, size: nameSize, font: helveticaBold, color: darkGreen });
       // Amount (right-aligned bold)
-      const amtStr = `$${parseFloat(svc.amount).toFixed(2)}`;
+      const amtStr = '$' + svcAmount.toFixed(2);
       cp.drawText(amtStr, { x: pageWidth - margin - 55, y, size: nameSize, font: helveticaBold, color: black });
 
       // Description lines — parse "Label:" patterns for bold labels + line breaks
@@ -1032,60 +1047,116 @@ async function generateQuotePDF(quote) {
       }
 
       y -= rowH;
+      } catch (svcErr) {
+        console.error('=== QUOTE PDF: error drawing service ' + (i+1) + ' (' + svcName + '):', svcErr.message);
+        y -= 30; // skip space and continue
+      }
+      console.log('=== QUOTE PDF: service ' + (i+1) + '/' + services.length + ' done');
     }
 
+    console.log('=== QUOTE PDF: all services drawn, y=' + y);
     y -= 10;
 
     // ===== TOTALS BOX =====
-    let cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-    if (y < 180) {
-      const cont = addContinuationPage();
-      cp = cont.page;
-      y = cont.y;
+    try {
+      let cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+      if (y < 180) {
+        const cont = addContinuationPage();
+        cp = cont.page;
+        y = cont.y;
+      }
+
+      const safeSubtotal = (parseFloat(quote.subtotal) || 0).toFixed(2);
+      const safeTax = (parseFloat(quote.tax_amount) || 0).toFixed(2);
+      const safeTotal = (parseFloat(quote.total) || 0).toFixed(2);
+
+      cp.drawRectangle({ x: margin, y: y - 100, width: contentWidth, height: 105, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
+      cp.drawText('Subtotal', { x: margin + 15, y: y - 16, size: 10, font: helvetica, color: gray });
+      cp.drawText('$' + safeSubtotal, { x: pageWidth - margin - 80, y: y - 16, size: 10, font: helvetica, color: black });
+      cp.drawText('Tax (' + (quote.tax_rate || 8) + '%)', { x: margin + 15, y: y - 33, size: 10, font: helvetica, color: gray });
+      cp.drawText('$' + safeTax, { x: pageWidth - margin - 80, y: y - 33, size: 10, font: helvetica, color: black });
+      cp.drawRectangle({ x: margin + 15, y: y - 48, width: contentWidth - 30, height: 2, color: limeGreen });
+      cp.drawText('TOTAL', { x: margin + 15, y: y - 70, size: 14, font: helveticaBold, color: darkGreen });
+      cp.drawText('$' + safeTotal, { x: pageWidth - margin - 95, y: y - 70, size: 18, font: helveticaBold, color: darkGreen });
+      y -= 115;
+
+      // Monthly payment banner
+      if (quote.monthly_payment) {
+        cp.drawRectangle({ x: margin, y: y - 6, width: contentWidth, height: 32, color: darkGreen });
+        cp.drawText('Monthly Payment Plan', { x: margin + 14, y: y + 3, size: 11, font: helveticaBold, color: rgb(1, 1, 1) });
+        cp.drawText('$' + (parseFloat(quote.monthly_payment) || 0).toFixed(2) + '/mo', { x: pageWidth - margin - 100, y: y + 3, size: 14, font: helveticaBold, color: limeGreen });
+        y -= 46;
+      }
+
+      y -= 10;
+
+      // ===== NEXT STEPS =====
+      cp.drawRectangle({ x: margin, y: y - 48, width: contentWidth, height: 52, color: rgb(0.97, 0.99, 0.97), borderColor: limeGreen, borderWidth: 1 });
+      cp.drawText('How to Accept This Quote', { x: margin + 14, y: y - 10, size: 10, font: helveticaBold, color: darkGreen });
+      cp.drawText('Review your quote email and click "View Your Quote" to accept online and sign your service agreement.', { x: margin + 14, y: y - 25, size: 8, font: helvetica, color: gray });
+      cp.drawText('Questions? Call or text (440) 886-7318', { x: margin + 14, y: y - 38, size: 8, font: helvetica, color: gray });
+      y -= 65;
+
+      // ===== FOOTER =====
+      cp.drawRectangle({ x: margin, y: y + 5, width: contentWidth, height: 3, color: limeGreen });
+      y -= 14;
+      cp.drawText('Pappas & Co. Landscaping  |  PO Box 770057, Lakewood, OH 44107  |  (440) 886-7318  |  hello@pappaslandscaping.com', { x: margin, y, size: 8, font: helvetica, color: gray });
+      cp.drawText('This quote is valid for 30 days from ' + quoteDate + '. Prices subject to change after expiration.', { x: margin, y: y - 12, size: 7.5, font: helvetica, color: rgb(0.65, 0.67, 0.67) });
+      console.log('=== QUOTE PDF: totals and footer drawn OK');
+    } catch (totalsErr) {
+      console.error('=== QUOTE PDF: totals/footer error:', totalsErr.message);
+      // Don't return null — the PDF still has the services section
     }
 
-    cp.drawRectangle({ x: margin, y: y - 100, width: contentWidth, height: 105, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
-    cp.drawText('Subtotal', { x: margin + 15, y: y - 16, size: 10, font: helvetica, color: gray });
-    cp.drawText(`$${parseFloat(quote.subtotal).toFixed(2)}`, { x: pageWidth - margin - 80, y: y - 16, size: 10, font: helvetica, color: black });
-    cp.drawText(`Tax (${quote.tax_rate || 8}%)`, { x: margin + 15, y: y - 33, size: 10, font: helvetica, color: gray });
-    cp.drawText(`$${parseFloat(quote.tax_amount).toFixed(2)}`, { x: pageWidth - margin - 80, y: y - 33, size: 10, font: helvetica, color: black });
-    cp.drawRectangle({ x: margin + 15, y: y - 48, width: contentWidth - 30, height: 2, color: limeGreen });
-    cp.drawText('TOTAL', { x: margin + 15, y: y - 70, size: 14, font: helveticaBold, color: darkGreen });
-    cp.drawText(`$${parseFloat(quote.total).toFixed(2)}`, { x: pageWidth - margin - 95, y: y - 70, size: 18, font: helveticaBold, color: darkGreen });
-    y -= 115;
-
-    // Monthly payment banner
-    if (quote.monthly_payment) {
-      cp.drawRectangle({ x: margin, y: y - 6, width: contentWidth, height: 32, color: darkGreen });
-      cp.drawText('Monthly Payment Plan', { x: margin + 14, y: y + 3, size: 11, font: helveticaBold, color: rgb(1, 1, 1) });
-      cp.drawText(`$${parseFloat(quote.monthly_payment).toFixed(2)}/mo`, { x: pageWidth - margin - 100, y: y + 3, size: 14, font: helveticaBold, color: limeGreen });
-      y -= 46;
-    }
-
-    y -= 10;
-
-    // ===== NEXT STEPS =====
-    cp.drawRectangle({ x: margin, y: y - 48, width: contentWidth, height: 52, color: rgb(0.97, 0.99, 0.97), borderColor: limeGreen, borderWidth: 1 });
-    cp.drawText('How to Accept This Quote', { x: margin + 14, y: y - 10, size: 10, font: helveticaBold, color: darkGreen });
-    cp.drawText('Review your quote email and click "View Your Quote" to accept online and sign your service agreement.', { x: margin + 14, y: y - 25, size: 8, font: helvetica, color: gray });
-    cp.drawText('Questions? Call or text (440) 886-7318 — we\'re happy to help!', { x: margin + 14, y: y - 38, size: 8, font: helvetica, color: gray });
-    y -= 65;
-
-    // ===== FOOTER =====
-    cp.drawRectangle({ x: margin, y: y + 5, width: contentWidth, height: 3, color: limeGreen });
-    y -= 14;
-    cp.drawText('Pappas & Co. Landscaping  |  PO Box 770057, Lakewood, OH 44107  |  (440) 886-7318  |  hello@pappaslandscaping.com', { x: margin, y, size: 8, font: helvetica, color: gray });
-    cp.drawText(`This quote is valid for 30 days from ${quoteDate}. Prices subject to change after expiration.`, { x: margin, y: y - 12, size: 7.5, font: helvetica, color: rgb(0.65, 0.67, 0.67) });
-
-    console.log('Saving Quote PDF...');
+    console.log('=== QUOTE PDF: saving document...');
     const pdfBytes = await pdfDoc.save();
-    console.log('Quote PDF generated successfully, size:', pdfBytes.length, 'bytes');
+    console.log('=== QUOTE PDF: saved successfully, size=' + pdfBytes.length + ' bytes');
     return pdfBytes;
 
   } catch (error) {
-    console.error('Error generating quote PDF:', error.message);
-    console.error('Stack trace:', error.stack);
-    return null;
+    console.error('=== QUOTE PDF FATAL ERROR:', error.message);
+    console.error('=== QUOTE PDF STACK:', error.stack);
+
+    // FALLBACK: Try to generate a simple text-only PDF so the email still has an attachment
+    try {
+      console.log('=== QUOTE PDF: attempting simple fallback PDF...');
+      const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+      const fallbackDoc = await PDFDocument.create();
+      const font = await fallbackDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await fallbackDoc.embedFont(StandardFonts.HelveticaBold);
+      const pg = fallbackDoc.addPage([612, 792]);
+      let fy = 720;
+      pg.drawText('Pappas & Co. Landscaping', { x: 50, y: fy, size: 20, font: fontBold, color: rgb(0.18, 0.25, 0.24) });
+      fy -= 30;
+      pg.drawText('Quote #' + (quote.quote_number || 'Q-' + quote.id), { x: 50, y: fy, size: 14, font: fontBold, color: rgb(0, 0, 0) });
+      fy -= 25;
+      pg.drawText('Prepared for: ' + (quote.customer_name || ''), { x: 50, y: fy, size: 12, font, color: rgb(0, 0, 0) });
+      fy -= 18;
+      pg.drawText(quote.customer_address || '', { x: 50, y: fy, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
+      fy -= 30;
+      let svcs = [];
+      try { svcs = typeof quote.services === 'string' ? JSON.parse(quote.services) : (quote.services || []); } catch(e) { svcs = []; }
+      if (Array.isArray(svcs)) {
+        for (const s of svcs) {
+          if (!s) continue;
+          pg.drawText((s.name || 'Service') + '  $' + (parseFloat(s.amount) || 0).toFixed(2), { x: 50, y: fy, size: 10, font, color: rgb(0, 0, 0) });
+          fy -= 16;
+          if (fy < 80) break;
+        }
+      }
+      fy -= 10;
+      pg.drawText('Total: $' + (parseFloat(quote.total) || 0).toFixed(2), { x: 50, y: fy, size: 14, font: fontBold, color: rgb(0.18, 0.25, 0.24) });
+      fy -= 30;
+      pg.drawText('View your full quote online to accept and sign your service agreement.', { x: 50, y: fy, size: 10, font, color: rgb(0.4, 0.4, 0.4) });
+      fy -= 14;
+      pg.drawText('(440) 886-7318 | hello@pappaslandscaping.com', { x: 50, y: fy, size: 9, font, color: rgb(0.5, 0.5, 0.5) });
+      const fallbackBytes = await fallbackDoc.save();
+      console.log('=== QUOTE PDF: fallback PDF generated, size=' + fallbackBytes.length);
+      return fallbackBytes;
+    } catch (fallbackErr) {
+      console.error('=== QUOTE PDF: even fallback failed:', fallbackErr.message);
+      return null;
+    }
   }
 }
 

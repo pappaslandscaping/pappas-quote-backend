@@ -763,17 +763,23 @@
     function createServiceRow(name, desc, amount) {
         const { opts, isCustom } = buildServiceOptions(name);
         const escName = (name || '').replace(/"/g, '&quot;');
-        const escDesc = (desc || '').replace(/"/g, '&quot;');
         const row = document.createElement('div');
         row.className = 'edit-svc-row';
         row.innerHTML = `
             <div class="edit-svc-name-wrap">
-                <select class="edit-svc-select" onchange="onServiceSelect(this)">${opts}</select>
+                <select class="edit-svc-select">${opts}</select>
                 <input type="text" class="custom-name ${isCustom ? 'show' : ''}" value="${isCustom ? escName : ''}" placeholder="Enter service name">
             </div>
-            <input type="number" class="edit-svc-amount" value="${parseFloat(amount || 0).toFixed(2)}" step="0.01" min="0" style="flex:1;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;text-align:right;" oninput="updateEditTotal()">
-            <button onclick="this.parentElement.remove();updateEditTotal()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px;margin-top:2px;" title="Remove">&times;</button>
+            <input type="number" class="edit-svc-amount" value="${parseFloat(amount || 0).toFixed(2)}" step="0.01" min="0" style="flex:1;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;text-align:right;">
+            <button class="edit-svc-remove" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px;margin-top:2px;" title="Remove">&times;</button>
         `;
+        // Wire up events with addEventListener (more reliable than inline handlers)
+        row.querySelector('.edit-svc-amount').addEventListener('input', updateEditTotal);
+        row.querySelector('.edit-svc-select').addEventListener('change', function() { onServiceSelect(this); });
+        row.querySelector('.edit-svc-remove').addEventListener('click', function() {
+            row.remove();
+            updateEditTotal();
+        });
         return row;
     }
 

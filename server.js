@@ -847,10 +847,14 @@ async function generateQuotePDF(quote) {
         const font = seg.bold ? boldFont : regularFont;
         const segColor = seg.bold ? boldColor : color;
 
-        // Add line break before bold labels (except the first one)
-        if (seg.bold && curX > x) {
+        // Start bold labels on a new line with extra gap
+        if (seg.bold) {
+          if (curX > x) {
+            // Mid-line: drop to next line first
+            curY -= size * lineHeight;
+          }
+          curY -= size * 0.4; // extra gap before label section
           curX = x;
-          curY -= size * (lineHeight * 0.4); // small extra gap before new label
         }
 
         const words = seg.text.split(/\s+/).filter(w => w);

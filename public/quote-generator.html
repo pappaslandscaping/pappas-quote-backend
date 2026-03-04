@@ -289,6 +289,7 @@
         }
 
         .quote-header-title {
+            font-family: 'Qualy', serif;
             font-size: 20px;
             font-weight: 700;
             color: var(--forest);
@@ -374,6 +375,7 @@
         }
 
         .services-header {
+            font-family: 'Qualy', serif;
             background: var(--forest);
             color: var(--lime);
             padding: 12px 16px;
@@ -1593,6 +1595,12 @@ Photo documentation before/after available upon request.`
             <head>
                 <title>Quote - ${document.getElementById('custName').value || 'Customer'}</title>
                 <style>
+                    @font-face {
+                        font-family: 'Qualy';
+                        src: url('/Qualy.otf') format('opentype');
+                        font-weight: normal;
+                        font-style: normal;
+                    }
                     @page {
                         size: letter;
                         margin: 0.4in;
@@ -1627,6 +1635,7 @@ Photo documentation before/after available upon request.`
                         height: 40px;
                     }
                     .quote-header-title {
+                        font-family: 'Qualy', serif;
                         font-size: 18px;
                         font-weight: bold;
                         color: #2E403D;
@@ -1677,6 +1686,7 @@ Photo documentation before/after available upon request.`
                         margin-bottom: 5px;
                     }
                     .quote-info-box h3 {
+                        font-family: 'Qualy', serif;
                         margin: 0 0 3px 0;
                         color: #2E403D;
                         font-size: 13px;
@@ -1690,6 +1700,7 @@ Photo documentation before/after available upon request.`
                         margin-bottom: 12px;
                     }
                     .services-header {
+                        font-family: 'Qualy', serif;
                         background: #2E403D;
                         color: white;
                         padding: 8px 12px;

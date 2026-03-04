@@ -1106,14 +1106,15 @@
             <html><head>
             <title>Quote ${quoteNumber} - ${quote.customer_name}</title>
             <style>
+                @font-face { font-family: 'Qualy'; src: url('/Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; background: white; color: #333; }
                 .page { max-width: 800px; margin: 0 auto; padding: 30px 40px; }
-                
+
                 .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 4px solid #c9dd80; margin-bottom: 20px; }
                 .header-left { display: flex; align-items: center; gap: 12px; }
                 .header-logo { width: 50px; height: 50px; border-radius: 50%; }
-                .header-title h1 { color: #2e403d; font-size: 20px; margin: 0 0 2px; }
+                .header-title h1 { color: #2e403d; font-size: 20px; margin: 0 0 2px; font-family: 'Qualy', Georgia, serif; }
                 .header-title p { color: #64748b; font-size: 12px; margin: 0; }
                 .header-right { text-align: right; font-size: 11px; color: #64748b; line-height: 1.4; }
                 
@@ -1123,12 +1124,12 @@
                 .info-box { flex: 1; }
                 .info-box.highlight { background: #f8faf5; border: 2px solid #c9dd80; border-radius: 10px; padding: 14px; }
                 .info-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 6px; font-weight: 600; }
-                .info-box h3 { color: #2e403d; font-size: 15px; margin: 0 0 4px; }
+                .info-box h3 { color: #2e403d; font-size: 15px; margin: 0 0 4px; font-family: 'Qualy', Georgia, serif; }
                 .info-box p { color: #374151; font-size: 12px; line-height: 1.5; margin: 0; }
                 
                 .services-section { margin-bottom: 20px; }
                 .services-header { background: #2e403d; color: white; padding: 10px 16px; border-radius: 10px 10px 0 0; }
-                .services-header h2 { font-size: 14px; margin: 0; font-weight: 600; }
+                .services-header h2 { font-size: 14px; margin: 0; font-weight: 600; font-family: 'Qualy', Georgia, serif; }
                 .services-table { width: 100%; border-collapse: collapse; background: white; border: 2px solid #2e403d; border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; }
                 .services-table th { background: #f8f8f8; padding: 8px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 1px solid #e5e5e5; }
                 .services-table th:last-child { text-align: right; }
@@ -1274,9 +1275,10 @@
             <html><head>
             <title>Service Agreement - ${quote.customer_name} - ${quoteNumber}</title>
             <style>
+                @font-face { font-family: 'Qualy'; src: url('/Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
                 body { font-family: Arial, sans-serif; padding: 30px 40px; max-width: 800px; margin: 0 auto; font-size: 11px; line-height: 1.5; color: #333; }
-                h1 { color: #2e403d; margin-bottom: 4px; font-size: 22px; }
-                h2 { color: #2e403d; font-size: 13px; margin: 20px 0 8px; border-bottom: 2px solid #c9dd80; padding-bottom: 4px; }
+                h1 { color: #2e403d; margin-bottom: 4px; font-size: 22px; font-family: 'Qualy', Georgia, serif; }
+                h2 { color: #2e403d; font-size: 13px; margin: 20px 0 8px; border-bottom: 2px solid #c9dd80; padding-bottom: 4px; font-family: 'Qualy', Georgia, serif; }
                 .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #c9dd80; padding-bottom: 16px; margin-bottom: 20px; }
                 .header-left { display: flex; align-items: center; gap: 16px; }
                 .header-logo { width: 70px; height: 70px; }

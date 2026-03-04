@@ -1058,7 +1058,7 @@
 
                 // Populate UI
                 document.getElementById('quoteNumber').textContent = quoteData.quote_number || `Q-${quoteData.id}`;
-                document.getElementById('serviceAddress').textContent = quoteData.customer_address || '—';
+                document.getElementById('serviceAddress').innerHTML = formatAddr(quoteData.customer_address);
                 document.getElementById('quoteTotal').textContent = formatCurrency(quoteData.total);
 
                 // Format services
@@ -1102,7 +1102,7 @@
 
                 // Populate UI
                 document.getElementById('quoteNumber').textContent = quoteData.quote_number || `Q-${quoteData.id}`;
-                document.getElementById('serviceAddress').textContent = quoteData.customer_address || '—';
+                document.getElementById('serviceAddress').innerHTML = formatAddr(quoteData.customer_address);
                 document.getElementById('quoteTotal').textContent = formatCurrency(quoteData.total);
 
                 // Format services
@@ -1145,7 +1145,7 @@
                     <div class="party">
                         <h4>Client</h4>
                         <p><strong>${quoteData.customer_name || '—'}</strong></p>
-                        <p>${quoteData.customer_address || '—'}</p>
+                        <p>${formatAddr(quoteData.customer_address)}</p>
                         <p>${quoteData.customer_email || '—'}</p>
                         <p>${quoteData.customer_phone || '—'}</p>
                     </div>
@@ -1409,6 +1409,18 @@
                 style: 'currency',
                 currency: 'USD'
             }).format(amount || 0);
+        }
+
+        function formatAddr(addr) {
+            if (!addr) return '—';
+            const clean = addr.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+            const m = clean.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+            if (m) {
+                const rm = m[1].match(/^(.+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy)\.?)\s+(.+)$/i);
+                if (rm) return rm[1] + '<br>' + rm[2] + ', ' + m[2] + ' ' + m[3];
+                return m[1] + '<br>' + m[2] + ' ' + m[3];
+            }
+            return addr;
         }
 
         async function downloadContract() {

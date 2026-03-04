@@ -183,30 +183,33 @@ function formatAddressLines(addr) {
   if (!addr) return { line1: '', line2: '' };
   const trimmed = addr.trim();
 
-  // First try comma-based split (e.g. "123 Main St, Lakewood, OH 44107")
+  // Normalize: remove all commas and work with clean string
+  // This handles "123 Main St, Valley View, OH 44107" AND "123 Main St Valley View OH, 44125"
+  const clean = trimmed.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Try to detect "STATE ZIP" at the end
+  const stateZipMatch = clean.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (stateZipMatch) {
+    const beforeState = stateZipMatch[1];
+    const state = stateZipMatch[2];
+    const zip = stateZipMatch[3];
+    // Try to find where street ends and city begins using road suffixes
+    const roadSuffixes = /^(.+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy)\.?)\s+(.+)$/i;
+    const roadMatch = beforeState.match(roadSuffixes);
+    if (roadMatch) {
+      return { line1: roadMatch[1], line2: roadMatch[2] + ', ' + state + ' ' + zip };
+    }
+    // No road suffix found — just put everything before state on line 1
+    return { line1: beforeState, line2: state + ' ' + zip };
+  }
+
+  // If original had commas but no state+zip pattern, use comma split
   const commaParts = trimmed.split(',').map(p => p.trim());
   if (commaParts.length >= 3) {
     return { line1: commaParts[0], line2: commaParts.slice(1).join(', ') };
   }
   if (commaParts.length === 2) {
     return { line1: commaParts[0], line2: commaParts[1] };
-  }
-
-  // No commas — try to detect "STATE ZIP" at the end (e.g. "7777 Exchange Road Valley View OH 44125")
-  const stateZipMatch = trimmed.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
-  if (stateZipMatch) {
-    // Try to find where city starts by looking for common road suffixes
-    const beforeState = stateZipMatch[1];
-    const state = stateZipMatch[2];
-    const zip = stateZipMatch[3];
-    // Split on last occurrence of road-type word boundary
-    const roadSuffixes = /^(.+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Way|Place|Pl|Circle|Cir|Terrace|Ter|Trail|Trl|Parkway|Pkwy|Highway|Hwy)\.?)\s+(.+)$/i;
-    const roadMatch = beforeState.match(roadSuffixes);
-    if (roadMatch) {
-      return { line1: roadMatch[1], line2: roadMatch[2] + ', ' + state + ' ' + zip };
-    }
-    // Fallback: everything before state+zip on line 1
-    return { line1: beforeState, line2: state + ' ' + zip };
   }
 
   // Can't parse — return as single line
@@ -3907,13 +3910,16 @@ app.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
 
     let servicesText = 'See agreement for details';
     let servicesHtml = '';
+    let services = [];
     try {
-      const services = typeof updatedQuote.services === 'string' ? JSON.parse(updatedQuote.services) : updatedQuote.services;
+      services = typeof updatedQuote.services === 'string' ? JSON.parse(updatedQuote.services) : updatedQuote.services;
       if (Array.isArray(services)) {
         servicesText = services.map(s => s.name || s).join(', ');
         servicesHtml = services.map(s => `<li style="margin:6px 0;">${s.name} - $${parseFloat(s.amount).toFixed(2)}</li>`).join('');
+      } else {
+        services = [];
       }
-    } catch (e) {}
+    } catch (e) { services = []; }
 
     // ── Auto-create a scheduled job from the signed contract ──
     try {
@@ -6727,6 +6733,24 @@ app.get('*', (req, res) => {
     return res.sendFile(filePath);
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Diagnostic: test quote PDF generation directly
+app.get('/api/test-quote-pdf/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Quote not found' });
+    const quote = result.rows[0];
+    console.log('🧪 Testing PDF generation for quote #' + (quote.quote_number || quote.id));
+    const pdfBytes = await generateQuotePDF(quote);
+    if (!pdfBytes) return res.status(500).json({ error: 'PDF generation returned null — check server logs for details' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="test-quote-${quote.quote_number || quote.id}.pdf"`);
+    res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error('Test PDF error:', err);
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

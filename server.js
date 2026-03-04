@@ -3951,9 +3951,9 @@ app.post('/api/sign/:token/request-changes', async (req, res) => {
     const adminContent = `
       <h2 style="color:#f59e0b;margin:0 0 16px;">📝 Change Request</h2>
       <div style="background:#fffbeb;border-radius:8px;padding:20px;margin-bottom:20px;">
-        <p style="margin:0 0 8px;"><strong>Type:</strong> ${typeLabels[change_type] || change_type}</p>
+        <p style="margin:0 0 8px;"><strong>Type:</strong> ${typeLabels[type] || type}</p>
         <p style="margin:0;"><strong>Details:</strong></p>
-        <p style="margin:8px 0 0;padding:12px;background:white;border-radius:6px;">${change_details.replace(/\n/g, '<br>')}</p>
+        <p style="margin:8px 0 0;padding:12px;background:white;border-radius:6px;">${details.replace(/\n/g, '<br>')}</p>
       </div>
       <div style="background:#f8fafc;border-radius:8px;padding:20px;">
         <p style="margin:0 0 8px;"><strong>Customer:</strong> ${quote.customer_name}</p>

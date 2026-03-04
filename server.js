@@ -829,29 +829,25 @@ async function generateQuotePDF(quote) {
       let rowH = nameSize * 1.6 + 6; // name + padding
       if (desc) {
         const labelRegexH = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
-        let sectionCount = 0;
+        const matchesH = [];
         let mh;
-        let lastIdxH = 0;
-        const partsH = [];
         while ((mh = labelRegexH.exec(desc)) !== null) {
-          if (mh.index > lastIdxH) {
-            const bef = desc.slice(lastIdxH, mh.index).trim();
-            if (bef) partsH.push(bef);
-          }
-          const nextMh = labelRegexH.exec(desc);
-          const endIdxH = nextMh ? nextMh.index : desc.length;
-          partsH.push(desc.slice(mh.index + mh[0].length, endIdxH).trim());
-          sectionCount++;
-          if (nextMh) labelRegexH.lastIndex = nextMh.index;
-          lastIdxH = endIdxH;
+          matchesH.push({ index: mh.index, end: mh.index + mh[0].length });
         }
-        if (sectionCount === 0) {
+        if (matchesH.length === 0) {
           rowH += wrapHeight(desc, descMaxWidth, helvetica, descSize, descLineHeight);
         } else {
-          for (const part of partsH) {
-            rowH += wrapHeight(part, descMaxWidth, helvetica, descSize, descLineHeight);
+          // Text before first label
+          if (matchesH[0].index > 0) {
+            const bef = desc.slice(0, matchesH[0].index).trim();
+            if (bef) rowH += wrapHeight(bef, descMaxWidth, helvetica, descSize, descLineHeight);
           }
-          rowH += (sectionCount - 1) * 4; // inter-section spacing
+          for (let mi = 0; mi < matchesH.length; mi++) {
+            const textEnd = mi + 1 < matchesH.length ? matchesH[mi + 1].index : desc.length;
+            const part = desc.slice(matchesH[mi].end, textEnd).trim();
+            rowH += wrapHeight(part || ' ', descMaxWidth, helvetica, descSize, descLineHeight);
+          }
+          rowH += (matchesH.length - 1) * 4; // inter-section spacing
         }
         rowH += 8; // bottom padding
       }
@@ -881,30 +877,28 @@ async function generateQuotePDF(quote) {
       // Description lines — parse "Label:" patterns for bold labels + line breaks
       if (desc) {
         let dy = y - nameSize * 1.5;
-        // Split description into sections by label pattern (e.g. "Mowing:", "Bed Edging (Optional):")
+        // First, collect all label match positions
         const labelRegex = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
-        const sections = [];
-        let lastIdx = 0;
+        const matches = [];
         let m;
         while ((m = labelRegex.exec(desc)) !== null) {
-          // Text before this label (if any, and not from the start)
-          if (m.index > lastIdx) {
-            const before = desc.slice(lastIdx, m.index).trim();
+          matches.push({ index: m.index, end: m.index + m[0].length, label: m[1] + ':' });
+        }
+
+        const sections = [];
+        if (matches.length === 0) {
+          sections.push({ label: null, text: desc });
+        } else {
+          // Text before first label
+          if (matches[0].index > 0) {
+            const before = desc.slice(0, matches[0].index).trim();
             if (before) sections.push({ label: null, text: before });
           }
-          // Find end of this section (next label or end of string)
-          const nextMatch = labelRegex.exec(desc);
-          const endIdx = nextMatch ? nextMatch.index : desc.length;
-          const sectionText = desc.slice(m.index + m[0].length, endIdx).trim();
-          sections.push({ label: m[1] + ':', text: sectionText });
-          if (nextMatch) {
-            labelRegex.lastIndex = nextMatch.index; // reset so the while loop re-finds it
+          for (let mi = 0; mi < matches.length; mi++) {
+            const textEnd = mi + 1 < matches.length ? matches[mi + 1].index : desc.length;
+            const sectionText = desc.slice(matches[mi].end, textEnd).trim();
+            sections.push({ label: matches[mi].label, text: sectionText });
           }
-          lastIdx = endIdx;
-        }
-        // If no labels found, treat entire desc as one section
-        if (sections.length === 0) {
-          sections.push({ label: null, text: desc });
         }
 
         for (let si = 0; si < sections.length; si++) {

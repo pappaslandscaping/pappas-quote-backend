@@ -804,9 +804,14 @@
                         ${svcRows}
                     </div>
                     <button onclick="addServiceRow()" style="background:none;border:1px dashed var(--gray-300);border-radius:6px;padding:10px;width:100%;cursor:pointer;color:var(--gray-500);font-size:13px;margin-bottom:20px;">+ Add Service</button>
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:2px solid var(--lime);margin-bottom:16px;">
-                        <span style="font-weight:600;color:var(--gray-600);">Total</span>
-                        <span id="editTotal" style="font-size:20px;font-weight:700;color:var(--forest);">$${parseFloat(q.total || 0).toFixed(2)}</span>
+                    <div style="border-top:2px solid var(--lime);padding-top:12px;margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--gray-500);font-size:14px;">Subtotal</span><span id="editSubtotal" style="color:var(--gray-600);font-size:14px;">$${parseFloat(q.subtotal || q.total || 0).toFixed(2)}</span></div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+                            <span style="color:var(--gray-500);font-size:14px;">Tax Rate (%)</span>
+                            <input type="number" id="editTaxRate" value="${parseFloat(q.tax_rate || 0)}" step="0.01" min="0" max="100" style="width:80px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;text-align:right;" oninput="updateEditTotal()">
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--gray-500);font-size:14px;">Tax</span><span id="editTax" style="color:var(--gray-600);font-size:14px;">$${parseFloat(q.tax_amount || 0).toFixed(2)}</span></div>
+                        <div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:1px solid var(--gray-200);margin-top:4px;"><span style="font-weight:600;color:var(--gray-600);">Total</span><span id="editTotal" style="font-size:20px;font-weight:700;color:var(--forest);">$${parseFloat(q.total || 0).toFixed(2)}</span></div>
                     </div>
                     <div style="margin-bottom:16px;">
                         <label style="font-weight:600;font-size:14px;color:var(--gray-600);display:block;margin-bottom:6px;">Notes</label>
@@ -849,10 +854,15 @@
     }
 
     function updateEditTotal() {
-        let total = 0;
+        let subtotal = 0;
         document.querySelectorAll('.edit-svc-amount').forEach(input => {
-            total += parseFloat(input.value) || 0;
+            subtotal += parseFloat(input.value) || 0;
         });
+        const taxRate = parseFloat(document.getElementById('editTaxRate').value) || 0;
+        const taxAmount = subtotal * (taxRate / 100);
+        const total = subtotal + taxAmount;
+        document.getElementById('editSubtotal').textContent = '$' + subtotal.toFixed(2);
+        document.getElementById('editTax').textContent = '$' + taxAmount.toFixed(2);
         document.getElementById('editTotal').textContent = '$' + total.toFixed(2);
     }
 
@@ -866,9 +876,12 @@
                 services.push({ name, description: desc, amount });
             }
         });
-        const total = services.reduce((sum, s) => sum + s.amount, 0);
+        const subtotal = services.reduce((sum, s) => sum + s.amount, 0);
+        const taxRate = parseFloat(document.getElementById('editTaxRate').value) || 0;
+        const taxAmount = subtotal * (taxRate / 100);
+        const total = subtotal + taxAmount;
         const notes = document.getElementById('editNotes').value.trim();
-        return { services, total, subtotal: total, notes };
+        return { services, subtotal, tax_rate: taxRate, tax_amount: taxAmount, total, notes };
     }
 
     async function saveQuoteEdits() {
@@ -885,6 +898,8 @@
                     services: editData.services,
                     total: editData.total,
                     subtotal: editData.subtotal,
+                    tax_rate: editData.tax_rate,
+                    tax_amount: editData.tax_amount,
                     notes: editData.notes,
                     status: 'draft'
                 })
@@ -919,6 +934,8 @@
                     services: editData.services,
                     total: editData.total,
                     subtotal: editData.subtotal,
+                    tax_rate: editData.tax_rate,
+                    tax_amount: editData.tax_amount,
                     notes: editData.notes,
                     status: 'sent'
                 })

@@ -1007,12 +1007,18 @@
             /^Cost\/Rate$/i.test(l) ||
             /^Qty\/Hr$/i.test(l) ||
             /^Qty$/i.test(l) ||
+            /^%$/i.test(l) ||
             /^Total$/i.test(l) ||
+            /^Subtotal$/i.test(l) ||
+            /^Notes:?$/i.test(l) ||
             /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(l) ||            // bare date 3/3/2026
             /^[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}$/.test(l) ||    // "Mar 03, 2026"
             /^\d{3,6}$/.test(l) ||                               // bare number (estimate #)
             /^PO Box\b/i.test(l) ||                              // billing PO Box
-            /\b(OH|IN|PA|MI|KY|WV|NY|FL|CA|TX)\s+\d{5}/.test(l) || // city/state/zip line
+            /Pappas\s*&\s*Co/i.test(l) ||                        // company name
+            /pappaslandscaping/i.test(l) ||                       // company website/email
+            /^440-886-7318/.test(l) ||                            // company phone
+            /\b[A-Z]{2}\s+\d{5}\b/.test(l) ||                    // any state + zip (e.g. "OH 44107")
             l.length < 2;
 
         // ── Property Address label (Jobber format) → address field ──

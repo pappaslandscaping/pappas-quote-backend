@@ -494,9 +494,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     y -= 40;
     
     // ===== SERVICES & PRICING - Two Column Table =====
-    // Dark green header bar with Qualy font in lime green
-    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Services & Pricing', { x: margin + 15, y: y + 2, size: 12, font: qualyFont, color: limeGreen });
+    // Dark green header bar with Qualy font in lime green (matching Service Agreement header)
+    page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 26, color: darkGreen });
+    page.drawText('Services & Pricing', { x: margin + 12, y: y - 1, size: 11, font: qualyFont, color: limeGreen });
     y -= 35;
 
     // Conditional layout: two columns for 6+ services, single column for fewer

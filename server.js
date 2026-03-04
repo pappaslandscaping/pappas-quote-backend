@@ -941,13 +941,15 @@ async function generateQuotePDF(quote) {
       const svcName = pdfSafe(svc.name || 'Service ' + (i + 1));
       const svcAmount = svc.amount != null ? parseFloat(svc.amount) : 0;
       const desc = pdfSafe(svc.description || '');
-      const descLineHeight = 1.35;
-      const descSize = 8;
+      const descLineHeight = 1.4;
+      const descSize = 8.5;
       const nameSize = 10;
-      const descMaxWidth = contentWidth - 75; // leave room for amount column
+      const descIndent = 6; // indent description text for visual separation
+      const descMaxWidth = contentWidth - 75 - descIndent; // leave room for amount column
 
       // Calculate row height (account for bold labels + line breaks between sections)
-      let rowH = nameSize * 1.6 + 6; // name + padding
+      let rowH = nameSize * 1.7 + 6; // name + extra space before description + padding
+      if (i > 0) rowH += 4; // separator breathing room
       if (desc) {
         try {
           const labelRegexH = /(?:^|\s)([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
@@ -994,7 +996,8 @@ async function generateQuotePDF(quote) {
       const cp = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
       // Thin separator line between services (skip for first service)
       if (i > 0) {
-        cp.drawLine({ start: { x: margin, y: y + nameSize * 0.8 }, end: { x: margin + contentWidth, y: y + nameSize * 0.8 }, thickness: 0.5, color: rgb(0.85, 0.87, 0.85) });
+        cp.drawLine({ start: { x: margin + 8, y: y + 10 }, end: { x: margin + contentWidth - 8, y: y + 10 }, thickness: 0.5, color: rgb(0.82, 0.84, 0.82) });
+        y -= 4; // breathing room after separator
       }
 
       // Service name (bold dark green)
@@ -1005,7 +1008,7 @@ async function generateQuotePDF(quote) {
 
       // Description lines — parse "Label:" patterns for bold labels + line breaks
       if (desc) {
-        let dy = y - nameSize * 1.5;
+        let dy = y - nameSize * 1.7; // more space between name and description
         try {
           // First, collect all label match positions
           const labelRegex = /(?:^|\s)([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
@@ -1034,11 +1037,12 @@ async function generateQuotePDF(quote) {
           for (let si = 0; si < sections.length; si++) {
             const sec = sections[si];
             if (si > 0) dy -= 4; // spacing between sections
+            const descX = margin + 10 + descIndent; // indented description
             if (sec.label) {
-              cp.drawText(sec.label, { x: margin + 10, y: dy, size: descSize, font: helveticaBold, color: rgb(0.12, 0.16, 0.21) });
+              cp.drawText(sec.label, { x: descX, y: dy, size: descSize, font: helveticaBold, color: rgb(0.12, 0.16, 0.21) });
               const labelW = helveticaBold.widthOfTextAtSize(sec.label, descSize);
               if (sec.text) {
-                const spaceW = helvetica.widthOfTextAtSize(' ', descSize);
+                const spaceW = helvetica.widthOfTextAtSize('  ', descSize); // double space after label
                 const firstLineMax = descMaxWidth - labelW - spaceW;
                 const words = sec.text.split(' ');
                 let line = '';
@@ -1048,10 +1052,10 @@ async function generateQuotePDF(quote) {
                   const maxW = firstLine ? firstLineMax : descMaxWidth;
                   if (helvetica.widthOfTextAtSize(test, descSize) > maxW && line) {
                     if (firstLine) {
-                      cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
+                      cp.drawText(line, { x: descX + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
                       firstLine = false;
                     } else {
-                      cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
+                      cp.drawText(line, { x: descX, y: dy, size: descSize, font: helvetica, color: midGray });
                     }
                     line = word;
                     dy -= descSize * descLineHeight;
@@ -1061,9 +1065,9 @@ async function generateQuotePDF(quote) {
                 }
                 if (line) {
                   if (firstLine) {
-                    cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
+                    cp.drawText(line, { x: descX + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
                   } else {
-                    cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
+                    cp.drawText(line, { x: descX, y: dy, size: descSize, font: helvetica, color: midGray });
                   }
                   dy -= descSize * descLineHeight;
                 }
@@ -1071,13 +1075,13 @@ async function generateQuotePDF(quote) {
                 dy -= descSize * descLineHeight;
               }
             } else {
-              dy = wrapText(cp, sec.text, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
+              dy = wrapText(cp, sec.text, descX, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
             }
           }
         } catch (descErr) {
           // Fallback: render as plain text if label parsing fails
           console.error('Description formatting error, falling back to plain text:', descErr.message);
-          dy = wrapText(cp, desc, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
+          dy = wrapText(cp, desc, margin + 10 + descIndent, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
         }
       }
 

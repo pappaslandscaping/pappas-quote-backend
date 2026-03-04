@@ -580,21 +580,50 @@
 
         // Declined
         if (q.status === 'declined') {
+            const reasonLabels = {
+                'price': 'Price too high',
+                'price_too_high': 'Price too high',
+                'timing': 'Not the right time',
+                'other_provider': 'Going with another provider',
+                'found_another': 'Found another provider',
+                'not_needed': 'No longer needed',
+                'selling_home': 'Selling the home',
+                'diy': 'Going to do it myself',
+                'budget': 'Budget constraints',
+                'other': 'Other'
+            };
+            let declineDesc = '<strong>Reason:</strong> ' + (reasonLabels[q.decline_reason] || q.decline_reason || 'No reason given');
+            if (q.decline_comments) {
+                declineDesc += '<br><strong>Comments:</strong> ' + q.decline_comments;
+            }
             events.push({
                 icon: '❌', cls: 'declined',
                 title: 'Quote Declined',
-                desc: 'Customer declined this quote',
-                time: new Date(q.updated_at || q.created_at)
+                desc: declineDesc,
+                time: new Date(q.declined_at || q.updated_at || q.created_at)
             });
         }
 
         // Changes requested
         if (q.status === 'changes_requested') {
+            let changesDesc = '';
+            if (q.change_type && q.change_type !== 'general') {
+                const changeLabels = {
+                    'add_services': 'Add more services',
+                    'remove_services': 'Remove some services',
+                    'pricing': 'Question about pricing',
+                    'schedule': 'Change schedule/frequency',
+                    'scope': 'Adjust scope of work',
+                    'other': 'Other'
+                };
+                changesDesc = '<strong>Type:</strong> ' + (changeLabels[q.change_type] || q.change_type) + '<br>';
+            }
+            changesDesc += q.change_details ? q.change_details : 'Customer requested changes to this quote';
             events.push({
                 icon: '🔄', cls: 'changes',
                 title: 'Changes Requested',
-                desc: q.change_request_message || 'Customer requested changes to this quote',
-                time: new Date(q.updated_at || q.created_at)
+                desc: changesDesc,
+                time: new Date(q.changes_requested_at || q.updated_at || q.created_at)
             });
         }
 

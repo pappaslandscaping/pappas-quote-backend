@@ -286,22 +286,30 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     let qualyFont = helveticaBold; // fallback
     try {
       const qualyPath = path.join(__dirname, 'public', 'Qualy.otf');
+      console.log('Contract PDF - Looking for Qualy at:', qualyPath, 'exists:', fs.existsSync(qualyPath));
       if (fs.existsSync(qualyPath)) {
         const qualyBytes = fs.readFileSync(qualyPath);
+        console.log('Contract PDF - Qualy font bytes:', qualyBytes.length);
         qualyFont = await pdfDoc.embedFont(qualyBytes);
-        console.log('Qualy font embedded in contract PDF');
+        console.log('Contract PDF - Qualy font embedded successfully');
+      } else {
+        console.log('Contract PDF - Qualy font NOT FOUND, using fallback');
       }
     } catch (fontErr) {
       console.log('Could not embed Qualy font in contract:', fontErr.message);
     }
-    console.log('Fonts embedded');
+    console.log('Fonts embedded, qualyFont is:', qualyFont === helveticaBold ? 'FALLBACK (helveticaBold)' : 'QUALY');
 
     // Try to embed logo
     let logoImage = null;
     try {
       const logoPath = path.join(__dirname, 'public', 'logo.png');
+      console.log('Contract PDF - Looking for logo at:', logoPath, 'exists:', fs.existsSync(logoPath));
       if (fs.existsSync(logoPath)) {
         logoImage = await pdfDoc.embedPng(fs.readFileSync(logoPath));
+        console.log('Contract PDF - Logo embedded successfully');
+      } else {
+        console.log('Contract PDF - Logo NOT FOUND');
       }
     } catch (logoErr) {
       console.log('Could not embed logo in contract PDF:', logoErr.message);
@@ -394,8 +402,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     
     // Two column layout for parties
     const colWidth = (contentWidth - 20) / 2;
-    
-    // Service Provider
+    const partiesY = y; // save Y for both columns to start at same level
+
+    // Service Provider (left column)
     page.drawText('SERVICE PROVIDER', { x: margin, y, size: 8, font: helveticaBold, color: gray });
     y -= 14;
     page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 10, font: helveticaBold, color: black });
@@ -409,9 +418,9 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     page.drawText('(440) 886-7318', { x: margin, y, size: 9, font: helvetica, color: black });
     y -= 11;
     page.drawText('hello@pappaslandscaping.com', { x: margin, y, size: 9, font: helvetica, color: black });
-    
-    // Client (right column)
-    let clientY = pageHeight - margin - 58;
+
+    // Client (right column — starts at same Y as service provider)
+    let clientY = partiesY;
     page.drawText('CLIENT', { x: margin + colWidth + 20, y: clientY, size: 8, font: helveticaBold, color: gray });
     clientY -= 14;
     page.drawText(quote.customer_name || '', { x: margin + colWidth + 20, y: clientY, size: 10, font: helveticaBold, color: black });
@@ -421,7 +430,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     page.drawText(quote.customer_email || '', { x: margin + colWidth + 20, y: clientY, size: 9, font: helvetica, color: black });
     clientY -= 11;
     page.drawText(quote.customer_phone || '', { x: margin + colWidth + 20, y: clientY, size: 9, font: helvetica, color: black });
-    
+
     y -= 40;
     
     // ===== SERVICES & PRICING - Two Column Table =====
@@ -877,75 +886,77 @@ async function generateQuotePDF(quote) {
       // Description lines — parse "Label:" patterns for bold labels + line breaks
       if (desc) {
         let dy = y - nameSize * 1.5;
-        // First, collect all label match positions
-        const labelRegex = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
-        const matches = [];
-        let m;
-        while ((m = labelRegex.exec(desc)) !== null) {
-          matches.push({ index: m.index, end: m.index + m[0].length, label: m[1] + ':' });
-        }
-
-        const sections = [];
-        if (matches.length === 0) {
-          sections.push({ label: null, text: desc });
-        } else {
-          // Text before first label
-          if (matches[0].index > 0) {
-            const before = desc.slice(0, matches[0].index).trim();
-            if (before) sections.push({ label: null, text: before });
+        try {
+          // First, collect all label match positions
+          const labelRegex = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
+          const matches = [];
+          let m;
+          while ((m = labelRegex.exec(desc)) !== null) {
+            matches.push({ index: m.index, end: m.index + m[0].length, label: m[1] + ':' });
           }
-          for (let mi = 0; mi < matches.length; mi++) {
-            const textEnd = mi + 1 < matches.length ? matches[mi + 1].index : desc.length;
-            const sectionText = desc.slice(matches[mi].end, textEnd).trim();
-            sections.push({ label: matches[mi].label, text: sectionText });
-          }
-        }
 
-        for (let si = 0; si < sections.length; si++) {
-          const sec = sections[si];
-          if (si > 0) dy -= 4; // spacing between sections
-          if (sec.label) {
-            // Draw bold label
-            cp.drawText(sec.label, { x: margin + 10, y: dy, size: descSize, font: helveticaBold, color: rgb(0.12, 0.16, 0.21) });
-            const labelW = helveticaBold.widthOfTextAtSize(sec.label, descSize);
-            // Draw text after label on same line, wrapping as needed
-            if (sec.text) {
-              const spaceW = helvetica.widthOfTextAtSize(' ', descSize);
-              const firstLineMax = descMaxWidth - labelW - spaceW;
-              const words = sec.text.split(' ');
-              let line = '';
-              let firstLine = true;
-              for (const word of words) {
-                const test = line + (line ? ' ' : '') + word;
-                const maxW = firstLine ? firstLineMax : descMaxWidth;
-                if (helvetica.widthOfTextAtSize(test, descSize) > maxW && line) {
+          const sections = [];
+          if (matches.length === 0) {
+            sections.push({ label: null, text: desc });
+          } else {
+            if (matches[0].index > 0) {
+              const before = desc.slice(0, matches[0].index).trim();
+              if (before) sections.push({ label: null, text: before });
+            }
+            for (let mi = 0; mi < matches.length; mi++) {
+              const textEnd = mi + 1 < matches.length ? matches[mi + 1].index : desc.length;
+              const sectionText = desc.slice(matches[mi].end, textEnd).trim();
+              sections.push({ label: matches[mi].label, text: sectionText });
+            }
+          }
+
+          for (let si = 0; si < sections.length; si++) {
+            const sec = sections[si];
+            if (si > 0) dy -= 4; // spacing between sections
+            if (sec.label) {
+              cp.drawText(sec.label, { x: margin + 10, y: dy, size: descSize, font: helveticaBold, color: rgb(0.12, 0.16, 0.21) });
+              const labelW = helveticaBold.widthOfTextAtSize(sec.label, descSize);
+              if (sec.text) {
+                const spaceW = helvetica.widthOfTextAtSize(' ', descSize);
+                const firstLineMax = descMaxWidth - labelW - spaceW;
+                const words = sec.text.split(' ');
+                let line = '';
+                let firstLine = true;
+                for (const word of words) {
+                  const test = line + (line ? ' ' : '') + word;
+                  const maxW = firstLine ? firstLineMax : descMaxWidth;
+                  if (helvetica.widthOfTextAtSize(test, descSize) > maxW && line) {
+                    if (firstLine) {
+                      cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
+                      firstLine = false;
+                    } else {
+                      cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
+                    }
+                    line = word;
+                    dy -= descSize * descLineHeight;
+                  } else {
+                    line = test;
+                  }
+                }
+                if (line) {
                   if (firstLine) {
                     cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
-                    firstLine = false;
                   } else {
                     cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
                   }
-                  line = word;
                   dy -= descSize * descLineHeight;
-                } else {
-                  line = test;
                 }
-              }
-              if (line) {
-                if (firstLine) {
-                  cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
-                } else {
-                  cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
-                }
+              } else {
                 dy -= descSize * descLineHeight;
               }
             } else {
-              dy -= descSize * descLineHeight;
+              dy = wrapText(cp, sec.text, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
             }
-          } else {
-            // No label, just plain text
-            dy = wrapText(cp, sec.text, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
           }
+        } catch (descErr) {
+          // Fallback: render as plain text if label parsing fails
+          console.error('Description formatting error, falling back to plain text:', descErr.message);
+          dy = wrapText(cp, desc, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
         }
       }
 
@@ -1620,6 +1631,31 @@ app.get('/api/customers/stats', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// GET /api/customers/search - Search customers by name for auto-fill
+// IMPORTANT: This must come BEFORE /api/customers/:id to avoid :id matching "search"
+app.get('/api/customers/search', async (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name || name.length < 2) {
+      return res.json({ success: true, customers: [] });
+    }
+
+    const result = await pool.query(
+      `SELECT id, name, email, phone, mobile, street, city, state, postal_code
+       FROM customers
+       WHERE LOWER(name) LIKE LOWER($1)
+       ORDER BY name
+       LIMIT 10`,
+      [`%${name}%`]
+    );
+
+    res.json({ success: true, customers: result.rows });
+  } catch (error) {
+    console.error('Error searching customers:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/customers/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
@@ -1892,30 +1928,6 @@ app.delete('/api/customers/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM customers WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
-
-// GET /api/customers/search - Search customers by name for auto-fill
-app.get('/api/customers/search', async (req, res) => {
-  try {
-    const { name } = req.query;
-    if (!name || name.length < 2) {
-      return res.json({ success: true, customers: [] });
-    }
-    
-    const result = await pool.query(
-      `SELECT id, name, email, phone, mobile, street, city, state, postal_code
-       FROM customers
-       WHERE LOWER(name) LIKE LOWER($1)
-       ORDER BY name
-       LIMIT 10`,
-      [`%${name}%`]
-    );
-    
-    res.json({ success: true, customers: result.rows });
-  } catch (error) { 
-    console.error('Error searching customers:', error);
-    res.status(500).json({ success: false, error: error.message }); 
-  }
 });
 
 // GET /api/customers/:id/quotes - Get all quotes for a customer

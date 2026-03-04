@@ -824,80 +824,97 @@ async function generateQuotePDF(quote) {
     let y = pageHeight - margin;
 
     // ===== HEADER =====
-    if (logoImage) {
-      const logoDims = logoImage.scale(0.28);
-      page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
-      // Contact info to the right of logo
-      const cx = pageWidth - margin - 145;
-      page.drawText('pappaslandscaping.com', { x: cx, y, size: 9, font: helvetica, color: gray });
-      page.drawText('hello@pappaslandscaping.com', { x: cx, y: y - 13, size: 9, font: helvetica, color: gray });
-      page.drawText('(440) 886-7318', { x: cx, y: y - 26, size: 9, font: helvetica, color: gray });
-      y -= logoDims.height + 8;
-    } else {
-      page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
-      page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 145, y, size: 9, font: helvetica, color: gray });
-      page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 145, y: y - 13, size: 9, font: helvetica, color: gray });
-      page.drawText('(440) 886-7318', { x: pageWidth - margin - 145, y: y - 26, size: 9, font: helvetica, color: gray });
-      y -= 28;
+    try {
+      if (logoImage) {
+        const logoDims = logoImage.scale(0.28);
+        page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
+        const cx = pageWidth - margin - 145;
+        page.drawText('pappaslandscaping.com', { x: cx, y, size: 9, font: helvetica, color: gray });
+        page.drawText('hello@pappaslandscaping.com', { x: cx, y: y - 13, size: 9, font: helvetica, color: gray });
+        page.drawText('(440) 886-7318', { x: cx, y: y - 26, size: 9, font: helvetica, color: gray });
+        y -= logoDims.height + 8;
+      } else {
+        page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
+        page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 145, y, size: 9, font: helvetica, color: gray });
+        page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 145, y: y - 13, size: 9, font: helvetica, color: gray });
+        page.drawText('(440) 886-7318', { x: pageWidth - margin - 145, y: y - 26, size: 9, font: helvetica, color: gray });
+        y -= 28;
+      }
+      page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
+      y -= 30;
+    } catch (headerErr) {
+      console.error('=== QUOTE PDF: header error:', headerErr.message);
+      y = pageHeight - margin - 60;
     }
-
-    // Lime green accent line
-    page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
-    y -= 30;
     console.log('=== QUOTE PDF: header drawn, y=' + y);
 
     // ===== QUOTE BADGE =====
-    page.drawRectangle({ x: margin, y: y - 8, width: 140, height: 26, color: darkGreen });
-    page.drawText(`QUOTE  #${quoteNumber}`, { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
+    try {
+      page.drawRectangle({ x: margin, y: y - 8, width: 140, height: 26, color: darkGreen });
+      page.drawText('QUOTE  #' + quoteNumber, { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
+    } catch (badgeErr) {
+      console.error('=== QUOTE PDF: badge error:', badgeErr.message);
+    }
     y -= 46;
 
     // ===== PREPARED FOR / QUOTE DETAILS =====
     const infoBoxH = 95;
-    page.drawRectangle({ x: margin, y: y - infoBoxH, width: 250, height: infoBoxH, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
-    page.drawText('PREPARED FOR', { x: margin + 14, y: y - 10, size: 8, font: helveticaBold, color: midGray });
-    page.drawText(quote.customer_name || '', { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
-    let infoY = y - 42;
-    if (quote.customer_address) {
-      const addrLines = formatAddressLines(quote.customer_address);
-      page.drawText(addrLines.line1, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-      if (addrLines.line2) {
-        infoY -= 12;
-        page.drawText(addrLines.line2, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+    try {
+      page.drawRectangle({ x: margin, y: y - infoBoxH, width: 250, height: infoBoxH, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
+      page.drawText('PREPARED FOR', { x: margin + 14, y: y - 10, size: 8, font: helveticaBold, color: midGray });
+      page.drawText(quote.customer_name || '', { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
+      let infoY = y - 42;
+      if (quote.customer_address) {
+        const addrLines = formatAddressLines(quote.customer_address);
+        page.drawText(addrLines.line1, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        if (addrLines.line2) {
+          infoY -= 12;
+          page.drawText(addrLines.line2, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        }
+        infoY -= 14;
       }
-      infoY -= 14;
-    }
-    if (quote.customer_email) {
-      page.drawText(quote.customer_email, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-      infoY -= 14;
-    }
-    if (quote.customer_phone) {
-      page.drawText(quote.customer_phone, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-    }
+      if (quote.customer_email) {
+        page.drawText(String(quote.customer_email), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        infoY -= 14;
+      }
+      if (quote.customer_phone) {
+        page.drawText(String(quote.customer_phone), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+      }
 
-    // Right side - Quote Details
-    const dx = margin + 275;
-    page.drawText('QUOTE DETAILS', { x: dx, y: y - 10, size: 8, font: helveticaBold, color: midGray });
-    page.drawText(`Date:`, { x: dx, y: y - 26, size: 9, font: helveticaBold, color: gray });
-    page.drawText(quoteDate, { x: dx + 30, y: y - 26, size: 9, font: helvetica, color: black });
-    page.drawText(`Valid For:`, { x: dx, y: y - 40, size: 9, font: helveticaBold, color: gray });
-    page.drawText('30 Days', { x: dx + 48, y: y - 40, size: 9, font: helvetica, color: black });
-    page.drawText(`Quote #:`, { x: dx, y: y - 54, size: 9, font: helveticaBold, color: gray });
-    page.drawText(String(quoteNumber), { x: dx + 44, y: y - 54, size: 9, font: helvetica, color: black });
-    page.drawText(`Type:`, { x: dx, y: y - 68, size: 9, font: helveticaBold, color: gray });
-    page.drawText(quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Standard Quote', { x: dx + 28, y: y - 68, size: 9, font: helvetica, color: black });
-
+      // Right side - Quote Details
+      const dx = margin + 275;
+      page.drawText('QUOTE DETAILS', { x: dx, y: y - 10, size: 8, font: helveticaBold, color: midGray });
+      page.drawText('Date:', { x: dx, y: y - 26, size: 9, font: helveticaBold, color: gray });
+      page.drawText(String(quoteDate), { x: dx + 30, y: y - 26, size: 9, font: helvetica, color: black });
+      page.drawText('Valid For:', { x: dx, y: y - 40, size: 9, font: helveticaBold, color: gray });
+      page.drawText('30 Days', { x: dx + 48, y: y - 40, size: 9, font: helvetica, color: black });
+      page.drawText('Quote #:', { x: dx, y: y - 54, size: 9, font: helveticaBold, color: gray });
+      page.drawText(String(quoteNumber), { x: dx + 44, y: y - 54, size: 9, font: helvetica, color: black });
+      page.drawText('Type:', { x: dx, y: y - 68, size: 9, font: helveticaBold, color: gray });
+      page.drawText(quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Standard Quote', { x: dx + 28, y: y - 68, size: 9, font: helvetica, color: black });
+    } catch (infoErr) {
+      console.error('=== QUOTE PDF: info box error:', infoErr.message);
+    }
     y -= infoBoxH + 18;
     console.log('=== QUOTE PDF: info box drawn, y=' + y);
 
     // ===== SERVICES SECTION HEADER =====
-    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Services Included', { x: margin + 14, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
+    try {
+      page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
+      page.drawText('Services Included', { x: margin + 14, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
+    } catch (svcHdrErr) {
+      console.error('=== QUOTE PDF: services header error:', svcHdrErr.message);
+    }
     y -= 33;
 
     // Table column header
-    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.93, 0.94, 0.93) });
-    page.drawText('SERVICE / DESCRIPTION', { x: margin + 10, y: y - 1, size: 8, font: helveticaBold, color: gray });
-    page.drawText('AMOUNT', { x: pageWidth - margin - 55, y: y - 1, size: 8, font: helveticaBold, color: gray });
+    try {
+      page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 20, color: rgb(0.93, 0.94, 0.93) });
+      page.drawText('SERVICE / DESCRIPTION', { x: margin + 10, y: y - 1, size: 8, font: helveticaBold, color: gray });
+      page.drawText('AMOUNT', { x: pageWidth - margin - 55, y: y - 1, size: 8, font: helveticaBold, color: gray });
+    } catch (colHdrErr) {
+      console.error('=== QUOTE PDF: column header error:', colHdrErr.message);
+    }
     y -= 22;
 
     // ===== SERVICE ROWS (single column with descriptions) =====
@@ -6823,6 +6840,26 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
     res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
+
+// Database migrations — widen contract columns that are too narrow for signature data
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signature_data TYPE TEXT`);
+    console.log('✅ Widened contract_signature_data to TEXT');
+  } catch(e) { /* column may already be TEXT or not exist */ }
+  try {
+    await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signer_ip TYPE VARCHAR(255)`);
+    console.log('✅ Widened contract_signer_ip to VARCHAR(255)');
+  } catch(e) { /* already wide enough or not exist */ }
+  try {
+    await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signer_name TYPE VARCHAR(255)`);
+    console.log('✅ Widened contract_signer_name to VARCHAR(255)');
+  } catch(e) { /* already wide enough or not exist */ }
+  try {
+    await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signature_type TYPE VARCHAR(50)`);
+    console.log('✅ Widened contract_signature_type to VARCHAR(50)');
+  } catch(e) { /* already wide enough or not exist */ }
+})();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

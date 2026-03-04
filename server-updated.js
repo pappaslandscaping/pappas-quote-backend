@@ -614,7 +614,7 @@ async function generateQuotePDF(quote) {
     // Company name
     page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 22, font: helveticaBold, color: darkGreen });
     y -= 18;
-    page.drawText('Professional Lawn Care Services', { x: margin, y, size: 11, font: helvetica, color: gray });
+    page.drawText('Quality Care for Every Season', { x: margin, y, size: 11, font: helvetica, color: gray });
     
     // Contact info on right
     page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 120, y: pageHeight - margin, size: 10, font: helvetica, color: gray });

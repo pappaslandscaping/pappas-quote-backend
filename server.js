@@ -5583,6 +5583,36 @@ function getFollowupSMS(followup, stage) {
   return templates[stage];
 }
 
+// GET /api/preview-followup-emails - Send all 4 follow-up email previews to owner
+app.get('/api/preview-followup-emails', async (req, res) => {
+  try {
+    const previewFollowup = {
+      customer_name: 'Jane Smith',
+      quote_number: '1234',
+      quote_amount: '2450.00',
+      sign_url: 'https://pappaslandscaping.com/sign-contract.html?id=preview',
+      customer_email: 'hello@pappaslandscaping.com',
+      customer_phone: '(216) 555-0100'
+    };
+
+    for (let stage = 1; stage <= 4; stage++) {
+      const email = getFollowupEmailContent(previewFollowup, stage);
+      if (email) {
+        await sendEmail(
+          'hello@pappaslandscaping.com',
+          `[PREVIEW ${stage}/4] ${email.subject}`,
+          email.html
+        );
+      }
+    }
+
+    res.json({ success: true, message: 'All 4 follow-up email previews sent to hello@pappaslandscaping.com' });
+  } catch (error) {
+    console.error('Error sending preview emails:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/cron/process-followups - Daily cron job to send due follow-ups
 app.post('/api/cron/process-followups', async (req, res) => {
   try {

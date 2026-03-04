@@ -334,7 +334,16 @@
                         <div class="detail-item">
                             <div class="detail-label">PREPARED FOR</div>
                             <div class="detail-value">${quote.customer_name}</div>
-                            <div style="font-size:13px;color:#64748b;margin-top:4px;">${quote.customer_address || ''}</div>
+                            <div style="font-size:13px;color:#64748b;margin-top:4px;">${(() => {
+                                const addr = quote.customer_address || '';
+                                const parts = addr.split(',').map(p => p.trim());
+                                if (parts.length >= 3) {
+                                    return parts[0] + '<br>' + parts.slice(1).join(', ');
+                                } else if (parts.length === 2) {
+                                    return parts[0] + '<br>' + parts[1];
+                                }
+                                return addr;
+                            })()}</div>
                         </div>
                         <div class="detail-item">
                             <div class="detail-label">QUOTE DETAILS</div>

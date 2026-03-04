@@ -374,26 +374,33 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     let page = addPage();
     let y = pageHeight - margin;
 
-    // Header: logo on left, contact info on right
-    const headerTop = y;
+    // Header: logo on left with contact info to the right (same layout as quote PDF)
     if (logoImage) {
-      const logoDims = logoImage.scale(0.18);
+      const logoDims = logoImage.scale(0.28);
       page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
-      y -= logoDims.height + 4;
+      // Contact info to the right of logo
+      const cx = pageWidth - margin - 145;
+      page.drawText('pappaslandscaping.com', { x: cx, y, size: 9, font: helvetica, color: gray });
+      page.drawText('hello@pappaslandscaping.com', { x: cx, y: y - 13, size: 9, font: helvetica, color: gray });
+      page.drawText('(440) 886-7318', { x: cx, y: y - 26, size: 9, font: helvetica, color: gray });
+      y -= logoDims.height + 8;
     } else {
       page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
+      page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 145, y, size: 9, font: helvetica, color: gray });
+      page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 145, y: y - 13, size: 9, font: helvetica, color: gray });
+      page.drawText('(440) 886-7318', { x: pageWidth - margin - 145, y: y - 26, size: 9, font: helvetica, color: gray });
       y -= 28;
     }
-    // Contact info top-right
-    page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: headerTop, size: 8, font: helvetica, color: gray });
-    page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 130, y: headerTop - 11, size: 8, font: helvetica, color: gray });
-    page.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: headerTop - 22, size: 8, font: helvetica, color: gray });
 
-    // SERVICE AGREEMENT banner (dark green bar like "Services Included" on quote PDF)
-    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: darkGreen });
-    page.drawText('Service Agreement', { x: margin + 14, y: y + 2, size: 12, font: qualyFont, color: rgb(1, 1, 1) });
-    page.drawText(`Quote #${quoteNumber}`, { x: pageWidth - margin - 90, y: y + 2, size: 10, font: helvetica, color: limeGreen });
-    y -= 40;
+    // Lime green accent line (matching quote PDF)
+    page.drawRectangle({ x: margin, y, width: contentWidth, height: 4, color: limeGreen });
+    y -= 30;
+
+    // SERVICE AGREEMENT badge (dark green bar like quote PDF badge)
+    page.drawRectangle({ x: margin, y: y - 8, width: 250, height: 26, color: darkGreen });
+    page.drawText('SERVICE AGREEMENT', { x: margin + 12, y: y - 1, size: 11, font: helveticaBold, color: limeGreen });
+    page.drawText(`Quote #${quoteNumber}`, { x: margin + 160, y: y - 1, size: 10, font: helvetica, color: rgb(1, 1, 1) });
+    y -= 46;
     
     // Two column layout for parties
     const colWidth = (contentWidth - 20) / 2;
@@ -513,20 +520,20 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
 
     y -= 40;
     
-    // Contract sections
+    // Contract sections - FULL legal text matching sign-contract.html
     const sections = [
-      { title: 'I. Scope of Agreement', content: `A. Associated Quote: This Agreement is directly tied to Quote/Proposal Number: ${quoteNumber}.\n\nB. Scope of Services: The Contractor agrees to provide services at the Client Service Address as detailed in the Proposal, which outlines the specific services, schedule, and pricing.\n\nC. Additional Work: Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved quote.` },
-      { title: 'II. Terms and Renewal', content: 'A. Term: This Agreement begins on the Effective Date and remains in effect until canceled.\n\nB. Automatic Renewal: The Agreement automatically renews each year at the start of the new season (March), unless canceled in writing by either party at least 30 days before.' },
-      { title: 'III. Payment Terms', content: 'A. Mowing Services: Per-Service invoices sent at month end; Monthly Contracts invoiced on the 1st.\nB. All Other Services: Invoiced upon completion.\nC. Due Date: Upon receipt.\nD. Accepted Methods: Credit cards, Zelle, cash, checks, money orders, bank transfers.\nE. Fuel Surcharge: A small flat-rate fee added to each invoice.\nF. Returned Checks: $25 fee.' },
-      { title: 'IV. Card on File Authorization', content: 'By placing a card on file, the Client authorizes Pappas & Co. Landscaping to charge that card for services rendered. Processing Fee: 2.9% + $0.30 per transaction.' },
-      { title: 'V. Late Fees', content: '30-Day Late Fee: 10% if not paid within 30 days.\nRecurring Late Fee: Additional 5% per 30-day period.\nService Suspension: After 60 days, services suspended and collections may begin.' },
-      { title: 'VI. Client Responsibilities', content: 'Accessibility: Gates unlocked, areas accessible. Return Trip Fee: $25 if rescheduling needed due to access issues. Property Clearance: Free of hazards. Pet Waste: $15 cleanup fee if present.' },
-      { title: 'VII. Lawn/Plant Installs', content: 'Client responsible for watering newly installed lawns and plants. Pappas & Co. not responsible for failure due to lack of watering.' },
-      { title: 'VIII. Weather and Materials', content: 'A. Materials: Pappas & Co. supplies all necessary materials unless specified otherwise.\nB. Weather: Reasonable efforts to reschedule. No refunds for weather delays.' },
-      { title: 'IX. Cancellation', content: 'A. Non-Renewal: 30 days written notice before March renewal.\nB. Mid-Season: 15 days written notice. No refunds for prepaid services.\nC. Termination by Contractor: 15 days notice.' },
-      { title: 'X. Liability & Insurance', content: 'A. Quality: Services performed with due care. Notify within 7 days of defects.\nB. Independent Contractor: Not an employee or agent of Client.\nC. Limitation: Liability shall not exceed total amount paid.\nD. Insurance: General liability, auto, and workers comp insurance carried.' },
-      { title: 'XI. Governing Law', content: 'A. Jurisdiction: State of Ohio, Cuyahoga County courts.\nB. Dispute Resolution: Good-faith negotiations first, then mediation/arbitration.' },
-      { title: 'XII. Acceptance', content: 'By signing below, the parties acknowledge they have read, understand, and agree to all terms of this Agreement.' }
+      { title: 'I. Scope of Agreement', content: `A. Associated Quote: This Agreement is directly tied to Quote/Proposal Number: ${quoteNumber}.\n\nB. Scope of Services: The Contractor agrees to provide services at the Client Service Address as detailed in the Proposal, which outlines the specific services, schedule, and pricing. This Proposal is hereby incorporated into and made a part of this Agreement.\n\nC. Additional Work: Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved quote.` },
+      { title: 'II. Terms and Renewal', content: 'A. Term: This Agreement begins on the Effective Date and remains in effect until canceled as outlined in Section IX.\n\nB. Automatic Renewal: The Agreement automatically renews each year at the start of the new season, which begins in March, unless canceled in writing by either party at least 30 days before the new season begins.' },
+      { title: 'III. Payment Terms', content: 'A. Mowing Services Invoicing:\n  - Per-Service Mowing: Invoices will be sent on the final day of each month.\n  - Monthly Mowing Contracts: Invoices will be sent on the first day of each month.\n\nB. All Other Services Invoicing: Invoices will be sent upon job completion.\n\nC. Due Date: Payments are due upon receipt of the invoice.\n\nD. Accepted Payment Methods: Major credit cards, Zelle, cash, checks, money orders, and bank transfers.\n\nE. Fuel Surcharge: A small flat-rate fuel surcharge will be added to each invoice to help offset transportation-related costs, including fuel, vehicle maintenance, and insurance.\n\nF. Returned Checks: A $25 fee will be applied for any returned checks.' },
+      { title: 'IV. Card on File Authorization and Fees', content: 'By placing a credit or debit card on file, the Client authorizes Pappas & Co. Landscaping to charge that card for any services rendered under this Agreement, including applicable fees and surcharges.\n\nProcessing Fee: A processing fee of 2.9% + $0.30 applies to each successful domestic card transaction.\n\nFor Monthly Service Contracts with card-on-file billing: If a scheduled payment fails, the Client will be notified and given 5 business days to update payment information. If payment is not resolved, the account will revert to per-service invoicing and standard late fee terms (Section V) will apply.' },
+      { title: 'V. Late Fees and Suspension of Service', content: 'Pappas & Co. Landscaping incurs upfront costs for labor, materials, and equipment. Late payments disrupt business operations, and the following fees and policies apply:\n\n  - 30-Day Late Fee: A 10% late fee will be applied if payment is not received within 30 days of the invoice date.\n  - Recurring Late Fee: An additional 5% late fee will be applied for each additional 30-day period past due (60 days, 90 days, etc.).\n  - Service Suspension and Collections: If payment is not received within 60 days, services will be suspended, and Pappas & Co. Landscaping reserves the right to initiate collection proceedings.' },
+      { title: 'VI. Client Responsibilities', content: 'The Client agrees to the following:\n\n  - Accessibility: All gates must be unlocked, and service areas must be accessible on the scheduled service day. If access is blocked (e.g., locked gates, vehicles), that area may be skipped and the full service fee will still apply.\n  - Return Trip Fee: A $25 return trip fee may be charged if rescheduling is needed due to Client-related access issues.\n  - Property Clearance: The property must be free of hazards, obstacles, and pre-existing damage that may interfere with services.\n  - Personal Items: Our crew may move personal items (e.g., furniture, hoses, toys) if necessary to perform work, but we are not responsible for any damage caused by moving such items.\n  - Pet Waste: All dog feces must be picked up prior to service. If pet waste is present, a $15 cleanup fee may be added, and we may skip service in those areas if cleanup prevents safe work.\n  - Underground Infrastructure: Pappas & Co. Landscaping is not liable for damage to underground utilities, irrigation lines, invisible fences, or other hidden infrastructure unless they are clearly marked and disclosed in advance by the Client.' },
+      { title: 'VII. Lawn/Plant Installs (If Applicable)', content: 'The Client is responsible for watering newly installed lawns (sod or seed) and plants twice daily or as recommended to ensure proper growth. Pappas & Co. Landscaping is not responsible for plant or lawn failure due to lack of watering or improper care after installation.' },
+      { title: 'VIII. Weather and Materials', content: 'A. Materials and Equipment: Pappas & Co. Landscaping will supply all materials, tools, and equipment necessary to perform the agreed-upon services unless specified otherwise. Any specialized materials or equipment requested by the Client will incur additional charges.\n\nB. Weather Disruptions: If inclement weather prevents services from being performed, Pappas & Co. Landscaping will make reasonable efforts to complete the service the following business day. Service on the next day is not guaranteed and will be rescheduled based on availability. Refunds or credits will not be issued for weather-related delays unless the service is permanently canceled.' },
+      { title: 'IX. Cancellation and Termination', content: 'A. Non-Renewal: To stop the automatic renewal of this Agreement, the Client must provide written notice at least 30 days before your renewal date (which occurs in March).\n\nB. Mid-Season Cancellation by Client: To cancel service mid-season, the Client must provide 15 days\' written notice at any time. Services will continue through the notice period, and the final invoice will include any completed work. No refunds are given for prepaid services or unused portions of seasonal contracts.\n\nC. Termination by Contractor: Pappas & Co. Landscaping may cancel service at any time with 15 days\' notice.' },
+      { title: 'X. Liability, Insurance, and Quality', content: 'A. Quality of Workmanship: Pappas & Co. Landscaping will perform all services with due care and in accordance with industry standards.\n  - If defects or deficiencies in workmanship occur, the Client must notify Pappas & Co. Landscaping within 7 days of service completion. If the issue is due to improper workmanship, it will be corrected at no additional cost.\n  - Issues resulting from natural wear, environmental conditions, or improper client maintenance are not covered under this clause.\n\nB. Independent Contractor: Pappas & Co. Landscaping is an independent contractor and is not an employee, partner, or agent of the Client. This agreement does not establish a joint venture, partnership, or employment relationship.\n\nC. Indemnification: Pappas & Co. Landscaping agrees to indemnify and hold harmless the Client from claims, damages, and liabilities arising directly from its performance of work, except where such claims arise due to the Client\'s negligence or misconduct.\n\nD. Limitation of Liability: The total liability of Pappas & Co. Landscaping for any claim shall not exceed the total amount paid by the Client under this agreement. Pappas & Co. Landscaping is not liable for indirect, incidental, consequential, or special damages, including but not limited to loss of business, property damage due to external factors, or delays caused by third parties. These liability limitations will survive the termination of this agreement.\n\nE. Insurance: Pappas & Co. Landscaping carries general liability insurance, automobile liability insurance, and workers\' compensation insurance as required by law.\n\nF. Force Majeure: Neither party shall be held liable for delays or failure in performance caused by events beyond their reasonable control, including but not limited to: Acts of God, war, terrorism, riots, labor strikes, governmental restrictions or regulations, epidemics, pandemics, or public health emergencies.' },
+      { title: 'XI. Governing Law and Dispute Resolution', content: 'A. Jurisdiction: This agreement shall be governed by the laws of the State of Ohio. Any disputes shall be resolved in the county courts of Cuyahoga County, Ohio.\n\nB. Dispute Resolution: Any disputes will first be subject to good-faith negotiations between the parties. If a resolution cannot be reached, the dispute may be subject to mediation or arbitration before legal action is pursued.' },
+      { title: 'XII. Acceptance of Agreement', content: 'By signing below, the parties acknowledge that they have read, understand, and agree to the terms and conditions of this Landscaping Services Agreement and the incorporated Proposal/Quote.' }
     ];
     
     for (const section of sections) {
@@ -768,7 +775,7 @@ async function generateQuotePDF(quote) {
       return { page: newPage, y: py };
     }
 
-    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    let page = pdfDoc.addPage([pageWidth, pageHeight]);
     let y = pageHeight - margin;
 
     // ===== HEADER =====
@@ -805,8 +812,23 @@ async function generateQuotePDF(quote) {
     page.drawText(quote.customer_name || '', { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
     let infoY = y - 42;
     if (quote.customer_address) {
-      page.drawText(quote.customer_address, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
-      infoY -= 14;
+      const fullAddr = quote.customer_address;
+      const addrParts = fullAddr.split(',').map(p => p.trim());
+      if (addrParts.length >= 3) {
+        // "123 Main St, Lakewood, OH 44107" => street line + city/state/zip line
+        page.drawText(addrParts[0], { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        infoY -= 12;
+        page.drawText(addrParts.slice(1).join(', '), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        infoY -= 14;
+      } else if (addrParts.length === 2) {
+        page.drawText(addrParts[0], { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        infoY -= 12;
+        page.drawText(addrParts[1], { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        infoY -= 14;
+      } else {
+        page.drawText(fullAddr, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        infoY -= 14;
+      }
     }
     if (quote.customer_email) {
       page.drawText(quote.customer_email, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });

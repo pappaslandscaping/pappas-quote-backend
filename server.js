@@ -392,7 +392,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     
     // Helper function to draw wrapped text
     function drawWrappedText(page, text, x, y, maxWidth, font, size, color, lineHeight = 1.3) {
-      const words = text.split(' ');
+      const words = pdfSafe(text).split(' ');
       let line = '';
       let currentY = y;
       
@@ -472,19 +472,19 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     let clientY = partiesY;
     page.drawText('CLIENT', { x: cx, y: clientY, size: 8, font: helveticaBold, color: gray });
     clientY -= 14;
-    page.drawText(quote.customer_name || '', { x: cx, y: clientY, size: 10, font: helveticaBold, color: black });
+    page.drawText(pdfSafe(quote.customer_name || ''), { x: cx, y: clientY, size: 10, font: helveticaBold, color: black });
     clientY -= 12;
     // Split address into street line and city/state/zip line
     const addrLines = formatAddressLines(quote.customer_address);
-    page.drawText(addrLines.line1, { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    page.drawText(pdfSafe(addrLines.line1), { x: cx, y: clientY, size: 9, font: helvetica, color: black });
     if (addrLines.line2) {
       clientY -= 11;
-      page.drawText(addrLines.line2, { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+      page.drawText(pdfSafe(addrLines.line2), { x: cx, y: clientY, size: 9, font: helvetica, color: black });
     }
     clientY -= 11;
-    page.drawText(quote.customer_email || '', { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    page.drawText(pdfSafe(quote.customer_email || ''), { x: cx, y: clientY, size: 9, font: helvetica, color: black });
     clientY -= 11;
-    page.drawText(quote.customer_phone || '', { x: cx, y: clientY, size: 9, font: helvetica, color: black });
+    page.drawText(pdfSafe(quote.customer_phone || ''), { x: cx, y: clientY, size: 9, font: helvetica, color: black });
 
     y -= 40;
     
@@ -518,14 +518,14 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
 
         // Left column: services[row]
         const svc1 = services[row];
-        page.drawText(svc1.name, { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
+        page.drawText(pdfSafe(svc1.name), { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
         page.drawText(`$${parseFloat(svc1.amount).toFixed(2)}`, { x: margin + svcColWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
 
         // Right column: services[row + halfLen]
         const rightIdx = row + halfLen;
         if (rightIdx < services.length) {
           const svc2 = services[rightIdx];
-          page.drawText(svc2.name, { x: margin + svcColWidth + 10, y: y, size: 9, font: helvetica, color: black });
+          page.drawText(pdfSafe(svc2.name), { x: margin + svcColWidth + 10, y: y, size: 9, font: helvetica, color: black });
           page.drawText(`$${parseFloat(svc2.amount).toFixed(2)}`, { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
         }
 
@@ -544,7 +544,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
         page.drawRectangle({ x: margin, y: y - svcRowHeight + 15, width: contentWidth, height: svcRowHeight, color: bgColor });
 
         const svc = services[i];
-        page.drawText(svc.name, { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
+        page.drawText(pdfSafe(svc.name), { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
         page.drawText(`$${parseFloat(svc.amount).toFixed(2)}`, { x: pageWidth - margin - 60, y: y, size: 9, font: helveticaBold, color: black });
         y -= svcRowHeight;
       }
@@ -648,18 +648,18 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
       } catch (e) {
         console.log('Error embedding signature image, falling back to text:', e.message);
         // Fall back to text
-        page.drawText(signedBy || '', { x: margin + 15, y, size: 14, font: helvetica, color: black });
+        page.drawText(pdfSafe(signedBy || ''), { x: margin + 15, y, size: 14, font: helvetica, color: black });
         y -= 20;
       }
     } else {
       // Typed signature
-      page.drawText(signatureData || signedBy || '', { x: margin + 15, y, size: 14, font: helvetica, color: black });
+      page.drawText(pdfSafe(signatureData || signedBy || ''), { x: margin + 15, y, size: 14, font: helvetica, color: black });
       y -= 20;
     }
-    
+
     page.drawRectangle({ x: margin + 15, y: y + 5, width: 200, height: 1, color: black });
     y -= 15;
-    page.drawText(`Name: ${signedBy || ''}`, { x: margin + 15, y, size: 9, font: helvetica, color: black });
+    page.drawText(`Name: ${pdfSafe(signedBy || '')}`, { x: margin + 15, y, size: 9, font: helvetica, color: black });
     y -= 12;
     page.drawText(`Date: ${signedDate || new Date().toLocaleDateString()}`, { x: margin + 15, y, size: 9, font: helvetica, color: black });
     y -= 20;
@@ -670,7 +670,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     const signerIp = quote.contract_signer_ip || 'Recorded';
     const signatureType = quote.contract_signature_type === 'draw' ? 'Hand-drawn' : 'Typed';
     const signedTimestamp = quote.contract_signed_at ? new Date(quote.contract_signed_at).toLocaleString() : signedDate;
-    page.drawText(`${signatureType} signature | IP: ${signerIp} | ${signedTimestamp}`, { x: margin + 15, y, size: 7, font: helvetica, color: gray });
+    page.drawText(pdfSafe(`${signatureType} signature | IP: ${signerIp} | ${signedTimestamp}`), { x: margin + 15, y, size: 7, font: helvetica, color: gray });
     
     // Footer
     y = 40;
@@ -689,6 +689,22 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     console.error('Stack trace:', error.stack);
     return null;
   }
+}
+
+// Sanitize text for PDF standard fonts (WinAnsi encoding)
+// Strips tabs, newlines, emojis, zero-width chars, and other unsupported Unicode
+function pdfSafe(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/[\t\n\r\x00-\x08\x0B\x0C\x0E-\x1F]/g, ' ')  // control chars → space
+    .replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '')      // zero-width/BOM → remove
+    .replace(/[\uD800-\uDFFF]./g, '')                          // surrogate pairs (emoji) → remove
+    .replace(/[^\x00-\xFF]/g, function(ch) {                   // non-Latin1 → best effort
+      const map = {'\u2018':"'",'\u2019':"'",'\u201C':'"','\u201D':'"','\u2013':'-','\u2014':'-','\u2026':'...','\u2022':'*','\u2122':'TM','\u00A9':'(c)','\u00AE':'(R)'};
+      return map[ch] || '';
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Generate Quote PDF - Branded style with dark green and lime accents
@@ -761,7 +777,7 @@ async function generateQuotePDF(quote) {
 
     // Helper: word-wrap text and return final Y position
     function wrapText(page, text, x, y, maxWidth, font, size, color, lineHeight = 1.4) {
-      const words = text.split(' ');
+      const words = pdfSafe(text).split(' ');
       let line = '';
       let curY = y;
       for (const word of words) {
@@ -780,7 +796,7 @@ async function generateQuotePDF(quote) {
 
     // Helper: estimate wrapped text height
     function wrapHeight(text, maxWidth, font, size, lineHeight = 1.4) {
-      const words = text.split(' ');
+      const words = pdfSafe(text).split(' ');
       let line = '';
       let lines = 0;
       for (const word of words) {
@@ -862,23 +878,23 @@ async function generateQuotePDF(quote) {
     try {
       page.drawRectangle({ x: margin, y: y - infoBoxH, width: 250, height: infoBoxH, color: lightGray, borderColor: limeGreen, borderWidth: 2 });
       page.drawText('PREPARED FOR', { x: margin + 14, y: y - 10, size: 8, font: helveticaBold, color: midGray });
-      page.drawText(quote.customer_name || '', { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
+      page.drawText(pdfSafe(quote.customer_name || ''), { x: margin + 14, y: y - 26, size: 13, font: helveticaBold, color: darkGreen });
       let infoY = y - 42;
       if (quote.customer_address) {
         const addrLines = formatAddressLines(quote.customer_address);
-        page.drawText(addrLines.line1, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        page.drawText(pdfSafe(addrLines.line1), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
         if (addrLines.line2) {
           infoY -= 12;
-          page.drawText(addrLines.line2, { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+          page.drawText(pdfSafe(addrLines.line2), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
         }
         infoY -= 14;
       }
       if (quote.customer_email) {
-        page.drawText(String(quote.customer_email), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        page.drawText(pdfSafe(quote.customer_email), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
         infoY -= 14;
       }
       if (quote.customer_phone) {
-        page.drawText(String(quote.customer_phone), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
+        page.drawText(pdfSafe(quote.customer_phone), { x: margin + 14, y: infoY, size: 9, font: helvetica, color: black });
       }
 
       // Right side - Quote Details
@@ -922,9 +938,9 @@ async function generateQuotePDF(quote) {
     for (let i = 0; i < services.length; i++) {
       const svc = services[i];
       if (!svc || typeof svc !== 'object') { console.log('=== QUOTE PDF: skipping invalid service at index ' + i); continue; }
-      const svcName = (svc.name || 'Service ' + (i + 1)).toString();
+      const svcName = pdfSafe(svc.name || 'Service ' + (i + 1));
       const svcAmount = svc.amount != null ? parseFloat(svc.amount) : 0;
-      const desc = (svc.description || '').toString();
+      const desc = pdfSafe(svc.description || '');
       const descLineHeight = 1.35;
       const descSize = 8;
       const nameSize = 10;
@@ -1153,16 +1169,16 @@ async function generateQuotePDF(quote) {
       fy -= 30;
       pg.drawText('Quote #' + (quote.quote_number || 'Q-' + quote.id), { x: 50, y: fy, size: 14, font: fontBold, color: rgb(0, 0, 0) });
       fy -= 25;
-      pg.drawText('Prepared for: ' + (quote.customer_name || ''), { x: 50, y: fy, size: 12, font, color: rgb(0, 0, 0) });
+      pg.drawText('Prepared for: ' + pdfSafe(quote.customer_name || ''), { x: 50, y: fy, size: 12, font, color: rgb(0, 0, 0) });
       fy -= 18;
-      pg.drawText(quote.customer_address || '', { x: 50, y: fy, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
+      pg.drawText(pdfSafe(quote.customer_address || ''), { x: 50, y: fy, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
       fy -= 30;
       let svcs = [];
       try { svcs = typeof quote.services === 'string' ? JSON.parse(quote.services) : (quote.services || []); } catch(e) { svcs = []; }
       if (Array.isArray(svcs)) {
         for (const s of svcs) {
           if (!s) continue;
-          pg.drawText((s.name || 'Service') + '  $' + (parseFloat(s.amount) || 0).toFixed(2), { x: 50, y: fy, size: 10, font, color: rgb(0, 0, 0) });
+          pg.drawText(pdfSafe(s.name || 'Service') + '  $' + (parseFloat(s.amount) || 0).toFixed(2), { x: 50, y: fy, size: 10, font, color: rgb(0, 0, 0) });
           fy -= 16;
           if (fy < 80) break;
         }

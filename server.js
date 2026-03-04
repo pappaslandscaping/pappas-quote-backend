@@ -5543,7 +5543,7 @@ function getFollowupEmailContent(followup, stage) {
     <div style="text-align:center;margin:28px 0 20px;">
       <a href="${followup.sign_url}" style="background:#2e403d;color:#c9dd80;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:600;font-size:15px;display:inline-block;letter-spacing:0.3px;">View Your Quote \u{2192}</a>
     </div>
-    <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 8px;">Or just reply to this email with any questions \u{1F60A}</p>
+    <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 8px;">Or just reply to this email with any questions</p>
   ` : '';
 
   const limeDivider = `
@@ -5566,11 +5566,10 @@ function getFollowupEmailContent(followup, stage) {
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2eb;padding:32px 16px;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(46,64,61,0.10);">
-  <tr><td style="background:#2e403d;padding:32px 40px;text-align:center;">
-    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:80px;max-width:340px;">
+  <tr><td style="background:#2e403d;padding:36px 48px;text-align:center;">
+    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
   </td></tr>
   <tr><td style="background:linear-gradient(180deg, #eef3e4 0%, #ffffff 100%);padding:36px 48px 8px;text-align:center;">
-    <p style="margin:0 0 8px;font-size:28px;line-height:1;">\u{1F33F}</p>
     <img src="${headingImg}" alt="" style="max-width:400px;width:auto;height:34px;" />
   </td></tr>
   <tr><td style="padding:24px 48px 12px;">
@@ -5584,9 +5583,9 @@ function getFollowupEmailContent(followup, stage) {
     <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
       <tr>
-        <td style="padding:0 6px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FACEBOOK}" alt="Facebook" style="width:24px;height:24px;opacity:0.8;"></a></td>
-        <td style="padding:0 6px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_INSTAGRAM}" alt="Instagram" style="width:24px;height:24px;opacity:0.8;"></a></td>
-        <td style="padding:0 6px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_NEXTDOOR}" alt="Nextdoor" style="width:24px;height:24px;opacity:0.8;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FACEBOOK}" alt="Facebook" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_INSTAGRAM}" alt="Instagram" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_NEXTDOOR}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
       </tr>
     </table>
     <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
@@ -5604,7 +5603,7 @@ function getFollowupEmailContent(followup, stage) {
     1: {
       subject: `Quick follow-up on your quote, Pappas & Co. Landscaping`,
       html: followupTemplate(headingImages[1], `
-        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">Thanks for giving us the chance to put together a quote for your property! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to take care of your lawn this season. Feel free to reply here or call us anytime.</p>
         ${quoteRef}
         ${ctaButton}
@@ -5613,7 +5612,7 @@ function getFollowupEmailContent(followup, stage) {
     2: {
       subject: `Your landscaping quote is still available, Pappas & Co.`,
       html: followupTemplate(headingImages[2], `
-        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">Just wanted to let you know your quote is still available whenever you're ready. If anything needs adjusting or you want to talk through the details, we're happy to help. We'd love to get you on the schedule!</p>
         ${quoteRef}
         ${ctaButton}
@@ -5622,7 +5621,7 @@ function getFollowupEmailContent(followup, stage) {
     3: {
       subject: `Checking in on your landscaping quote, Pappas & Co.`,
       html: followupTemplate(headingImages[3], `
-        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">It's been a couple weeks so I just wanted to touch base one more time. If the timing isn't right or you'd like to change anything about the quote, no problem at all. We're here whenever you're ready and would love the chance to work with you.</p>
         ${quoteRef}
         ${ctaButton}
@@ -5631,7 +5630,7 @@ function getFollowupEmailContent(followup, stage) {
     4: {
       subject: `Your quote expires soon, Pappas & Co. Landscaping`,
       html: followupTemplate(headingImages[4], `
-        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Hi ${followup.customer_name},</p>
         <p style="${bs}">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
         <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
           <table cellpadding="0" cellspacing="0" style="background:#fef9ee;border:1px solid #f5e6b8;border-radius:10px;">

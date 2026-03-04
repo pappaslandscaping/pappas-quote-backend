@@ -5512,11 +5512,11 @@ app.post('/api/webhooks/customer-replied', async (req, res) => {
   }
 });
 
-// Follow-up email templates
+// Follow-up email templates - standalone design (not using shared emailTemplate)
 function getFollowupEmailContent(followup, stage) {
   const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
 
-  // Qualy heading rendered as image (pre-generated PNGs)
+  // Qualy heading images (pre-generated PNGs)
   const headingImages = {
     1: `${baseUrl}/email-assets/heading-1.png`,
     2: `${baseUrl}/email-assets/heading-2.png`,
@@ -5524,75 +5524,128 @@ function getFollowupEmailContent(followup, stage) {
     4: `${baseUrl}/email-assets/heading-4.png`
   };
 
-  // Heading banner with Qualy image + lime accent
-  const headingBanner = `
-    <div style="background:#2e403d;padding:30px 24px 24px;text-align:center;margin:-40px -40px 0 -40px;">
-      <img src="${headingImages[stage]}" alt="" style="max-width:380px;width:auto;height:36px;" />
-      <div style="width:50px;height:2px;background:#c9dd80;margin:16px auto 0;"></div>
-    </div>
-    <div style="height:3px;background:#c9dd80;margin:0 -40px 32px -40px;"></div>
-  `;
+  // Shared elements
+  const bs = 'font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;'; // body style
 
-  // Small inline quote reference
   const quoteRef = `
-    <p style="font-size:14px;color:#64748b;text-align:center;margin:28px 0 8px;letter-spacing:0.3px;">
-      Quote #${followup.quote_number || 'N/A'} &bull; $${parseFloat(followup.quote_amount || 0).toFixed(2)}
-    </p>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+      <table cellpadding="0" cellspacing="0" style="background:#f8faf3;border:1px solid #e4ebd4;border-radius:10px;">
+        <tr><td style="padding:14px 28px;text-align:center;">
+          <span style="font-size:13px;color:#64748b;">\u{1F4CB} Quote #${followup.quote_number || 'N/A'}</span>
+          <span style="font-size:13px;color:#cbd5e1;padding:0 10px;">|</span>
+          <span style="font-size:13px;color:#64748b;">\u{1F4B0} $${parseFloat(followup.quote_amount || 0).toFixed(2)}</span>
+        </td></tr>
+      </table>
+    </td></tr></table>
   `;
 
-  // CTA button + reply helper
-  const viewQuoteButton = followup.sign_url ? `
-    <div style="text-align:center;margin:24px 0 12px;">
-      <a href="${followup.sign_url}" style="background:#2e403d;color:#c9dd80;padding:16px 52px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;display:inline-block;letter-spacing:0.3px;">View Your Quote</a>
+  const ctaButton = followup.sign_url ? `
+    <div style="text-align:center;margin:28px 0 20px;">
+      <a href="${followup.sign_url}" style="background:#2e403d;color:#c9dd80;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:600;font-size:15px;display:inline-block;letter-spacing:0.3px;">View Your Quote \u{2192}</a>
     </div>
-    <p style="text-align:center;font-size:14px;color:#64748b;margin:12px 0 0;">Or reply to this email with any questions</p>
+    <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 8px;">Or just reply to this email with any questions \u{1F60A}</p>
   ` : '';
 
-  // Body text style
-  const bodyStyle = 'font-size:15px;color:#374151;line-height:1.75;margin:0 0 16px;';
+  const limeDivider = `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;"><tr>
+      <td style="width:30%;height:1px;background:transparent;"></td>
+      <td style="width:40%;height:2px;background:#c9dd80;border-radius:1px;"></td>
+      <td style="width:30%;height:1px;background:transparent;"></td>
+    </tr></table>
+  `;
+
+  // Build full HTML for follow-up emails
+  function followupTemplate(headingImg, bodyContent) {
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
+<style>@font-face{font-family:'Qualy';src:url('${baseUrl}/Qualy.otf') format('opentype');}</style>
+</head>
+<body style="margin:0;padding:0;background:#f0f2eb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2eb;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(46,64,61,0.10);">
+  <tr><td style="background:#2e403d;padding:32px 40px;text-align:center;">
+    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:80px;max-width:340px;">
+  </td></tr>
+  <tr><td style="background:linear-gradient(180deg, #eef3e4 0%, #ffffff 100%);padding:36px 48px 8px;text-align:center;">
+    <p style="margin:0 0 8px;font-size:28px;line-height:1;">\u{1F33F}</p>
+    <img src="${headingImg}" alt="" style="max-width:400px;width:auto;height:34px;" />
+  </td></tr>
+  <tr><td style="padding:24px 48px 12px;">
+    ${bodyContent}
+    ${limeDivider}
+  </td></tr>
+  <tr><td style="padding:0 48px 32px;">
+    <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:400px;width:100%;height:auto;">
+  </td></tr>
+  <tr><td style="background:#2e403d;padding:28px 40px;text-align:center;">
+    <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+      <tr>
+        <td style="padding:0 6px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FACEBOOK}" alt="Facebook" style="width:24px;height:24px;opacity:0.8;"></a></td>
+        <td style="padding:0 6px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_INSTAGRAM}" alt="Instagram" style="width:24px;height:24px;opacity:0.8;"></a></td>
+        <td style="padding:0 6px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_NEXTDOOR}" alt="Nextdoor" style="width:24px;height:24px;opacity:0.8;"></a></td>
+      </tr>
+    </table>
+    <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
+    <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+    <p style="margin:0;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+  }
 
   const templates = {
     1: {
       subject: `Quick follow-up on your quote, Pappas & Co. Landscaping`,
-      html: emailTemplate(`
-        ${headingBanner}
-        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
-        <p style="${bodyStyle}">Thanks for giving us the chance to put together a quote for your property! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to take care of your lawn this season. Feel free to reply here or call us anytime.</p>
+      html: followupTemplate(headingImages[1], `
+        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Thanks for giving us the chance to put together a quote for your property! I just wanted to check in and see if you had any questions about the services or pricing. We'd really love the opportunity to take care of your lawn this season. Feel free to reply here or call us anytime.</p>
         ${quoteRef}
-        ${viewQuoteButton}
+        ${ctaButton}
       `)
     },
     2: {
       subject: `Your landscaping quote is still available, Pappas & Co.`,
-      html: emailTemplate(`
-        ${headingBanner}
-        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
-        <p style="${bodyStyle}">Just wanted to let you know your quote is still available whenever you're ready. If anything needs adjusting or you want to talk through the details, we're happy to help. We'd love to get you on the schedule!</p>
+      html: followupTemplate(headingImages[2], `
+        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Just wanted to let you know your quote is still available whenever you're ready. If anything needs adjusting or you want to talk through the details, we're happy to help. We'd love to get you on the schedule!</p>
         ${quoteRef}
-        ${viewQuoteButton}
+        ${ctaButton}
       `)
     },
     3: {
       subject: `Checking in on your landscaping quote, Pappas & Co.`,
-      html: emailTemplate(`
-        ${headingBanner}
-        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
-        <p style="${bodyStyle}">It's been a couple weeks so I just wanted to touch base one more time. If the timing isn't right or you'd like to change anything about the quote, no problem at all. We're here whenever you're ready and would love the chance to work with you.</p>
+      html: followupTemplate(headingImages[3], `
+        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">It's been a couple weeks so I just wanted to touch base one more time. If the timing isn't right or you'd like to change anything about the quote, no problem at all. We're here whenever you're ready and would love the chance to work with you.</p>
         ${quoteRef}
-        ${viewQuoteButton}
+        ${ctaButton}
       `)
     },
     4: {
       subject: `Your quote expires soon, Pappas & Co. Landscaping`,
-      html: emailTemplate(`
-        ${headingBanner}
-        <p style="${bodyStyle}">Hi ${followup.customer_name},</p>
-        <p style="${bodyStyle}">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
-        <p style="font-size:14px;color:#92400e;text-align:center;margin:28px 0 8px;">
-          Quote #${followup.quote_number || 'N/A'} &bull; $${parseFloat(followup.quote_amount || 0).toFixed(2)}
-          <br><span style="font-size:13px;color:#b45309;">Prices may change after expiration based on availability</span>
-        </p>
-        ${viewQuoteButton}
+      html: followupTemplate(headingImages[4], `
+        <p style="${bs}">Hi ${followup.customer_name} \u{1F44B}</p>
+        <p style="${bs}">Just a heads up that your landscaping quote will expire in about <strong>5 days</strong>. After that, pricing may change depending on our availability. If you'd like to lock in your rate, just let us know and we'll get you on the calendar right away!</p>
+        <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+          <table cellpadding="0" cellspacing="0" style="background:#fef9ee;border:1px solid #f5e6b8;border-radius:10px;">
+            <tr><td style="padding:14px 28px;text-align:center;">
+              <span style="font-size:13px;color:#92400e;">\u{23F0} Quote #${followup.quote_number || 'N/A'}</span>
+              <span style="font-size:13px;color:#e5d5a0;padding:0 10px;">|</span>
+              <span style="font-size:13px;color:#92400e;">\u{1F4B0} $${parseFloat(followup.quote_amount || 0).toFixed(2)}</span>
+            </td></tr>
+            <tr><td style="padding:0 28px 12px;text-align:center;">
+              <span style="font-size:12px;color:#b45309;">Prices may change after expiration</span>
+            </td></tr>
+          </table>
+        </td></tr></table>
+        ${ctaButton}
       `)
     }
   };

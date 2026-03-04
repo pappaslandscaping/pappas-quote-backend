@@ -6866,6 +6866,11 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
     await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signature_type TYPE VARCHAR(50)`);
     console.log('✅ Widened contract_signature_type to VARCHAR(50)');
   } catch(e) { /* already wide enough or not exist */ }
+  // Fix old quotes stuck at 'signed' that already have contract signed
+  try {
+    const fixed = await pool.query(`UPDATE sent_quotes SET status = 'contracted' WHERE status = 'signed' AND contract_signed_at IS NOT NULL RETURNING id, quote_number`);
+    if (fixed.rowCount > 0) console.log('✅ Fixed ' + fixed.rowCount + ' quotes stuck at signed→contracted:', fixed.rows.map(r => r.quote_number).join(', '));
+  } catch(e) { console.error('Migration fix error:', e.message); }
 })();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

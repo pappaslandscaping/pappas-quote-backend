@@ -962,7 +962,7 @@ async function loadQuotesColumn() {
 
         // Action items - only show recent (last 30 days) as pending action
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const recentSigned = quotes.filter(q => q.status === 'signed' && new Date(q.signed_at || q.created_at) > thirtyDaysAgo).length;
+        const recentSigned = quotes.filter(q => q.status === 'signed' && !q.contract_signed_at && new Date(q.signed_at || q.created_at) > thirtyDaysAgo).length;
         const recentChanges = quotes.filter(q => q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo).length;
         const recentContracted = quotes.filter(q => q.status === 'contracted' && new Date(q.contract_signed_at || q.created_at) > thirtyDaysAgo).length;
         const actions = [];

@@ -3534,6 +3534,15 @@ app.get('/api/sent-quotes/:id', async (req, res) => {
   }
 });
 
+// GET /api/services - Get list of predefined services
+app.get('/api/services', (req, res) => {
+  const services = Object.entries(SERVICE_DESCRIPTIONS).map(([name, description]) => ({
+    name,
+    description: description.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+  }));
+  res.json({ success: true, services });
+});
+
 // ═══════════════════════════════════════════════════════════
 // QUOTE EVENT TRACKING
 // ═══════════════════════════════════════════════════════════

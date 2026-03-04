@@ -494,7 +494,7 @@
             background: #f8fafc;
             border-radius: 8px;
             min-height: 80px;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
         }
@@ -931,15 +931,17 @@
             <!-- Type Signature -->
             <div class="typed-signature-container" id="typeContainer">
                 <input type="text" class="signature-input" id="typedSignature" placeholder="Type your full name" oninput="updateTypedPreview()">
-                <div class="signature-preview">
-                    <span class="typed-sig" id="typedPreview"></span>
-                </div>
             </div>
 
             <!-- Printed Name -->
             <div class="form-group">
                 <label for="printedName">Printed Name *</label>
                 <input type="text" id="printedName" placeholder="Enter your full legal name" oninput="validateForm()">
+            </div>
+
+            <!-- Signature Preview (script text at bottom) -->
+            <div class="signature-preview" id="signaturePreviewBox">
+                <span class="typed-sig" id="typedPreview"></span>
             </div>
 
             <!-- Consent -->
@@ -969,11 +971,11 @@
                 <h3>⚠️ One More Step!</h3>
                 <p>If you haven't already, please add a payment method in your customer portal to complete your setup:</p>
                 <a href="https://secure.copilotcrm.com/client/login/portal/5261" class="portal-btn" target="_blank" style="display:inline-block;background:#92400e;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">Go to Customer Portal →</a>
-                <div style="background:white;border:2px solid #f59e0b;border-radius:10px;padding:14px 18px;margin-top:16px;text-align:center;">
-                    <p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:700;">🆕 First time?</p>
-                    <p style="font-size:14px;color:#78350f;margin:0;">Click <strong>"Forgot Password"</strong> to set up your account using your email address.</p>
-                </div>
             </div>
+        </div>
+        <div style="background:white;border:2px solid #f59e0b;border-radius:10px;padding:14px 18px;margin:12px auto 0;max-width:500px;text-align:center;">
+            <p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:700;">🆕 First time?</p>
+            <p style="font-size:14px;color:#78350f;margin:0;">Click <strong>"Forgot Password"</strong> to set up your account using your email address.</p>
         </div>
 
         <div class="success-details">
@@ -1300,19 +1302,30 @@
 
         function setSignatureType(type) {
             signatureType = type;
-            
+
             document.getElementById('drawToggle').classList.toggle('active', type === 'draw');
             document.getElementById('typeToggle').classList.toggle('active', type === 'type');
-            
+
             document.getElementById('drawContainer').style.display = type === 'draw' ? 'block' : 'none';
             document.getElementById('typeContainer').classList.toggle('active', type === 'type');
-            
+
+            // Show/hide script preview based on mode
+            const previewBox = document.getElementById('signaturePreviewBox');
+            if (type === 'type') {
+                const typed = document.getElementById('typedSignature').value.trim();
+                previewBox.style.display = typed ? 'flex' : 'none';
+            } else {
+                previewBox.style.display = 'none';
+            }
+
             validateForm();
         }
 
         function updateTypedPreview() {
             const typed = document.getElementById('typedSignature').value;
             document.getElementById('typedPreview').textContent = typed;
+            const previewBox = document.getElementById('signaturePreviewBox');
+            previewBox.style.display = typed.trim() ? 'flex' : 'none';
             validateForm();
         }
 

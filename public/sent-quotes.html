@@ -1094,7 +1094,7 @@
         // Format description with bold labels and line breaks
         function fmtDesc(desc) {
             if (!desc) return '';
-            return desc.replace(/(?:^|(?<=\s))([A-Z][A-Za-z &\/\-]*?):\s*/g, (m, label, offset) => {
+            return desc.replace(/(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g, (m, label, offset) => {
                 const br = offset > 0 ? '<br>' : '';
                 return br + '<strong style="color:#1e293b;">' + label + ':</strong> ';
             });

@@ -366,21 +366,26 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
     let page = addPage();
     let y = pageHeight - margin;
 
-    // Header: logo (or text fallback) + contact info on right
+    // Header: logo on left, SERVICE AGREEMENT + contact info on right (matching quote PDF style)
+    const headerTop = y;
     if (logoImage) {
-      const logoDims = logoImage.scale(0.26);
+      const logoDims = logoImage.scale(0.18);
       page.drawImage(logoImage, { x: margin, y: y - logoDims.height, width: logoDims.width, height: logoDims.height });
+      // SERVICE AGREEMENT text to the right of logo
+      page.drawText('SERVICE AGREEMENT', { x: margin + logoDims.width + 14, y: y - 14, size: 11, font: qualyFont, color: darkGreen });
+      page.drawText(`Quote #${quoteNumber}`, { x: margin + logoDims.width + 14, y: y - 30, size: 9, font: helvetica, color: gray });
       y -= logoDims.height + 4;
     } else {
       page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 20, font: qualyFont, color: darkGreen });
       y -= 24;
+      page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 11, font: qualyFont, color: gray });
+      page.drawText(`Quote #${quoteNumber}`, { x: margin + 155, y, size: 9, font: helvetica, color: gray });
+      y -= 16;
     }
-    page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: pageHeight - margin, size: 9, font: helvetica, color: gray });
-    page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 130, y: pageHeight - margin - 12, size: 9, font: helvetica, color: gray });
-    page.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: pageHeight - margin - 24, size: 9, font: helvetica, color: gray });
-
-    page.drawText('SERVICE AGREEMENT', { x: margin, y, size: 11, font: qualyFont, color: gray });
-    page.drawText(`Quote #${quoteNumber}`, { x: margin + 155, y, size: 11, font: helvetica, color: gray });
+    // Contact info top-right
+    page.drawText('pappaslandscaping.com', { x: pageWidth - margin - 130, y: headerTop, size: 8, font: helvetica, color: gray });
+    page.drawText('hello@pappaslandscaping.com', { x: pageWidth - margin - 130, y: headerTop - 11, size: 8, font: helvetica, color: gray });
+    page.drawText('(440) 886-7318', { x: pageWidth - margin - 130, y: headerTop - 22, size: 8, font: helvetica, color: gray });
 
     // Lime accent line
     y -= 14;
@@ -820,13 +825,33 @@ async function generateQuotePDF(quote) {
       const nameSize = 10;
       const descMaxWidth = contentWidth - 75; // leave room for amount column
 
-      // Calculate row height
+      // Calculate row height (account for bold labels + line breaks between sections)
       let rowH = nameSize * 1.6 + 6; // name + padding
       if (desc) {
-        const descLines = desc.split('\n');
-        for (const dLine of descLines) {
-          if (!dLine.trim()) { rowH += 4; continue; }
-          rowH += wrapHeight(dLine, descMaxWidth, helvetica, descSize, descLineHeight);
+        const labelRegexH = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
+        let sectionCount = 0;
+        let mh;
+        let lastIdxH = 0;
+        const partsH = [];
+        while ((mh = labelRegexH.exec(desc)) !== null) {
+          if (mh.index > lastIdxH) {
+            const bef = desc.slice(lastIdxH, mh.index).trim();
+            if (bef) partsH.push(bef);
+          }
+          const nextMh = labelRegexH.exec(desc);
+          const endIdxH = nextMh ? nextMh.index : desc.length;
+          partsH.push(desc.slice(mh.index + mh[0].length, endIdxH).trim());
+          sectionCount++;
+          if (nextMh) labelRegexH.lastIndex = nextMh.index;
+          lastIdxH = endIdxH;
+        }
+        if (sectionCount === 0) {
+          rowH += wrapHeight(desc, descMaxWidth, helvetica, descSize, descLineHeight);
+        } else {
+          for (const part of partsH) {
+            rowH += wrapHeight(part, descMaxWidth, helvetica, descSize, descLineHeight);
+          }
+          rowH += (sectionCount - 1) * 4; // inter-section spacing
         }
         rowH += 8; // bottom padding
       }
@@ -853,13 +878,80 @@ async function generateQuotePDF(quote) {
       const amtStr = `$${parseFloat(svc.amount).toFixed(2)}`;
       cp.drawText(amtStr, { x: pageWidth - margin - 55, y, size: nameSize, font: helveticaBold, color: black });
 
-      // Description lines
+      // Description lines — parse "Label:" patterns for bold labels + line breaks
       if (desc) {
         let dy = y - nameSize * 1.5;
-        const descLines = desc.split('\n');
-        for (const dLine of descLines) {
-          if (!dLine.trim()) { dy -= 4; continue; }
-          dy = wrapText(cp, dLine, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
+        // Split description into sections by label pattern (e.g. "Mowing:", "Bed Edging (Optional):")
+        const labelRegex = /(?:^|(?<=\s))([A-Z][A-Za-z]*(?:\s+(?:[A-Z&\/][A-Za-z]*|\([A-Za-z]+\))){0,4}):\s*/g;
+        const sections = [];
+        let lastIdx = 0;
+        let m;
+        while ((m = labelRegex.exec(desc)) !== null) {
+          // Text before this label (if any, and not from the start)
+          if (m.index > lastIdx) {
+            const before = desc.slice(lastIdx, m.index).trim();
+            if (before) sections.push({ label: null, text: before });
+          }
+          // Find end of this section (next label or end of string)
+          const nextMatch = labelRegex.exec(desc);
+          const endIdx = nextMatch ? nextMatch.index : desc.length;
+          const sectionText = desc.slice(m.index + m[0].length, endIdx).trim();
+          sections.push({ label: m[1] + ':', text: sectionText });
+          if (nextMatch) {
+            labelRegex.lastIndex = nextMatch.index; // reset so the while loop re-finds it
+          }
+          lastIdx = endIdx;
+        }
+        // If no labels found, treat entire desc as one section
+        if (sections.length === 0) {
+          sections.push({ label: null, text: desc });
+        }
+
+        for (let si = 0; si < sections.length; si++) {
+          const sec = sections[si];
+          if (si > 0) dy -= 4; // spacing between sections
+          if (sec.label) {
+            // Draw bold label
+            cp.drawText(sec.label, { x: margin + 10, y: dy, size: descSize, font: helveticaBold, color: rgb(0.12, 0.16, 0.21) });
+            const labelW = helveticaBold.widthOfTextAtSize(sec.label, descSize);
+            // Draw text after label on same line, wrapping as needed
+            if (sec.text) {
+              const spaceW = helvetica.widthOfTextAtSize(' ', descSize);
+              const firstLineMax = descMaxWidth - labelW - spaceW;
+              const words = sec.text.split(' ');
+              let line = '';
+              let firstLine = true;
+              for (const word of words) {
+                const test = line + (line ? ' ' : '') + word;
+                const maxW = firstLine ? firstLineMax : descMaxWidth;
+                if (helvetica.widthOfTextAtSize(test, descSize) > maxW && line) {
+                  if (firstLine) {
+                    cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
+                    firstLine = false;
+                  } else {
+                    cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
+                  }
+                  line = word;
+                  dy -= descSize * descLineHeight;
+                } else {
+                  line = test;
+                }
+              }
+              if (line) {
+                if (firstLine) {
+                  cp.drawText(line, { x: margin + 10 + labelW + spaceW, y: dy, size: descSize, font: helvetica, color: midGray });
+                } else {
+                  cp.drawText(line, { x: margin + 10, y: dy, size: descSize, font: helvetica, color: midGray });
+                }
+                dy -= descSize * descLineHeight;
+              }
+            } else {
+              dy -= descSize * descLineHeight;
+            }
+          } else {
+            // No label, just plain text
+            dy = wrapText(cp, sec.text, margin + 10, dy, descMaxWidth, helvetica, descSize, midGray, descLineHeight);
+          }
         }
       }
 

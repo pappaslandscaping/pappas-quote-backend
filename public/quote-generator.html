@@ -1357,6 +1357,7 @@ Photo documentation before/after available upon request.`
             // Stream order (row-by-row): service_name → desc → rate → "1" → tax% → total
             // Pattern: "50.00\n1\n8\n54.00" — \s+ matches newlines
             const jobberPattern = /([\d,]+\.\d{2})\s+1\s+\d+\s+([\d,]+\.\d{2})/g;
+            const prices = [];
             let jm;
             while ((jm = jobberPattern.exec(text)) !== null) {
                 prices.push({

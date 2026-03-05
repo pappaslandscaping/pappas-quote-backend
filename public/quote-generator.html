@@ -1357,12 +1357,18 @@ Photo documentation before/after available upon request.`
         } else {
             // ── Format B: Jobber Estimate ──
             // Stream order (row-by-row): service_name → desc → rate → qty → tax% → total
-            // Pattern: "50.00\n1\n8\n54.00" or "40.00\n32\n8\n1,382.40"
-            // Qty can be any number (not just 1), so we capture it and multiply rate × qty
+            // Pattern: "85.00 1 8 91.80" or "65.00 6 8 421.20"
+            // Qty can be ANY number — we capture it and multiply rate × qty for the pre-tax amount.
+            // We stop before "Subtotal" to avoid matching totals as services.
+
+            // Find the subtotal boundary to avoid false positives from totals section
+            const jobberSubtotalIdx = text.search(/\bSubtotal\b/i);
+            const searchText = jobberSubtotalIdx > 0 ? text.substring(0, jobberSubtotalIdx) : text;
+
             const jobberPattern = /([\d,]+\.\d{2})\s+(\d+(?:\.\d+)?)\s+(\d+)\s+([\d,]+\.\d{2})/g;
             const prices = [];
             let jm;
-            while ((jm = jobberPattern.exec(text)) !== null) {
+            while ((jm = jobberPattern.exec(searchText)) !== null) {
                 const unitRate = parseFloat(jm[1].replace(/,/g, ''));
                 const qty = parseFloat(jm[2]);
                 const totalWithTax = parseFloat(jm[4].replace(/,/g, ''));
@@ -1370,23 +1376,41 @@ Photo documentation before/after available upon request.`
                 const amount = Math.round(unitRate * qty * 100) / 100;
                 prices.push({
                     rate: amount,
+                    unitRate,
+                    qty,
                     index: jm.index,
                     endIndex: jm.index + jm[0].length
                 });
+                console.log(`[Jobber match] rate=${unitRate} × qty=${qty} = $${amount} (total w/tax: ${totalWithTax})`);
             }
             for (let i = 0; i < prices.length; i++) {
                 const blockStart = i === 0 ? 0 : prices[i - 1].endIndex;
-                const block = text.substring(blockStart, prices[i].index);
+                const block = searchText.substring(blockStart, prices[i].index);
                 const serviceName = detectSvcName(block, i);
                 const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
                 services.push({ name: serviceName, rate: prices[i].rate, desc });
-                console.log(`[Jobber] "${serviceName}" = $${prices[i].rate}`);
+                console.log(`[Jobber] "${serviceName}" = $${prices[i].rate} (${prices[i].unitRate} × ${prices[i].qty})`);
+            }
+
+            // Validate: compare parsed sum to subtotal in PDF for early warning
+            if (jobberSubtotalIdx > 0) {
+                const subtotalMatch = text.substring(jobberSubtotalIdx).match(/Subtotal\s*([\d,]+\.\d{2})/i);
+                if (subtotalMatch) {
+                    const pdfSubtotal = parseFloat(subtotalMatch[1].replace(/,/g, ''));
+                    const parsedSum = services.reduce((sum, s) => sum + s.rate, 0);
+                    const diff = Math.abs(pdfSubtotal - parsedSum);
+                    if (diff > 0.02) {
+                        console.warn(`⚠️ SUBTOTAL MISMATCH: PDF says $${pdfSubtotal}, parsed services sum to $${parsedSum.toFixed(2)} (diff: $${diff.toFixed(2)})`);
+                    } else {
+                        console.log(`✅ Subtotal validated: $${parsedSum.toFixed(2)} matches PDF`);
+                    }
+                }
             }
         }
-        
+
         console.log('\n=== FINAL SERVICES ===');
         services.forEach(s => console.log(`${s.name}: $${s.rate}`));
-        
+
         // Add to form
         if (services.length > 0) {
             services.forEach(svc => addSvcWithValues(svc.name, svc.rate, svc.desc));

@@ -1356,14 +1356,20 @@ Photo documentation before/after available upon request.`
             }
         } else {
             // ── Format B: Jobber Estimate ──
-            // Stream order (row-by-row): service_name → desc → rate → "1" → tax% → total
-            // Pattern: "50.00\n1\n8\n54.00" — \s+ matches newlines
-            const jobberPattern = /([\d,]+\.\d{2})\s+1\s+\d+\s+([\d,]+\.\d{2})/g;
+            // Stream order (row-by-row): service_name → desc → rate → qty → tax% → total
+            // Pattern: "50.00\n1\n8\n54.00" or "40.00\n32\n8\n1,382.40"
+            // Qty can be any number (not just 1), so we capture it and multiply rate × qty
+            const jobberPattern = /([\d,]+\.\d{2})\s+(\d+(?:\.\d+)?)\s+(\d+)\s+([\d,]+\.\d{2})/g;
             const prices = [];
             let jm;
             while ((jm = jobberPattern.exec(text)) !== null) {
+                const unitRate = parseFloat(jm[1].replace(/,/g, ''));
+                const qty = parseFloat(jm[2]);
+                const totalWithTax = parseFloat(jm[4].replace(/,/g, ''));
+                // Use rate × qty for the pre-tax service amount
+                const amount = Math.round(unitRate * qty * 100) / 100;
                 prices.push({
-                    rate: parseFloat(jm[1].replace(/,/g, '')),
+                    rate: amount,
                     index: jm.index,
                     endIndex: jm.index + jm[0].length
                 });

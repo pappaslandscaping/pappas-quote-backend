@@ -9133,6 +9133,90 @@ app.get('/api/t/:trackingId/click', async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 
+// ─── Email Log API ─────────────────────────────────────────────────────────
+
+// Global email log with filters
+app.get('/api/email-log', async (req, res) => {
+  try {
+    const { type, search, days, limit = 100, offset = 0 } = req.query;
+    let where = [];
+    let params = [];
+    let idx = 1;
+
+    if (type && type !== 'all') {
+      where.push(`email_type = $${idx++}`);
+      params.push(type);
+    }
+    if (search) {
+      where.push(`(recipient_email ILIKE $${idx} OR subject ILIKE $${idx} OR customer_name ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+    if (days) {
+      where.push(`sent_at >= NOW() - INTERVAL '${parseInt(days)} days'`);
+    }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const countResult = await pool.query(`SELECT COUNT(*) FROM email_log ${whereClause}`, params);
+    const result = await pool.query(
+      `SELECT * FROM email_log ${whereClause} ORDER BY sent_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, parseInt(limit), parseInt(offset)]
+    );
+
+    res.json({ success: true, emails: result.rows, total: parseInt(countResult.rows[0].count) });
+  } catch (error) {
+    console.error('Email log error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Email log stats
+app.get('/api/email-log/stats', async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '24 hours') AS last_24h,
+        COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '7 days') AS last_7d,
+        COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+        COUNT(DISTINCT recipient_email) AS unique_recipients
+      FROM email_log
+    `);
+    const byType = await pool.query(`
+      SELECT email_type, COUNT(*) AS count
+      FROM email_log
+      GROUP BY email_type
+      ORDER BY count DESC
+    `);
+    res.json({ success: true, stats: stats.rows[0], by_type: byType.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Customer-specific email log
+app.get('/api/customers/:id/emails', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customer = await pool.query('SELECT email FROM customers WHERE id = $1', [id]);
+    let result;
+    if (customer.rows.length && customer.rows[0].email) {
+      result = await pool.query(
+        `SELECT * FROM email_log WHERE customer_id = $1 OR recipient_email = $2 ORDER BY sent_at DESC LIMIT 100`,
+        [id, customer.rows[0].email]
+      );
+    } else {
+      result = await pool.query(
+        `SELECT * FROM email_log WHERE customer_id = $1 ORDER BY sent_at DESC LIMIT 100`,
+        [id]
+      );
+    }
+    res.json({ success: true, emails: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.get('/api/config/maps-key', (req, res) => res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
 app.get('*', (req, res) => {
@@ -9954,91 +10038,6 @@ app.get('/api/kpi/detailed', async (req, res) => {
     }});
   } catch (error) {
     console.error('KPI detailed error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ─── Email Log API ─────────────────────────────────────────────────────────
-
-// Global email log with filters
-app.get('/api/email-log', async (req, res) => {
-  try {
-    const { type, search, days, limit = 100, offset = 0 } = req.query;
-    let where = [];
-    let params = [];
-    let idx = 1;
-
-    if (type && type !== 'all') {
-      where.push(`email_type = $${idx++}`);
-      params.push(type);
-    }
-    if (search) {
-      where.push(`(recipient_email ILIKE $${idx} OR subject ILIKE $${idx} OR customer_name ILIKE $${idx})`);
-      params.push(`%${search}%`);
-      idx++;
-    }
-    if (days) {
-      where.push(`sent_at >= NOW() - INTERVAL '${parseInt(days)} days'`);
-    }
-
-    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-    const countResult = await pool.query(`SELECT COUNT(*) FROM email_log ${whereClause}`, params);
-    const result = await pool.query(
-      `SELECT * FROM email_log ${whereClause} ORDER BY sent_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
-      [...params, parseInt(limit), parseInt(offset)]
-    );
-
-    res.json({ success: true, emails: result.rows, total: parseInt(countResult.rows[0].count) });
-  } catch (error) {
-    console.error('Email log error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Email log stats
-app.get('/api/email-log/stats', async (req, res) => {
-  try {
-    const stats = await pool.query(`
-      SELECT
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '24 hours') AS last_24h,
-        COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '7 days') AS last_7d,
-        COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-        COUNT(DISTINCT recipient_email) AS unique_recipients
-      FROM email_log
-    `);
-    const byType = await pool.query(`
-      SELECT email_type, COUNT(*) AS count
-      FROM email_log
-      GROUP BY email_type
-      ORDER BY count DESC
-    `);
-    res.json({ success: true, stats: stats.rows[0], by_type: byType.rows });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Customer-specific email log
-app.get('/api/customers/:id/emails', async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Get by customer_id or by matching email
-    const customer = await pool.query('SELECT email FROM customers WHERE id = $1', [id]);
-    let result;
-    if (customer.rows.length && customer.rows[0].email) {
-      result = await pool.query(
-        `SELECT * FROM email_log WHERE customer_id = $1 OR recipient_email = $2 ORDER BY sent_at DESC LIMIT 100`,
-        [id, customer.rows[0].email]
-      );
-    } else {
-      result = await pool.query(
-        `SELECT * FROM email_log WHERE customer_id = $1 ORDER BY sent_at DESC LIMIT 100`,
-        [id]
-      );
-    }
-    res.json({ success: true, emails: result.rows });
-  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dispatch Board — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        .route-marker { background: none !important; border: none !important; }
-
         @font-face {
             font-family: 'Qualy';
             src: url('Qualy.otf') format('opentype');
@@ -578,10 +574,7 @@
 
         <!-- Map -->
         <div class="map-container" id="mapContainer">
-            <div id="routeMap"></div>
-            <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(46,64,61,0.85);color:#c9dd80;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:600;pointer-events:none;">
-                Click Lasso then drag to select jobs — or hold Shift + drag
-            </div>
+            <div id="routeMap" style="width:100%;height:100%;"></div>
         </div>
 
         <!-- Print Header -->
@@ -881,11 +874,12 @@ let mapVisible = true;
 let allCrews = [];
 let showEmptyCrews = false;
 const geocodeCache = {};
-let drawingRect = false;
-let rectStart = null;
-let drawRect = null;
 let routeLines = [];
-let lassoMode = false;
+let missingGeocode = 0;
+let drawingManager = null;
+let selectionPolygon = null;
+let infoWindow = null;
+let geocoder = null;
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -909,72 +903,99 @@ function setDispatchTab(tab) {
     document.getElementById('tab-' + tab).classList.add('active');
 
     if (tab === 'templates') loadTemplates();
-    if (tab === 'routes' && routeMap) setTimeout(() => routeMap.invalidateSize(), 100);
+    if (tab === 'routes' && routeMap) setTimeout(() => google.maps.event.trigger(routeMap, 'resize'), 100);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MAP
+   MAP (Google Maps)
    ═══════════════════════════════════════════════════════════ */
 function initMap() {
-    routeMap = L.map('routeMap').setView([41.48, -81.68], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 18
-    }).addTo(routeMap);
-    setTimeout(() => routeMap.invalidateSize(), 200);
-
-    // Draw-to-select: Lasso mode (toggle via button) OR hold Shift + drag
-    routeMap.on('mousedown', function(e) {
-        if (!lassoMode && !e.originalEvent.shiftKey) return;
-        drawingRect = true;
-        rectStart = e.latlng;
-        routeMap.dragging.disable();
-        if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; }
-    });
-    routeMap.on('mousemove', function(e) {
-        if (!drawingRect || !rectStart) return;
-        if (drawRect) routeMap.removeLayer(drawRect);
-        drawRect = L.rectangle([rectStart, e.latlng], { color: '#2e403d', weight: 2, fillOpacity: 0.15, dashArray: '6' }).addTo(routeMap);
-    });
-    routeMap.on('mouseup', function(e) {
-        if (!drawingRect) return;
-        drawingRect = false;
-        routeMap.dragging.enable();
-        if (!rectStart || !drawRect) return;
-        const bounds = L.latLngBounds(rectStart, e.latlng);
-        selectedJobs.clear();
-        mapMarkers.forEach(m => {
-            if (bounds.contains(m.getLatLng())) {
-                selectedJobs.add(m.jobId);
-                const el = m.getElement();
-                if (el) { const d = el.querySelector('div'); if (d) d.style.outline = '3px solid #c9dd80'; }
-            }
+    if (typeof google === 'undefined' || !google.maps) {
+        // Load Google Maps API
+        fetch('/api/config/maps-key').then(r => r.json()).then(data => {
+            if (!data.key) return;
+            window.GOOGLE_MAPS_API_KEY = data.key;
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=drawing,geometry&callback=onGoogleMapsLoaded`;
+            script.async = true;
+            document.head.appendChild(script);
         });
-        if (selectedJobs.size > 0) {
-            updateBulkBar();
-            showToast(`Selected ${selectedJobs.size} job${selectedJobs.size > 1 ? 's' : ''} — use bulk actions above`);
-        }
-        rectStart = null;
-        setTimeout(() => { if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; } }, 2000);
-        // Auto-exit lasso mode after selection
-        if (lassoMode) toggleLassoMode();
-    });
+        return;
+    }
+    onGoogleMapsLoaded();
 }
 
+window.onGoogleMapsLoaded = function() {
+    const mapEl = document.getElementById('routeMap');
+    routeMap = new google.maps.Map(mapEl, {
+        zoom: 11,
+        center: { lat: 41.48, lng: -81.68 },
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        gestureHandling: 'greedy',
+        styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }]
+    });
+    infoWindow = new google.maps.InfoWindow();
+    geocoder = new google.maps.Geocoder();
+
+    // Drawing manager for lasso/polygon selection
+    if (google.maps.drawing) {
+        drawingManager = new google.maps.drawing.DrawingManager({
+            drawingMode: null,
+            drawingControl: false,
+            polygonOptions: {
+                fillColor: '#2e403d', fillOpacity: 0.2,
+                strokeColor: '#2e403d', strokeWeight: 2,
+                clickable: false, editable: false, zIndex: 1
+            }
+        });
+        drawingManager.setMap(routeMap);
+        google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
+            if (selectionPolygon) selectionPolygon.setMap(null);
+            selectionPolygon = polygon;
+            selectedJobs.clear();
+            mapMarkers.forEach(m => {
+                if (m.position && google.maps.geometry.poly.containsLocation(m.position, polygon)) {
+                    selectedJobs.add(m.jobId);
+                    m.setIcon({ ...m.getIcon(), fillColor: '#d97706' });
+                }
+            });
+            drawingManager.setDrawingMode(null);
+            document.getElementById('lassoBtn').classList.remove('btn-primary');
+            document.getElementById('lassoBtn').classList.add('btn-secondary');
+            document.getElementById('lassoBtn').style.background = '';
+            if (selectedJobs.size > 0) {
+                updateBulkBar();
+                showToast(`Selected ${selectedJobs.size} job${selectedJobs.size > 1 ? 's' : ''} — use bulk actions above`);
+            }
+            setTimeout(() => { polygon.setMap(null); selectionPolygon = null; }, 3000);
+        });
+    }
+
+    // If board already loaded, show markers
+    if (boardData) {
+        const allJobs = [];
+        (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
+        (boardData.unassigned || []).forEach(j => allJobs.push(j));
+        updateMapMarkers(allJobs);
+    }
+};
+
 function toggleLassoMode() {
-    lassoMode = !lassoMode;
+    if (!drawingManager) { showToast('Map not ready yet', 'error'); return; }
     const btn = document.getElementById('lassoBtn');
-    if (lassoMode) {
+    if (drawingManager.getDrawingMode() === null) {
+        drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-primary');
         btn.style.background = '#d97706';
-        showToast('Lasso mode ON — drag on the map to select jobs');
-        if (routeMap) routeMap.getContainer().style.cursor = 'crosshair';
+        showToast('Draw a polygon around jobs to select them');
     } else {
+        drawingManager.setDrawingMode(null);
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
         btn.style.background = '';
-        if (routeMap) routeMap.getContainer().style.cursor = '';
     }
 }
 
@@ -982,66 +1003,115 @@ function toggleMap() {
     mapVisible = !mapVisible;
     document.getElementById('mapContainer').classList.toggle('collapsed', !mapVisible);
     document.getElementById('mapToggleLabel').textContent = mapVisible ? 'Hide Map' : 'Show Map';
-    if (mapVisible && routeMap) setTimeout(() => routeMap.invalidateSize(), 350);
+    if (mapVisible && routeMap) setTimeout(() => google.maps.event.trigger(routeMap, 'resize'), 350);
 }
 
 function updateMapMarkers(jobs) {
-    mapMarkers.forEach(m => routeMap.removeLayer(m));
-    routeLines.forEach(l => routeMap.removeLayer(l));
+    mapMarkers.forEach(m => m.setMap(null));
+    routeLines.forEach(l => l.setMap(null));
     mapMarkers = [];
     routeLines = [];
-    if (!jobs || jobs.length === 0) return;
+    if (!routeMap || !jobs || jobs.length === 0) return;
 
-    const bounds = [];
+    const bounds = new google.maps.LatLngBounds();
     let stopNum = 0;
-    let missingGeocode = 0;
+    missingGeocode = 0;
 
     for (const job of jobs) {
         if (!job.address) continue;
         stopNum++;
 
-        // Use stored lat/lng from database
         const lat = parseFloat(job.lat);
         const lng = parseFloat(job.lng);
-        if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+            placeMarker(job, lat, lng, stopNum, bounds);
+        } else {
+            // Geocode on the fly
             missingGeocode++;
-            continue;
+            geocodeJob(job, stopNum, bounds);
         }
-
-        const icon = L.divIcon({
-            className: 'route-marker',
-            html: `<div style="width:28px;height:28px;border-radius:50%;background:var(--forest,#2e403d);color:#c9dd80;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${job.route_order || stopNum}</div>`,
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
-        });
-
-        const marker = L.marker([lat, lng], { icon }).addTo(routeMap);
-        marker.jobId = job.id;
-        marker.jobData = job;
-        marker.bindPopup(`<strong>${esc(job.customer_name)}</strong><br>${esc(job.address || '')}<br><em>${esc(job.service_type || '')}</em>`);
-        mapMarkers.push(marker);
-        bounds.push([lat, lng]);
     }
 
-    if (bounds.length > 0) {
-        routeMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
-    }
+    // Fit bounds after a short delay for geocoding
+    setTimeout(() => {
+        if (!bounds.isEmpty()) {
+            routeMap.fitBounds(bounds);
+            if (routeMap.getZoom() > 15) routeMap.setZoom(15);
+        }
+    }, 2000);
+}
 
-    // Draw route lines per crew (connecting stops in route_order)
+function placeMarker(job, lat, lng, stopNum, bounds) {
+    const pos = new google.maps.LatLng(lat, lng);
+    const isCompleted = job.status === 'completed';
+    const crewColors = { 'Tim Mowing Crew': '#2e403d', 'Chris Snow': '#3b82f6', 'Rob Mowing Crew': '#7c3aed', 'Rob Snow': '#d97706', 'Mowing': '#059669', 'Jobs': '#dc4a4a' };
+    const color = isCompleted ? '#059669' : (crewColors[job.crew_assigned] || '#2e403d');
+
+    const marker = new google.maps.Marker({
+        map: routeMap,
+        position: pos,
+        title: job.customer_name,
+        label: { text: String(job.route_order || stopNum), color: '#ffffff', fontSize: '10px', fontWeight: 'bold' },
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: color, fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2 }
+    });
+    marker.jobId = job.id;
+    marker.jobData = job;
+    marker.position = pos;
+
+    marker.addListener('click', () => {
+        infoWindow.setContent(`
+            <div style="padding:4px;min-width:180px;">
+                <strong>${esc(job.customer_name)}</strong><br>
+                ${esc(job.address || '')}<br>
+                <em>${esc(job.service_type || '')}</em><br>
+                <span style="color:green;font-weight:bold;">${formatPrice(job.service_price)}</span>
+                ${job.crew_assigned ? '<br><span style="font-size:11px;color:#666;">Crew: ' + esc(job.crew_assigned) + '</span>' : ''}
+            </div>`);
+        infoWindow.open(routeMap, marker);
+    });
+
+    mapMarkers.push(marker);
+    bounds.extend(pos);
+}
+
+function geocodeJob(job, stopNum, bounds) {
+    if (!geocoder || !job.address) return;
+    const addr = job.address;
+    if (geocodeCache[addr]) {
+        placeMarker(job, geocodeCache[addr].lat, geocodeCache[addr].lng, stopNum, bounds);
+        return;
+    }
+    geocoder.geocode({ address: addr }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+            const loc = results[0].geometry.location;
+            geocodeCache[addr] = { lat: loc.lat(), lng: loc.lng() };
+            placeMarker(job, loc.lat(), loc.lng(), stopNum, bounds);
+        }
+    });
+}
+
+// Draw route lines per crew
+function drawRouteLines() {
+    routeLines.forEach(l => l.setMap(null));
+    routeLines = [];
     const crewJobs = {};
-    for (const m of mapMarkers) {
+    mapMarkers.forEach(m => {
         const crew = m.jobData.crew_assigned || '__unassigned';
         if (!crewJobs[crew]) crewJobs[crew] = [];
-        crewJobs[crew].push({ latlng: m.getLatLng(), order: m.jobData.route_order || 999 });
-    }
+        crewJobs[crew].push({ pos: m.getPosition(), order: m.jobData.route_order || 999 });
+    });
     const crewColors = ['#2e403d', '#3b82f6', '#7c3aed', '#d97706', '#dc4a4a', '#059669'];
     let ci = 0;
     for (const crew of Object.keys(crewJobs)) {
         const sorted = crewJobs[crew].sort((a, b) => a.order - b.order);
         if (sorted.length > 1) {
-            const line = L.polyline(sorted.map(s => s.latlng), {
-                color: crewColors[ci % crewColors.length], weight: 3, opacity: 0.6, dashArray: '8 4'
-            }).addTo(routeMap);
+            const line = new google.maps.Polyline({
+                path: sorted.map(s => s.pos),
+                strokeColor: crewColors[ci % crewColors.length],
+                strokeWeight: 3, strokeOpacity: 0.6,
+                map: routeMap
+            });
             routeLines.push(line);
         }
         ci++;

@@ -1078,6 +1078,7 @@ function navigateDate(delta) {
     } else {
         currentDate.setDate(currentDate.getDate() + delta);
     }
+    autoGeocodeRan = false;
     setDatePicker(currentDate);
     loadBoard();
 }
@@ -1086,6 +1087,7 @@ function onDateChange() {
     const val = document.getElementById('datePicker').value;
     if (val) {
         currentDate = new Date(val + 'T00:00:00');
+        autoGeocodeRan = false;
         setDatePicker(currentDate);
         loadBoard();
     }
@@ -1093,6 +1095,7 @@ function onDateChange() {
 
 function goToToday() {
     currentDate = new Date();
+    autoGeocodeRan = false;
     setDatePicker(currentDate);
     loadBoard();
 }
@@ -1384,7 +1387,10 @@ function getAvailabilityClass(totalHours) {
 /* ═══════════════════════════════════════════════════════════
    GEOCODE & OPTIMIZE ROUTE
    ═══════════════════════════════════════════════════════════ */
+let autoGeocodeRan = false;
 async function autoGeocodeInBackground() {
+    if (autoGeocodeRan) return;
+    autoGeocodeRan = true;
     try {
         const res = await fetch('/api/dispatch/geocode', {
             method: 'POST',
@@ -1393,14 +1399,15 @@ async function autoGeocodeInBackground() {
         });
         const data = await res.json();
         if (data.success && data.geocoded > 0) {
-            showToast(`Auto-geocoded ${data.geocoded} jobs — refreshing map`);
+            showToast(`Geocoded ${data.geocoded} jobs — refreshing map`);
             loadBoard();
         }
     } catch (e) { /* silent fail */ }
 }
 
 async function geocodeAllJobs() {
-    showToast('Geocoding job addresses... this may take a few minutes for 100+ jobs');
+    autoGeocodeRan = false; // Allow re-geocode on manual click
+    showToast('Geocoding job addresses...');
     try {
         const res = await fetch('/api/dispatch/geocode', {
             method: 'POST',
@@ -1842,9 +1849,23 @@ function openJobDetail(jobId) {
                 <strong>Special Notes</strong>
                 ${esc(job.special_notes)}
             </div>` : ''}
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;">
+            <label style="font-size:13px;font-weight:600;color:var(--gray-600);white-space:nowrap;">Assign to Crew:</label>
+            <select id="jobDetailCrewSelect" style="flex:1;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:inherit;font-size:13px;">
+                <option value="">— Unassigned —</option>
+                ${allCrews.map(c => `<option value="${esc(c.name)}" ${job.crew_assigned === c.name ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+            </select>
+            <button class="btn btn-primary" style="padding:8px 16px;" onclick="quickAssignFromDetail(${job.id})">Assign</button>
+        </div>
     `;
 
     openModal('jobDetailModal');
+}
+
+async function quickAssignFromDetail(jobId) {
+    const crewName = document.getElementById('jobDetailCrewSelect').value || null;
+    await assignJob(jobId, crewName, null);
+    closeModal('jobDetailModal');
 }
 
 function findJob(jobId) {

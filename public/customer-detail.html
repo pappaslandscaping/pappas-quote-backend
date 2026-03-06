@@ -7,9 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
     <style>
         @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); }
-        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
-        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
-        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+        h1, h2, h3.section-title { font-family: 'Qualy', serif !important; }
 
         :root {
             --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
@@ -31,9 +29,7 @@
         /* Sidebar */
         .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
         .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
-        .sidebar-brand img { max-height: 48px;
-            width: auto;
-            max-width: 180px; }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
         .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
         .nav-section { margin-bottom: 8px; }
         .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
@@ -50,120 +46,109 @@
         /* Main */
         .main { margin-left: var(--sidebar-w); min-height: 100vh; }
         .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar-left { display: flex; align-items: center; gap: 12px; }
         .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
         .topbar-left p { font-size: 13px; color: var(--gray-400); }
-        .topbar-actions { display: flex; gap: 8px; }
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
         .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
 
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-            text-decoration: none;
-        }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; text-decoration: none; }
         .btn svg { width: 16px; height: 16px; }
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover {
-            background: var(--forest-dark, #1f2b29);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); transition: all 0.15s ease; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
         .btn-secondary:hover { background: var(--gray-50); }
         .btn-danger { background: var(--red); color: white; }
         .btn-danger:hover { background: #c43c3c; }
-        .btn-danger-outline { background: var(--white); color: var(--red); border: 1px solid var(--red); }
-        .btn-danger-outline:hover { background: var(--red); color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
 
-        .page-content { padding: 28px 32px; }
-        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
-        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
+        .page-content { padding: 28px 32px; animation: fadeIn 0.4s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-        .page-content { animation: fadeIn 0.4s ease; }
-
-        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
-        .toast.show { transform: translateY(0); opacity: 1; }
-
-        /* Customer detail styles */
-        .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--gray-500); text-decoration: none; font-size: 13px; font-weight: 500; margin-bottom: 20px; }
+        .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--gray-500); text-decoration: none; font-size: 13px; font-weight: 500; margin-bottom: 16px; }
         .back-link:hover { color: var(--forest); }
         .back-link svg { width: 16px; height: 16px; }
-        .customer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
-        .customer-header-left { display: flex; align-items: center; gap: 16px; }
-        .customer-header-actions { display: flex; gap: 8px; }
-        .customer-avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px; flex-shrink: 0; }
-        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-        .detail-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 24px; transition: all 0.15s ease; }
-        .detail-card.full-width { grid-column: 1 / -1; }
-        .detail-card h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--gray-100); }
-        .field { margin-bottom: 12px; }
-        .field label { display: block; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
-        .field .val { font-size: 14px; color: var(--gray-700); font-weight: 500; }
-        .field .val a { color: var(--forest); text-decoration: none; }
-        .field input, .field textarea, .field select { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; transition: all 0.15s ease; }
-        .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
-        .field textarea { resize: vertical; min-height: 80px; }
-        .tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--gray-100); color: var(--gray-600); margin: 2px; }
-        .action-bar { display: flex; gap: 8px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--gray-200); }
 
-        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: capitalize; }
-        .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
-        .status-active { background: var(--green-bg); color: var(--green); }
-        .status-active::before { background: var(--green); }
-        .status-inactive { background: var(--red-bg); color: var(--red); }
-        .status-inactive::before { background: var(--red); }
+        /* Jobber-style two-column layout */
+        .profile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+        .profile-header-left { display: flex; align-items: center; gap: 16px; }
+        .profile-avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--gray-200); color: var(--gray-500); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .profile-name { font-size: 28px; font-weight: 700; color: var(--gray-700); font-family: 'DM Sans', sans-serif; }
+        .profile-actions { display: flex; gap: 8px; align-items: center; }
 
-        /* ─── Communications Section ─────────────────────────── */
-        .comms-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; margin-top: 24px; overflow: hidden; transition: all 0.15s ease; }
-        .comms-card-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--gray-100); }
-        .comms-card-header h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); }
-        .comms-card-header a { font-size: 12px; font-weight: 600; color: var(--forest); text-decoration: none; }
-        .comms-card-header a:hover { text-decoration: underline; }
+        /* More Actions Dropdown */
+        .dropdown-wrap { position: relative; }
+        .dropdown-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 4px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 220px; z-index: 200; padding: 8px 0; }
+        .dropdown-menu.show { display: block; }
+        .dropdown-label { padding: 8px 16px 4px; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+        .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; font-size: 13px; color: var(--gray-600); cursor: pointer; transition: background 0.1s; text-decoration: none; }
+        .dropdown-item:hover { background: var(--gray-50); color: var(--forest); }
+        .dropdown-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+        .dropdown-divider { height: 1px; background: var(--gray-100); margin: 4px 0; }
+        .dropdown-item.danger { color: var(--red); }
+        .dropdown-item.danger:hover { background: var(--red-bg); }
 
-        /* Send text box */
-        .send-text-box { display: flex; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); }
-        .send-text-box textarea { flex: 1; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; resize: none; min-height: 40px; max-height: 100px; transition: all 0.15s ease; }
-        .send-text-box textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
-        .send-text-box .send-btn { background: var(--forest); color: var(--lime); border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; white-space: nowrap; transition: all 0.15s ease; }
-        .send-text-box .send-btn:hover { background: var(--forest-dark); box-shadow: 0 4px 12px rgba(46,64,61,0.15); transform: translateY(-1px); }
-        .send-text-box .send-btn svg { width: 15px; height: 15px; }
-        .no-phone-warn { padding: 12px 24px; background: var(--amber-bg); color: var(--amber); font-size: 13px; font-weight: 500; border-bottom: 1px solid var(--gray-100); }
+        /* Two-column body */
+        .two-col { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
 
-        /* Timeline */
-        .comms-timeline { padding: 0; }
-        .timeline-item { display: flex; gap: 14px; padding: 16px 24px; border-bottom: 1px solid var(--gray-100); transition: all 0.15s ease; }
+        /* Left column — main content */
+        .main-col .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-100); }
+        .card-header h3 { font-size: 16px; font-weight: 700; color: var(--gray-700); }
+        .card-body { padding: 0; }
+        .card-body.padded { padding: 20px; }
+
+        /* Properties table */
+        .prop-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--gray-100); transition: background 0.1s; }
+        .prop-row:last-child { border-bottom: none; }
+        .prop-row:hover { background: var(--gray-50); }
+        .prop-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--green-bg); color: var(--green); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .prop-icon svg { width: 16px; height: 16px; }
+        .prop-info { flex: 1; min-width: 0; }
+        .prop-address { font-size: 14px; font-weight: 500; color: var(--gray-700); }
+        .prop-city { font-size: 12px; color: var(--gray-500); }
+        .prop-details { display: flex; gap: 16px; margin-top: 6px; }
+        .prop-detail { font-size: 12px; color: var(--gray-500); }
+        .prop-detail strong { color: var(--gray-600); }
+
+        /* Overview tabs */
+        .overview-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); padding: 0 20px; }
+        .ov-tab { padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--gray-400); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+        .ov-tab:hover { color: var(--gray-600); }
+        .ov-tab.active { color: var(--forest); border-bottom-color: var(--forest); }
+        .ov-panel { display: none; }
+        .ov-panel.active { display: block; }
+
+        /* List items (jobs, quotes, invoices) */
+        .list-item { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--gray-100); transition: background 0.1s; }
+        .list-item:last-child { border-bottom: none; }
+        .list-item:hover { background: var(--gray-50); cursor: pointer; }
+        .li-icon { font-size: 18px; flex-shrink: 0; }
+        .li-info { flex: 1; min-width: 0; }
+        .li-title { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+        .li-sub { font-size: 12px; color: var(--gray-500); margin-top: 1px; }
+        .li-right { text-align: right; flex-shrink: 0; }
+        .li-amount { font-size: 14px; font-weight: 700; color: var(--gray-700); }
+        .li-status { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+        .li-status.pending { background: var(--amber-bg); color: var(--amber); }
+        .li-status.confirmed, .li-status.scheduled { background: var(--blue-bg); color: var(--blue); }
+        .li-status.completed, .li-status.paid { background: var(--green-bg); color: var(--green); }
+        .li-status.sent, .li-status.viewed { background: var(--purple-bg); color: var(--purple); }
+        .li-status.overdue { background: var(--red-bg); color: var(--red); }
+        .li-status.draft { background: var(--gray-100); color: var(--gray-500); }
+        .empty-list { text-align: center; padding: 30px 20px; color: var(--gray-400); font-size: 13px; }
+
+        /* Communications */
+        .timeline-item { display: flex; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--gray-100); }
         .timeline-item:last-child { border-bottom: none; }
         .timeline-item:hover { background: var(--gray-50); }
         .tl-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .tl-icon svg { width: 16px; height: 16px; }
         .tl-icon.sms-in { background: var(--green-bg); color: var(--green); }
         .tl-icon.sms-out { background: rgba(46,64,61,0.1); color: var(--forest); }
-        .tl-icon.email-icon { background: var(--purple-bg); color: var(--purple); }
-        .tl-icon.email-fail { background: var(--red-bg); color: var(--red); }
-        .email-type-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 8px; background: var(--purple-bg); color: var(--purple); }
-        .email-type-pill.invoice { background: var(--blue-bg); color: var(--blue); }
-        .email-type-pill.quote { background: var(--amber-bg); color: var(--amber); }
-        .email-type-pill.payment_receipt { background: var(--green-bg); color: var(--green); }
-        .email-type-pill.late_fee { background: var(--red-bg); color: var(--red); }
-        .email-type-pill.welcome { background: var(--green-bg); color: var(--green); }
-        .email-type-pill.followup { background: var(--amber-bg); color: var(--amber); }
         .tl-icon.call-icon { background: var(--blue-bg); color: var(--blue); }
         .tl-icon.vm-icon { background: var(--amber-bg); color: var(--amber); }
+        .tl-icon.email-icon { background: var(--purple-bg); color: var(--purple); }
         .tl-body { flex: 1; min-width: 0; }
         .tl-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
         .tl-label { font-size: 12px; font-weight: 700; color: var(--gray-700); }
@@ -172,37 +157,96 @@
         .tl-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 8px; }
         .pill-in { background: var(--green-bg); color: var(--green); }
         .pill-out { background: var(--gray-100); color: var(--gray-500); }
-        .pill-vm { background: var(--amber-bg); color: var(--amber); }
-        .pill-call { background: var(--blue-bg); color: var(--blue); }
-        .comms-empty { text-align: center; padding: 40px 24px; color: var(--gray-400); font-size: 13px; }
-        .comms-empty svg { width: 32px; height: 32px; opacity: 0.3; margin-bottom: 8px; display: block; margin-left: auto; margin-right: auto; }
-        .comms-loading { text-align: center; padding: 30px; color: var(--gray-400); }
 
-        /* Properties List */
-        .properties-list { padding: 0; }
-        .property-item { display: flex; align-items: center; gap: 14px; padding: 14px 24px; border-bottom: 1px solid var(--gray-100); transition: all 0.15s ease; }
-        .property-item:last-child { border-bottom: none; }
-        .property-item:hover { background: var(--gray-50); }
-        .property-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--green-bg); color: var(--green); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .property-icon svg { width: 16px; height: 16px; }
-        .property-info { flex: 1; min-width: 0; }
-        .property-name { font-size: 14px; font-weight: 600; color: var(--gray-700); margin-bottom: 2px; }
-        .property-name a { color: inherit; text-decoration: none; }
-        .property-name a:hover { color: var(--forest); text-decoration: underline; }
-        .property-address { font-size: 12px; color: var(--gray-500); }
-        .property-meta { display: flex; gap: 12px; flex-shrink: 0; }
-        .property-lot { font-size: 12px; color: var(--gray-500); background: var(--gray-100); padding: 4px 10px; border-radius: 12px; }
-        .properties-empty { text-align: center; padding: 30px 24px; color: var(--gray-400); font-size: 13px; }
+        /* Send text box */
+        .send-text-box { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); }
+        .send-text-box textarea { flex: 1; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; resize: none; min-height: 38px; max-height: 100px; }
+        .send-text-box textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .send-btn { background: var(--forest); color: var(--lime); border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; white-space: nowrap; }
+        .send-btn:hover { background: var(--forest-dark); }
 
-        /* Delete confirmation modal */
+        /* Right sidebar */
+        .right-col .sidebar-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+        .sc-header { padding: 16px 20px 12px; font-size: 14px; font-weight: 700; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
+        .sc-body { padding: 0; }
+        .sc-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--gray-100); }
+        .sc-row:last-child { border-bottom: none; }
+        .sc-label { font-size: 13px; color: var(--gray-500); }
+        .sc-value { font-size: 13px; font-weight: 600; color: var(--gray-700); text-align: right; }
+        .sc-value a { color: var(--forest); text-decoration: none; }
+        .sc-value a:hover { text-decoration: underline; }
+
+        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+        .status-active { background: var(--green-bg); color: var(--green); }
+        .status-active::before { background: var(--green); }
+        .status-inactive { background: var(--red-bg); color: var(--red); }
+        .status-inactive::before { background: var(--red); }
+
+        /* Tags */
+        .tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--gray-100); color: var(--gray-600); margin: 2px; }
+        .tags-area { padding: 12px 20px; }
+        .add-tag-link { font-size: 12px; color: var(--forest); cursor: pointer; font-weight: 600; }
+        .add-tag-link:hover { text-decoration: underline; }
+
+        /* Billing */
+        .billing-footer { display: flex; justify-content: space-between; padding: 12px 20px; background: var(--gray-50); border-top: 1px solid var(--gray-100); font-size: 13px; font-weight: 700; }
+        .billing-footer .amount { color: var(--forest); }
+
+        /* Internal Notes */
+        .note-input { width: 100%; padding: 10px 14px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 70px; outline: none; margin-bottom: 8px; }
+        .note-input:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .note-item { padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
+        .note-item:last-child { border-bottom: none; }
+        .note-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .note-author { font-size: 12px; font-weight: 700; color: var(--gray-700); }
+        .note-time { font-size: 11px; color: var(--gray-400); }
+        .note-content { font-size: 13px; color: var(--gray-600); line-height: 1.5; white-space: pre-wrap; }
+        .note-pinned { color: var(--amber); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .note-actions { margin-top: 4px; }
+        .note-actions button { background: none; border: none; font-size: 11px; color: var(--gray-400); cursor: pointer; font-family: inherit; margin-right: 8px; }
+        .note-actions button:hover { color: var(--forest); }
+        .note-actions button.del:hover { color: var(--red); }
+        .notes-hint { font-size: 12px; color: var(--gray-400); margin-bottom: 10px; }
+
+        /* Email History */
+        .email-type-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 8px; background: var(--purple-bg); color: var(--purple); }
+        .email-type-pill.invoice { background: var(--blue-bg); color: var(--blue); }
+        .email-type-pill.quote { background: var(--amber-bg); color: var(--amber); }
+        .email-type-pill.payment_receipt { background: var(--green-bg); color: var(--green); }
+        .email-type-pill.late_fee { background: var(--red-bg); color: var(--red); }
+        .email-type-pill.welcome { background: var(--green-bg); color: var(--green); }
+        .email-type-pill.followup { background: var(--amber-bg); color: var(--amber); }
+
+        /* Edit mode */
+        .edit-field input, .edit-field textarea, .edit-field select {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 13px; font-family: inherit; outline: none;
+        }
+        .edit-field input:focus, .edit-field textarea:focus, .edit-field select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .edit-field textarea { resize: vertical; min-height: 60px; }
+        .edit-field label { display: block; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+        .edit-field { margin-bottom: 12px; }
+
+        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        /* Modal */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.2s; }
         .modal-overlay.show { opacity: 1; visibility: visible; }
         .modal { background: var(--white); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: scale(0.9); transition: transform 0.2s; }
         .modal-overlay.show .modal { transform: scale(1); }
-        .modal h3 { font-size: 18px; font-weight: 700; color: var(--gray-700); margin-bottom: 12px; }
-        .modal p { font-size: 14px; color: var(--gray-500); margin-bottom: 24px; line-height: 1.5; }
+        .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+        .modal p { font-size: 14px; color: var(--gray-500); margin-bottom: 24px; }
         .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+        @media (max-width: 900px) {
+            .two-col { grid-template-columns: 1fr; }
+            .right-col { order: -1; }
+        }
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
             .sidebar.open { transform: translateX(0); }
@@ -210,617 +254,58 @@
             .mobile-menu-btn { display: block; }
             .page-content { padding: 20px 16px; }
             .topbar { padding: 0 16px; }
-            .detail-grid { grid-template-columns: 1fr; }
-            .customer-header { flex-direction: column; align-items: flex-start; }
-            .customer-header-actions { width: 100%; }
-            .customer-header-actions .btn { flex: 1; justify-content: center; }
+            .profile-header { flex-direction: column; align-items: flex-start; }
         }
-
-        /* Universal Search */
-        .universal-search-wrapper {
-            position: relative;
-            flex: 1;
-            max-width: 380px;
-            margin: 0 24px;
-        }
-
-        .search-input-group {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 12px;
-            width: 18px;
-            height: 18px;
-            color: var(--gray-400);
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 8px 12px 8px 40px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            font-size: 13px;
-            background: var(--white);
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--forest);
-            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
-        }
-
-        .search-clear-btn {
-            position: absolute;
-            right: 10px;
-            background: none;
-            border: none;
-            color: var(--gray-400);
-            cursor: pointer;
-            padding: 4px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s;
-        }
-
-        .search-clear-btn:hover {
-            color: var(--gray-600);
-        }
-
-        .search-clear-btn.visible {
-            display: flex;
-        }
-
-        .search-results-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 400px;
-            overflow-y: auto;
-            display: none;
-            z-index: 200;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        .search-results-dropdown.visible {
-            display: block;
-        }
-
-        .search-results-group {
-            padding: 8px 0;
-        }
-
-        .search-group-label {
-            padding: 8px 12px 4px 12px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .search-result-item {
-            padding: 8px 12px;
-            font-size: 13px;
-            color: var(--gray-700);
-            cursor: pointer;
-            transition: all 0.15s ease;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .search-result-item:hover {
-            background: var(--gray-50);
-        }
-
-        .search-result-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .search-result-icon.customer {
-            background: var(--blue-bg);
-            color: var(--blue);
-        }
-
-        .search-result-icon.quote {
-            background: var(--purple-bg);
-            color: var(--purple);
-        }
-
-        .search-result-icon.property {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .search-result-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .search-result-title {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-700);
-        }
-
-        .search-result-subtitle {
-            font-size: 12px;
-            color: var(--gray-500);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .search-result-badge {
-            font-size: 11px;
-            color: var(--gray-400);
-            flex-shrink: 0;
-        }
-
-        .search-empty {
-            padding: 16px 12px;
-            text-align: center;
-            font-size: 13px;
-            color: var(--gray-400);
-        }
-
-        .search-loading {
-            padding: 16px;
-            text-align: center;
-            font-size: 13px;
-            color: var(--gray-400);
-        }
-
-        @media (max-width: 768px) {
-            .universal-search-wrapper {
-                display: none;
-            }
-        }
-
-
-        .quotes-list {
-            padding: 0;
-        }
-
-        .quote-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 24px;
-            border-bottom: 1px solid var(--gray-100);
-            transition: all 0.15s ease;
-        }
-
-        .quote-item:last-child {
-            border-bottom: none;
-        }
-
-        .quote-item:hover {
-            background: var(--gray-50);
-        }
-
-        .quote-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: var(--purple-bg);
-            color: var(--purple);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 16px;
-        }
-
-        .quote-info {
-            flex: 1;
-            min-width: 0;
-            margin: 0 14px;
-        }
-
-        .quote-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: 2px;
-        }
-
-        .quote-subtitle {
-            font-size: 12px;
-            color: var(--gray-500);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .quote-meta {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-shrink: 0;
-        }
-
-        .quote-amount {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--gray-700);
-            min-width: 80px;
-            text-align: right;
-        }
-
-        .quote-status {
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-
-        .quote-actions {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .quote-action-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px;
-            color: var(--gray-400);
-            transition: all 0.15s ease;
-        }
-
-        .quote-action-btn:hover {
-            color: var(--forest);
-        }
-
-        .quote-action-btn svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        .quotes-empty {
-            text-align: center;
-            padding: 30px 24px;
-            color: var(--gray-400);
-            font-size: 13px;
-        }
-
-        .status-draft {
-            background: var(--gray-100);
-            color: var(--gray-600);
-        }
-
-        .status-sent {
-            background: var(--blue-bg);
-            color: var(--blue);
-        }
-
-        .status-viewed {
-            background: var(--amber-bg);
-            color: var(--amber);
-        }
-
-        .status-signed {
-            background: var(--amber-bg);
-            color: var(--amber);
-        }
-
-        .status-contracted {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .status-declined {
-            background: var(--red-bg);
-            color: var(--red);
-        }
-
-        .status-changes_requested {
-            background: #fef3c7;
-            color: #b45309;
-        }
-
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
 
 <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
+    <div class="sidebar-brand"><img src="logo.png" alt="YardDesk" onerror="this.outerHTML='<span style=\'font-family:Qualy,serif;font-size:22px;color:var(--forest)\'>YardDesk</span>'"></div>
     <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item active">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="email-log.html" class="nav-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    <span>Email Log</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-            <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </div>
+        <div class="nav-section"><div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a></div>
+        <div class="nav-section"><div class="nav-section-label">Clients</div>
+            <a class="nav-item active" href="customers.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customers</a>
+            <a class="nav-item" href="properties.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Properties</a></div>
+        <div class="nav-section"><div class="nav-section-label">Work</div>
+            <a class="nav-item" href="quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quotes</a>
+            <a class="nav-item" href="scheduling.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Scheduling</a>
+            <a class="nav-item" href="dispatch.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Dispatch</a></div>
+        <div class="nav-section"><div class="nav-section-label">Billing</div>
+            <a class="nav-item" href="invoices.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Invoices</a>
+            <a class="nav-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payments</a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages</a>
+            <a class="nav-item" href="email-log.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email Log</a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="pipeline.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Pipeline</a>
+            <a class="nav-item" href="time-tracking.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time Tracking</a>
+            <a class="nav-item" href="programs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>Programs</a></div>
+    </nav>
+    <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div></div></div>
 </aside>
 
 <div class="main">
     <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div class="topbar-left">
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div class="topbar-left"><h2 id="pageTitle">Customer Detail</h2><p id="pageSub">Loading...</p></div>
-            <div class="universal-search-wrapper" id="universal-search-wrapper">
-                <div class="search-input-group">
-                    <div class="search-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                    </div>
-                    <input type="text" class="search-input" id="search-input-universal" placeholder="Search..." autocomplete="off">
-                    <button class="search-clear-btn" id="search-clear-btn" type="button">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                    <div class="search-results-dropdown" id="search-results-dropdown"></div>
-                </div>
-            </div>
+            <div><h2 id="pageTitle">Customer Detail</h2><p id="pageSub">Loading...</p></div>
         </div>
-        <div class="topbar-actions" id="topbarActions"></div>
     </div>
-    <div class="page-content" style="max-width:900px;">
+
+    <div class="page-content">
         <a href="customers.html" class="back-link">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
             Back to Customers
         </a>
         <div id="customerContent"><div class="loading-state"><div class="loading-spinner"></div>Loading customer...</div></div>
-
-        <!-- Properties Section -->
-        <div class="comms-card" id="propertiesSection" style="display:none;">
-            <div class="comms-card-header">
-                <h3>Properties</h3>
-                <a href="properties.html">View All →</a>
-            </div>
-            <div id="propertiesList" class="properties-list">
-                <div class="comms-loading"><div class="loading-spinner"></div></div>
-            </div>
-        </div>
-
-        <!-- Quotes Section -->
-        <div class="comms-card" id="quotesSection" style="display:none;">
-            <div class="comms-card-header">
-                <h3>Quotes</h3>
-                <a href="sent-quotes.html">View All →</a>
-            </div>
-            <div id="quotesList" class="quotes-list">
-                <div class="comms-loading"><div class="loading-spinner"></div></div>
-            </div>
-        </div>
-
-        <!-- Jobs Section -->
-        <div class="comms-card" id="jobsSection" style="display:none;">
-            <div class="comms-card-header">
-                <h3>Jobs</h3>
-                <a href="scheduling.html">View All →</a>
-            </div>
-            <div id="jobsList" class="quotes-list">
-                <div class="comms-loading"><div class="loading-spinner"></div></div>
-            </div>
-        </div>
-
-        <!-- Invoices Section -->
-        <div class="comms-card" id="invoicesSection" style="display:none;">
-            <div class="comms-card-header">
-                <h3>Invoices</h3>
-                <a href="invoices.html">View All →</a>
-            </div>
-            <div id="invoicesList" class="quotes-list">
-                <div class="comms-loading"><div class="loading-spinner"></div></div>
-            </div>
-        </div>
-
-</div>
-
-        <!-- Email History Section -->
-        <div class="comms-card" id="emailsSection" style="display:none;">
-            <div class="comms-card-header">
-                <h3>Email History</h3>
-                <a href="email-log.html">View All →</a>
-            </div>
-            <div class="comms-timeline" id="emailsList">
-                <div class="comms-loading"><div class="loading-spinner"></div></div>
-            </div>
-        </div>
-
-        <!-- Communications Section (always shown below customer info) -->
-        <div class="comms-card" id="commsSection" style="display:none;">
-            <div class="comms-card-header">
-                <h3>Communications</h3>
-                <a href="communications.html">View All →</a>
-            </div>
-            <div id="sendTextArea"></div>
-            <div class="comms-timeline" id="commsTimeline">
-                <div class="comms-loading"><div class="loading-spinner"></div></div>
-            </div>
-        </div>
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
+<!-- Delete Modal -->
 <div class="modal-overlay" id="deleteModal">
     <div class="modal">
         <h3>Delete Customer?</h3>
@@ -839,9 +324,10 @@ const COMMS_API = '';
 const customerId = new URLSearchParams(window.location.search).get('id');
 let customer = null;
 let editMode = false;
+let notes = [];
 
 async function loadCustomer() {
-    if (!customerId) { document.getElementById('customerContent').innerHTML = '<p style="color:var(--gray-400)">No customer ID provided.</p>'; return; }
+    if (!customerId) { document.getElementById('customerContent').innerHTML = '<p style="color:var(--gray-400)">No customer ID.</p>'; return; }
     try {
         const res = await fetch('/api/customers/' + customerId);
         const data = await res.json();
@@ -849,13 +335,13 @@ async function loadCustomer() {
         customer = data.customer;
         document.getElementById('pageSub').textContent = '#' + (customer.customer_number || customer.id);
         render();
-        initUniversalSearch();
         loadProperties();
-        loadCommunications();
         loadQuotes();
         loadJobs();
         loadInvoices();
+        loadCommunications();
         loadEmailHistory();
+        loadNotes();
     } catch (e) {
         document.getElementById('customerContent').innerHTML = '<p style="color:var(--red)">Customer not found.</p>';
     }
@@ -864,288 +350,369 @@ async function loadCustomer() {
 function render() {
     const c = customer;
     const name = c.name || ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || 'Unknown';
-    const initials = name.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
     const isActive = (c.status||'').toLowerCase() === 'active';
-    const tags = c.tags
-        ? c.tags.split(',').map(t => '<span class="tag">' + esc(t.trim()) + '</span>').join(' ')
-        : '<span style="color:var(--gray-400)">None</span>';
+    const tags = c.tags ? c.tags.split(',').map(t => '<span class="tag">' + esc(t.trim()) + '</span>').join(' ') : '<span style="color:var(--gray-400);font-size:12px">No tags</span>';
 
-    function vf(label, val, link) {
-        const d = val ? (link ? '<a href="' + link + '">' + esc(val) + '</a>' : esc(val)) : '—';
-        return '<div class="field"><label>' + label + '</label><div class="val">' + d + '</div></div>';
-    }
-    function ef(label, id, val) {
-        return '<div class="field"><label>' + label + '</label><input id="' + id + '" value="' + esc(val||'') + '"></div>';
-    }
+    let html = '';
 
-    // Update topbar actions
-    let topbarHtml = '';
     if (editMode) {
-        topbarHtml = `
-            <button class="btn btn-primary" onclick="saveCustomer()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Save Changes
-            </button>
-            <button class="btn btn-secondary" onclick="editMode=false;render()">Cancel</button>
-        `;
+        html = renderEditMode(c, name);
     } else {
-        topbarHtml = `
-            <button class="btn btn-secondary" onclick="editMode=true;render()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Edit
-            </button>
-            <button class="btn btn-danger" onclick="showDeleteModal()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                Delete
-            </button>
-        `;
+        html = `
+        <div class="profile-header">
+            <div class="profile-header-left">
+                <div class="profile-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:24px;height:24px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                <div>
+                    <div class="profile-name">${esc(name)}</div>
+                    <span class="status-pill status-${isActive?'active':'inactive'}" style="margin-top:4px">${esc(c.status||'—')}</span>
+                    ${c.customer_company_name ? ' <span style="color:var(--gray-400);font-size:13px;margin-left:8px">' + esc(c.customer_company_name) + '</span>' : ''}
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button class="btn btn-primary" onclick="editMode=true;render()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
+                <div class="dropdown-wrap">
+                    <button class="btn btn-secondary" onclick="toggleDropdown()">... More Actions</button>
+                    <div class="dropdown-menu" id="actionsMenu">
+                        <div class="dropdown-label">Create new...</div>
+                        <a class="dropdown-item" href="quotes.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quote</a>
+                        <a class="dropdown-item" href="scheduling.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Job</a>
+                        <a class="dropdown-item" href="invoices.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>Invoice</a>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-item danger" onclick="showDeleteModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete Customer</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="two-col">
+            <div class="main-col">
+                <!-- Properties -->
+                <div class="card" id="propertiesCard" style="display:none">
+                    <div class="card-header"><h3>Properties</h3><a href="properties.html" style="font-size:12px;color:var(--forest);text-decoration:none;font-weight:600">+ New Property</a></div>
+                    <div class="card-body" id="propertiesList"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                </div>
+
+                <!-- Overview with tabs -->
+                <div class="card">
+                    <div class="overview-tabs">
+                        <div class="ov-tab active" onclick="switchOvTab('jobs')">Jobs</div>
+                        <div class="ov-tab" onclick="switchOvTab('quotes')">Quotes</div>
+                        <div class="ov-tab" onclick="switchOvTab('invoices')">Invoices</div>
+                        <div class="ov-tab" onclick="switchOvTab('emails')">Emails</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="ov-panel active" id="panel-jobs"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                        <div class="ov-panel" id="panel-quotes"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                        <div class="ov-panel" id="panel-invoices"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                        <div class="ov-panel" id="panel-emails"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                    </div>
+                </div>
+
+                <!-- Communications -->
+                <div class="card">
+                    <div class="card-header"><h3>Communications</h3><a href="communications.html" style="font-size:12px;color:var(--forest);text-decoration:none;font-weight:600">View All</a></div>
+                    <div class="card-body">
+                        <div id="sendTextArea"></div>
+                        <div id="commsTimeline"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-col">
+                <!-- Contact Info -->
+                <div class="sidebar-card">
+                    <div class="sc-header">Contact info</div>
+                    <div class="sc-body">
+                        ${c.email ? `<div class="sc-row"><div class="sc-label">Email</div><div class="sc-value"><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div></div>` : ''}
+                        ${c.phone ? `<div class="sc-row"><div class="sc-label">Phone</div><div class="sc-value"><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div></div>` : ''}
+                        ${c.mobile ? `<div class="sc-row"><div class="sc-label">Mobile</div><div class="sc-value"><a href="tel:${esc(c.mobile)}">${esc(c.mobile)}</a></div></div>` : ''}
+                        ${c.street ? `<div class="sc-row"><div class="sc-label">Address</div><div class="sc-value">${esc(c.street)}${c.city ? ', ' + esc(c.city) : ''}${c.state ? ' ' + esc(c.state) : ''} ${esc(c.postal_code||'')}</div></div>` : ''}
+                        <div class="sc-row"><div class="sc-label">Type</div><div class="sc-value">${esc(c.type || '—')}</div></div>
+                        ${c.since ? `<div class="sc-row"><div class="sc-label">Since</div><div class="sc-value">${esc(c.since)}</div></div>` : ''}
+                    </div>
+                </div>
+
+                <!-- Tags -->
+                <div class="sidebar-card">
+                    <div class="sc-header">Tags</div>
+                    <div class="tags-area">${tags}</div>
+                </div>
+
+                <!-- Billing History -->
+                <div class="sidebar-card">
+                    <div class="sc-header">Billing history</div>
+                    <div class="sc-body" id="billingHistory">
+                        <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">Loading...</div>
+                    </div>
+                    <div class="billing-footer"><span>Current balance</span><span class="amount" id="currentBalance">$0.00</span></div>
+                </div>
+
+                <!-- Internal Notes -->
+                <div class="sidebar-card">
+                    <div class="sc-header">Internal notes</div>
+                    <div style="padding:16px 20px;">
+                        <div class="notes-hint">Internal notes will only be seen by your team</div>
+                        <textarea class="note-input" id="noteInput" placeholder="Note details"></textarea>
+                        <button class="btn btn-primary btn-sm" onclick="addNote()">Save Note</button>
+                        <div id="notesList" style="margin-top:12px;"></div>
+                    </div>
+                </div>
+
+                <!-- Notes (existing customer notes field) -->
+                ${c.notes ? `<div class="sidebar-card">
+                    <div class="sc-header">Customer Notes</div>
+                    <div style="padding:16px 20px;font-size:13px;color:var(--gray-600);white-space:pre-wrap">${esc(c.notes)}</div>
+                </div>` : ''}
+            </div>
+        </div>`;
     }
-    document.getElementById('topbarActions').innerHTML = topbarHtml;
-
-    let html = '<div class="customer-header"><div class="customer-header-left"><div class="customer-avatar">' + initials + '</div><div>';
-    html += '<h2 style="font-size:22px;font-weight:700;color:var(--gray-700)">' + esc(name) + '</h2>';
-    html += '<div style="font-size:13px;color:var(--gray-400);margin-top:4px"><span class="status-pill status-' + (isActive?'active':'inactive') + '">' + esc(c.status||'—') + '</span>';
-    if (c.customer_company_name) html += ' · ' + esc(c.customer_company_name);
-    if (c.since) html += ' · Since ' + esc(c.since);
-    html += '</div></div></div></div>';
-
-    html += '<div class="detail-grid">';
-
-    // Contact
-    html += '<div class="detail-card"><h3>Contact</h3>';
-    if (editMode) {
-        html += ef('Name','f_name', c.name || ((c.first_name||'') + ' ' + (c.last_name||'')).trim());
-        html += ef('Email','f_email',c.email) + ef('Phone','f_phone',c.phone) + ef('Mobile','f_mobile',c.mobile);
-    } else {
-        html += vf('Email',c.email,c.email?'mailto:'+c.email:'') + vf('Phone',c.phone,c.phone?'tel:'+c.phone:'') + vf('Mobile',c.mobile,c.mobile?'tel:'+c.mobile:'');
-    }
-    html += '</div>';
-
-    // Address
-    html += '<div class="detail-card"><h3>Address</h3>';
-    if (editMode) {
-        html += ef('Street','f_street',c.street) + ef('Street 2','f_street2',c.street2);
-        html += ef('City','f_city',c.city) + ef('State','f_state',c.state) + ef('Zip','f_postal_code',c.postal_code);
-    } else {
-        html += vf('Street',c.street) + vf('City',c.city) + vf('State',c.state) + vf('Zip',c.postal_code);
-    }
-    html += '</div>';
-
-    // Account
-    html += '<div class="detail-card"><h3>Account</h3>';
-    html += vf('Customer #',c.customer_number);
-    if (editMode) {
-        html += `<div class="field"><label>Type</label><select id="f_type">
-            <option value=""${!c.type?' selected':''}>— Select Type —</option>
-            <option value="Customer"${c.type==='Customer'?' selected':''}>Customer</option>
-            <option value="Potential Customer"${c.type==='Potential Customer'?' selected':''}>Potential Customer</option>
-            <option value="Leads"${c.type==='Leads'?' selected':''}>Leads</option>
-            <option value="Commercial"${c.type==='Commercial'?' selected':''}>Commercial</option>
-            <option value="Residential"${c.type==='Residential'?' selected':''}>Residential</option>
-            <option value="Former Client"${c.type==='Former Client'?' selected':''}>Former Client</option>
-        </select></div>`;
-    } else {
-        html += vf('Type',c.type);
-    }
-    html += vf('Discount',c.discount ? c.discount+'%' : 'None');
-    if (editMode) html += '<div class="field"><label>Status</label><select id="f_status"><option value="Active"' + (c.status==='Active'?' selected':'') + '>Active</option><option value="Inactive"' + (c.status!=='Active'?' selected':'') + '>Inactive</option></select></div>';
-    html += '</div>';
-
-    // Tags
-    html += '<div class="detail-card"><h3>Tags</h3>';
-    if (editMode) html += '<div class="field"><label>Tags (comma separated)</label><input id="f_tags" value="' + esc(c.tags||'') + '"></div>';
-    else html += tags;
-    html += '</div>';
-
-    // Notes
-    html += '<div class="detail-card full-width"><h3>Notes</h3>';
-    if (editMode) html += '<div class="field"><textarea id="f_notes">' + esc(c.notes||'') + '</textarea></div>';
-    else html += '<p style="font-size:13px;color:var(--gray-600);white-space:pre-wrap">' + esc(c.notes||'No notes') + '</p>';
-    html += '</div></div>';
 
     document.getElementById('customerContent').innerHTML = html;
 }
 
-// ─── Properties ──────────────────────────────────────────────────────────
+function renderEditMode(c, name) {
+    return `
+    <div class="profile-header">
+        <div class="profile-header-left"><div class="profile-name">Edit Customer</div></div>
+        <div class="profile-actions">
+            <button class="btn btn-primary" onclick="saveCustomer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>Save</button>
+            <button class="btn btn-secondary" onclick="editMode=false;render()">Cancel</button>
+        </div>
+    </div>
+    <div style="max-width:600px;background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:24px;">
+        <div class="edit-field"><label>Name</label><input id="f_name" value="${esc(name)}"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="edit-field"><label>Email</label><input id="f_email" value="${esc(c.email||'')}"></div>
+            <div class="edit-field"><label>Phone</label><input id="f_phone" value="${esc(c.phone||'')}"></div>
+        </div>
+        <div class="edit-field"><label>Mobile</label><input id="f_mobile" value="${esc(c.mobile||'')}"></div>
+        <div class="edit-field"><label>Street</label><input id="f_street" value="${esc(c.street||'')}"></div>
+        <div class="edit-field"><label>Street 2</label><input id="f_street2" value="${esc(c.street2||'')}"></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;">
+            <div class="edit-field"><label>City</label><input id="f_city" value="${esc(c.city||'')}"></div>
+            <div class="edit-field"><label>State</label><input id="f_state" value="${esc(c.state||'')}"></div>
+            <div class="edit-field"><label>Zip</label><input id="f_postal_code" value="${esc(c.postal_code||'')}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="edit-field"><label>Type</label><select id="f_type">
+                <option value="">— Select —</option>
+                ${['Customer','Potential Customer','Leads','Commercial','Residential','Former Client'].map(t => `<option value="${t}"${c.type===t?' selected':''}>${t}</option>`).join('')}
+            </select></div>
+            <div class="edit-field"><label>Status</label><select id="f_status">
+                <option value="Active"${c.status==='Active'?' selected':''}>Active</option>
+                <option value="Inactive"${c.status!=='Active'?' selected':''}>Inactive</option>
+            </select></div>
+        </div>
+        <div class="edit-field"><label>Tags (comma separated)</label><input id="f_tags" value="${esc(c.tags||'')}"></div>
+        <div class="edit-field"><label>Notes</label><textarea id="f_notes">${esc(c.notes||'')}</textarea></div>
+    </div>`;
+}
+
+function switchOvTab(tab) {
+    document.querySelectorAll('.ov-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.ov-panel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+}
+
+function toggleDropdown() {
+    document.getElementById('actionsMenu').classList.toggle('show');
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('.dropdown-wrap')) document.getElementById('actionsMenu')?.classList.remove('show');
+});
+
+// ─── Properties ────────────────────────────────────────────
 
 async function loadProperties() {
-    document.getElementById('propertiesSection').style.display = 'block';
-    
     try {
         const res = await fetch('/api/customers/' + customerId + '/properties');
-        if (!res.ok) throw new Error('API error');
+        if (!res.ok) throw new Error();
         const data = await res.json();
-        renderProperties(data.properties || []);
-    } catch (e) {
-        document.getElementById('propertiesList').innerHTML =
-            '<div class="properties-empty">Unable to load properties.</div>';
-    }
+        const items = data.properties || [];
+        const card = document.getElementById('propertiesCard');
+        if (items.length) card.style.display = 'block';
+        document.getElementById('propertiesList').innerHTML = items.length ? items.map(p => {
+            const addr = p.street || p.property_name || 'Unnamed';
+            const city = [p.city, p.state, p.zip].filter(Boolean).join(', ');
+            return `<div class="prop-row">
+                <div class="prop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                <div class="prop-info">
+                    <div class="prop-address">${esc(addr)}</div>
+                    <div class="prop-city">${esc(city)}</div>
+                    ${p.lot_size > 0 ? `<div class="prop-details"><span class="prop-detail"><strong>Lot:</strong> ${Number(p.lot_size).toLocaleString()} sq ft</span></div>` : ''}
+                </div>
+            </div>`;
+        }).join('') : '';
+    } catch (e) {}
 }
 
-function renderProperties(items) {
-    const el = document.getElementById('propertiesList');
-    if (!items.length) {
-        el.innerHTML = `<div class="properties-empty">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            No properties linked to this customer.
-        </div>`;
-        return;
-    }
+// ─── Overview Tab Data ─────────────────────────────────────
 
-    el.innerHTML = items.map(p => {
-        const name = p.property_name || p.street || 'Unnamed Property';
-        const address = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
-        const lotSize = p.lot_size > 0 ? Number(p.lot_size).toLocaleString() + ' sq ft' : '';
-
-        return `<div class="property-item">
-            <div class="property-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            </div>
-            <div class="property-info">
-                <div class="property-name">${esc(name)}</div>
-                <div class="property-address">${esc(address)}</div>
-            </div>
-            <div class="property-meta">
-                ${lotSize ? '<span class="property-lot">' + lotSize + '</span>' : ''}
-            </div>
-        </div>`;
-    }).join('');
+async function loadJobs() {
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/jobs');
+        const data = await res.json();
+        const jobs = data.jobs || [];
+        document.getElementById('panel-jobs').innerHTML = jobs.length ? jobs.map(j => {
+            const date = j.job_date ? new Date(j.job_date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+            return `<div class="list-item" onclick="window.location.href='job-detail.html?id=${j.id}'">
+                <div class="li-info"><div class="li-title">${esc(j.service_type||'Job')}</div><div class="li-sub">${date}${j.crew_assigned ? ' &middot; ' + esc(j.crew_assigned) : ''} &middot; ${esc(j.address||'')}</div></div>
+                <div class="li-right"><div class="li-amount">$${parseFloat(j.service_price||0).toFixed(2)}</div><div class="li-status ${j.status||'pending'}">${j.status||'pending'}</div></div>
+            </div>`;
+        }).join('') : '<div class="empty-list">No jobs scheduled.</div>';
+    } catch (e) { document.getElementById('panel-jobs').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
 }
 
-// ─── Communications ──────────────────────────────────────────────────────────
+async function loadQuotes() {
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/quotes');
+        const data = await res.json();
+        const quotes = data.quotes || [];
+        document.getElementById('panel-quotes').innerHTML = quotes.length ? quotes.map(q => {
+            const date = q.created_at ? new Date(q.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+            return `<div class="list-item" onclick="window.open('sent-quotes.html?quote=${q.id}')">
+                <div class="li-info"><div class="li-title">Quote #${esc(q.quote_number||String(q.id))}</div><div class="li-sub">${date}</div></div>
+                <div class="li-right"><div class="li-amount">$${parseFloat(q.total||0).toFixed(2)}</div><div class="li-status ${q.status||'draft'}">${q.status||'draft'}</div></div>
+            </div>`;
+        }).join('') : '<div class="empty-list">No quotes yet.</div>';
+    } catch (e) { document.getElementById('panel-quotes').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
+}
+
+async function loadInvoices() {
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/invoices');
+        const data = await res.json();
+        const invoices = data.invoices || [];
+
+        // Billing sidebar
+        let balance = 0;
+        invoices.forEach(inv => {
+            if (['sent','viewed','overdue'].includes(inv.status)) balance += parseFloat(inv.total||0) - parseFloat(inv.amount_paid||0);
+        });
+        document.getElementById('currentBalance').textContent = '$' + balance.toFixed(2);
+        if (balance > 0) document.getElementById('currentBalance').style.color = 'var(--red)';
+
+        const recent = invoices.slice(0, 3);
+        document.getElementById('billingHistory').innerHTML = recent.length ? recent.map(inv => `
+            <div class="sc-row">
+                <div><div style="font-size:13px;font-weight:600">${esc(inv.invoice_number||'')}</div><div style="font-size:11px;color:var(--gray-400)">${inv.created_at ? new Date(inv.created_at).toLocaleDateString() : ''}</div></div>
+                <div style="text-align:right"><div style="font-size:13px;font-weight:700">$${parseFloat(inv.total||0).toFixed(2)}</div><div class="li-status ${inv.status||'draft'}" style="font-size:9px">${inv.status||'draft'}</div></div>
+            </div>
+        `).join('') : '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">No billing history</div>';
+
+        // Invoices tab
+        document.getElementById('panel-invoices').innerHTML = invoices.length ? invoices.map(inv => {
+            const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+            return `<div class="list-item" onclick="window.location.href='invoice-detail.html?id=${inv.id}'">
+                <div class="li-info"><div class="li-title">Invoice #${esc(inv.invoice_number||String(inv.id))}</div><div class="li-sub">${date}${inv.due_date ? ' &middot; Due: ' + new Date(inv.due_date).toLocaleDateString() : ''}</div></div>
+                <div class="li-right"><div class="li-amount">$${parseFloat(inv.total||0).toFixed(2)}</div><div class="li-status ${inv.status||'draft'}">${inv.status||'draft'}</div></div>
+            </div>`;
+        }).join('') : '<div class="empty-list">No invoices yet.</div>';
+    } catch (e) {}
+}
+
+// ─── Email History ─────────────────────────────────────────
+
+async function loadEmailHistory() {
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/emails');
+        const data = await res.json();
+        const emails = data.emails || [];
+        const typeLabels = { invoice:'Invoice', quote:'Quote', late_fee:'Late Fee', payment_receipt:'Payment', welcome:'Welcome', followup:'Follow-up', apology:'Apology', invoice_reminder:'Reminder', general:'General' };
+        document.getElementById('panel-emails').innerHTML = emails.length ? emails.map(e => `
+            <div class="list-item">
+                <div class="tl-icon email-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+                <div class="li-info"><div class="li-title">${esc(e.subject||'(no subject)')}<span class="email-type-pill ${e.email_type||''}">${typeLabels[e.email_type]||e.email_type||'Email'}</span></div><div class="li-sub">To: ${esc(e.recipient_email)} &middot; ${fmtTime(new Date(e.sent_at))}</div></div>
+            </div>`).join('') : '<div class="empty-list">No emails sent yet.</div>';
+    } catch (e) { document.getElementById('panel-emails').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
+}
+
+// ─── Communications ────────────────────────────────────────
 
 async function loadCommunications() {
-    document.getElementById('commsSection').style.display = 'block';
-
     const c = customer;
     const hasPhone = c.phone || c.mobile;
-
-    // Send text box
     if (hasPhone) {
-        document.getElementById('sendTextArea').innerHTML = `
-            <div class="send-text-box">
-                <textarea id="sendMsgTxt" placeholder="Send a text to this customer…" rows="1"
-                    oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
-                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendTextToCustomer();}"></textarea>
-                <button class="send-btn" onclick="sendTextToCustomer()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    Send
-                </button>
-            </div>`;
-    } else {
-        document.getElementById('sendTextArea').innerHTML = `
-            <div class="no-phone-warn">⚠ No phone number on file — add a phone number to enable texting this customer.</div>`;
+        document.getElementById('sendTextArea').innerHTML = `<div class="send-text-box">
+            <textarea id="sendMsgTxt" placeholder="Send a text..." rows="1" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendText();}"></textarea>
+            <button class="send-btn" onclick="sendText()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send</button>
+        </div>`;
     }
 
-    // Load timeline
     try {
         const res = await fetch(`${COMMS_API}/api/customers/${customerId}/communications`);
-        if (!res.ok) throw new Error('API error');
         const data = await res.json();
-        renderTimeline(data.communications || []);
-    } catch (e) {
-        document.getElementById('commsTimeline').innerHTML =
-            '<div class="comms-empty"><p>Unable to load communications.<br><small>Check that the CORS update has been deployed to the webhook server.</small></p></div>';
-    }
+        const items = data.communications || [];
+        if (!items.length) { document.getElementById('commsTimeline').innerHTML = '<div class="empty-list">No communications yet.</div>'; return; }
+
+        document.getElementById('commsTimeline').innerHTML = items.slice(0, 10).map(item => {
+            const isMsg = item.record_type === 'message';
+            const isOut = item.direction === 'outbound';
+            const isVm = !isMsg && (item.status === 'voicemail' || item.recording_url);
+            const iconClass = isMsg ? (isOut ? 'sms-out' : 'sms-in') : (isVm ? 'vm-icon' : 'call-icon');
+            const label = isMsg ? 'Text' : (isVm ? 'Voicemail' : 'Call');
+            const pill = isMsg ? (isOut ? '<span class="tl-pill pill-out">Sent</span>' : '<span class="tl-pill pill-in">Received</span>') : '';
+            const body = isMsg ? esc(item.body || '') : esc(item.status || '');
+            const iconSvg = isMsg ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.11 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>';
+            return `<div class="timeline-item"><div class="tl-icon ${iconClass}">${iconSvg}</div><div class="tl-body"><div class="tl-top"><div class="tl-label">${label}${pill}</div><div class="tl-time">${fmtTime(new Date(item.created_at))}</div></div><div class="tl-text">${body}</div></div></div>`;
+        }).join('');
+    } catch (e) { document.getElementById('commsTimeline').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
 }
 
-function renderTimeline(items) {
-    const el = document.getElementById('commsTimeline');
-    if (!items.length) {
-        el.innerHTML = `<div class="comms-empty">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-            <p>No communications yet.<br>When this customer calls or texts, it will appear here.</p>
-        </div>`;
-        return;
-    }
-
-    el.innerHTML = items.map(item => {
-        const isMsg = item.record_type === 'message';
-        const isOut = item.direction === 'outbound';
-        const isVm  = !isMsg && (item.status === 'voicemail' || item.recording_url);
-        const time  = fmtTime(new Date(item.created_at));
-
-        let iconClass, pillHtml, bodyText;
-
-        if (isMsg) {
-            iconClass = isOut ? 'sms-out' : 'sms-in';
-            const pillClass = isOut ? 'pill-out' : 'pill-in';
-            const pillLabel = isOut ? 'Sent' : 'Received';
-            pillHtml = `<span class="tl-pill ${pillClass}">${pillLabel}</span>`;
-            bodyText = esc(item.body || '(no message body)');
-            if (item.media_urls && item.media_urls.length) {
-                bodyText += ` <span style="color:var(--gray-400);font-size:12px">(+ ${item.media_urls.length} photo)</span>`;
-            }
-        } else {
-            iconClass = isVm ? 'vm-icon' : 'call-icon';
-            pillHtml = isVm
-                ? '<span class="tl-pill pill-vm">Voicemail</span>'
-                : '<span class="tl-pill pill-call">Call</span>';
-            bodyText = esc(item.option_selected || item.status || '—');
-            if (item.transcription && item.transcription !== 'No transcription available') {
-                bodyText += '<br><span style="color:var(--gray-500);font-style:italic">"' + esc(item.transcription.substring(0,120)) + (item.transcription.length>120?'…':'') + '"</span>';
-            } else if (isVm) {
-                bodyText += '<br><span style="color:var(--gray-400);font-style:italic">"No transcription available"</span>';
-            }
-            // Add audio player for voicemails
-            if (isVm && item.recording_url) {
-                const audioUrl = getProxiedRecordingUrl(item.recording_url);
-                bodyText += `<div style="margin-top:10px;"><audio controls style="height:32px;width:100%;max-width:280px;" src="${audioUrl}"></audio></div>`;
-            }
-        }
-
-        const iconSvg = isMsg
-            ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`
-            : isVm
-                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>`
-                : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>`;
-
-        return `<div class="timeline-item">
-            <div class="tl-icon ${iconClass}">${iconSvg}</div>
-            <div class="tl-body">
-                <div class="tl-top">
-                    <div class="tl-label">${isMsg ? 'Text Message' : (isVm ? 'Voicemail' : 'Phone Call')}${pillHtml}</div>
-                    <div class="tl-time">${time}</div>
-                </div>
-                <div class="tl-text">${bodyText}</div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-async function sendTextToCustomer() {
+async function sendText() {
     const txt = document.getElementById('sendMsgTxt');
     const body = txt.value.trim();
     if (!body) return;
-
-    const btn = document.querySelector('.send-btn');
-    btn.disabled = true;
-    btn.textContent = 'Sending…';
-
     try {
-        const res = await fetch(`${COMMS_API}/api/customers/${customerId}/send-message`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ body })
-        });
+        const res = await fetch(`${COMMS_API}/api/customers/${customerId}/send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
         const data = await res.json();
-        if (data.success) {
-            txt.value = '';
-            txt.style.height = 'auto';
-            showToast('Text sent ✓');
-            setTimeout(loadCommunications, 500);
-        } else {
-            showToast(data.error || 'Failed to send');
-        }
-    } catch (e) {
-        showToast('Send failed');
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send`;
+        if (data.success) { txt.value = ''; showToast('Text sent'); setTimeout(loadCommunications, 500); }
+        else showToast(data.error || 'Failed');
+    } catch (e) { showToast('Send failed'); }
 }
 
-// ─── Save / Delete ───────────────────────────────────────────────────────────
+// ─── Internal Notes ────────────────────────────────────────
+
+async function loadNotes() {
+    try {
+        const res = await fetch('/api/notes/customer/' + customerId);
+        const data = await res.json();
+        notes = data.notes || [];
+        renderNotes();
+    } catch (e) {}
+}
+
+function renderNotes() {
+    const el = document.getElementById('notesList');
+    if (!el) return;
+    if (!notes.length) { el.innerHTML = ''; return; }
+    el.innerHTML = notes.map(n => `<div class="note-item">
+        <div class="note-header"><span class="note-author">${esc(n.author_name)}${n.pinned ? ' <span class="note-pinned">PINNED</span>' : ''}</span><span class="note-time">${fmtTime(new Date(n.created_at))}</span></div>
+        <div class="note-content">${esc(n.content)}</div>
+        <div class="note-actions"><button onclick="togglePin(${n.id},${!n.pinned})">${n.pinned?'Unpin':'Pin'}</button><button class="del" onclick="deleteNote(${n.id})">Delete</button></div>
+    </div>`).join('');
+}
+
+async function addNote() {
+    const input = document.getElementById('noteInput');
+    const content = input.value.trim();
+    if (!content) return;
+    try {
+        const res = await fetch('/api/notes/customer/' + customerId, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+        if ((await res.json()).success) { input.value = ''; showToast('Note saved'); loadNotes(); }
+    } catch(e) { showToast('Failed'); }
+}
+
+async function togglePin(id, pinned) {
+    try { await fetch('/api/notes/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned }) }); loadNotes(); } catch(e) {}
+}
+
+async function deleteNote(id) {
+    try { await fetch('/api/notes/' + id, { method: 'DELETE' }); showToast('Note deleted'); loadNotes(); } catch(e) {}
+}
+
+// ─── Save / Delete ─────────────────────────────────────────
 
 async function saveCustomer() {
     const u = {
@@ -1166,48 +733,29 @@ async function saveCustomer() {
     try {
         const res = await fetch('/api/customers/' + customerId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) });
         const data = await res.json();
-        if (data.success) { customer = data.customer; editMode = false; render(); showToast('Saved'); }
+        if (data.success) { customer = data.customer; editMode = false; render(); showToast('Saved'); loadProperties(); loadJobs(); loadQuotes(); loadInvoices(); loadNotes(); }
         else showToast('Save failed');
     } catch (e) { showToast('Save failed'); }
 }
 
 function showDeleteModal() {
-    const name = customer.name || ((customer.first_name||'') + ' ' + (customer.last_name||'')).trim() || 'this customer';
-    document.getElementById('deleteCustomerName').textContent = name;
+    document.getElementById('deleteCustomerName').textContent = customer.name || 'this customer';
     document.getElementById('deleteModal').classList.add('show');
 }
-
-function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.remove('show');
-}
+function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('show'); }
 
 async function confirmDelete() {
     try {
         const res = await fetch('/api/customers/' + customerId, { method: 'DELETE' });
-        const data = await res.json();
-        if (data.success) {
-            closeDeleteModal();
-            showToast('Customer deleted');
-            setTimeout(() => window.location.href = 'customers.html', 1000);
-        } else {
-            showToast('Delete failed: ' + (data.error || 'Unknown error'));
-        }
-    } catch (e) { 
-        showToast('Delete failed'); 
-    }
+        if ((await res.json()).success) { closeDeleteModal(); showToast('Deleted'); setTimeout(() => window.location.href = 'customers.html', 1000); }
+        else showToast('Delete failed');
+    } catch (e) { showToast('Delete failed'); }
 }
 
-// Close modal when clicking outside
-document.getElementById('deleteModal').addEventListener('click', function(e) {
-    if (e.target === this) closeDeleteModal();
-});
+document.getElementById('deleteModal').addEventListener('click', function(e) { if (e.target === this) closeDeleteModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDeleteModal(); });
 
-// Close modal with Escape key
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeDeleteModal();
-});
-
-// ─── Utilities ───────────────────────────────────────────────────────────────
+// ─── Utilities ─────────────────────────────────────────────
 
 function fmtTime(date) {
     if (!(date instanceof Date) || isNaN(date)) return '—';
@@ -1219,309 +767,10 @@ function fmtTime(date) {
     return date.toLocaleDateString('en-US', {month:'short', day:'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined});
 }
 
-// Convert Twilio recording URL to proxied URL that doesn't require login
-function getProxiedRecordingUrl(recordingUrl) {
-    if (!recordingUrl) return '';
-    // If it's already a proxied URL, return as-is
-    if (recordingUrl.includes('/api/recordings/')) return recordingUrl;
-    // Extract recording SID from URL like https://api.twilio.com/2010-04-01/Accounts/xxx/Recordings/RExxxxx
-    const match = recordingUrl.match(/Recordings\/(RE[a-zA-Z0-9]+)/);
-    if (match) {
-        return `/api/recordings/${match[1]}`;
-    }
-    return recordingUrl;
-}
-
-function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
-
-// ─── Email History ──────────────────────────────────────────────────────────
-
-async function loadEmailHistory() {
-    document.getElementById('emailsSection').style.display = 'block';
-    try {
-        const res = await fetch('/api/customers/' + customerId + '/emails');
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        renderEmails(data.emails || []);
-    } catch (e) {
-        document.getElementById('emailsList').innerHTML = '<div class="comms-empty"><p>Unable to load email history.</p></div>';
-    }
-}
-
-function renderEmails(emails) {
-    const el = document.getElementById('emailsList');
-    if (!emails.length) {
-        el.innerHTML = `<div class="comms-empty">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <p>No emails sent to this customer yet.</p>
-        </div>`;
-        return;
-    }
-
-    const typeLabels = { invoice: 'Invoice', quote: 'Quote', late_fee: 'Late Fee', payment_receipt: 'Payment', welcome: 'Welcome', followup: 'Follow-up', apology: 'Apology', invoice_reminder: 'Reminder', admin_notification: 'Admin', general: 'General' };
-
-    el.innerHTML = emails.map(e => {
-        const time = fmtTime(new Date(e.sent_at));
-        const isFailed = e.status === 'failed';
-        const iconClass = isFailed ? 'email-fail' : 'email-icon';
-        const typePill = `<span class="email-type-pill ${e.email_type || ''}">${typeLabels[e.email_type] || e.email_type || 'Email'}</span>`;
-        const statusPill = isFailed ? '<span class="tl-pill pill-vm">Failed</span>' : '';
-
-        return `<div class="timeline-item">
-            <div class="tl-icon ${iconClass}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            </div>
-            <div class="tl-body">
-                <div class="tl-top">
-                    <div class="tl-label">Email${typePill}${statusPill}</div>
-                    <div class="tl-time">${time}</div>
-                </div>
-                <div class="tl-text">${esc(e.subject || '(no subject)')}</div>
-                <div style="font-size:11px;color:var(--gray-400);margin-top:2px;">To: ${esc(e.recipient_email)}</div>
-            </div>
-        </div>`;
-    }).join('');
-}
+function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 
 document.addEventListener('DOMContentLoaded', loadCustomer);
-
-// Universal Search
-let searchDebounceTimer;
-const searchInput = document.getElementById('search-input-universal');
-const searchDropdown = document.getElementById('search-results-dropdown');
-const searchClearBtn = document.getElementById('search-clear-btn');
-
-function initUniversalSearch() {
-    if (!searchInput) return;
-    
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.trim();
-        
-        if (searchClearBtn) {
-            searchClearBtn.classList.toggle('visible', query.length > 0);
-        }
-        
-        if (query.length < 2) {
-            closeSearch();
-            return;
-        }
-        
-        clearTimeout(searchDebounceTimer);
-        searchDropdown.innerHTML = '<div style="padding: 16px; text-align: center; font-size: 13px; color: var(--gray-400);">Searching...</div>';
-        searchDropdown.classList.add('visible');
-        
-        searchDebounceTimer = setTimeout(() => performUniversalSearch(query), 300);
-    });
-    
-    if (searchClearBtn) {
-        searchClearBtn.addEventListener('click', () => {
-            searchInput.value = '';
-            searchClearBtn.classList.remove('visible');
-            closeSearch();
-        });
-    }
-    
-    document.addEventListener('click', (e) => {
-        const wrapper = document.getElementById('universal-search-wrapper');
-        if (wrapper && !wrapper.contains(e.target)) {
-            closeSearch();
-        }
-    });
-    
-    document.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-            e.preventDefault();
-            searchInput.focus();
-        }
-        if (e.key === 'Escape') {
-            closeSearch();
-        }
-    });
-}
-
-function closeSearch() {
-    if (searchDropdown) {
-        searchDropdown.classList.remove('visible');
-    }
-}
-
-async function performUniversalSearch(query) {
-    try {
-        const [customersRes, quotesRes, propertiesRes] = await Promise.all([
-            fetch(`/api/customers?search=${encodeURIComponent(query)}&limit=5`).catch(() => null),
-            fetch(`/api/sent-quotes?search=${encodeURIComponent(query)}&limit=5`).catch(() => null),
-            fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=5`).catch(() => null)
-        ]);
-        
-        const customers = customersRes && customersRes.ok ? await customersRes.json() : { customers: [] };
-        const quotes = quotesRes && quotesRes.ok ? await quotesRes.json() : { quotes: [] };
-        const properties = propertiesRes && propertiesRes.ok ? await propertiesRes.json() : { properties: [] };
-        
-        const customerList = customers.customers || [];
-        const quoteList = quotes.quotes || [];
-        const propertyList = properties.properties || [];
-        
-        let html = '';
-        
-        if (customerList.length > 0) {
-            html += '<div class="search-results-group">';
-            html += '<div class="search-group-label">Customers</div>';
-            customerList.forEach(c => {
-                const name = c.name || c.customer_company_name || 'Unknown';
-                html += `<a href="customer-detail.html?id=${c.id || c.customer_id}" class="search-result-item">
-                    <div class="search-result-icon customer">C</div>
-                    <div class="search-result-content">
-                        <div class="search-result-title">${esc(name)}</div>
-                    </div>
-                </a>`;
-            });
-            html += '</div>';
-        }
-        
-        if (quoteList.length > 0) {
-            html += '<div class="search-results-group">';
-            html += '<div class="search-group-label">Quotes</div>';
-            quoteList.forEach(q => {
-                const name = q.customer_name || q.name || 'Unknown Quote';
-                html += `<a href="sent-quotes.html?quote=${q.id || q.quote_id}" class="search-result-item">
-                    <div class="search-result-icon quote">Q</div>
-                    <div class="search-result-content">
-                        <div class="search-result-title">${esc(name)}</div>
-                    </div>
-                </a>`;
-            });
-            html += '</div>';
-        }
-        
-        if (propertyList.length > 0) {
-            html += '<div class="search-results-group">';
-            html += '<div class="search-group-label">Properties</div>';
-            propertyList.forEach(p => {
-                const name = p.address || p.property_address || 'Unknown Property';
-                html += `<a href="properties.html?id=${p.id || p.property_id}" class="search-result-item">
-                    <div class="search-result-icon property">P</div>
-                    <div class="search-result-content">
-                        <div class="search-result-title">${esc(name)}</div>
-                    </div>
-                </a>`;
-            });
-            html += '</div>';
-        }
-        
-        if (html === '') {
-            html = '<div class="search-empty">No results found</div>';
-        }
-        
-        searchDropdown.innerHTML = html;
-    } catch (e) {
-        console.error('Search error:', e);
-        searchDropdown.innerHTML = '<div class="search-empty">Search error. Please try again.</div>';
-    }
-}
-
-// Quotes Section
-async function loadQuotes() {
-    document.getElementById('quotesSection').style.display = 'block';
-    try {
-        const res = await fetch('/api/customers/' + customerId + '/quotes');
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        renderQuotes(data.quotes || []);
-    } catch (e) {
-        console.error('Error loading quotes:', e);
-        document.getElementById('quotesList').innerHTML = '<div class="quotes-empty">Unable to load quotes.</div>';
-    }
-}
-
-async function loadJobs() {
-    document.getElementById('jobsSection').style.display = 'block';
-    try {
-        const res = await fetch('/api/customers/' + customerId + '/jobs');
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        renderJobs(data.jobs || []);
-    } catch (e) {
-        console.error('Error loading jobs:', e);
-        document.getElementById('jobsList').innerHTML = '<div class="quotes-empty">Unable to load jobs.</div>';
-    }
-}
-
-function renderJobs(jobs) {
-    const el = document.getElementById('jobsList');
-    if (!jobs.length) {
-        el.innerHTML = '<div class="quotes-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>No jobs scheduled for this customer.</div>';
-        return;
-    }
-    el.innerHTML = jobs.map(j => {
-        const statusLabels = { pending:'Pending', confirmed:'Confirmed', 'in-progress':'In Progress', completed:'Completed', cancelled:'Cancelled' };
-        const date = j.job_date ? new Date(j.job_date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
-        return '<div class="quote-item">' +
-            '<div class="quote-icon">📅</div>' +
-            '<div class="quote-info"><div class="quote-title">' + esc(j.service_type || 'Job') + '</div><div class="quote-subtitle">' + date + (j.crew_assigned ? ' • Crew: ' + esc(j.crew_assigned) : '') + '</div></div>' +
-            '<div class="quote-meta"><div class="quote-amount">$' + parseFloat(j.service_price || 0).toFixed(2) + '</div>' +
-            '<span class="quote-status status-' + (j.status || 'pending') + '">' + (statusLabels[j.status] || j.status || 'Pending') + '</span>' +
-            '</div></div>';
-    }).join('');
-}
-
-async function loadInvoices() {
-    document.getElementById('invoicesSection').style.display = 'block';
-    try {
-        const res = await fetch('/api/customers/' + customerId + '/invoices');
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        renderInvoices(data.invoices || []);
-    } catch (e) {
-        console.error('Error loading invoices:', e);
-        document.getElementById('invoicesList').innerHTML = '<div class="quotes-empty">Unable to load invoices.</div>';
-    }
-}
-
-function renderInvoices(invoices) {
-    const el = document.getElementById('invoicesList');
-    if (!invoices.length) {
-        el.innerHTML = '<div class="quotes-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>No invoices for this customer yet.</div>';
-        return;
-    }
-    el.innerHTML = invoices.map(inv => {
-        const statusLabels = { draft:'Draft', sent:'Sent', paid:'Paid', overdue:'Overdue', cancelled:'Cancelled' };
-        const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
-        const isPaid = inv.status === 'paid';
-        return '<div class="quote-item">' +
-            '<div class="quote-icon">' + (isPaid ? '✅' : '📄') + '</div>' +
-            '<div class="quote-info"><div class="quote-title">Invoice #' + esc(inv.invoice_number || String(inv.id)) + '</div><div class="quote-subtitle">' + date + (inv.due_date ? ' • Due: ' + new Date(inv.due_date).toLocaleDateString() : '') + '</div></div>' +
-            '<div class="quote-meta"><div class="quote-amount">$' + parseFloat(inv.total || 0).toFixed(2) + '</div>' +
-            '<span class="quote-status status-' + (inv.status || 'draft') + '">' + (statusLabels[inv.status] || inv.status || 'Draft') + '</span>' +
-            '</div></div>';
-    }).join('');
-}
-
-function renderQuotes(quotes) {
-    const el = document.getElementById('quotesList');
-    if (!quotes.length) {
-        el.innerHTML = '<div class="quotes-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>No quotes sent to this customer yet.</div>';
-        return;
-    }
-    el.innerHTML = quotes.map(q => {
-        const statusLabels = { draft:'Draft', sent:'Sent', viewed:'Viewed', signed:'Signed', contracted:'Contracted', declined:'Declined', changes_requested:'Changes' };
-        let services = '';
-        try {
-            const svcArr = typeof q.services === 'string' ? JSON.parse(q.services) : (q.services || []);
-            services = svcArr.map(s => s.name).join(', ');
-        } catch(e) { services = 'Services'; }
-        const date = q.created_at ? new Date(q.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
-        return '<div class="quote-item">' +
-            '<div class="quote-icon">📄</div>' +
-            '<div class="quote-info"><div class="quote-title">Quote #' + esc(q.quote_number || String(q.id)) + '</div><div class="quote-subtitle">' + esc(services) + ' • ' + date + '</div></div>' +
-            '<div class="quote-meta"><div class="quote-amount">$' + parseFloat(q.total || 0).toFixed(2) + '</div>' +
-            '<span class="quote-status status-' + (q.status || 'draft') + '">' + (statusLabels[q.status] || q.status || 'Draft') + '</span>' +
-            '<div class="quote-actions">' +
-            '<button class="quote-action-btn" onclick="window.open(\'sent-quotes.html?quote=' + q.id + '\')" title="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>' +
-            '</div></div></div>';
-    }).join('');
-}
-
 </script>
 </body>
 </html>

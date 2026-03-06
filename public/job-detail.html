@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Detail — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); }
+        h1, h2 { font-family: 'Qualy', serif !important; }
+        .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d; --forest-dark: #1f2b29;
+            --lime: #c9dd80; --lime-soft: #dce9a8;
+            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2; --gray-300: #c8ccc8; --gray-400: #9ca09c;
+            --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0;
+            --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb;
+            --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px; --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; }
+
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar-left h2 { font-size: 24px; color: var(--forest); }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .page-content { padding: 28px 32px; max-width: 1100px; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--gray-500); text-decoration: none; font-size: 13px; font-weight: 500; margin-bottom: 20px; }
+        .back-link:hover { color: var(--forest); }
+        .back-link svg { width: 16px; height: 16px; }
+
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; text-decoration: none; }
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-danger { background: var(--red); color: white; }
+
+        /* Job Header */
+        .job-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+        .job-header-left h1 { font-size: 24px; color: var(--gray-700); margin-bottom: 4px; }
+        .job-meta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .job-meta .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .pill-stage { background: var(--blue-bg); color: var(--blue); }
+        .pill-crew { background: var(--green-bg); color: var(--green); }
+        .pill-recurring { background: var(--purple-bg); color: var(--purple); }
+        .pill-date { background: var(--gray-100); color: var(--gray-600); }
+
+        /* Stats Cards */
+        .profit-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .pcard { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
+        .pcard .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 6px; }
+        .pcard .stat-value { font-size: 26px; font-weight: 700; }
+        .pcard .stat-value.revenue { color: var(--forest); }
+        .pcard .stat-value.cost { color: var(--gray-600); }
+        .pcard .stat-value.profit-pos { color: var(--green); }
+        .pcard .stat-value.profit-neg { color: var(--red); }
+        .pcard .sub { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); margin-bottom: 24px; }
+        .tab { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--gray-400); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+        .tab:hover { color: var(--gray-600); }
+        .tab.active { color: var(--forest); border-bottom-color: var(--forest); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Detail Cards */
+        .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; margin-bottom: 20px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-100); }
+        .card-header h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); }
+        .card-body { padding: 20px; }
+        .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+        .field label { display: block; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+        .field .val { font-size: 14px; color: var(--gray-700); font-weight: 500; }
+        .field .val a { color: var(--forest); text-decoration: none; }
+
+        /* Expenses Table */
+        .expenses-table { width: 100%; border-collapse: collapse; }
+        .expenses-table th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); border-bottom: 1px solid var(--gray-200); }
+        .expenses-table td { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+        .expenses-table tr:hover td { background: var(--gray-50); }
+
+        /* Time Entries */
+        .time-entry { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
+        .time-entry:last-child { border-bottom: none; }
+        .te-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--blue-bg); color: var(--blue); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .te-icon svg { width: 16px; height: 16px; }
+
+        /* Notes */
+        .note-item { padding: 14px 0; border-bottom: 1px solid var(--gray-100); }
+        .note-item:last-child { border-bottom: none; }
+        .note-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .note-author { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+        .note-time { font-size: 11px; color: var(--gray-400); }
+        .note-content { font-size: 13px; color: var(--gray-600); line-height: 1.5; white-space: pre-wrap; }
+        .note-pinned { color: var(--amber); font-size: 11px; font-weight: 600; }
+        .note-actions { display: flex; gap: 8px; margin-top: 6px; }
+        .note-actions button { background: none; border: none; font-size: 11px; color: var(--gray-400); cursor: pointer; font-family: inherit; }
+        .note-actions button:hover { color: var(--forest); }
+        .add-note-box { display: flex; gap: 8px; margin-bottom: 16px; }
+        .add-note-box textarea { flex: 1; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px; outline: none; }
+        .add-note-box textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+
+        /* Recurring Config */
+        .recurring-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .recurring-form .field input, .recurring-form .field select {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 13px; font-family: inherit; outline: none;
+        }
+        .recurring-form .field input:focus, .recurring-form .field select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+
+        /* Add Expense Form */
+        .add-expense-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; padding: 12px 16px; background: var(--gray-50); border-top: 1px solid var(--gray-100); }
+        .add-expense-form .field { flex: 1; min-width: 120px; }
+        .add-expense-form .field label { margin-bottom: 2px; }
+        .add-expense-form input, .add-expense-form select { width: 100%; padding: 6px 10px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 12px; font-family: inherit; }
+
+        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        .margin-bar { height: 8px; border-radius: 4px; background: var(--gray-200); overflow: hidden; margin-top: 8px; }
+        .margin-bar .fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .page-content { padding: 20px 16px; }
+            .topbar { padding: 0 16px; }
+            .profit-cards { grid-template-columns: 1fr 1fr; }
+            .field-row { grid-template-columns: 1fr; }
+            .recurring-form { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="logo.png" alt="YardDesk" onerror="this.outerHTML='<span style=\'font-family:Qualy,serif;font-size:22px;color:var(--forest)\'>YardDesk</span>'"></div>
+    <nav class="sidebar-nav">
+        <div class="nav-section"><div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a></div>
+        <div class="nav-section"><div class="nav-section-label">Clients</div>
+            <a class="nav-item" href="customers.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customers</a>
+            <a class="nav-item" href="properties.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Properties</a></div>
+        <div class="nav-section"><div class="nav-section-label">Work</div>
+            <a class="nav-item" href="quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quotes</a>
+            <a class="nav-item active" href="scheduling.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Scheduling</a>
+            <a class="nav-item" href="dispatch.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Dispatch</a></div>
+        <div class="nav-section"><div class="nav-section-label">Billing</div>
+            <a class="nav-item" href="invoices.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Invoices</a>
+            <a class="nav-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payments</a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="time-tracking.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time Tracking</a>
+            <a class="nav-item" href="pipeline.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Pipeline</a></div>
+    </nav>
+    <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div></div></div>
+</aside>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left"><h2>Job Detail</h2><p id="pageSub">Loading...</p></div>
+        </div>
+        <div id="topbarActions"></div>
+    </div>
+
+    <div class="page-content">
+        <a href="scheduling.html" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Scheduling
+        </a>
+
+        <div id="jobContent"><div class="loading-state"><div class="loading-spinner"></div>Loading job...</div></div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const jobId = new URLSearchParams(window.location.search).get('id');
+let job = null;
+let profitData = null;
+let notes = [];
+
+const stageLabels = { new: 'New', quoted: 'Quoted', scheduled: 'Scheduled', in_progress: 'In Progress', completed: 'Completed', invoiced: 'Invoiced' };
+const stageColors = { new: '--gray-500', quoted: '--amber', scheduled: '--blue', in_progress: '--purple', completed: '--green', invoiced: '--forest' };
+
+async function loadJob() {
+    if (!jobId) { document.getElementById('jobContent').innerHTML = '<p>No job ID provided.</p>'; return; }
+    try {
+        const [jobRes, profitRes, notesRes] = await Promise.all([
+            fetch('/api/jobs/' + jobId),
+            fetch('/api/jobs/' + jobId + '/profitability'),
+            fetch('/api/notes/job/' + jobId)
+        ]);
+        const jobData = await jobRes.json();
+        if (!jobData.success) throw new Error();
+        job = jobData.job;
+
+        const profitJson = await profitRes.json();
+        profitData = profitJson.success ? profitJson : null;
+
+        const notesJson = await notesRes.json();
+        notes = notesJson.success ? notesJson.notes : [];
+
+        document.getElementById('pageSub').textContent = job.service_type + ' — ' + (job.customer_name || '');
+        render();
+    } catch (e) {
+        console.error(e);
+        document.getElementById('jobContent').innerHTML = '<p style="color:var(--red)">Job not found.</p>';
+    }
+}
+
+function render() {
+    const j = job;
+    const stage = j.pipeline_stage || (j.status === 'completed' ? 'completed' : j.status === 'in-progress' ? 'in_progress' : j.status === 'confirmed' ? 'scheduled' : 'new');
+    const date = j.job_date ? new Date(j.job_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    const p = profitData?.profitability || {};
+
+    let html = `
+        <div class="job-header">
+            <div class="job-header-left">
+                <h1>${esc(j.service_type || 'Job')}</h1>
+                <div class="job-meta">
+                    <span class="pill pill-stage">${stageLabels[stage] || stage}</span>
+                    <span class="pill pill-date">${date}</span>
+                    ${j.crew_assigned ? `<span class="pill pill-crew">${esc(j.crew_assigned)}</span>` : ''}
+                    ${j.is_recurring ? '<span class="pill pill-recurring">Recurring</span>' : ''}
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <select id="stageSelect" onchange="changeStage(this.value)" style="padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;">
+                    ${Object.entries(stageLabels).map(([k,v]) => `<option value="${k}"${k===stage?' selected':''}>${v}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+
+        <div class="profit-cards">
+            <div class="pcard"><div class="label">Revenue</div><div class="stat-value revenue">$${(p.revenue||parseFloat(j.service_price)||0).toFixed(2)}</div></div>
+            <div class="pcard"><div class="label">Labor</div><div class="stat-value cost">$${(p.labor_cost||0).toFixed(2)}</div><div class="sub">${(p.labor_hours||0)} hrs</div></div>
+            <div class="pcard"><div class="label">Materials</div><div class="stat-value cost">$${(p.material_cost||0).toFixed(2)}</div></div>
+            <div class="pcard"><div class="label">Expenses</div><div class="stat-value cost">$${(p.expense_total||0).toFixed(2)}</div></div>
+            <div class="pcard"><div class="label">Profit</div><div class="stat-value ${(p.profit||0)>=0?'profit-pos':'profit-neg'}">$${(p.profit||0).toFixed(2)}</div>
+                <div class="sub">${(p.margin||0).toFixed(1)}% margin</div>
+                <div class="margin-bar"><div class="fill" style="width:${Math.max(0,Math.min(100,p.margin||0))}%;background:${(p.margin||0)>=30?'var(--green)':(p.margin||0)>=15?'var(--amber)':'var(--red)'}"></div></div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('details')">Details</div>
+            <div class="tab" onclick="switchTab('expenses')">Expenses</div>
+            <div class="tab" onclick="switchTab('time')">Time</div>
+            <div class="tab" onclick="switchTab('recurring')">Recurring</div>
+            <div class="tab" onclick="switchTab('notes')">Notes (${notes.length})</div>
+        </div>
+
+        <div class="tab-panel active" id="panel-details">${renderDetails()}</div>
+        <div class="tab-panel" id="panel-expenses">${renderExpenses()}</div>
+        <div class="tab-panel" id="panel-time">${renderTimeEntries()}</div>
+        <div class="tab-panel" id="panel-recurring">${renderRecurring()}</div>
+        <div class="tab-panel" id="panel-notes">${renderNotes()}</div>
+    `;
+
+    document.getElementById('jobContent').innerHTML = html;
+}
+
+function renderDetails() {
+    const j = job;
+    return `
+        <div class="card"><div class="card-header"><h3>Job Information</h3></div><div class="card-body">
+            <div class="field-row">
+                <div class="field"><label>Customer</label><div class="val">${j.customer_id ? `<a href="customer-detail.html?id=${j.customer_id}">${esc(j.customer_name)}</a>` : esc(j.customer_name || '—')}</div></div>
+                <div class="field"><label>Service Type</label><div class="val">${esc(j.service_type || '—')}</div></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Address</label><div class="val">${esc(j.address || '—')}</div></div>
+                <div class="field"><label>Phone</label><div class="val">${j.phone ? `<a href="tel:${j.phone}">${esc(j.phone)}</a>` : '—'}</div></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Price</label><div class="val">$${parseFloat(j.service_price||0).toFixed(2)}</div></div>
+                <div class="field"><label>Duration</label><div class="val">${j.estimated_duration || 30} min</div></div>
+            </div>
+            <div class="field-row">
+                <div class="field"><label>Crew</label><div class="val">${esc(j.crew_assigned || '—')}</div></div>
+                <div class="field"><label>Frequency</label><div class="val">${esc(j.service_frequency || '—')}</div></div>
+            </div>
+            ${j.special_notes ? `<div class="field"><label>Special Notes</label><div class="val">${esc(j.special_notes)}</div></div>` : ''}
+            ${j.property_notes ? `<div class="field"><label>Property Notes</label><div class="val">${esc(j.property_notes)}</div></div>` : ''}
+        </div></div>
+    `;
+}
+
+function renderExpenses() {
+    const expenses = profitData?.expenses || [];
+    let rows = '';
+    if (expenses.length) {
+        rows = expenses.map(e => `<tr>
+            <td>${esc(e.description || '—')}</td>
+            <td>${esc(e.category || '—')}</td>
+            <td><strong>$${parseFloat(e.amount).toFixed(2)}</strong></td>
+            <td style="font-size:12px;color:var(--gray-400)">${new Date(e.created_at).toLocaleDateString()}</td>
+            <td><button class="btn btn-sm btn-secondary" onclick="deleteExpense(${e.id})">Delete</button></td>
+        </tr>`).join('');
+    } else {
+        rows = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--gray-400)">No expenses recorded.</td></tr>';
+    }
+    return `
+        <div class="card">
+            <div class="card-header"><h3>Job Expenses</h3></div>
+            <table class="expenses-table"><thead><tr><th>Description</th><th>Category</th><th>Amount</th><th>Date</th><th></th></tr></thead>
+            <tbody>${rows}</tbody></table>
+            <div class="add-expense-form">
+                <div class="field"><label>Description</label><input id="expDesc" placeholder="Materials, supplies..."></div>
+                <div class="field"><label>Category</label><select id="expCat"><option>Materials</option><option>Equipment</option><option>Supplies</option><option>Subcontractor</option><option>Other</option></select></div>
+                <div class="field"><label>Amount</label><input id="expAmt" type="number" step="0.01" placeholder="0.00"></div>
+                <button class="btn btn-primary btn-sm" onclick="addExpense()" style="align-self:flex-end;margin-bottom:1px;">Add</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderTimeEntries() {
+    const entries = profitData?.time_entries || [];
+    if (!entries.length) return '<div class="card"><div class="card-body" style="text-align:center;padding:40px;color:var(--gray-400)">No time entries for this job. Clock in from the Time Tracking page.</div></div>';
+    return `<div class="card"><div class="card-header"><h3>Time Entries</h3></div><div class="card-body">
+        ${entries.map(t => {
+            const start = new Date(t.clock_in);
+            const end = t.clock_out ? new Date(t.clock_out) : null;
+            const hours = end ? ((end - start) / 3600000 - (t.break_minutes || 0) / 60).toFixed(1) : 'Active';
+            return `<div class="time-entry">
+                <div class="te-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600;color:var(--gray-700)">${esc(t.crew_name || 'Crew')}</div>
+                    <div style="font-size:12px;color:var(--gray-400)">${start.toLocaleDateString()} ${start.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}${end ? ' — ' + end.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : ''}</div>
+                </div>
+                <div style="font-size:14px;font-weight:700;color:var(--forest)">${hours}${typeof hours === 'string' ? '' : ' hrs'}</div>
+            </div>`;
+        }).join('')}
+    </div></div>`;
+}
+
+function renderRecurring() {
+    const j = job;
+    return `
+        <div class="card"><div class="card-header"><h3>Recurring Schedule</h3></div><div class="card-body">
+            ${j.is_recurring ? `<p style="margin-bottom:16px;font-size:13px;color:var(--green);font-weight:600;">This job repeats ${j.recurring_pattern || 'weekly'}${j.recurring_end_date ? ' until ' + new Date(j.recurring_end_date).toLocaleDateString() : ''}.</p>` : ''}
+            <div class="recurring-form">
+                <div class="field"><label>Pattern</label><select id="recPattern">
+                    <option value="weekly"${j.recurring_pattern==='weekly'?' selected':''}>Weekly</option>
+                    <option value="biweekly"${j.recurring_pattern==='biweekly'?' selected':''}>Every 2 Weeks</option>
+                    <option value="monthly"${j.recurring_pattern==='monthly'?' selected':''}>Monthly</option>
+                </select></div>
+                <div class="field"><label>Day of Week</label><select id="recDay">
+                    ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d,i) => `<option value="${i}"${j.recurring_day_of_week==i?' selected':''}>${d}</option>`).join('')}
+                </select></div>
+                <div class="field"><label>Start Date</label><input type="date" id="recStart" value="${(j.recurring_start_date || j.job_date || '').split('T')[0]}"></div>
+                <div class="field"><label>End Date</label><input type="date" id="recEnd" value="${(j.recurring_end_date || '').split('T')[0]}"></div>
+                <div class="field"><label>Auto-Generate (weeks)</label><input type="number" id="recWeeks" value="8" min="1" max="52"></div>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="setupRecurring()">Save & Generate Jobs</button>
+            </div>
+        </div></div>
+    `;
+}
+
+function renderNotes() {
+    const notesList = notes.length
+        ? notes.map(n => `<div class="note-item">
+            <div class="note-header">
+                <div><span class="note-author">${esc(n.author_name)}</span>${n.pinned ? ' <span class="note-pinned">PINNED</span>' : ''}</div>
+                <span class="note-time">${fmtTime(new Date(n.created_at))}</span>
+            </div>
+            <div class="note-content">${esc(n.content)}</div>
+            <div class="note-actions">
+                <button onclick="togglePin(${n.id}, ${!n.pinned})">${n.pinned ? 'Unpin' : 'Pin'}</button>
+                <button onclick="deleteNote(${n.id})" style="color:var(--red)">Delete</button>
+            </div>
+        </div>`).join('')
+        : '<p style="text-align:center;padding:20px;color:var(--gray-400)">No internal notes yet.</p>';
+
+    return `
+        <div class="card"><div class="card-header"><h3>Internal Notes</h3></div><div class="card-body">
+            <div class="add-note-box">
+                <textarea id="noteInput" placeholder="Add an internal note... (only visible to your team)"></textarea>
+                <button class="btn btn-primary" onclick="addNote()" style="align-self:flex-start;">Add Note</button>
+            </div>
+            ${notesList}
+        </div></div>
+    `;
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+}
+
+async function changeStage(stage) {
+    try {
+        const res = await fetch(`/api/jobs/${jobId}/pipeline`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage }) });
+        const data = await res.json();
+        if (data.success) { job = data.job; showToast('Stage updated'); render(); }
+    } catch(e) { showToast('Failed to update stage'); }
+}
+
+async function addExpense() {
+    const desc = document.getElementById('expDesc').value;
+    const cat = document.getElementById('expCat').value;
+    const amt = document.getElementById('expAmt').value;
+    if (!amt) return showToast('Enter an amount');
+    try {
+        const res = await fetch(`/api/jobs/${jobId}/expenses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: desc, category: cat, amount: amt }) });
+        if ((await res.json()).success) { showToast('Expense added'); loadJob(); }
+    } catch(e) { showToast('Failed'); }
+}
+
+async function deleteExpense(id) {
+    try {
+        await fetch(`/api/jobs/${jobId}/expenses/${id}`, { method: 'DELETE' });
+        showToast('Expense removed'); loadJob();
+    } catch(e) { showToast('Failed'); }
+}
+
+async function setupRecurring() {
+    const pattern = document.getElementById('recPattern').value;
+    const day_of_week = parseInt(document.getElementById('recDay').value);
+    const start_date = document.getElementById('recStart').value;
+    const end_date = document.getElementById('recEnd').value;
+    const auto_generate_weeks = parseInt(document.getElementById('recWeeks').value);
+    try {
+        const res = await fetch(`/api/jobs/${jobId}/setup-recurring`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pattern, day_of_week, start_date, end_date, auto_generate_weeks })
+        });
+        const data = await res.json();
+        if (data.success) { showToast(`Recurring set up — ${data.generated_jobs} jobs generated`); loadJob(); }
+        else showToast(data.error || 'Failed');
+    } catch(e) { showToast('Failed'); }
+}
+
+async function addNote() {
+    const input = document.getElementById('noteInput');
+    const content = input.value.trim();
+    if (!content) return;
+    try {
+        const res = await fetch(`/api/notes/job/${jobId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+        if ((await res.json()).success) { input.value = ''; showToast('Note added'); loadJob(); }
+    } catch(e) { showToast('Failed'); }
+}
+
+async function togglePin(noteId, pinned) {
+    try {
+        await fetch(`/api/notes/${noteId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned }) });
+        loadJob();
+    } catch(e) {}
+}
+
+async function deleteNote(noteId) {
+    try {
+        await fetch(`/api/notes/${noteId}`, { method: 'DELETE' });
+        showToast('Note deleted'); loadJob();
+    } catch(e) { showToast('Failed'); }
+}
+
+function fmtTime(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '—';
+    const now = new Date(), diff = now - date;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+    return date.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+}
+
+function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+
+document.addEventListener('DOMContentLoaded', loadJob);
+</script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); }
+        h1, h2, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d; --forest-dark: #1f2b29;
+            --lime: #c9dd80; --lime-soft: #dce9a8;
+            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2; --gray-300: #c8ccc8; --gray-400: #9ca09c;
+            --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0;
+            --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb;
+            --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px; --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; overflow-x: hidden; }
+
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar-left h2 { font-size: 28px; color: var(--forest); }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .page-content { padding: 24px 32px; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stats */
+        .stats-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px 20px; min-width: 160px; flex: 1; }
+        .stat-card .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 4px; }
+        .stat-card .stat-value { font-size: 26px; font-weight: 700; color: var(--forest); }
+
+        /* Kanban Board */
+        .kanban { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 20px; min-height: calc(100vh - 220px); }
+        .kanban-col { min-width: 240px; width: 240px; flex-shrink: 0; display: flex; flex-direction: column; }
+        .col-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; }
+        .col-header h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+        .col-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .col-count { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,0.08); }
+        .col-body { flex: 1; min-height: 100px; padding: 4px; border-radius: 8px; transition: background 0.2s, border 0.2s; border: 2px dashed transparent; }
+        .col-body.drag-over { background: var(--lime-soft); border-color: var(--forest); }
+
+        .col-new .col-header { background: var(--gray-100); color: var(--gray-600); }
+        .col-new .col-dot { background: var(--gray-500); }
+        .col-quoted .col-header { background: var(--amber-bg); color: var(--amber); }
+        .col-quoted .col-dot { background: var(--amber); }
+        .col-scheduled .col-header { background: var(--blue-bg); color: var(--blue); }
+        .col-scheduled .col-dot { background: var(--blue); }
+        .col-in_progress .col-header { background: var(--purple-bg); color: var(--purple); }
+        .col-in_progress .col-dot { background: var(--purple); }
+        .col-completed .col-header { background: var(--green-bg); color: var(--green); }
+        .col-completed .col-dot { background: var(--green); }
+        .col-invoiced .col-header { background: rgba(46,64,61,0.1); color: var(--forest); }
+        .col-invoiced .col-dot { background: var(--forest); }
+
+        /* Job Cards */
+        .job-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: grab; transition: all 0.15s; }
+        .job-card:hover { border-color: var(--gray-300); box-shadow: 0 2px 8px rgba(0,0,0,0.06); transform: translateY(-1px); }
+        .job-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+        .job-card .jc-customer { font-size: 13px; font-weight: 700; color: var(--gray-700); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .job-card .jc-service { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+        .job-card .jc-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+        .job-card .jc-date { font-size: 11px; color: var(--gray-400); }
+        .job-card .jc-price { font-size: 13px; font-weight: 700; color: var(--forest); }
+        .job-card .jc-crew { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; background: var(--green-bg); color: var(--green); margin-top: 6px; }
+
+        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .page-content { padding: 16px; }
+            .topbar { padding: 0 16px; }
+            .kanban { flex-direction: column; }
+            .kanban-col { width: 100%; min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="logo.png" alt="YardDesk" onerror="this.outerHTML='<span style=\'font-family:Qualy,serif;font-size:22px;color:var(--forest)\'>YardDesk</span>'"></div>
+    <nav class="sidebar-nav">
+        <div class="nav-section"><div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a></div>
+        <div class="nav-section"><div class="nav-section-label">Clients</div>
+            <a class="nav-item" href="customers.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customers</a>
+            <a class="nav-item" href="properties.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Properties</a></div>
+        <div class="nav-section"><div class="nav-section-label">Work</div>
+            <a class="nav-item" href="quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quotes</a>
+            <a class="nav-item" href="scheduling.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Scheduling</a>
+            <a class="nav-item" href="dispatch.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Dispatch</a></div>
+        <div class="nav-section"><div class="nav-section-label">Billing</div>
+            <a class="nav-item" href="invoices.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Invoices</a>
+            <a class="nav-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payments</a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages</a>
+            <a class="nav-item" href="email-log.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email Log</a>
+            <a class="nav-item" href="campaigns.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Campaigns</a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="time-tracking.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time Tracking</a>
+            <a class="nav-item active" href="pipeline.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Pipeline</a>
+            <a class="nav-item" href="programs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>Programs</a></div>
+    </nav>
+    <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div></div></div>
+</aside>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left"><h2>Pipeline</h2><p>Drag jobs between stages</p></div>
+        </div>
+    </div>
+
+    <div class="page-content">
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card"><div class="label">Total Jobs</div><div class="stat-value" id="statTotal">-</div></div>
+            <div class="stat-card"><div class="label">Revenue in Pipeline</div><div class="stat-value" id="statRevenue">-</div></div>
+            <div class="stat-card"><div class="label">Completed This Month</div><div class="stat-value" id="statCompleted">-</div></div>
+        </div>
+
+        <div class="kanban" id="kanban">
+            <div class="loading-state" style="width:100%"><div class="loading-spinner"></div>Loading pipeline...</div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const stages = [
+    { key: 'new', label: 'New' },
+    { key: 'quoted', label: 'Quoted' },
+    { key: 'scheduled', label: 'Scheduled' },
+    { key: 'in_progress', label: 'In Progress' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'invoiced', label: 'Invoiced' }
+];
+
+let pipelineData = {};
+
+async function loadPipeline() {
+    try {
+        const res = await fetch('/api/jobs/pipeline');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        pipelineData = data.pipeline;
+        renderBoard(data);
+    } catch (e) {
+        document.getElementById('kanban').innerHTML = '<div class="loading-state">Failed to load pipeline.</div>';
+    }
+}
+
+function renderBoard(data) {
+    const counts = data.counts || {};
+    let totalJobs = 0, totalRevenue = 0, completedThisMonth = 0;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    stages.forEach(s => totalJobs += (counts[s.key] || 0));
+
+    Object.values(data.pipeline).flat().forEach(j => {
+        totalRevenue += parseFloat(j.service_price) || 0;
+        if (j.status === 'completed' && j.completed_at && new Date(j.completed_at) >= monthStart) completedThisMonth++;
+    });
+
+    document.getElementById('statTotal').textContent = totalJobs.toLocaleString();
+    document.getElementById('statRevenue').textContent = '$' + totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    document.getElementById('statCompleted').textContent = completedThisMonth.toLocaleString();
+
+    const kanban = document.getElementById('kanban');
+    kanban.innerHTML = stages.map(s => {
+        const jobs = data.pipeline[s.key] || [];
+        const cards = jobs.map(j => renderCard(j)).join('');
+        return `<div class="kanban-col col-${s.key}">
+            <div class="col-header">
+                <h3><span class="col-dot"></span>${s.label}</h3>
+                <span class="col-count">${jobs.length}</span>
+            </div>
+            <div class="col-body" data-stage="${s.key}"
+                ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                ${cards || '<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">No jobs</div>'}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderCard(j) {
+    const date = j.job_date ? new Date(j.job_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    const price = parseFloat(j.service_price) || 0;
+    return `<div class="job-card" draggable="true" data-id="${j.id}"
+        ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)"
+        onclick="window.location.href='job-detail.html?id=${j.id}'">
+        <div class="jc-customer">${esc(j.customer_name || 'Unknown')}</div>
+        <div class="jc-service">${esc(j.service_type || '')}</div>
+        <div class="jc-meta">
+            <span class="jc-date">${date}</span>
+            <span class="jc-price">$${price.toFixed(0)}</span>
+        </div>
+        ${j.crew_assigned ? `<span class="jc-crew">${esc(j.crew_assigned)}</span>` : ''}
+    </div>`;
+}
+
+let draggedId = null;
+
+function handleDragStart(e) {
+    draggedId = e.target.dataset.id;
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedId);
+}
+
+function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.col-body').forEach(el => el.classList.remove('drag-over'));
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+}
+
+async function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const stage = e.currentTarget.dataset.stage;
+    const id = e.dataTransfer.getData('text/plain') || draggedId;
+    if (!id || !stage) return;
+
+    try {
+        const res = await fetch(`/api/jobs/${id}/pipeline`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stage })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Moved to ' + stages.find(s => s.key === stage)?.label);
+            loadPipeline();
+        } else {
+            showToast(data.error || 'Failed');
+        }
+    } catch (err) {
+        showToast('Failed to move job');
+    }
+}
+
+function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+
+document.addEventListener('DOMContentLoaded', loadPipeline);
+</script>
+</body>
+</html>

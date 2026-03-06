@@ -2803,7 +2803,7 @@ app.post('/api/jobs/bulk', async (req, res) => {
 
 app.patch('/api/jobs/:id', async (req, res) => {
   try {
-    const allowed = ['job_date', 'customer_name', 'service_type', 'service_price', 'address', 'phone', 'special_notes', 'property_notes', 'status', 'route_order', 'crew_assigned', 'completed_at'];
+    const allowed = ['job_date', 'customer_name', 'service_type', 'service_price', 'address', 'phone', 'special_notes', 'property_notes', 'status', 'route_order', 'crew_assigned', 'completed_at', 'pipeline_stage', 'is_recurring', 'recurring_pattern', 'recurring_day_of_week', 'recurring_start_date', 'recurring_end_date', 'material_cost', 'labor_cost', 'expense_total', 'invoice_id', 'property_id', 'estimated_duration'];
     const sets = [], vals = [];
     let p = 1;
     Object.keys(req.body).forEach(k => { if (allowed.includes(k)) { sets.push(`${k} = $${p++}`); vals.push(req.body[k]); } });
@@ -9133,6 +9133,281 @@ app.get('/api/t/:trackingId/click', async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════
 
+// ─── Pipeline / Workflow Stages ────────────────────────────────────────────
+
+// GET /api/jobs/pipeline - Jobs grouped by pipeline stage
+app.get('/api/jobs/pipeline', async (req, res) => {
+  try {
+    const stages = ['new', 'quoted', 'scheduled', 'in_progress', 'completed', 'invoiced'];
+    // Map existing statuses to pipeline stages
+    const result = await pool.query(`
+      SELECT *,
+        CASE
+          WHEN pipeline_stage IS NOT NULL AND pipeline_stage != '' THEN pipeline_stage
+          WHEN status = 'completed' THEN 'completed'
+          WHEN status = 'in-progress' THEN 'in_progress'
+          WHEN status = 'confirmed' THEN 'scheduled'
+          ELSE 'new'
+        END as stage
+      FROM scheduled_jobs
+      WHERE status != 'cancelled'
+      ORDER BY job_date DESC
+    `);
+    const grouped = {};
+    stages.forEach(s => grouped[s] = []);
+    result.rows.forEach(j => {
+      const s = stages.includes(j.stage) ? j.stage : 'new';
+      grouped[s].push(j);
+    });
+    const counts = {};
+    stages.forEach(s => counts[s] = grouped[s].length);
+    res.json({ success: true, stages, pipeline: grouped, counts });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// PATCH /api/jobs/:id/pipeline - Move job to a pipeline stage
+app.patch('/api/jobs/:id/pipeline', async (req, res) => {
+  try {
+    const { stage } = req.body;
+    const validStages = ['new', 'quoted', 'scheduled', 'in_progress', 'completed', 'invoiced'];
+    if (!validStages.includes(stage)) return res.status(400).json({ success: false, error: 'Invalid stage' });
+    const statusMap = { new: 'pending', quoted: 'pending', scheduled: 'confirmed', in_progress: 'in-progress', completed: 'completed', invoiced: 'completed' };
+    const result = await pool.query(
+      `UPDATE scheduled_jobs SET pipeline_stage = $1, status = $2, updated_at = NOW() WHERE id = $3 RETURNING *`,
+      [stage, statusMap[stage], req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Job not found' });
+    res.json({ success: true, job: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ─── Recurring Job Scheduling (Enhanced) ───────────────────────────────────
+
+// POST /api/jobs/:id/setup-recurring - Configure recurring schedule
+app.post('/api/jobs/:id/setup-recurring', async (req, res) => {
+  try {
+    const { pattern, day_of_week, start_date, end_date, auto_generate_weeks } = req.body;
+    // pattern: weekly, biweekly, monthly, custom
+    const validPatterns = ['weekly', 'biweekly', 'monthly', 'custom'];
+    if (!validPatterns.includes(pattern)) return res.status(400).json({ success: false, error: 'Invalid pattern' });
+
+    const result = await pool.query(
+      `UPDATE scheduled_jobs SET is_recurring = true, recurring_pattern = $1, recurring_day_of_week = $2, recurring_start_date = $3, recurring_end_date = $4, updated_at = NOW() WHERE id = $5 RETURNING *`,
+      [pattern, day_of_week, start_date, end_date, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Job not found' });
+
+    // Auto-generate upcoming jobs if requested
+    let generated = [];
+    if (auto_generate_weeks && auto_generate_weeks > 0) {
+      const job = result.rows[0];
+      const startDt = new Date(start_date || job.job_date);
+      const endDt = end_date ? new Date(end_date) : new Date(startDt.getTime() + auto_generate_weeks * 7 * 86400000);
+
+      let current = new Date(startDt);
+      const intervalDays = pattern === 'weekly' ? 7 : pattern === 'biweekly' ? 14 : 30;
+      current.setDate(current.getDate() + intervalDays); // skip first (it's the parent)
+
+      while (current <= endDt) {
+        const dateStr = current.toISOString().split('T')[0];
+        // Check for duplicates
+        const exists = await pool.query('SELECT id FROM recurring_job_log WHERE source_job_id = $1 AND generated_for_date = $2', [job.id, dateStr]);
+        if (!exists.rows.length) {
+          const newJob = await pool.query(
+            `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, property_notes, status, estimated_duration, crew_assigned, parent_job_id, property_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$13,$14) RETURNING *`,
+            [dateStr, job.customer_name, job.customer_id, job.service_type, job.service_frequency, job.service_price, job.address, job.phone, job.special_notes, job.property_notes, job.estimated_duration, job.crew_assigned, job.id, job.property_id]
+          );
+          await pool.query('INSERT INTO recurring_job_log (source_job_id, generated_for_date, generated_job_id) VALUES ($1,$2,$3)', [job.id, dateStr, newJob.rows[0].id]);
+          generated.push(newJob.rows[0]);
+        }
+        current.setDate(current.getDate() + intervalDays);
+      }
+    }
+
+    res.json({ success: true, job: result.rows[0], generated_jobs: generated.length, jobs: generated });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ─── Payment Schedule Splitting ────────────────────────────────────────────
+
+// POST /api/invoices/:id/payment-schedule - Split invoice into installments
+app.post('/api/invoices/:id/payment-schedule', async (req, res) => {
+  try {
+    const { installments } = req.body; // Array of { amount, due_date, label }
+    if (!installments || !Array.isArray(installments) || installments.length < 2) {
+      return res.status(400).json({ success: false, error: 'Need at least 2 installments' });
+    }
+    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (!inv.rows.length) return res.status(404).json({ success: false, error: 'Invoice not found' });
+
+    const total = parseFloat(inv.rows[0].total);
+    const scheduleTotal = installments.reduce((sum, i) => sum + parseFloat(i.amount), 0);
+    if (Math.abs(scheduleTotal - total) > 0.01) {
+      return res.status(400).json({ success: false, error: `Installments total $${scheduleTotal.toFixed(2)} doesn't match invoice total $${total.toFixed(2)}` });
+    }
+
+    const schedule = installments.map((inst, idx) => ({
+      number: idx + 1,
+      amount: parseFloat(inst.amount),
+      due_date: inst.due_date,
+      label: inst.label || `Payment ${idx + 1} of ${installments.length}`,
+      status: 'pending'
+    }));
+
+    await pool.query(
+      `UPDATE invoices SET payment_schedule = $1, installment_count = $2, updated_at = NOW() WHERE id = $3`,
+      [JSON.stringify(schedule), installments.length, req.params.id]
+    );
+
+    res.json({ success: true, schedule, installment_count: installments.length });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/invoices/:id/payment-schedule
+app.get('/api/invoices/:id/payment-schedule', async (req, res) => {
+  try {
+    const inv = await pool.query('SELECT id, total, amount_paid, payment_schedule, installment_count FROM invoices WHERE id = $1', [req.params.id]);
+    if (!inv.rows.length) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const schedule = inv.rows[0].payment_schedule || [];
+    // Mark paid installments based on amount_paid
+    let remaining = parseFloat(inv.rows[0].amount_paid) || 0;
+    const updated = (Array.isArray(schedule) ? schedule : []).map(inst => {
+      if (remaining >= inst.amount) { remaining -= inst.amount; return { ...inst, status: 'paid' }; }
+      if (remaining > 0) { const partial = remaining; remaining = 0; return { ...inst, status: 'partial', paid: partial }; }
+      return { ...inst, status: 'pending' };
+    });
+    res.json({ success: true, schedule: updated, total: parseFloat(inv.rows[0].total), amount_paid: parseFloat(inv.rows[0].amount_paid) || 0 });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ─── Job Detail / Profitability ────────────────────────────────────────────
+
+// GET /api/jobs/:id/profitability - Full job P&L
+app.get('/api/jobs/:id/profitability', async (req, res) => {
+  try {
+    const job = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [req.params.id]);
+    if (!job.rows.length) return res.status(404).json({ success: false, error: 'Job not found' });
+    const j = job.rows[0];
+
+    // Get expenses
+    let expenses = [];
+    try { expenses = (await pool.query('SELECT * FROM job_expenses WHERE job_id = $1 ORDER BY created_at DESC', [j.id])).rows; } catch(e) {}
+
+    // Get time entries for labor cost
+    let timeEntries = [];
+    try { timeEntries = (await pool.query('SELECT * FROM time_entries WHERE job_id = $1', [j.id])).rows; } catch(e) {}
+
+    const laborHours = timeEntries.reduce((sum, t) => {
+      if (!t.clock_in || !t.clock_out) return sum;
+      return sum + (new Date(t.clock_out) - new Date(t.clock_in)) / 3600000 - (t.break_minutes || 0) / 60;
+    }, 0);
+    const laborRate = 35; // TODO: configurable per crew
+    const laborCost = parseFloat(j.labor_cost) || (laborHours * laborRate);
+    const materialCost = parseFloat(j.material_cost) || 0;
+    const expenseTotal = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const revenue = parseFloat(j.service_price) || 0;
+    const totalCost = laborCost + materialCost + expenseTotal;
+    const profit = revenue - totalCost;
+    const margin = revenue > 0 ? (profit / revenue * 100) : 0;
+
+    res.json({
+      success: true,
+      profitability: {
+        revenue,
+        labor_cost: laborCost,
+        labor_hours: Math.round(laborHours * 100) / 100,
+        material_cost: materialCost,
+        expense_total: expenseTotal,
+        total_cost: totalCost,
+        profit,
+        margin: Math.round(margin * 10) / 10
+      },
+      expenses,
+      time_entries: timeEntries
+    });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/jobs/:id/expenses - Add expense to job
+app.post('/api/jobs/:id/expenses', async (req, res) => {
+  try {
+    const { description, category, amount, receipt_url, created_by } = req.body;
+    if (!amount) return res.status(400).json({ success: false, error: 'Amount required' });
+    const result = await pool.query(
+      `INSERT INTO job_expenses (job_id, description, category, amount, receipt_url, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.id, description, category, parseFloat(amount), receipt_url, created_by]
+    );
+    // Update job expense_total
+    const total = await pool.query('SELECT COALESCE(SUM(amount),0) as total FROM job_expenses WHERE job_id = $1', [req.params.id]);
+    await pool.query('UPDATE scheduled_jobs SET expense_total = $1 WHERE id = $2', [total.rows[0].total, req.params.id]);
+    res.json({ success: true, expense: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// DELETE /api/jobs/:id/expenses/:expenseId
+app.delete('/api/jobs/:id/expenses/:expenseId', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM job_expenses WHERE id = $1 AND job_id = $2', [req.params.expenseId, req.params.id]);
+    const total = await pool.query('SELECT COALESCE(SUM(amount),0) as total FROM job_expenses WHERE job_id = $1', [req.params.id]);
+    await pool.query('UPDATE scheduled_jobs SET expense_total = $1 WHERE id = $2', [total.rows[0].total, req.params.id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ─── Internal Notes ────────────────────────────────────────────────────────
+
+// GET /api/notes/:entityType/:entityId
+app.get('/api/notes/:entityType/:entityId', async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM internal_notes WHERE entity_type = $1 AND entity_id = $2 ORDER BY pinned DESC, created_at DESC',
+      [entityType, parseInt(entityId)]
+    );
+    res.json({ success: true, notes: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/notes/:entityType/:entityId
+app.post('/api/notes/:entityType/:entityId', async (req, res) => {
+  try {
+    const { entityType, entityId } = req.params;
+    const { content, pinned } = req.body;
+    if (!content || !content.trim()) return res.status(400).json({ success: false, error: 'Content required' });
+    const authorName = req.adminUser?.name || 'Unknown';
+    const authorId = req.adminUser?.id || null;
+    const result = await pool.query(
+      `INSERT INTO internal_notes (entity_type, entity_id, author_name, author_id, content, pinned) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [entityType, parseInt(entityId), authorName, authorId, content.trim(), pinned || false]
+    );
+    res.json({ success: true, note: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// PATCH /api/notes/:id - Update note
+app.patch('/api/notes/:id', async (req, res) => {
+  try {
+    const { content, pinned } = req.body;
+    const sets = ['updated_at = NOW()'];
+    const vals = [];
+    let p = 1;
+    if (content !== undefined) { sets.push(`content = $${p++}`); vals.push(content); }
+    if (pinned !== undefined) { sets.push(`pinned = $${p++}`); vals.push(pinned); }
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE internal_notes SET ${sets.join(',')} WHERE id = $${p} RETURNING *`, vals);
+    res.json({ success: true, note: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// DELETE /api/notes/:id
+app.delete('/api/notes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM internal_notes WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
 // ─── Email Log API ─────────────────────────────────────────────────────────
 
 // Global email log with filters
@@ -9499,10 +9774,57 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS parent_job_id INTEGER',
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT false',
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS recurring_pattern VARCHAR(50)',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS recurring_day_of_week INTEGER',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS recurring_start_date DATE',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(30) DEFAULT \'pending\'',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS material_cost DECIMAL(10,2) DEFAULT 0',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS labor_cost DECIMAL(10,2) DEFAULT 0',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS expense_total DECIMAL(10,2) DEFAULT 0',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS invoice_id INTEGER',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS property_id INTEGER',
   ];
   for (const sql of jobNewCols) {
     try { await pool.query(sql); } catch(e) { /* */ }
   }
+
+  // Add new columns to invoices for payment schedules
+  const invoicePayCols = [
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_schedule JSONB',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS installment_count INTEGER DEFAULT 1',
+  ];
+  for (const sql of invoicePayCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  // Internal notes table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS internal_notes (
+      id SERIAL PRIMARY KEY,
+      entity_type VARCHAR(30) NOT NULL,
+      entity_id INTEGER NOT NULL,
+      author_name VARCHAR(255),
+      author_id INTEGER,
+      content TEXT NOT NULL,
+      pinned BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_notes_entity ON internal_notes (entity_type, entity_id)`);
+  } catch(e) {}
+
+  // Job expenses table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS job_expenses (
+      id SERIAL PRIMARY KEY,
+      job_id INTEGER NOT NULL,
+      description VARCHAR(500),
+      category VARCHAR(100),
+      amount DECIMAL(10,2) NOT NULL,
+      receipt_url TEXT,
+      created_by VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch(e) {}
 
   // Add new columns to customers
   const customerNewCols = [

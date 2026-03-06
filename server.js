@@ -11478,6 +11478,46 @@ app.all('/api/voice/twiml', (req, res) => {
   res.send(twiml.toString());
 });
 
+// ─── Voicemails (proxy to webhook server) ─────────────────────────────────────
+
+const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
+
+app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
+  try {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls?status=voicemail&limit=100`);
+    if (!response.ok) throw new Error('Webhook fetch failed');
+    const data = await response.json();
+    const voicemails = (data.calls || []).map(c => ({
+      id: c.id,
+      phoneNumber: c.from_number || '',
+      contactName: c.customer_name || null,
+      duration: c.duration ? parseInt(c.duration) : 0,
+      transcription: c.transcription || null,
+      timestamp: c.created_at || '',
+      audioUrl: c.recording_url || null,
+      listened: c.read || false,
+    }));
+    res.json({ voicemails });
+  } catch (err) {
+    console.error('Voicemails proxy error:', err);
+    res.status(500).json({ error: 'Failed to fetch voicemails' });
+  }
+});
+
+app.post('/api/app/voicemails/:id/play', authenticateToken, async (req, res) => {
+  try {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls/${req.params.id}/read`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error('Webhook update failed');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Voicemail mark-played error:', err);
+    res.status(500).json({ error: 'Failed to mark voicemail as played' });
+  }
+});
+
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
 process.on('SIGTERM', async () => { await pool.end(); process.exit(0); });

@@ -541,6 +541,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     Geocode
                 </button>
+                <button class="btn btn-secondary" id="lassoBtn" onclick="toggleLassoMode()" title="Draw to select jobs on the map, then assign to crew">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
+                    Lasso
+                </button>
                 <button class="btn btn-primary" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Optimize Route
@@ -576,7 +580,7 @@
         <div class="map-container" id="mapContainer">
             <div id="routeMap"></div>
             <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(46,64,61,0.85);color:#c9dd80;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:600;pointer-events:none;">
-                Hold Shift + drag to select jobs on the map
+                Click Lasso then drag to select jobs — or hold Shift + drag
             </div>
         </div>
 
@@ -881,6 +885,7 @@ let drawingRect = false;
 let rectStart = null;
 let drawRect = null;
 let routeLines = [];
+let lassoMode = false;
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -918,9 +923,9 @@ function initMap() {
     }).addTo(routeMap);
     setTimeout(() => routeMap.invalidateSize(), 200);
 
-    // Draw-to-select: hold Shift + drag to draw a rectangle and select jobs
+    // Draw-to-select: Lasso mode (toggle via button) OR hold Shift + drag
     routeMap.on('mousedown', function(e) {
-        if (!e.originalEvent.shiftKey) return;
+        if (!lassoMode && !e.originalEvent.shiftKey) return;
         drawingRect = true;
         rectStart = e.latlng;
         routeMap.dragging.disable();
@@ -941,8 +946,8 @@ function initMap() {
         mapMarkers.forEach(m => {
             if (bounds.contains(m.getLatLng())) {
                 selectedJobs.add(m.jobId);
-                // Highlight the marker
-                m.getElement()?.querySelector('div')?.style && (m.getElement().querySelector('div').style.outline = '3px solid #c9dd80');
+                const el = m.getElement();
+                if (el) { const d = el.querySelector('div'); if (d) d.style.outline = '3px solid #c9dd80'; }
             }
         });
         if (selectedJobs.size > 0) {
@@ -950,9 +955,27 @@ function initMap() {
             showToast(`Selected ${selectedJobs.size} job${selectedJobs.size > 1 ? 's' : ''} — use bulk actions above`);
         }
         rectStart = null;
-        // Remove rectangle after a moment
         setTimeout(() => { if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; } }, 2000);
+        // Auto-exit lasso mode after selection
+        if (lassoMode) toggleLassoMode();
     });
+}
+
+function toggleLassoMode() {
+    lassoMode = !lassoMode;
+    const btn = document.getElementById('lassoBtn');
+    if (lassoMode) {
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-primary');
+        btn.style.background = '#d97706';
+        showToast('Lasso mode ON — drag on the map to select jobs');
+        if (routeMap) routeMap.getContainer().style.cursor = 'crosshair';
+    } else {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
+        btn.style.background = '';
+        if (routeMap) routeMap.getContainer().style.cursor = '';
+    }
 }
 
 function toggleMap() {
@@ -1239,6 +1262,12 @@ async function loadBoard() {
         (data.unassigned || []).forEach(j => allJobs.push(j));
         updateMapMarkers(allJobs);
 
+        // Auto-geocode if many jobs are missing lat/lng
+        const missingGeo = allJobs.filter(j => !j.lat || !j.lng).length;
+        if (missingGeo > 0 && allJobs.length > 0) {
+            autoGeocodeInBackground();
+        }
+
         if (currentView === 'day') {
             renderDayView(data);
             dayBoard.style.display = 'flex';
@@ -1355,6 +1384,21 @@ function getAvailabilityClass(totalHours) {
 /* ═══════════════════════════════════════════════════════════
    GEOCODE & OPTIMIZE ROUTE
    ═══════════════════════════════════════════════════════════ */
+async function autoGeocodeInBackground() {
+    try {
+        const res = await fetch('/api/dispatch/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate) })
+        });
+        const data = await res.json();
+        if (data.success && data.geocoded > 0) {
+            showToast(`Auto-geocoded ${data.geocoded} jobs — refreshing map`);
+            loadBoard();
+        }
+    } catch (e) { /* silent fail */ }
+}
+
 async function geocodeAllJobs() {
     showToast('Geocoding job addresses... this may take a few minutes for 100+ jobs');
     try {

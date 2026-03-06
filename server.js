@@ -5310,7 +5310,8 @@ app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
       let contactName = null;
      const customerResult = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedPhone}`]);
 if (customerResult.rows.length > 0) contactName = customerResult.rows[0].name;
-      return { id: call.sid, phoneNumber, direction: call.direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
+      const twilioNumber = call.direction === 'inbound' ? call.to : call.from;
+      return { id: call.sid, phoneNumber, twilioNumber, direction: call.direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
     }));
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayCalls = enrichedCalls.filter(c => new Date(c.timestamp) >= today).length;

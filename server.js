@@ -10623,6 +10623,100 @@ app.get('/api/ai/campaign-segments', async (req, res) => {
   }
 });
 
+// ─── Twilio Voice SDK: Access Token ─────────────────────────────────────────
+app.get('/api/app/voice/token', authenticateToken, (req, res) => {
+  try {
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
+
+    const identity = req.user.email;
+
+    const accessToken = new AccessToken(
+      TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_API_KEY_SID,
+      process.env.TWILIO_API_KEY_SECRET,
+      { identity }
+    );
+
+    const voiceGrant = new VoiceGrant({
+      outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID,
+      incomingAllow: true,
+    });
+
+    accessToken.addGrant(voiceGrant);
+
+    console.log('Voice token generated for:', identity);
+    res.json({ token: accessToken.toJwt(), identity });
+  } catch (error) {
+    console.error('Voice token error:', error);
+    res.status(500).json({ error: 'Failed to generate voice token' });
+  }
+});
+
+// ─── Twilio Voice SDK: TwiML for outgoing calls from app ────────────────────
+app.all('/api/voice/twiml', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const to = req.body.To || req.query.To;
+
+  if (to) {
+    const dial = twiml.dial({
+      callerId: req.body.From || TWILIO_PHONE_NUMBER,
+    });
+
+    if (to.startsWith('client:')) {
+      dial.client(to.replace('client:', ''));
+    } else {
+      dial.number(to);
+    }
+  } else {
+    twiml.say('No destination specified.');
+  }
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// ─── Voicemails (proxy to webhook server) ─────────────────────────────────────
+
+const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
+
+app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
+  try {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls?status=voicemail&limit=100`);
+    if (!response.ok) throw new Error('Webhook fetch failed');
+    const data = await response.json();
+    const voicemails = (data.calls || []).map(c => ({
+      id: c.id,
+      phoneNumber: c.from_number || '',
+      contactName: c.customer_name || null,
+      duration: c.duration ? parseInt(c.duration) : 0,
+      transcription: c.transcription || null,
+      timestamp: c.created_at || '',
+      audioUrl: c.recording_url || null,
+      listened: c.read || false,
+    }));
+    res.json({ voicemails });
+  } catch (err) {
+    console.error('Voicemails proxy error:', err);
+    res.status(500).json({ error: 'Failed to fetch voicemails' });
+  }
+});
+
+app.post('/api/app/voicemails/:id/play', authenticateToken, async (req, res) => {
+  try {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls/${req.params.id}/read`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error('Webhook update failed');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Voicemail mark-played error:', err);
+    res.status(500).json({ error: 'Failed to mark voicemail as played' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 
 app.get('*', (req, res) => {
@@ -11494,100 +11588,6 @@ app.get('/api/kpi/detailed', async (req, res) => {
   } catch (error) {
     console.error('KPI detailed error:', error);
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ─── Twilio Voice SDK: Access Token ─────────────────────────────────────────
-app.get('/api/app/voice/token', authenticateToken, (req, res) => {
-  try {
-    const AccessToken = twilio.jwt.AccessToken;
-    const VoiceGrant = AccessToken.VoiceGrant;
-
-    const identity = req.user.email;
-
-    const accessToken = new AccessToken(
-      TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_API_KEY_SID,
-      process.env.TWILIO_API_KEY_SECRET,
-      { identity }
-    );
-
-    const voiceGrant = new VoiceGrant({
-      outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID,
-      incomingAllow: true,
-    });
-
-    accessToken.addGrant(voiceGrant);
-
-    console.log('Voice token generated for:', identity);
-    res.json({ token: accessToken.toJwt(), identity });
-  } catch (error) {
-    console.error('Voice token error:', error);
-    res.status(500).json({ error: 'Failed to generate voice token' });
-  }
-});
-
-// ─── Twilio Voice SDK: TwiML for outgoing calls from app ────────────────────
-app.all('/api/voice/twiml', (req, res) => {
-  const VoiceResponse = twilio.twiml.VoiceResponse;
-  const twiml = new VoiceResponse();
-  const to = req.body.To || req.query.To;
-
-  if (to) {
-    const dial = twiml.dial({
-      callerId: req.body.From || TWILIO_PHONE_NUMBER,
-    });
-
-    if (to.startsWith('client:')) {
-      dial.client(to.replace('client:', ''));
-    } else {
-      dial.number(to);
-    }
-  } else {
-    twiml.say('No destination specified.');
-  }
-
-  res.type('text/xml');
-  res.send(twiml.toString());
-});
-
-// ─── Voicemails (proxy to webhook server) ─────────────────────────────────────
-
-const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
-
-app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
-  try {
-    const response = await fetch(`${WEBHOOK_BASE}/api/calls?status=voicemail&limit=100`);
-    if (!response.ok) throw new Error('Webhook fetch failed');
-    const data = await response.json();
-    const voicemails = (data.calls || []).map(c => ({
-      id: c.id,
-      phoneNumber: c.from_number || '',
-      contactName: c.customer_name || null,
-      duration: c.duration ? parseInt(c.duration) : 0,
-      transcription: c.transcription || null,
-      timestamp: c.created_at || '',
-      audioUrl: c.recording_url || null,
-      listened: c.read || false,
-    }));
-    res.json({ voicemails });
-  } catch (err) {
-    console.error('Voicemails proxy error:', err);
-    res.status(500).json({ error: 'Failed to fetch voicemails' });
-  }
-});
-
-app.post('/api/app/voicemails/:id/play', authenticateToken, async (req, res) => {
-  try {
-    const response = await fetch(`${WEBHOOK_BASE}/api/calls/${req.params.id}/read`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!response.ok) throw new Error('Webhook update failed');
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Voicemail mark-played error:', err);
-    res.status(500).json({ error: 'Failed to mark voicemail as played' });
   }
 });
 

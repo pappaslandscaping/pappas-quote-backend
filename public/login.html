@@ -379,7 +379,7 @@
             // Check if already logged in on page load
             // ------------------------------------------------------------------
             async function checkExistingSession() {
-                const token = localStorage.getItem('token');
+                const token = localStorage.getItem('adminToken');
                 if (!token) return;
 
                 try {
@@ -390,7 +390,7 @@
                         window.location.href = 'index.html';
                     } else {
                         // Token is invalid — clear stale data
-                        localStorage.removeItem('token');
+                        localStorage.removeItem('adminToken');
                         localStorage.removeItem('adminName');
                         localStorage.removeItem('adminEmail');
                     }
@@ -468,7 +468,7 @@
 
                     if (res.ok) {
                         // Store session data
-                        if (data.token) localStorage.setItem('token', data.token);
+                        if (data.token) localStorage.setItem('adminToken', data.token);
                         if (data.adminName || data.name) localStorage.setItem('adminName', data.adminName || data.name);
                         if (data.adminEmail || data.email) localStorage.setItem('adminEmail', data.adminEmail || data.email);
 

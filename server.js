@@ -6272,16 +6272,19 @@ app.post('/api/cron/process-followups', async (req, res) => {
       try {
         const stage = followup.current_stage + 1;
         
-        // Send email
+        // Send email (only if automated emails are enabled)
+        const emailsOn = await areAutomatedEmailsEnabled();
         const emailContent = getFollowupEmailContent(followup, stage);
-        if (emailContent && followup.customer_email) {
+        if (emailsOn && emailContent && followup.customer_email) {
           await sendEmail(followup.customer_email, emailContent.subject, emailContent.html);
           results.emails_sent++;
           console.log(`📧 Email sent to ${followup.customer_email} (Stage ${stage})`);
+        } else if (!emailsOn) {
+          console.log(`📧 Email SKIPPED (automated emails OFF) for ${followup.customer_email} (Stage ${stage})`);
         }
-        
-        // Send SMS for stages 2-4 (when Twilio A2P is approved)
-        if (stage >= 2 && followup.customer_phone) {
+
+        // Send SMS for stages 2-4 (only if automated emails are enabled)
+        if (emailsOn && stage >= 2 && followup.customer_phone) {
           const smsText = getFollowupSMS(followup, stage);
           if (smsText && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
             try {
@@ -6371,16 +6374,19 @@ app.get('/api/cron/process-followups', async (req, res) => {
       try {
         const stage = followup.current_stage + 1;
         
-        // Send email
+        // Send email (only if automated emails are enabled)
+        const emailsOn = await areAutomatedEmailsEnabled();
         const emailContent = getFollowupEmailContent(followup, stage);
-        if (emailContent && followup.customer_email) {
+        if (emailsOn && emailContent && followup.customer_email) {
           await sendEmail(followup.customer_email, emailContent.subject, emailContent.html);
           results.emails_sent++;
           console.log(`📧 Email sent to ${followup.customer_email} (Stage ${stage})`);
+        } else if (!emailsOn) {
+          console.log(`📧 Email SKIPPED (automated emails OFF) for ${followup.customer_email} (Stage ${stage})`);
         }
-        
-        // Send SMS for stages 2-4 (when Twilio A2P is approved)
-        if (stage >= 2 && followup.customer_phone) {
+
+        // Send SMS for stages 2-4 (only if automated emails are enabled)
+        if (emailsOn && stage >= 2 && followup.customer_phone) {
           const smsText = getFollowupSMS(followup, stage);
           if (smsText && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
             try {
@@ -6522,6 +6528,21 @@ app.patch('/api/jobs/:id/recurring', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// ═══ AUTOMATED EMAIL KILL SWITCH ═════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+async function areAutomatedEmailsEnabled() {
+  try {
+    const result = await pool.query("SELECT value FROM business_settings WHERE key = 'automated_emails_enabled'");
+    if (result.rows.length === 0) return false; // Default OFF for safety
+    const val = result.rows[0].value;
+    return val === true || val === 'true';
+  } catch (err) {
+    console.log('⚠️ Could not check automated_emails_enabled setting, defaulting to OFF');
+    return false;
+  }
+}
+
 // ═══ DAILY AUTOMATION CRON ══════════════════════════════════
 // ═══════════════════════════════════════════════════════════
 
@@ -6585,10 +6606,9 @@ async function processMonthlyPlanInvoices() {
         );
         await pool.query('INSERT INTO recurring_invoice_log (customer_id, billing_month, invoice_id) VALUES ($1, $2, $3)', [cust.id, billingMonth, inv.rows[0].id]);
         results.generated++;
-        // Auto-send with payment link
-        const config = await pool.query("SELECT value FROM business_settings WHERE key = 'recurring_invoice_config'");
-        const autoSend = config.rows.length > 0 ? config.rows[0].value.auto_send !== false : true;
-        if (autoSend && cust.email) {
+        // Auto-send with payment link (only if automated emails are enabled)
+        const emailsOn = await areAutomatedEmailsEnabled();
+        if (emailsOn && cust.email) {
           const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
           const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
           const content = `
@@ -6645,8 +6665,9 @@ async function processLateFees() {
         const newTotal = await pool.query('SELECT COALESCE(SUM(fee_amount), 0) as total FROM late_fees WHERE invoice_id = $1 AND waived = false', [inv.id]);
         await pool.query("UPDATE invoices SET late_fee_total = $1, status = 'overdue', updated_at = NOW() WHERE id = $2", [newTotal.rows[0].total, inv.id]);
         results.applied++;
-        // Send late fee email
-        if (inv.customer_email) {
+        // Send late fee email (only if automated emails are enabled)
+        const emailsOn = await areAutomatedEmailsEnabled();
+        if (emailsOn && inv.customer_email) {
           const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
           const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
           const content = `
@@ -6673,13 +6694,14 @@ async function processLateFees() {
 // POST /api/cron/daily-automation - Combined daily cron
 app.post('/api/cron/daily-automation', async (req, res) => {
   try {
-    console.log('🔄 Running daily automation...');
+    const emailsOn = await areAutomatedEmailsEnabled();
+    console.log(`🔄 Running daily automation... (automated emails: ${emailsOn ? 'ON' : 'OFF'})`);
     const [recurringJobs, monthlyInvoices, lateFees] = await Promise.all([
       processRecurringJobs(),
       processMonthlyPlanInvoices(),
       processLateFees()
     ]);
-    const result = { recurringJobs, monthlyInvoices, lateFees, timestamp: new Date().toISOString() };
+    const result = { recurringJobs, monthlyInvoices, lateFees, automated_emails_enabled: emailsOn, timestamp: new Date().toISOString() };
     console.log('✅ Daily automation complete:', JSON.stringify(result));
     res.json({ success: true, ...result });
   } catch (error) {
@@ -6691,13 +6713,14 @@ app.post('/api/cron/daily-automation', async (req, res) => {
 // GET /api/cron/daily-automation - Allow GET for cron-job.org
 app.get('/api/cron/daily-automation', async (req, res) => {
   try {
-    console.log('🔄 Running daily automation (GET)...');
+    const emailsOn = await areAutomatedEmailsEnabled();
+    console.log(`🔄 Running daily automation (GET)... (automated emails: ${emailsOn ? 'ON' : 'OFF'})`);
     const [recurringJobs, monthlyInvoices, lateFees] = await Promise.all([
       processRecurringJobs(),
       processMonthlyPlanInvoices(),
       processLateFees()
     ]);
-    const result = { recurringJobs, monthlyInvoices, lateFees, timestamp: new Date().toISOString() };
+    const result = { recurringJobs, monthlyInvoices, lateFees, automated_emails_enabled: emailsOn, timestamp: new Date().toISOString() };
     console.log('✅ Daily automation complete:', JSON.stringify(result));
     res.json({ success: true, ...result });
   } catch (error) {
@@ -9308,6 +9331,72 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     try { await pool.query(sql); } catch(e) { /* */ }
   }
 
+  // Time tracking table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS time_entries (
+      id SERIAL PRIMARY KEY,
+      crew_id INTEGER,
+      crew_name VARCHAR(255),
+      job_id INTEGER,
+      customer_name VARCHAR(255),
+      address VARCHAR(500),
+      service_type VARCHAR(100),
+      clock_in TIMESTAMP NOT NULL,
+      clock_out TIMESTAMP,
+      break_minutes INTEGER DEFAULT 0,
+      notes TEXT,
+      status VARCHAR(20) DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch(e) {}
+
+  // Dispatch templates table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS dispatch_templates (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      zip_codes TEXT,
+      crew_id INTEGER,
+      service_type VARCHAR(100),
+      default_duration INTEGER DEFAULT 30,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch(e) {}
+
+  // Service programs table (multi-step)
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS service_programs (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      status VARCHAR(20) DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS program_steps (
+      id SERIAL PRIMARY KEY,
+      program_id INTEGER NOT NULL REFERENCES service_programs(id) ON DELETE CASCADE,
+      step_order INTEGER NOT NULL,
+      service_type VARCHAR(100) NOT NULL,
+      description TEXT,
+      estimated_duration INTEGER DEFAULT 30,
+      offset_days INTEGER DEFAULT 0,
+      price DECIMAL(10,2),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS customer_programs (
+      id SERIAL PRIMARY KEY,
+      customer_id INTEGER NOT NULL,
+      program_id INTEGER NOT NULL,
+      property_id INTEGER,
+      start_date DATE NOT NULL,
+      current_step INTEGER DEFAULT 1,
+      status VARCHAR(20) DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch(e) {}
+
+  console.log('✅ Time tracking, dispatch templates, and service programs tables ready');
   console.log('✅ All CopilotCRM column migrations ready');
 
   // Seed default late fee settings (matches contract terms at Section V)
@@ -9426,6 +9515,252 @@ app.put('/api/work-requests/:id', async (req, res) => {
     const result = await pool.query(`UPDATE service_requests SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, request: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ TIME TRACKING ENDPOINTS ══════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/time-entries', async (req, res) => {
+  try {
+    const { date, crew_id, status, limit = 100, offset = 0 } = req.query;
+    let query = 'SELECT * FROM time_entries WHERE 1=1';
+    const params = [];
+    let p = 1;
+    if (date) { query += ` AND clock_in::date = $${p++}`; params.push(date); }
+    if (crew_id) { query += ` AND crew_id = $${p++}`; params.push(crew_id); }
+    if (status) { query += ` AND status = $${p++}`; params.push(status); }
+    query += ` ORDER BY clock_in DESC LIMIT $${p++} OFFSET $${p}`;
+    params.push(limit, offset);
+    const result = await pool.query(query, params);
+    const countResult = await pool.query('SELECT COUNT(*) FROM time_entries');
+    res.json({ success: true, entries: result.rows, total: parseInt(countResult.rows[0].count) });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/time-entries/stats', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const active = await pool.query("SELECT COUNT(*) FROM time_entries WHERE status = 'active' AND clock_out IS NULL");
+    const todayEntries = await pool.query("SELECT COUNT(*) FROM time_entries WHERE clock_in::date = $1", [today]);
+    const todayHours = await pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in::date = $1", [today]);
+    const weekHours = await pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in >= date_trunc('week', CURRENT_DATE)");
+    const activeEntries = await pool.query("SELECT * FROM time_entries WHERE status = 'active' AND clock_out IS NULL ORDER BY clock_in DESC");
+    res.json({ success: true, stats: {
+      activeClockedIn: parseInt(active.rows[0].count),
+      todayEntries: parseInt(todayEntries.rows[0].count),
+      todayHours: parseFloat(todayHours.rows[0].hours).toFixed(1),
+      weekHours: parseFloat(weekHours.rows[0].hours).toFixed(1),
+      activeEntries: activeEntries.rows
+    }});
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/time-entries/clock-in', async (req, res) => {
+  try {
+    const { crew_id, crew_name, job_id, customer_name, address, service_type, notes } = req.body;
+    if (!crew_name) return res.status(400).json({ success: false, error: 'Crew name required' });
+    const result = await pool.query(
+      `INSERT INTO time_entries (crew_id, crew_name, job_id, customer_name, address, service_type, clock_in, notes) VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7) RETURNING *`,
+      [crew_id, crew_name, job_id, customer_name, address, service_type, notes]
+    );
+    res.json({ success: true, entry: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/time-entries/:id/clock-out', async (req, res) => {
+  try {
+    const { break_minutes, notes } = req.body;
+    const sets = ["clock_out = NOW()", "status = 'completed'"];
+    const params = [];
+    let p = 1;
+    if (break_minutes !== undefined) { sets.push(`break_minutes = $${p++}`); params.push(break_minutes); }
+    if (notes !== undefined) { sets.push(`notes = $${p++}`); params.push(notes); }
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE time_entries SET ${sets.join(', ')} WHERE id = $${p} AND clock_out IS NULL RETURNING *`, params);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Entry not found or already clocked out' });
+    res.json({ success: true, entry: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.put('/api/time-entries/:id', async (req, res) => {
+  try {
+    const { clock_in, clock_out, break_minutes, notes, crew_name, customer_name, address, service_type } = req.body;
+    const result = await pool.query(
+      `UPDATE time_entries SET clock_in = COALESCE($1, clock_in), clock_out = COALESCE($2, clock_out), break_minutes = COALESCE($3, break_minutes), notes = COALESCE($4, notes), crew_name = COALESCE($5, crew_name), customer_name = COALESCE($6, customer_name), address = COALESCE($7, address), service_type = COALESCE($8, service_type) WHERE id = $9 RETURNING *`,
+      [clock_in, clock_out, break_minutes, notes, crew_name, customer_name, address, service_type, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, entry: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.delete('/api/time-entries/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM time_entries WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/time-entries/weekly-report', async (req, res) => {
+  try {
+    const { week_start } = req.query;
+    const startDate = week_start || new Date(Date.now() - new Date().getDay() * 86400000).toISOString().split('T')[0];
+    const result = await pool.query(`
+      SELECT crew_name,
+        COUNT(*) as total_entries,
+        COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as total_hours,
+        COALESCE(SUM(break_minutes), 0) as total_break_minutes
+      FROM time_entries
+      WHERE clock_in::date >= $1 AND clock_in::date < ($1::date + INTERVAL '7 days')
+      GROUP BY crew_name ORDER BY crew_name
+    `, [startDate]);
+    res.json({ success: true, report: result.rows, weekStart: startDate });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ DISPATCH TEMPLATES ENDPOINTS ═════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/dispatch-templates', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT dt.*, c.name as crew_display_name FROM dispatch_templates dt LEFT JOIN crews c ON dt.crew_id = c.id ORDER BY dt.name');
+    res.json({ success: true, templates: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/dispatch-templates', async (req, res) => {
+  try {
+    const { name, zip_codes, crew_id, service_type, default_duration, notes } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
+    const result = await pool.query(
+      'INSERT INTO dispatch_templates (name, zip_codes, crew_id, service_type, default_duration, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, zip_codes, crew_id, service_type, default_duration || 30, notes]
+    );
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.put('/api/dispatch-templates/:id', async (req, res) => {
+  try {
+    const { name, zip_codes, crew_id, service_type, default_duration, notes } = req.body;
+    const result = await pool.query(
+      'UPDATE dispatch_templates SET name=$1, zip_codes=$2, crew_id=$3, service_type=$4, default_duration=$5, notes=$6 WHERE id=$7 RETURNING *',
+      [name, zip_codes, crew_id, service_type, default_duration, notes, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.delete('/api/dispatch-templates/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM dispatch_templates WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// Quick dispatch: find template by zip code, create job
+app.post('/api/dispatch-templates/quick-dispatch', async (req, res) => {
+  try {
+    const { address, zip_code, customer_name, customer_id, job_date } = req.body;
+    if (!zip_code || !job_date) return res.status(400).json({ success: false, error: 'Zip code and date required' });
+    // Find matching template
+    const templates = await pool.query("SELECT * FROM dispatch_templates WHERE zip_codes LIKE $1", [`%${zip_code}%`]);
+    if (templates.rows.length === 0) return res.status(404).json({ success: false, error: 'No template found for zip ' + zip_code });
+    const t = templates.rows[0];
+    const job = await pool.query(
+      `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, address, crew_assigned, estimated_duration, status) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
+      [job_date, customer_name, customer_id, t.service_type, address, t.crew_id, t.default_duration]
+    );
+    res.json({ success: true, job: job.rows[0], template: t });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ SERVICE PROGRAMS ENDPOINTS ═══════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/service-programs', async (req, res) => {
+  try {
+    const programs = await pool.query('SELECT * FROM service_programs ORDER BY name');
+    // Get step counts
+    const steps = await pool.query('SELECT program_id, COUNT(*) as step_count FROM program_steps GROUP BY program_id');
+    const stepMap = {};
+    steps.rows.forEach(s => stepMap[s.program_id] = parseInt(s.step_count));
+    const result = programs.rows.map(p => ({ ...p, step_count: stepMap[p.id] || 0 }));
+    res.json({ success: true, programs: result });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/service-programs/:id', async (req, res) => {
+  try {
+    const program = await pool.query('SELECT * FROM service_programs WHERE id = $1', [req.params.id]);
+    if (program.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const steps = await pool.query('SELECT * FROM program_steps WHERE program_id = $1 ORDER BY step_order', [req.params.id]);
+    const enrollments = await pool.query('SELECT cp.*, c.name as customer_name FROM customer_programs cp LEFT JOIN customers c ON cp.customer_id = c.id WHERE cp.program_id = $1 ORDER BY cp.created_at DESC', [req.params.id]);
+    res.json({ success: true, program: program.rows[0], steps: steps.rows, enrollments: enrollments.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/service-programs', async (req, res) => {
+  try {
+    const { name, description, steps } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
+    const program = await pool.query('INSERT INTO service_programs (name, description) VALUES ($1, $2) RETURNING *', [name, description]);
+    const programId = program.rows[0].id;
+    if (steps && steps.length > 0) {
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        await pool.query('INSERT INTO program_steps (program_id, step_order, service_type, description, estimated_duration, offset_days, price) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [programId, i + 1, s.service_type, s.description, s.estimated_duration || 30, s.offset_days || 0, s.price]);
+      }
+    }
+    res.json({ success: true, program: program.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.put('/api/service-programs/:id', async (req, res) => {
+  try {
+    const { name, description, status, steps } = req.body;
+    await pool.query('UPDATE service_programs SET name = COALESCE($1, name), description = COALESCE($2, description), status = COALESCE($3, status) WHERE id = $4', [name, description, status, req.params.id]);
+    if (steps) {
+      await pool.query('DELETE FROM program_steps WHERE program_id = $1', [req.params.id]);
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        await pool.query('INSERT INTO program_steps (program_id, step_order, service_type, description, estimated_duration, offset_days, price) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [req.params.id, i + 1, s.service_type, s.description, s.estimated_duration || 30, s.offset_days || 0, s.price]);
+      }
+    }
+    const updated = await pool.query('SELECT * FROM service_programs WHERE id = $1', [req.params.id]);
+    res.json({ success: true, program: updated.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/service-programs/:id/enroll', async (req, res) => {
+  try {
+    const { customer_id, property_id, start_date } = req.body;
+    if (!customer_id || !start_date) return res.status(400).json({ success: false, error: 'Customer ID and start date required' });
+    const enrollment = await pool.query(
+      'INSERT INTO customer_programs (customer_id, program_id, property_id, start_date) VALUES ($1, $2, $3, $4) RETURNING *',
+      [customer_id, req.params.id, property_id, start_date]
+    );
+    // Generate jobs for all steps
+    const steps = await pool.query('SELECT * FROM program_steps WHERE program_id = $1 ORDER BY step_order', [req.params.id]);
+    const customer = await pool.query('SELECT * FROM customers WHERE id = $1', [customer_id]);
+    const cust = customer.rows[0] || {};
+    for (const step of steps.rows) {
+      const jobDate = new Date(new Date(start_date).getTime() + step.offset_days * 86400000).toISOString().split('T')[0];
+      await pool.query(
+        `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, address, service_price, estimated_duration, status, special_notes) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)`,
+        [jobDate, cust.name, customer_id, step.service_type, cust.street || '', step.price || 0, step.estimated_duration, `Program step ${step.step_order}: ${step.description || ''}`]
+      );
+    }
+    res.json({ success: true, enrollment: enrollment.rows[0], jobsCreated: steps.rows.length });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 

@@ -6472,6 +6472,94 @@ app.patch('/api/settings/:key', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// ═══ BULK WAIVE & APOLOGY EMAIL ═════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// POST /api/late-fees/bulk-waive-today - Waive all late fees created today and send apology
+app.post('/api/late-fees/bulk-waive-today', async (req, res) => {
+  try {
+    // 1. Find all late fees created today
+    const todayFees = await pool.query(`
+      SELECT lf.*, i.customer_email, i.customer_name, i.invoice_number
+      FROM late_fees lf
+      LEFT JOIN invoices i ON lf.invoice_id = i.id
+      WHERE lf.created_at::date = CURRENT_DATE AND lf.waived = false
+    `);
+
+    console.log(`🔧 Bulk waiving ${todayFees.rows.length} late fees from today...`);
+
+    // 2. Waive them all
+    const waiveResult = await pool.query(`
+      UPDATE late_fees SET waived = true, waived_at = NOW(), waived_by = 'system-rollback'
+      WHERE created_at::date = CURRENT_DATE AND waived = false
+      RETURNING id, invoice_id
+    `);
+
+    // 3. Recalculate invoice totals
+    const invoiceIds = [...new Set(waiveResult.rows.map(r => r.invoice_id))];
+    for (const invId of invoiceIds) {
+      const totals = await pool.query('SELECT COALESCE(SUM(fee_amount), 0) as total FROM late_fees WHERE invoice_id = $1 AND waived = false', [invId]);
+      await pool.query('UPDATE invoices SET late_fee_total = $1, updated_at = NOW() WHERE id = $2', [totals.rows[0].total, invId]);
+    }
+
+    // 4. Send apology email to each unique customer
+    const uniqueEmails = {};
+    for (const fee of todayFees.rows) {
+      if (fee.customer_email && !uniqueEmails[fee.customer_email]) {
+        uniqueEmails[fee.customer_email] = {
+          email: fee.customer_email,
+          name: fee.customer_name
+        };
+      }
+    }
+
+    let emailsSent = 0;
+    let emailErrors = 0;
+    const sendApology = req.body.send_apology !== false; // default true
+
+    if (sendApology) {
+      for (const cust of Object.values(uniqueEmails)) {
+        try {
+          const firstName = (cust.name || '').split(' ')[0] || 'Valued Customer';
+          const content = `
+            <h2 style="color:#2e403d;margin:0 0 16px;">Our Apologies — Please Disregard</h2>
+            <p>Hi ${firstName},</p>
+            <p>You may have recently received an email from Pappas & Co. Landscaping regarding a <strong>late fee notification</strong>. We sincerely apologize — <strong>this was sent in error</strong> during an internal system test.</p>
+            <div style="background:#ecfdf5;border-radius:8px;padding:16px;margin:20px 0;border-left:4px solid #059669;">
+              <p style="margin:0;font-weight:700;color:#059669;">No action is needed on your part.</p>
+              <p style="margin:8px 0 0;color:#333;">Your account has not been affected. Any late fees referenced in that email have been removed from your account.</p>
+            </div>
+            <p>We take the accuracy of our communications seriously and are taking steps to ensure this does not happen again.</p>
+            <p>If you have any questions or concerns, please don't hesitate to reach out to us directly.</p>
+            <p>Thank you for your patience and understanding.</p>
+            <p style="margin-top:24px;">Warm regards,<br><strong>Tim Pappas</strong><br>Pappas & Co. Landscaping<br>440-897-0957</p>
+          `;
+          await sendEmail(cust.email, 'Our Apologies — Please Disregard Previous Email', emailTemplate(content));
+          emailsSent++;
+        } catch (err) {
+          emailErrors++;
+          console.error(`Failed to send apology to ${cust.email}:`, err.message);
+        }
+      }
+    }
+
+    console.log(`✅ Bulk waive complete: ${waiveResult.rowCount} fees waived, ${invoiceIds.length} invoices updated, ${emailsSent} apology emails sent`);
+
+    res.json({
+      success: true,
+      fees_waived: waiveResult.rowCount,
+      invoices_updated: invoiceIds.length,
+      unique_customers: Object.keys(uniqueEmails).length,
+      apology_emails_sent: emailsSent,
+      apology_email_errors: emailErrors
+    });
+  } catch (error) {
+    console.error('Bulk waive error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
 // ═══ LATE FEES ══════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
 

@@ -652,7 +652,7 @@ async function loadQuotes() {
         const quotes = data.quotes || [];
         document.getElementById('panel-quotes').innerHTML = quotes.length ? quotes.map(q => {
             const date = q.created_at ? new Date(q.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
-            return `<div class="list-item" onclick="window.open('sent-quotes.html?quote=${q.id}')">
+            return `<div class="list-item" onclick="window.location.href='sent-quote-detail.html?id=${q.id}'">
                 <div class="li-info"><div class="li-title">Quote #${esc(q.quote_number||String(q.id))}</div><div class="li-sub">${date}</div></div>
                 <div class="li-right"><div class="li-amount">$${parseFloat(q.total||0).toFixed(2)}</div><div class="li-status ${q.status||'draft'}">${q.status||'draft'}</div></div>
             </div>`;

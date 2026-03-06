@@ -172,6 +172,11 @@
         .badge-succeeded, .badge-success { background: #ecfdf5; color: #059669; }
         .badge-pending { background: #fffbeb; color: #d97706; }
         .badge-failed { background: #fef0f0; color: #dc4a4a; }
+        .badge-approved { background: #ecfdf5; color: #059669; }
+        .badge-completed { background: #eff6ff; color: #3b82f6; }
+        .badge-declined { background: #fef0f0; color: #dc4a4a; }
+        .badge-accepted { background: #ecfdf5; color: #059669; }
+        .badge-expired { background: #f0f2f0; color: #6e726e; }
 
         /* Invoice Cards */
         .invoice-card {
@@ -386,6 +391,369 @@
             margin-bottom: 14px;
         }
 
+        /* Saved Cards */
+        .saved-cards-section {
+            margin-top: 28px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+        }
+        .saved-card-item {
+            background: white;
+            border: 1px solid #e2e5e2;
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .saved-card-item:hover {
+            border-color: #c9dd80;
+        }
+        .saved-card-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: #1e2e2c;
+            font-weight: 500;
+        }
+        .saved-card-expiry {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 400;
+        }
+        .remove-card-btn {
+            padding: 5px 14px;
+            background: #fef0f0;
+            color: #dc4a4a;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .remove-card-btn:hover {
+            background: #fde2e2;
+        }
+        .card-placeholder {
+            background: #f8faf8;
+            border: 1px dashed #d1d5db;
+            border-radius: 10px;
+            padding: 16px 20px;
+            font-size: 13px;
+            color: #6b7280;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        /* Service Request Form */
+        .service-form {
+            background: #f8faf8;
+            border: 1px solid #e2e5e2;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 28px;
+        }
+        .service-form .form-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e2e2c;
+            margin-bottom: 16px;
+        }
+        .form-row {
+            margin-bottom: 14px;
+        }
+        .form-row label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+        .form-row select,
+        .form-row textarea,
+        .form-row input[type="date"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+        }
+        .form-row select:focus,
+        .form-row textarea:focus,
+        .form-row input[type="date"]:focus {
+            border-color: #2e403d;
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+        .form-row textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .form-row-inline {
+            display: flex;
+            gap: 14px;
+        }
+        .form-row-inline .form-row {
+            flex: 1;
+        }
+        .submit-btn {
+            padding: 11px 24px;
+            background: #2e403d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .submit-btn:hover {
+            background: #1e2e2c;
+        }
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Service Request Cards */
+        .request-card {
+            background: white;
+            border: 1px solid #e2e5e2;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .request-card:hover {
+            border-color: #c9dd80;
+        }
+        .request-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .request-card-header h4 {
+            font-size: 15px;
+            color: #1e2e2c;
+        }
+        .request-card-meta {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .request-card-desc {
+            font-size: 13px;
+            color: #4b5563;
+            margin-top: 6px;
+        }
+
+        /* Quote Cards */
+        .quote-card {
+            background: white;
+            border: 1px solid #e2e5e2;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .quote-card:hover {
+            border-color: #c9dd80;
+        }
+        .quote-info h4 {
+            font-size: 15px;
+            color: #1e2e2c;
+            margin-bottom: 4px;
+        }
+        .quote-info .quote-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .quote-info .quote-meta span + span::before {
+            content: '\00b7';
+            margin: 0 6px;
+        }
+        .quote-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .quote-amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e2e2c;
+        }
+        .review-btn {
+            display: inline-block;
+            padding: 7px 18px;
+            background: #c9dd80;
+            color: #1e2e2c;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .review-btn:hover {
+            background: #b8cf65;
+        }
+
+        /* History Cards */
+        .history-card {
+            background: white;
+            border: 1px solid #e2e5e2;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .history-card:hover {
+            border-color: #c9dd80;
+        }
+        .history-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+        .history-card-header h4 {
+            font-size: 15px;
+            color: #1e2e2c;
+        }
+        .history-price {
+            font-size: 16px;
+            font-weight: 700;
+            color: #059669;
+        }
+        .history-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .history-meta span + span::before {
+            content: '\00b7';
+            margin: 0 6px;
+        }
+        .history-notes {
+            font-size: 13px;
+            color: #6b7280;
+            font-style: italic;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #f0f2f0;
+        }
+        .history-photos {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .history-photos img {
+            width: 72px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #e2e5e2;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .history-photos img:hover {
+            opacity: 0.85;
+        }
+
+        /* Communication Preferences */
+        .prefs-section {
+            margin-top: 28px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+        }
+        .prefs-section .section-heading {
+            margin-bottom: 16px;
+        }
+        .pref-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f2f0;
+        }
+        .pref-row:last-of-type {
+            border-bottom: none;
+        }
+        .pref-label {
+            font-size: 14px;
+            color: #1e2e2c;
+            font-weight: 500;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #d1d5db;
+            border-radius: 24px;
+            transition: background 0.3s;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: #2e403d;
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+        .save-prefs-btn {
+            margin-top: 18px;
+            padding: 10px 24px;
+            background: #2e403d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .save-prefs-btn:hover {
+            background: #1e2e2c;
+        }
+        .save-prefs-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         /* Responsive */
         @media (max-width: 600px) {
             .container {
@@ -401,23 +769,32 @@
             .logo img {
                 max-width: 240px;
             }
-            .invoice-card, .payment-card {
+            .invoice-card, .payment-card, .quote-card {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 12px;
             }
-            .invoice-right, .payment-right {
+            .invoice-right, .payment-right, .quote-right {
                 align-items: flex-start;
                 flex-direction: row;
                 width: 100%;
                 justify-content: space-between;
             }
+            .form-row-inline {
+                flex-direction: column;
+                gap: 0;
+            }
+            .saved-card-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
             .tabs {
                 gap: 0;
             }
             .tab-btn {
-                padding: 10px 8px;
-                font-size: 13px;
+                padding: 10px 4px;
+                font-size: 11px;
             }
             .contact-info .contact-divider {
                 display: none;
@@ -457,6 +834,9 @@
                     <div class="tabs">
                         <button class="tab-btn active" data-tab="invoices" onclick="switchTab('invoices')">Invoices</button>
                         <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">Payments</button>
+                        <button class="tab-btn" data-tab="services" onclick="switchTab('services')">Services</button>
+                        <button class="tab-btn" data-tab="quotes" onclick="switchTab('quotes')">Quotes</button>
+                        <button class="tab-btn" data-tab="history" onclick="switchTab('history')">History</button>
                         <button class="tab-btn" data-tab="account" onclick="switchTab('account')">Account</button>
                     </div>
                     <div id="tabContent">
@@ -613,6 +993,9 @@
 
             if (tab === 'invoices') loadInvoices(portalToken);
             else if (tab === 'payments') loadPayments(portalToken);
+            else if (tab === 'services') loadServices(portalToken);
+            else if (tab === 'quotes') loadQuotes(portalToken);
+            else if (tab === 'history') loadHistory(portalToken);
             else if (tab === 'account') renderAccount();
         }
 
@@ -714,21 +1097,111 @@
                 const payments = data.payments || data || [];
 
                 if (payments.length === 0) {
-                    content.innerHTML = `
+                    let emptyHtml = `
                         <div class="empty-state">
                             <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></svg>
                             <p>No payments recorded yet.</p>
                         </div>`;
+                    emptyHtml += '<div class="saved-cards-section">';
+                    emptyHtml += '<div class="section-heading">Saved Cards</div>';
+                    emptyHtml += '<div id="savedCardsList"><div class="loading"><div class="spinner"></div></div></div>';
+                    emptyHtml += '</div>';
+                    content.innerHTML = emptyHtml;
+                    loadSavedCards(token);
                     return;
                 }
 
                 let html = '';
+                if (payments.length > 0) {
+                    html += '<div class="section-heading">Payment History</div>';
+                }
                 payments.forEach(pay => {
                     html += renderPaymentCard(pay);
                 });
+
+                // Add saved cards section
+                html += '<div class="saved-cards-section">';
+                html += '<div class="section-heading">Saved Cards</div>';
+                html += '<div id="savedCardsList"><div class="loading"><div class="spinner"></div></div></div>';
+                html += '</div>';
+
                 content.innerHTML = html;
+
+                // Load saved cards
+                loadSavedCards(token);
             } catch (err) {
                 content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        }
+
+        async function loadSavedCards(token) {
+            const container = document.getElementById('savedCardsList');
+            if (!container) return;
+
+            try {
+                const res = await fetch(`/api/portal/${token}/cards`);
+                if (!res.ok) throw new Error('Failed to load saved cards');
+
+                const data = await res.json();
+                const cards = data.cards || data || [];
+
+                let html = '';
+                if (cards.length === 0) {
+                    html += '<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">No saved cards on file.</p>';
+                } else {
+                    cards.forEach(card => {
+                        const brand = escapeHtml(card.card_brand || card.brand || 'Card');
+                        const last4 = escapeHtml(card.last_4 || card.last4 || '****');
+                        const expMonth = card.exp_month || '';
+                        const expYear = card.exp_year || '';
+                        const expiry = expMonth && expYear ? `${String(expMonth).padStart(2,'0')}/${String(expYear).slice(-2)}` : '';
+                        const cardId = card.id || card.card_id || '';
+
+                        html += `
+                            <div class="saved-card-item" id="saved-card-${cardId}">
+                                <div class="saved-card-info">
+                                    <span>${brand} ending in ${last4}</span>
+                                    ${expiry ? `<span class="saved-card-expiry">Exp ${expiry}</span>` : ''}
+                                </div>
+                                <button class="remove-card-btn" onclick="removeSavedCard('${cardId}')">Remove</button>
+                            </div>`;
+                    });
+                }
+
+                html += `<div class="card-placeholder">To add a card on file, please pay an invoice using the &ldquo;Save card for future payments&rdquo; option.</div>`;
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<p style="font-size:13px;color:#6b7280;">Could not load saved cards.</p>
+                    <div class="card-placeholder">To add a card on file, please pay an invoice using the &ldquo;Save card for future payments&rdquo; option.</div>`;
+            }
+        }
+
+        async function removeSavedCard(cardId) {
+            if (!confirm('Remove this saved card?')) return;
+
+            const cardEl = document.getElementById(`saved-card-${cardId}`);
+            const btn = cardEl ? cardEl.querySelector('.remove-card-btn') : null;
+            if (btn) { btn.disabled = true; btn.textContent = 'Removing...'; }
+
+            try {
+                const res = await fetch(`/api/portal/${portalToken}/cards/${cardId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Failed to remove card');
+
+                if (cardEl) cardEl.remove();
+
+                // Check if there are remaining cards
+                const remaining = document.querySelectorAll('.saved-card-item');
+                if (remaining.length === 0) {
+                    const container = document.getElementById('savedCardsList');
+                    if (container) {
+                        const placeholder = container.querySelector('.card-placeholder');
+                        const placeholderHtml = placeholder ? placeholder.outerHTML : '';
+                        container.innerHTML = '<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">No saved cards on file.</p>' + placeholderHtml;
+                    }
+                }
+            } catch (err) {
+                alert(err.message);
+                if (btn) { btn.disabled = false; btn.textContent = 'Remove'; }
             }
         }
 
@@ -786,6 +1259,314 @@
             }
         }
 
+        // ── Services Tab ──────────────────────────────────────────────────
+        async function loadServices(token) {
+            const content = document.getElementById('tabContent');
+
+            let html = '';
+
+            // Service request form
+            html += `
+                <div class="service-form">
+                    <div class="form-title">Request a Service</div>
+                    <div class="form-row">
+                        <label for="serviceType">Service Type</label>
+                        <select id="serviceType">
+                            <option value="">Select a service...</option>
+                            <option value="Mowing">Mowing</option>
+                            <option value="Cleanup">Cleanup</option>
+                            <option value="Mulching">Mulching</option>
+                            <option value="Aeration">Aeration</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label for="serviceDesc">Description</label>
+                        <textarea id="serviceDesc" placeholder="Describe what you need..."></textarea>
+                    </div>
+                    <div class="form-row-inline">
+                        <div class="form-row">
+                            <label for="serviceDate">Preferred Date</label>
+                            <input type="date" id="serviceDate">
+                        </div>
+                        <div class="form-row">
+                            <label for="serviceUrgency">Urgency</label>
+                            <select id="serviceUrgency">
+                                <option value="normal">Normal</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="submit-btn" id="submitServiceBtn" onclick="submitServiceRequest()">Submit Request</button>
+                    <div id="serviceFormMessage"></div>
+                </div>`;
+
+            // Past requests list
+            html += '<div class="section-heading">Your Requests</div>';
+            html += '<div id="serviceRequestsList"><div class="loading"><div class="spinner"></div></div></div>';
+
+            content.innerHTML = html;
+
+            // Set default date to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const dateInput = document.getElementById('serviceDate');
+            if (dateInput) {
+                dateInput.value = tomorrow.toISOString().split('T')[0];
+            }
+
+            // Load existing requests
+            loadServiceRequests(token);
+        }
+
+        async function loadServiceRequests(token) {
+            const container = document.getElementById('serviceRequestsList');
+            if (!container) return;
+
+            try {
+                const res = await fetch(`/api/portal/${token}/service-requests`);
+                if (!res.ok) throw new Error('Failed to load requests');
+
+                const data = await res.json();
+                const requests = data.requests || data || [];
+
+                if (requests.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+                            <p>No service requests yet. Submit one above!</p>
+                        </div>`;
+                    return;
+                }
+
+                let html = '';
+                requests.forEach(req => {
+                    const status = req.status || 'pending';
+                    const statusClass = getServiceStatusClass(status);
+                    const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+                    const serviceType = escapeHtml(req.service_type || req.type || 'Service');
+                    const date = req.preferred_date || req.created_at || '';
+                    const desc = req.description || '';
+                    const urgency = req.urgency || 'normal';
+
+                    html += `
+                        <div class="request-card">
+                            <div class="request-card-header">
+                                <h4>${serviceType}${urgency === 'urgent' ? ' <span style="color:#d97706;font-size:12px;">URGENT</span>' : ''}</h4>
+                                <span class="badge badge-${statusClass}">${statusLabel}</span>
+                            </div>
+                            <div class="request-card-meta">
+                                ${date ? `Preferred date: ${formatDate(date)}` : ''}
+                                ${req.created_at ? ` &middot; Submitted ${formatDate(req.created_at)}` : ''}
+                            </div>
+                            ${desc ? `<div class="request-card-desc">${escapeHtml(desc)}</div>` : ''}
+                        </div>`;
+                });
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        }
+
+        function getServiceStatusClass(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'pending': return 'pending';
+                case 'approved': return 'approved';
+                case 'completed': return 'completed';
+                case 'declined': return 'declined';
+                default: return 'pending';
+            }
+        }
+
+        async function submitServiceRequest() {
+            const serviceType = document.getElementById('serviceType').value;
+            const description = document.getElementById('serviceDesc').value.trim();
+            const preferredDate = document.getElementById('serviceDate').value;
+            const urgency = document.getElementById('serviceUrgency').value;
+            const msgEl = document.getElementById('serviceFormMessage');
+            const btn = document.getElementById('submitServiceBtn');
+
+            if (!serviceType) {
+                msgEl.innerHTML = '<div class="message message-error" style="margin-top:12px;">Please select a service type.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+            msgEl.innerHTML = '';
+
+            try {
+                const res = await fetch(`/api/portal/${portalToken}/service-requests`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        service_type: serviceType,
+                        description: description,
+                        preferred_date: preferredDate,
+                        urgency: urgency
+                    })
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || 'Failed to submit request');
+                }
+
+                msgEl.innerHTML = '<div class="message message-success" style="margin-top:12px;">Service request submitted successfully!</div>';
+                btn.textContent = 'Submit Request';
+                btn.disabled = false;
+
+                // Reset form
+                document.getElementById('serviceType').value = '';
+                document.getElementById('serviceDesc').value = '';
+                document.getElementById('serviceUrgency').value = 'normal';
+
+                // Reload requests list
+                loadServiceRequests(portalToken);
+            } catch (err) {
+                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${err.message}</div>`;
+                btn.textContent = 'Submit Request';
+                btn.disabled = false;
+            }
+        }
+
+        // ── Quotes Tab ───────────────────────────────────────────────────
+        async function loadQuotes(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/quotes`);
+                if (!res.ok) throw new Error('Failed to load quotes');
+
+                const data = await res.json();
+                const quotes = data.quotes || data || [];
+
+                if (quotes.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>
+                            <p>No pending quotes.</p>
+                        </div>`;
+                    return;
+                }
+
+                let html = '<div class="section-heading">Pending Quotes</div>';
+                quotes.forEach(quote => {
+                    html += renderQuoteCard(quote);
+                });
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        }
+
+        function renderQuoteCard(quote) {
+            const quoteNumber = quote.quote_number || quote.number || `#${quote.id}`;
+            const total = formatCurrency(quote.total || quote.amount || 0);
+            const date = quote.date || quote.created_at || quote.quote_date;
+            const status = quote.status || 'sent';
+            const statusClass = getQuoteStatusClass(status);
+            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+            const signingToken = quote.signing_token || '';
+
+            let reviewButton = '';
+            if (signingToken && (status === 'sent' || status === 'pending')) {
+                reviewButton = `<a href="/sign-quote.html?token=${signingToken}" class="review-btn">Review &amp; Approve</a>`;
+            }
+
+            return `
+                <div class="quote-card">
+                    <div class="quote-info">
+                        <h4>Quote ${escapeHtml(quoteNumber)}</h4>
+                        <div class="quote-meta">
+                            ${date ? `<span>${formatDate(date)}</span>` : ''}
+                            <span class="badge badge-${statusClass}" style="margin-left:4px;">${statusLabel}</span>
+                        </div>
+                    </div>
+                    <div class="quote-right">
+                        <span class="quote-amount">${total}</span>
+                        ${reviewButton}
+                    </div>
+                </div>`;
+        }
+
+        function getQuoteStatusClass(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'sent': case 'pending': return 'sent';
+                case 'accepted': case 'approved': return 'accepted';
+                case 'declined': case 'rejected': return 'declined';
+                case 'expired': return 'expired';
+                default: return 'draft';
+            }
+        }
+
+        // ── History Tab ──────────────────────────────────────────────────
+        async function loadHistory(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/service-history`);
+                if (!res.ok) throw new Error('Failed to load service history');
+
+                const data = await res.json();
+                const jobs = data.jobs || data.history || data || [];
+
+                if (jobs.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <p>No completed jobs yet.</p>
+                        </div>`;
+                    return;
+                }
+
+                let html = '<div class="section-heading">Completed Jobs</div>';
+                jobs.forEach(job => {
+                    html += renderHistoryCard(job);
+                });
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        }
+
+        function renderHistoryCard(job) {
+            const date = job.completion_date || job.date || job.completed_at || '';
+            const serviceType = escapeHtml(job.service_type || job.type || 'Service');
+            const address = escapeHtml(job.address || job.property_address || '');
+            const crew = escapeHtml(job.crew || job.crew_name || '');
+            const price = job.price || job.total || job.amount || 0;
+            const notes = job.completion_notes || job.notes || '';
+            const photos = job.completion_photos || job.photos || [];
+
+            let photosHtml = '';
+            if (Array.isArray(photos) && photos.length > 0) {
+                photosHtml = '<div class="history-photos">';
+                photos.forEach(url => {
+                    photosHtml += `<img src="${escapeHtml(url)}" alt="Completion photo" onclick="window.open('${escapeHtml(url)}','_blank')">`;
+                });
+                photosHtml += '</div>';
+            }
+
+            let notesHtml = '';
+            if (notes) {
+                notesHtml = `<div class="history-notes">${escapeHtml(notes)}</div>`;
+            }
+
+            return `
+                <div class="history-card">
+                    <div class="history-card-header">
+                        <h4>${serviceType}</h4>
+                        ${price ? `<span class="history-price">${formatCurrency(price)}</span>` : ''}
+                    </div>
+                    <div class="history-meta">
+                        ${date ? `<span>${formatDate(date)}</span>` : ''}
+                        ${address ? `<span>${address}</span>` : ''}
+                        ${crew ? `<span>Crew: ${crew}</span>` : ''}
+                    </div>
+                    ${notesHtml}
+                    ${photosHtml}
+                </div>`;
+        }
+
         // ── Account Tab ─────────────────────────────────────────────────
         function renderAccount() {
             const c = customerData || {};
@@ -816,7 +1597,17 @@
                     <div class="account-actions">
                         <button onclick="requestNewLink()">Request New Access Link</button>
                     </div>
+
+                    <div class="prefs-section">
+                        <div class="section-heading">Communication Preferences</div>
+                        <div id="prefsContainer">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
                 </div>`;
+
+            // Load communication preferences
+            loadPreferences();
         }
 
         function formatAddress(c) {
@@ -848,6 +1639,105 @@
                 btn.textContent = 'Request New Access Link';
                 btn.disabled = false;
                 alert(err.message);
+            }
+        }
+
+        // ── Communication Preferences ────────────────────────────────────
+        async function loadPreferences() {
+            const container = document.getElementById('prefsContainer');
+            if (!container) return;
+
+            try {
+                const res = await fetch(`/api/portal/${portalToken}/preferences`);
+                let prefs = {};
+                if (res.ok) {
+                    const data = await res.json();
+                    prefs = data.preferences || data || {};
+                }
+
+                const emailInvoices = prefs.email_invoices !== undefined ? prefs.email_invoices : true;
+                const emailReminders = prefs.email_reminders !== undefined ? prefs.email_reminders : true;
+                const emailMarketing = prefs.email_marketing !== undefined ? prefs.email_marketing : false;
+                const smsReminders = prefs.sms_reminders !== undefined ? prefs.sms_reminders : false;
+                const smsMarketing = prefs.sms_marketing !== undefined ? prefs.sms_marketing : false;
+
+                container.innerHTML = `
+                    <div class="pref-row">
+                        <span class="pref-label">Email invoices</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="prefEmailInvoices" ${emailInvoices ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="pref-row">
+                        <span class="pref-label">Email reminders</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="prefEmailReminders" ${emailReminders ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="pref-row">
+                        <span class="pref-label">Email marketing</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="prefEmailMarketing" ${emailMarketing ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="pref-row">
+                        <span class="pref-label">SMS reminders</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="prefSmsReminders" ${smsReminders ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="pref-row">
+                        <span class="pref-label">SMS marketing</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="prefSmsMarketing" ${smsMarketing ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <button class="save-prefs-btn" id="savePrefsBtn" onclick="savePreferences()">Save Preferences</button>
+                    <div id="prefsMessage"></div>`;
+            } catch (err) {
+                container.innerHTML = '<p style="font-size:13px;color:#6b7280;">Could not load preferences.</p>';
+            }
+        }
+
+        async function savePreferences() {
+            const btn = document.getElementById('savePrefsBtn');
+            const msgEl = document.getElementById('prefsMessage');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            msgEl.innerHTML = '';
+
+            const prefs = {
+                email_invoices: document.getElementById('prefEmailInvoices').checked,
+                email_reminders: document.getElementById('prefEmailReminders').checked,
+                email_marketing: document.getElementById('prefEmailMarketing').checked,
+                sms_reminders: document.getElementById('prefSmsReminders').checked,
+                sms_marketing: document.getElementById('prefSmsMarketing').checked
+            };
+
+            try {
+                const res = await fetch(`/api/portal/${portalToken}/preferences`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(prefs)
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error || 'Failed to save preferences');
+                }
+
+                msgEl.innerHTML = '<div class="message message-success" style="margin-top:12px;">Preferences saved!</div>';
+                btn.textContent = 'Save Preferences';
+                btn.disabled = false;
+            } catch (err) {
+                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${err.message}</div>`;
+                btn.textContent = 'Save Preferences';
+                btn.disabled = false;
             }
         }
 

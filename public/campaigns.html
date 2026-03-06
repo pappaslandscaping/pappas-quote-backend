@@ -914,6 +914,258 @@
             gap: 12px;
         }
 
+        /* ─── Email Stats Badges ───────────────────────────── */
+        .email-stats-row {
+            display: flex;
+            gap: 8px;
+            padding: 10px 20px;
+            border-top: 1px solid var(--gray-100);
+            background: var(--white);
+        }
+
+        .email-stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .email-stat-badge svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .email-stat-badge.sent { background: var(--blue-bg); color: var(--blue); }
+        .email-stat-badge.opened { background: var(--green-bg); color: var(--green); }
+        .email-stat-badge.clicked { background: var(--purple-bg); color: var(--purple); }
+
+        /* ─── Send Campaign Modal ──────────────────────────── */
+        .send-modal .modal {
+            max-width: 620px;
+        }
+
+        .template-preview-box {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 8px;
+            min-height: 80px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .template-preview-box.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-400);
+            font-style: italic;
+        }
+
+        .audience-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .audience-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .audience-option:hover {
+            border-color: var(--forest);
+            background: var(--gray-50);
+        }
+
+        .audience-option.selected {
+            border-color: var(--forest);
+            background: rgba(46, 64, 61, 0.04);
+        }
+
+        .audience-option input[type="radio"] {
+            accent-color: var(--forest);
+            width: 16px;
+            height: 16px;
+        }
+
+        .audience-option-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .audience-option-desc {
+            font-size: 12px;
+            color: var(--gray-400);
+        }
+
+        .customer-select-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .customer-select-list.visible {
+            display: block;
+        }
+
+        .customer-select-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .customer-select-item:last-child {
+            border-bottom: none;
+        }
+
+        .customer-select-item:hover {
+            background: var(--gray-50);
+        }
+
+        .customer-select-item input[type="checkbox"] {
+            accent-color: var(--forest);
+            width: 15px;
+            height: 15px;
+        }
+
+        .customer-select-item .cust-name {
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .customer-select-item .cust-email {
+            color: var(--gray-400);
+            font-size: 12px;
+        }
+
+        .customer-search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--gray-200);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-700);
+            display: none;
+        }
+
+        .customer-search-input.visible {
+            display: block;
+        }
+
+        .customer-search-input:focus {
+            outline: none;
+            border-color: var(--forest);
+        }
+
+        .recipient-preview {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--blue-bg);
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--blue);
+        }
+
+        .recipient-preview svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .send-results {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .send-results .result-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 12px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-results .result-icon.success { background: var(--green-bg); color: var(--green); }
+        .send-results .result-icon.error { background: var(--red-bg); color: var(--red); }
+
+        .send-results .result-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .send-results .result-title {
+            font-family: 'Qualy', serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 4px;
+        }
+
+        .send-results .result-detail {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        .send-results .result-errors {
+            margin-top: 12px;
+            padding: 10px;
+            background: var(--red-bg);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--red);
+            text-align: left;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .btn-send {
+            background: var(--blue);
+            color: var(--white);
+        }
+
+        .btn-send:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         /* ─── Responsive ────────────────────────────────────── */
         @media (max-width: 1024px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
@@ -1025,6 +1277,10 @@
                     <span>📅</span>
                     <span>Scheduling</span>
                 </a>
+                <a href="dispatch.html" class="nav-item">
+                    <span>🗓️</span>
+                    <span>Dispatch Board</span>
+                </a>
             </div>
 
             <!-- Communications -->
@@ -1047,6 +1303,10 @@
                     <span>📢</span>
                     <span>Campaigns</span>
                 </a>
+                <a href="templates.html" class="nav-item">
+                    <span>📝</span>
+                    <span>Templates</span>
+                </a>
             </div>
 
             <!-- Finance -->
@@ -1067,16 +1327,24 @@
                 </a>
             </div>
 
+            <!-- Analytics -->
+            <div class="nav-section">
+                <div class="nav-section-label">Analytics</div>
+                <a href="kpi.html" class="nav-item">
+                    <span>🎯</span>
+                    <span>KPI Dashboard</span>
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span>📈</span>
+                    <span>Reports</span>
+                </a>
+            </div>
             <!-- Team -->
             <div class="nav-section">
                 <div class="nav-section-label">Team</div>
                 <a href="crew.html" class="nav-item">
                     <span>👷</span>
                     <span>Crew</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
                 </a>
             </div>
                     <div class="nav-section">
@@ -1193,6 +1461,10 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         Copy Form Link
                     </button>
+                    <button class="btn btn-send" onclick="openSendModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                        Send Campaign
+                    </button>
                 </div>
             </div>
 
@@ -1265,12 +1537,108 @@
                     <label>Form Page URL</label>
                     <input type="text" class="form-input" name="form_url" placeholder="e.g., monthly-plan-request.html">
                 </div>
+                <div class="form-group">
+                    <label>Email Template</label>
+                    <select class="form-input" name="template_id" id="createTemplateSelect">
+                        <option value="">No template (select later)</option>
+                    </select>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:4px;">Choose a marketing email template for this campaign</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create Campaign</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Send Campaign Modal -->
+<div class="modal-overlay send-modal" id="sendModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="sendModalTitle">Send Campaign</h3>
+            <button class="modal-close" onclick="closeSendModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body" id="sendModalBody">
+            <!-- Template Selection -->
+            <div class="form-group">
+                <label>Email Template</label>
+                <select class="form-input" id="sendTemplateSelect" onchange="previewSendTemplate()">
+                    <option value="">Select a template...</option>
+                </select>
+            </div>
+
+            <!-- Template Preview -->
+            <div class="form-group">
+                <label>Template Preview</label>
+                <div class="template-preview-box empty" id="templatePreviewBox">
+                    Select a template to see preview
+                </div>
+            </div>
+
+            <!-- Audience Selection -->
+            <div class="form-group">
+                <label>Audience</label>
+                <div class="audience-options" id="audienceOptions">
+                    <label class="audience-option selected" onclick="selectAudience('all')">
+                        <input type="radio" name="audience" value="all" checked>
+                        <div>
+                            <div class="audience-option-label">All Customers</div>
+                            <div class="audience-option-desc">Send to every customer in your database</div>
+                        </div>
+                    </label>
+                    <label class="audience-option" onclick="selectAudience('monthly_plan')">
+                        <input type="radio" name="audience" value="monthly_plan">
+                        <div>
+                            <div class="audience-option-label">Monthly Plan Customers</div>
+                            <div class="audience-option-desc">Customers on a monthly service plan</div>
+                        </div>
+                    </label>
+                    <label class="audience-option" onclick="selectAudience('active')">
+                        <input type="radio" name="audience" value="active">
+                        <div>
+                            <div class="audience-option-label">Active Customers (6mo)</div>
+                            <div class="audience-option-desc">Customers with activity in the last 6 months</div>
+                        </div>
+                    </label>
+                    <label class="audience-option" onclick="selectAudience('custom')">
+                        <input type="radio" name="audience" value="custom">
+                        <div>
+                            <div class="audience-option-label">Custom Selection</div>
+                            <div class="audience-option-desc">Choose specific customers</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Custom Customer Selection -->
+            <div class="form-group" id="customCustomerGroup" style="display:none;">
+                <label>Select Customers</label>
+                <input type="text" class="customer-search-input visible" id="customerSearchInput" placeholder="Search customers..." oninput="filterCustomerList()">
+                <div class="customer-select-list visible" id="customerSelectList">
+                    <div class="loading-state" style="padding:16px;">
+                        <div class="loading-spinner"></div>
+                        Loading customers...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recipient Count Preview -->
+            <div class="recipient-preview" id="recipientPreview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                <span id="recipientCount">Calculating recipients...</span>
+            </div>
+        </div>
+        <div class="modal-footer" id="sendModalFooter">
+            <button type="button" class="btn btn-secondary" onclick="closeSendModal()">Cancel</button>
+            <button type="button" class="btn btn-send" id="confirmSendBtn" onclick="confirmSendCampaign()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Send Campaign
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1281,6 +1649,10 @@ const API_BASE = '/api';
 let campaigns = [];
 let currentCampaign = null;
 let submissions = [];
+let marketingTemplates = [];
+let allCustomers = [];
+let selectedCustomerIds = [];
+let selectedAudience = 'all';
 
 // Toast notification
 function showToast(message, isError = false) {
@@ -1376,6 +1748,21 @@ function renderCampaigns() {
                     <div class="campaign-stat-label">Enrolled</div>
                 </div>
             </div>
+            ${(c.send_count > 0) ? `
+            <div class="email-stats-row">
+                <span class="email-stat-badge sent">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                    ${c.send_count} sent
+                </span>
+                <span class="email-stat-badge opened">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    ${c.open_count || 0} opens
+                </span>
+                <span class="email-stat-badge clicked">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    ${c.click_count || 0} clicks
+                </span>
+            </div>` : ''}
             <div class="campaign-footer">
                 <span class="campaign-date">Created ${formatDate(c.created_at)}</span>
                 <span class="campaign-link">View Details →</span>
@@ -1562,6 +1949,7 @@ async function createCampaign(e) {
         name: form.name.value,
         description: form.description.value,
         form_url: form.form_url.value,
+        template_id: form.template_id.value || null,
         status: 'active'
     };
     
@@ -1583,8 +1971,318 @@ async function createCampaign(e) {
     }
 }
 
+// ─── Template Management ──────────────────────────────────
+async function loadTemplates() {
+    try {
+        const res = await fetch(`${API_BASE}/templates?category=marketing`);
+        const data = await res.json();
+        marketingTemplates = data.templates || [];
+        populateTemplateSelects();
+    } catch (err) {
+        console.error('Error loading templates:', err);
+    }
+}
+
+function populateTemplateSelects() {
+    const createSelect = document.getElementById('createTemplateSelect');
+    const sendSelect = document.getElementById('sendTemplateSelect');
+
+    const options = marketingTemplates.map(t =>
+        `<option value="${t.id}">${esc(t.name)}</option>`
+    ).join('');
+
+    if (createSelect) {
+        createSelect.innerHTML = '<option value="">No template (select later)</option>' + options;
+    }
+    if (sendSelect) {
+        sendSelect.innerHTML = '<option value="">Select a template...</option>' + options;
+    }
+}
+
+// ─── Send Campaign Modal ──────────────────────────────────
+function openSendModal() {
+    if (!currentCampaign) return;
+
+    document.getElementById('sendModalTitle').textContent = `Send: ${currentCampaign.name}`;
+
+    // Pre-select template if campaign has one
+    const sendSelect = document.getElementById('sendTemplateSelect');
+    if (currentCampaign.template_id) {
+        sendSelect.value = currentCampaign.template_id;
+        previewSendTemplate();
+    } else {
+        sendSelect.value = '';
+        document.getElementById('templatePreviewBox').innerHTML = 'Select a template to see preview';
+        document.getElementById('templatePreviewBox').classList.add('empty');
+    }
+
+    // Reset audience selection
+    selectedAudience = 'all';
+    selectedCustomerIds = [];
+    document.querySelectorAll('.audience-option').forEach(opt => opt.classList.remove('selected'));
+    document.querySelector('.audience-option').classList.add('selected');
+    document.querySelector('input[name="audience"][value="all"]').checked = true;
+    document.getElementById('customCustomerGroup').style.display = 'none';
+
+    // Reset to form view (not results)
+    document.getElementById('sendModalBody').style.display = '';
+    document.getElementById('sendModalFooter').style.display = '';
+
+    // Update recipient count
+    updateRecipientCount();
+
+    document.getElementById('sendModal').classList.add('show');
+}
+
+function closeSendModal() {
+    document.getElementById('sendModal').classList.remove('show');
+}
+
+async function previewSendTemplate() {
+    const templateId = document.getElementById('sendTemplateSelect').value;
+    const previewBox = document.getElementById('templatePreviewBox');
+
+    if (!templateId) {
+        previewBox.innerHTML = 'Select a template to see preview';
+        previewBox.classList.add('empty');
+        return;
+    }
+
+    previewBox.innerHTML = '<div class="loading-spinner" style="margin:8px auto;"></div>';
+    previewBox.classList.remove('empty');
+
+    try {
+        const template = marketingTemplates.find(t => t.id == templateId);
+        if (template) {
+            let preview = '';
+            if (template.subject) {
+                preview += `<div style="font-weight:600;margin-bottom:8px;color:var(--gray-700);">Subject: ${esc(template.subject)}</div>`;
+            }
+            if (template.body || template.content) {
+                const body = template.body || template.content || '';
+                preview += `<div style="color:var(--gray-500);white-space:pre-wrap;">${esc(body).substring(0, 500)}${body.length > 500 ? '...' : ''}</div>`;
+            } else {
+                preview += `<div style="color:var(--gray-500);">${esc(template.name)} template</div>`;
+            }
+            previewBox.innerHTML = preview;
+        } else {
+            previewBox.innerHTML = 'Template preview unavailable';
+            previewBox.classList.add('empty');
+        }
+    } catch (err) {
+        previewBox.innerHTML = 'Unable to load preview';
+        previewBox.classList.add('empty');
+    }
+}
+
+function selectAudience(type) {
+    selectedAudience = type;
+
+    // Update visual selection
+    document.querySelectorAll('.audience-option').forEach(opt => opt.classList.remove('selected'));
+    const radio = document.querySelector(`input[name="audience"][value="${type}"]`);
+    if (radio) {
+        radio.checked = true;
+        radio.closest('.audience-option').classList.add('selected');
+    }
+
+    // Show/hide custom customer selection
+    const customGroup = document.getElementById('customCustomerGroup');
+    if (type === 'custom') {
+        customGroup.style.display = '';
+        loadCustomersForSelection();
+    } else {
+        customGroup.style.display = 'none';
+    }
+
+    updateRecipientCount();
+}
+
+async function loadCustomersForSelection() {
+    const listEl = document.getElementById('customerSelectList');
+    listEl.innerHTML = '<div class="loading-state" style="padding:16px;"><div class="loading-spinner"></div>Loading customers...</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/customers`);
+        const data = await res.json();
+        allCustomers = data.customers || [];
+        renderCustomerList();
+    } catch (err) {
+        console.error('Error loading customers:', err);
+        listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--gray-400);font-size:13px;">Failed to load customers</div>';
+    }
+}
+
+function renderCustomerList(filtered) {
+    const listEl = document.getElementById('customerSelectList');
+    const customers = filtered || allCustomers;
+
+    if (!customers.length) {
+        listEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--gray-400);font-size:13px;">No customers found</div>';
+        return;
+    }
+
+    listEl.innerHTML = customers.map(c => `
+        <label class="customer-select-item">
+            <input type="checkbox" value="${c.id}" ${selectedCustomerIds.includes(c.id) ? 'checked' : ''} onchange="toggleCustomer(${c.id})">
+            <div>
+                <div class="cust-name">${esc(c.name || (c.first_name + ' ' + c.last_name))}</div>
+                <div class="cust-email">${esc(c.email || '')}</div>
+            </div>
+        </label>
+    `).join('');
+}
+
+function filterCustomerList() {
+    const query = document.getElementById('customerSearchInput').value.toLowerCase();
+    if (!query) {
+        renderCustomerList();
+        return;
+    }
+    const filtered = allCustomers.filter(c => {
+        const name = (c.name || (c.first_name + ' ' + c.last_name) || '').toLowerCase();
+        const email = (c.email || '').toLowerCase();
+        return name.includes(query) || email.includes(query);
+    });
+    renderCustomerList(filtered);
+}
+
+function toggleCustomer(customerId) {
+    const idx = selectedCustomerIds.indexOf(customerId);
+    if (idx > -1) {
+        selectedCustomerIds.splice(idx, 1);
+    } else {
+        selectedCustomerIds.push(customerId);
+    }
+    updateRecipientCount();
+}
+
+async function updateRecipientCount() {
+    const el = document.getElementById('recipientCount');
+
+    if (selectedAudience === 'custom') {
+        const count = selectedCustomerIds.length;
+        el.textContent = `${count} customer${count !== 1 ? 's' : ''} selected`;
+        return;
+    }
+
+    // For segment-based counts, show estimate
+    const labels = {
+        'all': 'All customers',
+        'monthly_plan': 'Monthly plan customers',
+        'active': 'Active customers (last 6 months)'
+    };
+
+    el.textContent = labels[selectedAudience] || 'Calculating...';
+
+    // Try to get actual count from customers API
+    try {
+        let url = `${API_BASE}/customers`;
+        if (selectedAudience === 'monthly_plan') url += '?plan=monthly';
+        else if (selectedAudience === 'active') url += '?active=6mo';
+
+        const res = await fetch(url);
+        const data = await res.json();
+        const count = (data.customers || []).length || data.total || 0;
+        el.textContent = `${labels[selectedAudience]} — ${count} recipient${count !== 1 ? 's' : ''}`;
+    } catch (err) {
+        // Keep the label-only display
+    }
+}
+
+async function confirmSendCampaign() {
+    const templateId = document.getElementById('sendTemplateSelect').value;
+    if (!templateId) {
+        showToast('Please select an email template', true);
+        return;
+    }
+
+    if (selectedAudience === 'custom' && selectedCustomerIds.length === 0) {
+        showToast('Please select at least one customer', true);
+        return;
+    }
+
+    const confirmMsg = selectedAudience === 'custom'
+        ? `Send this campaign to ${selectedCustomerIds.length} selected customer(s)?`
+        : `Send this campaign to ${selectedAudience === 'all' ? 'all' : selectedAudience === 'monthly_plan' ? 'monthly plan' : 'active'} customers?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const sendBtn = document.getElementById('confirmSendBtn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<div class="loading-spinner" style="width:16px;height:16px;margin:0;border-width:2px;"></div> Sending...';
+
+    try {
+        const payload = {
+            template_id: parseInt(templateId)
+        };
+
+        if (selectedAudience === 'custom') {
+            payload.customer_ids = selectedCustomerIds;
+        } else {
+            payload.segment = selectedAudience;
+        }
+
+        const res = await fetch(`${API_BASE}/campaigns/${currentCampaign.id}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) throw new Error(result.error || 'Send failed');
+
+        // Show results
+        showSendResults(result);
+
+        // Refresh campaigns to update stats
+        loadCampaigns();
+    } catch (err) {
+        console.error('Error sending campaign:', err);
+        showSendResults({ error: err.message, sent_count: 0 });
+    }
+}
+
+function showSendResults(result) {
+    const body = document.getElementById('sendModalBody');
+    const footer = document.getElementById('sendModalFooter');
+
+    const isSuccess = !result.error && (result.sent_count > 0 || result.sentCount > 0);
+    const sentCount = result.sent_count || result.sentCount || 0;
+    const errorCount = result.error_count || result.errorCount || 0;
+    const errors = result.errors || [];
+
+    let html = `<div class="send-results">
+        <div class="result-icon ${isSuccess ? 'success' : 'error'}">
+            ${isSuccess
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'}
+        </div>
+        <div class="result-title">${isSuccess ? 'Campaign Sent!' : 'Send Failed'}</div>
+        <div class="result-detail">
+            ${isSuccess
+                ? `Successfully sent to ${sentCount} recipient${sentCount !== 1 ? 's' : ''}${errorCount > 0 ? ` (${errorCount} error${errorCount !== 1 ? 's' : ''})` : ''}`
+                : `${result.error || 'An error occurred while sending the campaign'}`}
+        </div>`;
+
+    if (errors.length > 0) {
+        html += `<div class="result-errors">
+            ${errors.map(e => `<div>${esc(e)}</div>`).join('')}
+        </div>`;
+    }
+
+    html += '</div>';
+
+    body.innerHTML = html;
+    footer.innerHTML = '<button type="button" class="btn btn-primary" onclick="closeSendModal()">Done</button>';
+}
+
 // Initialize
-document.addEventListener('DOMContentLoaded', loadCampaigns);
+document.addEventListener('DOMContentLoaded', () => {
+    loadCampaigns();
+    loadTemplates();
+});
 
 // Universal Search
 let searchDebounceTimer=null;

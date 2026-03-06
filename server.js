@@ -6276,6 +6276,461 @@ app.get('/api/cron/process-followups', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// ═══ BUSINESS SETTINGS ══════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/settings - Retrieve all settings
+app.get('/api/settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT key, value FROM business_settings ORDER BY key');
+    const settings = {};
+    for (const row of result.rows) settings[row.key] = row.value;
+    res.json({ success: true, settings });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// PATCH /api/settings/:key - Update a setting
+app.patch('/api/settings/:key', async (req, res) => {
+  try {
+    const { value } = req.body;
+    if (value === undefined) return res.status(400).json({ success: false, error: 'value required' });
+    const result = await pool.query(
+      `INSERT INTO business_settings (key, value, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW() RETURNING *`,
+      [req.params.key, JSON.stringify(value)]
+    );
+    res.json({ success: true, setting: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ LATE FEES ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/late-fees - List late fees with filters
+app.get('/api/late-fees', async (req, res) => {
+  try {
+    const { invoice_id, waived } = req.query;
+    let query = `SELECT lf.*, i.invoice_number, i.customer_name FROM late_fees lf LEFT JOIN invoices i ON lf.invoice_id = i.id WHERE 1=1`;
+    const params = [];
+    let p = 1;
+    if (invoice_id) { query += ` AND lf.invoice_id = $${p++}`; params.push(invoice_id); }
+    if (waived !== undefined) { query += ` AND lf.waived = $${p++}`; params.push(waived === 'true'); }
+    query += ' ORDER BY lf.created_at DESC';
+    const result = await pool.query(query, params);
+    res.json({ success: true, lateFees: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/late-fees/:id/waive - Waive a late fee
+app.post('/api/late-fees/:id/waive', async (req, res) => {
+  try {
+    const fee = await pool.query('UPDATE late_fees SET waived = true, waived_at = NOW(), waived_by = $1 WHERE id = $2 RETURNING *', [req.body.waived_by || 'admin', req.params.id]);
+    if (fee.rows.length === 0) return res.status(404).json({ success: false, error: 'Fee not found' });
+    // Recalculate invoice late_fee_total
+    const totals = await pool.query('SELECT COALESCE(SUM(fee_amount), 0) as total FROM late_fees WHERE invoice_id = $1 AND waived = false', [fee.rows[0].invoice_id]);
+    await pool.query('UPDATE invoices SET late_fee_total = $1, updated_at = NOW() WHERE id = $2', [totals.rows[0].total, fee.rows[0].invoice_id]);
+    res.json({ success: true, fee: fee.rows[0], new_total: parseFloat(totals.rows[0].total) });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ RECURRING JOBS ═════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/jobs/recurring - List recurring job templates
+app.get('/api/jobs/recurring', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM scheduled_jobs WHERE is_recurring = true ORDER BY customer_name ASC`);
+    res.json({ success: true, jobs: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// PATCH /api/jobs/:id/recurring - Configure recurring pattern
+app.patch('/api/jobs/:id/recurring', async (req, res) => {
+  try {
+    const { is_recurring, recurring_pattern, recurring_end_date } = req.body;
+    const result = await pool.query(
+      `UPDATE scheduled_jobs SET is_recurring = COALESCE($1, is_recurring), recurring_pattern = COALESCE($2, recurring_pattern), recurring_end_date = COALESCE($3, recurring_end_date), updated_at = NOW() WHERE id = $4 RETURNING *`,
+      [is_recurring, recurring_pattern, recurring_end_date, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Job not found' });
+    res.json({ success: true, job: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ DAILY AUTOMATION CRON ══════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+async function processRecurringJobs() {
+  const results = { generated: 0, skipped: 0, errors: [] };
+  try {
+    const templates = await pool.query(`SELECT * FROM scheduled_jobs WHERE is_recurring = true AND (recurring_end_date IS NULL OR recurring_end_date >= CURRENT_DATE)`);
+    for (const job of templates.rows) {
+      try {
+        const pattern = job.recurring_pattern || 'weekly';
+        const lookAheadDays = 14;
+        for (let d = 0; d <= lookAheadDays; d++) {
+          const targetDate = new Date();
+          targetDate.setDate(targetDate.getDate() + d);
+          const dateStr = targetDate.toISOString().split('T')[0];
+          const dayOfWeek = targetDate.getDay();
+          let shouldGenerate = false;
+          if (pattern === 'weekly' && dayOfWeek === new Date(job.job_date).getDay()) shouldGenerate = true;
+          else if (pattern === 'biweekly') {
+            const weeksDiff = Math.floor((targetDate - new Date(job.job_date)) / (7 * 24 * 60 * 60 * 1000));
+            if (weeksDiff >= 0 && weeksDiff % 2 === 0 && dayOfWeek === new Date(job.job_date).getDay()) shouldGenerate = true;
+          }
+          else if (pattern === 'monthly' && targetDate.getDate() === new Date(job.job_date).getDate()) shouldGenerate = true;
+          if (!shouldGenerate) continue;
+          // Dedup check
+          const existing = await pool.query('SELECT id FROM recurring_job_log WHERE source_job_id = $1 AND generated_for_date = $2', [job.id, dateStr]);
+          if (existing.rows.length > 0) { results.skipped++; continue; }
+          // Generate job
+          const newJob = await pool.query(
+            `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_frequency, service_price, address, phone, special_notes, property_notes, status, estimated_duration, crew_assigned, parent_job_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13) RETURNING id`,
+            [dateStr, job.customer_name, job.customer_id, job.service_type, job.service_frequency, job.service_price, job.address, job.phone, job.special_notes, job.property_notes, job.estimated_duration, job.crew_assigned, job.id]
+          );
+          await pool.query('INSERT INTO recurring_job_log (source_job_id, generated_for_date, generated_job_id) VALUES ($1, $2, $3)', [job.id, dateStr, newJob.rows[0].id]);
+          results.generated++;
+        }
+      } catch (err) { results.errors.push({ job_id: job.id, error: err.message }); }
+    }
+  } catch (err) { results.errors.push({ error: err.message }); }
+  return results;
+}
+
+async function processMonthlyPlanInvoices() {
+  const results = { generated: 0, skipped: 0, sent: 0, errors: [] };
+  try {
+    const billingMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const customers = await pool.query(`SELECT * FROM customers WHERE monthly_plan_amount > 0`);
+    for (const cust of customers.rows) {
+      try {
+        // Dedup check
+        const existing = await pool.query('SELECT id FROM recurring_invoice_log WHERE customer_id = $1 AND billing_month = $2', [cust.id, billingMonth]);
+        if (existing.rows.length > 0) { results.skipped++; continue; }
+        await ensureInvoicesTable();
+        const invNum = await nextInvoiceNumber();
+        const total = parseFloat(cust.monthly_plan_amount);
+        const paymentToken = generateToken();
+        const inv = await pool.query(
+          `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, status, subtotal, total, due_date, is_auto_generated, auto_gen_source, billing_month, payment_token, payment_token_created_at, line_items)
+           VALUES ($1, $2, $3, $4, 'sent', $5, $5, CURRENT_DATE, true, 'monthly_plan', $6, $7, NOW(), $8) RETURNING *`,
+          [invNum, cust.id, cust.name, cust.email, total, billingMonth, paymentToken, JSON.stringify([{description: 'Monthly Lawn Care Plan - ' + billingMonth, amount: total}])]
+        );
+        await pool.query('INSERT INTO recurring_invoice_log (customer_id, billing_month, invoice_id) VALUES ($1, $2, $3)', [cust.id, billingMonth, inv.rows[0].id]);
+        results.generated++;
+        // Auto-send with payment link
+        const config = await pool.query("SELECT value FROM business_settings WHERE key = 'recurring_invoice_config'");
+        const autoSend = config.rows.length > 0 ? config.rows[0].value.auto_send !== false : true;
+        if (autoSend && cust.email) {
+          const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+          const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
+          const content = `
+            <h2 style="color:#2e403d;margin:0 0 16px;">Monthly Invoice ${invNum}</h2>
+            <p>Hi ${(cust.name || '').split(' ')[0]},</p>
+            <p>Your monthly lawn care invoice for <strong>${new Date().toLocaleDateString('en-US', {month:'long',year:'numeric'})}</strong> is ready.</p>
+            <div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;text-align:center;">
+              <p style="font-size:28px;font-weight:700;color:#2e403d;margin:0;">$${total.toFixed(2)}</p>
+              <p style="color:#666;margin:4px 0;">Monthly Lawn Care Plan</p>
+            </div>
+            <div style="text-align:center;margin:28px 0;">
+              <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">Pay Now</a>
+            </div>
+          `;
+          await sendEmail(cust.email, `Monthly Invoice ${invNum} — $${total.toFixed(2)}`, emailTemplate(content));
+          await pool.query("UPDATE invoices SET sent_at = NOW() WHERE id = $1", [inv.rows[0].id]);
+          results.sent++;
+        }
+      } catch (err) { results.errors.push({ customer_id: cust.id, error: err.message }); }
+    }
+  } catch (err) { results.errors.push({ error: err.message }); }
+  return results;
+}
+
+async function processLateFees() {
+  const results = { applied: 0, emails_sent: 0, errors: [] };
+  try {
+    const settingsResult = await pool.query("SELECT value FROM business_settings WHERE key = 'late_fee_rules'");
+    const rules = settingsResult.rows.length > 0 ? settingsResult.rows[0].value : { grace_period_days: 30, initial_fee_percent: 10, recurring_fee_percent: 5, recurring_interval_days: 30, max_fees: 3, enabled: true };
+    if (!rules.enabled) return results;
+
+    const overdue = await pool.query(`
+      SELECT i.*, (SELECT COUNT(*) FROM late_fees WHERE invoice_id = i.id AND waived = false) as fee_count
+      FROM invoices i
+      WHERE i.status IN ('sent', 'overdue', 'partial') AND i.amount_paid < i.total AND i.due_date IS NOT NULL
+        AND i.due_date < CURRENT_DATE - ($1 || ' days')::interval
+    `, [rules.grace_period_days]);
+
+    for (const inv of overdue.rows) {
+      try {
+        const daysOverdue = Math.floor((Date.now() - new Date(inv.due_date).getTime()) / (24 * 60 * 60 * 1000));
+        const feeCount = parseInt(inv.fee_count);
+        if (feeCount >= (rules.max_fees || 3)) continue;
+        // Check if fee already applied for this period
+        const expectedFees = Math.min(Math.floor(daysOverdue / (rules.recurring_interval_days || 30)), rules.max_fees || 3);
+        if (feeCount >= expectedFees) continue;
+        const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+        const feePercent = feeCount === 0 ? (rules.initial_fee_percent || 10) : (rules.recurring_fee_percent || 5);
+        const feeAmount = Math.round(balance * feePercent) / 100;
+        await pool.query(
+          'INSERT INTO late_fees (invoice_id, fee_amount, fee_type, fee_percentage, days_overdue) VALUES ($1, $2, $3, $4, $5)',
+          [inv.id, feeAmount, 'percentage', feePercent, daysOverdue]
+        );
+        const newTotal = await pool.query('SELECT COALESCE(SUM(fee_amount), 0) as total FROM late_fees WHERE invoice_id = $1 AND waived = false', [inv.id]);
+        await pool.query("UPDATE invoices SET late_fee_total = $1, status = 'overdue', updated_at = NOW() WHERE id = $2", [newTotal.rows[0].total, inv.id]);
+        results.applied++;
+        // Send late fee email
+        if (inv.customer_email) {
+          const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+          const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
+          const content = `
+            <h2 style="color:#dc4a4a;margin:0 0 16px;">Late Fee Applied</h2>
+            <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+            <p>A <strong>${feePercent}% late fee ($${feeAmount.toFixed(2)})</strong> has been applied to invoice <strong>${inv.invoice_number}</strong>, which is now <strong>${daysOverdue} days past due</strong>.</p>
+            <div style="background:#fef0f0;border-radius:8px;padding:16px;margin:16px 0;border-left:4px solid #dc4a4a;">
+              <p style="margin:0;"><strong>Original Balance:</strong> $${balance.toFixed(2)}</p>
+              <p style="margin:4px 0 0;"><strong>Late Fee:</strong> $${feeAmount.toFixed(2)}</p>
+              <p style="margin:4px 0 0;font-size:18px;font-weight:700;color:#dc4a4a;">New Balance: $${(balance + feeAmount).toFixed(2)}</p>
+            </div>
+            ${payUrl ? `<div style="text-align:center;margin:28px 0;"><a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">Pay Now</a></div>` : ''}
+            <p>To avoid additional fees, please pay as soon as possible. If you have questions, reply to this email or call us.</p>
+          `;
+          await sendEmail(inv.customer_email, `Late Fee Applied — Invoice ${inv.invoice_number}`, emailTemplate(content));
+          results.emails_sent++;
+        }
+      } catch (err) { results.errors.push({ invoice_id: inv.id, error: err.message }); }
+    }
+  } catch (err) { results.errors.push({ error: err.message }); }
+  return results;
+}
+
+// POST /api/cron/daily-automation - Combined daily cron
+app.post('/api/cron/daily-automation', async (req, res) => {
+  try {
+    console.log('🔄 Running daily automation...');
+    const [recurringJobs, monthlyInvoices, lateFees] = await Promise.all([
+      processRecurringJobs(),
+      processMonthlyPlanInvoices(),
+      processLateFees()
+    ]);
+    const result = { recurringJobs, monthlyInvoices, lateFees, timestamp: new Date().toISOString() };
+    console.log('✅ Daily automation complete:', JSON.stringify(result));
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Daily automation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/cron/daily-automation - Allow GET for cron-job.org
+app.get('/api/cron/daily-automation', async (req, res) => {
+  try {
+    console.log('🔄 Running daily automation (GET)...');
+    const [recurringJobs, monthlyInvoices, lateFees] = await Promise.all([
+      processRecurringJobs(),
+      processMonthlyPlanInvoices(),
+      processLateFees()
+    ]);
+    const result = { recurringJobs, monthlyInvoices, lateFees, timestamp: new Date().toISOString() };
+    console.log('✅ Daily automation complete:', JSON.stringify(result));
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Daily automation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ KPI DASHBOARD ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+function generateCoachingSuggestions(metrics) {
+  const suggestions = [];
+  if (metrics.closeRatio && metrics.closeRatio.value < 50) {
+    suggestions.push({ severity: 'warning', title: 'Close ratio below 50%', suggestion: 'Follow up faster with personal calls within 24 hours of sending quotes. Consider offering limited-time discounts to create urgency.' });
+  } else if (metrics.closeRatio && metrics.closeRatio.value > 70) {
+    suggestions.push({ severity: 'success', title: 'Excellent close ratio!', suggestion: 'Your pricing may be too low. Consider raising prices 5-10% — you can still close deals while increasing margins.' });
+  }
+  if (metrics.customerAcquisitionCost && metrics.customerAcquisitionCost.value > 100) {
+    suggestions.push({ severity: 'warning', title: 'High customer acquisition cost', suggestion: 'Focus on referral programs and Google reviews. Ask happy customers for referrals — they cost almost nothing.' });
+  }
+  if (metrics.arAging && (metrics.arAging.days60 + metrics.arAging.days90plus) > 2000) {
+    suggestions.push({ severity: 'danger', title: 'High accounts receivable', suggestion: 'Enable automatic late fees and send payment reminders. Consider requiring deposits for new customers.' });
+  }
+  if (metrics.monthlyRecurringRevenue && metrics.monthlyRecurringRevenue.customerCount < 10) {
+    suggestions.push({ severity: 'info', title: 'Low recurring revenue', suggestion: 'Convert more customers to monthly plans. Offer a 5% discount for monthly plan customers to encourage sign-ups.' });
+  }
+  if (metrics.laborEfficiency && metrics.laborEfficiency.value < 80) {
+    suggestions.push({ severity: 'warning', title: 'Low labor efficiency', suggestion: 'Optimize routing to reduce drive time. Group nearby jobs on the same day and use the dispatch board for planning.' });
+  }
+  return suggestions;
+}
+
+app.get('/api/kpi/dashboard', async (req, res) => {
+  try {
+    const period = req.query.period || 'month';
+    let dateFilter;
+    if (period === 'week') dateFilter = "NOW() - INTERVAL '7 days'";
+    else if (period === 'month') dateFilter = "NOW() - INTERVAL '1 month'";
+    else if (period === 'quarter') dateFilter = "NOW() - INTERVAL '3 months'";
+    else dateFilter = "NOW() - INTERVAL '1 year'";
+
+    await ensureInvoicesTable();
+
+    const [closeRatio, avgJobValue, revenuePerCrew, cac, laborEff, mrr, arAging, clv, outstandingTrend] = await Promise.all([
+      // Close ratio
+      pool.query(`SELECT
+        COUNT(CASE WHEN status IN ('signed','contracted') THEN 1 END) as signed,
+        COUNT(CASE WHEN status != 'draft' THEN 1 END) as sent
+        FROM sent_quotes WHERE created_at >= ${dateFilter}`),
+      // Avg job value
+      pool.query(`SELECT COALESCE(AVG(service_price), 0) as value, COUNT(*) as count
+        FROM scheduled_jobs WHERE status = 'completed' AND updated_at >= ${dateFilter}`),
+      // Revenue per crew
+      pool.query(`SELECT crew_assigned as crew_name, COALESCE(SUM(service_price), 0) as revenue, COUNT(*) as jobs
+        FROM scheduled_jobs WHERE status = 'completed' AND crew_assigned IS NOT NULL AND updated_at >= ${dateFilter}
+        GROUP BY crew_assigned ORDER BY revenue DESC`),
+      // Customer acquisition cost
+      pool.query(`SELECT
+        COALESCE((SELECT SUM(amount) FROM expenses WHERE category ILIKE '%marketing%' AND expense_date >= ${dateFilter}::date), 0) as marketing,
+        (SELECT COUNT(*) FROM customers WHERE created_at >= ${dateFilter}) as new_customers`),
+      // Labor efficiency
+      pool.query(`SELECT
+        COALESCE(SUM(service_price), 0) as revenue,
+        COALESCE(SUM(estimated_duration), 0) / 60.0 as hours
+        FROM scheduled_jobs WHERE status = 'completed' AND updated_at >= ${dateFilter}`),
+      // Monthly recurring revenue
+      pool.query(`SELECT COALESCE(SUM(monthly_plan_amount), 0) as value, COUNT(*) as customer_count FROM customers WHERE monthly_plan_amount > 0`),
+      // AR aging
+      pool.query(`SELECT
+        COALESCE(SUM(CASE WHEN due_date >= CURRENT_DATE THEN total - amount_paid END), 0) as current,
+        COALESCE(SUM(CASE WHEN due_date < CURRENT_DATE AND due_date >= CURRENT_DATE - 30 THEN total - amount_paid END), 0) as days30,
+        COALESCE(SUM(CASE WHEN due_date < CURRENT_DATE - 30 AND due_date >= CURRENT_DATE - 60 THEN total - amount_paid END), 0) as days60,
+        COALESCE(SUM(CASE WHEN due_date < CURRENT_DATE - 60 THEN total - amount_paid END), 0) as days90plus
+        FROM invoices WHERE status IN ('sent','overdue','partial') AND amount_paid < total`),
+      // Customer lifetime value
+      pool.query(`SELECT
+        COALESCE(SUM(amount_paid), 0) as total_revenue,
+        (SELECT COUNT(*) FROM customers WHERE created_at >= NOW() - INTERVAL '1 year') as active_customers
+        FROM invoices WHERE status = 'paid'`),
+      // Outstanding trend (6 months)
+      pool.query(`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+        COALESCE(SUM(total - amount_paid), 0) as amount
+        FROM invoices WHERE status IN ('sent','overdue','partial') AND created_at >= NOW() - INTERVAL '6 months'
+        GROUP BY date_trunc('month', created_at) ORDER BY month`)
+    ]);
+
+    const cr = closeRatio.rows[0];
+    const cacRow = cac.rows[0];
+    const leRow = laborEff.rows[0];
+    const clvRow = clv.rows[0];
+
+    const metrics = {
+      closeRatio: { value: cr.sent > 0 ? Math.round((cr.signed / cr.sent) * 100) : 0, signed: parseInt(cr.signed), sent: parseInt(cr.sent) },
+      avgJobValue: { value: parseFloat(avgJobValue.rows[0].value), count: parseInt(avgJobValue.rows[0].count) },
+      revenuePerCrew: revenuePerCrew.rows.map(r => ({ crew_name: r.crew_name, revenue: parseFloat(r.revenue), jobs: parseInt(r.jobs) })),
+      customerAcquisitionCost: { value: cacRow.new_customers > 0 ? parseFloat(cacRow.marketing) / parseInt(cacRow.new_customers) : 0, marketing: parseFloat(cacRow.marketing), newCustomers: parseInt(cacRow.new_customers) },
+      laborEfficiency: { value: leRow.hours > 0 ? parseFloat(leRow.revenue) / parseFloat(leRow.hours) : 0, revenue: parseFloat(leRow.revenue), hours: parseFloat(leRow.hours) },
+      monthlyRecurringRevenue: { value: parseFloat(mrr.rows[0].value), customerCount: parseInt(mrr.rows[0].customer_count) },
+      arAging: { current: parseFloat(arAging.rows[0].current), days30: parseFloat(arAging.rows[0].days30), days60: parseFloat(arAging.rows[0].days60), days90plus: parseFloat(arAging.rows[0].days90plus) },
+      customerLifetimeValue: { value: clvRow.active_customers > 0 ? parseFloat(clvRow.total_revenue) / parseInt(clvRow.active_customers) : 0, totalRevenue: parseFloat(clvRow.total_revenue), activeCustomers: parseInt(clvRow.active_customers) },
+      outstandingTrend: outstandingTrend.rows.map(r => ({ month: r.month, amount: parseFloat(r.amount) }))
+    };
+
+    res.json({ success: true, metrics, coaching: generateCoachingSuggestions(metrics), period });
+  } catch (error) {
+    console.error('KPI dashboard error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ DISPATCH BOARD ═════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/dispatch/board - Jobs grouped by crew
+app.get('/api/dispatch/board', async (req, res) => {
+  try {
+    const { date, view = 'day' } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    let dateCondition, params;
+    if (view === 'week') {
+      // Get Monday of the week
+      const d = new Date(targetDate);
+      const day = d.getDay();
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      dateCondition = `job_date::date BETWEEN $1::date AND $2::date`;
+      params = [monday.toISOString().split('T')[0], sunday.toISOString().split('T')[0]];
+    } else {
+      dateCondition = `job_date::date = $1::date`;
+      params = [targetDate];
+    }
+    const jobs = await pool.query(`SELECT * FROM scheduled_jobs WHERE ${dateCondition} ORDER BY route_order ASC NULLS LAST, customer_name`, params);
+    const crews = await pool.query('SELECT * FROM crews ORDER BY name');
+
+    // Group jobs by crew
+    const crewMap = {};
+    for (const crew of crews.rows) {
+      crewMap[crew.name] = { id: crew.id, name: crew.name, members: crew.members || '', color: crew.color || '#059669', jobs: [], totalHours: 0, jobCount: 0 };
+    }
+    const unassigned = [];
+    for (const job of jobs.rows) {
+      if (job.crew_assigned && crewMap[job.crew_assigned]) {
+        crewMap[job.crew_assigned].jobs.push(job);
+        crewMap[job.crew_assigned].totalHours += (job.estimated_duration || 30) / 60;
+        crewMap[job.crew_assigned].jobCount++;
+      } else if (job.crew_assigned) {
+        // Crew exists in job but not in crews table — create entry
+        if (!crewMap[job.crew_assigned]) crewMap[job.crew_assigned] = { id: null, name: job.crew_assigned, members: '', color: '#6e726e', jobs: [], totalHours: 0, jobCount: 0 };
+        crewMap[job.crew_assigned].jobs.push(job);
+        crewMap[job.crew_assigned].totalHours += (job.estimated_duration || 30) / 60;
+        crewMap[job.crew_assigned].jobCount++;
+      } else {
+        unassigned.push(job);
+      }
+    }
+    res.json({ success: true, date: targetDate, view, crews: Object.values(crewMap), unassigned });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// PATCH /api/dispatch/assign - Batch reassignment
+app.patch('/api/dispatch/assign', async (req, res) => {
+  try {
+    const { assignments } = req.body;
+    if (!assignments || !Array.isArray(assignments)) return res.status(400).json({ success: false, error: 'assignments array required' });
+    const updated = [];
+    for (const a of assignments) {
+      const result = await pool.query(
+        'UPDATE scheduled_jobs SET crew_assigned = $1, route_order = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+        [a.crew_assigned, a.route_order || null, a.job_id]
+      );
+      if (result.rows.length > 0) updated.push(result.rows[0]);
+    }
+    res.json({ success: true, updated: updated.length, jobs: updated });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/dispatch/crew-availability - Crew workload summary
+app.get('/api/dispatch/crew-availability', async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const result = await pool.query(`
+      SELECT crew_assigned as crew_name, COUNT(*) as job_count, COALESCE(SUM(estimated_duration), 0) / 60.0 as total_hours
+      FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned IS NOT NULL
+      GROUP BY crew_assigned ORDER BY crew_assigned
+    `, [date]);
+    res.json({ success: true, date, crews: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
 // GENERAL ROUTES
 // ═══════════════════════════════════════════════════════════
 // ═══ INVOICING ════════════════════════════════════════════
@@ -7115,6 +7570,259 @@ app.get('/api/portal/:token/payments', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// ═══ ENHANCED CUSTOMER PORTAL ════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// Helper: validate portal token and return customer_id
+async function validatePortalToken(token) {
+  const result = await pool.query('SELECT customer_id, email FROM customer_portal_tokens WHERE token = $1 AND expires_at > NOW()', [token]);
+  if (result.rows.length === 0) return null;
+  return result.rows[0];
+}
+
+// POST /api/portal/:token/cards/save - Save card-on-file via Square
+app.post('/api/portal/:token/cards/save', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const { source_id, cardholder_name } = req.body;
+    if (!source_id) return res.status(400).json({ success: false, error: 'source_id required' });
+    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
+
+    // Ensure Square customer exists
+    let squareCustomerId;
+    const custResult = await pool.query('SELECT square_customer_id, name, email FROM customers WHERE id = $1', [tokenData.customer_id]);
+    const cust = custResult.rows[0];
+    if (cust && cust.square_customer_id) {
+      squareCustomerId = cust.square_customer_id;
+    } else {
+      // Create Square customer
+      const { result: sqResult } = await squareClient.customersApi.createCustomer({
+        givenName: (cust.name || '').split(' ')[0],
+        familyName: (cust.name || '').split(' ').slice(1).join(' '),
+        emailAddress: cust.email || tokenData.email
+      });
+      squareCustomerId = sqResult.customer.id;
+      await pool.query('UPDATE customers SET square_customer_id = $1 WHERE id = $2', [squareCustomerId, tokenData.customer_id]);
+    }
+
+    // Create card-on-file
+    const { result: cardResult } = await squareClient.cardsApi.createCard({
+      idempotencyKey: crypto.randomUUID(),
+      sourceId: source_id,
+      card: { customerId: squareCustomerId, cardholderName: cardholder_name || cust.name }
+    });
+    const card = cardResult.card;
+    await pool.query(
+      `INSERT INTO customer_saved_cards (customer_id, square_card_id, card_brand, last4, exp_month, exp_year, cardholder_name) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [tokenData.customer_id, card.id, card.cardBrand, card.last4, card.expMonth, card.expYear, cardholder_name || cust.name]
+    );
+    res.json({ success: true, card: { id: card.id, brand: card.cardBrand, last4: card.last4, expMonth: card.expMonth, expYear: card.expYear } });
+  } catch (error) {
+    console.error('Save card error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/portal/:token/cards - List saved cards
+app.get('/api/portal/:token/cards', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const result = await pool.query('SELECT id, card_brand, last4, exp_month, exp_year, cardholder_name, is_default FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC', [tokenData.customer_id]);
+    res.json({ success: true, cards: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// DELETE /api/portal/:token/cards/:cardId - Disable/remove saved card
+app.delete('/api/portal/:token/cards/:cardId', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const card = await pool.query('SELECT square_card_id FROM customer_saved_cards WHERE id = $1 AND customer_id = $2', [req.params.cardId, tokenData.customer_id]);
+    if (card.rows.length === 0) return res.status(404).json({ success: false, error: 'Card not found' });
+    // Disable in Square
+    if (squareClient && card.rows[0].square_card_id) {
+      try { await squareClient.cardsApi.disableCard(card.rows[0].square_card_id); } catch(e) { console.error('Square disable card:', e.message); }
+    }
+    await pool.query('UPDATE customer_saved_cards SET enabled = false WHERE id = $1', [req.params.cardId]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/portal/:token/pay-with-saved-card - Charge saved card
+app.post('/api/portal/:token/pay-with-saved-card', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const { card_id, invoice_id } = req.body;
+    if (!card_id || !invoice_id) return res.status(400).json({ success: false, error: 'card_id and invoice_id required' });
+    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
+
+    const cardResult = await pool.query('SELECT square_card_id FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true', [card_id, tokenData.customer_id]);
+    if (cardResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Card not found' });
+
+    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [invoice_id]);
+    if (inv.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const invoice = inv.rows[0];
+    const balance = Math.round((parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0)) * 100);
+
+    const { result: payResult } = await squareClient.paymentsApi.createPayment({
+      idempotencyKey: crypto.randomUUID(),
+      sourceId: cardResult.rows[0].square_card_id,
+      amountMoney: { amount: BigInt(balance), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: invoice.invoice_number,
+      note: `Invoice ${invoice.invoice_number} — card-on-file`
+    });
+    const payment = payResult.payment;
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, 'card', 'completed', $5, $6, $7, NOW())`,
+      [paymentId, invoice_id, tokenData.customer_id, balance / 100, payment.id, payment.cardDetails?.card?.cardBrand, payment.cardDetails?.card?.last4]
+    );
+    await pool.query("UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = NOW(), updated_at = NOW() WHERE id = $1", [invoice_id]);
+    res.json({ success: true, paymentId, receiptUrl: payment.receiptUrl });
+  } catch (error) {
+    console.error('Pay with saved card error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/portal/:token/service-requests - Submit service request
+app.post('/api/portal/:token/service-requests', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const { service_type, description, preferred_date, urgency } = req.body;
+    if (!description) return res.status(400).json({ success: false, error: 'description required' });
+    const result = await pool.query(
+      `INSERT INTO service_requests (customer_id, service_type, description, preferred_date, urgency) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [tokenData.customer_id, service_type, description, preferred_date, urgency || 'normal']
+    );
+    // Email admin
+    const cust = await pool.query('SELECT name, email FROM customers WHERE id = $1', [tokenData.customer_id]);
+    const custName = cust.rows[0]?.name || 'Customer';
+    await sendEmail('hello@pappaslandscaping.com', `New Service Request from ${custName}`, emailTemplate(`
+      <h2 style="color:#2e403d;margin:0 0 16px;">New Service Request</h2>
+      <p><strong>${custName}</strong> submitted a service request:</p>
+      <div style="background:#f8fafc;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0;"><strong>Service:</strong> ${service_type || 'General'}</p>
+        <p style="margin:4px 0;"><strong>Description:</strong> ${description}</p>
+        ${preferred_date ? `<p style="margin:4px 0;"><strong>Preferred Date:</strong> ${preferred_date}</p>` : ''}
+        <p style="margin:4px 0;"><strong>Urgency:</strong> ${urgency || 'normal'}</p>
+      </div>
+    `));
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/portal/:token/service-requests - Customer's requests
+app.get('/api/portal/:token/service-requests', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const result = await pool.query('SELECT * FROM service_requests WHERE customer_id = $1 ORDER BY created_at DESC', [tokenData.customer_id]);
+    res.json({ success: true, requests: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/portal/:token/quotes - Customer's pending quotes
+app.get('/api/portal/:token/quotes', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const result = await pool.query(
+      `SELECT id, quote_number, customer_name, total, status, signing_token, created_at FROM sent_quotes WHERE customer_email ILIKE $1 AND status IN ('pending','viewed') ORDER BY created_at DESC`,
+      [tokenData.email]
+    );
+    res.json({ success: true, quotes: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/portal/:token/service-history - Completed jobs with photos
+app.get('/api/portal/:token/service-history', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const result = await pool.query(
+      `SELECT id, job_date, service_type, address, status, service_price, special_notes, crew_assigned, completion_notes, completion_photos FROM scheduled_jobs WHERE customer_id = $1 AND status = 'completed' ORDER BY job_date DESC LIMIT 50`,
+      [tokenData.customer_id]
+    );
+    res.json({ success: true, jobs: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/portal/:token/properties - Customer properties
+app.get('/api/portal/:token/properties', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const result = await pool.query('SELECT * FROM properties WHERE customer_id = $1 ORDER BY created_at DESC', [tokenData.customer_id]);
+    res.json({ success: true, properties: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/portal/:token/preferences - Communication preferences
+app.get('/api/portal/:token/preferences', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const result = await pool.query('SELECT * FROM customer_communication_prefs WHERE customer_id = $1', [tokenData.customer_id]);
+    const prefs = result.rows[0] || { email_invoices: true, email_reminders: true, email_marketing: false, sms_reminders: false, sms_marketing: false };
+    res.json({ success: true, preferences: prefs });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/portal/:token/preferences - Update communication preferences
+app.post('/api/portal/:token/preferences', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const { email_invoices, email_reminders, email_marketing, sms_reminders, sms_marketing } = req.body;
+    const result = await pool.query(
+      `INSERT INTO customer_communication_prefs (customer_id, email_invoices, email_reminders, email_marketing, sms_reminders, sms_marketing, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (customer_id) DO UPDATE SET email_invoices = $2, email_reminders = $3, email_marketing = $4, sms_reminders = $5, sms_marketing = $6, updated_at = NOW()
+       RETURNING *`,
+      [tokenData.customer_id, email_invoices !== false, email_reminders !== false, email_marketing === true, sms_reminders === true, sms_marketing === true]
+    );
+    res.json({ success: true, preferences: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// Admin: GET /api/service-requests - List service requests
+app.get('/api/service-requests', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = `SELECT sr.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone FROM service_requests sr LEFT JOIN customers c ON sr.customer_id = c.id`;
+    const params = [];
+    if (status) { query += ' WHERE sr.status = $1'; params.push(status); }
+    query += ' ORDER BY sr.created_at DESC';
+    const result = await pool.query(query, params);
+    res.json({ success: true, requests: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// Admin: PATCH /api/service-requests/:id - Update status/notes
+app.patch('/api/service-requests/:id', async (req, res) => {
+  try {
+    const { status, admin_notes } = req.body;
+    const updates = [];
+    const params = [];
+    let p = 1;
+    if (status) { updates.push(`status = $${p++}`); params.push(status); }
+    if (admin_notes !== undefined) { updates.push(`admin_notes = $${p++}`); params.push(admin_notes); }
+    updates.push('updated_at = NOW()');
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE service_requests SET ${updates.join(', ')} WHERE id = $${p} RETURNING *`, params);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
 // ═══ FINANCE / REPORTS ════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
 
@@ -7850,6 +8558,300 @@ app.get('/api/quickbooks/sync-log', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// ═══ TEMPLATE ENGINE & CRUD ══════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// Template variable replacement
+function replaceTemplateVars(str, data) {
+  if (!str) return str;
+  return str.replace(/\{(\w+)\}/g, (match, key) => {
+    return data[key] !== undefined ? data[key] : match;
+  });
+}
+
+// Get template from DB by slug
+async function getTemplate(slug) {
+  try {
+    const result = await pool.query('SELECT * FROM email_templates WHERE slug = $1 AND is_active = true', [slug]);
+    return result.rows[0] || null;
+  } catch(e) { return null; }
+}
+
+// Render a template with fallback to hardcoded HTML
+async function renderTemplate(slug, vars, fallbackSubject, fallbackHtml) {
+  const template = await getTemplate(slug);
+  if (template) {
+    const subject = replaceTemplateVars(template.subject, vars);
+    const body = replaceTemplateVars(template.body, vars);
+    const wrapperOption = template.options?.wrapper || 'full';
+    const html = wrapperOption === 'none' ? body : emailTemplate(body);
+    return { subject, html, fromTemplate: true };
+  }
+  return { subject: fallbackSubject, html: fallbackHtml, fromTemplate: false };
+}
+
+// Render SMS template with fallback
+async function renderSmsTemplate(slug, vars, fallbackText) {
+  const template = await getTemplate(slug);
+  if (template && template.sms_body) {
+    return { text: replaceTemplateVars(template.sms_body, vars), fromTemplate: true };
+  }
+  return { text: fallbackText, fromTemplate: false };
+}
+
+// Default template seeds
+const DEFAULT_TEMPLATES = [
+  { name: 'Quote Sent', slug: 'quote_sent', category: 'quotes', subject: 'Your Quote from Pappas & Co. Landscaping', body: '<h2 style="color:#2e403d">Your Quote is Ready</h2><p>Hi {customer_first_name},</p><p>We\'ve prepared a custom quote for your landscaping needs.</p><p><strong>Quote #{quote_number}</strong> — <strong>${quote_total}</strong></p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">View Your Quote</a></p>', sms_body: 'Hi {customer_first_name}, your quote #{quote_number} for ${quote_total} from Pappas & Co. is ready! View it here: {quote_link}', variables: '["customer_name","customer_first_name","quote_number","quote_total","quote_link","services_list"]' },
+  { name: 'Follow-up Stage 1', slug: 'followup_stage_1', category: 'followups', subject: 'Following up on your quote — Pappas & Co.', body: '<h2 style="color:#2e403d">Still Interested?</h2><p>Hi {customer_first_name},</p><p>Just checking in on your quote #{quote_number}. We\'d love to get your lawn looking great!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Review Quote</a></p>', sms_body: 'Hi {customer_first_name}, just following up on your Pappas & Co. quote #{quote_number}. Any questions? Reply here or call (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_total","quote_link"]' },
+  { name: 'Follow-up Stage 2', slug: 'followup_stage_2', category: 'followups', subject: 'Your lawn care quote expires soon', body: '<h2 style="color:#2e403d">Don\'t Miss Out</h2><p>Hi {customer_first_name},</p><p>Your quote #{quote_number} is still available. We have limited availability this season — lock in your spot!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Accept Quote</a></p>', sms_body: 'Hi {customer_first_name}, your Pappas & Co. quote #{quote_number} expires soon! Lock in your spot: {quote_link}', variables: '["customer_first_name","quote_number","quote_link"]' },
+  { name: 'Follow-up Stage 3', slug: 'followup_stage_3', category: 'followups', subject: 'Last chance — lawn care quote', body: '<h2 style="color:#2e403d">Last Chance</h2><p>Hi {customer_first_name},</p><p>This is our final follow-up on quote #{quote_number}. If you\'re still interested, we\'d love to work with you!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">View Quote</a></p>', sms_body: 'Last call, {customer_first_name}! Your Pappas & Co. quote #{quote_number} expires soon. Questions? Call us at (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_link"]' },
+  { name: 'Follow-up Stage 4', slug: 'followup_stage_4', category: 'followups', subject: 'We\'d love your feedback — Pappas & Co.', body: '<h2 style="color:#2e403d">We Value Your Feedback</h2><p>Hi {customer_first_name},</p><p>We noticed you haven\'t accepted quote #{quote_number}. Was there something we could improve? Your feedback helps us serve our community better.</p>', sms_body: '', variables: '["customer_first_name","quote_number"]' },
+  { name: 'Invoice Sent', slug: 'invoice_sent', category: 'invoices', subject: 'Invoice {invoice_number} from Pappas & Co.', body: '<h2 style="color:#2e403d">Invoice {invoice_number}</h2><p>Hi {customer_first_name},</p><p>Here\'s your invoice from Pappas & Co. Landscaping.</p><div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;text-align:center;"><p style="font-size:24px;font-weight:700;color:#2e403d;margin:0;">${invoice_total}</p><p style="color:#666;margin:4px 0;">Due: {invoice_due_date}</p></div><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now</a></p>', sms_body: 'Hi {customer_first_name}, invoice {invoice_number} for ${invoice_total} from Pappas & Co. is ready. Pay here: {payment_link}', variables: '["customer_first_name","invoice_number","invoice_total","invoice_due_date","payment_link","balance_due"]' },
+  { name: 'Payment Confirmation — Customer', slug: 'payment_confirmation_customer', category: 'payments', subject: 'Payment received — Thank you!', body: '<h2 style="color:#059669">Payment Received!</h2><p>Hi {customer_first_name},</p><p>We\'ve received your payment of <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p><p>Thank you for your business!</p>', sms_body: 'Thanks {customer_first_name}! We received your ${amount_paid} payment for invoice {invoice_number}. - Pappas & Co.', variables: '["customer_first_name","invoice_number","amount_paid"]' },
+  { name: 'Payment Confirmation — Admin', slug: 'payment_confirmation_admin', category: 'payments', subject: 'Payment received: {invoice_number}', body: '<h2 style="color:#059669">Payment Received</h2><p><strong>{customer_name}</strong> paid <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p>', sms_body: '', variables: '["customer_name","invoice_number","amount_paid"]' },
+  { name: 'Payment Reminder', slug: 'payment_reminder', category: 'invoices', subject: 'Reminder: Invoice {invoice_number} — ${balance_due} due', body: '<h2 style="color:#2e403d">Payment Reminder</h2><p>Hi {customer_first_name},</p><p>This is a friendly reminder that invoice <strong>{invoice_number}</strong> has a balance of <strong>${balance_due}</strong>{invoice_due_date}.</p><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now — ${balance_due}</a></p><p>If you\'ve already sent payment, please disregard this.</p>', sms_body: 'Reminder: Invoice {invoice_number} has ${balance_due} due. Pay online: {payment_link} - Pappas & Co.', variables: '["customer_first_name","invoice_number","balance_due","invoice_due_date","payment_link"]' },
+  { name: 'Portal Magic Link', slug: 'portal_magic_link', category: 'portal', subject: 'Your Pappas & Co. Customer Portal', body: '<h2 style="color:#2e403d">Your Customer Portal Access</h2><p>Hi {customer_first_name},</p><p>Click below to access your Pappas & Co. customer portal.</p><p><a href="{portal_link}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">Access Your Portal</a></p><p style="font-size:13px;color:#9ca09c;">This link is valid for 30 days.</p>', sms_body: 'Access your Pappas & Co. portal: {portal_link}', variables: '["customer_first_name","portal_link"]' },
+  { name: 'Late Fee Applied', slug: 'late_fee_applied', category: 'invoices', subject: 'Late Fee Applied — Invoice {invoice_number}', body: '<h2 style="color:#dc4a4a">Late Fee Applied</h2><p>Hi {customer_first_name},</p><p>A late fee has been applied to invoice <strong>{invoice_number}</strong>, which is past due.</p><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now</a></p>', sms_body: 'A late fee has been applied to your Pappas & Co. invoice {invoice_number}. Pay now: {payment_link}', variables: '["customer_first_name","invoice_number","balance_due","payment_link"]' },
+  { name: 'Monthly Invoice', slug: 'monthly_invoice', category: 'invoices', subject: 'Monthly Invoice {invoice_number} — ${invoice_total}', body: '<h2 style="color:#2e403d">Monthly Invoice {invoice_number}</h2><p>Hi {customer_first_name},</p><p>Your monthly lawn care invoice is ready.</p><div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;text-align:center;"><p style="font-size:28px;font-weight:700;color:#2e403d;margin:0;">${invoice_total}</p><p style="color:#666;margin:4px 0;">Monthly Lawn Care Plan</p></div><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now</a></p>', sms_body: 'Your monthly Pappas & Co. invoice {invoice_number} for ${invoice_total} is ready. Pay: {payment_link}', variables: '["customer_first_name","invoice_number","invoice_total","payment_link"]' },
+  { name: 'Service Request Received', slug: 'service_request_received', category: 'portal', subject: 'Service Request Received — {service_type}', body: '<h2 style="color:#2e403d">Service Request Received</h2><p>Hi {customer_first_name},</p><p>We\'ve received your service request and will review it shortly.</p><p><strong>Service:</strong> {service_type}</p><p>We\'ll be in touch soon!</p>', sms_body: 'We received your service request, {customer_first_name}! We\'ll review and get back to you soon. - Pappas & Co.', variables: '["customer_first_name","service_type"]' },
+  { name: 'Quote Accepted — Admin', slug: 'quote_accepted_admin', category: 'quotes', subject: 'Quote #{quote_number} Accepted!', body: '<h2 style="color:#059669">Quote Accepted!</h2><p><strong>{customer_name}</strong> accepted quote <strong>#{quote_number}</strong> for <strong>${quote_total}</strong>.</p>', sms_body: '{customer_name} accepted quote #{quote_number} (${quote_total})!', variables: '["customer_name","quote_number","quote_total"]' },
+  { name: 'Quote Declined — Admin', slug: 'quote_declined_admin', category: 'quotes', subject: 'Quote #{quote_number} Declined', body: '<h2 style="color:#dc4a4a">Quote Declined</h2><p><strong>{customer_name}</strong> declined quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number"]' },
+  { name: 'Contract Signed', slug: 'contract_signed', category: 'quotes', subject: 'Contract Signed — {customer_name}', body: '<h2 style="color:#059669">Contract Signed!</h2><p><strong>{customer_name}</strong> has signed the service agreement for quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number","quote_total"]' },
+  { name: 'Job Completed', slug: 'job_completed', category: 'system', subject: 'Service Completed — {service_type}', body: '<h2 style="color:#059669">Service Completed</h2><p>Hi {customer_first_name},</p><p>Your <strong>{service_type}</strong> service at <strong>{address}</strong> has been completed by {crew_name}.</p><p>Thank you for choosing Pappas & Co.!</p>', sms_body: 'Your {service_type} service has been completed! Thanks for choosing Pappas & Co. - (440) 886-7318', variables: '["customer_first_name","service_type","address","crew_name","job_date"]' },
+  { name: 'Welcome Email', slug: 'welcome_email', category: 'marketing', subject: 'Welcome to Pappas & Co. Landscaping!', body: '<h2 style="color:#2e403d">Welcome to the Family!</h2><p>Hi {customer_first_name},</p><p>Thank you for choosing Pappas & Co. Landscaping! We\'re excited to help you keep your property looking beautiful.</p><p>If you ever need anything, just reply to this email or call us at (440) 886-7318.</p>', sms_body: 'Welcome to Pappas & Co., {customer_first_name}! We\'re excited to serve you. Questions? Call (440) 886-7318.', variables: '["customer_first_name","customer_name"]' },
+  { name: 'Seasonal Promo', slug: 'seasonal_promo', category: 'marketing', subject: 'Spring Special — Save on Lawn Care!', body: '<h2 style="color:#2e403d">Spring Special!</h2><p>Hi {customer_first_name},</p><p>Spring is here! Book your spring cleanup and get 10% off. Contact us today.</p>', sms_body: 'Spring special from Pappas & Co.! Book a spring cleanup and save 10%. Call (440) 886-7318 to schedule.', variables: '["customer_first_name","customer_name"]' },
+  { name: 'Review Request', slug: 'review_request', category: 'marketing', subject: 'How did we do? — Pappas & Co.', body: '<h2 style="color:#2e403d">How Did We Do?</h2><p>Hi {customer_first_name},</p><p>We hope you\'re happy with your recent service! If so, we\'d love a Google review. It helps us grow and serve more neighbors like you.</p>', sms_body: 'Hi {customer_first_name}! Enjoy your recent service from Pappas & Co.? We\'d love a Google review! It really helps us out.', variables: '["customer_first_name"]' },
+  { name: 'Appointment Reminder', slug: 'appointment_reminder', category: 'system', subject: 'Service Tomorrow — {service_type}', body: '<h2 style="color:#2e403d">Service Reminder</h2><p>Hi {customer_first_name},</p><p>Just a reminder that your <strong>{service_type}</strong> service is scheduled for <strong>{job_date}</strong> at <strong>{address}</strong>.</p><p>Please ensure gates are unlocked and the area is accessible.</p>', sms_body: 'Reminder: Your {service_type} with Pappas & Co. is tomorrow at {address}. Please unlock gates! Questions? (440) 886-7318', variables: '["customer_first_name","service_type","job_date","address"]' },
+  { name: 'Campaign Email', slug: 'campaign_email', category: 'marketing', subject: '{subject}', body: '<p>{body}</p>', sms_body: '{body}', variables: '["customer_first_name","customer_name","subject","body","company_name","company_phone"]' },
+];
+
+// Seed default templates
+async function seedDefaultTemplates() {
+  for (const t of DEFAULT_TEMPLATES) {
+    try {
+      await pool.query(
+        `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, variables, is_default, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true, true)
+         ON CONFLICT (slug) DO NOTHING`,
+        [t.name, t.slug, t.category, t.subject, t.body, t.sms_body, t.variables]
+      );
+    } catch(e) { /* ignore dups */ }
+  }
+}
+// Run seed after tables are created (deferred via setTimeout to let migrations complete)
+setTimeout(() => seedDefaultTemplates().then(() => console.log('✅ Default templates seeded')).catch(e => console.error('Template seed error:', e.message)), 5000);
+
+// Template CRUD endpoints
+app.get('/api/templates', async (req, res) => {
+  try {
+    const { category } = req.query;
+    let query = 'SELECT * FROM email_templates';
+    const params = [];
+    if (category) { query += ' WHERE category = $1'; params.push(category); }
+    query += ' ORDER BY category, name';
+    const result = await pool.query(query, params);
+    res.json({ success: true, templates: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/templates', async (req, res) => {
+  try {
+    const { name, slug, category, subject, body, sms_body, variables, is_active, options } = req.body;
+    if (!name || !slug) return res.status(400).json({ success: false, error: 'name and slug required' });
+    const result = await pool.query(
+      `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, variables, is_active, options)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [name, slug, category || 'system', subject, body, sms_body, JSON.stringify(variables || []), is_active !== false, JSON.stringify(options || {})]
+    );
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.patch('/api/templates/:id', async (req, res) => {
+  try {
+    const fields = ['name', 'slug', 'category', 'subject', 'body', 'sms_body', 'variables', 'is_active', 'is_default', 'options'];
+    const updates = [];
+    const params = [];
+    let p = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        const val = (f === 'variables' || f === 'options') ? JSON.stringify(req.body[f]) : req.body[f];
+        updates.push(`${f} = $${p++}`);
+        params.push(val);
+      }
+    }
+    if (updates.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+    updates.push('updated_at = NOW()');
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE email_templates SET ${updates.join(', ')} WHERE id = $${p} RETURNING *`, params);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.delete('/api/templates/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM email_templates WHERE id = $1 AND is_default = false RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(400).json({ success: false, error: 'Cannot delete default template or not found' });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/templates/:id/duplicate', async (req, res) => {
+  try {
+    const orig = await pool.query('SELECT * FROM email_templates WHERE id = $1', [req.params.id]);
+    if (orig.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
+    const t = orig.rows[0];
+    const newSlug = t.slug + '_copy_' + Date.now();
+    const result = await pool.query(
+      `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, variables, is_active, options)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [t.name + ' (Copy)', newSlug, t.category, t.subject, t.body, t.sms_body, JSON.stringify(t.variables), true, JSON.stringify(t.options)]
+    );
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/templates/preview', async (req, res) => {
+  try {
+    const { slug, vars = {} } = req.body;
+    const template = await getTemplate(slug);
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
+    const subject = replaceTemplateVars(template.subject, vars);
+    const body = replaceTemplateVars(template.body, vars);
+    res.json({ success: true, subject, html: emailTemplate(body) });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/templates/send-preview', async (req, res) => {
+  try {
+    const { template_id, slug } = req.body;
+    let template;
+    if (template_id) {
+      const r = await pool.query('SELECT * FROM email_templates WHERE id = $1', [template_id]);
+      template = r.rows[0];
+    } else if (slug) {
+      template = await getTemplate(slug);
+    }
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
+    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
+    const subject = replaceTemplateVars(template.subject, sampleVars);
+    const body = replaceTemplateVars(template.body, sampleVars);
+    await sendEmail('hello@pappaslandscaping.com', `[TEST] ${subject}`, emailTemplate(body));
+    res.json({ success: true, message: 'Test email sent to hello@pappaslandscaping.com' });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/templates/variables', (req, res) => {
+  res.json({
+    success: true,
+    variables: {
+      customer: ['customer_name', 'customer_first_name', 'customer_email', 'customer_phone', 'customer_address'],
+      invoice: ['invoice_number', 'invoice_total', 'invoice_due_date', 'amount_paid', 'balance_due', 'payment_link'],
+      quote: ['quote_number', 'quote_total', 'quote_link', 'services_list'],
+      job: ['job_date', 'service_type', 'crew_name', 'address'],
+      company: ['company_name', 'company_phone', 'company_email', 'company_website', 'portal_link']
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ CAMPAIGN BULK SEND & TRACKING ════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// POST /api/campaigns/:id/send - Bulk send campaign with template
+app.post('/api/campaigns/:id/send', async (req, res) => {
+  try {
+    const { template_id, customer_ids, segment } = req.body;
+    if (!template_id) return res.status(400).json({ success: false, error: 'template_id required' });
+    const template = await pool.query('SELECT * FROM email_templates WHERE id = $1', [template_id]);
+    if (template.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
+    const tmpl = template.rows[0];
+
+    // Get target customers
+    let customers;
+    if (customer_ids && customer_ids.length > 0) {
+      customers = await pool.query('SELECT * FROM customers WHERE id = ANY($1)', [customer_ids]);
+    } else if (segment === 'all') {
+      customers = await pool.query('SELECT * FROM customers WHERE email IS NOT NULL AND email != \'\'');
+    } else if (segment === 'monthly_plan') {
+      customers = await pool.query('SELECT * FROM customers WHERE monthly_plan_amount > 0 AND email IS NOT NULL');
+    } else if (segment === 'active') {
+      customers = await pool.query(`SELECT DISTINCT c.* FROM customers c JOIN scheduled_jobs j ON c.id = j.customer_id WHERE j.created_at >= NOW() - INTERVAL '6 months' AND c.email IS NOT NULL`);
+    } else {
+      return res.status(400).json({ success: false, error: 'customer_ids or segment required' });
+    }
+
+    const results = { sent: 0, errors: 0 };
+    for (const cust of customers.rows) {
+      try {
+        const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+        const vars = {
+          customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
+          customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
+          company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com'
+        };
+        const subject = replaceTemplateVars(tmpl.subject, vars);
+        let body = replaceTemplateVars(tmpl.body, vars);
+        // Add tracking pixel
+        const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+        body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
+        await sendEmail(cust.email, subject, emailTemplate(body));
+        await pool.query(
+          'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
+          [req.params.id, template_id, cust.id, cust.email, 'sent', trackingId]
+        );
+        results.sent++;
+      } catch(e) { results.errors++; }
+    }
+    // Update campaign stats
+    await pool.query('UPDATE campaigns SET template_id = $1, send_count = COALESCE(send_count, 0) + $2 WHERE id = $3', [template_id, results.sent, req.params.id]);
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Campaign send error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/campaigns/:id/send-history - Send stats
+app.get('/api/campaigns/:id/send-history', async (req, res) => {
+  try {
+    const sends = await pool.query(
+      `SELECT cs.*, c.name as customer_name FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`,
+      [req.params.id]
+    );
+    const stats = await pool.query(
+      `SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`,
+      [req.params.id]
+    );
+    res.json({ success: true, sends: sends.rows, stats: stats.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// Tracking pixel — records open
+app.get('/api/t/:trackingId/open.png', async (req, res) => {
+  try {
+    await pool.query('UPDATE campaign_sends SET opened_at = COALESCE(opened_at, NOW()) WHERE tracking_id = $1', [req.params.trackingId]);
+    // Update campaign open_count
+    await pool.query(`UPDATE campaigns SET open_count = (SELECT COUNT(opened_at) FROM campaign_sends WHERE campaign_id = campaigns.id) WHERE id = (SELECT campaign_id FROM campaign_sends WHERE tracking_id = $1)`, [req.params.trackingId]);
+  } catch(e) { /* silently fail */ }
+  // Return 1x1 transparent PNG
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Content-Length': pixel.length });
+  res.send(pixel);
+});
+
+// Click tracking redirect
+app.get('/api/t/:trackingId/click', async (req, res) => {
+  const { url } = req.query;
+  try {
+    await pool.query('UPDATE campaign_sends SET clicked_at = COALESCE(clicked_at, NOW()) WHERE tracking_id = $1', [req.params.trackingId]);
+    await pool.query(`UPDATE campaigns SET click_count = (SELECT COUNT(clicked_at) FROM campaign_sends WHERE campaign_id = campaigns.id) WHERE id = (SELECT campaign_id FROM campaign_sends WHERE tracking_id = $1)`, [req.params.trackingId]);
+  } catch(e) { /* silently fail */ }
+  res.redirect(url || '/');
+});
+
+// ═══════════════════════════════════════════════════════════
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.get('/api/config/maps-key', (req, res) => res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
@@ -7925,6 +8927,117 @@ async function ensurePaymentsTables() {
   await pool.query(PORTAL_TOKENS_TABLE);
 }
 
+// ═══════════════════════════════════════════════════════════
+// NEW TABLES — CopilotCRM Feature Parity
+// ═══════════════════════════════════════════════════════════
+
+const BUSINESS_SETTINGS_TABLE = `CREATE TABLE IF NOT EXISTS business_settings (
+  id SERIAL PRIMARY KEY,
+  key VARCHAR(100) UNIQUE NOT NULL,
+  value JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+const LATE_FEES_TABLE = `CREATE TABLE IF NOT EXISTS late_fees (
+  id SERIAL PRIMARY KEY,
+  invoice_id INTEGER NOT NULL,
+  fee_amount DECIMAL(10,2) NOT NULL,
+  fee_type VARCHAR(20) DEFAULT 'percentage',
+  fee_percentage DECIMAL(5,2),
+  days_overdue INTEGER,
+  waived BOOLEAN DEFAULT false,
+  waived_at TIMESTAMP,
+  waived_by VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+const RECURRING_INVOICE_LOG_TABLE = `CREATE TABLE IF NOT EXISTS recurring_invoice_log (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER NOT NULL,
+  billing_month VARCHAR(7) NOT NULL,
+  invoice_id INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(customer_id, billing_month)
+)`;
+
+const RECURRING_JOB_LOG_TABLE = `CREATE TABLE IF NOT EXISTS recurring_job_log (
+  id SERIAL PRIMARY KEY,
+  source_job_id INTEGER NOT NULL,
+  generated_for_date DATE NOT NULL,
+  generated_job_id INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(source_job_id, generated_for_date)
+)`;
+
+const CUSTOMER_SAVED_CARDS_TABLE = `CREATE TABLE IF NOT EXISTS customer_saved_cards (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER NOT NULL,
+  square_card_id VARCHAR(255) NOT NULL,
+  card_brand VARCHAR(30),
+  last4 VARCHAR(4),
+  exp_month INTEGER,
+  exp_year INTEGER,
+  cardholder_name VARCHAR(255),
+  is_default BOOLEAN DEFAULT false,
+  enabled BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+const SERVICE_REQUESTS_TABLE = `CREATE TABLE IF NOT EXISTS service_requests (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER NOT NULL,
+  type VARCHAR(50) DEFAULT 'service',
+  service_type VARCHAR(100),
+  description TEXT,
+  preferred_date DATE,
+  urgency VARCHAR(20) DEFAULT 'normal',
+  status VARCHAR(20) DEFAULT 'pending',
+  admin_notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+const CUSTOMER_COMMUNICATION_PREFS_TABLE = `CREATE TABLE IF NOT EXISTS customer_communication_prefs (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER UNIQUE NOT NULL,
+  email_invoices BOOLEAN DEFAULT true,
+  email_reminders BOOLEAN DEFAULT true,
+  email_marketing BOOLEAN DEFAULT false,
+  sms_reminders BOOLEAN DEFAULT false,
+  sms_marketing BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+const EMAIL_TEMPLATES_TABLE = `CREATE TABLE IF NOT EXISTS email_templates (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(100) UNIQUE NOT NULL,
+  category VARCHAR(50) DEFAULT 'system',
+  subject TEXT,
+  body TEXT,
+  sms_body TEXT,
+  variables JSONB DEFAULT '[]',
+  is_default BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  options JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
+  id SERIAL PRIMARY KEY,
+  campaign_id INTEGER,
+  template_id INTEGER,
+  customer_id INTEGER,
+  customer_email VARCHAR(255),
+  status VARCHAR(20) DEFAULT 'sent',
+  sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  opened_at TIMESTAMP,
+  clicked_at TIMESTAMP,
+  tracking_id VARCHAR(64) UNIQUE,
+  error_message TEXT
+)`;
+
 // Database migrations — widen contract columns that are too narrow for signature data
 (async () => {
   try {
@@ -7975,6 +9088,73 @@ async function ensurePaymentsTables() {
     try { await pool.query(sql); } catch(e) { /* column may already exist */ }
   }
   console.log('✅ Invoice payment columns ready');
+
+  // ═══ CopilotCRM Feature Parity Tables ═══
+  const newTables = [
+    BUSINESS_SETTINGS_TABLE, LATE_FEES_TABLE, RECURRING_INVOICE_LOG_TABLE,
+    RECURRING_JOB_LOG_TABLE, CUSTOMER_SAVED_CARDS_TABLE, SERVICE_REQUESTS_TABLE,
+    CUSTOMER_COMMUNICATION_PREFS_TABLE, EMAIL_TEMPLATES_TABLE, CAMPAIGN_SENDS_TABLE
+  ];
+  for (const sql of newTables) {
+    try { await pool.query(sql); } catch(e) { console.error('Table create error:', e.message); }
+  }
+  console.log('✅ CopilotCRM feature tables ready');
+
+  // Add new columns to invoices
+  const invoiceNewCols = [
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS late_fee_total DECIMAL(10,2) DEFAULT 0',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS is_auto_generated BOOLEAN DEFAULT false',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS auto_gen_source VARCHAR(50)',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS billing_month VARCHAR(7)',
+  ];
+  for (const sql of invoiceNewCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  // Add new columns to scheduled_jobs
+  const jobNewCols = [
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS recurring_end_date DATE',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS parent_job_id INTEGER',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT false',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS recurring_pattern VARCHAR(50)',
+  ];
+  for (const sql of jobNewCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  // Add new columns to customers
+  const customerNewCols = [
+    'ALTER TABLE customers ADD COLUMN IF NOT EXISTS square_customer_id VARCHAR(255)',
+    'ALTER TABLE customers ADD COLUMN IF NOT EXISTS monthly_plan_amount DECIMAL(10,2) DEFAULT 0',
+  ];
+  for (const sql of customerNewCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  // Add new columns to campaigns
+  const campaignNewCols = [
+    'ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS template_id INTEGER',
+    'ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS send_count INTEGER DEFAULT 0',
+    'ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS open_count INTEGER DEFAULT 0',
+    'ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS click_count INTEGER DEFAULT 0',
+  ];
+  for (const sql of campaignNewCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  console.log('✅ All CopilotCRM column migrations ready');
+
+  // Seed default late fee settings (matches contract terms at Section V)
+  try {
+    await pool.query(`
+      INSERT INTO business_settings (key, value) VALUES
+        ('late_fee_rules', '{"grace_period_days": 30, "initial_fee_percent": 10, "recurring_fee_percent": 5, "recurring_interval_days": 30, "max_fees": 3, "enabled": true}'),
+        ('recurring_invoice_config', '{"auto_send": true, "due_date_offset_days": 0, "include_payment_link": true}'),
+        ('company_info', '{"name": "Pappas & Co. Landscaping", "phone": "(440) 886-7318", "email": "hello@pappaslandscaping.com", "website": "pappaslandscaping.com", "address": "PO Box 770057, Lakewood, Ohio 44107"}')
+      ON CONFLICT (key) DO NOTHING
+    `);
+    console.log('✅ Default business settings seeded');
+  } catch(e) { console.error('Settings seed error:', e.message); }
 })();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

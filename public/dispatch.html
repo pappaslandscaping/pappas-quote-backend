@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dispatch Board — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --cream: #ffffff;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* ─── Sidebar ───────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .sidebar-brand img {
+            max-height: 48px;
+            width: auto;
+            max-width: 180px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section { margin-bottom: 8px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 12px 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .nav-item.active {
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+        .nav-item .badge {
+            margin-left: auto;
+            background: var(--forest);
+            color: var(--lime);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-user .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .sidebar-user .name {
+            color: var(--gray-700);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .sidebar-user .role {
+            color: var(--gray-400);
+            font-size: 11px;
+        }
+
+        /* ─── Main Content ──────────────────────────────────── */
+        .main {
+            margin-left: var(--sidebar-w);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            height: var(--header-h);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            z-index: 50;
+            flex-shrink: 0;
+        }
+
+        .topbar-left h2 {
+            font-family: 'Qualy', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        .topbar-left p {
+            font-size: 13px;
+            color: var(--gray-400);
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn svg { width: 16px; height: 16px; }
+
+        .btn-primary {
+            background: var(--forest);
+            color: var(--lime);
+        }
+        .btn-primary:hover {
+            background: var(--forest-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--gray-600);
+            border: 1px solid var(--gray-200);
+        }
+        .btn-secondary:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-300);
+            transform: translateY(-1px);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--gray-500);
+            padding: 8px;
+        }
+        .btn-ghost:hover { background: var(--gray-100); }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid #fecaca;
+        }
+        .btn-danger:hover {
+            background: #fde2e2;
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .mobile-menu-btn svg {
+            width: 24px;
+            height: 24px;
+            color: var(--gray-600);
+        }
+
+        /* ─── Toolbar ──────────────────────────────────────── */
+        .dispatch-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 32px;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .date-nav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .date-nav-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            border-radius: 8px;
+            font-size: 16px;
+            color: var(--gray-600);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .date-nav-btn:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-300);
+        }
+
+        .date-input {
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--forest);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 6px 12px;
+            background: var(--white);
+            cursor: pointer;
+            min-width: 155px;
+            text-align: center;
+        }
+
+        .date-input:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+        }
+
+        .today-btn {
+            padding: 6px 14px;
+            background: var(--forest);
+            color: var(--lime);
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .today-btn:hover {
+            background: var(--forest-dark);
+        }
+
+        .view-toggle {
+            display: flex;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .view-toggle-btn {
+            padding: 6px 16px;
+            border: none;
+            background: var(--white);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-500);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .view-toggle-btn + .view-toggle-btn {
+            border-left: 1px solid var(--gray-200);
+        }
+
+        .view-toggle-btn.active {
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .view-toggle-btn:hover:not(.active) {
+            background: var(--gray-50);
+        }
+
+        .unassigned-toggle {
+            position: relative;
+        }
+
+        .unassigned-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: var(--red);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ─── Board Layout ─────────────────────────────────── */
+        .board-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .board-area {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* ─── Day View ─────────────────────────────────────── */
+        .day-board {
+            display: flex;
+            gap: 16px;
+            min-height: calc(100vh - var(--header-h) - 130px);
+        }
+
+        .crew-lane {
+            flex: 1;
+            min-width: 280px;
+            max-width: 380px;
+            display: flex;
+            flex-direction: column;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+
+        .crew-lane.drag-over {
+            box-shadow: 0 0 0 2px var(--forest), 0 4px 16px rgba(46, 64, 61, 0.15);
+        }
+
+        .crew-lane-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-200);
+            position: relative;
+        }
+
+        .crew-lane-header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .crew-name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .crew-color-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .crew-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        .availability-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .availability-dot.green { background: var(--green); }
+        .availability-dot.yellow { background: var(--amber); }
+        .availability-dot.red { background: var(--red); }
+
+        .crew-members {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-bottom: 6px;
+        }
+
+        .crew-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .crew-stats span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .crew-stats strong {
+            color: var(--gray-700);
+            font-weight: 600;
+        }
+
+        .crew-lane-body {
+            flex: 1;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 120px;
+            overflow-y: auto;
+        }
+
+        .crew-lane-body.drag-over {
+            background: var(--gray-50);
+        }
+
+        .drop-placeholder {
+            border: 2px dashed var(--gray-300);
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            color: var(--gray-400);
+            font-size: 12px;
+            display: none;
+        }
+
+        .crew-lane-body.drag-over .drop-placeholder {
+            display: block;
+        }
+
+        .crew-lane-footer {
+            padding: 12px;
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .add-job-btn {
+            width: 100%;
+            padding: 8px;
+            border: 1px dashed var(--gray-300);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--gray-400);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .add-job-btn:hover {
+            border-color: var(--forest);
+            color: var(--forest);
+            background: var(--gray-50);
+        }
+
+        /* ─── Job Card ─────────────────────────────────────── */
+        .job-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: grab;
+            transition: all 0.15s;
+            border-left: 3px solid var(--gray-300);
+            position: relative;
+        }
+
+        .job-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transform: translateY(-1px);
+        }
+
+        .job-card:active { cursor: grabbing; }
+
+        .job-card.dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+        }
+
+        .job-card.service-mowing { border-left-color: var(--green); }
+        .job-card.service-cleanup { border-left-color: var(--blue); }
+        .job-card.service-mulch { border-left-color: var(--amber); }
+        .job-card.service-aeration { border-left-color: var(--purple); }
+        .job-card.service-other { border-left-color: var(--gray-300); }
+
+        .job-card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .job-customer {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .job-price {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--green);
+            white-space: nowrap;
+        }
+
+        .job-service {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 4px;
+        }
+
+        .job-address {
+            font-size: 12px;
+            color: var(--gray-400);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 6px;
+        }
+
+        .job-card-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .job-duration {
+            font-size: 11px;
+            color: var(--gray-400);
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .job-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .job-status.status-pending {
+            background: var(--amber-bg);
+            color: var(--amber);
+        }
+
+        .job-status.status-in-progress {
+            background: var(--blue-bg);
+            color: var(--blue);
+        }
+
+        .job-status.status-completed {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .job-status.status-cancelled {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+
+        .job-route-order {
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--forest);
+            color: var(--lime);
+            font-size: 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ─── Week View ────────────────────────────────────── */
+        .week-board {
+            display: none;
+            overflow-x: auto;
+        }
+
+        .week-board.active { display: block; }
+        .day-board.active { display: flex; }
+
+        .week-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--white);
+        }
+
+        .week-table th {
+            background: var(--gray-50);
+            padding: 12px 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--gray-200);
+            text-align: center;
+            min-width: 140px;
+        }
+
+        .week-table th:first-child {
+            min-width: 120px;
+            text-align: left;
+            padding-left: 16px;
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .week-table th.today-col {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .week-table td {
+            padding: 8px;
+            vertical-align: top;
+            border-bottom: 1px solid var(--gray-100);
+            border-right: 1px solid var(--gray-100);
+            min-height: 80px;
+        }
+
+        .week-table td:first-child {
+            background: var(--gray-50);
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--forest);
+            border-right: 1px solid var(--gray-200);
+        }
+
+        .week-table tr:last-child td { border-bottom: none; }
+
+        .week-crew-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .week-crew-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .week-cell {
+            min-height: 60px;
+        }
+
+        .week-cell.drag-over {
+            background: var(--gray-50);
+            outline: 2px dashed var(--forest);
+            outline-offset: -2px;
+            border-radius: 4px;
+        }
+
+        .week-job-card {
+            padding: 6px 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 11px;
+            cursor: grab;
+            transition: all 0.15s;
+            border-left: 3px solid var(--gray-300);
+            background: var(--white);
+            border-top: 1px solid var(--gray-100);
+            border-right: 1px solid var(--gray-100);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .week-job-card:hover {
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+
+        .week-job-card.dragging { opacity: 0.5; }
+
+        .week-job-card.service-mowing { border-left-color: var(--green); }
+        .week-job-card.service-cleanup { border-left-color: var(--blue); }
+        .week-job-card.service-mulch { border-left-color: var(--amber); }
+        .week-job-card.service-aeration { border-left-color: var(--purple); }
+
+        .week-job-name {
+            font-weight: 600;
+            color: var(--gray-700);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .week-job-service {
+            color: var(--gray-400);
+            font-size: 10px;
+        }
+
+        /* ─── Unassigned Sidebar ───────────────────────────── */
+        .unassigned-panel {
+            width: 300px;
+            background: var(--white);
+            border-left: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: width 0.3s, opacity 0.3s;
+            overflow: hidden;
+        }
+
+        .unassigned-panel.collapsed {
+            width: 0;
+            opacity: 0;
+            border-left: none;
+        }
+
+        .unassigned-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .unassigned-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--forest);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .unassigned-count {
+            background: var(--red-bg);
+            color: var(--red);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .unassigned-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--gray-400);
+            font-size: 18px;
+            padding: 4px;
+            line-height: 1;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+
+        .unassigned-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .unassigned-body {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .unassigned-empty {
+            text-align: center;
+            padding: 32px 16px;
+            color: var(--gray-400);
+            font-size: 13px;
+        }
+
+        .unassigned-empty svg {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 8px;
+            opacity: 0.4;
+        }
+
+        /* ─── Modal ────────────────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .modal-header h3 {
+            font-family: 'Qualy', serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--gray-400);
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .modal-body { padding: 24px; }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .detail-item { margin-bottom: 0; }
+
+        .detail-item.full-width { grid-column: 1 / -1; }
+
+        .detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        .detail-notes {
+            background: var(--amber-bg);
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            color: var(--amber);
+            margin-top: 16px;
+        }
+
+        .detail-notes strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* ─── Form Styles ──────────────────────────────────── */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 4px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-700);
+            transition: all 0.15s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+        }
+
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* ─── Print Styles ─────────────────────────────────── */
+        @media print {
+            .sidebar, .topbar, .dispatch-toolbar, .unassigned-panel,
+            .modal-overlay, .add-job-btn, .crew-lane-footer,
+            .job-route-order, .no-print { display: none !important; }
+
+            .main { margin-left: 0 !important; }
+
+            .board-wrapper { display: block !important; }
+
+            .board-area { padding: 0 !important; overflow: visible !important; }
+
+            .day-board { flex-direction: column !important; gap: 24px !important; }
+
+            .crew-lane {
+                min-width: unset !important;
+                max-width: unset !important;
+                break-inside: avoid;
+                border: 1px solid #ccc !important;
+            }
+
+            .job-card {
+                box-shadow: none !important;
+                transform: none !important;
+                break-inside: avoid;
+                cursor: default !important;
+            }
+
+            body { background: white !important; }
+
+            .print-header {
+                display: block !important;
+                text-align: center;
+                margin-bottom: 20px;
+                padding-bottom: 16px;
+                border-bottom: 2px solid #333;
+            }
+
+            .print-header h1 {
+                font-size: 22px;
+                margin-bottom: 4px;
+            }
+
+            .print-header p {
+                font-size: 14px;
+                color: #666;
+            }
+        }
+
+        .print-header { display: none; }
+
+        /* ─── Toast ────────────────────────────────────────── */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--forest);
+            color: var(--lime);
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            animation: slideUp 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.error {
+            background: var(--red);
+            color: white;
+        }
+
+        /* ─── Loading ──────────────────────────────────────── */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--forest);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .board-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 80px;
+            color: var(--gray-400);
+            font-size: 14px;
+            gap: 12px;
+        }
+
+        /* ─── Animations ───────────────────────────────────── */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── Responsive ───────────────────────────────────── */
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .unassigned-panel { width: 260px; }
+            .crew-lane { min-width: 250px; }
+        }
+
+        @media (max-width: 768px) {
+            .dispatch-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                padding: 12px 16px;
+            }
+            .toolbar-left, .toolbar-right { flex-wrap: wrap; }
+            .board-area { padding: 12px; }
+            .day-board { flex-direction: column; }
+            .crew-lane { max-width: unset; min-width: unset; }
+            .unassigned-panel { position: fixed; right: 0; top: 0; height: 100vh; z-index: 110; box-shadow: -4px 0 20px rgba(0,0,0,0.1); }
+            .unassigned-panel.collapsed { width: 0; }
+            .topbar { padding: 0 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ─── Sidebar ─────────────────────────────────────────── -->
+<div class="sidebar">
+    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="Pappas & Co."></a></div>
+    <div class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
+            <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+            <a href="dispatch.html" class="nav-item active"><span>🗓️</span><span>Dispatch Board</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages &amp; Calls</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Analytics</div>
+            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
+        </div>
+    </div>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div><div class="name">Tim Pappas</div><div class="role">Owner</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Main ────────────────────────────────────────────── -->
+<div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left">
+                <h2>Dispatch Board</h2>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-secondary no-print" onclick="printDispatch()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print Sheet
+            </button>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="dispatch-toolbar no-print">
+        <div class="toolbar-left">
+            <div class="date-nav">
+                <button class="date-nav-btn" onclick="navigateDate(-1)" title="Previous day">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <input type="date" class="date-input" id="datePicker" onchange="onDateChange()">
+                <button class="date-nav-btn" onclick="navigateDate(1)" title="Next day">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </div>
+            <button class="today-btn" onclick="goToToday()">Today</button>
+            <div class="view-toggle">
+                <button class="view-toggle-btn active" id="viewDay" onclick="setView('day')">Day</button>
+                <button class="view-toggle-btn" id="viewWeek" onclick="setView('week')">Week</button>
+            </div>
+        </div>
+        <div class="toolbar-right">
+            <div class="unassigned-toggle">
+                <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    Unassigned
+                </button>
+                <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Header -->
+    <div class="print-header">
+        <h1>Pappas & Co. - Daily Dispatch Sheet</h1>
+        <p id="printDate"></p>
+    </div>
+
+    <!-- Board -->
+    <div class="board-wrapper">
+        <div class="board-area" id="boardArea">
+            <div class="board-loading" id="boardLoading">
+                <div class="spinner"></div>
+                Loading dispatch board...
+            </div>
+            <div class="day-board active" id="dayBoard" style="display:none;"></div>
+            <div class="week-board" id="weekBoard"></div>
+        </div>
+
+        <!-- Unassigned Panel -->
+        <div class="unassigned-panel" id="unassignedPanel">
+            <div class="unassigned-header">
+                <div class="unassigned-title">
+                    Unassigned Jobs
+                    <span class="unassigned-count" id="unassignedCount">0</span>
+                </div>
+                <button class="unassigned-close" onclick="toggleUnassigned()">&times;</button>
+            </div>
+            <div class="unassigned-body" id="unassignedBody"
+                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleUnassignedDrop(event)">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Job Detail Modal ───────────────────────────────── -->
+<div class="modal-overlay" id="jobDetailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Job Details</h3>
+            <button class="modal-close" onclick="closeModal('jobDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="jobDetailBody"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('jobDetailModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Quick Add Job Modal ────────────────────────────── -->
+<div class="modal-overlay" id="addJobModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Quick Add Job</h3>
+            <button class="modal-close" onclick="closeModal('addJobModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="addJobForm" onsubmit="submitAddJob(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Customer Name</label>
+                        <input type="text" id="addJobCustomer" required placeholder="John Smith">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="addJobPhone" placeholder="440-555-0101">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address</label>
+                    <input type="text" id="addJobAddress" required placeholder="123 Main St, City, OH">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Service Type</label>
+                        <select id="addJobService" required>
+                            <option value="">Select service...</option>
+                            <option value="Mowing">Mowing</option>
+                            <option value="Spring Cleanup">Spring Cleanup</option>
+                            <option value="Fall Cleanup">Fall Cleanup</option>
+                            <option value="Mulching">Mulching</option>
+                            <option value="Aeration">Aeration</option>
+                            <option value="Hedge Trimming">Hedge Trimming</option>
+                            <option value="Leaf Removal">Leaf Removal</option>
+                            <option value="Fertilizing">Fertilizing</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Estimated Duration (min)</label>
+                        <input type="number" id="addJobDuration" required placeholder="45" min="15" step="15">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Price ($)</label>
+                        <input type="number" id="addJobPrice" required placeholder="65.00" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Assigned Crew</label>
+                        <select id="addJobCrew">
+                            <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Special Notes</label>
+                    <textarea id="addJobNotes" placeholder="Gate code, pet warnings, etc."></textarea>
+                </div>
+                <input type="hidden" id="addJobDate">
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('addJobModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="document.getElementById('addJobForm').requestSubmit()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Job
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Toast Container ────────────────────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+let currentDate = new Date();
+let currentView = 'day';
+let boardData = null;
+let draggedJob = null;
+let dragSourceCrewId = null;
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+    setDatePicker(currentDate);
+    loadBoard();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   DATE HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function formatDate(d) {
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+function setDatePicker(d) {
+    document.getElementById('datePicker').value = formatDate(d);
+    const printEl = document.getElementById('printDate');
+    if (printEl) {
+        printEl.textContent = d.toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+    }
+}
+
+function navigateDate(delta) {
+    if (currentView === 'week') {
+        currentDate.setDate(currentDate.getDate() + (delta * 7));
+    } else {
+        currentDate.setDate(currentDate.getDate() + delta);
+    }
+    setDatePicker(currentDate);
+    loadBoard();
+}
+
+function onDateChange() {
+    const val = document.getElementById('datePicker').value;
+    if (val) {
+        currentDate = new Date(val + 'T00:00:00');
+        setDatePicker(currentDate);
+        loadBoard();
+    }
+}
+
+function goToToday() {
+    currentDate = new Date();
+    setDatePicker(currentDate);
+    loadBoard();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VIEW TOGGLE
+   ═══════════════════════════════════════════════════════════ */
+function setView(view) {
+    currentView = view;
+    document.getElementById('viewDay').classList.toggle('active', view === 'day');
+    document.getElementById('viewWeek').classList.toggle('active', view === 'week');
+    loadBoard();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UNASSIGNED PANEL
+   ═══════════════════════════════════════════════════════════ */
+function toggleUnassigned() {
+    document.getElementById('unassignedPanel').classList.toggle('collapsed');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   API
+   ═══════════════════════════════════════════════════════════ */
+async function loadBoard() {
+    const dayBoard = document.getElementById('dayBoard');
+    const weekBoard = document.getElementById('weekBoard');
+    const loading = document.getElementById('boardLoading');
+
+    dayBoard.style.display = 'none';
+    weekBoard.style.display = 'none';
+    loading.style.display = 'flex';
+
+    try {
+        const dateStr = formatDate(currentDate);
+        const res = await fetch(`/api/dispatch/board?date=${dateStr}&view=${currentView}`);
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error || 'Failed to load board');
+
+        boardData = data;
+        loading.style.display = 'none';
+
+        updateUnassignedPanel(data.unassigned || []);
+        populateCrewSelect(data.crews || []);
+
+        if (currentView === 'day') {
+            renderDayView(data);
+            dayBoard.style.display = 'flex';
+        } else {
+            renderWeekView(data);
+            weekBoard.style.display = 'block';
+        }
+    } catch (err) {
+        loading.innerHTML = `
+            <div style="text-align:center;color:var(--gray-400);">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;opacity:0.5;">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <p style="font-size:14px;margin-bottom:8px;">Could not load dispatch board</p>
+                <p style="font-size:12px;color:var(--gray-400);">${err.message}</p>
+                <button class="btn btn-secondary" style="margin-top:12px;" onclick="loadBoard()">Retry</button>
+            </div>`;
+        console.error('Dispatch load error:', err);
+    }
+}
+
+async function assignJob(jobId, crewId, routeOrder) {
+    try {
+        const res = await fetch('/api/dispatch/assign', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                assignments: [{
+                    job_id: jobId,
+                    crew_assigned: crewId,
+                    route_order: routeOrder
+                }]
+            })
+        });
+        const data = await res.json();
+        if (!data.success && !res.ok) throw new Error(data.error || 'Assignment failed');
+        showToast('Job reassigned successfully');
+        loadBoard();
+    } catch (err) {
+        showToast('Failed to assign job: ' + err.message, 'error');
+        loadBoard();
+    }
+}
+
+async function submitAddJob(e) {
+    e.preventDefault();
+    const payload = {
+        customer_name: document.getElementById('addJobCustomer').value,
+        phone: document.getElementById('addJobPhone').value,
+        address: document.getElementById('addJobAddress').value,
+        service_type: document.getElementById('addJobService').value,
+        estimated_duration: parseInt(document.getElementById('addJobDuration').value),
+        service_price: parseFloat(document.getElementById('addJobPrice').value),
+        crew_assigned: document.getElementById('addJobCrew').value || null,
+        special_notes: document.getElementById('addJobNotes').value,
+        date: document.getElementById('addJobDate').value || formatDate(currentDate),
+        status: 'pending'
+    };
+
+    try {
+        const res = await fetch('/api/dispatch/assign', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignments: [payload] })
+        });
+        const data = await res.json();
+        if (!data.success && !res.ok) throw new Error(data.error || 'Failed to add job');
+        showToast('Job added successfully');
+        closeModal('addJobModal');
+        document.getElementById('addJobForm').reset();
+        loadBoard();
+    } catch (err) {
+        showToast('Failed to add job: ' + err.message, 'error');
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SERVICE CLASS HELPER
+   ═══════════════════════════════════════════════════════════ */
+function getServiceClass(serviceType) {
+    if (!serviceType) return 'service-other';
+    const s = serviceType.toLowerCase();
+    if (s === 'mowing') return 'service-mowing';
+    if (s.includes('cleanup') || s === 'fall cleanup' || s === 'spring cleanup') return 'service-cleanup';
+    if (s === 'mulch' || s === 'mulching') return 'service-mulch';
+    if (s === 'aeration') return 'service-aeration';
+    return 'service-other';
+}
+
+function getStatusClass(status) {
+    if (!status) return 'status-pending';
+    const s = status.toLowerCase().replace(/\s+/g, '-');
+    if (s === 'in-progress' || s === 'in_progress') return 'status-in-progress';
+    if (s === 'completed') return 'status-completed';
+    if (s === 'cancelled' || s === 'canceled') return 'status-cancelled';
+    return 'status-pending';
+}
+
+function getStatusLabel(status) {
+    if (!status) return 'Pending';
+    const s = status.toLowerCase().replace(/[_-]/g, ' ');
+    return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function getAvailabilityClass(totalHours) {
+    if (totalHours < 6) return 'green';
+    if (totalHours <= 8) return 'yellow';
+    return 'red';
+}
+
+function formatDuration(mins) {
+    if (!mins) return '--';
+    if (mins < 60) return mins + 'min';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function formatPrice(price) {
+    if (price == null) return '--';
+    return '$' + Number(price).toFixed(0);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER DAY VIEW
+   ═══════════════════════════════════════════════════════════ */
+function renderDayView(data) {
+    const container = document.getElementById('dayBoard');
+    const crews = data.crews || [];
+
+    if (crews.length === 0) {
+        container.innerHTML = `
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--gray-400);text-align:center;padding:60px;">
+                <div>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;opacity:0.4;">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    <p style="font-size:15px;font-weight:600;margin-bottom:4px;">No crews scheduled</p>
+                    <p style="font-size:13px;">No crew data found for this date.</p>
+                </div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = crews.map(crew => {
+        const avail = getAvailabilityClass(crew.totalHours || 0);
+        const jobs = (crew.jobs || []).sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+
+        return `
+        <div class="crew-lane" data-crew-id="${crew.id}">
+            <div class="crew-lane-header" style="border-top: 3px solid ${crew.color || '#9ca09c'}">
+                <div class="crew-lane-header-top">
+                    <div class="crew-name-row">
+                        <span class="crew-color-dot" style="background:${crew.color || '#9ca09c'}"></span>
+                        <span class="crew-name">${esc(crew.name)}</span>
+                    </div>
+                    <span class="availability-dot ${avail}" title="${(crew.totalHours || 0).toFixed(1)}h scheduled"></span>
+                </div>
+                <div class="crew-members">${esc(crew.members || '--')}</div>
+                <div class="crew-stats">
+                    <span><strong>${crew.jobCount || jobs.length}</strong> jobs</span>
+                    <span><strong>${(crew.totalHours || 0).toFixed(1)}</strong> hours</span>
+                </div>
+            </div>
+            <div class="crew-lane-body" data-crew-id="${crew.id}"
+                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleCrewDrop(event, ${crew.id})">
+                ${jobs.length === 0 ? '<div style="color:var(--gray-400);font-size:12px;text-align:center;padding:24px;">No jobs assigned</div>' : ''}
+                ${jobs.map(job => renderJobCard(job)).join('')}
+                <div class="drop-placeholder">Drop job here to assign</div>
+            </div>
+            <div class="crew-lane-footer">
+                <button class="add-job-btn" onclick="openAddJobModal(${crew.id}, '${esc(crew.name)}')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Job
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderJobCard(job) {
+    const svcClass = getServiceClass(job.service_type);
+    const statusClass = getStatusClass(job.status);
+    const statusLabel = getStatusLabel(job.status);
+
+    return `
+    <div class="job-card ${svcClass}" draggable="true" data-job-id="${job.id}"
+         ondragstart="handleDragStart(event, ${job.id})" ondragend="handleDragEnd(event)"
+         onclick="openJobDetail(${job.id})">
+        ${job.route_order ? `<span class="job-route-order">${job.route_order}</span>` : ''}
+        <div class="job-card-top">
+            <span class="job-customer">${esc(job.customer_name)}</span>
+            <span class="job-price">${formatPrice(job.service_price)}</span>
+        </div>
+        <div class="job-service">${esc(job.service_type || 'Service')}</div>
+        <div class="job-address" title="${esc(job.address || '')}">${esc(job.address || 'No address')}</div>
+        <div class="job-card-bottom">
+            <span class="job-duration">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                ${formatDuration(job.estimated_duration)}
+            </span>
+            <span class="job-status ${statusClass}">${statusLabel}</span>
+        </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER WEEK VIEW
+   ═══════════════════════════════════════════════════════════ */
+function renderWeekView(data) {
+    const container = document.getElementById('weekBoard');
+    const crews = data.crews || [];
+
+    // Compute the week (Mon-Sun) containing currentDate
+    const d = new Date(currentDate);
+    const dayOfWeek = d.getDay(); // 0=Sun
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + mondayOffset);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const dd = new Date(monday);
+        dd.setDate(monday.getDate() + i);
+        days.push(dd);
+    }
+
+    const todayStr = formatDate(new Date());
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    let html = `<table class="week-table"><thead><tr><th>Crew</th>`;
+    days.forEach((dd, i) => {
+        const isToday = formatDate(dd) === todayStr;
+        html += `<th class="${isToday ? 'today-col' : ''}">${dayNames[i]} ${dd.getMonth()+1}/${dd.getDate()}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    if (crews.length === 0) {
+        html += `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400);">No crews found</td></tr>`;
+    } else {
+        crews.forEach(crew => {
+            html += `<tr><td><div class="week-crew-label"><span class="week-crew-dot" style="background:${crew.color || '#9ca09c'}"></span>${esc(crew.name)}</div></td>`;
+            days.forEach(dd => {
+                const dateStr = formatDate(dd);
+                const dayJobs = (crew.jobs || []).filter(j => {
+                    // If jobs have a date field, filter; otherwise show all in day view position
+                    if (j.date) return j.date === dateStr;
+                    return dateStr === formatDate(currentDate);
+                });
+                html += `<td><div class="week-cell" data-crew-id="${crew.id}" data-date="${dateStr}"
+                    ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleWeekDrop(event, ${crew.id}, '${dateStr}')">`;
+                dayJobs.forEach(job => {
+                    const svcClass = getServiceClass(job.service_type);
+                    html += `<div class="week-job-card ${svcClass}" draggable="true" data-job-id="${job.id}"
+                        ondragstart="handleDragStart(event, ${job.id})" ondragend="handleDragEnd(event)"
+                        onclick="openJobDetail(${job.id})">
+                        <div class="week-job-name">${esc(job.customer_name)}</div>
+                        <div class="week-job-service">${esc(job.service_type || '')}</div>
+                    </div>`;
+                });
+                html += `</div></td>`;
+            });
+            html += `</tr>`;
+        });
+    }
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UNASSIGNED PANEL
+   ═══════════════════════════════════════════════════════════ */
+function updateUnassignedPanel(jobs) {
+    const body = document.getElementById('unassignedBody');
+    const countEl = document.getElementById('unassignedCount');
+    const badge = document.getElementById('unassignedBadge');
+
+    countEl.textContent = jobs.length;
+    if (jobs.length > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = jobs.length;
+    } else {
+        badge.style.display = 'none';
+    }
+
+    if (jobs.length === 0) {
+        body.innerHTML = `
+            <div class="unassigned-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M9 12l2 2 4-4"/>
+                    <circle cx="12" cy="12" r="10"/>
+                </svg>
+                <p>All jobs assigned!</p>
+            </div>`;
+        return;
+    }
+
+    body.innerHTML = jobs.map(job => renderJobCard(job)).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DRAG AND DROP
+   ═══════════════════════════════════════════════════════════ */
+function handleDragStart(e, jobId) {
+    draggedJob = jobId;
+    // Find source crew
+    const card = e.target.closest('.job-card, .week-job-card');
+    const lane = card ? card.closest('.crew-lane-body, .week-cell') : null;
+    dragSourceCrewId = lane ? lane.dataset.crewId || null : null;
+
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', jobId);
+
+    requestAnimationFrame(() => {
+        if (card) card.classList.add('dragging');
+    });
+}
+
+function handleDragEnd(e) {
+    draggedJob = null;
+    dragSourceCrewId = null;
+    document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.currentTarget;
+    target.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    const target = e.currentTarget;
+    // Only remove if actually leaving the container
+    if (!target.contains(e.relatedTarget)) {
+        target.classList.remove('drag-over');
+    }
+}
+
+function handleCrewDrop(e, crewId) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const jobId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (!jobId) return;
+
+    // Calculate route order: put it at the end
+    const lane = e.currentTarget;
+    const existingCards = lane.querySelectorAll('.job-card[data-job-id]');
+    const routeOrder = existingCards.length + 1;
+
+    assignJob(jobId, crewId, routeOrder);
+}
+
+function handleWeekDrop(e, crewId, dateStr) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const jobId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (!jobId) return;
+    assignJob(jobId, crewId, null);
+}
+
+function handleUnassignedDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const jobId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (!jobId) return;
+    // Unassign: crew = null
+    assignJob(jobId, null, null);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   JOB DETAIL MODAL
+   ═══════════════════════════════════════════════════════════ */
+function openJobDetail(jobId) {
+    // Prevent opening modal when ending a drag
+    if (draggedJob) return;
+
+    const job = findJob(jobId);
+    if (!job) return;
+
+    const statusClass = getStatusClass(job.status);
+    const statusLabel = getStatusLabel(job.status);
+
+    const body = document.getElementById('jobDetailBody');
+    body.innerHTML = `
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-label">Customer</div>
+                <div class="detail-value">${esc(job.customer_name)}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Phone</div>
+                <div class="detail-value">${job.phone ? `<a href="tel:${esc(job.phone)}" style="color:var(--blue);text-decoration:none;">${esc(job.phone)}</a>` : '--'}</div>
+            </div>
+            <div class="detail-item full-width">
+                <div class="detail-label">Address</div>
+                <div class="detail-value">${esc(job.address || 'No address')}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Service Type</div>
+                <div class="detail-value">${esc(job.service_type || '--')}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Status</div>
+                <div class="detail-value"><span class="job-status ${statusClass}">${statusLabel}</span></div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Estimated Duration</div>
+                <div class="detail-value">${formatDuration(job.estimated_duration)}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Price</div>
+                <div class="detail-value" style="font-weight:700;color:var(--green);">${formatPrice(job.service_price)}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Route Order</div>
+                <div class="detail-value">${job.route_order || 'Not set'}</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-label">Job ID</div>
+                <div class="detail-value">#${job.id}</div>
+            </div>
+        </div>
+        ${job.special_notes ? `
+            <div class="detail-notes">
+                <strong>Special Notes</strong>
+                ${esc(job.special_notes)}
+            </div>` : ''}
+    `;
+
+    openModal('jobDetailModal');
+}
+
+function findJob(jobId) {
+    if (!boardData) return null;
+    for (const crew of (boardData.crews || [])) {
+        const found = (crew.jobs || []).find(j => j.id === jobId);
+        if (found) return found;
+    }
+    return (boardData.unassigned || []).find(j => j.id === jobId) || null;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADD JOB MODAL
+   ═══════════════════════════════════════════════════════════ */
+function openAddJobModal(crewId, crewName) {
+    document.getElementById('addJobForm').reset();
+    document.getElementById('addJobDate').value = formatDate(currentDate);
+
+    // Pre-select crew
+    const crewSelect = document.getElementById('addJobCrew');
+    if (crewId) {
+        crewSelect.value = crewId;
+    }
+
+    openModal('addJobModal');
+}
+
+function populateCrewSelect(crews) {
+    const sel = document.getElementById('addJobCrew');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Unassigned</option>';
+    crews.forEach(c => {
+        sel.innerHTML += `<option value="${c.id}">${esc(c.name)}</option>`;
+    });
+    if (current) sel.value = current;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function openModal(id) {
+    document.getElementById(id).classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Close modal on overlay click
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) {
+        e.target.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.active').forEach(m => {
+            m.classList.remove('active');
+        });
+        document.body.style.overflow = '';
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════
+   PRINT
+   ═══════════════════════════════════════════════════════════ */
+function printDispatch() {
+    window.print();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════════════════════ */
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type === 'error' ? 'error' : ''}`;
+    toast.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            ${type === 'error'
+                ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+                : '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>'}
+        </svg>
+        ${esc(message)}`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ESCAPE HTML
+   ═══════════════════════════════════════════════════════════ */
+function esc(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+</script>
+</body>
+</html>

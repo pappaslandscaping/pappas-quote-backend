@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KPI Dashboard — Pappas & Co.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --cream: #ffffff;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .sidebar-brand img {
+            max-height: 48px;
+            width: auto;
+            max-width: 180px;
+        }
+
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 12px 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+
+        .sidebar-user .avatar {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 13px;
+        }
+
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        /* Main */
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+        /* Topbar */
+        .topbar {
+            position: sticky; top: 0;
+            height: var(--header-h);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px;
+            z-index: 50;
+        }
+
+        .topbar-left h1 { font-size: 24px; font-weight: 700; color: var(--forest); line-height: 1.2; }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        /* Page Content */
+        .page-content {
+            padding: 28px 32px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Period Toggle */
+        .period-toggle {
+            display: inline-flex;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 4px;
+            gap: 2px;
+            margin-bottom: 24px;
+        }
+
+        .period-btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            background: transparent;
+            color: var(--gray-500);
+            transition: all 0.15s;
+        }
+
+        .period-btn:hover { color: var(--gray-700); background: var(--gray-50); }
+
+        .period-btn.active {
+            background: var(--forest);
+            color: var(--lime);
+            box-shadow: 0 2px 8px rgba(46, 64, 61, 0.15);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover {
+            background: var(--forest-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+        }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
+
+        /* KPI Metric Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.15s ease;
+        }
+
+        .stat-card:hover {
+            box-shadow: 0 4px 16px rgba(46, 64, 61, 0.06);
+            transform: translateY(-1px);
+        }
+
+        .stat-card .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .stat-card .stat-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-500);
+        }
+
+        .stat-card .stat-icon {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+        }
+
+        .stat-card .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gray-700);
+            line-height: 1;
+        }
+
+        .stat-card .stat-sub {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 6px;
+        }
+
+        .stat-card .stat-sub .up { color: var(--green); font-weight: 600; }
+        .stat-card .stat-sub .down { color: var(--red); font-weight: 600; }
+
+        .icon-green { background: var(--green-bg); color: var(--green); }
+        .icon-blue { background: var(--blue-bg); color: var(--blue); }
+        .icon-amber { background: var(--amber-bg); color: var(--amber); }
+        .icon-purple { background: var(--purple-bg); color: var(--purple); }
+        .icon-red { background: var(--red-bg); color: var(--red); }
+        .icon-forest { background: rgba(46, 64, 61, 0.08); color: var(--forest); }
+
+        /* Charts Section */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .chart-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.15s ease;
+        }
+
+        .chart-card:hover {
+            box-shadow: 0 4px 16px rgba(46, 64, 61, 0.06);
+        }
+
+        .chart-card h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 20px;
+        }
+
+        .chart-card svg { width: 100%; }
+
+        /* AR Aging Legend */
+        .ar-legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .ar-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .ar-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        .ar-legend-value {
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        /* Table */
+        .table-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 28px;
+            transition: all 0.15s ease;
+        }
+
+        .table-card:hover {
+            box-shadow: 0 4px 16px rgba(46, 64, 61, 0.06);
+        }
+
+        .table-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .table-header h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            text-align: left;
+            padding: 12px 24px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--gray-100);
+            background: var(--gray-50);
+        }
+
+        tbody td {
+            padding: 14px 24px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        tbody tr:last-child td { border-bottom: none; }
+
+        tbody tr:hover { background: var(--gray-50); }
+
+        .crew-name {
+            font-weight: 600;
+            color: var(--forest);
+        }
+
+        .money { font-weight: 600; color: var(--gray-700); }
+
+        /* Coaching Suggestions */
+        .coaching-section { margin-bottom: 28px; }
+
+        .coaching-section h2 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 16px;
+        }
+
+        .coaching-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .coaching-card {
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid;
+            transition: all 0.15s ease;
+        }
+
+        .coaching-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        .coaching-card.severity-success {
+            background: var(--green-bg);
+            border-color: #a7f3d0;
+        }
+
+        .coaching-card.severity-warning {
+            background: var(--amber-bg);
+            border-color: #fcd34d;
+        }
+
+        .coaching-card.severity-danger {
+            background: var(--red-bg);
+            border-color: #fca5a5;
+        }
+
+        .coaching-card.severity-info {
+            background: var(--blue-bg);
+            border-color: #93c5fd;
+        }
+
+        .coaching-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .coaching-severity-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .severity-success .coaching-severity-icon { background: rgba(5, 150, 105, 0.15); color: var(--green); }
+        .severity-warning .coaching-severity-icon { background: rgba(217, 119, 6, 0.15); color: var(--amber); }
+        .severity-danger .coaching-severity-icon { background: rgba(220, 74, 74, 0.15); color: var(--red); }
+        .severity-info .coaching-severity-icon { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+
+        .coaching-title {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .severity-success .coaching-title { color: #065f46; }
+        .severity-warning .coaching-title { color: #92400e; }
+        .severity-danger .coaching-title { color: #991b1b; }
+        .severity-info .coaching-title { color: #1e40af; }
+
+        .coaching-suggestion {
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .severity-success .coaching-suggestion { color: #047857; }
+        .severity-warning .coaching-suggestion { color: #b45309; }
+        .severity-danger .coaching-suggestion { color: #dc2626; }
+        .severity-info .coaching-suggestion { color: #2563eb; }
+
+        /* Loading State */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
+            background: rgba(248, 250, 248, 0.8);
+            z-index: 40;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-overlay.visible { display: flex; }
+
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--forest);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--gray-400);
+        }
+
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; color: var(--gray-300); }
+        .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+        .empty-state p { font-size: 13px; }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 1024px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-row { grid-template-columns: 1fr; }
+            .coaching-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .page-content { padding: 20px 16px; }
+            .topbar { padding: 0 16px; }
+            .kpi-grid { grid-template-columns: 1fr; }
+            .loading-overlay { left: 0; }
+            .period-toggle { width: 100%; }
+            .period-btn { flex: 1; padding: 8px 12px; }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--white);
+            background: var(--forest);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 500;
+        }
+
+        .toast.visible { transform: translateY(0); opacity: 1; }
+        .toast.error { background: var(--red); }
+
+        /* Trend line tooltip */
+        .trend-tooltip {
+            position: absolute;
+            background: var(--forest);
+            color: var(--lime);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 10;
+            transform: translate(-50%, -100%);
+            margin-top: -8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="Pappas & Co."></a></div>
+    <div class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
+            <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages &amp; Calls</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Analytics</div>
+            <a href="kpi.html" class="nav-item active"><span>🎯</span><span>KPI Dashboard</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
+        </div>
+    </div>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div><div class="name">Tim Pappas</div><div class="role">Owner</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+    <!-- Topbar -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+            </button>
+            <div>
+                <h1>KPI Dashboard</h1>
+                <p id="topbar-subtitle">Performance metrics at a glance</p>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-secondary" onclick="loadDashboard()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="page-content">
+        <!-- Period Toggle -->
+        <div class="period-toggle" id="periodToggle">
+            <button class="period-btn" data-period="week">Week</button>
+            <button class="period-btn active" data-period="month">Month</button>
+            <button class="period-btn" data-period="quarter">Quarter</button>
+            <button class="period-btn" data-period="year">Year</button>
+        </div>
+
+        <!-- KPI Metric Cards -->
+        <div class="kpi-grid" id="kpiGrid">
+            <!-- Close Ratio -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Close Ratio</span>
+                    <div class="stat-icon icon-green">🎯</div>
+                </div>
+                <div class="stat-value" id="kpi-closeRatio">--</div>
+                <div class="stat-sub" id="kpi-closeRatio-sub">Loading...</div>
+            </div>
+
+            <!-- Avg Job Value -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Avg Job Value</span>
+                    <div class="stat-icon icon-blue">💵</div>
+                </div>
+                <div class="stat-value" id="kpi-avgJobValue">--</div>
+                <div class="stat-sub" id="kpi-avgJobValue-sub">Loading...</div>
+            </div>
+
+            <!-- Customer Acquisition Cost -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Customer Acquisition Cost</span>
+                    <div class="stat-icon icon-amber">📣</div>
+                </div>
+                <div class="stat-value" id="kpi-cac">--</div>
+                <div class="stat-sub" id="kpi-cac-sub">Loading...</div>
+            </div>
+
+            <!-- Labor Efficiency -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Labor Efficiency</span>
+                    <div class="stat-icon icon-purple">⚡</div>
+                </div>
+                <div class="stat-value" id="kpi-laborEfficiency">--</div>
+                <div class="stat-sub" id="kpi-laborEfficiency-sub">Loading...</div>
+            </div>
+
+            <!-- Monthly Recurring Revenue -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Monthly Recurring Revenue</span>
+                    <div class="stat-icon icon-forest">🔄</div>
+                </div>
+                <div class="stat-value" id="kpi-mrr">--</div>
+                <div class="stat-sub" id="kpi-mrr-sub">Loading...</div>
+            </div>
+
+            <!-- Customer Lifetime Value -->
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-label">Customer Lifetime Value</span>
+                    <div class="stat-icon icon-green">👤</div>
+                </div>
+                <div class="stat-value" id="kpi-clv">--</div>
+                <div class="stat-sub" id="kpi-clv-sub">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row">
+            <!-- AR Aging Chart -->
+            <div class="chart-card">
+                <h2>Accounts Receivable Aging</h2>
+                <div id="arAgingChart">
+                    <svg viewBox="0 0 500 80" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="10" width="500" height="50" rx="8" fill="#e2e5e2"/>
+                        <text x="250" y="40" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">Loading AR data...</text>
+                    </svg>
+                </div>
+                <div class="ar-legend" id="arLegend"></div>
+            </div>
+
+            <!-- Outstanding Balance Trend -->
+            <div class="chart-card" style="position: relative;">
+                <h2>Outstanding Balance Trend</h2>
+                <div id="outstandingTrendChart">
+                    <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="0" width="500" height="200" rx="8" fill="transparent"/>
+                        <text x="250" y="105" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">Loading trend data...</text>
+                    </svg>
+                </div>
+                <div class="trend-tooltip" id="trendTooltip"></div>
+            </div>
+        </div>
+
+        <!-- Revenue Per Crew Table -->
+        <div class="table-card">
+            <div class="table-header">
+                <h2>Revenue Per Crew</h2>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Crew</th>
+                        <th>Revenue</th>
+                        <th>Jobs</th>
+                        <th>Avg / Job</th>
+                    </tr>
+                </thead>
+                <tbody id="crewTableBody">
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--gray-400); padding: 32px;">Loading crew data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Coaching Suggestions -->
+        <div class="coaching-section">
+            <h2>Coaching Suggestions</h2>
+            <div class="coaching-grid" id="coachingGrid">
+                <div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--gray-400); font-size: 13px;">
+                    Loading coaching insights...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    // State
+    let currentPeriod = 'month';
+    let dashboardData = null;
+
+    // Format helpers
+    function formatDollars(val) {
+        if (val == null) return '$0';
+        return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    function formatDollarsWhole(val) {
+        if (val == null) return '$0';
+        return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function formatPercent(val) {
+        if (val == null) return '0%';
+        return Number(val).toFixed(0) + '%';
+    }
+
+    function formatNumber(val) {
+        if (val == null) return '0';
+        return Number(val).toLocaleString('en-US');
+    }
+
+    function formatMonth(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        return months[monthIndex] || dateStr;
+    }
+
+    // Toast
+    function showToast(message, isError) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast' + (isError ? ' error' : '');
+        setTimeout(() => toast.classList.add('visible'), 10);
+        setTimeout(() => toast.classList.remove('visible'), 3500);
+    }
+
+    // Period toggle
+    document.getElementById('periodToggle').addEventListener('click', function(e) {
+        const btn = e.target.closest('.period-btn');
+        if (!btn) return;
+        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentPeriod = btn.dataset.period;
+        loadDashboard();
+    });
+
+    // Render KPI Cards
+    function renderKPICards(metrics) {
+        if (!metrics) return;
+
+        // Close Ratio
+        const cr = metrics.closeRatio || {};
+        document.getElementById('kpi-closeRatio').textContent = formatPercent(cr.value);
+        document.getElementById('kpi-closeRatio-sub').textContent =
+            (cr.signed || 0) + ' signed / ' + (cr.sent || 0) + ' sent';
+
+        // Avg Job Value
+        const ajv = metrics.avgJobValue || {};
+        document.getElementById('kpi-avgJobValue').textContent = formatDollars(ajv.value);
+        document.getElementById('kpi-avgJobValue-sub').textContent =
+            'Across ' + formatNumber(ajv.count) + ' jobs';
+
+        // Customer Acquisition Cost
+        const cac = metrics.customerAcquisitionCost || {};
+        document.getElementById('kpi-cac').textContent = formatDollars(cac.value);
+        document.getElementById('kpi-cac-sub').textContent =
+            formatDollarsWhole(cac.marketing) + ' marketing / ' + (cac.newCustomers || 0) + ' new customers';
+
+        // Labor Efficiency
+        const le = metrics.laborEfficiency || {};
+        document.getElementById('kpi-laborEfficiency').textContent = formatDollars(le.value) + '/hr';
+        document.getElementById('kpi-laborEfficiency-sub').textContent =
+            formatDollarsWhole(le.revenue) + ' revenue / ' + formatNumber(le.hours) + ' hours';
+
+        // MRR
+        const mrr = metrics.monthlyRecurringRevenue || {};
+        document.getElementById('kpi-mrr').textContent = formatDollarsWhole(mrr.value);
+        document.getElementById('kpi-mrr-sub').textContent =
+            formatNumber(mrr.customerCount) + ' recurring customers';
+
+        // CLV
+        const clv = metrics.customerLifetimeValue || {};
+        document.getElementById('kpi-clv').textContent = formatDollarsWhole(clv.value);
+        document.getElementById('kpi-clv-sub').textContent =
+            formatDollarsWhole(clv.totalRevenue) + ' total / ' + formatNumber(clv.activeCustomers) + ' active customers';
+    }
+
+    // Render AR Aging Chart
+    function renderARAgingChart(ar) {
+        if (!ar) return;
+
+        const total = (ar.current || 0) + (ar.days30 || 0) + (ar.days60 || 0) + (ar.days90plus || 0);
+        if (total === 0) {
+            document.getElementById('arAgingChart').innerHTML =
+                '<svg viewBox="0 0 500 80"><text x="250" y="45" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">No AR data available</text></svg>';
+            document.getElementById('arLegend').innerHTML = '';
+            return;
+        }
+
+        const chartW = 500;
+        const barH = 44;
+        const barY = 16;
+        const r = 8;
+
+        const segments = [
+            { key: 'current', label: 'Current', value: ar.current || 0, color: '#059669' },
+            { key: 'days30',  label: '30 Days', value: ar.days30 || 0,  color: '#d97706' },
+            { key: 'days60',  label: '60 Days', value: ar.days60 || 0,  color: '#ea580c' },
+            { key: 'days90plus', label: '90+ Days', value: ar.days90plus || 0, color: '#dc4a4a' }
+        ];
+
+        let svg = '<svg viewBox="0 0 500 80" xmlns="http://www.w3.org/2000/svg">';
+
+        // Background
+        svg += '<rect x="0" y="' + barY + '" width="' + chartW + '" height="' + barH + '" rx="' + r + '" fill="#e2e5e2"/>';
+
+        // Clip path for rounded corners
+        svg += '<defs><clipPath id="arClip"><rect x="0" y="' + barY + '" width="' + chartW + '" height="' + barH + '" rx="' + r + '"/></clipPath></defs>';
+
+        let xOffset = 0;
+        segments.forEach(function(seg) {
+            const w = (seg.value / total) * chartW;
+            if (w > 0) {
+                svg += '<rect x="' + xOffset + '" y="' + barY + '" width="' + w + '" height="' + barH + '" fill="' + seg.color + '" clip-path="url(#arClip)"/>';
+
+                // Label inside bar if wide enough
+                if (w > 50) {
+                    const textX = xOffset + w / 2;
+                    const pctText = Math.round((seg.value / total) * 100) + '%';
+                    svg += '<text x="' + textX + '" y="' + (barY + barH / 2 + 5) + '" text-anchor="middle" fill="white" font-size="12" font-weight="600" font-family="DM Sans, sans-serif">' + pctText + '</text>';
+                }
+                xOffset += w;
+            }
+        });
+
+        // Total label
+        svg += '<text x="' + chartW + '" y="12" text-anchor="end" fill="#6e726e" font-size="12" font-family="DM Sans, sans-serif">Total: ' + formatDollarsWhole(total) + '</text>';
+
+        svg += '</svg>';
+        document.getElementById('arAgingChart').innerHTML = svg;
+
+        // Legend
+        let legendHtml = '';
+        segments.forEach(function(seg) {
+            legendHtml += '<div class="ar-legend-item">';
+            legendHtml += '<div class="ar-legend-dot" style="background: ' + seg.color + ';"></div>';
+            legendHtml += '<span>' + seg.label + ':</span>';
+            legendHtml += '<span class="ar-legend-value">' + formatDollarsWhole(seg.value) + '</span>';
+            legendHtml += '</div>';
+        });
+        document.getElementById('arLegend').innerHTML = legendHtml;
+    }
+
+    // Render Outstanding Balance Trend
+    function renderOutstandingTrend(trendData) {
+        const container = document.getElementById('outstandingTrendChart');
+
+        if (!trendData || trendData.length === 0) {
+            container.innerHTML = '<svg viewBox="0 0 500 200"><text x="250" y="105" text-anchor="middle" fill="#9ca09c" font-size="13" font-family="DM Sans, sans-serif">No trend data available</text></svg>';
+            return;
+        }
+
+        const W = 500;
+        const H = 200;
+        const padTop = 20;
+        const padBottom = 40;
+        const padLeft = 60;
+        const padRight = 20;
+        const chartW = W - padLeft - padRight;
+        const chartH = H - padTop - padBottom;
+
+        const values = trendData.map(function(d) { return d.amount; });
+        const maxVal = Math.max.apply(null, values) * 1.15;
+        const minVal = 0;
+        const range = maxVal - minVal || 1;
+
+        function xPos(i) {
+            if (trendData.length === 1) return padLeft + chartW / 2;
+            return padLeft + (i / (trendData.length - 1)) * chartW;
+        }
+
+        function yPos(val) {
+            return padTop + chartH - ((val - minVal) / range) * chartH;
+        }
+
+        let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+
+        // Grid lines
+        const gridLines = 4;
+        for (let i = 0; i <= gridLines; i++) {
+            const y = padTop + (i / gridLines) * chartH;
+            const labelVal = maxVal - (i / gridLines) * range;
+            svg += '<line x1="' + padLeft + '" y1="' + y + '" x2="' + (W - padRight) + '" y2="' + y + '" stroke="#e2e5e2" stroke-width="1"/>';
+            svg += '<text x="' + (padLeft - 8) + '" y="' + (y + 4) + '" text-anchor="end" fill="#9ca09c" font-size="10" font-family="DM Sans, sans-serif">' + formatDollarsWhole(labelVal) + '</text>';
+        }
+
+        // Area fill
+        if (trendData.length > 1) {
+            let areaPath = 'M' + xPos(0) + ',' + yPos(trendData[0].amount);
+            for (let i = 1; i < trendData.length; i++) {
+                areaPath += ' L' + xPos(i) + ',' + yPos(trendData[i].amount);
+            }
+            areaPath += ' L' + xPos(trendData.length - 1) + ',' + (padTop + chartH);
+            areaPath += ' L' + xPos(0) + ',' + (padTop + chartH) + ' Z';
+
+            svg += '<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">';
+            svg += '<stop offset="0%" stop-color="#2e403d" stop-opacity="0.15"/>';
+            svg += '<stop offset="100%" stop-color="#2e403d" stop-opacity="0.02"/>';
+            svg += '</linearGradient></defs>';
+            svg += '<path d="' + areaPath + '" fill="url(#areaGrad)"/>';
+        }
+
+        // Line
+        if (trendData.length > 1) {
+            let linePath = 'M' + xPos(0) + ',' + yPos(trendData[0].amount);
+            for (let i = 1; i < trendData.length; i++) {
+                linePath += ' L' + xPos(i) + ',' + yPos(trendData[i].amount);
+            }
+            svg += '<path d="' + linePath + '" fill="none" stroke="#2e403d" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+        }
+
+        // Data points and month labels
+        trendData.forEach(function(d, i) {
+            const cx = xPos(i);
+            const cy = yPos(d.amount);
+
+            // Month label at bottom
+            svg += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle" fill="#9ca09c" font-size="11" font-family="DM Sans, sans-serif">' + formatMonth(d.month) + '</text>';
+
+            // Data point circle
+            svg += '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="#2e403d" stroke="white" stroke-width="2"/>';
+
+            // Invisible hover target
+            svg += '<circle cx="' + cx + '" cy="' + cy + '" r="16" fill="transparent" class="trend-point" data-amount="' + d.amount + '" data-month="' + formatMonth(d.month) + '"/>';
+        });
+
+        svg += '</svg>';
+        container.innerHTML = svg;
+
+        // Hover tooltips
+        const chartCard = container.closest('.chart-card');
+        const tooltip = document.getElementById('trendTooltip');
+        container.querySelectorAll('.trend-point').forEach(function(pt) {
+            pt.addEventListener('mouseenter', function(e) {
+                tooltip.textContent = formatDollarsWhole(pt.dataset.amount) + ' - ' + pt.dataset.month;
+                const rect = chartCard.getBoundingClientRect();
+                const circleRect = pt.getBoundingClientRect();
+                tooltip.style.left = (circleRect.left - rect.left + circleRect.width / 2) + 'px';
+                tooltip.style.top = (circleRect.top - rect.top - 4) + 'px';
+                tooltip.style.display = 'block';
+            });
+            pt.addEventListener('mouseleave', function() {
+                tooltip.style.display = 'none';
+            });
+        });
+    }
+
+    // Render Crew Table
+    function renderCrewTable(crews) {
+        const tbody = document.getElementById('crewTableBody');
+        if (!crews || crews.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--gray-400); padding: 32px;">No crew data available</td></tr>';
+            return;
+        }
+
+        let html = '';
+        crews.forEach(function(crew) {
+            const avgPerJob = crew.jobs > 0 ? crew.revenue / crew.jobs : 0;
+            html += '<tr>';
+            html += '<td class="crew-name">' + escapeHtml(crew.crew_name) + '</td>';
+            html += '<td class="money">' + formatDollarsWhole(crew.revenue) + '</td>';
+            html += '<td>' + formatNumber(crew.jobs) + '</td>';
+            html += '<td class="money">' + formatDollars(avgPerJob) + '</td>';
+            html += '</tr>';
+        });
+
+        // Totals row
+        const totalRevenue = crews.reduce(function(s, c) { return s + (c.revenue || 0); }, 0);
+        const totalJobs = crews.reduce(function(s, c) { return s + (c.jobs || 0); }, 0);
+        const totalAvg = totalJobs > 0 ? totalRevenue / totalJobs : 0;
+        html += '<tr style="background: var(--gray-50); font-weight: 700;">';
+        html += '<td class="crew-name">Total</td>';
+        html += '<td class="money">' + formatDollarsWhole(totalRevenue) + '</td>';
+        html += '<td>' + formatNumber(totalJobs) + '</td>';
+        html += '<td class="money">' + formatDollars(totalAvg) + '</td>';
+        html += '</tr>';
+
+        tbody.innerHTML = html;
+    }
+
+    // Render Coaching Suggestions
+    function renderCoaching(coaching) {
+        const grid = document.getElementById('coachingGrid');
+        if (!coaching || coaching.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--gray-400); font-size: 13px;">No coaching suggestions at this time. Great work!</div>';
+            return;
+        }
+
+        const severityIcons = {
+            success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M20 6L9 17l-5-5"/></svg>',
+            warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M12 9v4m0 4h.01M10.29 3.86l-8.06 14a2 2 0 001.72 3h16.1a2 2 0 001.72-3l-8.06-14a2 2 0 00-3.44 0z"/></svg>',
+            danger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6m0-6l6 6"/></svg>',
+            info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>'
+        };
+
+        let html = '';
+        coaching.forEach(function(item) {
+            const severity = item.severity || 'info';
+            const icon = severityIcons[severity] || severityIcons.info;
+            html += '<div class="coaching-card severity-' + severity + '">';
+            html += '<div class="coaching-header">';
+            html += '<div class="coaching-severity-icon">' + icon + '</div>';
+            html += '<div class="coaching-title">' + escapeHtml(item.title) + '</div>';
+            html += '</div>';
+            html += '<div class="coaching-suggestion">' + escapeHtml(item.suggestion) + '</div>';
+            html += '</div>';
+        });
+
+        grid.innerHTML = html;
+    }
+
+    // HTML escape
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Main data load function
+    async function loadDashboard() {
+        const overlay = document.getElementById('loadingOverlay');
+        overlay.classList.add('visible');
+
+        try {
+            const response = await fetch('/api/kpi/dashboard?period=' + encodeURIComponent(currentPeriod));
+            if (!response.ok) throw new Error('Failed to load KPI data (HTTP ' + response.status + ')');
+
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error || 'Failed to load KPI data');
+
+            dashboardData = data;
+
+            // Update subtitle
+            const periodLabel = currentPeriod.charAt(0).toUpperCase() + currentPeriod.slice(1);
+            document.getElementById('topbar-subtitle').textContent = periodLabel + 'ly performance metrics';
+
+            // Render all sections
+            renderKPICards(data.metrics);
+            renderARAgingChart(data.metrics && data.metrics.arAging);
+            renderOutstandingTrend(data.metrics && data.metrics.outstandingTrend);
+            renderCrewTable(data.metrics && data.metrics.revenuePerCrew);
+            renderCoaching(data.coaching);
+
+        } catch (err) {
+            console.error('KPI Dashboard error:', err);
+            showToast(err.message || 'Failed to load dashboard', true);
+
+            // Render fallback / demo data so the page is not empty
+            renderFallbackData();
+        } finally {
+            overlay.classList.remove('visible');
+        }
+    }
+
+    // Fallback demo data when API is unavailable
+    function renderFallbackData() {
+        const demoMetrics = {
+            closeRatio: { value: 65, signed: 13, sent: 20 },
+            avgJobValue: { value: 285.50, count: 45 },
+            customerAcquisitionCost: { value: 45.00, marketing: 900, newCustomers: 20 },
+            laborEfficiency: { value: 125.00, revenue: 50000, hours: 400 },
+            monthlyRecurringRevenue: { value: 8500, customerCount: 34 },
+            customerLifetimeValue: { value: 2400, totalRevenue: 120000, activeCustomers: 50 },
+            arAging: { current: 5000, days30: 2000, days60: 800, days90plus: 300 },
+            outstandingTrend: [
+                { month: '2025-07', amount: 6200 },
+                { month: '2025-08', amount: 5800 },
+                { month: '2025-09', amount: 6500 },
+                { month: '2025-10', amount: 5000 },
+                { month: '2025-11', amount: 4200 },
+                { month: '2025-12', amount: 3900 }
+            ],
+            revenuePerCrew: [
+                { crew_name: 'Crew A', revenue: 15000, jobs: 30 },
+                { crew_name: 'Crew B', revenue: 12500, jobs: 25 },
+                { crew_name: 'Crew C', revenue: 9800, jobs: 18 }
+            ]
+        };
+
+        const demoCoaching = [
+            { severity: 'warning', title: 'Close ratio below target', suggestion: 'Your close ratio is 65% — try following up within 24 hours of sending quotes to push toward the 75% goal.' },
+            { severity: 'success', title: 'Strong MRR growth', suggestion: 'Monthly recurring revenue is trending up nicely. Keep converting one-time customers to maintenance plans.' },
+            { severity: 'info', title: 'Outstanding balance improving', suggestion: 'Outstanding balances have dropped 37% over the last 6 months. Great collection effort!' },
+            { severity: 'danger', title: 'Aging receivables in 90+ days', suggestion: 'You have $300 in the 90+ day bucket. Consider sending final notices or adjusting payment terms.' }
+        ];
+
+        renderKPICards(demoMetrics);
+        renderARAgingChart(demoMetrics.arAging);
+        renderOutstandingTrend(demoMetrics.outstandingTrend);
+        renderCrewTable(demoMetrics.revenuePerCrew);
+        renderCoaching(demoCoaching);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboard();
+    });
+</script>
+</body>
+</html>

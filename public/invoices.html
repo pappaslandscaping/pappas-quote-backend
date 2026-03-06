@@ -400,6 +400,19 @@
             color: var(--gray-400);
         }
 
+        .badge-overdue {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--red-bg);
+            color: var(--red);
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+
         .actions-cell {
             display: flex;
             gap: 8px;
@@ -769,6 +782,10 @@
                     <span>📅</span>
                     <span>Scheduling</span>
                 </a>
+                <a href="dispatch.html" class="nav-item">
+                    <span>🗓️</span>
+                    <span>Dispatch Board</span>
+                </a>
             </div>
 
             <!-- Communications -->
@@ -791,6 +808,10 @@
                     <span>📢</span>
                     <span>Campaigns</span>
                 </a>
+                <a href="templates.html" class="nav-item">
+                    <span>📝</span>
+                    <span>Templates</span>
+                </a>
             </div>
 
             <!-- Finance -->
@@ -811,16 +832,24 @@
                 </a>
             </div>
 
+            <!-- Analytics -->
+            <div class="nav-section">
+                <div class="nav-section-label">Analytics</div>
+                <a href="kpi.html" class="nav-item">
+                    <span>🎯</span>
+                    <span>KPI Dashboard</span>
+                </a>
+                <a href="reports.html" class="nav-item">
+                    <span>📈</span>
+                    <span>Reports</span>
+                </a>
+            </div>
             <!-- Team -->
             <div class="nav-section">
                 <div class="nav-section-label">Team</div>
                 <a href="crew.html" class="nav-item">
                     <span>👷</span>
                     <span>Crew</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
                 </a>
             </div>
                     <div class="nav-section">
@@ -1157,7 +1186,7 @@
                     <td><strong>${invNum}</strong></td>
                     <td>${custName}</td>
                     <td style="text-align: right;"><strong>${formatCurrency(inv.total || 0)}</strong></td>
-                    <td>${getStatusBadge(inv.status)}</td>
+                    <td>${getStatusBadge(inv.status)}${inv.late_fee_total > 0 ? ` <span class="badge-overdue">+$${parseFloat(inv.late_fee_total).toFixed(2)} fees</span>` : ''}</td>
                     <td>${dueDate ? formatDate(dueDate) : '-'}</td>
                     <td>${createdAt ? formatDate(createdAt) : '-'}</td>
                     <td style="text-align: right;">

@@ -108,6 +108,116 @@
         }
         .badge-connected { background: var(--green-bg); color: var(--green); }
         .badge-disconnected { background: var(--gray-100); color: var(--gray-500); }
+        .badge-active { background: var(--green-bg); color: var(--green); }
+        .badge-inactive { background: var(--gray-100); color: var(--gray-500); }
+
+        /* Late Fees / Recurring Card */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-600);
+        }
+        .form-group input[type="number"] {
+            padding: 8px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--gray-700);
+            background: var(--white);
+        }
+        .form-group input[type="number"]:focus {
+            outline: none;
+            border-color: var(--forest);
+            box-shadow: 0 0 0 2px rgba(46, 64, 61, 0.1);
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .toggle-row:last-child { border-bottom: none; }
+        .toggle-row .toggle-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+        .toggle-row .toggle-desc {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 2px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--gray-300);
+            border-radius: 24px;
+            transition: 0.2s;
+        }
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--green);
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+        .section-divider {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--gray-600);
+            margin: 20px 0 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .cron-results {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 16px;
+            display: none;
+        }
+        .cron-results.show { display: block; }
+        .cron-results h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+        }
 
         .integration-body p {
             font-size: 14px;
@@ -267,6 +377,7 @@
                 <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
                 <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
                 <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+                <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
             </div>
             <div class="nav-section">
                 <div class="nav-section-label">Communications</div>
@@ -276,6 +387,7 @@
             <div class="nav-section">
                 <div class="nav-section-label">Marketing</div>
                 <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+                <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
             </div>
             <div class="nav-section">
                 <div class="nav-section-label">Finance</div>
@@ -285,9 +397,13 @@
                 <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
             </div>
             <div class="nav-section">
+                <div class="nav-section-label">Analytics</div>
+                <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
+                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
+            </div>
+            <div class="nav-section">
                 <div class="nav-section-label">Team</div>
                 <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
             </div>
             <div class="nav-section">
                 <div class="nav-section-label">System</div>
@@ -486,6 +602,119 @@
                         </button>
                     </div>
                     <div id="cleanNamesResult" style="display:none; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px;"></div>
+                </div>
+            </div>
+
+            <!-- Recurring Invoices & Late Fees Card -->
+            <div class="integration-card" id="lateFeeCard">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background: var(--amber-bg); color: var(--amber); font-size: 24px;">🔄</div>
+                        <div>
+                            <h2>Recurring Invoices & Late Fees</h2>
+                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Automate invoice generation and late fee enforcement</div>
+                        </div>
+                    </div>
+                    <span class="badge badge-inactive" id="lateFeeBadge">
+                        <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                        <span id="lateFeeBadgeText">Inactive</span>
+                    </span>
+                </div>
+
+                <div class="integration-body">
+                    <!-- Late Fee Settings -->
+                    <div class="section-divider">Late Fee Settings</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="lfGracePeriod">Grace Period (days)</label>
+                            <input type="number" id="lfGracePeriod" value="30" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="lfInitialFee">Initial Late Fee (%)</label>
+                            <input type="number" id="lfInitialFee" value="10" min="0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label for="lfRecurringFee">Recurring Late Fee (%)</label>
+                            <input type="number" id="lfRecurringFee" value="5" min="0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label for="lfRecurringInterval">Recurring Interval (days)</label>
+                            <input type="number" id="lfRecurringInterval" value="30" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="lfMaxFees">Max Fees Per Invoice</label>
+                            <input type="number" id="lfMaxFees" value="3" min="1">
+                        </div>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Enable Late Fees</div>
+                            <div class="toggle-desc">Automatically apply late fees to overdue invoices</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="lfEnabled">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Recurring Invoice Settings -->
+                    <div class="section-divider">Recurring Invoice Settings</div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Auto-send Invoices</div>
+                            <div class="toggle-desc">Automatically send recurring invoices when generated</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="riAutoSend" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Include Payment Link</div>
+                            <div class="toggle-desc">Add a Square payment link to each invoice</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="riPaymentLink" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Save Button -->
+                    <div class="actions" style="margin-top: 20px;">
+                        <button class="btn btn-primary" id="saveLateFeeBtn" onclick="saveLateFeeSettings()">Save Settings</button>
+                    </div>
+
+                    <!-- Manual Cron Trigger -->
+                    <div class="section-divider" style="margin-top: 28px;">Manual Cron Trigger</div>
+                    <p style="font-size: 14px; color: var(--gray-500); line-height: 1.6; margin-bottom: 16px;">
+                        Run the daily automation manually to generate recurring invoices and apply late fees now.
+                    </p>
+                    <div class="actions">
+                        <button class="btn btn-outline" id="cronBtn" onclick="runDailyAutomation()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Run Daily Automation
+                        </button>
+                    </div>
+
+                    <!-- Cron Results -->
+                    <div class="cron-results" id="cronResults">
+                        <h4>Automation Results</h4>
+                        <div class="sync-stats">
+                            <div class="sync-stat">
+                                <div class="number" id="cronJobs">0</div>
+                                <div class="label">Jobs Generated</div>
+                            </div>
+                            <div class="sync-stat">
+                                <div class="number" id="cronInvoices">0</div>
+                                <div class="label">Invoices Generated</div>
+                            </div>
+                            <div class="sync-stat">
+                                <div class="number" id="cronLateFees">0</div>
+                                <div class="label">Late Fees Applied</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -799,6 +1028,123 @@
             } catch (e) {
                 showToast('Failed to test Square connection', true);
             }
+        }
+
+        // ── Recurring Invoices & Late Fees ──
+        loadLateFeeSettings();
+
+        async function loadLateFeeSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                const settings = data.settings || data;
+
+                // Late fee rules
+                const lf = settings.late_fee_rules || {};
+                if (lf.grace_period_days !== undefined) document.getElementById('lfGracePeriod').value = lf.grace_period_days;
+                if (lf.initial_fee_percent !== undefined) document.getElementById('lfInitialFee').value = lf.initial_fee_percent;
+                if (lf.recurring_fee_percent !== undefined) document.getElementById('lfRecurringFee').value = lf.recurring_fee_percent;
+                if (lf.recurring_interval_days !== undefined) document.getElementById('lfRecurringInterval').value = lf.recurring_interval_days;
+                if (lf.max_fees_per_invoice !== undefined) document.getElementById('lfMaxFees').value = lf.max_fees_per_invoice;
+                document.getElementById('lfEnabled').checked = !!lf.enabled;
+
+                // Recurring invoice config
+                const ri = settings.recurring_invoice_config || {};
+                document.getElementById('riAutoSend').checked = ri.auto_send !== false;
+                document.getElementById('riPaymentLink').checked = ri.include_payment_link !== false;
+
+                updateLateFeeBadge();
+            } catch (e) {
+                // Defaults are already set in the HTML
+            }
+        }
+
+        function updateLateFeeBadge() {
+            const enabled = document.getElementById('lfEnabled').checked;
+            const badge = document.getElementById('lateFeeBadge');
+            const badgeText = document.getElementById('lateFeeBadgeText');
+            if (enabled) {
+                badge.className = 'badge badge-active';
+                badgeText.textContent = 'Active';
+            } else {
+                badge.className = 'badge badge-inactive';
+                badgeText.textContent = 'Inactive';
+            }
+        }
+
+        document.getElementById('lfEnabled').addEventListener('change', updateLateFeeBadge);
+
+        async function saveLateFeeSettings() {
+            const btn = document.getElementById('saveLateFeeBtn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            const lateFeeRules = {
+                grace_period_days: parseInt(document.getElementById('lfGracePeriod').value) || 30,
+                initial_fee_percent: parseFloat(document.getElementById('lfInitialFee').value) || 10,
+                recurring_fee_percent: parseFloat(document.getElementById('lfRecurringFee').value) || 5,
+                recurring_interval_days: parseInt(document.getElementById('lfRecurringInterval').value) || 30,
+                max_fees_per_invoice: parseInt(document.getElementById('lfMaxFees').value) || 3,
+                enabled: document.getElementById('lfEnabled').checked
+            };
+
+            const recurringConfig = {
+                auto_send: document.getElementById('riAutoSend').checked,
+                include_payment_link: document.getElementById('riPaymentLink').checked
+            };
+
+            try {
+                const [lfRes, riRes] = await Promise.all([
+                    fetch('/api/settings/late_fee_rules', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: lateFeeRules })
+                    }),
+                    fetch('/api/settings/recurring_invoice_config', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: recurringConfig })
+                    })
+                ]);
+
+                if (lfRes.ok && riRes.ok) {
+                    showToast('Settings saved successfully');
+                    updateLateFeeBadge();
+                } else {
+                    showToast('Failed to save some settings', true);
+                }
+            } catch (e) {
+                showToast('Failed to save settings: ' + e.message, true);
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Save Settings';
+        }
+
+        async function runDailyAutomation() {
+            const btn = document.getElementById('cronBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner" style="border-color:rgba(0,0,0,0.2);border-top-color:var(--gray-600);"></span> Running...';
+
+            try {
+                const res = await fetch('/api/cron/daily-automation', { method: 'POST' });
+                const data = await res.json();
+
+                document.getElementById('cronJobs').textContent = data.jobs_generated || data.jobsGenerated || 0;
+                document.getElementById('cronInvoices').textContent = data.invoices_generated || data.invoicesGenerated || 0;
+                document.getElementById('cronLateFees').textContent = data.late_fees_applied || data.lateFeesApplied || 0;
+                document.getElementById('cronResults').classList.add('show');
+
+                const total = (data.jobs_generated || data.jobsGenerated || 0)
+                    + (data.invoices_generated || data.invoicesGenerated || 0)
+                    + (data.late_fees_applied || data.lateFeesApplied || 0);
+                showToast(`Automation complete: ${total} action${total !== 1 ? 's' : ''} taken`);
+            } catch (e) {
+                showToast('Automation failed: ' + e.message, true);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Run Daily Automation`;
         }
     </script>
 </body>

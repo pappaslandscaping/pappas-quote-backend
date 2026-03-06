@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Templates — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Qualy';
+            src: url('Qualy.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --forest-light: #3a524e;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --amber: #d97706;
+            --amber-bg: #fffbeb;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --purple: #7c3aed;
+            --purple-bg: #f5f3ff;
+            --sidebar-w: 240px;
+            --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* ─── Sidebar ───────────────────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-brand {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .sidebar-brand img {
+            max-height: 48px;
+            width: auto;
+            max-width: 180px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+
+        .nav-section { margin-bottom: 8px; }
+
+        .nav-section-label {
+            color: var(--gray-400);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 12px 4px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .nav-item:hover {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .nav-item.active {
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-user .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: var(--forest);
+            color: var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .sidebar-user .name {
+            color: var(--gray-700);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .sidebar-user .role {
+            color: var(--gray-400);
+            font-size: 11px;
+        }
+
+        /* ─── Main Content ──────────────────────────────────── */
+        .main {
+            margin-left: var(--sidebar-w);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            height: var(--header-h);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            z-index: 50;
+            flex-shrink: 0;
+        }
+
+        .topbar-left h2 {
+            font-family: 'Qualy', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--forest);
+        }
+
+        .topbar-left p {
+            font-size: 13px;
+            color: var(--gray-400);
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* ─── Buttons ──────────────────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--forest);
+            color: var(--lime);
+        }
+        .btn-primary:hover { background: var(--forest-dark); }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--gray-600);
+            border: 1px solid var(--gray-200);
+        }
+        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
+
+        .btn-danger {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+        .btn-danger:hover { background: #fde2e2; }
+
+        .btn-lime {
+            background: var(--lime);
+            color: var(--forest);
+        }
+        .btn-lime:hover { background: var(--lime-soft); }
+
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 6px; }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ─── Split Layout ─────────────────────────────────── */
+        .workspace {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            height: calc(100vh - var(--header-h));
+        }
+
+        /* ─── Template List Panel ──────────────────────────── */
+        .template-list-panel {
+            width: 340px;
+            min-width: 340px;
+            background: var(--white);
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .list-header {
+            padding: 20px 16px 12px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .list-header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .list-header-top h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 12px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 34px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            transition: border-color 0.15s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--forest);
+            background: var(--white);
+        }
+
+        .search-box .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            color: var(--gray-400);
+        }
+
+        /* Category Pills */
+        .category-pills {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .category-pill {
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            color: var(--gray-500);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .category-pill:hover {
+            border-color: var(--gray-300);
+            color: var(--gray-700);
+        }
+
+        .category-pill.active {
+            background: var(--forest);
+            color: var(--lime);
+            border-color: var(--forest);
+        }
+
+        /* Template Cards */
+        .template-cards {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .template-card {
+            padding: 12px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 4px;
+            border: 2px solid transparent;
+        }
+
+        .template-card:hover {
+            background: var(--gray-50);
+        }
+
+        .template-card.selected {
+            background: var(--blue-bg);
+            border-color: var(--blue);
+        }
+
+        .template-card-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .template-card-slug {
+            font-size: 11px;
+            color: var(--gray-400);
+            font-family: 'DM Sans', monospace;
+            margin-bottom: 6px;
+        }
+
+        .template-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .cat-quotes { background: var(--blue-bg); color: var(--blue); }
+        .cat-invoices { background: var(--green-bg); color: var(--green); }
+        .cat-payments { background: var(--green-bg); color: var(--green); }
+        .cat-followups { background: var(--amber-bg); color: var(--amber); }
+        .cat-portal { background: var(--purple-bg); color: var(--purple); }
+        .cat-marketing { background: var(--lime-soft); color: var(--forest); }
+        .cat-system { background: var(--gray-100); color: var(--gray-600); }
+
+        .template-card-date {
+            font-size: 10px;
+            color: var(--gray-400);
+        }
+
+        .inactive-indicator {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--gray-300);
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .active-indicator {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .default-badge {
+            font-size: 9px;
+            font-weight: 700;
+            background: var(--lime);
+            color: var(--forest);
+            padding: 1px 5px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .empty-list {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--gray-400);
+            font-size: 13px;
+        }
+
+        .empty-list span { font-size: 32px; display: block; margin-bottom: 12px; }
+
+        /* ─── Editor Panel ─────────────────────────────────── */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--gray-50);
+        }
+
+        .editor-empty {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            color: var(--gray-400);
+        }
+
+        .editor-empty span { font-size: 48px; }
+        .editor-empty p { font-size: 14px; }
+
+        .editor-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .editor-toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .editor-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .editor-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .editor-section {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .editor-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group:last-child { margin-bottom: 0; }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .form-input, .form-textarea, .form-select {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-700);
+            background: var(--white);
+            transition: border-color 0.15s;
+        }
+
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--forest);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group { flex: 1; }
+
+        /* Toggle Switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--gray-300);
+            border-radius: 20px;
+            transition: 0.2s;
+        }
+
+        .toggle-slider:before {
+            content: '';
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background: var(--white);
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: var(--green);
+        }
+
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(16px);
+        }
+
+        .toggle-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--gray-600);
+        }
+
+        /* Split Pane for HTML + Preview */
+        .split-pane {
+            display: flex;
+            gap: 16px;
+            min-height: 340px;
+        }
+
+        .split-pane-left, .split-pane-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .split-pane-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .html-textarea {
+            flex: 1;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: 'DM Sans', monospace;
+            font-size: 12px;
+            color: var(--gray-700);
+            background: var(--gray-50);
+            resize: none;
+            line-height: 1.6;
+            tab-size: 2;
+        }
+
+        .html-textarea:focus {
+            outline: none;
+            border-color: var(--forest);
+            background: var(--white);
+        }
+
+        .preview-frame-container {
+            flex: 1;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--white);
+        }
+
+        .preview-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: var(--white);
+        }
+
+        /* Variables Pills */
+        .variables-section {
+            margin-top: 0;
+        }
+
+        .var-group {
+            margin-bottom: 10px;
+        }
+
+        .var-group:last-child { margin-bottom: 0; }
+
+        .var-group-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 6px;
+        }
+
+        .var-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .var-pill {
+            padding: 3px 10px;
+            border-radius: 6px;
+            background: var(--gray-100);
+            color: var(--gray-600);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid transparent;
+            font-family: 'DM Sans', monospace;
+        }
+
+        .var-pill:hover {
+            background: var(--lime-soft);
+            color: var(--forest);
+            border-color: var(--lime);
+        }
+
+        .var-pill:active {
+            transform: scale(0.95);
+        }
+
+        /* SMS Body */
+        .sms-counter {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-400);
+            text-align: right;
+            margin-top: 4px;
+        }
+
+        .sms-counter.warn {
+            color: var(--amber);
+        }
+
+        .sms-counter.danger {
+            color: var(--red);
+        }
+
+        /* Wrapper Radio */
+        .radio-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--gray-600);
+        }
+
+        .radio-option:hover {
+            border-color: var(--gray-300);
+        }
+
+        .radio-option.selected {
+            border-color: var(--forest);
+            background: var(--forest);
+            color: var(--lime);
+        }
+
+        .radio-option input[type="radio"] {
+            display: none;
+        }
+
+        /* ─── Toast ───────────────────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--white);
+            background: var(--forest);
+            z-index: 9999;
+            transform: translateY(80px);
+            opacity: 0;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.error {
+            background: var(--red);
+        }
+
+        .toast.success {
+            background: var(--green);
+        }
+
+        /* ─── Modal ───────────────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 500;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            width: 460px;
+            max-width: 90vw;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .modal-close {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: none;
+            background: var(--gray-100);
+            color: var(--gray-500);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-200);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--gray-100);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* Confirm Delete */
+        .confirm-msg {
+            font-size: 14px;
+            color: var(--gray-600);
+            line-height: 1.6;
+        }
+
+        /* ─── Loading Skeleton ─────────────────────────────── */
+        .skeleton {
+            background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 6px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Unsaved indicator */
+        .unsaved-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--amber);
+            display: none;
+        }
+
+        .unsaved-dot.show { display: inline-block; }
+
+        /* Scrollbar */
+        .template-cards::-webkit-scrollbar,
+        .editor-content::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .template-cards::-webkit-scrollbar-track,
+        .editor-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .template-cards::-webkit-scrollbar-thumb,
+        .editor-content::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .split-pane {
+                flex-direction: column;
+            }
+            .split-pane-left, .split-pane-right {
+                min-height: 200px;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .template-list-panel { width: 280px; min-width: 280px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ─── Sidebar ──────────────────────────────────────────── -->
+<div class="sidebar">
+    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="Pappas & Co."></a></div>
+    <div class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item"><span>&#x1F4CA;</span><span>Dashboard</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>&#x1F4CB;</span><span>Quote Requests</span></a>
+            <a href="quote-calculator.html" class="nav-item"><span>&#x1F9EE;</span><span>Quote Calculator</span></a>
+            <a href="quote-generator.html" class="nav-item"><span>&#x2728;</span><span>Quote Generator</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>&#x1F4E4;</span><span>Sent Quotes</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>&#x1F465;</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>&#x1F3E1;</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>&#x1F4C5;</span><span>Scheduling</span></a>
+            <a href="dispatch.html" class="nav-item"><span>&#x1F5D3;&#xFE0F;</span><span>Dispatch Board</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>&#x1F4AC;</span><span>Messages &amp; Calls</span></a>
+            <a href="cancellations.html" class="nav-item"><span>&#x274C;</span><span>Cancellations</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>&#x1F4E2;</span><span>Campaigns</span></a>
+            <a href="templates.html" class="nav-item active"><span>&#x1F4DD;</span><span>Templates</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>&#x1F4B8;</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>&#x1F4C4;</span><span>Invoices</span></a>
+            <a href="payments.html" class="nav-item"><span>&#x1F4B3;</span><span>Payments</span></a>
+            <a href="finance.html" class="nav-item"><span>&#x1F4B0;</span><span>Revenue</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Analytics</div>
+            <a href="kpi.html" class="nav-item"><span>&#x1F3AF;</span><span>KPI Dashboard</span></a>
+            <a href="reports.html" class="nav-item"><span>&#x1F4C8;</span><span>Reports</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>&#x1F477;</span><span>Crew</span></a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>&#x2699;&#xFE0F;</span><span>Settings</span></a>
+        </div>
+    </div>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div><div class="name">Tim Pappas</div><div class="role">Owner</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Main ─────────────────────────────────────────────── -->
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <h2>Email &amp; SMS Templates</h2>
+            <p>Manage outbound communication templates</p>
+        </div>
+        <div class="topbar-actions">
+            <span class="unsaved-dot" id="unsavedDot" title="Unsaved changes"></span>
+            <button class="btn btn-secondary btn-sm" onclick="loadTemplates()" title="Refresh">&#x21BB; Refresh</button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <!-- ─── Template List ─────────────────────────── -->
+        <div class="template-list-panel">
+            <div class="list-header">
+                <div class="list-header-top">
+                    <h3>Templates</h3>
+                    <button class="btn btn-primary btn-sm" onclick="createNewTemplate()">+ New Template</button>
+                </div>
+                <div class="search-box">
+                    <span class="search-icon">&#x1F50D;</span>
+                    <input type="text" id="searchInput" placeholder="Search templates..." oninput="filterTemplates()">
+                </div>
+                <div class="category-pills" id="categoryPills">
+                    <button class="category-pill active" data-cat="all" onclick="setCategory('all', this)">All</button>
+                    <button class="category-pill" data-cat="quotes" onclick="setCategory('quotes', this)">Quotes</button>
+                    <button class="category-pill" data-cat="invoices" onclick="setCategory('invoices', this)">Invoices</button>
+                    <button class="category-pill" data-cat="payments" onclick="setCategory('payments', this)">Payments</button>
+                    <button class="category-pill" data-cat="followups" onclick="setCategory('followups', this)">Followups</button>
+                    <button class="category-pill" data-cat="portal" onclick="setCategory('portal', this)">Portal</button>
+                    <button class="category-pill" data-cat="marketing" onclick="setCategory('marketing', this)">Marketing</button>
+                    <button class="category-pill" data-cat="system" onclick="setCategory('system', this)">System</button>
+                </div>
+            </div>
+            <div class="template-cards" id="templateCards">
+                <div class="empty-list">
+                    <span>&#x1F4DD;</span>
+                    <p>Loading templates...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── Editor ────────────────────────────────── -->
+        <div class="editor-panel" id="editorPanel">
+            <div class="editor-empty" id="editorEmpty">
+                <span>&#x2709;&#xFE0F;</span>
+                <p>Select a template to edit, or create a new one</p>
+            </div>
+
+            <div id="editorContent" style="display:none; flex:1; display:none; flex-direction:column; overflow:hidden;">
+                <!-- Toolbar -->
+                <div class="editor-toolbar">
+                    <div class="editor-toolbar-left">
+                        <input type="text" class="form-input" id="editorName" placeholder="Template Name" style="font-weight:600; font-size:15px; max-width:260px;" oninput="markDirty()">
+                        <input type="text" class="form-input" id="editorSlug" placeholder="template-slug" style="font-size:12px; color:var(--gray-400); max-width:180px;" oninput="markDirty()">
+                        <select class="form-select" id="editorCategory" style="max-width:130px; font-size:12px;" onchange="markDirty()">
+                            <option value="quotes">Quotes</option>
+                            <option value="invoices">Invoices</option>
+                            <option value="payments">Payments</option>
+                            <option value="followups">Followups</option>
+                            <option value="portal">Portal</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="system">System</option>
+                        </select>
+                    </div>
+                    <div class="editor-toolbar-right">
+                        <div class="toggle-row">
+                            <label class="toggle">
+                                <input type="checkbox" id="editorActive" onchange="markDirty()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label">Active</span>
+                        </div>
+                        <div class="toggle-row">
+                            <label class="toggle">
+                                <input type="checkbox" id="editorDefault" onchange="markDirty()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label">Default</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scrollable Editor Body -->
+                <div class="editor-content">
+                    <!-- Subject -->
+                    <div class="editor-section">
+                        <div class="editor-section-title">&#x2709;&#xFE0F; Email Subject</div>
+                        <input type="text" class="form-input" id="editorSubject" placeholder="e.g. Your quote from {company_name} is ready" oninput="markDirty()">
+                    </div>
+
+                    <!-- HTML Body + Preview -->
+                    <div class="editor-section">
+                        <div class="editor-section-title">&#x1F4E7; Email Body &amp; Preview</div>
+                        <div class="split-pane">
+                            <div class="split-pane-left">
+                                <div class="split-pane-label">
+                                    <span>HTML SOURCE</span>
+                                </div>
+                                <textarea class="html-textarea" id="editorBody" placeholder="<h2>Hello {customer_name},</h2>&#10;<p>Your quote is ready...</p>" oninput="markDirty(); debouncedPreview();"></textarea>
+                            </div>
+                            <div class="split-pane-right">
+                                <div class="split-pane-label">
+                                    <span>LIVE PREVIEW</span>
+                                    <button class="btn btn-xs btn-secondary" onclick="refreshPreview()">&#x21BB; Refresh</button>
+                                </div>
+                                <div class="preview-frame-container">
+                                    <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Wrapper Selection -->
+                    <div class="editor-section">
+                        <div class="editor-section-title">&#x1F3A8; Email Wrapper</div>
+                        <div class="radio-group" id="wrapperOptions">
+                            <label class="radio-option selected" onclick="selectWrapper('full', this)">
+                                <input type="radio" name="wrapper" value="full" checked>
+                                Full Email Wrapper
+                            </label>
+                            <label class="radio-option" onclick="selectWrapper('minimal', this)">
+                                <input type="radio" name="wrapper" value="minimal">
+                                Minimal
+                            </label>
+                            <label class="radio-option" onclick="selectWrapper('none', this)">
+                                <input type="radio" name="wrapper" value="none">
+                                None
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Variables -->
+                    <div class="editor-section variables-section">
+                        <div class="editor-section-title">&#x1F3F7;&#xFE0F; Insert Variable <span style="font-weight:400; color:var(--gray-400); font-size:11px; margin-left:4px;">Click to insert at cursor</span></div>
+                        <div id="variablesContainer">
+                            <div style="color:var(--gray-400); font-size:12px;">Loading variables...</div>
+                        </div>
+                    </div>
+
+                    <!-- SMS Body -->
+                    <div class="editor-section">
+                        <div class="editor-section-title">&#x1F4F1; SMS Body</div>
+                        <textarea class="form-textarea" id="editorSms" rows="3" placeholder="Hi {customer_first_name}, your quote is ready: {quote_link}" oninput="markDirty(); updateSmsCounter();"></textarea>
+                        <div class="sms-counter" id="smsCounter">0 / 160</div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="editor-section" style="background:transparent; border:none; padding:0; display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="btnSave" onclick="saveTemplate()">&#x1F4BE; Save Template</button>
+                        <button class="btn btn-lime" onclick="duplicateTemplate()">&#x1F4CB; Duplicate</button>
+                        <button class="btn btn-secondary" onclick="sendTestEmail()">&#x2709;&#xFE0F; Send Test Email</button>
+                        <div style="flex:1;"></div>
+                        <button class="btn btn-danger" onclick="confirmDelete()">&#x1F5D1;&#xFE0F; Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Delete Confirmation Modal ────────────────────────── -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Delete Template</h3>
+            <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="confirm-msg">Are you sure you want to delete <strong id="deleteTemplateName"></strong>? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="deleteTemplate()">Delete Template</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Toast ────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   State
+   ══════════════════════════════════════════════════════════ */
+let templates = [];
+let selectedId = null;
+let isDirty = false;
+let activeCategory = 'all';
+let variablesByCategory = {};
+let lastFocusedTextarea = null;
+let previewTimer = null;
+let currentWrapper = 'full';
+
+const SAMPLE_VARS = {
+    customer_name: 'Jane Smith',
+    customer_first_name: 'Jane',
+    customer_email: 'jane.smith@example.com',
+    customer_phone: '(555) 234-5678',
+    customer_address: '742 Evergreen Terrace, Springfield, IL 62704',
+    invoice_number: 'INV-2024-0042',
+    invoice_total: '$1,250.00',
+    invoice_due_date: 'March 15, 2026',
+    amount_paid: '$500.00',
+    balance_due: '$750.00',
+    payment_link: 'https://pay.pappaslandscaping.com/inv/abc123',
+    quote_number: 'Q-2024-0087',
+    quote_total: '$3,400.00',
+    quote_link: 'https://portal.pappaslandscaping.com/quote/xyz789',
+    services_list: 'Spring Cleanup, Lawn Mowing (Weekly), Mulch Installation',
+    job_date: 'Monday, March 9, 2026',
+    service_type: 'Lawn Maintenance',
+    crew_name: 'Alpha Crew',
+    address: '742 Evergreen Terrace, Springfield, IL',
+    company_name: 'Pappas & Co. Landscaping',
+    company_phone: '(555) 867-5309',
+    company_email: 'hello@pappaslandscaping.com',
+    company_website: 'https://pappaslandscaping.com',
+    portal_link: 'https://portal.pappaslandscaping.com'
+};
+
+/* ══════════════════════════════════════════════════════════
+   Init
+   ══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+    loadTemplates();
+    loadVariables();
+
+    // Track which textarea last had focus
+    document.addEventListener('focusin', (e) => {
+        if (e.target.id === 'editorBody' || e.target.id === 'editorSms' || e.target.id === 'editorSubject') {
+            lastFocusedTextarea = e.target;
+        }
+    });
+
+    // Warn on unsaved changes
+    window.addEventListener('beforeunload', (e) => {
+        if (isDirty) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+});
+
+/* ══════════════════════════════════════════════════════════
+   API Helpers
+   ══════════════════════════════════════════════════════════ */
+async function api(method, path, body) {
+    const opts = {
+        method,
+        headers: { 'Content-Type': 'application/json' }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch('/api/templates' + path, opts);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || err.message || `Request failed (${res.status})`);
+    }
+    return res.json();
+}
+
+/* ══════════════════════════════════════════════════════════
+   Load Templates
+   ══════════════════════════════════════════════════════════ */
+async function loadTemplates() {
+    try {
+        const data = await api('GET', '');
+        templates = data.templates || [];
+        renderTemplateList();
+        // If we had a selected template, re-select it
+        if (selectedId) {
+            const t = templates.find(t => t.id === selectedId);
+            if (t) openTemplate(t);
+        }
+    } catch (err) {
+        showToast('Failed to load templates: ' + err.message, 'error');
+        document.getElementById('templateCards').innerHTML =
+            '<div class="empty-list"><span>&#x26A0;&#xFE0F;</span><p>Failed to load templates</p></div>';
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Load Variables
+   ══════════════════════════════════════════════════════════ */
+async function loadVariables() {
+    try {
+        const data = await api('GET', '/variables');
+        variablesByCategory = data.variables || {};
+        renderVariables();
+    } catch (err) {
+        // Use hardcoded fallback
+        variablesByCategory = {
+            customer: ['customer_name', 'customer_first_name', 'customer_email', 'customer_phone', 'customer_address'],
+            invoice: ['invoice_number', 'invoice_total', 'invoice_due_date', 'amount_paid', 'balance_due', 'payment_link'],
+            quote: ['quote_number', 'quote_total', 'quote_link', 'services_list'],
+            job: ['job_date', 'service_type', 'crew_name', 'address'],
+            company: ['company_name', 'company_phone', 'company_email', 'company_website', 'portal_link']
+        };
+        renderVariables();
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Render Template List
+   ══════════════════════════════════════════════════════════ */
+function renderTemplateList() {
+    const container = document.getElementById('templateCards');
+    const search = document.getElementById('searchInput').value.toLowerCase().trim();
+
+    let filtered = templates;
+
+    // Category filter
+    if (activeCategory !== 'all') {
+        filtered = filtered.filter(t => t.category === activeCategory);
+    }
+
+    // Search filter
+    if (search) {
+        filtered = filtered.filter(t =>
+            t.name.toLowerCase().includes(search) ||
+            t.slug.toLowerCase().includes(search) ||
+            (t.subject || '').toLowerCase().includes(search)
+        );
+    }
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-list"><span>&#x1F4ED;</span><p>No templates found</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(t => {
+        const isSelected = t.id === selectedId;
+        const catClass = 'cat-' + (t.category || 'system');
+        const updated = t.updated_at ? timeAgo(t.updated_at) : '';
+        return `
+            <div class="template-card ${isSelected ? 'selected' : ''}" onclick="selectTemplate(${t.id})" data-id="${t.id}">
+                <div class="template-card-name">
+                    <span class="${t.is_active ? 'active-indicator' : 'inactive-indicator'}"></span>
+                    ${escapeHtml(t.name)}
+                    ${t.is_default ? '<span class="default-badge">Default</span>' : ''}
+                </div>
+                <div class="template-card-slug">${escapeHtml(t.slug)}</div>
+                <div class="template-card-meta">
+                    <span class="category-badge ${catClass}">${escapeHtml(t.category)}</span>
+                    <span class="template-card-date">${updated}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   Render Variables
+   ══════════════════════════════════════════════════════════ */
+function renderVariables() {
+    const container = document.getElementById('variablesContainer');
+    if (!variablesByCategory || Object.keys(variablesByCategory).length === 0) {
+        container.innerHTML = '<div style="color:var(--gray-400); font-size:12px;">No variables available</div>';
+        return;
+    }
+
+    container.innerHTML = Object.entries(variablesByCategory).map(([group, vars]) => `
+        <div class="var-group">
+            <div class="var-group-label">${escapeHtml(group)}</div>
+            <div class="var-pills">
+                ${vars.map(v => `<span class="var-pill" onclick="insertVariable('${v}')" title="Insert {${v}}">{${v}}</span>`).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   Select / Open Template
+   ══════════════════════════════════════════════════════════ */
+function selectTemplate(id) {
+    if (isDirty && selectedId !== id) {
+        if (!confirm('You have unsaved changes. Discard them?')) return;
+    }
+    const t = templates.find(t => t.id === id);
+    if (t) openTemplate(t);
+}
+
+function openTemplate(t) {
+    selectedId = t.id;
+    isDirty = false;
+    document.getElementById('unsavedDot').classList.remove('show');
+
+    // Show editor
+    document.getElementById('editorEmpty').style.display = 'none';
+    const ec = document.getElementById('editorContent');
+    ec.style.display = 'flex';
+
+    // Populate fields
+    document.getElementById('editorName').value = t.name || '';
+    document.getElementById('editorSlug').value = t.slug || '';
+    document.getElementById('editorCategory').value = t.category || 'system';
+    document.getElementById('editorSubject').value = t.subject || '';
+    document.getElementById('editorBody').value = t.body || '';
+    document.getElementById('editorSms').value = t.sms_body || '';
+    document.getElementById('editorActive').checked = !!t.is_active;
+    document.getElementById('editorDefault').checked = !!t.is_default;
+
+    // Wrapper
+    const wrapper = (t.options && t.options.wrapper) || 'full';
+    currentWrapper = wrapper;
+    document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
+        const val = opt.querySelector('input').value;
+        opt.classList.toggle('selected', val === wrapper);
+        opt.querySelector('input').checked = (val === wrapper);
+    });
+
+    updateSmsCounter();
+    renderTemplateList();
+    refreshPreview();
+}
+
+/* ══════════════════════════════════════════════════════════
+   Create New Template
+   ══════════════════════════════════════════════════════════ */
+function createNewTemplate() {
+    if (isDirty) {
+        if (!confirm('You have unsaved changes. Discard them?')) return;
+    }
+
+    selectedId = null;
+    isDirty = false;
+    document.getElementById('unsavedDot').classList.remove('show');
+
+    document.getElementById('editorEmpty').style.display = 'none';
+    const ec = document.getElementById('editorContent');
+    ec.style.display = 'flex';
+
+    document.getElementById('editorName').value = '';
+    document.getElementById('editorSlug').value = '';
+    document.getElementById('editorCategory').value = 'quotes';
+    document.getElementById('editorSubject').value = '';
+    document.getElementById('editorBody').value = defaultBodyTemplate();
+    document.getElementById('editorSms').value = '';
+    document.getElementById('editorActive').checked = true;
+    document.getElementById('editorDefault').checked = false;
+
+    currentWrapper = 'full';
+    document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
+        const val = opt.querySelector('input').value;
+        opt.classList.toggle('selected', val === 'full');
+        opt.querySelector('input').checked = (val === 'full');
+    });
+
+    updateSmsCounter();
+    renderTemplateList();
+    refreshPreview();
+
+    document.getElementById('editorName').focus();
+}
+
+function defaultBodyTemplate() {
+    return `<h2 style="color: #2e403d; margin-bottom: 16px;">Hello {customer_name},</h2>
+<p style="color: #4a4e4a; line-height: 1.7; font-size: 15px;">
+  Thank you for your interest in our services. We're excited to work with you!
+</p>
+<p style="color: #4a4e4a; line-height: 1.7; font-size: 15px;">
+  If you have any questions, don't hesitate to reach out.
+</p>
+<p style="margin-top: 24px;">
+  <a href="{portal_link}" style="background: #2e403d; color: #c9dd80; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">View Details</a>
+</p>`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Save Template
+   ══════════════════════════════════════════════════════════ */
+async function saveTemplate() {
+    const name = document.getElementById('editorName').value.trim();
+    const slug = document.getElementById('editorSlug').value.trim();
+
+    if (!name) {
+        showToast('Template name is required', 'error');
+        document.getElementById('editorName').focus();
+        return;
+    }
+    if (!slug) {
+        showToast('Template slug is required', 'error');
+        document.getElementById('editorSlug').focus();
+        return;
+    }
+
+    const payload = {
+        name,
+        slug,
+        category: document.getElementById('editorCategory').value,
+        subject: document.getElementById('editorSubject').value,
+        body: document.getElementById('editorBody').value,
+        sms_body: document.getElementById('editorSms').value,
+        is_active: document.getElementById('editorActive').checked,
+        is_default: document.getElementById('editorDefault').checked,
+        options: { wrapper: currentWrapper }
+    };
+
+    const btn = document.getElementById('btnSave');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        if (selectedId) {
+            await api('PATCH', '/' + selectedId, payload);
+            showToast('Template saved', 'success');
+        } else {
+            const data = await api('POST', '', payload);
+            selectedId = data.template ? data.template.id : (data.id || null);
+            showToast('Template created', 'success');
+        }
+        isDirty = false;
+        document.getElementById('unsavedDot').classList.remove('show');
+        await loadTemplates();
+    } catch (err) {
+        showToast('Save failed: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#x1F4BE; Save Template';
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Duplicate Template
+   ══════════════════════════════════════════════════════════ */
+async function duplicateTemplate() {
+    if (!selectedId) {
+        showToast('Save the template first before duplicating', 'error');
+        return;
+    }
+    try {
+        const data = await api('POST', '/' + selectedId + '/duplicate');
+        showToast('Template duplicated', 'success');
+        await loadTemplates();
+        const newId = data.template ? data.template.id : null;
+        if (newId) {
+            const t = templates.find(t => t.id === newId);
+            if (t) openTemplate(t);
+        }
+    } catch (err) {
+        showToast('Duplicate failed: ' + err.message, 'error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Delete Template
+   ══════════════════════════════════════════════════════════ */
+function confirmDelete() {
+    if (!selectedId) return;
+    const t = templates.find(t => t.id === selectedId);
+    document.getElementById('deleteTemplateName').textContent = t ? t.name : 'this template';
+    document.getElementById('deleteModal').classList.add('show');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('show');
+}
+
+async function deleteTemplate() {
+    if (!selectedId) return;
+    closeDeleteModal();
+    try {
+        await api('DELETE', '/' + selectedId);
+        showToast('Template deleted', 'success');
+        selectedId = null;
+        isDirty = false;
+        document.getElementById('unsavedDot').classList.remove('show');
+        document.getElementById('editorEmpty').style.display = '';
+        document.getElementById('editorContent').style.display = 'none';
+        await loadTemplates();
+    } catch (err) {
+        showToast('Delete failed: ' + err.message, 'error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Send Test Email
+   ══════════════════════════════════════════════════════════ */
+async function sendTestEmail() {
+    if (!selectedId) {
+        showToast('Save the template first before sending a test', 'error');
+        return;
+    }
+    try {
+        await api('POST', '/send-preview', {
+            template_id: selectedId,
+            slug: document.getElementById('editorSlug').value
+        });
+        showToast('Test email sent to hello@pappaslandscaping.com', 'success');
+    } catch (err) {
+        showToast('Send failed: ' + err.message, 'error');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Preview
+   ══════════════════════════════════════════════════════════ */
+function debouncedPreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(refreshPreview, 500);
+}
+
+function refreshPreview() {
+    const body = document.getElementById('editorBody').value;
+    const subject = document.getElementById('editorSubject').value;
+
+    // Replace variables with sample data
+    let html = body;
+    let subj = subject;
+    for (const [key, val] of Object.entries(SAMPLE_VARS)) {
+        const re = new RegExp('\\{' + key + '\\}', 'g');
+        html = html.replace(re, val);
+        subj = subj.replace(re, val);
+    }
+
+    // Wrap with email wrapper
+    const wrapped = wrapEmail(html, subj);
+
+    const iframe = document.getElementById('previewFrame');
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(wrapped);
+    doc.close();
+}
+
+function wrapEmail(bodyHtml, subject) {
+    if (currentWrapper === 'none') {
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:'DM Sans',-apple-system,sans-serif;margin:0;padding:20px;color:#333633;}</style></head><body>${bodyHtml}</body></html>`;
+    }
+
+    const isMinimal = currentWrapper === 'minimal';
+
+    const header = isMinimal ? '' : `
+        <div style="background:#2e403d;padding:24px 32px;text-align:center;">
+            <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;color:#c9dd80;letter-spacing:0.5px;">
+                Pappas & Co.
+            </div>
+            <div style="color:#9ca09c;font-size:12px;margin-top:4px;">Landscaping & Property Care</div>
+        </div>
+    `;
+
+    const footer = isMinimal ? `
+        <div style="padding:20px 32px;text-align:center;font-size:12px;color:#9ca09c;">
+            Pappas & Co. Landscaping &bull; hello@pappaslandscaping.com
+        </div>
+    ` : `
+        <div style="background:#2e403d;padding:28px 32px;text-align:center;">
+            <div style="font-family:Georgia,serif;font-size:16px;font-weight:700;color:#c9dd80;margin-bottom:8px;">
+                Pappas & Co.
+            </div>
+            <div style="color:#c8ccc8;font-size:12px;line-height:1.8;">
+                (555) 867-5309 &bull; hello@pappaslandscaping.com<br>
+                pappaslandscaping.com
+            </div>
+            <div style="margin-top:14px;">
+                <a href="#" style="color:#c9dd80;text-decoration:none;font-size:12px;margin:0 8px;">Facebook</a>
+                <a href="#" style="color:#c9dd80;text-decoration:none;font-size:12px;margin:0 8px;">Instagram</a>
+                <a href="#" style="color:#c9dd80;text-decoration:none;font-size:12px;margin:0 8px;">Google</a>
+            </div>
+            <div style="color:#6e726e;font-size:10px;margin-top:16px;">
+                &copy; ${new Date().getFullYear()} Pappas & Co. Landscaping. All rights reserved.
+            </div>
+        </div>
+    `;
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 0; background: #f0f2f0; font-family: 'DM Sans', -apple-system, sans-serif; }
+    </style>
+</head>
+<body>
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:0;">
+        ${header}
+        <div style="padding:32px;color:#333633;font-size:15px;line-height:1.7;">
+            ${bodyHtml}
+        </div>
+        ${footer}
+    </div>
+</body>
+</html>`;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Insert Variable at Cursor
+   ══════════════════════════════════════════════════════════ */
+function insertVariable(varName) {
+    const target = lastFocusedTextarea || document.getElementById('editorBody');
+    const text = '{' + varName + '}';
+
+    // Focus the target
+    target.focus();
+
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    const before = target.value.substring(0, start);
+    const after = target.value.substring(end);
+
+    target.value = before + text + after;
+    target.selectionStart = target.selectionEnd = start + text.length;
+
+    markDirty();
+
+    if (target.id === 'editorBody') {
+        debouncedPreview();
+    }
+    if (target.id === 'editorSms') {
+        updateSmsCounter();
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Wrapper Selection
+   ══════════════════════════════════════════════════════════ */
+function selectWrapper(value, el) {
+    currentWrapper = value;
+    document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
+        opt.classList.remove('selected');
+    });
+    el.classList.add('selected');
+    markDirty();
+    refreshPreview();
+}
+
+/* ══════════════════════════════════════════════════════════
+   SMS Counter
+   ══════════════════════════════════════════════════════════ */
+function updateSmsCounter() {
+    const sms = document.getElementById('editorSms').value;
+    const len = sms.length;
+    const counter = document.getElementById('smsCounter');
+    const segments = Math.ceil(len / 160) || 1;
+
+    counter.textContent = len + ' / 160' + (segments > 1 ? ' (' + segments + ' segments)' : '');
+    counter.className = 'sms-counter';
+    if (len > 320) {
+        counter.classList.add('danger');
+    } else if (len > 160) {
+        counter.classList.add('warn');
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Category Filter
+   ══════════════════════════════════════════════════════════ */
+function setCategory(cat, btn) {
+    activeCategory = cat;
+    document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    filterTemplates();
+}
+
+function filterTemplates() {
+    renderTemplateList();
+}
+
+/* ══════════════════════════════════════════════════════════
+   Dirty State
+   ══════════════════════════════════════════════════════════ */
+function markDirty() {
+    isDirty = true;
+    document.getElementById('unsavedDot').classList.add('show');
+}
+
+/* ══════════════════════════════════════════════════════════
+   Toast Notifications
+   ══════════════════════════════════════════════════════════ */
+function showToast(msg, type = '') {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast' + (type ? ' ' + type : '');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+/* ══════════════════════════════════════════════════════════
+   Utilities
+   ══════════════════════════════════════════════════════════ */
+function escapeHtml(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+function timeAgo(dateStr) {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 2592000) return Math.floor(diff / 86400) + 'd ago';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/* ══════════════════════════════════════════════════════════
+   Keyboard Shortcuts
+   ══════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', (e) => {
+    // Cmd/Ctrl+S to save
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (selectedId !== null || document.getElementById('editorContent').style.display === 'flex') {
+            saveTemplate();
+        }
+    }
+});
+</script>
+
+</body>
+</html>

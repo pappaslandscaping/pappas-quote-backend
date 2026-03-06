@@ -495,6 +495,12 @@
             color: var(--red);
         }
 
+        .service-date {
+            font-size: 13px;
+            color: var(--gray-600);
+            white-space: nowrap;
+        }
+
         .action-btn svg {
             width: 16px;
             height: 16px;
@@ -860,6 +866,10 @@
                     <span>🏡</span>
                     <span>Properties</span>
                 </a>
+                <a href="work-requests.html" class="nav-item">
+                    <span>📥</span>
+                    <span>Work Requests</span>
+                </a>
                 <a href="scheduling.html" class="nav-item">
                     <span>📅</span>
                     <span>Scheduling</span>
@@ -989,6 +999,11 @@
                 <div class="stat-card">
                     <div class="stat-label">With Pricing</div>
                     <div class="stat-value" id="statLinked">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Needs Service</div>
+                    <div class="stat-value" id="statNeedsService">—</div>
+                    <div class="stat-sub">No upcoming visit</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Cities Served</div>
@@ -1296,30 +1311,37 @@
                 return;
             }
 
+            // Compute "needs service" stat
+            const needsService = properties.filter(p =>
+                (p.status || '').toLowerCase() === 'active' && !p.next_service_date
+            ).length;
+            document.getElementById('statNeedsService').textContent = needsService.toLocaleString();
+
             const rows = properties.map(p => {
-                // Use correct column names from database
                 const statusClass = (p.status || '').toLowerCase() === 'active' ? 'status-active' : 'status-inactive';
                 const lotSizeDisplay = p.lawn_sqft > 0 ? Number(p.lawn_sqft).toLocaleString() + ' sq ft' : (p.lot_size || '—');
-                
-                // customer_name is stored on property, customer_id links to customers table
-                // customer_display_name comes from the JOIN in the API
+
                 const displayName = p.customer_display_name || p.customer_name || '';
-                const customerLink = displayName 
-                    ? `<a href="customers.html?id=${p.customer_id}" class="customer-link">${esc(displayName)}</a>`
+                const customerLink = displayName
+                    ? `<a href="customer-detail.html?id=${p.customer_id}" class="customer-link">${esc(displayName)}</a>`
                     : '<span class="no-customer">Not linked</span>';
-                
-                // Build address display - use street or address field
+
                 const streetDisplay = p.street || p.address || '';
                 const locationDisplay = [p.city, p.state, p.postal_code].filter(Boolean).join(', ');
 
+                const lastService = p.last_service_date ? formatDate(p.last_service_date) : '<span class="no-customer">Never</span>';
+                const nextService = p.next_service_date ? formatDate(p.next_service_date) : '<span class="no-customer">None</span>';
+
                 return `
-                    <tr>
+                    <tr onclick="openPropertyDetail(${p.id})" style="cursor:pointer">
                         <td class="property-name">${esc(streetDisplay || 'Unnamed')}</td>
                         <td class="city-cell">${esc(locationDisplay)}</td>
                         <td class="lot-size">${lotSizeDisplay}</td>
                         <td><span class="status-badge ${statusClass}">${esc(p.status || 'active')}</span></td>
                         <td>${customerLink}</td>
-                        <td class="actions-cell">
+                        <td class="service-date">${lastService}</td>
+                        <td class="service-date">${nextService}</td>
+                        <td class="actions-cell" onclick="event.stopPropagation()">
                             <button class="action-btn" onclick="editProperty(${p.id})" title="Edit">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                             </button>
@@ -1339,6 +1361,8 @@
                             <th>Lot Size</th>
                             <th>Status</th>
                             <th>Customer</th>
+                            <th>Last Service</th>
+                            <th>Next Service</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -1545,6 +1569,110 @@
         function esc(str) {
             if (!str) return '';
             return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function openPropertyDetail(id) {
+            // Open property detail panel
+            showPropertyDetail(id);
+        }
+
+        async function showPropertyDetail(id) {
+            const p = properties.find(x => x.id === id);
+            if (!p) return;
+
+            // Fetch service history
+            let jobs = [];
+            try {
+                const res = await fetch(`${API_BASE}/api/properties/${id}/service-history`);
+                const data = await res.json();
+                if (data.success) jobs = data.jobs || [];
+            } catch(e) {}
+
+            const streetDisplay = p.street || p.address || '';
+            const locationDisplay = [p.city, p.state, p.zip || p.postal_code].filter(Boolean).join(', ');
+            const displayName = p.customer_display_name || p.customer_name || '';
+
+            const jobRows = jobs.length > 0
+                ? jobs.map(j => `
+                    <tr>
+                        <td>${formatDate(j.job_date)}</td>
+                        <td>${esc(j.service_type || '')}</td>
+                        <td><span class="status-badge ${j.status === 'completed' || j.status === 'done' ? 'status-active' : 'status-inactive'}">${esc(j.status || '')}</span></td>
+                        <td>${j.service_price ? '$' + Number(j.service_price).toFixed(2) : '—'}</td>
+                        <td>${esc(j.crew_assigned || '—')}</td>
+                    </tr>`).join('')
+                : '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:24px">No service history</td></tr>';
+
+            const detailHTML = `
+                <div class="modal-overlay active" id="detailModal" onclick="if(event.target===this)closeDetailModal()">
+                    <div class="modal" style="max-width:700px">
+                        <div class="modal-header">
+                            <h3>${esc(streetDisplay)}</h3>
+                            <button class="modal-close" onclick="closeDetailModal()">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="padding:0">
+                            <div style="padding:20px 24px;border-bottom:1px solid var(--gray-200)">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                                    <div>
+                                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Location</div>
+                                        <div style="font-size:14px">${esc(locationDisplay)}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Customer</div>
+                                        <div style="font-size:14px">${displayName ? `<a href="customer-detail.html?id=${p.customer_id}" class="customer-link">${esc(displayName)}</a>` : '<span class="no-customer">Not linked</span>'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Last Service</div>
+                                        <div style="font-size:14px">${p.last_service_date ? formatDate(p.last_service_date) : 'Never'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Next Service</div>
+                                        <div style="font-size:14px">${p.next_service_date ? formatDate(p.next_service_date) : 'None scheduled'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Lot Size</div>
+                                        <div style="font-size:14px">${p.lot_size || '—'}</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Status</div>
+                                        <div><span class="status-badge ${(p.status||'').toLowerCase()==='active' ? 'status-active' : 'status-inactive'}">${esc(p.status || 'active')}</span></div>
+                                    </div>
+                                </div>
+                                ${p.notes || p.property_notes ? `<div style="margin-top:16px"><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Notes</div><div style="font-size:14px;color:var(--gray-600)">${esc(p.notes || p.property_notes)}</div></div>` : ''}
+                                ${p.tags ? `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">${p.tags.split(',').map(t => `<span style="background:var(--blue-bg);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500">${esc(t.trim())}</span>`).join('')}</div>` : ''}
+                            </div>
+                            <div style="padding:20px 24px">
+                                <h3 style="font-size:16px;font-weight:600;color:var(--forest);margin-bottom:12px">Service History</h3>
+                                <table style="font-size:13px">
+                                    <thead><tr><th>Date</th><th>Service</th><th>Status</th><th>Price</th><th>Crew</th></tr></thead>
+                                    <tbody>${jobRows}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="closeDetailModal();editProperty(${p.id})">Edit Property</button>
+                            <button class="btn btn-primary" onclick="closeDetailModal()">Close</button>
+                        </div>
+                    </div>
+                </div>`;
+
+            // Remove existing detail modal if any
+            const existing = document.getElementById('detailModal');
+            if (existing) existing.remove();
+            document.body.insertAdjacentHTML('beforeend', detailHTML);
+        }
+
+        function closeDetailModal() {
+            const m = document.getElementById('detailModal');
+            if (m) m.remove();
         }
 
         function showToast(message, isError = false) {

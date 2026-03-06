@@ -1658,7 +1658,9 @@ app.get('/api/properties', async (req, res) => {
     const { status, city, search, sort, limit = 1000, offset = 0 } = req.query;
     
     let query = `
-      SELECT p.*, c.name as customer_display_name, c.email as customer_email, c.phone as customer_phone
+      SELECT p.*, c.name as customer_display_name, c.email as customer_email, c.phone as customer_phone,
+        (SELECT MAX(job_date) FROM scheduled_jobs sj WHERE (sj.customer_id = p.customer_id OR LOWER(TRIM(sj.address)) = LOWER(TRIM(p.street))) AND sj.status IN ('completed','done') AND p.customer_id IS NOT NULL) as last_service_date,
+        (SELECT MIN(job_date) FROM scheduled_jobs sj WHERE (sj.customer_id = p.customer_id OR LOWER(TRIM(sj.address)) = LOWER(TRIM(p.street))) AND sj.status IN ('pending','scheduled') AND sj.job_date >= CURRENT_DATE AND p.customer_id IS NOT NULL) as next_service_date
       FROM properties p
       LEFT JOIN customers c ON p.customer_id = c.id
       WHERE 1=1
@@ -1772,7 +1774,9 @@ app.get('/api/properties/stats', async (req, res) => {
 app.get('/api/properties/:id', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, c.name as customer_display_name, c.email as customer_email, c.phone as customer_phone
+      SELECT p.*, c.name as customer_display_name, c.email as customer_email, c.phone as customer_phone,
+        (SELECT MAX(job_date) FROM scheduled_jobs sj WHERE (sj.customer_id = p.customer_id OR LOWER(TRIM(sj.address)) = LOWER(TRIM(p.street))) AND sj.status IN ('completed','done') AND p.customer_id IS NOT NULL) as last_service_date,
+        (SELECT MIN(job_date) FROM scheduled_jobs sj WHERE (sj.customer_id = p.customer_id OR LOWER(TRIM(sj.address)) = LOWER(TRIM(p.street))) AND sj.status IN ('pending','scheduled') AND sj.job_date >= CURRENT_DATE AND p.customer_id IS NOT NULL) as next_service_date
       FROM properties p
       LEFT JOIN customers c ON p.customer_id = c.id
       WHERE p.id = $1
@@ -1906,6 +1910,24 @@ app.delete('/api/properties/:id', async (req, res) => {
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
     console.error('Error deleting property:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/properties/:id/service-history
+app.get('/api/properties/:id/service-history', async (req, res) => {
+  try {
+    const prop = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
+    if (prop.rows.length === 0) return res.status(404).json({ success: false, error: 'Property not found' });
+    const p = prop.rows[0];
+    const result = await pool.query(`
+      SELECT * FROM scheduled_jobs
+      WHERE (customer_id = $1 OR LOWER(TRIM(address)) = LOWER(TRIM($2)))
+      ORDER BY job_date DESC LIMIT 50
+    `, [p.customer_id, p.street]);
+    res.json({ success: true, jobs: result.rows });
+  } catch (error) {
+    console.error('Error fetching property service history:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -2176,12 +2198,13 @@ app.delete('/api/cancellations/:id', async (req, res) => {
 
 app.get('/api/customers', async (req, res) => {
   try {
-    const { status, city, search, sort, limit = 1000, offset = 0 } = req.query;
+    const { status, city, search, sort, type, limit = 1000, offset = 0 } = req.query;
     let query = 'SELECT * FROM customers WHERE 1=1';
     let countQuery = 'SELECT COUNT(*) FROM customers WHERE 1=1';
     const params = [], countParams = [];
     let p = 1, cp = 1;
-    
+
+    if (type) { query += ` AND customer_type = $${p++}`; countQuery += ` AND customer_type = $${cp++}`; params.push(type); countParams.push(type); }
     if (status) { query += ` AND status = $${p++}`; countQuery += ` AND status = $${cp++}`; params.push(status); countParams.push(status); }
     if (city) { query += ` AND city ILIKE $${p++}`; countQuery += ` AND city ILIKE $${cp++}`; params.push(`%${city}%`); countParams.push(`%${city}%`); }
     if (search) { query += ` AND (name ILIKE $${p} OR email ILIKE $${p} OR street ILIKE $${p})`; countQuery += ` AND (name ILIKE $${cp} OR email ILIKE $${cp})`; params.push(`%${search}%`); countParams.push(`%${search}%`); p++; cp++; }
@@ -2215,6 +2238,25 @@ app.get('/api/customers/stats', async (req, res) => {
     else if (recentCount > 0) trendPct = 100;
     const inactive = parseInt(total.rows[0].count) - parseInt(active.rows[0].count);
     res.json({ success: true, stats: { total: parseInt(total.rows[0].count), active: parseInt(active.rows[0].count), inactive, topCities: cities.rows, trend: { recent: recentCount, previous: prevCount, pct: trendPct } } });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// GET /api/customers/pipeline-stats - Lead vs Customer pipeline metrics
+app.get('/api/customers/pipeline-stats', async (req, res) => {
+  try {
+    const leads = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead'");
+    const customers = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'customer' OR customer_type IS NULL");
+    const newLeads = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead' AND created_at >= NOW() - INTERVAL '30 days'");
+    const converted = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'customer' AND created_at >= NOW() - INTERVAL '30 days'");
+    const totalLeads = parseInt(leads.rows[0].count);
+    const totalCustomers = parseInt(customers.rows[0].count);
+    const conversionRate = totalLeads + totalCustomers > 0 ? Math.round((totalCustomers / (totalLeads + totalCustomers)) * 100) : 0;
+    res.json({ success: true, stats: {
+      totalLeads, totalCustomers,
+      newLeadsThisMonth: parseInt(newLeads.rows[0].count),
+      convertedThisMonth: parseInt(converted.rows[0].count),
+      conversionRate
+    }});
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -2496,7 +2538,7 @@ app.get('/api/customers/:id/properties', async (req, res) => {
 app.patch('/api/customers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const allowed = ['name', 'status', 'email', 'phone', 'mobile', 'street', 'city', 'state', 'postal_code', 'tags', 'notes'];
+    const allowed = ['name', 'status', 'email', 'phone', 'mobile', 'street', 'city', 'state', 'postal_code', 'tags', 'notes', 'customer_type'];
     const sets = [], vals = [];
     let p = 1;
     Object.keys(req.body).forEach(k => {
@@ -9220,6 +9262,10 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   }
   console.log('✅ CopilotCRM feature tables ready');
 
+  // Add customer_type column for lead/customer pipeline
+  try { await pool.query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20) DEFAULT 'customer'"); } catch(e) {}
+  console.log('✅ Customer type column ready');
+
   // Add new columns to invoices
   const invoiceNewCols = [
     'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS late_fee_total DECIMAL(10,2) DEFAULT 0',
@@ -9293,6 +9339,177 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     console.log('✅ Admin users ready');
   } catch(e) { console.error('Admin users error:', e.message); }
 })();
+
+// ═══════════════════════════════════════════════════════════
+// ═══ WORK REQUESTS ENDPOINTS ══════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/work-requests/stats', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+        COUNT(*) FILTER (WHERE status = 'in-progress')::int AS in_progress,
+        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+        COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
+      FROM service_requests
+    `);
+    res.json({ success: true, stats: result.rows[0] });
+  } catch (error) {
+    console.error('Work requests stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/work-requests', async (req, res) => {
+  try {
+    const { status, search, limit = 50, offset = 0 } = req.query;
+    let query = `
+      SELECT sr.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.street as customer_address
+      FROM service_requests sr
+      LEFT JOIN customers c ON sr.customer_id = c.id
+      WHERE 1=1
+    `;
+    let countQuery = 'SELECT COUNT(*) FROM service_requests WHERE 1=1';
+    const params = [], countParams = [];
+    let p = 1, cp = 1;
+
+    if (status) {
+      query += ` AND sr.status = $${p++}`;
+      countQuery += ` AND status = $${cp++}`;
+      params.push(status);
+      countParams.push(status);
+    }
+    if (search) {
+      query += ` AND (c.name ILIKE $${p} OR sr.service_type ILIKE $${p} OR sr.description ILIKE $${p})`;
+      countQuery += ` AND (service_type ILIKE $${cp} OR description ILIKE $${cp})`;
+      params.push(`%${search}%`);
+      countParams.push(`%${search}%`);
+      p++; cp++;
+    }
+
+    query += ` ORDER BY sr.created_at DESC LIMIT $${p++} OFFSET $${p}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+    const countResult = await pool.query(countQuery, countParams);
+    res.json({ success: true, requests: result.rows, total: parseInt(countResult.rows[0].count) });
+  } catch (error) {
+    console.error('Work requests error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/work-requests/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT sr.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.street as customer_address
+      FROM service_requests sr
+      LEFT JOIN customers c ON sr.customer_id = c.id
+      WHERE sr.id = $1
+    `, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.put('/api/work-requests/:id', async (req, res) => {
+  try {
+    const { status, admin_notes } = req.body;
+    const sets = ['updated_at = CURRENT_TIMESTAMP'];
+    const vals = [];
+    let p = 1;
+    if (status) { sets.push(`status = $${p++}`); vals.push(status); }
+    if (admin_notes !== undefined) { sets.push(`admin_notes = $${p++}`); vals.push(admin_notes); }
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE service_requests SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// ═══ KPI DETAILED ENDPOINT ════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/kpi/detailed', async (req, res) => {
+  try {
+    const now = new Date();
+    const thisMonth = now.toISOString().slice(0, 7);
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+
+    // Revenue
+    const monthlyRevenue = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments WHERE created_at >= date_trunc('month', CURRENT_DATE)");
+    const lastMonthRevenue = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND created_at < date_trunc('month', CURRENT_DATE)");
+
+    // Close ratio
+    const totalQuotesSent = await pool.query("SELECT COUNT(*) FROM sent_quotes WHERE created_at >= date_trunc('month', CURRENT_DATE)");
+    const acceptedQuotes = await pool.query("SELECT COUNT(*) FROM sent_quotes WHERE status IN ('accepted','signed','contracted') AND created_at >= date_trunc('month', CURRENT_DATE)");
+    const totalSent = parseInt(totalQuotesSent.rows[0].count);
+    const totalAccepted = parseInt(acceptedQuotes.rows[0].count);
+    const closeRatio = totalSent > 0 ? Math.round((totalAccepted / totalSent) * 100) : 0;
+
+    // Avg time to close
+    const avgClose = await pool.query("SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400)::numeric as avg_days FROM sent_quotes WHERE status IN ('accepted','signed','contracted') AND updated_at > created_at");
+
+    // Jobs completed
+    const jobsThisWeek = await pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('week', CURRENT_DATE)");
+    const jobsThisMonth = await pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('month', CURRENT_DATE)");
+
+    // Revenue by service type
+    const revenueByService = await pool.query("SELECT service_type, COUNT(*) as job_count, COALESCE(SUM(service_price), 0)::numeric as revenue FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('month', CURRENT_DATE) GROUP BY service_type ORDER BY revenue DESC LIMIT 10");
+
+    // New customers
+    const newCustomers = await pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= date_trunc('month', CURRENT_DATE)");
+
+    // Customer LTV
+    const totalCustomerCount = await pool.query("SELECT COUNT(*) FROM customers");
+    const totalRevenueAll = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments");
+    const custCount = parseInt(totalCustomerCount.rows[0].count);
+    const ltv = custCount > 0 ? (parseFloat(totalRevenueAll.rows[0].total) / custCount).toFixed(2) : 0;
+
+    // Pending quotes value
+    const pendingQuotes = await pool.query("SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0)::numeric as value FROM sent_quotes WHERE status IN ('sent','viewed','pending')");
+
+    // Booked out (how far ahead)
+    const bookedOut = await pool.query("SELECT MAX(job_date) as furthest_date FROM scheduled_jobs WHERE status IN ('pending','scheduled') AND job_date >= CURRENT_DATE");
+    const furthestDate = bookedOut.rows[0].furthest_date;
+    const bookedOutDays = furthestDate ? Math.ceil((new Date(furthestDate) - now) / 86400000) : 0;
+
+    // Active leads
+    const activeLeads = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead'");
+
+    // Monthly revenue trend (last 6 months)
+    const revenueTrend = await pool.query(`
+      SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+             COALESCE(SUM(amount), 0)::numeric as revenue
+      FROM payments
+      WHERE created_at >= CURRENT_DATE - INTERVAL '6 months'
+      GROUP BY date_trunc('month', created_at)
+      ORDER BY month ASC
+    `);
+
+    res.json({ success: true, kpi: {
+      monthlyRevenue: parseFloat(monthlyRevenue.rows[0].total),
+      lastMonthRevenue: parseFloat(lastMonthRevenue.rows[0].total),
+      closeRatio,
+      avgDaysToClose: avgClose.rows[0].avg_days ? parseFloat(avgClose.rows[0].avg_days).toFixed(1) : null,
+      jobsThisWeek: parseInt(jobsThisWeek.rows[0].count),
+      jobsThisMonth: parseInt(jobsThisMonth.rows[0].count),
+      revenueByService: revenueByService.rows,
+      newCustomers: parseInt(newCustomers.rows[0].count),
+      customerLTV: parseFloat(ltv),
+      pendingQuotes: { count: parseInt(pendingQuotes.rows[0].count), value: parseFloat(pendingQuotes.rows[0].value) },
+      bookedOutDays,
+      activeLeads: parseInt(activeLeads.rows[0].count),
+      revenueTrend: revenueTrend.rows
+    }});
+  } catch (error) {
+    console.error('KPI detailed error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

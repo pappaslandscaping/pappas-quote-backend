@@ -635,6 +635,7 @@
             <div class="nav-section-label">Operations</div>
             <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
             <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="work-requests.html" class="nav-item"><span>📥</span><span>Work Requests</span></a>
             <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
             <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
         </div>
@@ -818,6 +819,47 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <!-- Pipeline & Operations -->
+        <div class="charts-row" id="pipelineRow" style="display:none">
+            <div class="chart-card">
+                <h2>Revenue by Service Type</h2>
+                <div id="serviceRevenueChart" style="padding:8px 0"></div>
+            </div>
+            <div class="chart-card">
+                <h2>Pipeline Snapshot</h2>
+                <div id="pipelineSnapshot" style="padding:8px 0">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div style="text-align:center;padding:16px;background:var(--purple-bg);border-radius:10px">
+                            <div style="font-size:24px;font-weight:700;color:var(--purple)" id="pipeLeads">—</div>
+                            <div style="font-size:12px;color:var(--purple)">Active Leads</div>
+                        </div>
+                        <div style="text-align:center;padding:16px;background:var(--blue-bg);border-radius:10px">
+                            <div style="font-size:24px;font-weight:700;color:var(--blue)" id="pipePending">—</div>
+                            <div style="font-size:12px;color:var(--blue)">Pending Quotes</div>
+                        </div>
+                        <div style="text-align:center;padding:16px;background:var(--green-bg);border-radius:10px">
+                            <div style="font-size:24px;font-weight:700;color:var(--green)" id="pipeJobsMonth">—</div>
+                            <div style="font-size:12px;color:var(--green)">Jobs This Month</div>
+                        </div>
+                        <div style="text-align:center;padding:16px;background:var(--amber-bg);border-radius:10px">
+                            <div style="font-size:24px;font-weight:700;color:var(--amber)" id="pipeBookedOut">—</div>
+                            <div style="font-size:12px;color:var(--amber)">Days Booked Out</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--gray-50);border-radius:8px">
+                        <div><span style="font-size:12px;color:var(--gray-500)">Pending Quote Value</span><br><span style="font-size:18px;font-weight:700;color:var(--forest)" id="pipePendingValue">—</span></div>
+                        <div><span style="font-size:12px;color:var(--gray-500)">Customer LTV</span><br><span style="font-size:18px;font-weight:700;color:var(--forest)" id="pipeLTV">—</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue Trend -->
+        <div class="chart-card" id="revenueTrendCard" style="display:none;margin-bottom:24px">
+            <h2>Monthly Revenue Trend</h2>
+            <div id="revenueTrendChart" style="padding:8px 0"></div>
         </div>
 
         <!-- Coaching Suggestions -->
@@ -1210,9 +1252,65 @@
         }
     }
 
+    // Load enhanced KPI data
+    async function loadDetailedKPI() {
+        try {
+            const res = await fetch('/api/kpi/detailed');
+            const data = await res.json();
+            if (!data.success || !data.kpi) return;
+            const k = data.kpi;
+
+            // Pipeline snapshot
+            document.getElementById('pipelineRow').style.display = '';
+            document.getElementById('pipeLeads').textContent = formatNumber(k.activeLeads);
+            document.getElementById('pipePending').textContent = formatNumber(k.pendingQuotes?.count || 0);
+            document.getElementById('pipeJobsMonth').textContent = formatNumber(k.jobsThisMonth);
+            document.getElementById('pipeBookedOut').textContent = k.bookedOutDays + 'd';
+            document.getElementById('pipePendingValue').textContent = formatDollarsWhole(k.pendingQuotes?.value || 0);
+            document.getElementById('pipeLTV').textContent = formatDollarsWhole(k.customerLTV);
+
+            // Revenue by service type bar chart
+            if (k.revenueByService && k.revenueByService.length > 0) {
+                const maxRev = Math.max(...k.revenueByService.map(s => parseFloat(s.revenue)));
+                const colors = ['#2e403d', '#3a524e', '#059669', '#3b82f6', '#7c3aed', '#d97706', '#dc4a4a', '#ea580c', '#c9dd80', '#6e726e'];
+                let html = '';
+                k.revenueByService.forEach((s, i) => {
+                    const pct = maxRev > 0 ? (parseFloat(s.revenue) / maxRev * 100) : 0;
+                    const color = colors[i % colors.length];
+                    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">' +
+                        '<div style="width:120px;font-size:12px;color:var(--gray-600);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title="' + escapeHtml(s.service_type || 'Other') + '">' + escapeHtml(s.service_type || 'Other') + '</div>' +
+                        '<div style="flex:1;height:24px;background:var(--gray-100);border-radius:6px;overflow:hidden">' +
+                        '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:6px;transition:width 0.5s"></div></div>' +
+                        '<div style="width:80px;text-align:right;font-size:12px;font-weight:600;color:var(--gray-700)">' + formatDollarsWhole(s.revenue) + '</div>' +
+                        '<div style="width:40px;text-align:right;font-size:11px;color:var(--gray-400)">' + s.job_count + ' jobs</div></div>';
+                });
+                document.getElementById('serviceRevenueChart').innerHTML = html;
+            }
+
+            // Revenue trend mini bar chart
+            if (k.revenueTrend && k.revenueTrend.length > 0) {
+                document.getElementById('revenueTrendCard').style.display = '';
+                const maxMonth = Math.max(...k.revenueTrend.map(m => parseFloat(m.revenue)));
+                let html = '<div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding:0 8px">';
+                k.revenueTrend.forEach(m => {
+                    const pct = maxMonth > 0 ? (parseFloat(m.revenue) / maxMonth * 100) : 0;
+                    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
+                        '<div style="font-size:10px;font-weight:600;color:var(--forest)">' + formatDollarsWhole(m.revenue) + '</div>' +
+                        '<div style="width:100%;height:' + Math.max(pct, 2) + '%;background:var(--forest);border-radius:6px 6px 0 0;min-height:4px;transition:height 0.5s"></div>' +
+                        '<div style="font-size:10px;color:var(--gray-400)">' + formatMonth(m.month) + '</div></div>';
+                });
+                html += '</div>';
+                document.getElementById('revenueTrendChart').innerHTML = html;
+            }
+        } catch(e) {
+            console.error('Detailed KPI error:', e);
+        }
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
         loadDashboard();
+        loadDetailedKPI();
     });
 </script>
 </body>

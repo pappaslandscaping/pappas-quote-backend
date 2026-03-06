@@ -2763,6 +2763,76 @@ app.get('/api/jobs/dashboard', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// GET /api/jobs/calendar-summary?month=YYYY-MM - Day-by-day job counts with crew colors (Phase 5)
+app.get('/api/jobs/calendar-summary', async (req, res) => {
+  try {
+    const { month } = req.query;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ success: false, error: 'Provide month as YYYY-MM' });
+    }
+    const startDate = month + '-01';
+    const [year, mon] = month.split('-').map(Number);
+    const lastDay = new Date(year, mon, 0).getDate();
+    const endDate = month + '-' + String(lastDay).padStart(2, '0');
+
+    const result = await pool.query(
+      `SELECT
+         job_date::date AS day,
+         COUNT(*) AS total_jobs,
+         COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+         COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+         COUNT(*) FILTER (WHERE status IN ('in_progress')) AS in_progress,
+         COALESCE(SUM(service_price), 0) AS revenue,
+         json_agg(json_build_object(
+           'crew', COALESCE(crew_assigned, 'Unassigned'),
+           'count', 1
+         )) AS crew_details
+       FROM scheduled_jobs
+       WHERE job_date::date BETWEEN $1::date AND $2::date
+       GROUP BY job_date::date
+       ORDER BY job_date::date`,
+      [startDate, endDate]
+    );
+
+    const days = result.rows.map(row => {
+      const crewCounts = {};
+      (row.crew_details || []).forEach(d => {
+        crewCounts[d.crew] = (crewCounts[d.crew] || 0) + d.count;
+      });
+      return {
+        day: row.day,
+        total_jobs: parseInt(row.total_jobs),
+        completed: parseInt(row.completed),
+        pending: parseInt(row.pending),
+        in_progress: parseInt(row.in_progress),
+        revenue: parseFloat(row.revenue),
+        crews: crewCounts
+      };
+    });
+
+    res.json({ success: true, month, days });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/jobs/completed-uninvoiced - Completed jobs without invoices (must be before :id)
+app.get('/api/jobs/completed-uninvoiced', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, job_date, customer_name, customer_id, service_type, service_price, address
+      FROM scheduled_jobs
+      WHERE status IN ('completed', 'done')
+        AND (invoice_id IS NULL OR invoice_id = 0)
+      ORDER BY job_date DESC LIMIT 200
+    `);
+    res.json({ success: true, jobs: result.rows });
+  } catch (error) {
+    console.error('Error fetching completed uninvoiced jobs:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/jobs/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [req.params.id]);
@@ -7260,6 +7330,85 @@ app.get('/api/invoices/stats', async (req, res) => {
   }
 });
 
+// GET /api/invoices/aging - Aging AR (must be before :id route)
+app.get('/api/invoices/aging', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const result = await pool.query(`
+      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, status
+      FROM invoices
+      WHERE status IN ('sent', 'viewed', 'overdue') AND total > COALESCE(amount_paid, 0)
+    `);
+    const now = new Date();
+    const buckets = {
+      current: { count: 0, total: 0, invoices: [] },
+      '1_30': { count: 0, total: 0, invoices: [] },
+      '31_60': { count: 0, total: 0, invoices: [] },
+      '61_90': { count: 0, total: 0, invoices: [] },
+      '90_plus': { count: 0, total: 0, invoices: [] }
+    };
+    result.rows.forEach(inv => {
+      const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+      const due = inv.due_date ? new Date(inv.due_date) : now;
+      const daysOverdue = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+      let bucket;
+      if (daysOverdue <= 0) bucket = 'current';
+      else if (daysOverdue <= 30) bucket = '1_30';
+      else if (daysOverdue <= 60) bucket = '31_60';
+      else if (daysOverdue <= 90) bucket = '61_90';
+      else bucket = '90_plus';
+      buckets[bucket].count++;
+      buckets[bucket].total += balance;
+      buckets[bucket].invoices.push({ id: inv.id, invoice_number: inv.invoice_number, customer_name: inv.customer_name, balance, days_overdue: Math.max(0, daysOverdue) });
+    });
+    res.json({ success: true, buckets });
+  } catch (error) {
+    console.error('Error fetching aging data:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices/batch - Batch invoice from jobs (must be before :id route)
+app.post('/api/invoices/batch', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const { job_ids } = req.body;
+    if (!job_ids || !Array.isArray(job_ids) || job_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'job_ids array is required' });
+    }
+    const created = [];
+    for (const jobId of job_ids) {
+      const jobResult = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [jobId]);
+      if (jobResult.rows.length === 0) continue;
+      const job = jobResult.rows[0];
+      if (job.invoice_id) continue;
+      const invNum = await nextInvoiceNumber();
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+      const lineItems = [{ description: job.service_type || 'Service', amount: parseFloat(job.service_price || 0) }];
+      const total = parseFloat(job.service_price || 0);
+      let customerEmail = '';
+      if (job.customer_id) {
+        const custResult = await pool.query('SELECT email FROM customers WHERE id = $1', [job.customer_id]);
+        if (custResult.rows.length > 0) customerEmail = custResult.rows[0].email || '';
+      }
+      const r = await pool.query(`INSERT INTO invoices
+        (invoice_number, customer_id, customer_name, customer_email, customer_address, job_id,
+         subtotal, total, due_date, line_items, notes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [invNum, job.customer_id || null, job.customer_name || '', customerEmail,
+         job.address || '', jobId, total, total, dueDate.toISOString().split('T')[0],
+         JSON.stringify(lineItems), 'Generated from completed job #' + jobId]);
+      try { await pool.query('UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2', [r.rows[0].id, jobId]); } catch(e) {}
+      created.push(r.rows[0]);
+    }
+    res.json({ success: true, invoices: created, count: created.length });
+  } catch (error) {
+    console.error('Error batch creating invoices:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/invoices/:id - Single invoice
 app.get('/api/invoices/:id', async (req, res) => {
   try {
@@ -9578,8 +9727,831 @@ app.get('/api/customers/:id/emails', async (req, res) => {
   }
 });
 
+// GET /api/dashboard/activity-feed - Chronological activity feed across all entities
+app.get('/api/dashboard/activity-feed', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const result = await pool.query(`
+      (
+        SELECT 'quote_sent' as type,
+               'Quote sent to ' || COALESCE(customer_name, 'Unknown') || ' — ' || COALESCE(quote_number, 'Q-' || id::text) as description,
+               created_at as timestamp,
+               '/sent-quote-detail.html?id=' || id as link
+        FROM sent_quotes
+        WHERE status IN ('sent','viewed')
+        ORDER BY created_at DESC LIMIT 10
+      )
+      UNION ALL
+      (
+        SELECT 'quote_signed' as type,
+               COALESCE(customer_name, 'Unknown') || ' signed quote ' || COALESCE(quote_number, 'Q-' || id::text) as description,
+               COALESCE(signed_at, updated_at, created_at) as timestamp,
+               '/sent-quote-detail.html?id=' || id as link
+        FROM sent_quotes
+        WHERE status IN ('signed','contracted')
+        ORDER BY COALESCE(signed_at, updated_at, created_at) DESC LIMIT 10
+      )
+      UNION ALL
+      (
+        SELECT 'invoice_created' as type,
+               'Invoice ' || COALESCE(invoice_number, '#' || id::text) || ' created for ' || COALESCE(customer_name, 'Unknown') || ' — $' || COALESCE(total::text, '0') as description,
+               created_at as timestamp,
+               '/invoice-detail.html?id=' || id as link
+        FROM invoices
+        WHERE status = 'draft' OR status = 'sent'
+        ORDER BY created_at DESC LIMIT 10
+      )
+      UNION ALL
+      (
+        SELECT 'payment_received' as type,
+               'Payment received from ' || COALESCE(customer_name, 'Unknown') || ' — $' || COALESCE(amount_paid::text, '0') as description,
+               COALESCE(paid_at, updated_at) as timestamp,
+               '/invoice-detail.html?id=' || id as link
+        FROM invoices
+        WHERE status = 'paid' AND amount_paid > 0
+        ORDER BY COALESCE(paid_at, updated_at) DESC LIMIT 10
+      )
+      UNION ALL
+      (
+        SELECT 'job_completed' as type,
+               'Job completed: ' || COALESCE(service_type, 'Service') || ' for ' || COALESCE(customer_name, 'Unknown') as description,
+               COALESCE(updated_at, job_date::timestamp) as timestamp,
+               '/job-detail.html?id=' || id as link
+        FROM scheduled_jobs
+        WHERE status IN ('completed','done')
+        ORDER BY COALESCE(updated_at, job_date::timestamp) DESC LIMIT 10
+      )
+      UNION ALL
+      (
+        SELECT 'job_scheduled' as type,
+               'Job scheduled: ' || COALESCE(service_type, 'Service') || ' for ' || COALESCE(customer_name, 'Unknown') || ' on ' || to_char(job_date, 'Mon DD') as description,
+               created_at as timestamp,
+               '/job-detail.html?id=' || id as link
+        FROM scheduled_jobs
+        WHERE status IN ('pending','scheduled') AND job_date >= CURRENT_DATE
+        ORDER BY created_at DESC LIMIT 10
+      )
+      UNION ALL
+      (
+        SELECT 'new_customer' as type,
+               'New customer: ' || COALESCE(name, 'Unknown') as description,
+               created_at as timestamp,
+               '/customer-detail.html?id=' || id as link
+        FROM customers
+        ORDER BY created_at DESC LIMIT 10
+      )
+      ORDER BY timestamp DESC NULLS LAST
+      LIMIT 20
+    `);
+    res.json({ success: true, events: result.rows });
+  } catch (error) {
+    console.error('Activity feed error:', error);
+    res.json({ success: true, events: [] });
+  }
+});
+
+// GET /api/dashboard/today-summary - Quick counts for today's dashboard
+app.get('/api/dashboard/today-summary', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const today = new Date().toISOString().split('T')[0];
+    const [jobsToday, revenueToday, pendingQuotes, overdueInvoices, unreadMessages] = await Promise.all([
+      pool.query('SELECT COUNT(*) as cnt FROM scheduled_jobs WHERE job_date::date = $1::date', [today]),
+      pool.query("SELECT COALESCE(SUM(amount_paid),0) as amt FROM invoices WHERE status = 'paid' AND paid_at::date = $1::date", [today]).catch(() => ({ rows: [{ amt: 0 }] })),
+      pool.query("SELECT COUNT(*) as cnt FROM sent_quotes WHERE status IN ('sent','viewed')").catch(() => ({ rows: [{ cnt: 0 }] })),
+      pool.query("SELECT COUNT(*) as cnt FROM invoices WHERE status IN ('sent','viewed') AND due_date < CURRENT_DATE").catch(() => ({ rows: [{ cnt: 0 }] })),
+      pool.query("SELECT COUNT(*) as cnt FROM messages WHERE read = false AND direction = 'inbound'").catch(() => ({ rows: [{ cnt: 0 }] }))
+    ]);
+    res.json({
+      success: true,
+      jobs_today: parseInt(jobsToday.rows[0].cnt) || 0,
+      revenue_today: parseFloat(revenueToday.rows[0].amt) || 0,
+      pending_quotes: parseInt(pendingQuotes.rows[0].cnt) || 0,
+      overdue_invoices: parseInt(overdueInvoices.rows[0].cnt) || 0,
+      unread_messages: parseInt(unreadMessages.rows[0].cnt) || 0
+    });
+  } catch (error) {
+    console.error('Today summary error:', error);
+    res.json({ success: true, jobs_today: 0, revenue_today: 0, pending_quotes: 0, overdue_invoices: 0, unread_messages: 0 });
+  }
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.get('/api/config/maps-key', (req, res) => res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
+
+// ═══════════════════════════════════════════════════════════
+// Phase 5: Scheduling + Calendar endpoints
+// ═══════════════════════════════════════════════════════════
+
+// Migration needed: ALTER TABLE scheduled_jobs ADD COLUMN start_time TIME, ADD COLUMN end_time TIME;
+
+// NOTE: GET /api/jobs/calendar-summary is defined above (before /api/jobs/:id) to avoid route conflict.
+
+// POST /api/jobs/from-quote/:quoteId - Create a job from a sent quote
+app.post('/api/jobs/from-quote/:quoteId', async (req, res) => {
+  try {
+    const { quoteId } = req.params;
+    const { job_date, crew_assigned } = req.body;
+
+    const quoteResult = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [quoteId]);
+    if (quoteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+    const quote = quoteResult.rows[0];
+
+    let serviceType = 'Service';
+    let totalPrice = parseFloat(quote.total) || 0;
+    if (quote.services) {
+      const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : quote.services;
+      if (Array.isArray(services) && services.length > 0) {
+        serviceType = services.map(s => s.name || s.service || s.description || 'Service').join(', ');
+        if (serviceType.length > 100) serviceType = serviceType.substring(0, 97) + '...';
+      }
+    }
+
+    const jobDate = job_date || new Date().toISOString().split('T')[0];
+
+    const result = await pool.query(
+      `INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, phone, special_notes, status, crew_assigned, estimated_duration)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, 60)
+       RETURNING *`,
+      [
+        jobDate,
+        quote.customer_name,
+        quote.customer_id || null,
+        serviceType,
+        totalPrice,
+        quote.customer_address || '',
+        quote.customer_phone || '',
+        'Created from Quote #' + (quote.quote_number || quote.id),
+        crew_assigned || null
+      ]
+    );
+
+    res.json({ success: true, job: result.rows[0], quote_id: quote.id });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// PHASE 6 — FINANCIAL SUITE ENDPOINTS
+// (aging + batch routes are registered above before /api/invoices/:id)
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/expense-categories - Return distinct categories plus defaults
+app.get('/api/expense-categories', async (req, res) => {
+  try {
+    const defaults = ['Fuel', 'Equipment', 'Supplies', 'Insurance', 'Vehicle', 'Labor', 'Materials', 'Office', 'Marketing', 'Service Repairs', 'Operating Costs', 'Cost of Goods Sold', 'Losses', 'Advertising/Accounting', 'Utilities', 'Other'];
+    const result = await pool.query('SELECT DISTINCT category FROM expenses WHERE category IS NOT NULL AND category != \'\'');
+    const dbCats = result.rows.map(r => r.category);
+    const merged = [...new Set([...defaults, ...dbCats])].sort();
+    res.json({ success: true, categories: merged });
+  } catch (error) {
+    console.error('Error fetching expense categories:', error);
+    res.json({ success: true, categories: ['Fuel', 'Equipment', 'Supplies', 'Insurance', 'Vehicle', 'Labor', 'Materials', 'Office', 'Marketing', 'Other'] });
+  }
+});
+
+// GET /api/finance/cash-flow-forecast - Expected inflows/outflows for next 90 days
+app.get('/api/finance/cash-flow-forecast', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const inflows = await pool.query(`
+      SELECT due_date, SUM(total - COALESCE(amount_paid, 0)) as expected
+      FROM invoices
+      WHERE status IN ('sent', 'viewed', 'overdue')
+        AND due_date IS NOT NULL
+        AND due_date <= CURRENT_DATE + INTERVAL '90 days'
+      GROUP BY due_date ORDER BY due_date
+    `);
+    const recentExpenses = await pool.query(`
+      SELECT category, AVG(amount) as avg_amount, COUNT(*) as count
+      FROM expenses
+      WHERE expense_date >= CURRENT_DATE - INTERVAL '3 months'
+      GROUP BY category
+    `);
+    const weeks = [];
+    const weeklyExpenseEstimate = recentExpenses.rows.reduce((s, r) => s + parseFloat(r.avg_amount || 0), 0) / 13;
+    for (let i = 0; i < 13; i++) {
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() + (i * 7));
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      let inflow = 0;
+      inflows.rows.forEach(r => {
+        const d = new Date(r.due_date);
+        if (d >= weekStart && d <= weekEnd) inflow += parseFloat(r.expected || 0);
+      });
+      weeks.push({
+        week: i + 1,
+        start: weekStart.toISOString().split('T')[0],
+        end: weekEnd.toISOString().split('T')[0],
+        expected_inflow: Math.round(inflow * 100) / 100,
+        expected_outflow: Math.round(weeklyExpenseEstimate * 100) / 100,
+        net: Math.round((inflow - weeklyExpenseEstimate) * 100) / 100
+      });
+    }
+    res.json({
+      success: true,
+      forecast: weeks,
+      total_expected_inflow: Math.round(inflows.rows.reduce((s, r) => s + parseFloat(r.expected || 0), 0) * 100) / 100,
+      monthly_expense_avg: Math.round(recentExpenses.rows.reduce((s, r) => s + parseFloat(r.avg_amount || 0), 0) * 100) / 100,
+      expense_categories: recentExpenses.rows
+    });
+  } catch (error) {
+    console.error('Error fetching cash flow forecast:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// Phase 8: Polish + Missing Pages endpoints
+// ═══════════════════════════════════════════════════════════
+
+// -- DB Migration needed: CREATE TABLE service_items (id SERIAL PRIMARY KEY, name VARCHAR(255), default_rate DECIMAL(10,2), duration_minutes INTEGER, category VARCHAR(100), active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT NOW());
+
+// 8.1 Crew Performance & Schedule
+app.get('/api/crews/:id/performance', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const crew = await pool.query('SELECT name FROM crews WHERE id = $1', [id]);
+    if (crew.rows.length === 0) return res.status(404).json({ success: false, error: 'Crew not found' });
+    const crewName = crew.rows[0].name;
+    const stats = await pool.query(`
+      SELECT COUNT(*) as total_jobs,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed_jobs,
+        COALESCE(SUM(service_price) FILTER (WHERE status = 'completed'), 0) as total_revenue,
+        COUNT(*) FILTER (WHERE status = 'completed' AND scheduled_date >= NOW() - INTERVAL '30 days') as completed_last_30
+      FROM scheduled_jobs WHERE crew_assigned = $1
+    `, [crewName]);
+    const s = stats.rows[0];
+    const totalJobs = parseInt(s.total_jobs) || 0;
+    const completedJobs = parseInt(s.completed_jobs) || 0;
+    const onTimeRate = totalJobs > 0 ? (completedJobs / totalJobs) : 0;
+    res.json({
+      success: true,
+      crew_name: crewName,
+      total_jobs: totalJobs,
+      completed_jobs: completedJobs,
+      on_time_rate: Math.round(onTimeRate * 100),
+      total_revenue: parseFloat(s.total_revenue) || 0,
+      completed_last_30: parseInt(s.completed_last_30) || 0
+    });
+  } catch (error) {
+    console.error('Crew performance error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/crews/:id/schedule', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const crew = await pool.query('SELECT name FROM crews WHERE id = $1', [id]);
+    if (crew.rows.length === 0) return res.status(404).json({ success: false, error: 'Crew not found' });
+    const crewName = crew.rows[0].name;
+    const jobs = await pool.query(`
+      SELECT id, customer_name, service_type, service_price, address, scheduled_date, status
+      FROM scheduled_jobs WHERE crew_assigned = $1 AND scheduled_date >= CURRENT_DATE
+      ORDER BY scheduled_date ASC LIMIT 20
+    `, [crewName]);
+    res.json({ success: true, jobs: jobs.rows });
+  } catch (error) {
+    console.error('Crew schedule error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 8.2 Reports: Job Costing & Customer Value
+app.get('/api/reports/job-costing', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const result = await pool.query(`
+      SELECT sj.id, sj.customer_name, sj.service_type, sj.service_price as revenue,
+        COALESCE((SELECT SUM(amount) FROM expenses WHERE LOWER(description) LIKE '%' || LOWER(sj.customer_name) || '%' OR category = sj.service_type), 0) as expenses
+      FROM scheduled_jobs sj WHERE sj.status = 'completed'
+      ORDER BY sj.scheduled_date DESC LIMIT 50
+    `);
+    const jobs = result.rows.map(r => ({
+      id: r.id,
+      customer_name: r.customer_name,
+      service_type: r.service_type,
+      revenue: parseFloat(r.revenue) || 0,
+      expenses: parseFloat(r.expenses) || 0,
+      profit: (parseFloat(r.revenue) || 0) - (parseFloat(r.expenses) || 0)
+    }));
+    res.json(jobs);
+  } catch (error) {
+    console.error('Job costing error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/reports/customer-value', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const result = await pool.query(`
+      SELECT c.id, c.name, c.email,
+        COALESCE(SUM(i.total_amount), 0) as total_invoiced,
+        COUNT(DISTINCT i.id) as invoice_count,
+        MAX(i.created_at) as last_invoice_date
+      FROM customers c
+      LEFT JOIN invoices i ON (i.customer_email = c.email OR i.customer_name = c.name)
+      GROUP BY c.id, c.name, c.email
+      HAVING COALESCE(SUM(i.total_amount), 0) > 0
+      ORDER BY total_invoiced DESC
+      LIMIT 25
+    `);
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      total_invoiced: parseFloat(r.total_invoiced) || 0,
+      invoice_count: parseInt(r.invoice_count) || 0,
+      last_invoice_date: r.last_invoice_date
+    })));
+  } catch (error) {
+    console.error('Customer value error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8.3 Service Items CRUD
+const ensureServiceItemsTable = async () => {
+  await pool.query(`CREATE TABLE IF NOT EXISTS service_items (
+    id SERIAL PRIMARY KEY, name VARCHAR(255), default_rate DECIMAL(10,2),
+    duration_minutes INTEGER, category VARCHAR(100), active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`);
+};
+
+app.get('/api/service-items', async (req, res) => {
+  try {
+    await ensureServiceItemsTable();
+    const result = await pool.query('SELECT * FROM service_items ORDER BY category, name');
+    res.json({ success: true, items: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/service-items', async (req, res) => {
+  try {
+    await ensureServiceItemsTable();
+    const { name, default_rate, duration_minutes, category } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
+    const result = await pool.query(
+      'INSERT INTO service_items (name, default_rate, duration_minutes, category) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, default_rate || 0, duration_minutes || 60, category || 'General']
+    );
+    res.json({ success: true, item: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/api/service-items/:id', async (req, res) => {
+  try {
+    await ensureServiceItemsTable();
+    const { name, default_rate, duration_minutes, category, active } = req.body;
+    const sets = [], vals = [];
+    let p = 1;
+    if (name !== undefined) { sets.push(`name = $${p++}`); vals.push(name); }
+    if (default_rate !== undefined) { sets.push(`default_rate = $${p++}`); vals.push(default_rate); }
+    if (duration_minutes !== undefined) { sets.push(`duration_minutes = $${p++}`); vals.push(duration_minutes); }
+    if (category !== undefined) { sets.push(`category = $${p++}`); vals.push(category); }
+    if (active !== undefined) { sets.push(`active = $${p++}`); vals.push(active); }
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE service_items SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
+    res.json({ success: true, item: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/service-items/:id', async (req, res) => {
+  try {
+    await ensureServiceItemsTable();
+    const result = await pool.query('DELETE FROM service_items WHERE id = $1 RETURNING *', [req.params.id]);
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 8.5 Customer Activity Timeline
+app.get('/api/customers/:id/timeline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customer = await pool.query('SELECT name, email, first_name, last_name FROM customers WHERE id = $1', [id]);
+    if (customer.rows.length === 0) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const c = customer.rows[0];
+    const custName = c.name || ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
+    const custEmail = c.email || '';
+
+    const events = [];
+
+    // Quotes
+    try {
+      const quotes = await pool.query(
+        `SELECT id, quote_number, total_amount, status, created_at FROM sent_quotes WHERE customer_email = $1 OR customer_name = $2 ORDER BY created_at DESC LIMIT 15`,
+        [custEmail, custName]
+      );
+      quotes.rows.forEach(q => events.push({
+        type: 'quote', id: q.id, title: 'Quote #' + (q.quote_number || q.id),
+        detail: '$' + (parseFloat(q.total_amount) || 0).toFixed(2) + ' - ' + (q.status || 'sent'),
+        date: q.created_at
+      }));
+    } catch(e) { /* table may not exist */ }
+
+    // Jobs
+    try {
+      const jobs = await pool.query(
+        `SELECT id, service_type, service_price, status, scheduled_date, created_at FROM scheduled_jobs WHERE customer_name = $1 ORDER BY COALESCE(scheduled_date, created_at) DESC LIMIT 15`,
+        [custName]
+      );
+      jobs.rows.forEach(j => events.push({
+        type: 'job', id: j.id, title: (j.service_type || 'Job') + ' - ' + (j.status || 'scheduled'),
+        detail: '$' + (parseFloat(j.service_price) || 0).toFixed(2),
+        date: j.scheduled_date || j.created_at
+      }));
+    } catch(e) {}
+
+    // Invoices
+    try {
+      const invoices = await pool.query(
+        `SELECT id, invoice_number, total_amount, status, created_at FROM invoices WHERE customer_email = $1 OR customer_name = $2 ORDER BY created_at DESC LIMIT 15`,
+        [custEmail, custName]
+      );
+      invoices.rows.forEach(inv => events.push({
+        type: 'invoice', id: inv.id, title: 'Invoice #' + (inv.invoice_number || inv.id),
+        detail: '$' + (parseFloat(inv.total_amount) || 0).toFixed(2) + ' - ' + (inv.status || 'sent'),
+        date: inv.created_at
+      }));
+    } catch(e) {}
+
+    // Payments
+    try {
+      const payments = await pool.query(
+        `SELECT p.id, p.amount, p.method, p.status, p.created_at FROM payments p JOIN invoices i ON p.invoice_id = i.id WHERE i.customer_email = $1 OR i.customer_name = $2 ORDER BY p.created_at DESC LIMIT 10`,
+        [custEmail, custName]
+      );
+      payments.rows.forEach(pay => events.push({
+        type: 'payment', id: pay.id, title: 'Payment - ' + (pay.method || 'unknown'),
+        detail: '$' + (parseFloat(pay.amount) || 0).toFixed(2) + ' - ' + (pay.status || 'completed'),
+        date: pay.created_at
+      }));
+    } catch(e) {}
+
+    // Messages
+    try {
+      const msgs = await pool.query(
+        `SELECT id, direction, channel, body, created_at FROM messages WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 10`,
+        [id]
+      );
+      msgs.rows.forEach(m => events.push({
+        type: 'message', id: m.id, title: (m.direction === 'inbound' ? 'Received' : 'Sent') + ' ' + (m.channel || 'message'),
+        detail: (m.body || '').substring(0, 80),
+        date: m.created_at
+      }));
+    } catch(e) {}
+
+    // Sort all events by date desc, limit to 50
+    events.sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.json({ success: true, timeline: events.slice(0, 50) });
+  } catch (error) {
+    console.error('Customer timeline error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 7: CRM Intelligence (Rule-based AI features)
+// ═══════════════════════════════════════════════════════════════
+
+// 7.1 Lead Scoring — All leads
+app.get('/api/ai/lead-scores', async (req, res) => {
+  try {
+    const customers = await pool.query('SELECT id, name, email, phone, mobile, created_at FROM customers ORDER BY name ASC');
+    const results = [];
+    for (const c of customers.rows) {
+      const scoreData = await computeLeadScore(c);
+      results.push({ id: c.id, name: c.name, score: scoreData.score, grade: scoreData.grade, factors: scoreData.factors });
+    }
+    res.json({ success: true, customers: results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.1 Lead Scoring — Single customer
+app.get('/api/customers/:id/lead-score', async (req, res) => {
+  try {
+    const cust = await pool.query('SELECT id, name, email, phone, mobile, created_at FROM customers WHERE id = $1', [req.params.id]);
+    if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const scoreData = await computeLeadScore(cust.rows[0]);
+    res.json({ success: true, id: cust.rows[0].id, name: cust.rows[0].name, score: scoreData.score, grade: scoreData.grade, factors: scoreData.factors });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+async function computeLeadScore(c) {
+  let score = 0;
+  const factors = [];
+
+  // Has email AND phone
+  if (c.email && (c.phone || c.mobile)) { score += 10; factors.push('Has email and phone (+10)'); }
+
+  // Has property with address
+  const props = await pool.query('SELECT id, street FROM properties WHERE customer_id = $1', [c.id]);
+  const hasProperty = props.rows.some(p => p.street);
+  if (hasProperty) { score += 10; factors.push('Has property with address (+10)'); }
+
+  // Multiple properties
+  if (props.rows.length > 1) { score += 10; factors.push('Multiple properties (+10)'); }
+
+  // Has been quoted
+  const quotes = await pool.query('SELECT id, status FROM sent_quotes WHERE customer_id = $1', [c.id]);
+  if (quotes.rows.length > 0) { score += 15; factors.push('Has been quoted (+15)'); }
+
+  // Quote was viewed
+  const viewed = quotes.rows.some(q => q.status === 'viewed' || q.status === 'signed' || q.status === 'contracted');
+  if (viewed) { score += 10; factors.push('Quote was viewed (+10)'); }
+
+  // Quote was signed/contracted
+  const contracted = quotes.rows.some(q => q.status === 'signed' || q.status === 'contracted');
+  if (contracted) { score += 20; factors.push('Quote signed/contracted (+20)'); }
+
+  // Had a job completed
+  const completedJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND status = 'completed' LIMIT 1", [c.id]);
+  if (completedJobs.rows.length > 0) { score += 15; factors.push('Completed job (+15)'); }
+
+  // Recent activity (last 30 days)
+  const recentJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND (created_at >= NOW() - INTERVAL '30 days' OR job_date >= NOW() - INTERVAL '30 days') LIMIT 1", [c.id]);
+  const recentQuotes = await pool.query("SELECT id FROM sent_quotes WHERE customer_id = $1 AND created_at >= NOW() - INTERVAL '30 days' LIMIT 1", [c.id]);
+  if (recentJobs.rows.length > 0 || recentQuotes.rows.length > 0) { score += 10; factors.push('Recent activity (+10)'); }
+
+  const grade = score >= 50 ? 'Hot' : score >= 25 ? 'Warm' : 'Cold';
+  return { score, grade, factors };
+}
+
+// 7.2 Smart Scheduling Suggestions
+app.get('/api/ai/schedule-suggestions', async (req, res) => {
+  try {
+    const { date, address, service_type } = req.query;
+    if (!date) return res.status(400).json({ success: false, error: 'date parameter required' });
+
+    const crews = await pool.query('SELECT id, name FROM crews WHERE is_active = true OR is_active IS NULL ORDER BY name ASC');
+    if (!crews.rows.length) return res.json({ success: true, suggestions: [] });
+
+    // Count jobs per crew on that date
+    const jobCounts = await pool.query(
+      `SELECT crew_assigned, COUNT(*) as job_count FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned IS NOT NULL GROUP BY crew_assigned`,
+      [date]
+    );
+    const countMap = {};
+    jobCounts.rows.forEach(r => { countMap[r.crew_assigned] = parseInt(r.job_count); });
+
+    // Get addresses for that day per crew for geographic clustering
+    const dayJobs = await pool.query(
+      `SELECT crew_assigned, address FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned IS NOT NULL`,
+      [date]
+    );
+    const crewAddresses = {};
+    dayJobs.rows.forEach(r => {
+      if (!crewAddresses[r.crew_assigned]) crewAddresses[r.crew_assigned] = [];
+      crewAddresses[r.crew_assigned].push((r.address || '').toLowerCase());
+    });
+
+    // Extract city/zip from requested address for matching
+    const addrLower = (address || '').toLowerCase().trim();
+    const addrParts = addrLower.split(/[,\s]+/);
+    const zipMatch = addrParts.find(p => /^\d{5}$/.test(p));
+
+    const suggestions = crews.rows.map(crew => {
+      let crewScore = 0;
+      const reasons = [];
+
+      // Availability: fewer jobs = higher score
+      const jobCount = countMap[crew.name] || countMap[String(crew.id)] || 0;
+      const availScore = Math.max(0, 20 - jobCount * 5);
+      crewScore += availScore;
+      if (jobCount === 0) reasons.push('No jobs scheduled - fully available');
+      else reasons.push(jobCount + ' job(s) scheduled');
+
+      // Geographic clustering
+      const addrs = crewAddresses[crew.name] || crewAddresses[String(crew.id)] || [];
+      if (address && addrs.length > 0) {
+        const sameArea = addrs.some(a => {
+          if (zipMatch && a.includes(zipMatch)) return true;
+          return addrParts.some(part => part.length > 3 && a.includes(part));
+        });
+        if (sameArea) { crewScore += 15; reasons.push('Already working in same area'); }
+      }
+
+      return { crew_id: crew.id, crew_name: crew.name, reason: reasons.join('; '), score: crewScore };
+    });
+
+    suggestions.sort((a, b) => b.score - a.score);
+    res.json({ success: true, suggestions: suggestions.slice(0, 3) });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.3 Review Requests (UI ONLY — no actual sending)
+// -- DB Migration needed: CREATE TABLE review_requests (id SERIAL PRIMARY KEY, job_id INTEGER, customer_id INTEGER, status VARCHAR(20) DEFAULT 'pending', created_at TIMESTAMP DEFAULT NOW());
+app.post('/api/ai/review-request/:jobId', async (req, res) => {
+  try {
+    // Just return success — no email/SMS sent
+    res.json({ success: true, message: 'Review request queued (sending disabled)' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.4 Churn Prediction
+app.get('/api/ai/churn-risk', async (req, res) => {
+  try {
+    const customers = await pool.query('SELECT id, name FROM customers ORDER BY name ASC');
+    const results = [];
+
+    for (const c of customers.rows) {
+      let riskScore = 0;
+      const factors = [];
+
+      // No jobs in last 90 days but had jobs before
+      const recentJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= NOW() - INTERVAL '90 days' LIMIT 1", [c.id]);
+      const anyJobs = await pool.query("SELECT id FROM scheduled_jobs WHERE customer_id = $1 LIMIT 1", [c.id]);
+      if (anyJobs.rows.length > 0 && recentJobs.rows.length === 0) {
+        riskScore += 30; factors.push('No jobs in last 90 days (+30)');
+      }
+
+      // Has unpaid invoices over 60 days
+      const overdueInv = await pool.query(
+        "SELECT id FROM invoices WHERE customer_id = $1 AND status NOT IN ('paid', 'draft') AND due_date < NOW() - INTERVAL '60 days' LIMIT 1",
+        [c.id]
+      );
+      if (overdueInv.rows.length > 0) {
+        riskScore += 25; factors.push('Unpaid invoices over 60 days (+25)');
+      }
+
+      // Had a cancellation
+      const cancellations = await pool.query(
+        "SELECT id FROM cancellations WHERE LOWER(customer_name) = LOWER($1) LIMIT 1",
+        [c.name || '']
+      );
+      if (cancellations.rows.length > 0) {
+        riskScore += 20; factors.push('Has cancellation record (+20)');
+      }
+
+      // No upcoming scheduled jobs
+      const upcomingJobs = await pool.query(
+        "SELECT id FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= CURRENT_DATE AND status != 'completed' LIMIT 1",
+        [c.id]
+      );
+      if (anyJobs.rows.length > 0 && upcomingJobs.rows.length === 0) {
+        riskScore += 15; factors.push('No upcoming scheduled jobs (+15)');
+      }
+
+      // Declining job frequency
+      const thisQ = await pool.query(
+        "SELECT COUNT(*) FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= NOW() - INTERVAL '90 days'", [c.id]
+      );
+      const lastQ = await pool.query(
+        "SELECT COUNT(*) FROM scheduled_jobs WHERE customer_id = $1 AND job_date >= NOW() - INTERVAL '180 days' AND job_date < NOW() - INTERVAL '90 days'", [c.id]
+      );
+      const thisQCount = parseInt(thisQ.rows[0].count);
+      const lastQCount = parseInt(lastQ.rows[0].count);
+      if (lastQCount > 0 && thisQCount < lastQCount) {
+        riskScore += 10; factors.push('Declining job frequency (+10)');
+      }
+
+      if (riskScore > 0) {
+        const risk_level = riskScore >= 50 ? 'High' : riskScore >= 25 ? 'Medium' : 'Low';
+        results.push({ id: c.id, name: c.name, risk_level, risk_score: riskScore, factors });
+      }
+    }
+
+    results.sort((a, b) => b.risk_score - a.risk_score);
+    res.json({ success: true, customers: results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.5 Revenue Forecasting
+app.get('/api/ai/revenue-forecast', async (req, res) => {
+  try {
+    const months = parseInt(req.query.months) || 3;
+    const forecast = [];
+
+    for (let i = 1; i <= months; i++) {
+      // Scheduled jobs revenue (known)
+      const scheduled = await pool.query(
+        `SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs
+         WHERE job_date >= DATE_TRUNC('month', CURRENT_DATE + ($1::text || ' months')::INTERVAL)
+         AND job_date < DATE_TRUNC('month', CURRENT_DATE + ($1::text || ' months')::INTERVAL) + INTERVAL '1 month'
+         AND status != 'cancelled'`,
+        [i]
+      );
+      const scheduledRev = parseFloat(scheduled.rows[0].total) || 0;
+
+      // Pipeline value: contracted quotes not yet invoiced, times 0.8
+      const pipeline = await pool.query(
+        `SELECT COALESCE(SUM(total_price), 0) as total FROM sent_quotes
+         WHERE status IN ('signed', 'contracted')
+         AND id NOT IN (SELECT sent_quote_id FROM invoices WHERE sent_quote_id IS NOT NULL)`
+      );
+      // Spread pipeline evenly across forecast months
+      const pipelineRev = ((parseFloat(pipeline.rows[0].total) || 0) * 0.8) / months;
+
+      // Historical monthly average (last 6 months)
+      const historical = await pool.query(
+        `SELECT COALESCE(AVG(monthly_total), 0) as avg_monthly FROM (
+           SELECT DATE_TRUNC('month', paid_at) as m, SUM(amount_paid) as monthly_total
+           FROM invoices
+           WHERE paid_at >= NOW() - INTERVAL '6 months' AND status = 'paid'
+           GROUP BY DATE_TRUNC('month', paid_at)
+         ) sub`
+      );
+      const historicalRev = parseFloat(historical.rows[0].avg_monthly) || 0;
+
+      const targetDate = new Date();
+      targetDate.setMonth(targetDate.getMonth() + i);
+      const monthLabel = targetDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+      const predicted = scheduledRev + pipelineRev + historicalRev;
+      forecast.push({
+        month: monthLabel,
+        predicted_revenue: Math.round(predicted * 100) / 100,
+        breakdown: {
+          scheduled: Math.round(scheduledRev * 100) / 100,
+          pipeline: Math.round(pipelineRev * 100) / 100,
+          historical: Math.round(historicalRev * 100) / 100
+        }
+      });
+    }
+
+    res.json({ success: true, forecast });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.6 Smart Campaign Segments
+app.get('/api/ai/campaign-segments', async (req, res) => {
+  try {
+    const segments = [];
+
+    // "Inactive 90+ days" - had service but none recently
+    const inactive = await pool.query(
+      `SELECT DISTINCT c.id FROM customers c
+       INNER JOIN scheduled_jobs j ON j.customer_id = c.id
+       WHERE c.id NOT IN (
+         SELECT DISTINCT customer_id FROM scheduled_jobs WHERE customer_id IS NOT NULL AND job_date >= NOW() - INTERVAL '90 days'
+       )`
+    );
+    segments.push({ name: 'Inactive 90+ days', description: 'Had service but none in last 90 days', count: inactive.rows.length, customer_ids: inactive.rows.map(r => r.id) });
+
+    // "High Value" - top 20% by total invoice amount
+    const allInvTotals = await pool.query(
+      `SELECT customer_id, SUM(total) as total_spend FROM invoices WHERE customer_id IS NOT NULL GROUP BY customer_id ORDER BY total_spend DESC`
+    );
+    const top20Pct = Math.max(1, Math.ceil(allInvTotals.rows.length * 0.2));
+    const highValueIds = allInvTotals.rows.slice(0, top20Pct).map(r => r.customer_id);
+    segments.push({ name: 'High Value', description: 'Top 20% by total invoice amount', count: highValueIds.length, customer_ids: highValueIds });
+
+    // "New Leads" - created in last 30 days, no jobs yet
+    const newLeads = await pool.query(
+      `SELECT c.id FROM customers c
+       WHERE c.created_at >= NOW() - INTERVAL '30 days'
+       AND c.id NOT IN (SELECT DISTINCT customer_id FROM scheduled_jobs WHERE customer_id IS NOT NULL)`
+    );
+    segments.push({ name: 'New Leads', description: 'Created in last 30 days, no jobs yet', count: newLeads.rows.length, customer_ids: newLeads.rows.map(r => r.id) });
+
+    // "Repeat Customers" - 3+ completed jobs
+    const repeat = await pool.query(
+      `SELECT customer_id FROM scheduled_jobs WHERE customer_id IS NOT NULL AND status = 'completed' GROUP BY customer_id HAVING COUNT(*) >= 3`
+    );
+    segments.push({ name: 'Repeat Customers', description: '3+ completed jobs', count: repeat.rows.length, customer_ids: repeat.rows.map(r => r.customer_id) });
+
+    // "Overdue Payments" - has unpaid invoices past due
+    const overdue = await pool.query(
+      `SELECT DISTINCT customer_id FROM invoices WHERE customer_id IS NOT NULL AND status NOT IN ('paid', 'draft') AND due_date < CURRENT_DATE`
+    );
+    segments.push({ name: 'Overdue Payments', description: 'Has unpaid invoices past due', count: overdue.rows.length, customer_ids: overdue.rows.map(r => r.customer_id) });
+
+    res.json({ success: true, segments });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+
 app.get('*', (req, res) => {
   // Only fall back to index.html for routes that don't match a static file
   const filePath = path.join(__dirname, 'public', req.path);
@@ -10450,6 +11422,60 @@ app.get('/api/kpi/detailed', async (req, res) => {
     console.error('KPI detailed error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// ─── Twilio Voice SDK: Access Token ─────────────────────────────────────────
+app.get('/api/app/voice/token', authenticateToken, (req, res) => {
+  try {
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
+
+    const identity = req.user.email;
+
+    const accessToken = new AccessToken(
+      TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_API_KEY_SID,
+      process.env.TWILIO_API_KEY_SECRET,
+      { identity }
+    );
+
+    const voiceGrant = new VoiceGrant({
+      outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID,
+      incomingAllow: true,
+    });
+
+    accessToken.addGrant(voiceGrant);
+
+    console.log('Voice token generated for:', identity);
+    res.json({ token: accessToken.toJwt(), identity });
+  } catch (error) {
+    console.error('Voice token error:', error);
+    res.status(500).json({ error: 'Failed to generate voice token' });
+  }
+});
+
+// ─── Twilio Voice SDK: TwiML for outgoing calls from app ────────────────────
+app.all('/api/voice/twiml', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const to = req.body.To || req.query.To;
+
+  if (to) {
+    const dial = twiml.dial({
+      callerId: req.body.From || TWILIO_PHONE_NUMBER,
+    });
+
+    if (to.startsWith('client:')) {
+      dial.client(to.replace('client:', ''));
+    } else {
+      dial.number(to);
+    }
+  } else {
+    twiml.say('No destination specified.');
+  }
+
+  res.type('text/xml');
+  res.send(twiml.toString());
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

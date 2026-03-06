@@ -259,18 +259,26 @@ function hashPassword(password) {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log(`🔐 Login attempt for: ${email || '(no email)'}`);
     if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
 
     await pool.query(ADMIN_USERS_TABLE);
     const result = await pool.query('SELECT * FROM admin_users WHERE email = $1', [email.toLowerCase().trim()]);
-    if (result.rows.length === 0) return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    if (result.rows.length === 0) {
+      console.log(`🔐 Login failed: no user found for ${email}`);
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
 
     const user = result.rows[0];
     const inputHash = hashPassword(password);
-    if (inputHash !== user.password_hash) return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    if (inputHash !== user.password_hash) {
+      console.log(`🔐 Login failed: password mismatch for ${email}`);
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
 
     await pool.query('UPDATE admin_users SET last_login = NOW() WHERE id = $1', [user.id]);
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
+    console.log(`🔐 Login successful: ${user.email}`);
     res.json({ success: true, token, name: user.name, email: user.email, role: user.role });
   } catch (error) {
     console.error('Admin login error:', error);
@@ -9278,7 +9286,7 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     for (const u of adminUsers) {
       const hash = hashPassword(u.password);
       await pool.query(
-        `INSERT INTO admin_users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING`,
+        `INSERT INTO admin_users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO UPDATE SET password_hash = $2`,
         [u.email, hash, u.name, u.role]
       );
     }

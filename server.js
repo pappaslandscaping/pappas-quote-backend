@@ -9,16 +9,28 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
 const OAuthClient = require('intuit-oauth');
-const { Client, Environment, ApiError } = require('square');
 const crypto = require('crypto');
 
-// Square Payments Configuration
-const squareClient = process.env.SQUARE_ACCESS_TOKEN ? new Client({
-  accessToken: process.env.SQUARE_ACCESS_TOKEN,
-  environment: process.env.SQUARE_ENVIRONMENT === 'production' ? Environment.Production : Environment.Sandbox,
-}) : null;
-const SQUARE_APP_ID = process.env.SQUARE_APPLICATION_ID;
-const SQUARE_LOCATION_ID = process.env.SQUARE_LOCATION_ID;
+// Square Payments Configuration (optional — server runs fine without it)
+let squareClient = null;
+let ApiError = null;
+const SQUARE_APP_ID = process.env.SQUARE_APPLICATION_ID || '';
+const SQUARE_LOCATION_ID = process.env.SQUARE_LOCATION_ID || '';
+try {
+  const square = require('square');
+  ApiError = square.ApiError;
+  if (process.env.SQUARE_ACCESS_TOKEN) {
+    squareClient = new square.Client({
+      accessToken: process.env.SQUARE_ACCESS_TOKEN,
+      environment: process.env.SQUARE_ENVIRONMENT === 'production' ? square.Environment.Production : square.Environment.Sandbox,
+    });
+    console.log('✅ Square SDK initialized (' + (process.env.SQUARE_ENVIRONMENT || 'sandbox') + ')');
+  } else {
+    console.log('⚠️ Square SDK loaded but no SQUARE_ACCESS_TOKEN set');
+  }
+} catch (err) {
+  console.error('⚠️ Square SDK not available:', err.message);
+}
 
 const upload = multer({ 
   storage: multer.memoryStorage(),

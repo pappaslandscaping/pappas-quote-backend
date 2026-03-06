@@ -6952,7 +6952,7 @@ app.get('/api/dispatch/board', async (req, res) => {
       dateCondition = `job_date::date = $1::date`;
       params = [targetDate];
     }
-    const jobs = await pool.query(`SELECT * FROM scheduled_jobs WHERE ${dateCondition} ORDER BY route_order ASC NULLS LAST, customer_name`, params);
+    const jobs = await pool.query(`SELECT *, lat::float as lat, lng::float as lng FROM scheduled_jobs WHERE ${dateCondition} ORDER BY route_order ASC NULLS LAST, customer_name`, params);
     const crews = await pool.query('SELECT * FROM crews ORDER BY name');
 
     // Group jobs by crew
@@ -7009,6 +7009,92 @@ app.get('/api/dispatch/crew-availability', async (req, res) => {
     res.json({ success: true, date, crews: result.rows });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
+
+// POST /api/dispatch/geocode - Geocode all jobs for a date and store lat/lng
+app.post('/api/dispatch/geocode', async (req, res) => {
+  try {
+    const { date } = req.body;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const jobs = await pool.query(
+      'SELECT id, address FROM scheduled_jobs WHERE job_date::date = $1::date AND address IS NOT NULL AND (lat IS NULL OR lng IS NULL)',
+      [targetDate]
+    );
+    let geocoded = 0;
+    for (const job of jobs.rows) {
+      try {
+        const q = encodeURIComponent(job.address);
+        const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
+        const gData = await gRes.json();
+        if (gData && gData.length > 0) {
+          await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2 WHERE id = $3',
+            [parseFloat(gData[0].lat), parseFloat(gData[0].lon), job.id]);
+          geocoded++;
+        }
+        // Nominatim rate limit: 1 req/sec
+        await new Promise(r => setTimeout(r, 1100));
+      } catch (e) { /* skip individual failures */ }
+    }
+    res.json({ success: true, geocoded, total: jobs.rows.length });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/dispatch/optimize-route - Optimize route order for a crew using nearest-neighbor TSP
+app.post('/api/dispatch/optimize-route', async (req, res) => {
+  try {
+    const { date, crew_name, start_lat, start_lng } = req.body;
+    if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
+
+    const jobs = await pool.query(
+      'SELECT id, address, lat, lng, route_order FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned = $2 AND lat IS NOT NULL AND lng IS NOT NULL',
+      [date, crew_name]
+    );
+
+    if (jobs.rows.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
+
+    // Nearest-neighbor TSP heuristic
+    const stops = jobs.rows.map(j => ({ id: j.id, lat: parseFloat(j.lat), lng: parseFloat(j.lng) }));
+    const visited = new Set();
+    const order = [];
+
+    // Start from provided start point or first job
+    let currentLat = start_lat ? parseFloat(start_lat) : stops[0].lat;
+    let currentLng = start_lng ? parseFloat(start_lng) : stops[0].lng;
+
+    while (order.length < stops.length) {
+      let nearest = null;
+      let nearestDist = Infinity;
+      for (const stop of stops) {
+        if (visited.has(stop.id)) continue;
+        const dist = haversine(currentLat, currentLng, stop.lat, stop.lng);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = stop;
+        }
+      }
+      if (!nearest) break;
+      visited.add(nearest.id);
+      order.push(nearest.id);
+      currentLat = nearest.lat;
+      currentLng = nearest.lng;
+    }
+
+    // Update route_order in DB
+    for (let i = 0; i < order.length; i++) {
+      await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, order[i]]);
+    }
+
+    res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })) });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// Haversine distance in miles
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3959; // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 // ═══════════════════════════════════════════════════════════
 // GENERAL ROUTES
@@ -9782,6 +9868,8 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS expense_total DECIMAL(10,2) DEFAULT 0',
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS invoice_id INTEGER',
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS property_id INTEGER',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS lat DECIMAL(10,7)',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS lng DECIMAL(10,7)',
   ];
   for (const sql of jobNewCols) {
     try { await pool.query(sql); } catch(e) { /* */ }

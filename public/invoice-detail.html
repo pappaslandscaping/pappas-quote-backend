@@ -207,6 +207,28 @@
             width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200);
             border-radius: 6px; font-size: 13px; font-family: inherit;
         }
+
+        /* Payment Schedule */
+        .schedule-table { width: 100%; border-collapse: collapse; }
+        .schedule-table th {
+            text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 0.05em; color: var(--gray-400); border-bottom: 2px solid var(--gray-200);
+        }
+        .schedule-table th:last-child, .schedule-table td:last-child { text-align: center; }
+        .schedule-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+        .schedule-pill {
+            display: inline-flex; padding: 2px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600;
+        }
+        .schedule-pill.paid { background: var(--green-bg); color: var(--green); }
+        .schedule-pill.upcoming { background: var(--blue-bg); color: var(--blue); }
+        .schedule-pill.overdue { background: var(--red-bg); color: var(--red); }
+        .split-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
+        .split-row:last-child { border-bottom: none; }
+        .split-row .num { width: 28px; height: 28px; border-radius: 50%; background: var(--gray-100); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--gray-500); flex-shrink: 0; }
+        .split-row input { flex: 1; }
+        .split-total { display: flex; justify-content: space-between; padding: 12px 0; font-weight: 700; font-size: 14px; border-top: 2px solid var(--lime); margin-top: 8px; }
+        .split-total.mismatch { color: var(--red); }
     </style>
 </head>
 <body>
@@ -346,6 +368,28 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="splitPaymentModal">
+        <div class="modal" style="max-width:520px;">
+            <h3>Split Into Payment Schedule</h3>
+            <div class="form-group">
+                <label>Number of Installments</label>
+                <select id="spCount" onchange="generateInstallmentRows()">
+                    <option value="2">2 Installments</option>
+                    <option value="3">3 Installments</option>
+                    <option value="4">4 Installments</option>
+                    <option value="6">6 Installments</option>
+                    <option value="12">12 Installments</option>
+                </select>
+            </div>
+            <div id="spRows"></div>
+            <div class="split-total" id="spTotal"></div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="hideSplitPayment()">Cancel</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="savePaymentSchedule()">Save Schedule</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
@@ -353,6 +397,7 @@
         if (!invoiceId) window.location.href = 'invoices.html';
 
         let invoice = null;
+        let paymentSchedule = [];
 
         loadInvoice();
 
@@ -362,6 +407,14 @@
                 if (!res.ok) throw new Error('Failed to fetch invoice');
                 const data = await res.json();
                 invoice = data.invoice || data;
+                // Load payment schedule
+                try {
+                    const sRes = await fetch(`/api/invoices/${invoiceId}/payment-schedule`);
+                    if (sRes.ok) {
+                        const sData = await sRes.json();
+                        paymentSchedule = sData.schedule || [];
+                    }
+                } catch(e) { paymentSchedule = []; }
                 renderInvoice();
             } catch (e) {
                 document.getElementById('invoiceContent').innerHTML =
@@ -515,6 +568,8 @@
                     ${lineItemsHtml}
                 </div>
 
+                ${renderPaymentSchedule()}
+
                 ${inv.payment_history && inv.payment_history.length > 0 ? `
                 <div class="detail-card full-width" style="margin-bottom:20px;">
                     <h3>Payment History</h3>
@@ -556,6 +611,7 @@
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
                     <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showRecordPayment()">💵 Record Payment</button>` : ''}
+                    ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showSplitPayment()">📅 Split Payments</button>` : ''}
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
                     <button class="btn btn-outline" onclick="downloadPDF()">📥 Download PDF</button>
                     <button class="btn btn-danger" onclick="deleteInvoice()">Delete</button>
@@ -664,6 +720,92 @@
 
         async function downloadPDF() {
             window.open(`/api/invoices/${invoiceId}/pdf`, '_blank');
+        }
+
+        // Payment Schedule
+        function renderPaymentSchedule() {
+            if (!paymentSchedule || paymentSchedule.length === 0) return '';
+            const today = new Date().toISOString().split('T')[0];
+            const rows = paymentSchedule.map((inst, i) => {
+                const isPaid = inst.paid;
+                const isOverdue = !isPaid && inst.due_date < today;
+                const statusClass = isPaid ? 'paid' : isOverdue ? 'overdue' : 'upcoming';
+                const statusLabel = isPaid ? 'Paid' : isOverdue ? 'Overdue' : 'Upcoming';
+                return `<tr>
+                    <td>#${i + 1}</td>
+                    <td>${formatDate(inst.due_date)}</td>
+                    <td style="font-weight:600;">${formatCurrency(inst.amount)}</td>
+                    <td><span class="schedule-pill ${statusClass}">${statusLabel}</span></td>
+                </tr>`;
+            }).join('');
+            return `<div class="detail-card full-width" style="margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <h3>Payment Schedule</h3>
+                    <span style="font-size:12px;color:var(--gray-400);">${paymentSchedule.length} installments</span>
+                </div>
+                <table class="schedule-table">
+                    <thead><tr><th>#</th><th>Due Date</th><th>Amount</th><th>Status</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+        }
+
+        function showSplitPayment() {
+            document.getElementById('splitPaymentModal').classList.add('show');
+            generateInstallmentRows();
+        }
+
+        function hideSplitPayment() {
+            document.getElementById('splitPaymentModal').classList.remove('show');
+        }
+
+        function generateInstallmentRows() {
+            const count = parseInt(document.getElementById('spCount').value);
+            const total = parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0);
+            const perInstallment = Math.floor(total / count * 100) / 100;
+            const remainder = Math.round((total - perInstallment * count) * 100) / 100;
+            const today = new Date();
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                const due = new Date(today);
+                due.setMonth(due.getMonth() + i + 1);
+                const amt = i === count - 1 ? (perInstallment + remainder).toFixed(2) : perInstallment.toFixed(2);
+                html += `<div class="split-row">
+                    <div class="num">${i + 1}</div>
+                    <input type="date" class="sp-date" value="${due.toISOString().split('T')[0]}" style="padding:6px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;font-family:inherit;">
+                    <input type="number" class="sp-amount" value="${amt}" step="0.01" min="0.01" oninput="updateSplitTotal()" style="width:110px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;font-family:inherit;text-align:right;">
+                </div>`;
+            }
+            document.getElementById('spRows').innerHTML = html;
+            updateSplitTotal();
+        }
+
+        function updateSplitTotal() {
+            const total = parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0);
+            const amounts = [...document.querySelectorAll('.sp-amount')].map(el => parseFloat(el.value) || 0);
+            const sum = amounts.reduce((a, b) => a + b, 0);
+            const match = Math.abs(sum - total) < 0.02;
+            document.getElementById('spTotal').innerHTML = `<span>Installment Total: ${formatCurrency(sum)}</span><span>Invoice Balance: ${formatCurrency(total)}</span>`;
+            document.getElementById('spTotal').className = 'split-total' + (match ? '' : ' mismatch');
+        }
+
+        async function savePaymentSchedule() {
+            const total = parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0);
+            const dates = [...document.querySelectorAll('.sp-date')].map(el => el.value);
+            const amounts = [...document.querySelectorAll('.sp-amount')].map(el => parseFloat(el.value) || 0);
+            const sum = amounts.reduce((a, b) => a + b, 0);
+            if (Math.abs(sum - total) > 0.02) { showToast('Installment amounts must equal the balance', true); return; }
+            const installments = dates.map((d, i) => ({ due_date: d, amount: amounts[i] }));
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/payment-schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ installments })
+                });
+                const data = await res.json();
+                if (data.success) { showToast('Payment schedule saved!'); hideSplitPayment(); loadInvoice(); }
+                else showToast(data.error || 'Failed to save schedule', true);
+            } catch (e) { showToast('Failed to save schedule', true); }
         }
     </script>
 </body>

@@ -535,9 +535,21 @@
                 </div>
             </div>
             <div class="toolbar-right">
+                <button class="btn btn-secondary" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Geocode
+                </button>
+                <button class="btn btn-primary" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Optimize Route
+                </button>
                 <button class="btn btn-secondary" id="mapToggleToolbar" onclick="toggleMap()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
                     <span id="mapToggleLabel">Hide Map</span>
+                </button>
+                <button class="btn btn-secondary" id="emptyCrewsBtn" onclick="toggleEmptyCrews()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    <span id="emptyCrewsLabel">Show All Crews</span>
                 </button>
                 <div class="unassigned-toggle">
                     <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
@@ -561,6 +573,9 @@
         <!-- Map -->
         <div class="map-container" id="mapContainer">
             <div id="routeMap"></div>
+            <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(46,64,61,0.85);color:#c9dd80;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:600;pointer-events:none;">
+                Hold Shift + drag to select jobs on the map
+            </div>
         </div>
 
         <!-- Print Header -->
@@ -858,6 +873,12 @@ let routeMap = null;
 let mapMarkers = [];
 let mapVisible = true;
 let allCrews = [];
+let showEmptyCrews = false;
+const geocodeCache = {};
+let drawingRect = false;
+let rectStart = null;
+let drawRect = null;
+let routeLines = [];
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -894,6 +915,42 @@ function initMap() {
         maxZoom: 18
     }).addTo(routeMap);
     setTimeout(() => routeMap.invalidateSize(), 200);
+
+    // Draw-to-select: hold Shift + drag to draw a rectangle and select jobs
+    routeMap.on('mousedown', function(e) {
+        if (!e.originalEvent.shiftKey) return;
+        drawingRect = true;
+        rectStart = e.latlng;
+        routeMap.dragging.disable();
+        if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; }
+    });
+    routeMap.on('mousemove', function(e) {
+        if (!drawingRect || !rectStart) return;
+        if (drawRect) routeMap.removeLayer(drawRect);
+        drawRect = L.rectangle([rectStart, e.latlng], { color: '#2e403d', weight: 2, fillOpacity: 0.15, dashArray: '6' }).addTo(routeMap);
+    });
+    routeMap.on('mouseup', function(e) {
+        if (!drawingRect) return;
+        drawingRect = false;
+        routeMap.dragging.enable();
+        if (!rectStart || !drawRect) return;
+        const bounds = L.latLngBounds(rectStart, e.latlng);
+        selectedJobs.clear();
+        mapMarkers.forEach(m => {
+            if (bounds.contains(m.getLatLng())) {
+                selectedJobs.add(m.jobId);
+                // Highlight the marker
+                m.getElement()?.querySelector('div')?.style && (m.getElement().querySelector('div').style.outline = '3px solid #c9dd80');
+            }
+        });
+        if (selectedJobs.size > 0) {
+            updateBulkBar();
+            showToast(`Selected ${selectedJobs.size} job${selectedJobs.size > 1 ? 's' : ''} — use bulk actions above`);
+        }
+        rectStart = null;
+        // Remove rectangle after a moment
+        setTimeout(() => { if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; } }, 2000);
+    });
 }
 
 function toggleMap() {
@@ -905,19 +962,26 @@ function toggleMap() {
 
 function updateMapMarkers(jobs) {
     mapMarkers.forEach(m => routeMap.removeLayer(m));
+    routeLines.forEach(l => routeMap.removeLayer(l));
     mapMarkers = [];
+    routeLines = [];
     if (!jobs || jobs.length === 0) return;
 
     const bounds = [];
     let stopNum = 0;
+    let missingGeocode = 0;
 
-    jobs.forEach(job => {
-        if (!job.address) return;
+    for (const job of jobs) {
+        if (!job.address) continue;
         stopNum++;
-        // Use a simple geocoding approach: place markers with numbered icons
-        // For demo, spread around the default center based on job id
-        const lat = 41.48 + (((job.id * 7) % 100) - 50) * 0.003;
-        const lng = -81.68 + (((job.id * 13) % 100) - 50) * 0.004;
+
+        // Use stored lat/lng from database
+        const lat = parseFloat(job.lat);
+        const lng = parseFloat(job.lng);
+        if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+            missingGeocode++;
+            continue;
+        }
 
         const icon = L.divIcon({
             className: 'route-marker',
@@ -927,13 +991,40 @@ function updateMapMarkers(jobs) {
         });
 
         const marker = L.marker([lat, lng], { icon }).addTo(routeMap);
+        marker.jobId = job.id;
+        marker.jobData = job;
         marker.bindPopup(`<strong>${esc(job.customer_name)}</strong><br>${esc(job.address || '')}<br><em>${esc(job.service_type || '')}</em>`);
         mapMarkers.push(marker);
         bounds.push([lat, lng]);
-    });
+    }
 
     if (bounds.length > 0) {
         routeMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
+
+    // Draw route lines per crew (connecting stops in route_order)
+    const crewJobs = {};
+    for (const m of mapMarkers) {
+        const crew = m.jobData.crew_assigned || '__unassigned';
+        if (!crewJobs[crew]) crewJobs[crew] = [];
+        crewJobs[crew].push({ latlng: m.getLatLng(), order: m.jobData.route_order || 999 });
+    }
+    const crewColors = ['#2e403d', '#3b82f6', '#7c3aed', '#d97706', '#dc4a4a', '#059669'];
+    let ci = 0;
+    for (const crew of Object.keys(crewJobs)) {
+        const sorted = crewJobs[crew].sort((a, b) => a.order - b.order);
+        if (sorted.length > 1) {
+            const line = L.polyline(sorted.map(s => s.latlng), {
+                color: crewColors[ci % crewColors.length], weight: 3, opacity: 0.6, dashArray: '8 4'
+            }).addTo(routeMap);
+            routeLines.push(line);
+        }
+        ci++;
+    }
+
+    // Show geocode prompt if many jobs are missing coordinates
+    if (missingGeocode > 0) {
+        showToast(`${missingGeocode} job${missingGeocode > 1 ? 's' : ''} missing map coordinates — click "Geocode" to fix`);
     }
 }
 
@@ -1140,9 +1231,10 @@ async function loadBoard() {
         updateUnassignedPanel(data.unassigned || []);
         populateCrewSelect(data.crews || []);
 
-        // Collect all jobs for map
+        // Collect all jobs for map (assigned + unassigned)
         const allJobs = [];
         (data.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
+        (data.unassigned || []).forEach(j => allJobs.push(j));
         updateMapMarkers(allJobs);
 
         if (currentView === 'day') {
@@ -1258,6 +1350,81 @@ function getAvailabilityClass(totalHours) {
     return 'red';
 }
 
+/* ═══════════════════════════════════════════════════════════
+   GEOCODE & OPTIMIZE ROUTE
+   ═══════════════════════════════════════════════════════════ */
+async function geocodeAllJobs() {
+    showToast('Geocoding job addresses... this may take a few minutes for 100+ jobs');
+    try {
+        const res = await fetch('/api/dispatch/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate) })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Geocoded ${data.geocoded} of ${data.total} jobs`);
+            loadBoard();
+        } else {
+            showToast(data.error || 'Geocoding failed', 'error');
+        }
+    } catch (err) {
+        showToast('Geocoding failed: ' + err.message, 'error');
+    }
+}
+
+async function optimizeRoute() {
+    // Get crews with jobs
+    const crewsWithJobs = (boardData?.crews || []).filter(c => (c.jobs || []).length > 1);
+    if (crewsWithJobs.length === 0) {
+        showToast('No crews with multiple jobs to optimize', 'error');
+        return;
+    }
+
+    // If only one crew has jobs, optimize that one. Otherwise show picker.
+    if (crewsWithJobs.length === 1) {
+        await optimizeCrewRoute(crewsWithJobs[0].name);
+    } else {
+        // Show a simple crew selection
+        const crewName = prompt('Which crew to optimize?\n\n' + crewsWithJobs.map(c => `${c.name} (${c.jobs.length} jobs)`).join('\n'));
+        if (!crewName) return;
+        // Match partial input
+        const match = crewsWithJobs.find(c => c.name.toLowerCase().includes(crewName.toLowerCase()));
+        if (match) {
+            await optimizeCrewRoute(match.name);
+        } else {
+            showToast('Crew not found', 'error');
+        }
+    }
+}
+
+async function optimizeCrewRoute(crewName) {
+    showToast(`Optimizing route for ${crewName}...`);
+    try {
+        const res = await fetch('/api/dispatch/optimize-route', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: formatDate(currentDate),
+                crew_name: crewName,
+                // Start from Lakewood, OH (Pappas HQ area)
+                start_lat: 41.4820,
+                start_lng: -81.7982
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const count = data.optimized ? data.optimized.length : 0;
+            showToast(`Route optimized! ${count} stops reordered for ${crewName}`);
+            loadBoard();
+        } else {
+            showToast(data.error || 'Optimization failed', 'error');
+        }
+    } catch (err) {
+        showToast('Optimization failed: ' + err.message, 'error');
+    }
+}
+
 function formatDuration(mins) {
     if (!mins) return '--';
     if (mins < 60) return mins + 'min';
@@ -1274,9 +1441,25 @@ function formatPrice(price) {
 /* ═══════════════════════════════════════════════════════════
    RENDER DAY VIEW
    ═══════════════════════════════════════════════════════════ */
+function toggleEmptyCrews() {
+    showEmptyCrews = !showEmptyCrews;
+    document.getElementById('emptyCrewsLabel').textContent = showEmptyCrews ? 'Hide Empty Crews' : 'Show All Crews';
+    document.getElementById('emptyCrewsBtn').classList.toggle('btn-primary', showEmptyCrews);
+    document.getElementById('emptyCrewsBtn').classList.toggle('btn-secondary', !showEmptyCrews);
+    if (boardData) {
+        if (currentView === 'day') renderDayView(boardData);
+        else if (currentView === 'week') renderWeekView(boardData);
+    }
+}
+
 function renderDayView(data) {
     const container = document.getElementById('dayBoard');
-    const crews = data.crews || [];
+    let crews = data.crews || [];
+
+    // Filter out empty crews unless toggled on
+    if (!showEmptyCrews) {
+        crews = crews.filter(c => (c.jobs || []).length > 0);
+    }
 
     if (crews.length === 0) {
         container.innerHTML = `
@@ -1285,8 +1468,8 @@ function renderDayView(data) {
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;opacity:0.4;">
                         <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
-                    <p style="font-size:15px;font-weight:600;margin-bottom:4px;">No crews scheduled</p>
-                    <p style="font-size:13px;">No crew data found for this date.</p>
+                    <p style="font-size:15px;font-weight:600;margin-bottom:4px;">No crews with jobs</p>
+                    <p style="font-size:13px;">${showEmptyCrews ? 'No crew data found for this date.' : 'No crews have jobs for this date. Click "Show All Crews" to see empty lanes.'}</p>
                 </div>
             </div>`;
         return;
@@ -1401,7 +1584,10 @@ function renderRouteTable(data) {
    ═══════════════════════════════════════════════════════════ */
 function renderWeekView(data) {
     const container = document.getElementById('weekBoard');
-    const crews = data.crews || [];
+    let crews = data.crews || [];
+    if (!showEmptyCrews) {
+        crews = crews.filter(c => (c.jobs || []).length > 0);
+    }
 
     const d = new Date(currentDate);
     const dayOfWeek = d.getDay();

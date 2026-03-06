@@ -6997,7 +6997,7 @@ app.post('/api/portal/request-access', async (req, res) => {
 
     // Find customer by email
     const custResult = await pool.query(
-      'SELECT id, customer_name FROM customers WHERE email ILIKE $1 LIMIT 1',
+      'SELECT id, name FROM customers WHERE email ILIKE $1 LIMIT 1',
       [email.trim()]
     );
 
@@ -7021,7 +7021,7 @@ app.post('/api/portal/request-access', async (req, res) => {
 
     const content = `
       <h2 style="color:#2e403d;margin:0 0 16px;">Your Customer Portal Access</h2>
-      <p>Hi ${(customer.customer_name || '').split(' ')[0]},</p>
+      <p>Hi ${(customer.name || '').split(' ')[0]},</p>
       <p>Click below to access your Pappas & Co. customer portal where you can view invoices, make payments, and see your payment history.</p>
       <div style="text-align:center;margin:28px 0;">
         <a href="${portalUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
@@ -7044,7 +7044,7 @@ app.get('/api/portal/:token', async (req, res) => {
   try {
     await ensurePaymentsTables();
     const result = await pool.query(
-      'SELECT pt.*, c.customer_name, c.email as customer_email, c.phone, c.address FROM customer_portal_tokens pt LEFT JOIN customers c ON pt.customer_id = c.id WHERE pt.token = $1 AND pt.expires_at > NOW()',
+      'SELECT pt.*, c.name as customer_name, c.email as customer_email, c.phone, CONCAT_WS(\', \', c.street, c.city, c.state, c.postal_code) as address FROM customer_portal_tokens pt LEFT JOIN customers c ON pt.customer_id = c.id WHERE pt.token = $1 AND pt.expires_at > NOW()',
       [req.params.token]
     );
     if (result.rows.length === 0) {

@@ -541,6 +541,9 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
                     Lasso
                 </button>
+                <select id="crewFilterSelect" onchange="filterMapByCrew(this.value || null)" style="padding:6px 10px;border-radius:8px;border:1px solid var(--gray-200);font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);cursor:pointer;">
+                    <option value="">All Crews</option>
+                </select>
                 <button class="btn btn-primary" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Optimize Route
@@ -880,6 +883,7 @@ let drawingManager = null;
 let selectionPolygon = null;
 let infoWindow = null;
 let geocoder = null;
+let activeCrewFilter = null;
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -981,6 +985,51 @@ window.onGoogleMapsLoaded = function() {
         updateMapMarkers(allJobs);
     }
 };
+
+function filterMapByCrew(crewName) {
+    // Toggle: click same crew again to clear filter
+    if (activeCrewFilter === crewName || !crewName) {
+        activeCrewFilter = null;
+        showToast('Showing all crews on map');
+    } else {
+        activeCrewFilter = crewName;
+        showToast(`Filtering map: ${crewName}`);
+    }
+
+    // Sync dropdown
+    const filterSel = document.getElementById('crewFilterSelect');
+    if (filterSel) filterSel.value = activeCrewFilter || '';
+
+    // Highlight active crew lane
+    document.querySelectorAll('.crew-lane').forEach(lane => {
+        lane.style.opacity = activeCrewFilter && lane.querySelector('.crew-name')?.textContent !== activeCrewFilter ? '0.4' : '1';
+    });
+
+    // Show/hide markers
+    const bounds = new google.maps.LatLngBounds();
+    let visibleCount = 0;
+    mapMarkers.forEach(m => {
+        const show = !activeCrewFilter || (m.jobData && m.jobData.crew_assigned === activeCrewFilter);
+        m.setVisible(show);
+        if (show && m.getPosition()) {
+            bounds.extend(m.getPosition());
+            visibleCount++;
+        }
+    });
+
+    // Show/hide route lines
+    routeLines.forEach(l => {
+        if (!activeCrewFilter) { l.setMap(routeMap); return; }
+        // Route lines don't store crew name, so rebuild
+    });
+    if (activeCrewFilter) drawRouteLines();
+
+    // Fit to visible markers
+    if (visibleCount > 0 && !bounds.isEmpty()) {
+        routeMap.fitBounds(bounds);
+        if (routeMap.getZoom() > 15) routeMap.setZoom(15);
+    }
+}
 
 function toggleLassoMode() {
     if (!drawingManager) { showToast('Map not ready yet', 'error'); return; }
@@ -1098,6 +1147,7 @@ function drawRouteLines() {
     const crewJobs = {};
     mapMarkers.forEach(m => {
         const crew = m.jobData.crew_assigned || '__unassigned';
+        if (activeCrewFilter && crew !== activeCrewFilter) return;
         if (!crewJobs[crew]) crewJobs[crew] = [];
         crewJobs[crew].push({ pos: m.getPosition(), order: m.jobData.route_order || 999 });
     });
@@ -1604,7 +1654,7 @@ function renderDayView(data) {
 
         return `
         <div class="crew-lane" data-crew-id="${crew.id}">
-            <div class="crew-lane-header" style="border-top: 3px solid ${crew.color || '#9ca09c'}">
+            <div class="crew-lane-header" style="border-top: 3px solid ${crew.color || '#9ca09c'}; cursor:pointer;" onclick="filterMapByCrew('${esc(crew.name)}')">
                 <div class="crew-lane-header-top">
                     <div class="crew-name-row">
                         <span class="crew-color-dot" style="background:${crew.color || '#9ca09c'}"></span>
@@ -1971,6 +2021,17 @@ function populateCrewSelect(crews) {
         });
         if (current) sel.value = current;
     });
+
+    // Populate crew filter dropdown
+    const filterSel = document.getElementById('crewFilterSelect');
+    if (filterSel) {
+        const current = filterSel.value;
+        filterSel.innerHTML = '<option value="">All Crews</option>';
+        crews.forEach(c => {
+            filterSel.innerHTML += `<option value="${esc(c.name)}">${esc(c.name)}</option>`;
+        });
+        if (current) filterSel.value = current;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════

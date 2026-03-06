@@ -85,6 +85,14 @@
 
         .amount-col { text-align: right; font-weight: 600; color: var(--green); }
         .inv-num { font-size: 12px; color: var(--gray-400); }
+
+        .method-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .method-card { background: #eff6ff; color: #3b82f6; }
+        .method-ach { background: #f5f3ff; color: #7c3aed; }
+        .method-cash { background: #ecfdf5; color: #059669; }
+        .method-check { background: #fffbeb; color: #d97706; }
+        .method-apple { background: #f0f2f0; color: #333633; }
+        .method-manual { background: #f0f2f0; color: #6e726e; }
     </style>
 </head>
 <body>
@@ -192,6 +200,15 @@
                 <option value="9">September</option><option value="10">October</option>
                 <option value="11">November</option><option value="12">December</option>
             </select>
+            <span class="filter-label">Method:</span>
+            <select id="methodFilter" onchange="loadPayments()">
+                <option value="">All Methods</option>
+                <option value="card">Card</option>
+                <option value="ach">ACH</option>
+                <option value="apple_pay">Apple Pay</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+            </select>
         </div>
 
         <!-- Table -->
@@ -202,8 +219,8 @@
                         <th>Date</th>
                         <th>Customer</th>
                         <th>Invoice #</th>
-                        <th style="text-align:right;">Invoice Total</th>
-                        <th style="text-align:right;">Amount Paid</th>
+                        <th>Method</th>
+                        <th style="text-align:right;">Amount</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -238,11 +255,13 @@
         const search = document.getElementById('searchInput').value;
         const year   = document.getElementById('yearFilter').value;
         const month  = document.getElementById('monthFilter').value;
+        const method = document.getElementById('methodFilter').value;
 
         const params = new URLSearchParams({ limit: PAGE, offset });
         if (search) params.set('search', search);
         if (year)   params.set('year', year);
         if (month)  params.set('month', month);
+        if (method) params.set('method', method);
 
         const res  = await fetch('/api/payments?' + params);
         const data = await res.json();
@@ -283,6 +302,14 @@
             tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><p>No payments found</p></td></tr>`;
             return;
         }
+        const methodLabel = {
+            card: '<span class="method-badge method-card">💳 Card</span>',
+            ach: '<span class="method-badge method-ach">🏦 ACH</span>',
+            apple_pay: '<span class="method-badge method-apple">🍎 Apple Pay</span>',
+            cash: '<span class="method-badge method-cash">💵 Cash</span>',
+            check: '<span class="method-badge method-check">📝 Check</span>',
+            manual: '<span class="method-badge method-manual">Manual</span>'
+        };
         tbody.innerHTML = payments.map(p => {
             const date   = fmtDate(p.paid_at || p.updated_at || p.created_at);
             const isPaid = p.status === 'paid';
@@ -294,8 +321,8 @@
                 <td>${date}</td>
                 <td><a href="${custUrl}" class="customer-link">${p.customer_name || '—'}</a></td>
                 <td><a href="invoice-detail.html?id=${p.id}" class="customer-link">${p.invoice_number || '—'}</a></td>
-                <td style="text-align:right; color:var(--gray-600);">${fmt(p.total)}</td>
-                <td class="amount-col">${fmt(p.amount_paid)}</td>
+                <td>${methodLabel[p.method] || '<span class="method-badge method-manual">' + (p.method || 'Invoice') + '</span>'}</td>
+                <td class="amount-col">${fmt(p.amount || p.amount_paid)}</td>
                 <td>${badge}</td>
             </tr>`;
         }).join('');

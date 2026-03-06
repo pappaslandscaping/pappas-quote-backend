@@ -161,6 +161,52 @@
         /* Toast */
         .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: white; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
         .toast.show { transform: translateY(0); opacity: 1; }
+
+        /* Payment History */
+        .payment-history { margin-top: 16px; }
+        .payment-entry {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+        }
+        .payment-entry:last-child { border-bottom: none; }
+        .payment-entry .method { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: var(--gray-100); font-size: 11px; font-weight: 600; color: var(--gray-600); }
+        .payment-entry .amount { font-weight: 700; color: var(--green); }
+
+        /* Pay Link */
+        .pay-link-box {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: 8px; padding: 8px 12px; margin-top: 8px;
+        }
+        .pay-link-box input {
+            flex: 1; border: none; background: none; font-size: 12px;
+            color: var(--gray-600); font-family: monospace; outline: none;
+        }
+        .pay-link-box button {
+            padding: 4px 10px; border: 1px solid var(--gray-300);
+            border-radius: 4px; background: white; font-size: 11px;
+            font-weight: 600; cursor: pointer; white-space: nowrap;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000; display: none;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white; border-radius: 12px; padding: 28px;
+            max-width: 440px; width: 90%; max-height: 90vh; overflow-y: auto;
+        }
+        .modal h3 { font-size: 16px; margin-bottom: 16px; color: var(--gray-700); }
+        .modal .form-group { margin-bottom: 14px; }
+        .modal .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-500); margin-bottom: 4px; }
+        .modal .form-group input, .modal .form-group select, .modal .form-group textarea {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200);
+            border-radius: 6px; font-size: 13px; font-family: inherit;
+        }
     </style>
 </head>
 <body>
@@ -238,6 +284,33 @@
             <div class="loading">Loading invoice...</div>
         </div>
     </main>
+
+    <div class="modal-overlay" id="recordPaymentModal">
+        <div class="modal">
+            <h3>Record Manual Payment</h3>
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" id="rpAmount" step="0.01" min="0.01" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>Payment Method</label>
+                <select id="rpMethod">
+                    <option value="cash">Cash</option>
+                    <option value="check">Check</option>
+                    <option value="card">Card (offline)</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Notes (optional)</label>
+                <textarea id="rpNotes" rows="2" placeholder="Check #, reference, etc."></textarea>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="hideRecordPayment()">Cancel</button>
+                <button class="btn btn-success" style="flex:1;" onclick="recordPayment()">Record Payment</button>
+            </div>
+        </div>
+    </div>
 
     <div class="toast" id="toast"></div>
 
@@ -408,6 +481,36 @@
                     ${lineItemsHtml}
                 </div>
 
+                ${inv.payment_history && inv.payment_history.length > 0 ? `
+                <div class="detail-card full-width" style="margin-bottom:20px;">
+                    <h3>Payment History</h3>
+                    <div class="payment-history">
+                        ${inv.payment_history.map(p => `
+                            <div class="payment-entry">
+                                <div>
+                                    <span class="method">${p.method === 'card' ? '💳 Card' : p.method === 'ach' ? '🏦 ACH' : p.method === 'apple_pay' ? '🍎 Apple Pay' : p.method === 'cash' ? '💵 Cash' : p.method === 'check' ? '📝 Check' : '💰 ' + (p.method || 'Payment')}</span>
+                                    ${p.card_last4 ? '<span style="font-size:11px;color:var(--gray-400);margin-left:4px;">•••• ' + p.card_last4 + '</span>' : ''}
+                                    ${p.square_receipt_url ? '<a href="' + p.square_receipt_url + '" target="_blank" style="font-size:11px;color:var(--blue);margin-left:8px;">Receipt</a>' : ''}
+                                </div>
+                                <div style="text-align:right;">
+                                    <div class="amount">${formatCurrency(p.amount)}</div>
+                                    <div style="font-size:11px;color:var(--gray-400);">${formatDate(p.paid_at || p.created_at)}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+
+                ${inv.payment_token ? `
+                <div class="detail-card full-width" style="margin-bottom:20px;">
+                    <h3>Customer Pay Link</h3>
+                    <p style="font-size:12px;color:var(--gray-400);margin-bottom:8px;">Share this link so your customer can pay online</p>
+                    <div class="pay-link-box">
+                        <input type="text" id="payLinkInput" value="${window.location.origin}/pay-invoice.html?token=${inv.payment_token}" readonly>
+                        <button onclick="copyPayLink()">Copy</button>
+                    </div>
+                </div>` : ''}
+
                 ${notes ? `<div class="detail-card full-width" style="margin-bottom:20px;">
                     <h3>Notes</h3>
                     <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(notes)}</p>
@@ -418,6 +521,9 @@
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
                     <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
+                    ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showRecordPayment()">💵 Record Payment</button>` : ''}
+                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
+                    <button class="btn btn-outline" onclick="downloadPDF()">📥 Download PDF</button>
                     <button class="btn btn-danger" onclick="deleteInvoice()">Delete</button>
                 </div>
             `;
@@ -477,6 +583,53 @@
             t.style.background = isError ? 'var(--red)' : 'var(--forest)';
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 4000);
+        }
+
+        function copyPayLink() {
+            const input = document.getElementById('payLinkInput');
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            showToast('Pay link copied!');
+        }
+
+        function showRecordPayment() {
+            document.getElementById('rpAmount').value = (parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0)).toFixed(2);
+            document.getElementById('recordPaymentModal').classList.add('show');
+        }
+
+        function hideRecordPayment() {
+            document.getElementById('recordPaymentModal').classList.remove('show');
+        }
+
+        async function recordPayment() {
+            const amount = parseFloat(document.getElementById('rpAmount').value);
+            const method = document.getElementById('rpMethod').value;
+            const notes = document.getElementById('rpNotes').value;
+            if (!amount || amount <= 0) { showToast('Enter a valid amount', true); return; }
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/record-payment`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount, method, notes })
+                });
+                const data = await res.json();
+                if (data.success) { showToast('Payment recorded!'); hideRecordPayment(); loadInvoice(); }
+                else showToast(data.error || 'Failed', true);
+            } catch (e) { showToast('Failed to record payment', true); }
+        }
+
+        async function sendReminder() {
+            if (!confirm('Send a payment reminder to ' + (invoice.customer_email || 'customer') + '?')) return;
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/send-reminder`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) showToast('Reminder sent!');
+                else showToast(data.error || 'Failed', true);
+            } catch (e) { showToast('Failed to send reminder', true); }
+        }
+
+        async function downloadPDF() {
+            window.open(`/api/invoices/${invoiceId}/pdf`, '_blank');
         }
     </script>
 </body>

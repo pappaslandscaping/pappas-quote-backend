@@ -708,6 +708,13 @@
                 padding: 12px 8px;
             }
         }
+
+        .copy-link-btn {
+            padding: 3px 8px; border: 1px solid var(--gray-200); border-radius: 4px;
+            background: white; font-size: 11px; cursor: pointer; color: var(--gray-500);
+            white-space: nowrap;
+        }
+        .copy-link-btn:hover { background: var(--gray-100); color: var(--forest); }
     </style>
 </head>
 <body>
@@ -1157,6 +1164,7 @@
                         <div class="actions-cell">
                             ${inv.status === 'draft' ? `<button class="action-btn action-btn-send" onclick="sendInvoice('${inv.id}')">Send</button>` : ''}
                             ${inv.status === 'sent' || inv.status === 'overdue' ? `<button class="action-btn action-btn-paid" onclick="markPaid('${inv.id}')">Mark Paid</button>` : ''}
+                            ${inv.payment_token ? `<button class="copy-link-btn" onclick="event.stopPropagation(); copyPayLink('${inv.payment_token}')" title="Copy pay link">🔗</button>` : ''}
                             <button class="action-btn action-btn-view" onclick="viewInvoice('${inv.id}')">View</button>
                             <button class="action-btn action-btn-delete" onclick="deleteInvoice('${inv.id}')">Delete</button>
                         </div>
@@ -1430,6 +1438,13 @@
         }
 
         // View invoice
+        function copyPayLink(token) {
+            const url = window.location.origin + '/pay-invoice.html?token=' + token;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Pay link copied to clipboard!');
+            });
+        }
+
         function viewInvoice(id) {
             window.location.href = `invoice-detail.html?id=${id}`;
         }

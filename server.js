@@ -9,6 +9,16 @@ const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
 const OAuthClient = require('intuit-oauth');
+const { Client, Environment, ApiError } = require('square');
+const crypto = require('crypto');
+
+// Square Payments Configuration
+const squareClient = process.env.SQUARE_ACCESS_TOKEN ? new Client({
+  accessToken: process.env.SQUARE_ACCESS_TOKEN,
+  environment: process.env.SQUARE_ENVIRONMENT === 'production' ? Environment.Production : Environment.Sandbox,
+}) : null;
+const SQUARE_APP_ID = process.env.SQUARE_APPLICATION_ID;
+const SQUARE_LOCATION_ID = process.env.SQUARE_LOCATION_ID;
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -26,6 +36,64 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+
+// Square webhook — needs raw body for signature verification, must be before express.json()
+app.post('/api/webhooks/square', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    const signature = req.headers['x-square-hmacsha256-signature'];
+    const body = req.body.toString('utf8');
+    const sigKey = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
+
+    // Verify signature if key is configured
+    if (sigKey && signature) {
+      const hmac = crypto.createHmac('sha256', sigKey);
+      const notificationUrl = (process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app') + '/api/webhooks/square';
+      hmac.update(notificationUrl + body);
+      const expectedSig = hmac.digest('base64');
+      if (signature !== expectedSig) {
+        console.error('Square webhook signature mismatch');
+        return res.status(401).send('Invalid signature');
+      }
+    }
+
+    const event = JSON.parse(body);
+    console.log('Square webhook:', event.type, event.data?.id);
+
+    if (event.type === 'payment.completed') {
+      const payment = event.data?.object?.payment;
+      if (payment) {
+        await pool.query(
+          `UPDATE payments SET status = 'completed', paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE square_payment_id = $1`,
+          [payment.id]
+        );
+        console.log('Webhook: payment.completed for', payment.id);
+      }
+    } else if (event.type === 'payment.failed') {
+      const payment = event.data?.object?.payment;
+      if (payment) {
+        await pool.query(
+          `UPDATE payments SET status = 'failed', failure_reason = $1, updated_at = CURRENT_TIMESTAMP WHERE square_payment_id = $2`,
+          [payment.status || 'failed', payment.id]
+        );
+      }
+    } else if (event.type === 'refund.created' || event.type === 'refund.updated') {
+      const refund = event.data?.object?.refund;
+      if (refund && refund.payment_id) {
+        const refundAmount = (refund.amount_money?.amount || 0) / 100;
+        await pool.query(
+          `UPDATE payments SET refund_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE square_payment_id = $2`,
+          [refundAmount, refund.payment_id]
+        );
+      }
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('Square webhook error:', error);
+    res.status(200).json({ received: true });
+  }
+});
+
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 app.use(express.static('public', {
@@ -1177,6 +1245,230 @@ async function generateQuotePDF(quote) {
     } catch (fallbackErr) {
       console.error('=== QUOTE PDF: even fallback failed:', fallbackErr.message);
       return { bytes: null, error: error.message + ' | fallback also failed: ' + fallbackErr.message, type: 'failed' };
+    }
+  }
+}
+
+// Generate Invoice PDF - Branded style matching quote PDF
+async function generateInvoicePDF(invoice) {
+  try {
+    const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+    const fontkit = require('@pdf-lib/fontkit');
+    const fs = require('fs');
+    const path = require('path');
+
+    const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    let qualyFont = helveticaBold;
+    try {
+      const qualyPath = path.join(__dirname, 'public', 'Qualy.otf');
+      if (fs.existsSync(qualyPath)) {
+        qualyFont = await pdfDoc.embedFont(fs.readFileSync(qualyPath));
+      }
+    } catch (e) { /* use fallback */ }
+
+    let logoImage = null;
+    try {
+      const logoPath = path.join(__dirname, 'public', 'logo.png');
+      if (fs.existsSync(logoPath)) {
+        logoImage = await pdfDoc.embedPng(fs.readFileSync(logoPath));
+      }
+    } catch (e) { /* no logo */ }
+
+    const pageWidth = 612;
+    const pageHeight = 792;
+    const margin = 50;
+    const contentWidth = pageWidth - margin * 2;
+
+    const darkGreen = rgb(0.18, 0.25, 0.24);
+    const limeGreen = rgb(0.79, 0.87, 0.50);
+    const black = rgb(0, 0, 0);
+    const gray = rgb(0.4, 0.45, 0.45);
+    const lightGray = rgb(0.97, 0.98, 0.96);
+    const white = rgb(1, 1, 1);
+
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    let y = pageHeight - margin;
+
+    // Header bar
+    page.drawRectangle({ x: 0, y: pageHeight - 100, width: pageWidth, height: 100, color: darkGreen });
+
+    if (logoImage) {
+      const dims = logoImage.scale(0.15);
+      page.drawImage(logoImage, { x: margin, y: pageHeight - 75, width: dims.width, height: dims.height });
+    }
+
+    // INVOICE title
+    page.drawText('INVOICE', { x: pageWidth - margin - helveticaBold.widthOfTextAtSize('INVOICE', 28), y: pageHeight - 65, size: 28, font: qualyFont, color: limeGreen });
+
+    y = pageHeight - 130;
+
+    // Invoice details (right side)
+    const invNum = invoice.invoice_number || 'INV-' + invoice.id;
+    const invDate = new Date(invoice.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const dueDate = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+    const rightCol = pageWidth - margin;
+    page.drawText('Invoice #: ' + pdfSafe(invNum), { x: rightCol - helvetica.widthOfTextAtSize('Invoice #: ' + invNum, 10), y, size: 10, font: helveticaBold, color: darkGreen });
+    y -= 16;
+    page.drawText('Date: ' + invDate, { x: rightCol - helvetica.widthOfTextAtSize('Date: ' + invDate, 9), y, size: 9, font: helvetica, color: gray });
+    y -= 14;
+    if (dueDate) {
+      page.drawText('Due: ' + dueDate, { x: rightCol - helvetica.widthOfTextAtSize('Due: ' + dueDate, 9), y, size: 9, font: helvetica, color: gray });
+      y -= 14;
+    }
+
+    // Customer info (left side)
+    let custY = pageHeight - 130;
+    page.drawText('BILL TO:', { x: margin, y: custY, size: 8, font: helveticaBold, color: gray });
+    custY -= 16;
+    page.drawText(pdfSafe(invoice.customer_name || 'Customer'), { x: margin, y: custY, size: 12, font: helveticaBold, color: black });
+    custY -= 15;
+    if (invoice.customer_email) {
+      page.drawText(pdfSafe(invoice.customer_email), { x: margin, y: custY, size: 9, font: helvetica, color: gray });
+      custY -= 13;
+    }
+    if (invoice.customer_address) {
+      const addrLines = formatAddressLines(invoice.customer_address);
+      if (addrLines.line1) { page.drawText(pdfSafe(addrLines.line1), { x: margin, y: custY, size: 9, font: helvetica, color: gray }); custY -= 13; }
+      if (addrLines.line2) { page.drawText(pdfSafe(addrLines.line2), { x: margin, y: custY, size: 9, font: helvetica, color: gray }); custY -= 13; }
+    }
+
+    y = Math.min(y, custY) - 20;
+
+    // Divider
+    page.drawRectangle({ x: margin, y, width: contentWidth, height: 3, color: limeGreen });
+    y -= 25;
+
+    // Line items table
+    let lineItems = invoice.line_items || [];
+    if (typeof lineItems === 'string') try { lineItems = JSON.parse(lineItems); } catch(e) { lineItems = []; }
+
+    // Table header
+    page.drawRectangle({ x: margin, y: y - 2, width: contentWidth, height: 22, color: darkGreen });
+    page.drawText('Description', { x: margin + 8, y: y + 3, size: 9, font: helveticaBold, color: white });
+    page.drawText('Qty', { x: pageWidth - margin - 140, y: y + 3, size: 9, font: helveticaBold, color: white });
+    page.drawText('Rate', { x: pageWidth - margin - 100, y: y + 3, size: 9, font: helveticaBold, color: white });
+    const amtHeader = 'Amount';
+    page.drawText(amtHeader, { x: rightCol - helveticaBold.widthOfTextAtSize(amtHeader, 9) - 8, y: y + 3, size: 9, font: helveticaBold, color: white });
+    y -= 28;
+
+    // Table rows
+    for (const item of lineItems) {
+      const desc = pdfSafe(item.description || item.name || 'Service');
+      const qty = item.quantity || item.qty || 1;
+      const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
+      const amount = parseFloat(item.amount || (qty * rate) || 0);
+
+      // Alternate row background
+      if (lineItems.indexOf(item) % 2 === 0) {
+        page.drawRectangle({ x: margin, y: y - 4, width: contentWidth, height: 20, color: lightGray });
+      }
+
+      page.drawText(desc.substring(0, 60), { x: margin + 8, y, size: 9, font: helvetica, color: black });
+      page.drawText(String(qty), { x: pageWidth - margin - 140, y, size: 9, font: helvetica, color: gray });
+      page.drawText('$' + rate.toFixed(2), { x: pageWidth - margin - 100, y, size: 9, font: helvetica, color: gray });
+      const amtStr = '$' + amount.toFixed(2);
+      page.drawText(amtStr, { x: rightCol - helvetica.widthOfTextAtSize(amtStr, 9) - 8, y, size: 9, font: helvetica, color: black });
+      y -= 22;
+    }
+
+    y -= 10;
+    page.drawRectangle({ x: margin, y, width: contentWidth, height: 1, color: rgb(0.85, 0.87, 0.85) });
+    y -= 20;
+
+    // Totals
+    const subtotal = parseFloat(invoice.subtotal || invoice.total || 0);
+    const taxAmount = parseFloat(invoice.tax_amount || 0);
+    const total = parseFloat(invoice.total || 0);
+    const amountPaid = parseFloat(invoice.amount_paid || 0);
+    const balance = total - amountPaid;
+
+    const totalsX = pageWidth - margin - 180;
+
+    if (taxAmount > 0) {
+      page.drawText('Subtotal:', { x: totalsX, y, size: 10, font: helvetica, color: gray });
+      const subStr = '$' + subtotal.toFixed(2);
+      page.drawText(subStr, { x: rightCol - helvetica.widthOfTextAtSize(subStr, 10) - 8, y, size: 10, font: helvetica, color: black });
+      y -= 18;
+      page.drawText('Tax:', { x: totalsX, y, size: 10, font: helvetica, color: gray });
+      const taxStr = '$' + taxAmount.toFixed(2);
+      page.drawText(taxStr, { x: rightCol - helvetica.widthOfTextAtSize(taxStr, 10) - 8, y, size: 10, font: helvetica, color: black });
+      y -= 18;
+    }
+
+    // Total bar
+    page.drawRectangle({ x: totalsX - 10, y: y - 6, width: rightCol - totalsX + 18, height: 28, color: limeGreen });
+    page.drawText('TOTAL:', { x: totalsX, y: y + 2, size: 12, font: helveticaBold, color: darkGreen });
+    const totalStr = '$' + total.toFixed(2);
+    page.drawText(totalStr, { x: rightCol - helveticaBold.widthOfTextAtSize(totalStr, 14) - 8, y: y, size: 14, font: helveticaBold, color: darkGreen });
+    y -= 36;
+
+    if (amountPaid > 0 && amountPaid < total) {
+      page.drawText('Amount Paid:', { x: totalsX, y, size: 10, font: helvetica, color: rgb(0.02, 0.59, 0.41) });
+      const paidStr = '$' + amountPaid.toFixed(2);
+      page.drawText(paidStr, { x: rightCol - helvetica.widthOfTextAtSize(paidStr, 10) - 8, y, size: 10, font: helvetica, color: rgb(0.02, 0.59, 0.41) });
+      y -= 18;
+      page.drawText('Balance Due:', { x: totalsX, y, size: 11, font: helveticaBold, color: darkGreen });
+      const balStr = '$' + balance.toFixed(2);
+      page.drawText(balStr, { x: rightCol - helveticaBold.widthOfTextAtSize(balStr, 11) - 8, y, size: 11, font: helveticaBold, color: darkGreen });
+      y -= 20;
+    }
+
+    // PAID watermark for paid invoices
+    if (invoice.status === 'paid' || amountPaid >= total) {
+      const paidFont = helveticaBold;
+      const paidSize = 72;
+      const paidText = 'PAID';
+      const paidWidth = paidFont.widthOfTextAtSize(paidText, paidSize);
+      page.drawText(paidText, {
+        x: (pageWidth - paidWidth) / 2,
+        y: pageHeight / 2,
+        size: paidSize,
+        font: paidFont,
+        color: rgb(0.02, 0.59, 0.41),
+        opacity: 0.15,
+        rotate: { type: 'degrees', angle: -35 }
+      });
+    }
+
+    // Notes
+    if (invoice.notes) {
+      y -= 10;
+      page.drawText('Notes:', { x: margin, y, size: 9, font: helveticaBold, color: gray });
+      y -= 14;
+      page.drawText(pdfSafe(invoice.notes).substring(0, 200), { x: margin, y, size: 9, font: helvetica, color: gray });
+      y -= 20;
+    }
+
+    // Footer
+    const footerY = 40;
+    page.drawRectangle({ x: margin, y: footerY + 10, width: contentWidth, height: 1, color: rgb(0.85, 0.87, 0.85) });
+    page.drawText('Pappas & Co. Landscaping', { x: margin, y: footerY - 4, size: 8, font: helveticaBold, color: darkGreen });
+    page.drawText('PO Box 770057, Lakewood OH 44107', { x: margin, y: footerY - 16, size: 7, font: helvetica, color: gray });
+    const web = 'pappaslandscaping.com  |  (440) 886-7318';
+    page.drawText(web, { x: rightCol - helvetica.widthOfTextAtSize(web, 7), y: footerY - 4, size: 7, font: helvetica, color: gray });
+
+    const bytes = await pdfDoc.save();
+    return { bytes, type: 'complete' };
+  } catch (error) {
+    console.error('Invoice PDF error:', error);
+    // Fallback: simple text PDF
+    try {
+      const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+      const doc = await PDFDocument.create();
+      const page = doc.addPage([612, 792]);
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      page.drawText('INVOICE', { x: 50, y: 720, size: 24, font, color: rgb(0, 0, 0) });
+      page.drawText(invoice.invoice_number || 'Invoice', { x: 50, y: 690, size: 14, font });
+      page.drawText('Customer: ' + (invoice.customer_name || ''), { x: 50, y: 660, size: 12, font });
+      page.drawText('Total: $' + parseFloat(invoice.total || 0).toFixed(2), { x: 50, y: 630, size: 14, font });
+      return { bytes: await doc.save(), type: 'fallback', error: error.message };
+    } catch (e2) {
+      return { bytes: null, type: 'none', error: e2.message };
     }
   }
 }
@@ -4551,9 +4843,17 @@ app.get('/api/sent-quotes/:id/download-quote', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Quote not found' });
     }
     const quote = result.rows[0];
-    
-    // Return quote data for client-side PDF generation
-    res.json({ success: true, quote, type: 'quote' });
+
+    const quoteNumber = quote.quote_number || 'Q-' + quote.id;
+    const pdfResult = await generateQuotePDF(quote);
+
+    if (!pdfResult || !pdfResult.bytes) {
+      return res.status(500).json({ success: false, error: 'PDF generation failed' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Quote-${quoteNumber}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
   } catch (error) {
     console.error('Error downloading quote:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -6034,7 +6334,7 @@ app.get('/api/payments', async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, invoice_number, customer_id, customer_name, customer_email,
-              total, amount_paid, status, paid_at, due_date, created_at, qb_invoice_id
+              total, amount_paid, status, paid_at, due_date, created_at, qb_invoice_id, payment_token
        FROM invoices ${whereClause}
        ORDER BY COALESCE(paid_at, updated_at) DESC
        LIMIT $${p} OFFSET $${p+1}`,
@@ -6133,7 +6433,16 @@ app.get('/api/invoices/:id', async (req, res) => {
     await ensureInvoicesTable();
     const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, invoice: r.rows[0] });
+    const inv = r.rows[0];
+    // Fetch payment history
+    try {
+      const payments = await pool.query(
+        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC',
+        [inv.id]
+      );
+      inv.payment_history = payments.rows;
+    } catch(e) { inv.payment_history = []; }
+    res.json({ success: true, invoice: inv });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -6218,6 +6527,16 @@ app.post('/api/invoices/:id/send', async (req, res) => {
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     const inv = r.rows[0];
     if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
+
+    // Generate payment token if needed
+    let paymentToken = inv.payment_token;
+    if (!paymentToken) {
+      paymentToken = generateToken();
+      await pool.query('UPDATE invoices SET payment_token = $1, payment_token_created_at = CURRENT_TIMESTAMP WHERE id = $2', [paymentToken, inv.id]);
+    }
+    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
+
     const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
     const itemsHtml = items.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">${i.description}</td><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;">$${parseFloat(i.amount).toFixed(2)}</td></tr>`).join('');
     const content = `
@@ -6235,9 +6554,28 @@ app.post('/api/invoices/:id/send', async (req, res) => {
           ${inv.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due by ${new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</p>` : ''}
         </div>
       </div>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
+          Pay Now — $${parseFloat(inv.total).toFixed(2)}
+        </a>
+      </div>
+      <p style="text-align:center;font-size:12px;color:#9ca09c;">Secure payment powered by Square</p>
       <p>If you have any questions, feel free to reply to this email or call us.</p>
     `;
-    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content));
+
+    let attachments = null;
+    try {
+      const pdfResult = await generateInvoicePDF(inv);
+      if (pdfResult && pdfResult.bytes) {
+        attachments = [{
+          filename: `invoice-${inv.invoice_number || inv.id}.pdf`,
+          content: Buffer.from(pdfResult.bytes).toString('base64'),
+          type: 'application/pdf'
+        }];
+      }
+    } catch (pdfErr) { console.error('Invoice PDF error:', pdfErr); }
+
+    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content), attachments);
     await pool.query("UPDATE invoices SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
     res.json({ success: true, message: 'Invoice sent' });
   } catch (error) {
@@ -6268,6 +6606,497 @@ app.delete('/api/invoices/:id', async (req, res) => {
     const r = await pool.query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// SQUARE PAYMENT ENDPOINTS
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/pay/config - Public - Square frontend config
+app.get('/api/pay/config', (req, res) => {
+  res.json({
+    appId: SQUARE_APP_ID || '',
+    locationId: SQUARE_LOCATION_ID || '',
+    environment: process.env.SQUARE_ENVIRONMENT || 'sandbox'
+  });
+});
+
+// GET /api/square/status - Check Square connection
+app.get('/api/square/status', async (req, res) => {
+  if (!squareClient) {
+    return res.json({ connected: false, error: 'Square not configured' });
+  }
+  try {
+    const response = await squareClient.locationsApi.listLocations();
+    const locations = response.result.locations || [];
+    const location = locations.find(l => l.id === SQUARE_LOCATION_ID) || locations[0];
+    res.json({
+      connected: true,
+      environment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
+      locationId: location?.id,
+      locationName: location?.name,
+      currency: location?.currency
+    });
+  } catch (error) {
+    res.json({ connected: false, error: error.message });
+  }
+});
+
+// GET /api/pay/:token - Public - Fetch invoice by payment token
+app.get('/api/pay/:token', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const result = await pool.query(
+      `SELECT id, invoice_number, customer_id, customer_name, customer_email, customer_address,
+              subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date,
+              line_items, notes, created_at, sent_at, paid_at
+       FROM invoices WHERE payment_token = $1`,
+      [req.params.token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    const inv = result.rows[0];
+    // Update viewed_at
+    await pool.query('UPDATE invoices SET viewed_at = CURRENT_TIMESTAMP WHERE id = $1 AND viewed_at IS NULL', [inv.id]);
+
+    // Get payment history
+    try {
+      const payments = await pool.query(
+        'SELECT amount, method, status, card_last4, square_receipt_url, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC',
+        [inv.id]
+      );
+      inv.payment_history = payments.rows;
+    } catch(e) { inv.payment_history = []; }
+
+    res.json({ success: true, invoice: inv });
+  } catch (error) {
+    console.error('Pay token error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/pay/:token/card - Process card/Apple Pay payment
+app.post('/api/pay/:token/card', async (req, res) => {
+  try {
+    if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
+
+    const { sourceId, verificationToken } = req.body;
+    if (!sourceId) return res.status(400).json({ success: false, error: 'Payment source required' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = invResult.rows[0];
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
+
+    const amountCents = Math.round(balance * 100);
+    const idempotencyKey = crypto.randomUUID();
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    const paymentRequest = {
+      sourceId,
+      idempotencyKey,
+      amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: inv.invoice_number,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}`,
+    };
+    if (verificationToken) paymentRequest.verificationToken = verificationToken;
+
+    const response = await squareClient.paymentsApi.createPayment(paymentRequest);
+    const sqPayment = response.result.payment;
+
+    // Determine method
+    const method = sqPayment.sourceType === 'WALLET' ? 'apple_pay' : 'card';
+    const cardDetails = sqPayment.cardDetails;
+
+    // Record payment
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, balance, method, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+       sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl,
+       cardDetails?.card?.cardBrand, cardDetails?.card?.last4]
+    );
+
+    // Update invoice
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    await pool.query(
+      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newAmountPaid, newStatus, inv.id]
+    );
+
+    // Send confirmation emails
+    try {
+      // Customer confirmation
+      if (inv.customer_email) {
+        const custContent = `
+          <h2 style="color:#2e403d;margin:0 0 16px;">Payment Confirmation</h2>
+          <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+          <p>We've received your payment. Thank you!</p>
+          <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Amount paid:</strong> $${balance.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Method:</strong> ${method === 'apple_pay' ? 'Apple Pay' : 'Card'} ${cardDetails?.card?.last4 ? '•••• ' + cardDetails.card.last4 : ''}</p>
+            ${sqPayment.receiptUrl ? `<p style="margin:0;"><a href="${sqPayment.receiptUrl}" style="color:#059669;font-weight:600;">View Receipt</a></p>` : ''}
+          </div>
+        `;
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }));
+      }
+      // Admin notification
+      const adminContent = `
+        <h2 style="color:#2e403d;margin:0 0 16px;">Payment Received</h2>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${balance.toFixed(2)}</strong> on invoice <strong>${inv.invoice_number}</strong>.</p>
+        <p>Method: ${method === 'apple_pay' ? 'Apple Pay' : 'Card'} ${cardDetails?.card?.last4 ? '•••• ' + cardDetails.card.last4 : ''}</p>
+        <p>Square ID: ${sqPayment.id}</p>
+        ${sqPayment.receiptUrl ? `<p><a href="${sqPayment.receiptUrl}">View Receipt</a></p>` : ''}
+      `;
+      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${balance.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
+    } catch (emailErr) { console.error('Payment email error:', emailErr); }
+
+    res.json({
+      success: true,
+      payment: {
+        id: paymentId,
+        amount: balance,
+        status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+        receiptUrl: sqPayment.receiptUrl,
+        cardBrand: cardDetails?.card?.cardBrand,
+        cardLast4: cardDetails?.card?.last4
+      }
+    });
+  } catch (error) {
+    console.error('Card payment error:', error);
+    const errorMessage = error instanceof ApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
+    res.status(500).json({ success: false, error: errorMessage });
+  }
+});
+
+// POST /api/pay/:token/ach - Process ACH bank transfer
+app.post('/api/pay/:token/ach', async (req, res) => {
+  try {
+    if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
+
+    const { sourceId } = req.body;
+    if (!sourceId) return res.status(400).json({ success: false, error: 'Payment source required' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = invResult.rows[0];
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
+
+    const amountCents = Math.round(balance * 100);
+    const idempotencyKey = crypto.randomUUID();
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    const response = await squareClient.paymentsApi.createPayment({
+      sourceId,
+      idempotencyKey,
+      amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: inv.invoice_number,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}`,
+      acceptPartialAuthorization: false,
+    });
+    const sqPayment = response.result.payment;
+    const bankDetails = sqPayment.bankAccountDetails;
+
+    // ACH payments are typically PENDING until they clear
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, ach_bank_name, paid_at)
+       VALUES ($1, $2, $3, $4, 'ach', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, balance, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+       sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl, bankDetails?.bankName]
+    );
+
+    // Update invoice
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    await pool.query(
+      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newAmountPaid, newStatus, inv.id]
+    );
+
+    // Send emails
+    try {
+      if (inv.customer_email) {
+        const custContent = `
+          <h2 style="color:#2e403d;margin:0 0 16px;">Payment Confirmation</h2>
+          <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+          <p>We've received your ACH bank transfer. It may take 3-5 business days to clear.</p>
+          <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Amount:</strong> $${balance.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
+            <p style="margin:0;font-size:14px;color:#5b21b6;"><strong>Method:</strong> ACH Bank Transfer${bankDetails?.bankName ? ' (' + bankDetails.bankName + ')' : ''}</p>
+          </div>
+        `;
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }));
+      }
+      await sendEmail(NOTIFICATION_EMAIL, `ACH Payment: $${balance.toFixed(2)} from ${inv.customer_name}`, emailTemplate(`
+        <h2 style="color:#2e403d;margin:0 0 16px;">ACH Payment Received</h2>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${balance.toFixed(2)}</strong> via ACH on invoice <strong>${inv.invoice_number}</strong>.</p>
+        <p>Status: ${sqPayment.status} (ACH payments may take 3-5 days to clear)</p>
+        <p>Square ID: ${sqPayment.id}</p>
+      `, { showSignature: false }));
+    } catch (emailErr) { console.error('ACH email error:', emailErr); }
+
+    res.json({
+      success: true,
+      payment: {
+        id: paymentId,
+        amount: balance,
+        status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+        receiptUrl: sqPayment.receiptUrl,
+        bankName: bankDetails?.bankName,
+        note: sqPayment.status !== 'COMPLETED' ? 'ACH transfers typically take 3-5 business days to clear' : undefined
+      }
+    });
+  } catch (error) {
+    console.error('ACH payment error:', error);
+    const errorMessage = error instanceof ApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
+    res.status(500).json({ success: false, error: errorMessage });
+  }
+});
+
+// GET /api/pay/:token/pdf - Download invoice PDF (public)
+app.get('/api/pay/:token/pdf', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = result.rows[0];
+    const pdfResult = await generateInvoicePDF(inv);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'PDF generation failed' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${inv.invoice_number || inv.id}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
+  } catch (error) {
+    console.error('Pay PDF error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/invoices/:id/pdf - Download invoice PDF (admin)
+app.get('/api/invoices/:id/pdf', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = result.rows[0];
+    const pdfResult = await generateInvoicePDF(inv);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'PDF generation failed' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${inv.invoice_number || inv.id}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
+  } catch (error) {
+    console.error('Invoice PDF error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices/:id/record-payment - Record manual payment (cash/check)
+app.post('/api/invoices/:id/record-payment', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const { amount, method, notes } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = invResult.rows[0];
+
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    await ensurePaymentsTables();
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, notes, paid_at)
+       VALUES ($1, $2, $3, $4, $5, 'completed', $6, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, amount, method || 'cash', notes]
+    );
+
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + parseFloat(amount);
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    await pool.query(
+      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newAmountPaid, newStatus, inv.id]
+    );
+
+    res.json({ success: true, paymentId, newAmountPaid, newStatus });
+  } catch (error) {
+    console.error('Record payment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/invoices/:id/send-reminder - Send payment reminder email
+app.post('/api/invoices/:id/send-reminder', async (req, res) => {
+  try {
+    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = invResult.rows[0];
+    if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
+
+    const content = `
+      <h2 style="color:#2e403d;margin:0 0 16px;">Payment Reminder</h2>
+      <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+      <p>This is a friendly reminder that your invoice <strong>${inv.invoice_number}</strong> has a balance of <strong>$${balance.toFixed(2)}</strong>${inv.due_date ? ' due by <strong>' + new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) + '</strong>' : ''}.</p>
+      ${payUrl ? `
+        <div style="text-align:center;margin:28px 0;">
+          <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
+            Pay Now — $${balance.toFixed(2)}
+          </a>
+        </div>
+        <p style="text-align:center;font-size:12px;color:#9ca09c;">Secure payment powered by Square</p>
+      ` : ''}
+      <p>If you've already sent payment, please disregard this reminder.</p>
+    `;
+    await sendEmail(inv.customer_email, `Reminder: Invoice ${inv.invoice_number} — $${balance.toFixed(2)} due`, emailTemplate(content));
+
+    await pool.query(
+      'UPDATE invoices SET reminder_sent_at = CURRENT_TIMESTAMP, reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [inv.id]
+    );
+
+    res.json({ success: true, message: 'Reminder sent' });
+  } catch (error) {
+    console.error('Send reminder error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// CUSTOMER PORTAL ENDPOINTS
+// ═══════════════════════════════════════════════════════════
+
+// POST /api/portal/request-access - Send magic link email
+app.post('/api/portal/request-access', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+
+    // Find customer by email
+    const custResult = await pool.query(
+      'SELECT id, customer_name FROM customers WHERE email ILIKE $1 LIMIT 1',
+      [email.trim()]
+    );
+
+    // Always return success (don't reveal if email exists)
+    if (custResult.rows.length === 0) {
+      return res.json({ success: true, message: 'If an account exists, a link has been sent.' });
+    }
+
+    const customer = custResult.rows[0];
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    await ensurePaymentsTables();
+    await pool.query(
+      'INSERT INTO customer_portal_tokens (token, customer_id, email, expires_at) VALUES ($1, $2, $3, $4)',
+      [token, customer.id, email.trim(), expiresAt]
+    );
+
+    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const portalUrl = `${baseUrl}/customer-portal.html?token=${token}`;
+
+    const content = `
+      <h2 style="color:#2e403d;margin:0 0 16px;">Your Customer Portal Access</h2>
+      <p>Hi ${(customer.customer_name || '').split(' ')[0]},</p>
+      <p>Click below to access your Pappas & Co. customer portal where you can view invoices, make payments, and see your payment history.</p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${portalUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
+          Access Your Portal
+        </a>
+      </div>
+      <p style="font-size:13px;color:#9ca09c;">This link is valid for 30 days. If you didn't request this, please ignore this email.</p>
+    `;
+    await sendEmail(email, 'Your Pappas & Co. Customer Portal', emailTemplate(content, { showSignature: false }));
+
+    res.json({ success: true, message: 'Access link sent to your email.' });
+  } catch (error) {
+    console.error('Portal access error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/portal/:token - Verify token, return customer data
+app.get('/api/portal/:token', async (req, res) => {
+  try {
+    await ensurePaymentsTables();
+    const result = await pool.query(
+      'SELECT pt.*, c.customer_name, c.email as customer_email, c.phone, c.address FROM customer_portal_tokens pt LEFT JOIN customers c ON pt.customer_id = c.id WHERE pt.token = $1 AND pt.expires_at > NOW()',
+      [req.params.token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Link expired or invalid' });
+    }
+    const data = result.rows[0];
+    res.json({
+      success: true,
+      customer: {
+        id: data.customer_id,
+        name: data.customer_name,
+        email: data.customer_email || data.email,
+        phone: data.phone,
+        address: data.address
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/portal/:token/invoices - Customer's invoices
+app.get('/api/portal/:token/invoices', async (req, res) => {
+  try {
+    await ensurePaymentsTables();
+    const tokenResult = await pool.query(
+      'SELECT customer_id, email FROM customer_portal_tokens WHERE token = $1 AND expires_at > NOW()',
+      [req.params.token]
+    );
+    if (tokenResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const { customer_id, email } = tokenResult.rows[0];
+
+    await ensureInvoicesTable();
+    const invoices = await pool.query(
+      `SELECT id, invoice_number, customer_name, total, amount_paid, status, due_date, payment_token, created_at, sent_at, paid_at
+       FROM invoices WHERE customer_id = $1 OR customer_email ILIKE $2
+       ORDER BY created_at DESC`,
+      [customer_id, email]
+    );
+    res.json({ success: true, invoices: invoices.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/portal/:token/payments - Customer's payment history
+app.get('/api/portal/:token/payments', async (req, res) => {
+  try {
+    await ensurePaymentsTables();
+    const tokenResult = await pool.query(
+      'SELECT customer_id FROM customer_portal_tokens WHERE token = $1 AND expires_at > NOW()',
+      [req.params.token]
+    );
+    if (tokenResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid token' });
+    const { customer_id } = tokenResult.rows[0];
+
+    const payments = await pool.query(
+      `SELECT p.*, i.invoice_number FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       WHERE p.customer_id = $1
+       ORDER BY p.created_at DESC`,
+      [customer_id]
+    );
+    res.json({ success: true, payments: payments.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -7045,6 +7874,45 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
   }
 });
 
+// Payments table
+const PAYMENTS_TABLE = `CREATE TABLE IF NOT EXISTS payments (
+  id SERIAL PRIMARY KEY,
+  payment_id VARCHAR(100) UNIQUE,
+  invoice_id INTEGER NOT NULL REFERENCES invoices(id),
+  customer_id INTEGER,
+  amount DECIMAL(10,2) NOT NULL,
+  method VARCHAR(50),
+  status VARCHAR(30) DEFAULT 'pending',
+  square_payment_id VARCHAR(100),
+  square_order_id VARCHAR(100),
+  square_receipt_url TEXT,
+  card_brand VARCHAR(30),
+  card_last4 VARCHAR(4),
+  ach_bank_name VARCHAR(100),
+  qb_payment_id VARCHAR(100),
+  notes TEXT,
+  failure_reason TEXT,
+  refund_amount DECIMAL(10,2) DEFAULT 0,
+  paid_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+// Customer portal tokens table
+const PORTAL_TOKENS_TABLE = `CREATE TABLE IF NOT EXISTS customer_portal_tokens (
+  id SERIAL PRIMARY KEY,
+  token VARCHAR(64) UNIQUE NOT NULL,
+  customer_id INTEGER,
+  email VARCHAR(255) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+async function ensurePaymentsTables() {
+  await pool.query(PAYMENTS_TABLE);
+  await pool.query(PORTAL_TOKENS_TABLE);
+}
+
 // Database migrations — widen contract columns that are too narrow for signature data
 (async () => {
   try {
@@ -7074,6 +7942,27 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
     const fixed2 = await pool.query(`UPDATE sent_quotes SET status = 'contracted', contract_signed_at = updated_at WHERE status = 'signed' AND contract_signed_at IS NULL AND created_at < '2026-03-04' RETURNING id, quote_number`);
     if (fixed2.rowCount > 0) console.log('✅ Fixed ' + fixed2.rowCount + ' old signed quotes→contracted (pre-fix):', fixed2.rows.map(r => r.quote_number).join(', '));
   } catch(e) { console.error('Migration fix error:', e.message); }
+
+  // Create payments & portal tokens tables
+  try {
+    await pool.query(PAYMENTS_TABLE);
+    await pool.query(PORTAL_TOKENS_TABLE);
+    console.log('✅ Payments & portal tokens tables ready');
+  } catch(e) { console.error('Payments table error:', e.message); }
+
+  // Add payment columns to invoices
+  const invoicePaymentCols = [
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_token VARCHAR(64)',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_token_created_at TIMESTAMP',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS square_invoice_id VARCHAR(100)',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMP',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0',
+  ];
+  for (const sql of invoicePaymentCols) {
+    try { await pool.query(sql); } catch(e) { /* column may already exist */ }
+  }
+  console.log('✅ Invoice payment columns ready');
 })();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

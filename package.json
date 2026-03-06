@@ -27,6 +27,7 @@
     "nodemailer": "^6.9.7",
     "pdf-lib": "^1.17.1",
     "pg": "^8.11.3",
+    "square": "^44.0.0",
     "twilio": "^4.19.0"
   },
   "devDependencies": {

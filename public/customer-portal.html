@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Portal - Pappas & Co. Landscaping</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .portal-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .header {
+            background: #2e403d;
+            padding: 30px 32px;
+            text-align: center;
+        }
+        .logo {
+            margin: 0 auto;
+        }
+        .logo img {
+            max-height: 80px;
+            max-width: 350px;
+            object-fit: contain;
+        }
+        .content {
+            padding: 32px;
+        }
+
+        /* Email Form State */
+        #emailState h2 {
+            font-size: 24px;
+            color: #1e2e2c;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        #emailState > p {
+            color: #6b7280;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .email-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .email-form label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        .email-form input[type="email"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .email-form input[type="email"]:focus {
+            border-color: #2e403d;
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+        .email-form button {
+            width: 100%;
+            margin-top: 14px;
+            padding: 13px 20px;
+            background: #2e403d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .email-form button:hover {
+            background: #1e2e2c;
+        }
+        .email-form button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Success / Error Messages */
+        .message {
+            text-align: center;
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .message-success {
+            background: #ecfdf5;
+            color: #059669;
+        }
+        .message-error {
+            background: #fef0f0;
+            color: #dc4a4a;
+        }
+
+        /* Portal State */
+        .welcome {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e2e2c;
+            margin-bottom: 20px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 24px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            color: #6b7280;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s;
+            text-align: center;
+        }
+        .tab-btn:hover {
+            color: #2e403d;
+        }
+        .tab-btn.active {
+            color: #2e403d;
+            border-bottom-color: #2e403d;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .badge-paid { background: #ecfdf5; color: #059669; }
+        .badge-sent { background: #eff6ff; color: #3b82f6; }
+        .badge-overdue { background: #fef0f0; color: #dc4a4a; }
+        .badge-draft { background: #f0f2f0; color: #6e726e; }
+        .badge-partial { background: #fffbeb; color: #d97706; }
+        .badge-succeeded, .badge-success { background: #ecfdf5; color: #059669; }
+        .badge-pending { background: #fffbeb; color: #d97706; }
+        .badge-failed { background: #fef0f0; color: #dc4a4a; }
+
+        /* Invoice Cards */
+        .invoice-card {
+            background: white;
+            border: 1px solid #e2e5e2;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .invoice-card:hover {
+            border-color: #c9dd80;
+        }
+        .invoice-info h4 {
+            font-size: 15px;
+            color: #1e2e2c;
+            margin-bottom: 4px;
+        }
+        .invoice-info .invoice-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .invoice-info .invoice-meta span + span::before {
+            content: '\00b7';
+            margin: 0 6px;
+        }
+        .invoice-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .invoice-amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e2e2c;
+        }
+        .pay-btn {
+            display: inline-block;
+            padding: 7px 18px;
+            background: #c9dd80;
+            color: #1e2e2c;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .pay-btn:hover {
+            background: #b8cf65;
+        }
+
+        /* Payment Cards */
+        .payment-card {
+            background: white;
+            border: 1px solid #e2e5e2;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .payment-card:hover {
+            border-color: #c9dd80;
+        }
+        .payment-info h4 {
+            font-size: 15px;
+            color: #1e2e2c;
+            margin-bottom: 4px;
+        }
+        .payment-info .payment-meta {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .payment-info .payment-meta span + span::before {
+            content: '\00b7';
+            margin: 0 6px;
+        }
+        .payment-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+        .payment-amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: #059669;
+        }
+        .receipt-link {
+            font-size: 12px;
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .receipt-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Account Section */
+        .account-section {
+            max-width: 460px;
+        }
+        .account-field {
+            padding: 14px 0;
+            border-bottom: 1px solid #f0f2f0;
+        }
+        .account-field:last-of-type {
+            border-bottom: none;
+        }
+        .account-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .account-value {
+            font-size: 15px;
+            color: #1e2e2c;
+        }
+        .account-actions {
+            margin-top: 24px;
+        }
+        .account-actions button {
+            padding: 10px 20px;
+            background: #f0f2f0;
+            color: #2e403d;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .account-actions button:hover {
+            background: #e2e5e2;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+        .empty-state svg {
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Loading Spinner */
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+        .spinner {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            border: 3px solid #e5e7eb;
+            border-top-color: #2e403d;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Contact Footer */
+        .contact-info {
+            background: #f8faf8;
+            padding: 20px 32px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+        }
+        .contact-info a {
+            color: #2e403d;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .contact-info a:hover {
+            text-decoration: underline;
+        }
+        .contact-info .contact-divider {
+            margin: 0 10px;
+            color: #d1d5db;
+        }
+
+        /* Section Headings */
+        .section-heading {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                margin: 20px auto;
+                padding: 0 12px;
+            }
+            .content {
+                padding: 24px 20px;
+            }
+            .header {
+                padding: 24px 20px;
+            }
+            .logo img {
+                max-width: 240px;
+            }
+            .invoice-card, .payment-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .invoice-right, .payment-right {
+                align-items: flex-start;
+                flex-direction: row;
+                width: 100%;
+                justify-content: space-between;
+            }
+            .tabs {
+                gap: 0;
+            }
+            .tab-btn {
+                padding: 10px 8px;
+                font-size: 13px;
+            }
+            .contact-info .contact-divider {
+                display: none;
+            }
+            .contact-info a {
+                display: block;
+                margin: 4px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="portal-card">
+            <div class="header">
+                <div class="logo">
+                    <img src="https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png" alt="Pappas & Co. Landscaping">
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- State 1: Email Entry -->
+                <div id="emailState">
+                    <h2>Customer Portal</h2>
+                    <p>Enter your email to access your invoices and payments.</p>
+                    <div class="email-form">
+                        <label for="emailInput">Email Address</label>
+                        <input type="email" id="emailInput" placeholder="your@email.com" autocomplete="email">
+                        <button id="sendLinkBtn" onclick="requestAccess()">Send Access Link</button>
+                    </div>
+                    <div id="emailMessage"></div>
+                </div>
+
+                <!-- State 2: Portal View -->
+                <div id="portalState" style="display: none;">
+                    <div class="welcome" id="welcomeText">Welcome</div>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="invoices" onclick="switchTab('invoices')">Invoices</button>
+                        <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">Payments</button>
+                        <button class="tab-btn" data-tab="account" onclick="switchTab('account')">Account</button>
+                    </div>
+                    <div id="tabContent">
+                        <div class="loading"><div class="spinner"></div></div>
+                    </div>
+                </div>
+
+                <!-- Error State (invalid/expired token) -->
+                <div id="errorState" style="display: none;">
+                    <h2 style="text-align:center; color:#1e2e2c; margin-bottom:8px;">Link Expired</h2>
+                    <p style="text-align:center; color:#6b7280; margin-bottom:20px;">This access link is no longer valid. Request a new one below.</p>
+                    <div class="email-form">
+                        <label for="reRequestEmail">Email Address</label>
+                        <input type="email" id="reRequestEmail" placeholder="your@email.com" autocomplete="email">
+                        <button onclick="requestAccessFromError()">Send New Access Link</button>
+                    </div>
+                    <div id="errorMessage"></div>
+                </div>
+            </div>
+
+            <div class="contact-info">
+                <a href="tel:4408867318">(440) 886-7318</a>
+                <span class="contact-divider">|</span>
+                <a href="mailto:hello@pappaslandscaping.com">hello@pappaslandscaping.com</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let portalToken = null;
+        let customerData = null;
+        let currentTab = 'invoices';
+
+        // ── Initialization ──────────────────────────────────────────────
+        async function init() {
+            const token = new URLSearchParams(window.location.search).get('token');
+            if (token) {
+                await loadPortal(token);
+            } else {
+                showEmailForm();
+            }
+        }
+
+        function showEmailForm() {
+            document.getElementById('emailState').style.display = '';
+            document.getElementById('portalState').style.display = 'none';
+            document.getElementById('errorState').style.display = 'none';
+        }
+
+        function showPortal() {
+            document.getElementById('emailState').style.display = 'none';
+            document.getElementById('portalState').style.display = '';
+            document.getElementById('errorState').style.display = 'none';
+        }
+
+        function showError() {
+            document.getElementById('emailState').style.display = 'none';
+            document.getElementById('portalState').style.display = 'none';
+            document.getElementById('errorState').style.display = '';
+        }
+
+        // ── Request Access (magic link) ─────────────────────────────────
+        async function requestAccess() {
+            const email = document.getElementById('emailInput').value.trim();
+            if (!email) return;
+
+            const btn = document.getElementById('sendLinkBtn');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+
+            try {
+                const res = await fetch('/api/portal/request-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Something went wrong');
+
+                document.getElementById('emailMessage').innerHTML =
+                    '<div class="message message-success">Check your email! We sent you a secure access link.</div>';
+                btn.textContent = 'Link Sent';
+            } catch (err) {
+                document.getElementById('emailMessage').innerHTML =
+                    `<div class="message message-error">${err.message}</div>`;
+                btn.disabled = false;
+                btn.textContent = 'Send Access Link';
+            }
+        }
+
+        async function requestAccessFromError() {
+            const email = document.getElementById('reRequestEmail').value.trim();
+            if (!email) return;
+
+            const btn = document.querySelector('#errorState button');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+
+            try {
+                const res = await fetch('/api/portal/request-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Something went wrong');
+
+                document.getElementById('errorMessage').innerHTML =
+                    '<div class="message message-success">Check your email! We sent you a secure access link.</div>';
+                btn.textContent = 'Link Sent';
+            } catch (err) {
+                document.getElementById('errorMessage').innerHTML =
+                    `<div class="message message-error">${err.message}</div>`;
+                btn.disabled = false;
+                btn.textContent = 'Send New Access Link';
+            }
+        }
+
+        // ── Load Portal ─────────────────────────────────────────────────
+        async function loadPortal(token) {
+            try {
+                const res = await fetch(`/api/portal/${token}`);
+                if (!res.ok) {
+                    showError();
+                    return;
+                }
+
+                const data = await res.json();
+                customerData = data.customer || data;
+                portalToken = token;
+
+                const name = customerData.name || customerData.first_name || 'Customer';
+                document.getElementById('welcomeText').textContent = `Welcome, ${name}`;
+
+                showPortal();
+                await loadInvoices(token);
+            } catch (err) {
+                showError();
+            }
+        }
+
+        // ── Tab Switching ───────────────────────────────────────────────
+        function switchTab(tab) {
+            currentTab = tab;
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+
+            const content = document.getElementById('tabContent');
+            content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            if (tab === 'invoices') loadInvoices(portalToken);
+            else if (tab === 'payments') loadPayments(portalToken);
+            else if (tab === 'account') renderAccount();
+        }
+
+        // ── Invoices Tab ────────────────────────────────────────────────
+        async function loadInvoices(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/invoices`);
+                if (!res.ok) throw new Error('Failed to load invoices');
+
+                const data = await res.json();
+                const invoices = data.invoices || data || [];
+
+                if (invoices.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                            <p>No invoices yet.</p>
+                        </div>`;
+                    return;
+                }
+
+                // Sort: outstanding first, then by date descending
+                const outstanding = invoices.filter(i => i.status === 'sent' || i.status === 'overdue');
+                const others = invoices.filter(i => i.status !== 'sent' && i.status !== 'overdue');
+
+                let html = '';
+
+                if (outstanding.length > 0) {
+                    html += '<div class="section-heading">Outstanding</div>';
+                    outstanding.forEach(inv => { html += renderInvoiceCard(inv, true); });
+                }
+
+                if (others.length > 0) {
+                    if (outstanding.length > 0) {
+                        html += '<div class="section-heading" style="margin-top:24px;">All Invoices</div>';
+                    }
+                    others.forEach(inv => { html += renderInvoiceCard(inv, false); });
+                }
+
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        }
+
+        function renderInvoiceCard(inv, showPay) {
+            const statusClass = getStatusClass(inv.status);
+            const statusLabel = inv.status ? inv.status.charAt(0).toUpperCase() + inv.status.slice(1) : 'Draft';
+            const dueDate = inv.due_date ? `<span>Due ${formatDate(inv.due_date)}</span>` : '';
+            const invoiceNumber = inv.invoice_number || inv.number || `#${inv.id}`;
+            const total = formatCurrency(inv.total || inv.amount || 0);
+            const date = inv.date || inv.created_at || inv.invoice_date;
+
+            let payButton = '';
+            if (showPay && inv.payment_token) {
+                payButton = `<a href="/pay-invoice.html?token=${inv.payment_token}" class="pay-btn">Pay Now</a>`;
+            } else if (showPay) {
+                payButton = `<a href="/pay-invoice.html?token=${inv.payment_token || ''}" class="pay-btn">Pay Now</a>`;
+            }
+
+            return `
+                <div class="invoice-card">
+                    <div class="invoice-info">
+                        <h4>Invoice ${invoiceNumber}</h4>
+                        <div class="invoice-meta">
+                            ${date ? `<span>${formatDate(date)}</span>` : ''}
+                            ${dueDate}
+                        </div>
+                    </div>
+                    <div class="invoice-right">
+                        <div>
+                            <span class="invoice-amount">${total}</span>
+                            <span class="badge badge-${statusClass}" style="margin-left:8px;">${statusLabel}</span>
+                        </div>
+                        ${payButton}
+                    </div>
+                </div>`;
+        }
+
+        function getStatusClass(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'paid': return 'paid';
+                case 'sent': return 'sent';
+                case 'overdue': return 'overdue';
+                case 'partial': return 'partial';
+                default: return 'draft';
+            }
+        }
+
+        // ── Payments Tab ────────────────────────────────────────────────
+        async function loadPayments(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/payments`);
+                if (!res.ok) throw new Error('Failed to load payments');
+
+                const data = await res.json();
+                const payments = data.payments || data || [];
+
+                if (payments.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></svg>
+                            <p>No payments recorded yet.</p>
+                        </div>`;
+                    return;
+                }
+
+                let html = '';
+                payments.forEach(pay => {
+                    html += renderPaymentCard(pay);
+                });
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+            }
+        }
+
+        function renderPaymentCard(pay) {
+            const amount = formatCurrency(pay.amount || 0);
+            const date = pay.date || pay.created_at || pay.payment_date;
+            const method = formatMethod(pay.method || pay.payment_method || '');
+            const invoiceRef = pay.invoice_number || (pay.invoice_id ? `Invoice #${pay.invoice_id}` : '');
+            const status = pay.status || 'succeeded';
+            const statusClass = getPaymentStatusClass(status);
+            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+            let receipt = '';
+            if (pay.receipt_url) {
+                receipt = `<a href="${pay.receipt_url}" target="_blank" rel="noopener" class="receipt-link">View Receipt</a>`;
+            }
+
+            return `
+                <div class="payment-card">
+                    <div class="payment-info">
+                        <h4>${invoiceRef || 'Payment'}</h4>
+                        <div class="payment-meta">
+                            ${date ? `<span>${formatDate(date)}</span>` : ''}
+                            ${method ? `<span>${method}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="payment-right">
+                        <div>
+                            <span class="payment-amount">${amount}</span>
+                            <span class="badge badge-${statusClass}" style="margin-left:8px;">${statusLabel}</span>
+                        </div>
+                        ${receipt}
+                    </div>
+                </div>`;
+        }
+
+        function getPaymentStatusClass(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'succeeded': case 'success': case 'completed': return 'succeeded';
+                case 'pending': return 'pending';
+                case 'failed': return 'failed';
+                default: return 'succeeded';
+            }
+        }
+
+        function formatMethod(method) {
+            switch ((method || '').toLowerCase()) {
+                case 'card': return 'Credit Card';
+                case 'ach': return 'ACH Bank Transfer';
+                case 'cash': return 'Cash';
+                case 'check': return 'Check';
+                case 'credit_card': return 'Credit Card';
+                case 'bank_transfer': return 'ACH Bank Transfer';
+                default: return method || '';
+            }
+        }
+
+        // ── Account Tab ─────────────────────────────────────────────────
+        function renderAccount() {
+            const c = customerData || {};
+            const name = c.name || [c.first_name, c.last_name].filter(Boolean).join(' ') || '-';
+            const email = c.email || '-';
+            const phone = c.phone || '-';
+            const address = formatAddress(c);
+
+            document.getElementById('tabContent').innerHTML = `
+                <div class="account-section">
+                    <div class="account-field">
+                        <div class="account-label">Name</div>
+                        <div class="account-value">${escapeHtml(name)}</div>
+                    </div>
+                    <div class="account-field">
+                        <div class="account-label">Email</div>
+                        <div class="account-value">${escapeHtml(email)}</div>
+                    </div>
+                    <div class="account-field">
+                        <div class="account-label">Phone</div>
+                        <div class="account-value">${escapeHtml(phone)}</div>
+                    </div>
+                    ${address ? `
+                    <div class="account-field">
+                        <div class="account-label">Address</div>
+                        <div class="account-value">${escapeHtml(address)}</div>
+                    </div>` : ''}
+                    <div class="account-actions">
+                        <button onclick="requestNewLink()">Request New Access Link</button>
+                    </div>
+                </div>`;
+        }
+
+        function formatAddress(c) {
+            if (c.address) return c.address;
+            const parts = [c.street, c.city, c.state, c.zip].filter(Boolean);
+            return parts.length ? parts.join(', ') : '';
+        }
+
+        async function requestNewLink() {
+            const email = customerData?.email;
+            if (!email) return;
+
+            const btn = document.querySelector('.account-actions button');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+
+            try {
+                const res = await fetch('/api/portal/request-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Something went wrong');
+
+                btn.textContent = 'Link Sent!';
+            } catch (err) {
+                btn.textContent = 'Request New Access Link';
+                btn.disabled = false;
+                alert(err.message);
+            }
+        }
+
+        // ── Utility Functions ───────────────────────────────────────────
+        function formatCurrency(amt) {
+            const num = typeof amt === 'string' ? parseFloat(amt) : amt;
+            if (isNaN(num)) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(num / 100);
+        }
+
+        function formatDate(d) {
+            if (!d) return '';
+            const date = new Date(d);
+            if (isNaN(date.getTime())) return d;
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Allow Enter key to submit the email form
+        document.addEventListener('DOMContentLoaded', () => {
+            const emailInput = document.getElementById('emailInput');
+            if (emailInput) {
+                emailInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') requestAccess();
+                });
+            }
+            const reRequestInput = document.getElementById('reRequestEmail');
+            if (reRequestInput) {
+                reRequestInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') requestAccessFromError();
+                });
+            }
+        });
+
+        // Boot
+        init();
+    </script>
+</body>
+</html>

@@ -404,17 +404,51 @@
                 </div>
             </div>
 
-            <!-- Future Integrations Placeholder -->
-            <div class="integration-card" style="opacity: 0.5;">
+            <!-- Square Payments Integration Card -->
+            <div class="integration-card" id="squareCard">
                 <div class="integration-header">
                     <div class="integration-title">
-                        <div class="icon" style="background: #635bff; color: white; font-weight: 800; font-size: 16px;">S</div>
+                        <div class="icon" style="background: #006aff; color: white; font-weight: 800; font-size: 18px;">◻</div>
                         <div>
-                            <h2>Stripe</h2>
-                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Online payment processing</div>
+                            <h2>Square Payments</h2>
+                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Accept card, ACH & Apple Pay payments on invoices</div>
                         </div>
                     </div>
-                    <span class="badge badge-disconnected">Coming Soon</span>
+                    <span class="badge badge-disconnected" id="squareBadge">
+                        <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                        <span id="squareBadgeText">Checking...</span>
+                    </span>
+                </div>
+                <div class="integration-body">
+                    <div id="squareStatus">
+                        <p style="font-size:14px;color:var(--gray-500);line-height:1.6;">
+                            Square enables your customers to pay invoices online with credit/debit cards, ACH bank transfers, and Apple Pay.
+                            When you send an invoice, customers receive a secure payment link.
+                        </p>
+                        <div id="squareConnected" style="display:none;margin-top:16px;">
+                            <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px;">
+                                Environment: <strong id="squareEnv"></strong>
+                                <span style="margin-left:16px;">Location: <strong id="squareLoc"></strong></span>
+                            </div>
+                            <div class="actions">
+                                <button class="btn btn-outline" onclick="testSquare()">Test Connection</button>
+                            </div>
+                        </div>
+                        <div id="squareDisconnected" style="display:none;margin-top:16px;">
+                            <div class="setup-guide">
+                                <h4>Setup Required</h4>
+                                <ol>
+                                    <li>Create a Square Developer account at <a href="https://developer.squareup.com" target="_blank">developer.squareup.com</a></li>
+                                    <li>Create an application and get your credentials</li>
+                                    <li>Add these environment variables to your server:
+                                        <br><code>SQUARE_ACCESS_TOKEN</code>, <code>SQUARE_APPLICATION_ID</code>, <code>SQUARE_LOCATION_ID</code>
+                                    </li>
+                                    <li>Set <code>SQUARE_ENVIRONMENT</code> to <code>sandbox</code> or <code>production</code></li>
+                                    <li>Restart the server</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -724,6 +758,47 @@
             t.style.background = isError ? 'var(--red)' : 'var(--forest)';
             t.classList.add('show');
             setTimeout(() => t.classList.remove('show'), 4000);
+        }
+
+        // Square Payments Status
+        loadSquareStatus();
+
+        async function loadSquareStatus() {
+            try {
+                const res = await fetch('/api/square/status');
+                const data = await res.json();
+                if (data.connected) {
+                    document.getElementById('squareBadge').className = 'badge badge-connected';
+                    document.getElementById('squareBadgeText').textContent = 'Connected';
+                    document.getElementById('squareConnected').style.display = 'block';
+                    document.getElementById('squareDisconnected').style.display = 'none';
+                    document.getElementById('squareEnv').textContent = data.environment || 'sandbox';
+                    document.getElementById('squareLoc').textContent = data.locationId || '—';
+                } else {
+                    document.getElementById('squareBadge').className = 'badge badge-disconnected';
+                    document.getElementById('squareBadgeText').textContent = 'Not Configured';
+                    document.getElementById('squareConnected').style.display = 'none';
+                    document.getElementById('squareDisconnected').style.display = 'block';
+                }
+            } catch (e) {
+                document.getElementById('squareBadge').className = 'badge badge-disconnected';
+                document.getElementById('squareBadgeText').textContent = 'Not Configured';
+                document.getElementById('squareDisconnected').style.display = 'block';
+            }
+        }
+
+        async function testSquare() {
+            try {
+                const res = await fetch('/api/square/status');
+                const data = await res.json();
+                if (data.connected) {
+                    showToast('Square connection verified! Environment: ' + data.environment);
+                } else {
+                    showToast('Square not connected: ' + (data.error || 'Missing configuration'), true);
+                }
+            } catch (e) {
+                showToast('Failed to test Square connection', true);
+            }
         }
     </script>
 </body>

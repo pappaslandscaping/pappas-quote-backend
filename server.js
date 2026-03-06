@@ -2907,36 +2907,91 @@ app.patch('/api/jobs/reorder', async (req, res) => {
 app.post('/api/jobs/optimize-route', async (req, res) => {
   try {
     const { date, startAddress, crew } = req.body;
-    const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-    if (!GOOGLE_MAPS_API_KEY) return res.status(400).json({ success: false, error: 'Google Maps API key not configured' });
-    
+
     let query = 'SELECT * FROM scheduled_jobs WHERE job_date::date = $1::date AND status != $2';
     let params = [date, 'completed'];
     if (crew) { query += ' AND crew_assigned = $3'; params.push(crew); }
     query += ' ORDER BY route_order ASC NULLS LAST';
-    
+
     const jobsResult = await pool.query(query, params);
     const jobs = jobsResult.rows;
     if (jobs.length < 2) return res.json({ success: true, message: 'Not enough jobs', jobs });
-    
-    const addresses = jobs.map(j => j.address);
-    const origin = startAddress || '9523 Clinton Rd, Cleveland, OH 44144';
-    const waypoints = addresses.join('|');
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(origin)}&waypoints=optimize:true|${encodeURIComponent(waypoints)}&key=${GOOGLE_MAPS_API_KEY}`;
-    
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.status !== 'OK') return res.status(400).json({ success: false, error: `Google Maps error: ${data.status}` });
-    
-    const waypointOrder = data.routes[0].waypoint_order;
-    const optimizedJobs = waypointOrder.map((idx, order) => ({ ...jobs[idx], route_order: order + 1 }));
+
+    // Need lat/lng for all jobs — geocode any missing ones first
+    const needsGeocode = jobs.filter(j => !j.lat || !j.lng);
+    for (const job of needsGeocode) {
+      if (!job.address) continue;
+      try {
+        const q = encodeURIComponent(job.address);
+        const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
+        const gData = await gRes.json();
+        if (gData && gData.length > 0) {
+          job.lat = parseFloat(gData[0].lat);
+          job.lng = parseFloat(gData[0].lon);
+          await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2 WHERE id = $3', [job.lat, job.lng, job.id]);
+        }
+        await new Promise(r => setTimeout(r, 1100));
+      } catch (e) { /* skip */ }
+    }
+
+    const geocodedJobs = jobs.filter(j => j.lat && j.lng);
+    if (geocodedJobs.length < 2) return res.status(400).json({ success: false, error: 'Not enough geocoded jobs. Check addresses.' });
+
+    // Start location: Pappas HQ
+    const startLat = 41.4268;
+    const startLng = -81.7356;
+
+    const ORS_KEY = process.env.OPENROUTESERVICE_API_KEY;
+    if (ORS_KEY) {
+      // Use OpenRouteService Optimization API (Vroom-based VRP solver)
+      const orsJobs = geocodedJobs.map((j, i) => ({
+        id: i,
+        location: [parseFloat(j.lng), parseFloat(j.lat)],
+        service: Math.max((parseInt(j.estimated_duration) || 30) * 60, 300)
+      }));
+      const orsBody = {
+        jobs: orsJobs,
+        vehicles: [{ id: 0, profile: 'driving-car', start: [startLng, startLat], end: [startLng, startLat] }]
+      };
+      const orsRes = await fetch('https://api.openrouteservice.org/optimization', {
+        method: 'POST',
+        headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(orsBody)
+      });
+      const orsData = await orsRes.json();
+
+      if (orsData.routes && orsData.routes.length > 0 && orsData.routes[0].steps) {
+        const jobSteps = orsData.routes[0].steps.filter(s => s.type === 'job');
+        const optimizedJobs = jobSteps.map((step, order) => ({ ...geocodedJobs[step.job], route_order: order + 1 }));
+        for (const job of optimizedJobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
+        const totalDistance = orsData.routes[0].distance || 0;
+        const totalDuration = orsData.routes[0].duration || 0;
+        return res.json({ success: true, message: 'Route optimized via OpenRouteService', jobs: optimizedJobs, stats: { totalStops: geocodedJobs.length, totalDistance: (totalDistance / 1609.34).toFixed(1) + ' miles', totalDriveTime: Math.round(totalDuration / 60) + ' minutes' } });
+      }
+      // If ORS failed, fall through to local optimizer
+      console.error('ORS optimization failed, falling back to local:', orsData.error || 'unknown error');
+    }
+
+    // Fallback: nearest-neighbor TSP
+    const stops = geocodedJobs.map(j => ({ ...j, lat: parseFloat(j.lat), lng: parseFloat(j.lng) }));
+    const visited = new Set();
+    const order = [];
+    let curLat = startLat, curLng = startLng;
+    while (order.length < stops.length) {
+      let nearest = null, nearestDist = Infinity;
+      for (const s of stops) {
+        if (visited.has(s.id)) continue;
+        const d = haversine(curLat, curLng, s.lat, s.lng);
+        if (d < nearestDist) { nearestDist = d; nearest = s; }
+      }
+      if (!nearest) break;
+      visited.add(nearest.id);
+      order.push(nearest);
+      curLat = nearest.lat; curLng = nearest.lng;
+    }
+    const optimizedJobs = order.map((j, i) => ({ ...j, route_order: i + 1 }));
     for (const job of optimizedJobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
-    
-    const legs = data.routes[0].legs;
-    const totalDistance = legs.reduce((sum, leg) => sum + leg.distance.value, 0);
-    const totalDuration = legs.reduce((sum, leg) => sum + leg.duration.value, 0);
-    
-    res.json({ success: true, message: 'Route optimized', jobs: optimizedJobs, stats: { totalStops: jobs.length, totalDistance: (totalDistance / 1609.34).toFixed(1) + ' miles', totalDriveTime: Math.round(totalDuration / 60) + ' minutes' } });
+    res.json({ success: true, message: 'Route optimized (local algorithm)', jobs: optimizedJobs, stats: { totalStops: optimizedJobs.length } });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -7108,51 +7163,69 @@ app.post('/api/dispatch/geocode', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// POST /api/dispatch/optimize-route - Optimize route order for a crew using nearest-neighbor TSP
+// POST /api/dispatch/optimize-route - Optimize route order for a crew
 app.post('/api/dispatch/optimize-route', async (req, res) => {
   try {
     const { date, crew_name, start_lat, start_lng } = req.body;
     if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
 
     const jobs = await pool.query(
-      'SELECT id, address, lat, lng, route_order FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned = $2 AND lat IS NOT NULL AND lng IS NOT NULL',
+      'SELECT id, address, lat, lng, route_order, estimated_duration FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned = $2 AND lat IS NOT NULL AND lng IS NOT NULL',
       [date, crew_name]
     );
 
     if (jobs.rows.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
 
-    // Nearest-neighbor TSP heuristic
-    const stops = jobs.rows.map(j => ({ id: j.id, lat: parseFloat(j.lat), lng: parseFloat(j.lng) }));
+    const stops = jobs.rows.map(j => ({ id: j.id, lat: parseFloat(j.lat), lng: parseFloat(j.lng), duration: parseInt(j.estimated_duration) || 30 }));
+    const sLat = start_lat ? parseFloat(start_lat) : 41.4268;
+    const sLng = start_lng ? parseFloat(start_lng) : -81.7356;
+
+    const ORS_KEY = process.env.OPENROUTESERVICE_API_KEY;
+    if (ORS_KEY && stops.length >= 2) {
+      try {
+        const orsJobs = stops.map((s, i) => ({ id: i, location: [s.lng, s.lat], service: Math.max(s.duration * 60, 300) }));
+        const orsBody = {
+          jobs: orsJobs,
+          vehicles: [{ id: 0, profile: 'driving-car', start: [sLng, sLat], end: [sLng, sLat] }]
+        };
+        const orsRes = await fetch('https://api.openrouteservice.org/optimization', {
+          method: 'POST',
+          headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify(orsBody)
+        });
+        const orsData = await orsRes.json();
+        if (orsData.routes && orsData.routes.length > 0 && orsData.routes[0].steps) {
+          const jobSteps = orsData.routes[0].steps.filter(s => s.type === 'job');
+          const order = jobSteps.map(s => stops[s.job].id);
+          for (let i = 0; i < order.length; i++) {
+            await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, order[i]]);
+          }
+          const totalDist = orsData.routes[0].distance || 0;
+          const totalDur = orsData.routes[0].duration || 0;
+          return res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })), stats: { totalDistance: (totalDist / 1609.34).toFixed(1) + ' miles', totalDriveTime: Math.round(totalDur / 60) + ' minutes' } });
+        }
+      } catch (e) { console.error('ORS dispatch optimize failed, using fallback:', e.message); }
+    }
+
+    // Fallback: nearest-neighbor TSP
     const visited = new Set();
     const order = [];
-
-    // Start from provided start point or first job
-    let currentLat = start_lat ? parseFloat(start_lat) : stops[0].lat;
-    let currentLng = start_lng ? parseFloat(start_lng) : stops[0].lng;
-
+    let curLat = sLat, curLng = sLng;
     while (order.length < stops.length) {
-      let nearest = null;
-      let nearestDist = Infinity;
-      for (const stop of stops) {
-        if (visited.has(stop.id)) continue;
-        const dist = haversine(currentLat, currentLng, stop.lat, stop.lng);
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearest = stop;
-        }
+      let nearest = null, nearestDist = Infinity;
+      for (const s of stops) {
+        if (visited.has(s.id)) continue;
+        const d = haversine(curLat, curLng, s.lat, s.lng);
+        if (d < nearestDist) { nearestDist = d; nearest = s; }
       }
       if (!nearest) break;
       visited.add(nearest.id);
       order.push(nearest.id);
-      currentLat = nearest.lat;
-      currentLng = nearest.lng;
+      curLat = nearest.lat; curLng = nearest.lng;
     }
-
-    // Update route_order in DB
     for (let i = 0; i < order.length; i++) {
       await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, order[i]]);
     }
-
     res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })) });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });

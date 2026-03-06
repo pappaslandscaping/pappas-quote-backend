@@ -356,7 +356,7 @@ function requireAdmin(req, res, next) {
 // Apply admin auth middleware to all routes
 app.use(requireAdmin);
 
-async function sendEmail(to, subject, html, attachments = null) {
+async function sendEmail(to, subject, html, attachments = null, meta = {}) {
   if (!RESEND_API_KEY) return;
   try {
     const payload = { from: FROM_EMAIL, to: [to], subject, html };
@@ -372,8 +372,14 @@ async function sendEmail(to, subject, html, attachments = null) {
     const respBody = await resp.text();
     if (!resp.ok) {
       console.error(`❌ Resend API error (${resp.status}):`, respBody);
+      // Log failed email
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody]); } catch(e) {}
     } else {
       console.log(`✅ Email sent to ${to}:`, respBody);
+      // Log successful email
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent')`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null]); } catch(e) {}
     }
   } catch (err) { console.error('Email failed:', err); }
 }
@@ -4243,7 +4249,8 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
       quote.customer_email,
       'Your ' + (quote.quote_type === 'monthly_plan' ? 'Annual Care Plan' : 'Quote') + ' from ' + COMPANY_NAME,
       emailTemplate(emailContent),
-      attachments
+      attachments,
+      { type: 'quote', customer_id: quote.customer_id, customer_name: quote.customer_name, quote_id: quote.id }
     );
 
     // Determine if this is first send or resend
@@ -4870,7 +4877,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
         <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We can't wait to get started!</p>
       `;
-      await sendEmail(updatedQuote.customer_email, `You're All Set! Welcome to Pappas & Co. Landscaping`, emailTemplate(customerContent), [contractAttachment]);
+      await sendEmail(updatedQuote.customer_email, `You're All Set! Welcome to Pappas & Co. Landscaping`, emailTemplate(customerContent), [contractAttachment], { type: 'welcome', customer_id: updatedQuote.customer_id, customer_name: updatedQuote.customer_name, quote_id: updatedQuote.id });
     }
 
     // Email to admin - matches Quote Accepted style
@@ -6276,7 +6283,7 @@ app.post('/api/cron/process-followups', async (req, res) => {
         const emailsOn = await areAutomatedEmailsEnabled();
         const emailContent = getFollowupEmailContent(followup, stage);
         if (emailsOn && emailContent && followup.customer_email) {
-          await sendEmail(followup.customer_email, emailContent.subject, emailContent.html);
+          await sendEmail(followup.customer_email, emailContent.subject, emailContent.html, null, { type: 'followup', customer_name: followup.customer_name, quote_id: followup.quote_id });
           results.emails_sent++;
           console.log(`📧 Email sent to ${followup.customer_email} (Stage ${stage})`);
         } else if (!emailsOn) {
@@ -6378,7 +6385,7 @@ app.get('/api/cron/process-followups', async (req, res) => {
         const emailsOn = await areAutomatedEmailsEnabled();
         const emailContent = getFollowupEmailContent(followup, stage);
         if (emailsOn && emailContent && followup.customer_email) {
-          await sendEmail(followup.customer_email, emailContent.subject, emailContent.html);
+          await sendEmail(followup.customer_email, emailContent.subject, emailContent.html, null, { type: 'followup', customer_name: followup.customer_name, quote_id: followup.quote_id });
           results.emails_sent++;
           console.log(`📧 Email sent to ${followup.customer_email} (Stage ${stage})`);
         } else if (!emailsOn) {
@@ -6534,7 +6541,7 @@ app.post('/api/late-fees/bulk-waive-today', async (req, res) => {
             <p>Thank you for your patience and understanding.</p>
             <p style="margin-top:24px;">Warm regards,<br><strong>Tim Pappas</strong><br>Pappas & Co. Landscaping<br>440-897-0957</p>
           `;
-          await sendEmail(cust.email, 'Our Apologies — Please Disregard Previous Email', emailTemplate(content));
+          await sendEmail(cust.email, 'Our Apologies — Please Disregard Previous Email', emailTemplate(content), null, { type: 'apology', customer_id: cust.customer_id, customer_name: cust.name });
           emailsSent++;
         } catch (err) {
           emailErrors++;
@@ -6711,7 +6718,7 @@ async function processMonthlyPlanInvoices() {
               <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">Pay Now</a>
             </div>
           `;
-          await sendEmail(cust.email, `Monthly Invoice ${invNum} — $${total.toFixed(2)}`, emailTemplate(content));
+          await sendEmail(cust.email, `Monthly Invoice ${invNum} — $${total.toFixed(2)}`, emailTemplate(content), null, { type: 'invoice', customer_id: cust.id, customer_name: cust.name, invoice_id: inv.rows[0].id });
           await pool.query("UPDATE invoices SET sent_at = NOW() WHERE id = $1", [inv.rows[0].id]);
           results.sent++;
         }
@@ -6770,7 +6777,7 @@ async function processLateFees() {
             ${payUrl ? `<div style="text-align:center;margin:28px 0;"><a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">Pay Now</a></div>` : ''}
             <p>To avoid additional fees, please pay as soon as possible. If you have questions, reply to this email or call us.</p>
           `;
-          await sendEmail(inv.customer_email, `Late Fee Applied — Invoice ${inv.invoice_number}`, emailTemplate(content));
+          await sendEmail(inv.customer_email, `Late Fee Applied — Invoice ${inv.invoice_number}`, emailTemplate(content), null, { type: 'late_fee', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
           results.emails_sent++;
         }
       } catch (err) { results.errors.push({ invoice_id: inv.id, error: err.message }); }
@@ -7315,7 +7322,7 @@ app.post('/api/invoices/:id/send', async (req, res) => {
       }
     } catch (pdfErr) { console.error('Invoice PDF error:', pdfErr); }
 
-    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content), attachments);
+    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content), attachments, { type: 'invoice', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
     await pool.query("UPDATE invoices SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
     res.json({ success: true, message: 'Invoice sent' });
   } catch (error) {
@@ -7487,7 +7494,7 @@ app.post('/api/pay/:token/card', async (req, res) => {
             ${sqPayment.receiptUrl ? `<p style="margin:0;"><a href="${sqPayment.receiptUrl}" style="color:#059669;font-weight:600;">View Receipt</a></p>` : ''}
           </div>
         `;
-        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }));
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }), null, { type: 'payment_receipt', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
       }
       // Admin notification
       const adminContent = `
@@ -7497,7 +7504,7 @@ app.post('/api/pay/:token/card', async (req, res) => {
         <p>Square ID: ${sqPayment.id}</p>
         ${sqPayment.receiptUrl ? `<p><a href="${sqPayment.receiptUrl}">View Receipt</a></p>` : ''}
       `;
-      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${balance.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
+      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${balance.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }), null, { type: 'admin_notification', customer_name: inv.customer_name });
     } catch (emailErr) { console.error('Payment email error:', emailErr); }
 
     res.json({
@@ -7699,7 +7706,7 @@ app.post('/api/invoices/:id/send-reminder', async (req, res) => {
       ` : ''}
       <p>If you've already sent payment, please disregard this reminder.</p>
     `;
-    await sendEmail(inv.customer_email, `Reminder: Invoice ${inv.invoice_number} — $${balance.toFixed(2)} due`, emailTemplate(content));
+    await sendEmail(inv.customer_email, `Reminder: Invoice ${inv.invoice_number} — $${balance.toFixed(2)} due`, emailTemplate(content), null, { type: 'invoice_reminder', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
 
     await pool.query(
       'UPDATE invoices SET reminder_sent_at = CURRENT_TIMESTAMP, reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
@@ -9297,6 +9304,20 @@ const EMAIL_TEMPLATES_TABLE = `CREATE TABLE IF NOT EXISTS email_templates (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
+const EMAIL_LOG_TABLE = `CREATE TABLE IF NOT EXISTS email_log (
+  id SERIAL PRIMARY KEY,
+  recipient_email VARCHAR(255) NOT NULL,
+  subject VARCHAR(500),
+  email_type VARCHAR(50) DEFAULT 'general',
+  customer_id INTEGER,
+  customer_name VARCHAR(255),
+  invoice_id INTEGER,
+  quote_id INTEGER,
+  status VARCHAR(20) DEFAULT 'sent',
+  error_message TEXT,
+  sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
 const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   id SERIAL PRIMARY KEY,
   campaign_id INTEGER,
@@ -9484,7 +9505,10 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     )`);
   } catch(e) {}
 
-  console.log('✅ Time tracking, dispatch templates, and service programs tables ready');
+  // Email log table
+  try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
+
+  console.log('✅ Time tracking, dispatch templates, service programs, and email log tables ready');
   console.log('✅ All CopilotCRM column migrations ready');
 
   // Seed default late fee settings (matches contract terms at Section V)
@@ -9930,6 +9954,91 @@ app.get('/api/kpi/detailed', async (req, res) => {
     }});
   } catch (error) {
     console.error('KPI detailed error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── Email Log API ─────────────────────────────────────────────────────────
+
+// Global email log with filters
+app.get('/api/email-log', async (req, res) => {
+  try {
+    const { type, search, days, limit = 100, offset = 0 } = req.query;
+    let where = [];
+    let params = [];
+    let idx = 1;
+
+    if (type && type !== 'all') {
+      where.push(`email_type = $${idx++}`);
+      params.push(type);
+    }
+    if (search) {
+      where.push(`(recipient_email ILIKE $${idx} OR subject ILIKE $${idx} OR customer_name ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+    if (days) {
+      where.push(`sent_at >= NOW() - INTERVAL '${parseInt(days)} days'`);
+    }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const countResult = await pool.query(`SELECT COUNT(*) FROM email_log ${whereClause}`, params);
+    const result = await pool.query(
+      `SELECT * FROM email_log ${whereClause} ORDER BY sent_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+      [...params, parseInt(limit), parseInt(offset)]
+    );
+
+    res.json({ success: true, emails: result.rows, total: parseInt(countResult.rows[0].count) });
+  } catch (error) {
+    console.error('Email log error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Email log stats
+app.get('/api/email-log/stats', async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '24 hours') AS last_24h,
+        COUNT(*) FILTER (WHERE sent_at >= NOW() - INTERVAL '7 days') AS last_7d,
+        COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+        COUNT(DISTINCT recipient_email) AS unique_recipients
+      FROM email_log
+    `);
+    const byType = await pool.query(`
+      SELECT email_type, COUNT(*) AS count
+      FROM email_log
+      GROUP BY email_type
+      ORDER BY count DESC
+    `);
+    res.json({ success: true, stats: stats.rows[0], by_type: byType.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Customer-specific email log
+app.get('/api/customers/:id/emails', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Get by customer_id or by matching email
+    const customer = await pool.query('SELECT email FROM customers WHERE id = $1', [id]);
+    let result;
+    if (customer.rows.length && customer.rows[0].email) {
+      result = await pool.query(
+        `SELECT * FROM email_log WHERE customer_id = $1 OR recipient_email = $2 ORDER BY sent_at DESC LIMIT 100`,
+        [id, customer.rows[0].email]
+      );
+    } else {
+      result = await pool.query(
+        `SELECT * FROM email_log WHERE customer_id = $1 ORDER BY sent_at DESC LIMIT 100`,
+        [id]
+      );
+    }
+    res.json({ success: true, emails: result.rows });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });

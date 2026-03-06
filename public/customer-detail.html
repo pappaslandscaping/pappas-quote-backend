@@ -153,6 +153,15 @@
         .tl-icon svg { width: 16px; height: 16px; }
         .tl-icon.sms-in { background: var(--green-bg); color: var(--green); }
         .tl-icon.sms-out { background: rgba(46,64,61,0.1); color: var(--forest); }
+        .tl-icon.email-icon { background: var(--purple-bg); color: var(--purple); }
+        .tl-icon.email-fail { background: var(--red-bg); color: var(--red); }
+        .email-type-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 8px; background: var(--purple-bg); color: var(--purple); }
+        .email-type-pill.invoice { background: var(--blue-bg); color: var(--blue); }
+        .email-type-pill.quote { background: var(--amber-bg); color: var(--amber); }
+        .email-type-pill.payment_receipt { background: var(--green-bg); color: var(--green); }
+        .email-type-pill.late_fee { background: var(--red-bg); color: var(--red); }
+        .email-type-pill.welcome { background: var(--green-bg); color: var(--green); }
+        .email-type-pill.followup { background: var(--amber-bg); color: var(--amber); }
         .tl-icon.call-icon { background: var(--blue-bg); color: var(--blue); }
         .tl-icon.vm-icon { background: var(--amber-bg); color: var(--amber); }
         .tl-body { flex: 1; min-width: 0; }
@@ -633,6 +642,10 @@
                     <span>💬</span>
                     <span>Messages & Calls</span>
                 </a>
+                <a href="email-log.html" class="nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Email Log</span>
+                </a>
                 <a href="cancellations.html" class="nav-item">
                     <span>❌</span>
                     <span>Cancellations</span>
@@ -782,6 +795,17 @@
 
 </div>
 
+        <!-- Email History Section -->
+        <div class="comms-card" id="emailsSection" style="display:none;">
+            <div class="comms-card-header">
+                <h3>Email History</h3>
+                <a href="email-log.html">View All →</a>
+            </div>
+            <div class="comms-timeline" id="emailsList">
+                <div class="comms-loading"><div class="loading-spinner"></div></div>
+            </div>
+        </div>
+
         <!-- Communications Section (always shown below customer info) -->
         <div class="comms-card" id="commsSection" style="display:none;">
             <div class="comms-card-header">
@@ -831,6 +855,7 @@ async function loadCustomer() {
         loadQuotes();
         loadJobs();
         loadInvoices();
+        loadEmailHistory();
     } catch (e) {
         document.getElementById('customerContent').innerHTML = '<p style="color:var(--red)">Customer not found.</p>';
     }
@@ -1209,6 +1234,55 @@ function getProxiedRecordingUrl(recordingUrl) {
 
 function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+// ─── Email History ──────────────────────────────────────────────────────────
+
+async function loadEmailHistory() {
+    document.getElementById('emailsSection').style.display = 'block';
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/emails');
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        renderEmails(data.emails || []);
+    } catch (e) {
+        document.getElementById('emailsList').innerHTML = '<div class="comms-empty"><p>Unable to load email history.</p></div>';
+    }
+}
+
+function renderEmails(emails) {
+    const el = document.getElementById('emailsList');
+    if (!emails.length) {
+        el.innerHTML = `<div class="comms-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;opacity:0.3;margin:0 auto 8px;display:block"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <p>No emails sent to this customer yet.</p>
+        </div>`;
+        return;
+    }
+
+    const typeLabels = { invoice: 'Invoice', quote: 'Quote', late_fee: 'Late Fee', payment_receipt: 'Payment', welcome: 'Welcome', followup: 'Follow-up', apology: 'Apology', invoice_reminder: 'Reminder', admin_notification: 'Admin', general: 'General' };
+
+    el.innerHTML = emails.map(e => {
+        const time = fmtTime(new Date(e.sent_at));
+        const isFailed = e.status === 'failed';
+        const iconClass = isFailed ? 'email-fail' : 'email-icon';
+        const typePill = `<span class="email-type-pill ${e.email_type || ''}">${typeLabels[e.email_type] || e.email_type || 'Email'}</span>`;
+        const statusPill = isFailed ? '<span class="tl-pill pill-vm">Failed</span>' : '';
+
+        return `<div class="timeline-item">
+            <div class="tl-icon ${iconClass}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <div class="tl-body">
+                <div class="tl-top">
+                    <div class="tl-label">Email${typePill}${statusPill}</div>
+                    <div class="tl-time">${time}</div>
+                </div>
+                <div class="tl-text">${esc(e.subject || '(no subject)')}</div>
+                <div style="font-size:11px;color:var(--gray-400);margin-top:2px;">To: ${esc(e.recipient_email)}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
 
 document.addEventListener('DOMContentLoaded', loadCustomer);
 

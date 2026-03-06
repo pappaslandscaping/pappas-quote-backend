@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Log — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <style>
+        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); }
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
+            --lime: #c9dd80; --lime-soft: #dce9a8;
+            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2; --gray-300: #c8ccc8; --gray-400: #9ca09c;
+            --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0;
+            --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb;
+            --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px; --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; overflow-x: hidden; }
+
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .topbar-left p { font-size: 13px; color: var(--gray-400); }
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .page-content { padding: 28px 32px; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
+        .stat-card .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 8px; }
+        .stat-card .number { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .stat-card .sub { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+
+        .filters-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .filters-bar input, .filters-bar select {
+            padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 13px; font-family: inherit; background: var(--white); outline: none; transition: all 0.15s;
+        }
+        .filters-bar input:focus, .filters-bar select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .filters-bar input { flex: 1; min-width: 200px; max-width: 320px; }
+
+        .email-table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
+        .email-table { width: 100%; border-collapse: collapse; }
+        .email-table th { text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }
+        .email-table td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+        .email-table tr:last-child td { border-bottom: none; }
+        .email-table tr:hover td { background: var(--gray-50); }
+        .email-table .subject { font-weight: 600; color: var(--gray-700); max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .email-table .recipient { color: var(--gray-600); }
+        .email-table .customer-link { color: var(--forest); text-decoration: none; font-weight: 500; }
+        .email-table .customer-link:hover { text-decoration: underline; }
+
+        .type-pill { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: capitalize; }
+        .type-pill.invoice { background: var(--blue-bg); color: var(--blue); }
+        .type-pill.quote { background: var(--amber-bg); color: var(--amber); }
+        .type-pill.payment_receipt { background: var(--green-bg); color: var(--green); }
+        .type-pill.late_fee { background: var(--red-bg); color: var(--red); }
+        .type-pill.welcome { background: var(--green-bg); color: var(--green); }
+        .type-pill.followup { background: var(--amber-bg); color: var(--amber); }
+        .type-pill.apology { background: var(--purple-bg); color: var(--purple); }
+        .type-pill.invoice_reminder { background: var(--amber-bg); color: var(--amber); }
+        .type-pill.admin_notification { background: var(--gray-100); color: var(--gray-500); }
+        .type-pill.general { background: var(--gray-100); color: var(--gray-500); }
+
+        .status-sent { color: var(--green); font-weight: 600; font-size: 12px; }
+        .status-failed { color: var(--red); font-weight: 600; font-size: 12px; }
+
+        .pagination { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-top: 1px solid var(--gray-100); }
+        .pagination .info { font-size: 13px; color: var(--gray-400); }
+        .pagination .btns { display: flex; gap: 8px; }
+        .pagination .btns button {
+            padding: 6px 14px; border: 1px solid var(--gray-200); border-radius: 6px;
+            background: var(--white); font-size: 13px; font-family: inherit; cursor: pointer; color: var(--gray-600); transition: all 0.15s;
+        }
+        .pagination .btns button:hover:not(:disabled) { background: var(--gray-50); border-color: var(--forest); }
+        .pagination .btns button:disabled { opacity: 0.4; cursor: default; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+        .empty-state svg { width: 48px; height: 48px; opacity: 0.3; margin-bottom: 12px; }
+        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .page-content { padding: 20px 16px; }
+            .topbar { padding: 0 16px; }
+            .email-table th:nth-child(4), .email-table td:nth-child(4) { display: none; }
+            .email-table th:nth-child(3), .email-table td:nth-child(3) { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="logo.png" alt="YardDesk" onerror="this.outerHTML='<span style=\'font-family:Qualy,serif;font-size:22px;color:var(--forest)\'>YardDesk</span>'"></div>
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <div class="nav-section-label">Overview</div>
+            <a class="nav-item" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Clients</div>
+            <a class="nav-item" href="customers.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Customers</a>
+            <a class="nav-item" href="properties.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Properties</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Work</div>
+            <a class="nav-item" href="quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quotes</a>
+            <a class="nav-item" href="scheduling.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Scheduling</a>
+            <a class="nav-item" href="dispatch.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Dispatch</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Billing</div>
+            <a class="nav-item" href="invoices.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Invoices</a>
+            <a class="nav-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payments</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Communications</div>
+            <a class="nav-item" href="communications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages</a>
+            <a class="nav-item active" href="email-log.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email Log</a>
+            <a class="nav-item" href="campaigns.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Campaigns</a>
+        </div>
+        <div class="nav-section">
+            <div class="nav-section-label">Operations</div>
+            <a class="nav-item" href="time-tracking.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time Tracking</a>
+            <a class="nav-item" href="programs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>Programs</a>
+        </div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div>
+                <div class="name">Theresa Pappas</div>
+                <div class="role">Admin</div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left"><h2>Email Log</h2><p>All sent emails</p></div>
+        </div>
+    </div>
+
+    <div class="page-content">
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card"><div class="label">Total Sent</div><div class="number" id="statTotal">-</div></div>
+            <div class="stat-card"><div class="label">Last 24 Hours</div><div class="number" id="stat24h">-</div></div>
+            <div class="stat-card"><div class="label">Last 7 Days</div><div class="number" id="stat7d">-</div></div>
+            <div class="stat-card"><div class="label">Failed</div><div class="number" id="statFailed" style="color:var(--red)">-</div></div>
+            <div class="stat-card"><div class="label">Unique Recipients</div><div class="number" id="statRecipients">-</div></div>
+        </div>
+
+        <div class="filters-bar">
+            <input type="text" id="searchInput" placeholder="Search by recipient, subject, or customer...">
+            <select id="typeFilter">
+                <option value="all">All Types</option>
+                <option value="invoice">Invoice</option>
+                <option value="quote">Quote</option>
+                <option value="payment_receipt">Payment Receipt</option>
+                <option value="late_fee">Late Fee</option>
+                <option value="welcome">Welcome</option>
+                <option value="followup">Follow-up</option>
+                <option value="invoice_reminder">Reminder</option>
+                <option value="apology">Apology</option>
+                <option value="admin_notification">Admin</option>
+                <option value="general">General</option>
+            </select>
+            <select id="daysFilter">
+                <option value="">All Time</option>
+                <option value="1">Last 24 Hours</option>
+                <option value="7" selected>Last 7 Days</option>
+                <option value="30">Last 30 Days</option>
+                <option value="90">Last 90 Days</option>
+            </select>
+        </div>
+
+        <div class="email-table-card">
+            <table class="email-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Recipient</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th>Subject</th>
+                        <th>Sent</th>
+                    </tr>
+                </thead>
+                <tbody id="emailTableBody">
+                    <tr><td colspan="6"><div class="loading-state"><div class="loading-spinner"></div>Loading emails...</div></td></tr>
+                </tbody>
+            </table>
+            <div class="pagination" id="pagination" style="display:none;">
+                <div class="info" id="pageInfo"></div>
+                <div class="btns">
+                    <button id="prevBtn" onclick="changePage(-1)">Previous</button>
+                    <button id="nextBtn" onclick="changePage(1)">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PAGE_SIZE = 50;
+let currentPage = 0;
+let totalEmails = 0;
+
+const typeLabels = {
+    invoice: 'Invoice', quote: 'Quote', payment_receipt: 'Payment', late_fee: 'Late Fee',
+    welcome: 'Welcome', followup: 'Follow-up', apology: 'Apology', invoice_reminder: 'Reminder',
+    admin_notification: 'Admin', general: 'General'
+};
+
+async function loadStats() {
+    try {
+        const res = await fetch('/api/email-log/stats');
+        const data = await res.json();
+        if (!data.success) return;
+        const s = data.stats;
+        document.getElementById('statTotal').textContent = Number(s.total).toLocaleString();
+        document.getElementById('stat24h').textContent = Number(s.last_24h).toLocaleString();
+        document.getElementById('stat7d').textContent = Number(s.last_7d).toLocaleString();
+        document.getElementById('statFailed').textContent = Number(s.failed).toLocaleString();
+        document.getElementById('statRecipients').textContent = Number(s.unique_recipients).toLocaleString();
+    } catch (e) { console.error('Stats error:', e); }
+}
+
+async function loadEmails() {
+    const search = document.getElementById('searchInput').value.trim();
+    const type = document.getElementById('typeFilter').value;
+    const days = document.getElementById('daysFilter').value;
+    const offset = currentPage * PAGE_SIZE;
+
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset });
+    if (search) params.set('search', search);
+    if (type !== 'all') params.set('type', type);
+    if (days) params.set('days', days);
+
+    const tbody = document.getElementById('emailTableBody');
+    tbody.innerHTML = '<tr><td colspan="6"><div class="loading-state"><div class="loading-spinner"></div>Loading...</div></td></tr>';
+
+    try {
+        const res = await fetch('/api/email-log?' + params.toString());
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        totalEmails = data.total;
+        renderTable(data.emails);
+        updatePagination();
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">Failed to load emails.</div></td></tr>';
+    }
+}
+
+function renderTable(emails) {
+    const tbody = document.getElementById('emailTableBody');
+    if (!emails.length) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <p>No emails found.</p></div></td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = emails.map(e => {
+        const statusClass = e.status === 'failed' ? 'status-failed' : 'status-sent';
+        const statusIcon = e.status === 'failed' ? 'x' : 'check';
+        const statusLabel = e.status === 'failed' ? 'Failed' : 'Sent';
+        const typeClass = e.email_type || 'general';
+        const typeLabel = typeLabels[e.email_type] || e.email_type || 'General';
+        const time = formatTime(new Date(e.sent_at));
+        const customerLink = e.customer_id
+            ? `<a href="customer-detail.html?id=${e.customer_id}" class="customer-link">${esc(e.customer_name || 'View')}</a>`
+            : (e.customer_name ? esc(e.customer_name) : '<span style="color:var(--gray-400)">-</span>');
+
+        return `<tr>
+            <td><span class="${statusClass}">${statusLabel}</span></td>
+            <td class="recipient">${esc(e.recipient_email)}</td>
+            <td>${customerLink}</td>
+            <td><span class="type-pill ${typeClass}">${typeLabel}</span></td>
+            <td class="subject" title="${esc(e.subject || '')}">${esc(e.subject || '(no subject)')}</td>
+            <td style="white-space:nowrap;color:var(--gray-400);font-size:12px;">${time}</td>
+        </tr>`;
+    }).join('');
+}
+
+function updatePagination() {
+    const pag = document.getElementById('pagination');
+    const totalPages = Math.ceil(totalEmails / PAGE_SIZE);
+
+    if (totalEmails <= PAGE_SIZE) {
+        pag.style.display = 'none';
+        return;
+    }
+    pag.style.display = 'flex';
+
+    const start = currentPage * PAGE_SIZE + 1;
+    const end = Math.min((currentPage + 1) * PAGE_SIZE, totalEmails);
+    document.getElementById('pageInfo').textContent = `${start}-${end} of ${totalEmails}`;
+    document.getElementById('prevBtn').disabled = currentPage === 0;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages - 1;
+}
+
+function changePage(dir) {
+    currentPage += dir;
+    if (currentPage < 0) currentPage = 0;
+    loadEmails();
+}
+
+function formatTime(date) {
+    if (!(date instanceof Date) || isNaN(date)) return '-';
+    const now = new Date(), diff = now - date;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' +
+           date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function esc(s) { return s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+
+// Debounced search
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { currentPage = 0; loadEmails(); }, 300);
+});
+document.getElementById('typeFilter').addEventListener('change', () => { currentPage = 0; loadEmails(); });
+document.getElementById('daysFilter').addEventListener('change', () => { currentPage = 0; loadEmails(); });
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+    loadStats();
+    loadEmails();
+});
+</script>
+</body>
+</html>

@@ -10720,6 +10720,36 @@ app.post('/api/app/voicemails/:id/play', authenticateToken, async (req, res) => 
   }
 });
 
+app.post('/api/app/voicemails/:id/handle', authenticateToken, async (req, res) => {
+  try {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls/${req.params.id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'handled' }),
+    });
+    if (!response.ok) throw new Error('Webhook update failed');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Voicemail handle error:', err);
+    res.status(500).json({ error: 'Failed to update voicemail' });
+  }
+});
+
+app.delete('/api/app/voicemails/:id', authenticateToken, async (req, res) => {
+  try {
+    const response = await fetch(`${WEBHOOK_BASE}/api/calls/${req.params.id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'archived' }),
+    });
+    if (!response.ok) throw new Error('Webhook update failed');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Voicemail archive error:', err);
+    res.status(500).json({ error: 'Failed to archive voicemail' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 
 app.get('*', (req, res) => {

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --lime: #c9dd80;
+            --white: #ffffff;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+            --gray-600: #4a4e4a;
+            --gray-700: #333633;
+            --red: #dc4a4a;
+            --red-bg: #fef0f0;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-700);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 440px;
+            width: 100%;
+            padding: 0 20px;
+        }
+
+        .login-card {
+            background: var(--white);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .header {
+            background: var(--forest);
+            padding: 30px 32px;
+            text-align: center;
+        }
+
+        .logo {
+            margin: 0 auto;
+        }
+
+        .logo img {
+            max-height: 80px;
+            max-width: 350px;
+            object-fit: contain;
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        .content h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--forest);
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--gray-700);
+            background: var(--white);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--forest);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: var(--gray-400);
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper input {
+            padding-right: 48px;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--gray-400);
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .toggle-password:hover {
+            color: var(--gray-600);
+        }
+
+        .toggle-password svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .btn-signin {
+            width: 100%;
+            margin-top: 6px;
+            padding: 13px 20px;
+            background: var(--forest);
+            color: var(--white);
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-signin:hover {
+            background: var(--forest-dark);
+        }
+
+        .btn-signin:active {
+            transform: scale(0.99);
+        }
+
+        .btn-signin:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .btn-signin .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: var(--white);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: none;
+        }
+
+        .btn-signin.loading .spinner {
+            display: block;
+        }
+
+        .btn-signin.loading .btn-text {
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            background: var(--red-bg);
+            color: var(--red);
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+            animation: shakeIn 0.4s ease;
+        }
+
+        @keyframes shakeIn {
+            0% { transform: translateX(0); opacity: 0; }
+            15% { transform: translateX(-8px); opacity: 1; }
+            30% { transform: translateX(6px); }
+            45% { transform: translateX(-4px); }
+            60% { transform: translateX(2px); }
+            75% { transform: translateX(-1px); }
+            100% { transform: translateX(0); }
+        }
+
+        .forgot-link {
+            display: block;
+            text-align: center;
+            margin-top: 18px;
+            font-size: 13px;
+            color: var(--gray-500);
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .forgot-link:hover {
+            color: var(--forest);
+        }
+
+        .forgot-message {
+            text-align: center;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            background: var(--green-bg);
+            color: var(--green);
+            display: none;
+        }
+
+        .forgot-message.visible {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px 20px;
+            font-size: 13px;
+            color: var(--gray-400);
+            font-weight: 500;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container {
+                padding: 0 16px;
+            }
+
+            .header {
+                padding: 24px 20px;
+            }
+
+            .logo img {
+                max-height: 60px;
+                max-width: 280px;
+            }
+
+            .content {
+                padding: 24px 20px;
+            }
+
+            .content h2 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="login-card">
+            <div class="header">
+                <div class="logo">
+                    <img src="logo.png" alt="Pappas & Co. Landscaping">
+                </div>
+            </div>
+
+            <div class="content">
+                <h2>Admin Login</h2>
+
+                <form id="loginForm" autocomplete="on">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="you@pappaslandscaping.com"
+                            autocomplete="email"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="password-wrapper">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                                required
+                            >
+                            <button type="button" class="toggle-password" id="togglePassword" aria-label="Toggle password visibility">
+                                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg id="eyeOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-signin" id="signinBtn">
+                        <span class="btn-text">Sign In</span>
+                        <span class="spinner"></span>
+                    </button>
+                </form>
+
+                <div class="error-message" id="errorMessage"></div>
+
+                <a class="forgot-link" id="forgotLink">Forgot password?</a>
+                <div class="forgot-message" id="forgotMessage">
+                    Please contact your system administrator to reset your password.
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">Pappas &amp; Co. Landscaping</div>
+    </div>
+
+    <script>
+        (function () {
+            const API_BASE = '';
+            const form = document.getElementById('loginForm');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const signinBtn = document.getElementById('signinBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const togglePassword = document.getElementById('togglePassword');
+            const eyeIcon = document.getElementById('eyeIcon');
+            const eyeOffIcon = document.getElementById('eyeOffIcon');
+            const forgotLink = document.getElementById('forgotLink');
+            const forgotMessage = document.getElementById('forgotMessage');
+
+            // ------------------------------------------------------------------
+            // Check if already logged in on page load
+            // ------------------------------------------------------------------
+            async function checkExistingSession() {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+
+                try {
+                    const res = await fetch('/api/auth/me', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (res.ok) {
+                        window.location.href = 'index.html';
+                    } else {
+                        // Token is invalid — clear stale data
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('adminName');
+                        localStorage.removeItem('adminEmail');
+                    }
+                } catch (e) {
+                    // Network error — stay on login page
+                }
+            }
+
+            checkExistingSession();
+
+            // ------------------------------------------------------------------
+            // Password visibility toggle
+            // ------------------------------------------------------------------
+            togglePassword.addEventListener('click', function () {
+                const isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                eyeIcon.style.display = isPassword ? 'none' : 'block';
+                eyeOffIcon.style.display = isPassword ? 'block' : 'none';
+            });
+
+            // ------------------------------------------------------------------
+            // Show error
+            // ------------------------------------------------------------------
+            function showError(msg) {
+                errorMessage.textContent = msg;
+                errorMessage.classList.remove('visible');
+                // Force reflow so the animation re-triggers
+                void errorMessage.offsetWidth;
+                errorMessage.classList.add('visible');
+            }
+
+            function hideError() {
+                errorMessage.classList.remove('visible');
+            }
+
+            // ------------------------------------------------------------------
+            // Loading state
+            // ------------------------------------------------------------------
+            function setLoading(loading) {
+                if (loading) {
+                    signinBtn.classList.add('loading');
+                    signinBtn.disabled = true;
+                } else {
+                    signinBtn.classList.remove('loading');
+                    signinBtn.disabled = false;
+                }
+            }
+
+            // ------------------------------------------------------------------
+            // Form submit (handles Enter key automatically)
+            // ------------------------------------------------------------------
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                hideError();
+                forgotMessage.classList.remove('visible');
+
+                const email = emailInput.value.trim();
+                const password = passwordInput.value;
+
+                if (!email || !password) {
+                    showError('Please enter both email and password.');
+                    return;
+                }
+
+                setLoading(true);
+
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const data = await res.json();
+
+                    if (res.ok) {
+                        // Store session data
+                        if (data.token) localStorage.setItem('token', data.token);
+                        if (data.adminName || data.name) localStorage.setItem('adminName', data.adminName || data.name);
+                        if (data.adminEmail || data.email) localStorage.setItem('adminEmail', data.adminEmail || data.email);
+
+                        // Redirect to dashboard
+                        window.location.href = 'index.html';
+                    } else {
+                        showError(data.error || data.message || 'Invalid email or password.');
+                    }
+                } catch (err) {
+                    showError('Unable to connect to the server. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            });
+
+            // ------------------------------------------------------------------
+            // Forgot password link
+            // ------------------------------------------------------------------
+            forgotLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                forgotMessage.classList.toggle('visible');
+            });
+        })();
+    </script>
+</body>
+</html>

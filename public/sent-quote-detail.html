@@ -255,6 +255,34 @@
     </style>
 </head>
 <body>
+<script>
+(function() {
+  var t = localStorage.getItem('adminToken');
+  if (!t) { window.location.href = '/login.html'; return; }
+  var _fetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      opts.headers = opts.headers || {};
+      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
+      else { opts.headers['Authorization'] = 'Bearer ' + t; }
+    }
+    return _fetch.call(this, url, opts).then(function(r) {
+      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminName');
+        window.location.href = '/login.html';
+      }
+      return r;
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function() {
+    var name = localStorage.getItem('adminName') || 'Admin';
+    var nameEl = document.querySelector('.sidebar-user .name');
+    if (nameEl) nameEl.textContent = name;
+  });
+})();
+</script>
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/logo.png" alt="Pappas & Co. Landscaping"></div>

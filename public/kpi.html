@@ -587,6 +587,34 @@
     </style>
 </head>
 <body>
+<script>
+(function() {
+  var t = localStorage.getItem('adminToken');
+  if (!t) { window.location.href = '/login.html'; return; }
+  var _fetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      opts.headers = opts.headers || {};
+      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
+      else { opts.headers['Authorization'] = 'Bearer ' + t; }
+    }
+    return _fetch.call(this, url, opts).then(function(r) {
+      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminName');
+        window.location.href = '/login.html';
+      }
+      return r;
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function() {
+    var name = localStorage.getItem('adminName') || 'Admin';
+    var nameEl = document.querySelector('.sidebar-user .name');
+    if (nameEl) nameEl.textContent = name;
+  });
+})();
+</script>
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
@@ -1176,51 +1204,10 @@
         } catch (err) {
             console.error('KPI Dashboard error:', err);
             showToast(err.message || 'Failed to load dashboard', true);
-
-            // Render fallback / demo data so the page is not empty
-            renderFallbackData();
+            document.getElementById('kpiCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--gray-400);"><p style="font-size:18px;margin-bottom:8px;">Unable to load KPI data</p><p style="font-size:13px;">Check your connection and try again</p></div>';
         } finally {
             overlay.classList.remove('visible');
         }
-    }
-
-    // Fallback demo data when API is unavailable
-    function renderFallbackData() {
-        const demoMetrics = {
-            closeRatio: { value: 65, signed: 13, sent: 20 },
-            avgJobValue: { value: 285.50, count: 45 },
-            customerAcquisitionCost: { value: 45.00, marketing: 900, newCustomers: 20 },
-            laborEfficiency: { value: 125.00, revenue: 50000, hours: 400 },
-            monthlyRecurringRevenue: { value: 8500, customerCount: 34 },
-            customerLifetimeValue: { value: 2400, totalRevenue: 120000, activeCustomers: 50 },
-            arAging: { current: 5000, days30: 2000, days60: 800, days90plus: 300 },
-            outstandingTrend: [
-                { month: '2025-07', amount: 6200 },
-                { month: '2025-08', amount: 5800 },
-                { month: '2025-09', amount: 6500 },
-                { month: '2025-10', amount: 5000 },
-                { month: '2025-11', amount: 4200 },
-                { month: '2025-12', amount: 3900 }
-            ],
-            revenuePerCrew: [
-                { crew_name: 'Crew A', revenue: 15000, jobs: 30 },
-                { crew_name: 'Crew B', revenue: 12500, jobs: 25 },
-                { crew_name: 'Crew C', revenue: 9800, jobs: 18 }
-            ]
-        };
-
-        const demoCoaching = [
-            { severity: 'warning', title: 'Close ratio below target', suggestion: 'Your close ratio is 65% — try following up within 24 hours of sending quotes to push toward the 75% goal.' },
-            { severity: 'success', title: 'Strong MRR growth', suggestion: 'Monthly recurring revenue is trending up nicely. Keep converting one-time customers to maintenance plans.' },
-            { severity: 'info', title: 'Outstanding balance improving', suggestion: 'Outstanding balances have dropped 37% over the last 6 months. Great collection effort!' },
-            { severity: 'danger', title: 'Aging receivables in 90+ days', suggestion: 'You have $300 in the 90+ day bucket. Consider sending final notices or adjusting payment terms.' }
-        ];
-
-        renderKPICards(demoMetrics);
-        renderARAgingChart(demoMetrics.arAging);
-        renderOutstandingTrend(demoMetrics.outstandingTrend);
-        renderCrewTable(demoMetrics.revenuePerCrew);
-        renderCoaching(demoCoaching);
     }
 
     // Initialize

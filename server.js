@@ -236,6 +236,118 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ═══════════════════════════════════════════════════════════
+// ADMIN AUTHENTICATION SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+const ADMIN_USERS_TABLE = `CREATE TABLE IF NOT EXISTS admin_users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(255),
+  role VARCHAR(50) DEFAULT 'admin',
+  last_login TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
+function hashPassword(password) {
+  const salt = 'pappas-admin-salt-2026';
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+}
+
+// Admin login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
+
+    await pool.query(ADMIN_USERS_TABLE);
+    const result = await pool.query('SELECT * FROM admin_users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (result.rows.length === 0) return res.status(401).json({ success: false, error: 'Invalid email or password' });
+
+    const user = result.rows[0];
+    const inputHash = hashPassword(password);
+    if (inputHash !== user.password_hash) return res.status(401).json({ success: false, error: 'Invalid email or password' });
+
+    await pool.query('UPDATE admin_users SET last_login = NOW() WHERE id = $1', [user.id]);
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ success: true, token, name: user.name, email: user.email, role: user.role });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Verify admin token
+app.get('/api/auth/me', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'No token' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not admin' });
+    res.json({ success: true, user: { email: decoded.email, name: decoded.name, role: decoded.role } });
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+});
+
+// Change password
+app.post('/api/auth/change-password', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'No token' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not admin' });
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) return res.status(400).json({ success: false, error: 'Both passwords required' });
+    if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+
+    pool.query('SELECT password_hash FROM admin_users WHERE id = $1', [decoded.id]).then(result => {
+      if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
+      if (hashPassword(current_password) !== result.rows[0].password_hash) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+      const newHash = hashPassword(new_password);
+      pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, decoded.id]);
+      res.json({ success: true, message: 'Password changed' });
+    }).catch(err => res.status(500).json({ success: false, error: err.message }));
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+});
+
+// Admin auth middleware — protects all admin API routes
+const ADMIN_PUBLIC_PATHS = [
+  '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',
+  '/api/portal/', '/api/campaigns/submissions', '/api/app/',
+  '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
+  '/api/config/', '/health', '/api/test-quote-pdf'
+];
+
+function requireAdmin(req, res, next) {
+  // Skip non-API routes
+  if (!req.path.startsWith('/api/') && req.path !== '/health') return next();
+  // Skip public API paths
+  for (const p of ADMIN_PUBLIC_PATHS) {
+    if (req.path.startsWith(p) || req.path === p) return next();
+  }
+  // Check admin JWT
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'Authentication required' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Admin access required' });
+    req.adminUser = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Session expired — please log in again' });
+  }
+}
+
+// Apply admin auth middleware to all routes
+app.use(requireAdmin);
+
 async function sendEmail(to, subject, html, attachments = null) {
   if (!RESEND_API_KEY) return;
   try {
@@ -9155,6 +9267,23 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     `);
     console.log('✅ Default business settings seeded');
   } catch(e) { console.error('Settings seed error:', e.message); }
+
+  // Create admin_users table and seed default admin accounts
+  try {
+    await pool.query(ADMIN_USERS_TABLE);
+    const adminUsers = [
+      { email: 'hello@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'PappasAdmin2026!', name: 'Theresa Pappas', role: 'owner' },
+      { email: 'tim@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'PappasAdmin2026!', name: 'Tim Pappas', role: 'owner' },
+    ];
+    for (const u of adminUsers) {
+      const hash = hashPassword(u.password);
+      await pool.query(
+        `INSERT INTO admin_users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING`,
+        [u.email, hash, u.name, u.role]
+      );
+    }
+    console.log('✅ Admin users ready');
+  } catch(e) { console.error('Admin users error:', e.message); }
 })();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracking — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
+        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
+            --lime: #c9dd80; --lime-soft: #dce9a8;
+            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0; --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8; --gray-400: #9ca09c; --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0; --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb; --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px; --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; }
+
+        /* Sidebar */
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        /* Main */
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        /* Content */
+        .content { padding: 32px; }
+
+        /* Stats */
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
+        .stat-card .label { font-size: 12px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .stat-card .number { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .stat-card .sub { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+
+        /* Active Timers */
+        .active-timers { margin-bottom: 24px; }
+        .section-title { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+        .section-title .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .timer-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+        .timer-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; border-left: 4px solid var(--green); }
+        .timer-card .timer-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .timer-card .crew-name { font-size: 15px; font-weight: 700; color: var(--forest); }
+        .timer-card .elapsed { font-family: 'Qualy', serif; font-size: 24px; font-weight: 700; color: var(--green); }
+        .timer-card .timer-detail { font-size: 12px; color: var(--gray-400); margin-bottom: 4px; }
+        .timer-card .timer-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+        /* Table */
+        .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
+        .table-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-200); }
+        .table-header h3 { font-family: 'Qualy', serif; font-size: 18px; color: var(--forest); }
+        .table-filters { display: flex; gap: 8px; }
+        .filter-select { padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 13px; color: var(--gray-600); background: var(--white); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { background: var(--gray-50); padding: 10px 16px; font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border-bottom: 1px solid var(--gray-200); }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+        tr:hover td { background: var(--gray-50); }
+
+        .status-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+        .status-badge.active { background: var(--green-bg); color: var(--green); }
+        .status-badge.completed { background: var(--blue-bg); color: var(--blue); }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
+        .empty-state p { font-size: 14px; margin-bottom: 4px; }
+
+        /* Weekly Report */
+        .report-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 24px; }
+        .day-col { background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; padding: 12px; text-align: center; }
+        .day-col .day-name { font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; margin-bottom: 4px; }
+        .day-col .day-hours { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .day-col .day-sub { font-size: 11px; color: var(--gray-400); }
+        .day-col.today { border-color: var(--lime); background: var(--green-bg); }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--white); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--gray-200); }
+        .modal-header h3 { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); padding: 4px 8px; border-radius: 6px; }
+        .modal-close:hover { background: var(--gray-100); }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 10px; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--gray-700); }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Toast */
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .toast.error { background: var(--red); color: white; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .report-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .content { padding: 16px; }
+            .stats-row { grid-template-columns: 1fr 1fr; }
+            .report-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+<script>
+(function() {
+  var t = localStorage.getItem('adminToken');
+  if (!t) { window.location.href = '/login.html'; return; }
+  var _fetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      opts.headers = opts.headers || {};
+      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
+      else { opts.headers['Authorization'] = 'Bearer ' + t; }
+    }
+    return _fetch.call(this, url, opts).then(function(r) {
+      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) { localStorage.removeItem('adminToken'); localStorage.removeItem('adminName'); window.location.href = '/login.html'; }
+      return r;
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function() {
+    var name = localStorage.getItem('adminName') || 'Admin';
+    var nameEl = document.querySelector('.sidebar-user .name');
+    if (nameEl) nameEl.textContent = name;
+  });
+})();
+</script>
+
+<div class="sidebar">
+    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="YardDesk"></a></div>
+    <div class="sidebar-nav">
+        <div class="nav-section"><div class="nav-section-label">Overview</div><a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Sales</div><a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a><a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a><a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a><a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div><a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a><a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a><a href="work-requests.html" class="nav-item"><span>📥</span><span>Work Requests</span></a><a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a><a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a><a href="time-tracking.html" class="nav-item active"><span>⏱️</span><span>Time Tracking</span></a><a href="programs.html" class="nav-item"><span>🔄</span><span>Service Programs</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div><a href="communications.html" class="nav-item"><span>💬</span><span>Messages &amp; Calls</span></a><a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Marketing</div><a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a><a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Finance</div><a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a><a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a><a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a><a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Analytics</div><a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a><a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Team</div><a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">System</div><a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
+    </div>
+    <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Tim Pappas</div><div class="role">Owner</div></div></div></div>
+</div>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left"><h2>Time Tracking</h2></div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-primary" onclick="openClockInModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Clock In
+            </button>
+        </div>
+    </div>
+
+    <div class="content">
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat-card"><div class="label">Active Timers</div><div class="number" id="statActive">0</div><div class="sub">Currently clocked in</div></div>
+            <div class="stat-card"><div class="label">Today's Hours</div><div class="number" id="statTodayHours">0.0</div><div class="sub">Total hours tracked</div></div>
+            <div class="stat-card"><div class="label">This Week</div><div class="number" id="statWeekHours">0.0</div><div class="sub">Hours this week</div></div>
+            <div class="stat-card"><div class="label">Entries Today</div><div class="number" id="statTodayEntries">0</div><div class="sub">Time entries logged</div></div>
+        </div>
+
+        <!-- Active Timers -->
+        <div class="active-timers" id="activeTimersSection" style="display:none;">
+            <div class="section-title"><span class="pulse"></span> Active Timers</div>
+            <div class="timer-cards" id="activeTimerCards"></div>
+        </div>
+
+        <!-- Weekly Report -->
+        <div class="section-title" style="margin-bottom:16px;">Weekly Overview</div>
+        <div class="report-grid" id="weeklyReport"></div>
+
+        <!-- Time Entries Table -->
+        <div class="table-card">
+            <div class="table-header">
+                <h3>Time Entries</h3>
+                <div class="table-filters">
+                    <select class="filter-select" id="filterCrew" onchange="loadEntries()">
+                        <option value="">All Crews</option>
+                    </select>
+                    <input type="date" class="filter-select" id="filterDate" onchange="loadEntries()">
+                </div>
+            </div>
+            <div id="entriesTableWrap">
+                <table>
+                    <thead>
+                        <tr><th>Crew</th><th>Job / Customer</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th>Status</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="entriesBody">
+                        <tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><p>No time entries yet</p><p style="font-size:12px;">Clock in to start tracking time</p></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clock In Modal -->
+<div class="modal-overlay" id="clockInModal">
+    <div class="modal">
+        <div class="modal-header"><h3>Clock In</h3><button class="modal-close" onclick="closeModal('clockInModal')">&times;</button></div>
+        <div class="modal-body">
+            <form id="clockInForm" onsubmit="submitClockIn(event)">
+                <div class="form-group">
+                    <label>Crew Member / Name</label>
+                    <input type="text" id="ciCrewMember" required placeholder="e.g. Tim Pappas">
+                </div>
+                <div class="form-group">
+                    <label>Job / Customer (optional)</label>
+                    <input type="text" id="ciJobRef" placeholder="e.g. Smith - Mowing">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="ciNotes" placeholder="Any notes..." style="resize:vertical;min-height:60px;width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:inherit;font-size:14px;"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('clockInModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="document.getElementById('clockInForm').requestSubmit()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Clock In
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+let allEntries = [];
+let timerIntervals = {};
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('filterDate').value = todayStr();
+    loadEntries();
+    loadStats();
+    loadWeeklyReport();
+    // Refresh active timers every 30s
+    setInterval(refreshActiveTimers, 30000);
+});
+
+function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+async function loadStats() {
+    try {
+        const res = await fetch('/api/time-entries/stats');
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('statActive').textContent = data.stats.active_timers || 0;
+            document.getElementById('statTodayHours').textContent = (data.stats.today_hours || 0).toFixed(1);
+            document.getElementById('statWeekHours').textContent = (data.stats.week_hours || 0).toFixed(1);
+            document.getElementById('statTodayEntries').textContent = data.stats.today_entries || 0;
+        }
+    } catch (err) { console.error('Stats error:', err); }
+}
+
+async function loadEntries() {
+    try {
+        const crew = document.getElementById('filterCrew').value;
+        const date = document.getElementById('filterDate').value;
+        let url = '/api/time-entries?';
+        if (crew) url += `crew_member=${encodeURIComponent(crew)}&`;
+        if (date) url += `date=${date}&`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        allEntries = data.entries || [];
+        renderEntries(allEntries);
+        renderActiveTimers(allEntries.filter(e => !e.clock_out));
+    } catch (err) {
+        console.error('Load entries error:', err);
+    }
+}
+
+function renderEntries(entries) {
+    const tbody = document.getElementById('entriesBody');
+    if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><p>No time entries found</p></div></td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = entries.map(e => {
+        const clockIn = new Date(e.clock_in);
+        const clockOut = e.clock_out ? new Date(e.clock_out) : null;
+        const isActive = !clockOut;
+        const duration = clockOut
+            ? formatDur((clockOut - clockIn) / 60000)
+            : formatDur((Date.now() - clockIn.getTime()) / 60000);
+
+        return `<tr>
+            <td style="font-weight:600;">${esc(e.crew_member || '--')}</td>
+            <td>${esc(e.job_reference || '--')}</td>
+            <td>${clockIn.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}</td>
+            <td>${clockOut ? clockOut.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) : '<span style="color:var(--green);font-weight:600;">Running</span>'}</td>
+            <td style="font-weight:600;">${duration}</td>
+            <td><span class="status-badge ${isActive ? 'active' : 'completed'}">${isActive ? 'Active' : 'Done'}</span></td>
+            <td>
+                ${isActive
+                    ? `<button class="btn btn-sm btn-danger" onclick="clockOut(${e.id})">Clock Out</button>`
+                    : `<button class="btn btn-sm btn-secondary" onclick="deleteEntry(${e.id})">Delete</button>`}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function renderActiveTimers(active) {
+    const section = document.getElementById('activeTimersSection');
+    const cards = document.getElementById('activeTimerCards');
+
+    if (active.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    cards.innerHTML = active.map(e => {
+        const clockIn = new Date(e.clock_in);
+        const elapsed = formatDur((Date.now() - clockIn.getTime()) / 60000);
+        return `
+        <div class="timer-card">
+            <div class="timer-top">
+                <div>
+                    <div class="crew-name">${esc(e.crew_member)}</div>
+                    <div class="timer-detail">${esc(e.job_reference || 'No job assigned')}</div>
+                    <div class="timer-detail">Started ${clockIn.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}</div>
+                </div>
+                <div class="elapsed" id="timer-${e.id}">${elapsed}</div>
+            </div>
+            ${e.notes ? `<div class="timer-detail" style="margin-top:4px;font-style:italic;">${esc(e.notes)}</div>` : ''}
+            <div class="timer-actions">
+                <button class="btn btn-sm btn-danger" onclick="clockOut(${e.id})">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                    Clock Out
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function refreshActiveTimers() {
+    const active = allEntries.filter(e => !e.clock_out);
+    active.forEach(e => {
+        const el = document.getElementById('timer-' + e.id);
+        if (el) {
+            const clockIn = new Date(e.clock_in);
+            el.textContent = formatDur((Date.now() - clockIn.getTime()) / 60000);
+        }
+    });
+}
+
+async function loadWeeklyReport() {
+    try {
+        const res = await fetch('/api/time-entries/weekly-report');
+        const data = await res.json();
+        if (!data.success) return;
+
+        const grid = document.getElementById('weeklyReport');
+        const today = todayStr();
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        grid.innerHTML = (data.report || []).map(day => {
+            const isToday = day.date === today;
+            const hours = (day.total_hours || 0).toFixed(1);
+            const d = new Date(day.date + 'T00:00:00');
+            return `
+            <div class="day-col ${isToday ? 'today' : ''}">
+                <div class="day-name">${dayNames[d.getDay()]}</div>
+                <div class="day-hours">${hours}</div>
+                <div class="day-sub">${day.entry_count || 0} entries</div>
+            </div>`;
+        }).join('');
+    } catch (err) { console.error('Weekly report error:', err); }
+}
+
+function openClockInModal() {
+    document.getElementById('clockInForm').reset();
+    openModal('clockInModal');
+}
+
+async function submitClockIn(e) {
+    e.preventDefault();
+    try {
+        const res = await fetch('/api/time-entries/clock-in', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crew_member: document.getElementById('ciCrewMember').value,
+                job_reference: document.getElementById('ciJobRef').value || null,
+                notes: document.getElementById('ciNotes').value || null
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast('Clocked in successfully');
+        closeModal('clockInModal');
+        loadEntries();
+        loadStats();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function clockOut(id) {
+    try {
+        const res = await fetch(`/api/time-entries/${id}/clock-out`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast('Clocked out');
+        loadEntries();
+        loadStats();
+        loadWeeklyReport();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function deleteEntry(id) {
+    if (!confirm('Delete this time entry?')) return;
+    try {
+        const res = await fetch(`/api/time-entries/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast('Entry deleted');
+        loadEntries();
+        loadStats();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function formatDur(mins) {
+    if (!mins || mins < 0) return '0m';
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); document.body.style.overflow = 'hidden'; }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); document.body.style.overflow = ''; }
+document.addEventListener('click', e => { if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) { e.target.classList.remove('active'); document.body.style.overflow = ''; } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); document.body.style.overflow = ''; } });
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type === 'error' ? 'error' : ''}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function esc(str) { if (!str) return ''; const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+</script>
+</body>
+</html>

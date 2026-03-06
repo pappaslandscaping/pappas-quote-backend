@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Programs — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
+        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
+        h2, h3 { font-family: 'Qualy', serif !important; }
+        .stat-card .number { font-family: 'Qualy', serif !important; }
+
+        :root {
+            --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
+            --lime: #c9dd80; --lime-soft: #dce9a8;
+            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0; --gray-200: #e2e5e2;
+            --gray-300: #c8ccc8; --gray-400: #9ca09c; --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0; --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb; --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px; --header-h: 64px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; }
+
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
+        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .content { padding: 32px; }
+
+        /* Programs Grid */
+        .programs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; }
+        .program-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; transition: all 0.15s; }
+        .program-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+        .program-card-header { padding: 20px; border-bottom: 1px solid var(--gray-100); }
+        .program-card-header .prog-name { font-family: 'Qualy', serif; font-size: 18px; font-weight: 700; color: var(--forest); margin-bottom: 4px; }
+        .program-card-header .prog-desc { font-size: 13px; color: var(--gray-400); }
+        .program-card-body { padding: 20px; }
+        .prog-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .prog-stat { text-align: center; }
+        .prog-stat .ps-value { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .prog-stat .ps-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* Steps timeline */
+        .steps-timeline { position: relative; padding-left: 24px; }
+        .steps-timeline::before { content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--gray-200); }
+        .step-item { position: relative; margin-bottom: 12px; }
+        .step-item:last-child { margin-bottom: 0; }
+        .step-dot { position: absolute; left: -20px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--lime); border: 2px solid var(--forest); }
+        .step-name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+        .step-detail { font-size: 11px; color: var(--gray-400); }
+
+        .program-card-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); display: flex; gap: 8px; }
+
+        .status-pill { display: inline-flex; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .status-pill.active { background: var(--green-bg); color: var(--green); }
+        .status-pill.draft { background: var(--gray-100); color: var(--gray-500); }
+
+        .empty-state { text-align: center; padding: 80px 20px; color: var(--gray-400); }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--white); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--gray-200); }
+        .modal-header h3 { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); padding: 4px 8px; border-radius: 6px; }
+        .modal-close:hover { background: var(--gray-100); }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 10px; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--gray-700); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Steps builder */
+        .steps-builder { margin-top: 16px; }
+        .steps-builder-title { font-size: 14px; font-weight: 700; color: var(--forest); margin-bottom: 8px; }
+        .step-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; padding: 10px; background: var(--gray-50); border-radius: 8px; border: 1px solid var(--gray-200); }
+        .step-row input, .step-row select { flex: 1; padding: 6px 10px; border: 1px solid var(--gray-200); border-radius: 6px; font-family: inherit; font-size: 13px; }
+        .step-row .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+        .step-row .remove-step { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; padding: 4px; flex-shrink: 0; }
+        .add-step-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px dashed var(--gray-300); border-radius: 8px; background: transparent; color: var(--gray-400); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; width: 100%; justify-content: center; margin-top: 8px; }
+        .add-step-btn:hover { border-color: var(--forest); color: var(--forest); background: var(--gray-50); }
+
+        /* Enroll Modal */
+        .enroll-info { background: var(--green-bg); border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; font-size: 13px; color: var(--green); margin-bottom: 16px; }
+
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
+        .toast.error { background: var(--red); color: white; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 1024px) { .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .main { margin-left: 0; } .mobile-menu-btn { display: block; } }
+        @media (max-width: 768px) { .content { padding: 16px; } .programs-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<script>
+(function() {
+  var t = localStorage.getItem('adminToken');
+  if (!t) { window.location.href = '/login.html'; return; }
+  var _fetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      opts.headers = opts.headers || {};
+      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
+      else { opts.headers['Authorization'] = 'Bearer ' + t; }
+    }
+    return _fetch.call(this, url, opts).then(function(r) {
+      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) { localStorage.removeItem('adminToken'); localStorage.removeItem('adminName'); window.location.href = '/login.html'; }
+      return r;
+    });
+  };
+  document.addEventListener('DOMContentLoaded', function() {
+    var name = localStorage.getItem('adminName') || 'Admin';
+    var nameEl = document.querySelector('.sidebar-user .name');
+    if (nameEl) nameEl.textContent = name;
+  });
+})();
+</script>
+
+<div class="sidebar">
+    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="YardDesk"></a></div>
+    <div class="sidebar-nav">
+        <div class="nav-section"><div class="nav-section-label">Overview</div><a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Sales</div><a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a><a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a><a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a><a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div><a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a><a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a><a href="work-requests.html" class="nav-item"><span>📥</span><span>Work Requests</span></a><a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a><a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a><a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a><a href="programs.html" class="nav-item active"><span>🔄</span><span>Service Programs</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div><a href="communications.html" class="nav-item"><span>💬</span><span>Messages &amp; Calls</span></a><a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Marketing</div><a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a><a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Finance</div><a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a><a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a><a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a><a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Analytics</div><a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a><a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Team</div><a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">System</div><a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
+    </div>
+    <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Tim Pappas</div><div class="role">Owner</div></div></div></div>
+</div>
+
+<div class="main">
+    <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div class="topbar-left"><h2>Service Programs</h2></div>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-primary" onclick="openProgramModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Program
+            </button>
+        </div>
+    </div>
+
+    <div class="content">
+        <p style="font-size:14px;color:var(--gray-400);margin-bottom:24px;">Build multi-step service programs (e.g., 6-step lawn care) and enroll customers to auto-generate scheduled jobs.</p>
+
+        <div class="programs-grid" id="programsGrid">
+            <div class="empty-state" style="grid-column:1/-1;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <p style="font-size:15px;font-weight:600;">Loading programs...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Program Modal -->
+<div class="modal-overlay" id="programModal">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header"><h3 id="programModalTitle">New Service Program</h3><button class="modal-close" onclick="closeModal('programModal')">&times;</button></div>
+        <div class="modal-body">
+            <form id="programForm" onsubmit="submitProgram(event)">
+                <div class="form-group">
+                    <label>Program Name</label>
+                    <input type="text" id="progName" required placeholder="e.g. 6-Step Lawn Care Program">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="progDesc" placeholder="Describe the program..."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Total Price ($)</label>
+                        <input type="number" id="progPrice" placeholder="599.00" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="progStatus">
+                            <option value="active">Active</option>
+                            <option value="draft">Draft</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="steps-builder">
+                    <div class="steps-builder-title">Program Steps</div>
+                    <div id="stepsContainer"></div>
+                    <button type="button" class="add-step-btn" onclick="addStepRow()">+ Add Step</button>
+                </div>
+
+                <input type="hidden" id="progId">
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('programModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="document.getElementById('programForm').requestSubmit()">Save Program</button>
+        </div>
+    </div>
+</div>
+
+<!-- Enroll Modal -->
+<div class="modal-overlay" id="enrollModal">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header"><h3>Enroll Customer</h3><button class="modal-close" onclick="closeModal('enrollModal')">&times;</button></div>
+        <div class="modal-body">
+            <div class="enroll-info">Enrolling a customer will auto-generate scheduled jobs for each step in the program.</div>
+            <form id="enrollForm" onsubmit="submitEnroll(event)">
+                <div class="form-group">
+                    <label>Customer ID</label>
+                    <input type="number" id="enrollCustomerId" required placeholder="Customer ID">
+                </div>
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="enrollStartDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Property Address (optional)</label>
+                    <input type="text" id="enrollAddress" placeholder="123 Main St, City, OH">
+                </div>
+                <input type="hidden" id="enrollProgramId">
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('enrollModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="document.getElementById('enrollForm').requestSubmit()">Enroll & Generate Jobs</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+let programsData = [];
+let stepCounter = 0;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadPrograms();
+});
+
+async function loadPrograms() {
+    try {
+        const res = await fetch('/api/service-programs');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        programsData = data.programs || [];
+        renderPrograms();
+    } catch (err) {
+        document.getElementById('programsGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><p style="color:var(--red);">Error: ${err.message}</p></div>`;
+    }
+}
+
+function renderPrograms() {
+    const grid = document.getElementById('programsGrid');
+    if (programsData.length === 0) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            <p style="font-size:15px;font-weight:600;">No programs yet</p>
+            <p style="font-size:13px;">Create a multi-step service program to get started.</p>
+        </div>`;
+        return;
+    }
+
+    grid.innerHTML = programsData.map(p => `
+        <div class="program-card">
+            <div class="program-card-header">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div class="prog-name">${esc(p.name)}</div>
+                    <span class="status-pill ${p.status === 'active' ? 'active' : 'draft'}">${p.status || 'draft'}</span>
+                </div>
+                <div class="prog-desc">${esc(p.description || 'No description')}</div>
+            </div>
+            <div class="program-card-body">
+                <div class="prog-stats">
+                    <div class="prog-stat"><div class="ps-value">${p.step_count || 0}</div><div class="ps-label">Steps</div></div>
+                    <div class="prog-stat"><div class="ps-value">${p.total_price ? '$' + Number(p.total_price).toFixed(0) : '--'}</div><div class="ps-label">Price</div></div>
+                    <div class="prog-stat"><div class="ps-value" id="enrollCount-${p.id}">--</div><div class="ps-label">Enrolled</div></div>
+                </div>
+                <div id="stepsPreview-${p.id}" class="steps-timeline" style="display:none;"></div>
+                <button class="btn btn-sm btn-secondary" style="width:100%;justify-content:center;" onclick="toggleSteps(${p.id})">View Steps</button>
+            </div>
+            <div class="program-card-footer">
+                <button class="btn btn-sm btn-primary" onclick="openEnrollModal(${p.id})">Enroll Customer</button>
+                <button class="btn btn-sm btn-secondary" onclick="editProgram(${p.id})">Edit</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteProgram(${p.id})">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function toggleSteps(id) {
+    const preview = document.getElementById('stepsPreview-' + id);
+    if (preview.style.display === 'block') {
+        preview.style.display = 'none';
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/service-programs/${id}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const steps = data.steps || [];
+        const enrollCount = (data.enrollments || []).length;
+        const countEl = document.getElementById('enrollCount-' + id);
+        if (countEl) countEl.textContent = enrollCount;
+
+        preview.innerHTML = steps.length === 0
+            ? '<p style="font-size:12px;color:var(--gray-400);text-align:center;">No steps defined</p>'
+            : steps.map(s => `
+                <div class="step-item">
+                    <div class="step-dot"></div>
+                    <div class="step-name">Step ${s.step_order}: ${esc(s.name)}</div>
+                    <div class="step-detail">${esc(s.service_type || '')} | ${s.days_after_start || 0} days after start | ${s.estimated_duration || 30}min</div>
+                </div>
+            `).join('');
+
+        preview.style.display = 'block';
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function openProgramModal(prog) {
+    document.getElementById('programForm').reset();
+    document.getElementById('progId').value = '';
+    document.getElementById('programModalTitle').textContent = 'New Service Program';
+    stepCounter = 0;
+    document.getElementById('stepsContainer').innerHTML = '';
+
+    if (prog) {
+        document.getElementById('progId').value = prog.id;
+        document.getElementById('progName').value = prog.name || '';
+        document.getElementById('progDesc').value = prog.description || '';
+        document.getElementById('progPrice').value = prog.total_price || '';
+        document.getElementById('progStatus').value = prog.status || 'draft';
+        document.getElementById('programModalTitle').textContent = 'Edit Program';
+    }
+
+    // Add at least one empty step
+    if (document.getElementById('stepsContainer').children.length === 0) {
+        addStepRow();
+    }
+
+    openModal('programModal');
+}
+
+function addStepRow(data) {
+    stepCounter++;
+    const container = document.getElementById('stepsContainer');
+    const row = document.createElement('div');
+    row.className = 'step-row';
+    row.innerHTML = `
+        <span class="step-num">${stepCounter}</span>
+        <input type="text" placeholder="Step name" class="step-name-input" value="${data ? esc(data.name) : ''}">
+        <select class="step-service-input">
+            <option value="Mowing" ${data && data.service_type === 'Mowing' ? 'selected' : ''}>Mowing</option>
+            <option value="Fertilizing" ${data && data.service_type === 'Fertilizing' ? 'selected' : ''}>Fertilizing</option>
+            <option value="Aeration" ${data && data.service_type === 'Aeration' ? 'selected' : ''}>Aeration</option>
+            <option value="Overseeding" ${data && data.service_type === 'Overseeding' ? 'selected' : ''}>Overseeding</option>
+            <option value="Weed Control" ${data && data.service_type === 'Weed Control' ? 'selected' : ''}>Weed Control</option>
+            <option value="Grub Control" ${data && data.service_type === 'Grub Control' ? 'selected' : ''}>Grub Control</option>
+            <option value="Other" ${data && data.service_type === 'Other' ? 'selected' : ''}>Other</option>
+        </select>
+        <input type="number" placeholder="Days after" class="step-days-input" style="width:80px;" value="${data ? data.days_after_start || 0 : ''}" min="0" title="Days after enrollment start">
+        <button type="button" class="remove-step" onclick="this.parentElement.remove();renumberSteps()">&times;</button>
+    `;
+    container.appendChild(row);
+}
+
+function renumberSteps() {
+    const rows = document.querySelectorAll('#stepsContainer .step-row');
+    rows.forEach((row, i) => {
+        row.querySelector('.step-num').textContent = i + 1;
+    });
+    stepCounter = rows.length;
+}
+
+async function submitProgram(e) {
+    e.preventDefault();
+    const id = document.getElementById('progId').value;
+    const payload = {
+        name: document.getElementById('progName').value,
+        description: document.getElementById('progDesc').value,
+        total_price: parseFloat(document.getElementById('progPrice').value) || null,
+        status: document.getElementById('progStatus').value
+    };
+
+    // Collect steps
+    const stepRows = document.querySelectorAll('#stepsContainer .step-row');
+    payload.steps = Array.from(stepRows).map((row, i) => ({
+        step_order: i + 1,
+        name: row.querySelector('.step-name-input').value,
+        service_type: row.querySelector('.step-service-input').value,
+        days_after_start: parseInt(row.querySelector('.step-days-input').value) || 0,
+        estimated_duration: 30
+    }));
+
+    try {
+        const url = id ? `/api/service-programs/${id}` : '/api/service-programs';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast(id ? 'Program updated' : 'Program created');
+        closeModal('programModal');
+        loadPrograms();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function editProgram(id) {
+    try {
+        const res = await fetch(`/api/service-programs/${id}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        stepCounter = 0;
+        document.getElementById('stepsContainer').innerHTML = '';
+
+        openProgramModal(data.program);
+
+        // Remove the default empty step first
+        document.getElementById('stepsContainer').innerHTML = '';
+        stepCounter = 0;
+
+        (data.steps || []).forEach(s => addStepRow(s));
+        if ((data.steps || []).length === 0) addStepRow();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function deleteProgram(id) {
+    if (!confirm('Delete this program? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`/api/service-programs/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast('Program deleted');
+        loadPrograms();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function openEnrollModal(programId) {
+    document.getElementById('enrollForm').reset();
+    document.getElementById('enrollProgramId').value = programId;
+    const today = new Date();
+    document.getElementById('enrollStartDate').value = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+    openModal('enrollModal');
+}
+
+async function submitEnroll(e) {
+    e.preventDefault();
+    const programId = document.getElementById('enrollProgramId').value;
+    try {
+        const res = await fetch(`/api/service-programs/${programId}/enroll`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customer_id: parseInt(document.getElementById('enrollCustomerId').value),
+                start_date: document.getElementById('enrollStartDate').value,
+                address: document.getElementById('enrollAddress').value || null
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        showToast(`Customer enrolled! ${data.jobs_created || 0} jobs generated.`);
+        closeModal('enrollModal');
+        loadPrograms();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); document.body.style.overflow = 'hidden'; }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); document.body.style.overflow = ''; }
+document.addEventListener('click', e => { if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('active')) { e.target.classList.remove('active'); document.body.style.overflow = ''; } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active')); document.body.style.overflow = ''; } });
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type === 'error' ? 'error' : ''}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function esc(str) { if (!str) return ''; const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+</script>
+</body>
+</html>

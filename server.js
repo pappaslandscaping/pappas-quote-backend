@@ -6539,7 +6539,7 @@ app.post('/api/late-fees/bulk-waive-today', async (req, res) => {
             <p>We take the accuracy of our communications seriously and are taking steps to ensure this does not happen again.</p>
             <p>If you have any questions or concerns, please don't hesitate to reach out to us directly.</p>
             <p>Thank you for your patience and understanding.</p>
-            <p style="margin-top:24px;">Warm regards,<br><strong>Tim Pappas</strong><br>Pappas & Co. Landscaping<br>440-897-0957</p>
+            <p style="margin-top:24px;">Warm regards,<br><strong>Tim Pappas</strong><br>Pappas & Co. Landscaping<br>440-886-7318</p>
           `;
           await sendEmail(cust.email, 'Our Apologies — Please Disregard Previous Email', emailTemplate(content), null, { type: 'apology', customer_id: cust.customer_id, customer_name: cust.name });
           emailsSent++;

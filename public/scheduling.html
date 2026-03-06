@@ -1138,6 +1138,226 @@
             .search-box input { width: 150px; }
         }
 
+        /* ─── Month Calendar View ──────────────────────────────── */
+        .month-view-wrapper {
+            display: flex;
+            gap: 20px;
+        }
+        .mini-calendar-sidebar {
+            width: 240px;
+            flex-shrink: 0;
+        }
+        .mini-calendar {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 16px;
+            position: sticky;
+            top: calc(var(--header-h) + 28px);
+        }
+        .mini-cal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .mini-cal-header span {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+        .mini-cal-btn {
+            width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--gray-200);
+            background: var(--white); cursor: pointer; display: flex; align-items: center;
+            justify-content: center; font-size: 14px; color: var(--gray-500); transition: all 0.15s;
+        }
+        .mini-cal-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+        .mini-cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            text-align: center;
+        }
+        .mini-cal-day-label {
+            font-size: 10px; font-weight: 600; color: var(--gray-400);
+            text-transform: uppercase; padding: 4px 0;
+        }
+        .mini-cal-day {
+            width: 30px; height: 30px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; font-size: 12px;
+            font-weight: 500; color: var(--gray-600); cursor: pointer;
+            transition: all 0.15s; margin: 0 auto;
+        }
+        .mini-cal-day:hover { background: var(--gray-100); }
+        .mini-cal-day.today { background: var(--forest); color: var(--lime); font-weight: 700; }
+        .mini-cal-day.selected { background: var(--lime); color: var(--forest); font-weight: 700; }
+        .mini-cal-day.other-month { color: var(--gray-300); }
+        .mini-cal-day.has-jobs { position: relative; }
+        .mini-cal-day.has-jobs::after {
+            content: ''; position: absolute; bottom: 2px; left: 50%;
+            transform: translateX(-50%); width: 4px; height: 4px;
+            border-radius: 50%; background: var(--forest);
+        }
+        .mini-cal-day.today.has-jobs::after { background: var(--lime); }
+
+        .month-grid-area { flex: 1; min-width: 0; }
+
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: var(--gray-200);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .month-day-label {
+            background: var(--gray-50); padding: 8px; text-align: center;
+            font-size: 11px; font-weight: 700; color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .month-day {
+            background: var(--white); min-height: 110px; padding: 8px;
+            cursor: pointer; transition: background 0.15s; position: relative;
+        }
+        .month-day:hover { background: var(--gray-50); }
+        .month-day.today { background: #f0faf0; }
+        .month-day.other-month { background: var(--gray-50); }
+        .month-day.other-month .month-day-num { color: var(--gray-300); }
+        .month-day-num {
+            font-size: 13px; font-weight: 600; color: var(--gray-700);
+            margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .month-day-num .day-number { display: flex; align-items: center; justify-content: center; }
+        .month-day.today .day-number {
+            background: var(--forest); color: var(--lime); width: 26px; height: 26px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        }
+        .month-day-revenue {
+            font-size: 10px; color: var(--gray-400); font-weight: 600;
+        }
+        .month-day-jobs { display: flex; flex-direction: column; gap: 3px; }
+        .month-job-pill {
+            font-size: 10px; font-weight: 600; padding: 2px 6px;
+            border-radius: 4px; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; cursor: pointer; transition: all 0.15s;
+        }
+        .month-job-pill:hover { opacity: 0.8; transform: scale(1.02); }
+        .month-day-more {
+            font-size: 10px; color: var(--gray-500); font-weight: 600;
+            text-align: center; margin-top: 2px; cursor: pointer;
+        }
+        .month-day-more:hover { color: var(--forest); }
+
+        /* Crew colors for month view pills */
+        .crew-color-0 { background: #dbeafe; color: #1e40af; }
+        .crew-color-1 { background: #dcfce7; color: #166534; }
+        .crew-color-2 { background: #fef3c7; color: #92400e; }
+        .crew-color-3 { background: #fce7f3; color: #9d174d; }
+        .crew-color-4 { background: #ede9fe; color: #5b21b6; }
+        .crew-color-5 { background: #e0f2fe; color: #0c4a6e; }
+        .crew-color-unassigned { background: var(--gray-100); color: var(--gray-500); }
+
+        @media (max-width: 1024px) {
+            .mini-calendar-sidebar { display: none; }
+        }
+        @media (max-width: 768px) {
+            .month-day { min-height: 70px; padding: 4px; }
+            .month-day-jobs { display: none; }
+            .month-day-num { font-size: 12px; }
+        }
+
+        /* ─── Drag & Drop ──────────────────────────────────────── */
+        .week-job[draggable="true"], .month-job-pill[draggable="true"] {
+            cursor: grab;
+        }
+        .week-job[draggable="true"]:active, .month-job-pill[draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .week-job.dragging, .month-job-pill.dragging {
+            opacity: 0.4;
+            transform: scale(0.95);
+        }
+        .week-day.drag-over, .month-day.drag-over {
+            background: var(--lime-soft) !important;
+            box-shadow: inset 0 0 0 2px var(--forest);
+        }
+        .job-card.dragging { opacity: 0.4; }
+
+        /* ─── Undo Toast ───────────────────────────────────────── */
+        .toast-undo {
+            position: fixed; bottom: 24px; right: 24px;
+            background: var(--forest); color: var(--lime);
+            padding: 12px 20px; border-radius: 10px;
+            font-size: 13px; font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300;
+            display: flex; align-items: center; gap: 12px;
+            transform: translateY(80px); opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .toast-undo.show { transform: translateY(0); opacity: 1; }
+        .toast-undo .undo-btn {
+            background: var(--lime); color: var(--forest);
+            border: none; padding: 4px 12px; border-radius: 6px;
+            font-size: 12px; font-weight: 700; cursor: pointer;
+            font-family: inherit; transition: all 0.15s;
+        }
+        .toast-undo .undo-btn:hover { background: var(--white); }
+        .toast-undo .undo-timer {
+            width: 20px; height: 20px; border-radius: 50%;
+            border: 2px solid var(--lime); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 10px; font-weight: 700;
+        }
+
+        /* ─── Time Slot View ───────────────────────────────────── */
+        .time-slot-grid {
+            display: grid;
+            grid-template-columns: 60px 1fr;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .time-slot-label {
+            padding: 8px 6px; font-size: 11px; font-weight: 600;
+            color: var(--gray-400); text-align: right; border-bottom: 1px solid var(--gray-100);
+            min-height: 60px; display: flex; align-items: flex-start; justify-content: flex-end;
+        }
+        .time-slot-cell {
+            padding: 4px 8px; border-bottom: 1px solid var(--gray-100);
+            border-left: 1px solid var(--gray-100); min-height: 60px; position: relative;
+        }
+        .time-slot-cell:hover { background: var(--gray-50); }
+        .time-slot-job {
+            background: var(--forest); color: var(--white); padding: 4px 8px;
+            border-radius: 6px; font-size: 11px; font-weight: 600;
+            margin-bottom: 2px; cursor: pointer; transition: all 0.15s;
+        }
+        .time-slot-job:hover { background: var(--forest-dark); }
+        .time-slot-job .ts-name { font-weight: 600; }
+        .time-slot-job .ts-service { opacity: 0.8; font-size: 10px; }
+
+        /* ─── Customer Autocomplete ────────────────────────────── */
+        .autocomplete-wrapper { position: relative; }
+        .autocomplete-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-top: none; border-radius: 0 0 8px 8px;
+            max-height: 200px; overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 210;
+            display: none;
+        }
+        .autocomplete-list.open { display: block; }
+        .autocomplete-item {
+            padding: 8px 12px; cursor: pointer; font-size: 13px;
+            border-bottom: 1px solid var(--gray-100); transition: background 0.1s;
+        }
+        .autocomplete-item:hover { background: var(--gray-50); }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item .ac-name { font-weight: 600; color: var(--gray-700); }
+        .autocomplete-item .ac-detail { font-size: 11px; color: var(--gray-400); }
+
         /* Map View Styles */
         .map-container {
             display: flex;
@@ -1621,6 +1841,10 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/><line x1="15" y1="4" x2="15" y2="22"/></svg>
                     Week
                 </button>
+                <button class="view-btn" id="monthViewBtn" onclick="setView('month')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="22"/><line x1="15" y1="4" x2="15" y2="22"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
+                    Month
+                </button>
                 <button class="view-btn" id="mapViewBtn" onclick="setView('map')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     Map
@@ -1702,6 +1926,18 @@
             </div>
         </div>
 
+        <!-- Month View Container (hidden by default) -->
+        <div id="monthView" style="display:none;">
+            <div class="month-view-wrapper">
+                <div class="mini-calendar-sidebar">
+                    <div class="mini-calendar" id="miniCalendar"></div>
+                </div>
+                <div class="month-grid-area">
+                    <div class="month-grid" id="monthGrid"><div class="loading-state" style="grid-column:1/-1;"><div class="loading-spinner"></div>Loading calendar...</div></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Week View Container (hidden by default) -->
         <div id="weekView" style="display:none;">
             <div class="week-grid" id="weekGrid"></div>
@@ -1709,6 +1945,7 @@
 
         <!-- Day View Job List -->
         <div id="dayView">
+            <div id="timeSlotView" style="display:none;"></div>
             <div id="jobsList"><div class="loading-state"><div class="loading-spinner"></div>Loading jobs...</div></div>
         </div>
 
@@ -1759,11 +1996,30 @@
 <!-- Add Job Modal -->
 <div class="modal-overlay" id="addModal">
     <div class="modal">
-        <div class="modal-header"><h3>Add Job</h3><button class="modal-close" onclick="closeAddModal()">&times;</button></div>
+        <div class="modal-header">
+            <h3>Add Job</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-sm btn-secondary" onclick="openFromQuoteModal()" title="Create from an existing quote">From Quote</button>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+        </div>
         <div class="modal-body">
             <div class="form-grid">
                 <div class="form-row"><label>Date *</label><input type="date" id="addDate"></div>
-                <div class="form-row"><label>Customer Name *</label><input id="addName" placeholder="Customer name"></div>
+                <div class="form-row">
+                    <label>Customer Name *</label>
+                    <div class="autocomplete-wrapper">
+                        <input id="addName" placeholder="Start typing customer name..." autocomplete="off" oninput="searchCustomers(this.value)">
+                        <div class="autocomplete-list" id="customerAutocomplete"></div>
+                    </div>
+                    <input type="hidden" id="addCustomerId">
+                </div>
+            </div>
+            <div class="form-row" id="propertySelectRow" style="display:none;">
+                <label>Property</label>
+                <select id="addProperty" onchange="selectProperty(this.value)">
+                    <option value="">-- Select Property --</option>
+                </select>
             </div>
             <div class="form-row"><label>Address *</label><input id="addAddress" placeholder="Full address"></div>
             <div class="form-grid">
@@ -1774,7 +2030,7 @@
             </div>
             <div class="form-grid">
                 <div class="form-row"><label>Phone</label><input id="addPhone" placeholder="Phone number"></div>
-                <div class="form-row"><label>Crew</label><input id="addCrew" placeholder="e.g. Crew A"></div>
+                <div class="form-row"><label>Crew</label><select id="addCrew"><option value="">-- Select Crew --</option></select></div>
             </div>
             <div class="form-grid">
                 <div class="form-row"><label>Frequency</label><select id="addFreq"><option value="">\u2014</option><option value="Weekly">Weekly</option><option value="Bi-Weekly">Bi-Weekly</option><option value="Monthly">Monthly</option><option value="One-Time">One-Time</option></select></div>
@@ -1842,7 +2098,23 @@
     <div class="panel-footer" id="panelFooter"></div>
 </div>
 
+<!-- Create from Quote Modal -->
+<div class="modal-overlay" id="fromQuoteModal">
+    <div class="modal">
+        <div class="modal-header"><h3>Create Job from Quote</h3><button class="modal-close" onclick="closeFromQuoteModal()">&times;</button></div>
+        <div class="modal-body">
+            <div class="form-row"><label>Search Quote</label><input id="quoteSearch" placeholder="Search by customer name or quote number..." oninput="searchQuotes(this.value)"></div>
+            <div id="quoteSearchResults" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
+<div class="toast-undo" id="undoToast">
+    <span id="undoToastMsg"></span>
+    <button class="undo-btn" id="undoBtn" onclick="undoReschedule()">Undo</button>
+    <span class="undo-timer" id="undoTimer">5</span>
+</div>
 
 <script>
 let allJobs = [];
@@ -1894,7 +2166,9 @@ function updateDayLabel() {
 
 function changeDate(dir) {
     const d = new Date(selectedDate + 'T12:00:00');
-    if (currentView === 'week') {
+    if (currentView === 'month') {
+        d.setMonth(d.getMonth() + dir);
+    } else if (currentView === 'week') {
         d.setDate(d.getDate() + (dir * 7));
     } else {
         d.setDate(d.getDate() + dir);
@@ -1902,8 +2176,14 @@ function changeDate(dir) {
     selectedDate = d.toISOString().split('T')[0];
     document.getElementById('dateInput').value = selectedDate;
     document.getElementById('addDate').value = selectedDate;
-    updateDayLabel(); 
-    loadJobs();
+    updateDayLabel();
+    if (currentView === 'month') {
+        loadMonthView();
+    } else if (currentView === 'week') {
+        loadWeekJobs();
+    } else {
+        loadJobs();
+    }
 }
 
 function goToday() {
@@ -1918,12 +2198,27 @@ function setView(view) {
     currentView = view;
     document.getElementById('dayViewBtn').classList.toggle('active', view === 'day');
     document.getElementById('weekViewBtn').classList.toggle('active', view === 'week');
+    document.getElementById('monthViewBtn').classList.toggle('active', view === 'month');
     document.getElementById('mapViewBtn').classList.toggle('active', view === 'map');
     document.getElementById('dayView').style.display = view === 'day' ? 'block' : 'none';
     document.getElementById('weekView').style.display = view === 'week' ? 'block' : 'none';
+    document.getElementById('monthView').style.display = view === 'month' ? 'block' : 'none';
     document.getElementById('mapView').style.display = view === 'map' ? 'block' : 'none';
-    
-    if (view === 'week') {
+
+    // Show/hide day-specific controls for month view
+    const routeSummary = document.getElementById('routeSummary');
+    const toolbarRow = document.querySelector('.toolbar-row');
+    if (view === 'month') {
+        if (routeSummary) routeSummary.style.display = 'none';
+        if (toolbarRow) toolbarRow.style.display = 'none';
+    } else {
+        if (routeSummary) routeSummary.style.display = '';
+        if (toolbarRow) toolbarRow.style.display = '';
+    }
+
+    if (view === 'month') {
+        loadMonthView();
+    } else if (view === 'week') {
         loadWeekJobs();
     } else if (view === 'map') {
         initMapView();
@@ -1960,7 +2255,7 @@ function renderWeekView(startOfWeek, jobs) {
     const weekGrid = document.getElementById('weekGrid');
     const today = new Date().toISOString().split('T')[0];
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
+
     let html = '';
     for (let i = 0; i < 7; i++) {
         const dayDate = new Date(startOfWeek);
@@ -1969,17 +2264,23 @@ function renderWeekView(startOfWeek, jobs) {
         const dayJobs = jobs.filter(j => j.job_date === dateStr || j.job_date?.split('T')[0] === dateStr);
         const isToday = dateStr === today;
         const dayRevenue = dayJobs.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
-        
+
         html += `
-            <div class="week-day ${isToday ? 'today' : ''}" onclick="selectWeekDay('${dateStr}')">
+            <div class="week-day ${isToday ? 'today' : ''}" data-date="${dateStr}"
+                 onclick="selectWeekDay('${dateStr}')"
+                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${dateStr}')">
                 <div class="week-day-header">
                     <div class="day-name">${days[i]}</div>
                     <div class="day-num">${dayDate.getDate()}</div>
-                    <div class="job-count">${dayJobs.length} jobs • $${dayRevenue.toFixed(0)}</div>
+                    <div class="job-count">${dayJobs.length} jobs - $${dayRevenue.toFixed(0)}</div>
                 </div>
                 <div class="week-day-jobs">
                     ${dayJobs.slice(0, 8).map(j => `
-                        <div class="week-job ${j.status === 'completed' ? 'completed' : ''}" onclick="event.stopPropagation();openPanel(${j.id})">
+                        <div class="week-job ${j.status === 'completed' ? 'completed' : ''}"
+                             draggable="true" data-job-id="${j.id}" data-job-date="${dateStr}"
+                             ondragstart="handleDragStart(event, ${j.id}, '${dateStr}')"
+                             ondragend="handleDragEnd(event)"
+                             onclick="event.stopPropagation();openPanel(${j.id})">
                             <div class="week-job-name">${esc(j.customer_name)}</div>
                             <div class="week-job-service">${esc(j.service_type)}</div>
                             <div class="week-job-price">$${parseFloat(j.service_price || 0).toFixed(0)}</div>
@@ -2074,8 +2375,12 @@ function renderJobs() {
         `;
     }
     
+    // Try time slot view for timed jobs
+    renderTimeSlotView(filtered);
+
     if (!filtered.length) {
         document.getElementById('jobsList').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p>No jobs scheduled for this day</p></div>';
+        document.getElementById('timeSlotView').style.display = 'none';
         return;
     }
     
@@ -2237,6 +2542,7 @@ async function addJob() {
     const job = {
         job_date: document.getElementById('addDate').value,
         customer_name: document.getElementById('addName').value,
+        customer_id: document.getElementById('addCustomerId').value || null,
         address: document.getElementById('addAddress').value,
         service_type: document.getElementById('addService').value,
         service_price: parseFloat(document.getElementById('addPrice').value) || 0,
@@ -2250,8 +2556,11 @@ async function addJob() {
     try {
         await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(job) });
         showToast('Job added'); closeAddModal();
-        ['addName','addAddress','addPhone','addCrew','addNotes'].forEach(id => document.getElementById(id).value = '');
+        ['addName','addAddress','addPhone','addNotes'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('addCrew').value = '';
         document.getElementById('addPrice').value = '';
+        document.getElementById('addCustomerId').value = '';
+        document.getElementById('propertySelectRow').style.display = 'none';
         loadJobs();
     } catch (e) { showToast('Failed to add job'); }
 }
@@ -3181,7 +3490,500 @@ async function optimizeCrewRoute() {
 // Make Google Maps callback available globally
 window.onGoogleMapsLoaded = onGoogleMapsLoaded;
 
-document.addEventListener('keydown', e => { if (e.key==='Escape') { closePanel(); closeAddModal(); } });
+// ═══════════════════════════════════════════════════════════
+// MONTH CALENDAR VIEW
+// ═══════════════════════════════════════════════════════════
+let monthCalendarData = {};
+const CREW_COLORS = {};
+let crewColorIndex = 0;
+
+function getCrewColorClass(crewName) {
+    if (!crewName || crewName === 'Unassigned') return 'crew-color-unassigned';
+    if (!CREW_COLORS[crewName]) {
+        CREW_COLORS[crewName] = 'crew-color-' + (crewColorIndex % 6);
+        crewColorIndex++;
+    }
+    return CREW_COLORS[crewName];
+}
+
+async function loadMonthView() {
+    const d = new Date(selectedDate + 'T12:00:00');
+    const monthStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    updateDayLabel();
+
+    try {
+        const res = await fetch('/api/jobs/calendar-summary?month=' + monthStr);
+        const data = await res.json();
+        monthCalendarData = {};
+        (data.days || []).forEach(day => {
+            const dateStr = typeof day.day === 'string' ? day.day.split('T')[0] : day.day;
+            monthCalendarData[dateStr] = day;
+        });
+
+        renderMonthGrid(d.getFullYear(), d.getMonth());
+        renderMiniCalendar(d.getFullYear(), d.getMonth());
+    } catch (e) {
+        console.error('Failed to load month view:', e);
+    }
+}
+
+function renderMonthGrid(year, month) {
+    const grid = document.getElementById('monthGrid');
+    const today = new Date().toISOString().split('T')[0];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDow = firstDay.getDay();
+
+    // Also need to load week-level jobs for drag-drop on month view
+    // Start from Sunday before 1st
+    const startDate = new Date(firstDay);
+    startDate.setDate(1 - startDow);
+
+    let html = dayNames.map(d => `<div class="month-day-label">${d}</div>`).join('');
+
+    const totalCells = Math.ceil((startDow + lastDay.getDate()) / 7) * 7;
+
+    for (let i = 0; i < totalCells; i++) {
+        const cellDate = new Date(startDate);
+        cellDate.setDate(startDate.getDate() + i);
+        const dateStr = cellDate.toISOString().split('T')[0];
+        const isCurrentMonth = cellDate.getMonth() === month;
+        const isToday = dateStr === today;
+        const dayData = monthCalendarData[dateStr];
+
+        html += `<div class="month-day ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''}"
+                      data-date="${dateStr}"
+                      onclick="monthDayClick('${dateStr}')"
+                      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${dateStr}')">
+            <div class="month-day-num">
+                <span class="day-number">${cellDate.getDate()}</span>
+                ${dayData ? `<span class="month-day-revenue">$${dayData.revenue.toFixed(0)}</span>` : ''}
+            </div>`;
+
+        if (dayData && dayData.total_jobs > 0) {
+            html += '<div class="month-day-jobs">';
+            const crewEntries = Object.entries(dayData.crews || {});
+            const maxPills = 3;
+            let shown = 0;
+            for (const [crew, count] of crewEntries) {
+                if (shown >= maxPills) break;
+                const colorClass = getCrewColorClass(crew);
+                html += `<div class="month-job-pill ${colorClass}" draggable="false"
+                              title="${esc(crew)}: ${count} job${count > 1 ? 's' : ''}">${esc(crew)} (${count})</div>`;
+                shown++;
+            }
+            if (dayData.total_jobs > 0 && crewEntries.length > maxPills) {
+                html += `<div class="month-day-more">+${crewEntries.length - maxPills} more</div>`;
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+
+    grid.innerHTML = html;
+}
+
+function renderMiniCalendar(year, month) {
+    const container = document.getElementById('miniCalendar');
+    const today = new Date().toISOString().split('T')[0];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const dayNames = ['S','M','T','W','T','F','S'];
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDow = firstDay.getDay();
+    const startDate = new Date(firstDay);
+    startDate.setDate(1 - startDow);
+
+    let html = `
+        <div class="mini-cal-header">
+            <button class="mini-cal-btn" onclick="miniCalNav(-1)">&lt;</button>
+            <span>${months[month]} ${year}</span>
+            <button class="mini-cal-btn" onclick="miniCalNav(1)">&gt;</button>
+        </div>
+        <div class="mini-cal-grid">
+            ${dayNames.map(d => `<div class="mini-cal-day-label">${d}</div>`).join('')}`;
+
+    const totalCells = Math.ceil((startDow + lastDay.getDate()) / 7) * 7;
+    for (let i = 0; i < totalCells; i++) {
+        const cellDate = new Date(startDate);
+        cellDate.setDate(startDate.getDate() + i);
+        const dateStr = cellDate.toISOString().split('T')[0];
+        const isCurrentMonth = cellDate.getMonth() === month;
+        const isToday = dateStr === today;
+        const isSelected = dateStr === selectedDate;
+        const hasJobs = !!monthCalendarData[dateStr];
+        const classes = [
+            'mini-cal-day',
+            !isCurrentMonth ? 'other-month' : '',
+            isToday ? 'today' : '',
+            isSelected ? 'selected' : '',
+            hasJobs ? 'has-jobs' : ''
+        ].filter(Boolean).join(' ');
+
+        html += `<div class="${classes}" onclick="miniCalSelect('${dateStr}')">${cellDate.getDate()}</div>`;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function miniCalNav(dir) {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setMonth(d.getMonth() + dir);
+    selectedDate = d.toISOString().split('T')[0];
+    document.getElementById('dateInput').value = selectedDate;
+    updateDayLabel();
+    loadMonthView();
+}
+
+function miniCalSelect(dateStr) {
+    selectedDate = dateStr;
+    document.getElementById('dateInput').value = selectedDate;
+    document.getElementById('addDate').value = selectedDate;
+    updateDayLabel();
+    // Switch to day view for that date
+    setView('day');
+}
+
+function monthDayClick(dateStr) {
+    selectedDate = dateStr;
+    document.getElementById('dateInput').value = selectedDate;
+    document.getElementById('addDate').value = selectedDate;
+    updateDayLabel();
+    setView('day');
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAG & DROP RESCHEDULING
+// ═══════════════════════════════════════════════════════════
+let dragJobId = null;
+let dragOriginalDate = null;
+
+function handleDragStart(e, jobId, dateStr) {
+    dragJobId = jobId;
+    dragOriginalDate = dateStr;
+    e.dataTransfer.setData('text/plain', jobId);
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => e.target.classList.add('dragging'), 0);
+}
+
+function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const dayCell = e.currentTarget;
+    dayCell.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+}
+
+async function handleDrop(e, newDate) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const jobId = parseInt(e.dataTransfer.getData('text/plain') || dragJobId);
+    const oldDate = dragOriginalDate;
+    if (!jobId || newDate === oldDate) return;
+
+    try {
+        await fetch('/api/jobs/' + jobId, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_date: newDate })
+        });
+
+        showUndoToast(jobId, oldDate, newDate);
+
+        // Reload the current view
+        if (currentView === 'week') loadWeekJobs();
+        else if (currentView === 'month') loadMonthView();
+        else loadJobs();
+    } catch (err) {
+        showToast('Failed to reschedule job');
+    }
+}
+
+let undoTimeout = null;
+let undoInterval = null;
+
+function showUndoToast(jobId, oldDate, newDate) {
+    const toast = document.getElementById('undoToast');
+    const msg = document.getElementById('undoToastMsg');
+    const timer = document.getElementById('undoTimer');
+    const d = new Date(newDate + 'T12:00:00');
+    const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    msg.textContent = 'Job moved to ' + formatted + '.';
+
+    // Store undo data
+    toast.dataset.jobId = jobId;
+    toast.dataset.oldDate = oldDate;
+
+    toast.classList.add('show');
+    let remaining = 5;
+    timer.textContent = remaining;
+
+    clearTimeout(undoTimeout);
+    clearInterval(undoInterval);
+
+    undoInterval = setInterval(() => {
+        remaining--;
+        timer.textContent = remaining;
+        if (remaining <= 0) {
+            clearInterval(undoInterval);
+            toast.classList.remove('show');
+        }
+    }, 1000);
+
+    undoTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+    }, 5500);
+}
+
+async function undoReschedule() {
+    const toast = document.getElementById('undoToast');
+    const jobId = toast.dataset.jobId;
+    const oldDate = toast.dataset.oldDate;
+    clearTimeout(undoTimeout);
+    clearInterval(undoInterval);
+    toast.classList.remove('show');
+
+    if (!jobId || !oldDate) return;
+
+    try {
+        await fetch('/api/jobs/' + jobId, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_date: oldDate })
+        });
+        showToast('Job restored');
+        if (currentView === 'week') loadWeekJobs();
+        else if (currentView === 'month') loadMonthView();
+        else loadJobs();
+    } catch (err) {
+        showToast('Failed to undo');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TIME SLOT VIEW (Day/Week)
+// ═══════════════════════════════════════════════════════════
+function renderTimeSlotView(jobs) {
+    const hasTimedJobs = jobs.some(j => j.start_time);
+    const timeSlotEl = document.getElementById('timeSlotView');
+    const jobsListEl = document.getElementById('jobsList');
+
+    if (!hasTimedJobs) {
+        timeSlotEl.style.display = 'none';
+        jobsListEl.style.display = 'block';
+        return;
+    }
+
+    timeSlotEl.style.display = 'block';
+    jobsListEl.style.display = 'none';
+
+    const timedJobs = jobs.filter(j => j.start_time);
+    const untimedJobs = jobs.filter(j => !j.start_time);
+
+    let html = '<div class="time-slot-grid">';
+    // 8 AM to 6 PM
+    for (let hour = 8; hour <= 18; hour++) {
+        const label = hour <= 12 ? (hour + (hour < 12 ? 'am' : 'pm')) : ((hour - 12) + 'pm');
+        const hourStr = String(hour).padStart(2, '0');
+        const slotJobs = timedJobs.filter(j => {
+            const h = parseInt(j.start_time.split(':')[0]);
+            return h === hour;
+        });
+
+        html += `<div class="time-slot-label">${label}</div>`;
+        html += `<div class="time-slot-cell" data-hour="${hour}">`;
+        slotJobs.forEach(j => {
+            html += `<div class="time-slot-job" onclick="openPanel(${j.id})">
+                <div class="ts-name">${esc(j.customer_name)}</div>
+                <div class="ts-service">${esc(j.service_type)}${j.end_time ? ' (' + j.start_time.substring(0,5) + '-' + j.end_time.substring(0,5) + ')' : ''}</div>
+            </div>`;
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    if (untimedJobs.length > 0) {
+        html += '<div style="margin-top:16px;"><h4 style="font-size:13px;font-weight:700;color:var(--gray-500);margin-bottom:8px;">UNSCHEDULED TIME</h4></div>';
+    }
+
+    timeSlotEl.innerHTML = html;
+
+    // Render untimed jobs in the regular list
+    if (untimedJobs.length > 0) {
+        jobsListEl.style.display = 'block';
+        // Let renderJobs handle it normally for untimed
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CUSTOMER AUTOCOMPLETE & PROPERTY AUTO-POPULATE
+// ═══════════════════════════════════════════════════════════
+let customerSearchTimer = null;
+let customerProperties = [];
+
+function searchCustomers(query) {
+    clearTimeout(customerSearchTimer);
+    const list = document.getElementById('customerAutocomplete');
+    if (!query || query.length < 2) {
+        list.classList.remove('open');
+        return;
+    }
+    customerSearchTimer = setTimeout(async () => {
+        try {
+            const res = await fetch('/api/customers/search?q=' + encodeURIComponent(query));
+            const data = await res.json();
+            const customers = data.customers || [];
+            if (customers.length === 0) {
+                list.innerHTML = '<div class="autocomplete-item"><span class="ac-detail">No customers found</span></div>';
+            } else {
+                list.innerHTML = customers.map(c => `
+                    <div class="autocomplete-item" onclick="selectCustomer(${c.id}, '${esc(c.name || '')}', '${esc(c.phone || '')}', '${esc(c.email || '')}')">
+                        <div class="ac-name">${esc(c.name || 'Unknown')}</div>
+                        <div class="ac-detail">${esc(c.phone || '')} ${c.email ? '- ' + esc(c.email) : ''}</div>
+                    </div>
+                `).join('');
+            }
+            list.classList.add('open');
+        } catch (e) {
+            list.classList.remove('open');
+        }
+    }, 300);
+}
+
+async function selectCustomer(id, name, phone, email) {
+    document.getElementById('addName').value = name;
+    document.getElementById('addCustomerId').value = id;
+    if (phone) document.getElementById('addPhone').value = phone;
+    document.getElementById('customerAutocomplete').classList.remove('open');
+
+    // Load properties for this customer
+    try {
+        const res = await fetch('/api/customers/' + id + '/properties');
+        const data = await res.json();
+        customerProperties = data.properties || [];
+        if (customerProperties.length > 0) {
+            const propSelect = document.getElementById('addProperty');
+            propSelect.innerHTML = '<option value="">-- Select Property --</option>' +
+                customerProperties.map(p => `<option value="${p.id}">${esc(p.property_name || p.street || 'Property #' + p.id)}</option>`).join('');
+            document.getElementById('propertySelectRow').style.display = 'block';
+            // Auto-select first property
+            if (customerProperties.length === 1) {
+                propSelect.value = customerProperties[0].id;
+                selectProperty(customerProperties[0].id);
+            }
+        } else {
+            document.getElementById('propertySelectRow').style.display = 'none';
+        }
+    } catch (e) {
+        document.getElementById('propertySelectRow').style.display = 'none';
+    }
+}
+
+function selectProperty(propId) {
+    const prop = customerProperties.find(p => String(p.id) === String(propId));
+    if (prop) {
+        const parts = [prop.street, prop.city, prop.state, prop.zip].filter(Boolean);
+        document.getElementById('addAddress').value = parts.join(', ');
+    }
+}
+
+// Hide autocomplete on outside click
+document.addEventListener('click', function(e) {
+    const list = document.getElementById('customerAutocomplete');
+    if (list && !e.target.closest('.autocomplete-wrapper')) {
+        list.classList.remove('open');
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// CREATE JOB FROM QUOTE
+// ═══════════════════════════════════════════════════════════
+let quoteSearchTimer = null;
+
+function openFromQuoteModal() {
+    document.getElementById('fromQuoteModal').classList.add('open');
+    document.getElementById('quoteSearch').value = '';
+    document.getElementById('quoteSearchResults').innerHTML = '<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:13px;">Search for a quote by customer name or number</div>';
+}
+
+function closeFromQuoteModal() {
+    document.getElementById('fromQuoteModal').classList.remove('open');
+}
+
+function searchQuotes(query) {
+    clearTimeout(quoteSearchTimer);
+    const container = document.getElementById('quoteSearchResults');
+    if (!query || query.length < 2) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gray-400);font-size:13px;">Type at least 2 characters to search</div>';
+        return;
+    }
+    quoteSearchTimer = setTimeout(async () => {
+        try {
+            const res = await fetch('/api/sent-quotes?search=' + encodeURIComponent(query) + '&limit=10');
+            const data = await res.json();
+            const quotes = data.quotes || [];
+            if (quotes.length === 0) {
+                container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--gray-400);">No quotes found</div>';
+                return;
+            }
+            container.innerHTML = quotes.map(q => {
+                const statusColor = q.status === 'contracted' ? 'var(--green)' : (q.status === 'sent' ? 'var(--blue)' : 'var(--gray-500)');
+                return `
+                    <div style="padding:12px 16px;border-bottom:1px solid var(--gray-100);cursor:pointer;transition:background 0.1s;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background=''" onclick="createJobFromQuote(${q.id})">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-weight:600;font-size:13px;color:var(--gray-700);">${esc(q.customer_name || 'Unknown')}</div>
+                                <div style="font-size:11px;color:var(--gray-400);">Quote #${esc(q.quote_number || String(q.id))} - ${esc(q.customer_address || '')}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-weight:700;font-size:14px;color:var(--forest);">$${parseFloat(q.total || 0).toFixed(0)}</div>
+                                <div style="font-size:10px;font-weight:600;color:${statusColor};text-transform:uppercase;">${esc(q.status || 'draft')}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--red);">Search failed</div>';
+        }
+    }, 300);
+}
+
+async function createJobFromQuote(quoteId) {
+    const jobDate = document.getElementById('addDate').value || selectedDate;
+    try {
+        const res = await fetch('/api/jobs/from-quote/' + quoteId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_date: jobDate })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Job created from quote');
+            closeFromQuoteModal();
+            closeAddModal();
+            loadJobs();
+        } else {
+            showToast('Failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        showToast('Failed to create job from quote');
+    }
+}
+
+document.addEventListener('keydown', e => { if (e.key==='Escape') { closePanel(); closeAddModal(); closeFromQuoteModal(); } });
 document.addEventListener('DOMContentLoaded', init);
 </script>
 

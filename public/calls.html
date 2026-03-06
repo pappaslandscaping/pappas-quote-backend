@@ -532,6 +532,30 @@
             .panel { width: 100vw; }
             .search-input { width: 100%; }
         }
+/* Universal Search */
+.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
+.us-search-input-group{position:relative;display:flex;align-items:center}
+.us-search-icon{position:absolute;left:12px;width:18px;height:18px;color:var(--gray-400);pointer-events:none}
+.us-search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
+.us-search-input:focus{outline:none;border-color:var(--forest);box-shadow:0 0 0 3px rgba(46,64,61,.1)}
+.us-search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
+.us-search-clear-btn:hover{color:#4a4e4a}
+.us-search-clear-btn svg{width:16px;height:16px}
+.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
+.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
+.search-results-group:last-child{border-bottom:none}
+.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
+.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
+.search-result-item:hover{background:#f8faf8}
+.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
+.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
+.search-result-icon.property{background:#ecfdf5;color:#059669}
+.search-result-content{flex:1;min-width:0}
+.search-result-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
+@media(max-width:768px){.universal-search-wrapper{display:none}}
     </style>
 </head>
 <body>
@@ -565,138 +589,46 @@
 </script>
 
 <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
+    <div class="sidebar-brand"><img src="/logo.png" alt="YardDesk"></div>
     <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item active">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-            <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
+        <div class="nav-section"><div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+            <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
+            <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
+            <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item active"><span>💬</span><span>Messages & Calls</span></a>
+            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Analytics</div>
+            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div>
         </div>
     </div>
 </aside>
@@ -711,6 +643,14 @@
                 <h2>Phone Calls</h2>
                 <p>Track incoming calls and voicemails</p>
             </div>
+        </div>
+        <div class="universal-search-wrapper">
+            <div class="us-search-input-group">
+                <svg class="us-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="universalSearch" class="us-search-input" placeholder="Search customers, quotes, properties... (Cmd+K)" autocomplete="off">
+                <button id="searchClear" class="us-search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
         </div>
         <div class="topbar-actions">
             <button class="btn btn-primary" onclick="loadData()">
@@ -1040,6 +980,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel()
 
 // Auto-refresh every 60 seconds
 setInterval(loadData, 60000);
+</script>
+<script>
+// Universal Search
+let usSearchDebounceTimer=null;
+function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(usSearchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';usSearchDebounceTimer=setTimeout(()=>usPerformSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
+function usEscHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+async function usPerformSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+usEscHtml(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+usEscHtml(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+usEscHtml(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+usEscHtml(q.customer_name||'Unknown')+'</div></div></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+usEscHtml(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+usEscHtml([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+usEscHtml(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+document.addEventListener('DOMContentLoaded',initUniversalSearch);
 </script>
 
 </body>

@@ -1036,7 +1036,7 @@
             </div>
             <div id="loadingState" class="loading-state"><div class="loading-spinner"></div>Loading customers...</div>
             <table id="dataTable" style="display:none;">
-                <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>City</th><th>Type</th><th>Tags</th><th>Status</th></tr></thead>
+                <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Email</th><th>Phone</th><th>City</th><th>Type</th><th>Tags</th><th>Status</th></tr></thead>
                 <tbody id="tableBody"></tbody>
             </table>
             <div class="pagination" id="pagination" style="display:none"><span id="pageInfo"></span><div style="display:flex;gap:8px"><button id="prevBtn" onclick="prevPage()">Previous</button><button id="nextBtn" onclick="nextPage()">Next</button></div></div>
@@ -1047,6 +1047,7 @@
 <script>
 let allCustomers=[];
 let allTypes=[];
+let leadScoreMap={};
 let currentOffset=0;
 const PAGE_SIZE=50;
 let searchTimeout;
@@ -1207,26 +1208,34 @@ async function loadCustomers(){
     }
 }
 
+function getLeadBadge(id){
+    const s=leadScoreMap[id];
+    if(!s) return '<span style="font-size:11px;color:var(--gray-400)">—</span>';
+    const colors={Hot:'background:var(--red-bg);color:var(--red)',Warm:'background:var(--amber-bg);color:var(--amber)',Cold:'background:var(--blue-bg);color:var(--blue)'};
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;'+colors[s.grade]+'">'+s.grade+'</span>';
+}
+
 function renderTable(){
     document.getElementById('loadingState').style.display='none';
     document.getElementById('dataTable').style.display='table';
     const tb=document.getElementById('tableBody');
-    
+
     if(!allCustomers.length){
-        tb.innerHTML='<tr><td colspan="8"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No customers found</p></div></td></tr>';
+        tb.innerHTML='<tr><td colspan="9"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No customers found</p></div></td></tr>';
         return;
     }
-    
+
     tb.innerHTML=allCustomers.map(c=>{
         const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'—';
         const tags=c.tags?c.tags.split(',').map(t=>'<span class="tag">'+esc(t.trim())+'</span>').join(' '):'—';
         const isA=(c.status||'').toLowerCase()==='active';
         const cType = c.customer_type || 'customer';
         const typePill = '<span class="type-pill type-'+cType+'">'+(cType === 'lead' ? 'Lead' : 'Customer')+'</span>';
-        
+
         return '<tr style="cursor:pointer" onclick="window.location.href=\'customer-detail.html?id='+c.id+'\'">'+
             '<td style="color:var(--gray-400);font-size:12px">'+esc(c.customer_number||'—')+'</td>'+
             '<td><div class="td-name">'+esc(name)+'</div></td>'+
+            '<td>'+getLeadBadge(c.id)+'</td>'+
             '<td>'+esc(c.email||'—')+'</td>'+
             '<td>'+esc(c.phone||c.mobile||'—')+'</td>'+
             '<td>'+esc(c.city||'—')+'</td>'+
@@ -1257,7 +1266,17 @@ function exportCSV(){
 
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';}
-document.addEventListener('DOMContentLoaded',()=>{loadStats();loadCustomers();});
+async function loadLeadScores(){
+    try {
+        const r=await fetch('/api/ai/lead-scores');
+        const d=await r.json();
+        if(d.success && d.customers){
+            d.customers.forEach(c=>{leadScoreMap[c.id]={grade:c.grade,score:c.score};});
+            renderTable();
+        }
+    } catch(e){ console.error('Lead scores:',e); }
+}
+document.addEventListener('DOMContentLoaded',()=>{loadStats();loadCustomers();loadLeadScores();});
 
 // Universal Search
 let searchDebounceTimer=null;

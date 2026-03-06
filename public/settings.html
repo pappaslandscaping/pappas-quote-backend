@@ -393,50 +393,37 @@
                 <div class="nav-section-label">Overview</div>
                 <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
             </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
+            <div class="nav-section"><div class="nav-section-label">Sales</div>
                 <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-                <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
-                <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
                 <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
+                <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">Operations</div>
                 <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
                 <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
                 <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
                 <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
+                <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
+                <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">Communications</div>
                 <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
-                <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
+                <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
+                <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">Marketing</div>
                 <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-                <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
+                <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">Finance</div>
                 <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
                 <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
                 <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
+                <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">Analytics</div>
                 <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
+                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">Team</div>
                 <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item active"><span>⚙️</span><span>Settings</span></a>
-            </div>
+                <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
+            <div class="nav-section"><div class="nav-section-label">System</div>
+                <a href="settings.html" class="nav-item active"><span>⚙️</span><span>Settings</span></a></div>
         </nav>
         <div class="sidebar-footer">
             <div class="sidebar-user">
@@ -745,12 +732,242 @@
                     </div>
                 </div>
             </div>
+            <!-- Company Profile -->
+            <div class="integration-card">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background:var(--forest);color:var(--lime);font-size:20px;">🏢</div>
+                        <div><h2>Company Profile</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Your business information</div></div>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>Company Name</label><input type="text" id="companyName" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="Pappas Landscaping"></div>
+                    <div class="form-group"><label>Phone</label><input type="tel" id="companyPhone" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="(555) 123-4567"></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="companyEmail" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="info@pappas.com"></div>
+                    <div class="form-group"><label>Address</label><input type="text" id="companyAddress" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="123 Main St, City, ST 12345"></div>
+                </div>
+                <div class="actions"><button class="btn btn-primary" onclick="saveCompanyProfile()">Save Profile</button></div>
+            </div>
+
+            <!-- Tax Rate -->
+            <div class="integration-card">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background:var(--amber-bg);color:var(--amber);font-size:20px;">💲</div>
+                        <div><h2>Tax Rate</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Configurable tax percentage for quotes and invoices</div></div>
+                    </div>
+                </div>
+                <div class="form-grid" style="grid-template-columns:1fr;">
+                    <div class="form-group">
+                        <label>Tax Rate (%)</label>
+                        <input type="number" id="taxRate" min="0" max="100" step="0.01" value="0" style="max-width:200px;">
+                    </div>
+                </div>
+                <div class="actions"><button class="btn btn-primary" onclick="saveTaxRate()">Save Tax Rate</button></div>
+            </div>
+
+            <!-- Service Items Catalog -->
+            <div class="integration-card">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background:var(--green-bg);color:var(--green);font-size:20px;">🛠️</div>
+                        <div><h2>Service Items Catalog</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Standard services with default rates</div></div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openServiceItemModal()">+ Add Service</button>
+                </div>
+                <table style="width:100%;border-collapse:collapse;" id="serviceItemsTable">
+                    <thead>
+                        <tr>
+                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Name</th>
+                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Rate</th>
+                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Duration</th>
+                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Category</th>
+                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="serviceItemsBody"><tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Loading...</td></tr></tbody>
+                </table>
+            </div>
+
+            <!-- Notification Preferences -->
+            <div class="integration-card">
+                <div class="integration-header">
+                    <div class="integration-title">
+                        <div class="icon" style="background:var(--blue-bg);color:var(--blue);font-size:20px;">🔔</div>
+                        <div><h2>Notification Preferences</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Control which notifications you receive</div></div>
+                    </div>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">New Quote Requests</div><div class="toggle-desc">Get notified when a new quote request arrives</div></div>
+                    <label class="toggle-switch"><input type="checkbox" id="notifQuoteRequest" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Job Completions</div><div class="toggle-desc">Notify when a crew completes a job</div></div>
+                    <label class="toggle-switch"><input type="checkbox" id="notifJobComplete" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Payment Received</div><div class="toggle-desc">Notify when a payment is received</div></div>
+                    <label class="toggle-switch"><input type="checkbox" id="notifPayment" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Overdue Invoices</div><div class="toggle-desc">Daily summary of overdue invoices</div></div>
+                    <label class="toggle-switch"><input type="checkbox" id="notifOverdue" onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <div><div class="toggle-label">Customer Messages</div><div class="toggle-desc">Notify on new customer messages</div></div>
+                    <label class="toggle-switch"><input type="checkbox" id="notifMessages" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                </div>
+            </div>
+
+            <!-- Service Item Modal -->
+            <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;" id="serviceItemModal">
+                <div style="background:var(--white);border-radius:16px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+                    <div style="padding:20px 24px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">
+                        <h3 style="font-size:18px;color:var(--forest);" id="siModalTitle">Add Service Item</h3>
+                        <button onclick="closeServiceItemModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);">&times;</button>
+                    </div>
+                    <div style="padding:24px;">
+                        <input type="hidden" id="siEditId">
+                        <div class="form-group"><label>Name *</label><input type="text" id="siName" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="e.g. Lawn Mowing"></div>
+                        <div class="form-grid">
+                            <div class="form-group"><label>Default Rate ($)</label><input type="number" id="siRate" min="0" step="0.01" value="0"></div>
+                            <div class="form-group"><label>Duration (minutes)</label><input type="number" id="siDuration" min="0" value="60"></div>
+                        </div>
+                        <div class="form-group"><label>Category</label><input type="text" id="siCategory" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="e.g. Mowing, Landscaping, Irrigation"></div>
+                    </div>
+                    <div style="padding:16px 24px;border-top:1px solid var(--gray-200);display:flex;justify-content:flex-end;gap:12px;">
+                        <button class="btn btn-outline" onclick="closeServiceItemModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="saveServiceItem()">Save</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
     <div class="toast" id="toast"></div>
 
     <script>
+        // Company Profile (localStorage)
+        function loadCompanyProfile() {
+            const p = JSON.parse(localStorage.getItem('companyProfile') || '{}');
+            document.getElementById('companyName').value = p.name || '';
+            document.getElementById('companyPhone').value = p.phone || '';
+            document.getElementById('companyEmail').value = p.email || '';
+            document.getElementById('companyAddress').value = p.address || '';
+        }
+        function saveCompanyProfile() {
+            const profile = {
+                name: document.getElementById('companyName').value,
+                phone: document.getElementById('companyPhone').value,
+                email: document.getElementById('companyEmail').value,
+                address: document.getElementById('companyAddress').value
+            };
+            localStorage.setItem('companyProfile', JSON.stringify(profile));
+            showToast('Company profile saved');
+        }
+
+        // Tax Rate (localStorage)
+        function loadTaxRate() {
+            const rate = localStorage.getItem('taxRate') || '0';
+            document.getElementById('taxRate').value = rate;
+        }
+        function saveTaxRate() {
+            localStorage.setItem('taxRate', document.getElementById('taxRate').value);
+            showToast('Tax rate saved');
+        }
+
+        // Notification Preferences (localStorage)
+        function loadNotifPrefs() {
+            const prefs = JSON.parse(localStorage.getItem('notifPrefs') || '{"quoteRequest":true,"jobComplete":true,"payment":true,"overdue":false,"messages":true}');
+            document.getElementById('notifQuoteRequest').checked = prefs.quoteRequest !== false;
+            document.getElementById('notifJobComplete').checked = prefs.jobComplete !== false;
+            document.getElementById('notifPayment').checked = prefs.payment !== false;
+            document.getElementById('notifOverdue').checked = !!prefs.overdue;
+            document.getElementById('notifMessages').checked = prefs.messages !== false;
+        }
+        function saveNotifPrefs() {
+            const prefs = {
+                quoteRequest: document.getElementById('notifQuoteRequest').checked,
+                jobComplete: document.getElementById('notifJobComplete').checked,
+                payment: document.getElementById('notifPayment').checked,
+                overdue: document.getElementById('notifOverdue').checked,
+                messages: document.getElementById('notifMessages').checked
+            };
+            localStorage.setItem('notifPrefs', JSON.stringify(prefs));
+        }
+
+        // Service Items
+        let serviceItems = [];
+        async function loadServiceItems() {
+            try {
+                const res = await fetch('/api/service-items');
+                const data = await res.json();
+                serviceItems = data.items || [];
+                renderServiceItems();
+            } catch(e) { console.error('Failed to load service items:', e); }
+        }
+        function renderServiceItems() {
+            const tbody = document.getElementById('serviceItemsBody');
+            if (serviceItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">No service items yet. Click "Add Service" to get started.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = serviceItems.map(s => `<tr>
+                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;"><strong>${esc(s.name)}</strong></td>
+                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">$${parseFloat(s.default_rate || 0).toFixed(2)}</td>
+                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">${s.duration_minutes || 60} min</td>
+                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">${esc(s.category || 'General')}</td>
+                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">
+                    <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="editServiceItem(${s.id})">Edit</button>
+                    <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteServiceItem(${s.id})">Delete</button>
+                </td>
+            </tr>`).join('');
+        }
+        function openServiceItemModal(item) {
+            document.getElementById('siEditId').value = item ? item.id : '';
+            document.getElementById('siModalTitle').textContent = item ? 'Edit Service Item' : 'Add Service Item';
+            document.getElementById('siName').value = item ? item.name : '';
+            document.getElementById('siRate').value = item ? item.default_rate : 0;
+            document.getElementById('siDuration').value = item ? item.duration_minutes : 60;
+            document.getElementById('siCategory').value = item ? (item.category || '') : '';
+            document.getElementById('serviceItemModal').style.display = 'flex';
+        }
+        function closeServiceItemModal() { document.getElementById('serviceItemModal').style.display = 'none'; }
+        function editServiceItem(id) {
+            const item = serviceItems.find(s => s.id === id);
+            if (item) openServiceItemModal(item);
+        }
+        async function saveServiceItem() {
+            const id = document.getElementById('siEditId').value;
+            const body = {
+                name: document.getElementById('siName').value.trim(),
+                default_rate: parseFloat(document.getElementById('siRate').value) || 0,
+                duration_minutes: parseInt(document.getElementById('siDuration').value) || 60,
+                category: document.getElementById('siCategory').value.trim() || 'General'
+            };
+            if (!body.name) { showToast('Name is required'); return; }
+            try {
+                const url = id ? `/api/service-items/${id}` : '/api/service-items';
+                const method = id ? 'PATCH' : 'POST';
+                await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                showToast(id ? 'Service item updated' : 'Service item created');
+                closeServiceItemModal();
+                loadServiceItems();
+            } catch(e) { showToast('Error: ' + e.message); }
+        }
+        async function deleteServiceItem(id) {
+            if (!confirm('Delete this service item?')) return;
+            try { await fetch(`/api/service-items/${id}`, { method: 'DELETE' }); showToast('Deleted'); loadServiceItems(); }
+            catch(e) { showToast('Error: ' + e.message); }
+        }
+        function esc(s) { return s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : ''; }
+
+        // Init new sections
+        loadCompanyProfile();
+        loadTaxRate();
+        loadNotifPrefs();
+        loadServiceItems();
+
         // Set redirect URI display
         document.getElementById('redirectUri').textContent = window.location.origin + '/api/quickbooks/callback';
 

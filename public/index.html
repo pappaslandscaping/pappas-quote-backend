@@ -65,113 +65,71 @@
             border-bottom: 1px solid var(--gray-100);
         }
 
-        .sidebar-brand img { max-height: 48px;
-            width: auto;
-            max-width: 180px; }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
 
         .sidebar-nav { flex: 1; padding: var(--spacing-sm); overflow-y: auto; }
         .nav-section { margin-bottom: var(--spacing-sm); }
 
         .nav-section-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-size: 11px; font-weight: 600; color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: 0.05em;
             padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
         }
 
         .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: var(--spacing-sm) var(--spacing-md);
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.15s;
-            cursor: pointer;
+            display: flex; align-items: center; gap: 10px;
+            padding: var(--spacing-sm) var(--spacing-md); border-radius: 8px;
+            color: var(--gray-600); text-decoration: none; font-size: 13px;
+            font-weight: 500; transition: all 0.15s; cursor: pointer;
         }
 
         .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
         .nav-item.active { background: var(--forest); color: var(--lime); }
 
-        .sidebar-footer {
-            padding: var(--spacing-md);
-            border-top: 1px solid var(--gray-100);
-        }
-
+        .sidebar-footer { padding: var(--spacing-md); border-top: 1px solid var(--gray-100); }
         .sidebar-user { display: flex; align-items: center; gap: 10px; }
-
         .sidebar-user .avatar {
             width: 36px; height: 36px; border-radius: 10px;
             background: var(--forest); color: var(--lime);
             display: flex; align-items: center; justify-content: center;
             font-size: 13px; font-weight: 600;
         }
-
         .sidebar-user .name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
         .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
 
         /* Main */
-        .main {
-            margin-left: var(--sidebar-w);
-            min-height: 100vh;
-        }
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
 
         /* Topbar */
         .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 24px;
-            background: var(--white);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 24px; background: var(--white);
             border-bottom: 1px solid var(--gray-200);
-            position: sticky;
-            top: 0;
-            z-index: 50;
+            position: sticky; top: 0; z-index: 50;
         }
 
         .topbar-left { display: flex; align-items: center; gap: 12px; flex: 1; }
 
-        .search-container {
-            position: relative;
-            flex: 1;
-            max-width: 420px;
-        }
-
+        .search-container { position: relative; flex: 1; max-width: 420px; }
         .search-icon {
             position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
             width: 16px; height: 16px; color: var(--gray-400); pointer-events: none;
         }
-
         .search-icon svg { width: 16px; height: 16px; }
-
         .search-input {
-            width: 100%;
-            padding: 8px 36px 8px 36px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            font-size: 13px;
-            font-family: inherit;
-            background: var(--gray-50);
-            outline: none;
-            transition: border-color 0.15s;
+            width: 100%; padding: 8px 36px 8px 36px;
+            border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 13px; font-family: inherit; background: var(--gray-50);
+            outline: none; transition: border-color 0.15s;
         }
-
         .search-input:focus { border-color: var(--forest); background: var(--white); }
-
         .search-clear {
             position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
             background: none; border: none; cursor: pointer; padding: 4px;
             color: var(--gray-400); display: none;
         }
-
         .search-clear.visible { display: block; }
         .search-clear svg { width: 14px; height: 14px; }
-
         .search-dropdown {
             position: absolute; top: 100%; left: 0; right: 0;
             background: var(--white); border: 1px solid var(--gray-200);
@@ -179,24 +137,15 @@
             max-height: 320px; overflow-y: auto; z-index: 200;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
         }
-
         .search-dropdown.visible { display: block; }
-
         .search-group { padding: 8px 0; }
         .search-group + .search-group { border-top: 1px solid var(--gray-100); }
         .search-group-title { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; padding: 4px 14px; }
-
-        .search-item {
-            display: block; padding: 8px 14px; font-size: 13px;
-            color: var(--gray-700); text-decoration: none;
-        }
-
+        .search-item { display: block; padding: 8px 14px; font-size: 13px; color: var(--gray-700); text-decoration: none; }
         .search-item:hover { background: var(--gray-50); }
-
         .search-empty { padding: 16px; text-align: center; font-size: 13px; color: var(--gray-400); }
 
-        .topbar-actions { display: flex; gap: 8px; }
-
+        .topbar-actions { display: flex; gap: 8px; align-items: center; }
         .btn-icon {
             display: flex; align-items: center; justify-content: center;
             width: 36px; height: 36px; border-radius: 8px;
@@ -204,12 +153,43 @@
             color: var(--gray-600); cursor: pointer; text-decoration: none;
             transition: all 0.15s;
         }
-
         .btn-icon:hover { background: var(--gray-50); color: var(--forest); }
         .btn-icon svg { width: 18px; height: 18px; }
 
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
         .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        /* Quick-create dropdown */
+        .quick-create-wrap { position: relative; }
+        .quick-create-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 8px;
+            background: var(--forest); color: var(--lime);
+            border: none; cursor: pointer; font-size: 13px;
+            font-weight: 600; font-family: inherit; transition: all 0.15s;
+        }
+        .quick-create-btn:hover { background: var(--forest-dark); }
+        .quick-create-btn svg { width: 16px; height: 16px; }
+        .quick-create-menu {
+            position: absolute; top: calc(100% + 6px); right: 0;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 10px; min-width: 200px; display: none;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 200; padding: 6px;
+        }
+        .quick-create-menu.visible { display: block; }
+        .quick-create-menu a, .quick-create-menu button {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; border-radius: 8px; font-size: 13px;
+            font-weight: 500; color: var(--gray-700); text-decoration: none;
+            cursor: pointer; border: none; background: none; width: 100%;
+            font-family: inherit; transition: background 0.15s;
+        }
+        .quick-create-menu a:hover, .quick-create-menu button:hover { background: var(--gray-50); }
+        .quick-create-menu .qc-icon {
+            width: 28px; height: 28px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; flex-shrink: 0;
+        }
 
         /* Page Content */
         .page-content { padding: 24px; }
@@ -220,271 +200,271 @@
 
         /* Stat Cards Row */
         .stat-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-top: 20px;
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 16px; margin-top: 20px;
         }
-
         .stat-card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 18px;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 12px; padding: 18px;
         }
-
         .stat-card .stat-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-500);
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
+            font-size: 12px; font-weight: 600; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.03em;
         }
-
         .stat-card .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--forest);
-            margin-top: 4px;
-            line-height: 1.1;
+            font-size: 28px; font-weight: 700; color: var(--forest);
+            margin-top: 4px; line-height: 1.1;
         }
-
-        .stat-card .stat-sub {
-            font-size: 12px;
-            color: var(--gray-400);
-            margin-top: 4px;
-        }
-
+        .stat-card .stat-sub { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
         .stat-card .stat-sub .up { color: var(--green); font-weight: 600; }
         .stat-card .stat-sub .down { color: var(--red); font-weight: 600; }
 
+        /* Revenue Sparkline */
+        .sparkline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        .sparkline-card {
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 12px; padding: 18px;
+        }
+        .sparkline-card .spark-header {
+            display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;
+        }
+        .sparkline-card .spark-title { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.03em; }
+        .sparkline-card .spark-value { font-size: 22px; font-weight: 700; color: var(--forest); margin-top: 2px; }
+        .sparkline-card .spark-sub { font-size: 12px; color: var(--gray-400); }
+        .spark-bar-container { padding-bottom: 4px; display: flex; align-items: flex-end; gap: 4px; height: 80px; }
+
         /* Action Required */
         .action-section {
-            margin-top: 20px;
-            background: var(--amber-bg);
-            border: 1px solid #fcd34d;
-            border-radius: 12px;
-            padding: 16px;
+            margin-top: 20px; background: var(--amber-bg);
+            border: 1px solid #fcd34d; border-radius: 12px; padding: 16px;
         }
-
         .action-section h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--amber);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
+            font-size: 14px; font-weight: 600; color: var(--amber);
+            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
         }
-
         .action-section h3 svg { width: 18px; height: 18px; }
-
         .action-items { display: flex; flex-direction: column; gap: 6px; }
-
         .action-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 12px;
-            background: var(--white);
-            border-radius: 8px;
-            text-decoration: none;
-            color: var(--gray-700);
-            transition: all 0.15s;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 12px; background: var(--white); border-radius: 8px;
+            text-decoration: none; color: var(--gray-700); transition: all 0.15s;
         }
-
         .action-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-
         .action-item-info { display: flex; align-items: center; gap: 10px; }
-        .action-item-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--amber-bg); color: var(--amber); display: flex; align-items: center; justify-content: center; }
-        .action-item-icon svg { width: 16px; height: 16px; }
+        .action-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+        .action-item-icon.amber-icon { background: var(--amber-bg); color: var(--amber); }
+        .action-item-icon.red-icon { background: var(--red-bg); color: var(--red); }
+        .action-item-icon.blue-icon { background: var(--blue-bg); color: var(--blue); }
+        .action-item-icon.purple-icon { background: var(--purple-bg); color: var(--purple); }
         .action-item-text strong { font-size: 13px; display: block; }
         .action-item-text span { font-size: 12px; color: var(--gray-500); }
         .action-item-count { font-size: 18px; font-weight: 700; color: var(--amber); }
+        .action-item-count.red { color: var(--red); }
+        .action-item-count.blue { color: var(--blue); }
+        .action-item-count.purple { color: var(--purple); }
+
+        /* Today's Schedule */
+        .today-schedule { margin-top: 20px; }
+        .schedule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .schedule-header h2 { font-size: 16px; font-weight: 700; color: var(--forest); display: flex; align-items: center; gap: 8px; }
+        .schedule-header a { font-size: 12px; color: var(--gray-400); text-decoration: none; }
+        .schedule-header a:hover { color: var(--forest); }
+        .schedule-jobs { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .schedule-job {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 14px; background: var(--white);
+            border: 1px solid var(--gray-200); border-radius: 10px;
+            text-decoration: none; color: var(--gray-700); transition: all 0.15s;
+        }
+        .schedule-job:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-color: var(--gray-300); }
+        .schedule-job-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .schedule-job-info { flex: 1; min-width: 0; }
+        .schedule-job-customer { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .schedule-job-details { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .schedule-job-meta { text-align: right; flex-shrink: 0; }
+        .schedule-job-crew { font-size: 12px; font-weight: 600; color: var(--forest); }
+        .schedule-job-type { font-size: 11px; color: var(--gray-400); }
 
         /* Workflow Columns */
-        .workflow-columns {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            margin-top: 20px;
-        }
-
-        .wf-col {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
+        .workflow-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+        .wf-col { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
         .wf-col-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--gray-100);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
         }
-
-        .wf-col-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .wf-col-header a {
-            font-size: 12px;
-            color: var(--gray-400);
-            text-decoration: none;
-        }
-
+        .wf-col-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .wf-col-header a { font-size: 12px; color: var(--gray-400); text-decoration: none; }
         .wf-col-header a:hover { color: var(--forest); }
-        .wf-col-header svg { width: 16px; height: 16px; color: var(--gray-400); }
-
         .wf-rows { padding: 8px; }
-
         .wf-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 10px;
-            border-radius: 8px;
-            text-decoration: none;
-            color: var(--gray-700);
-            transition: background 0.15s;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 10px; border-radius: 8px; text-decoration: none;
+            color: var(--gray-700); transition: background 0.15s;
         }
-
         .wf-row:hover { background: var(--gray-50); }
         .wf-row-left { display: flex; align-items: center; gap: 10px; }
         .wf-row-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .wf-row-label { font-size: 13px; font-weight: 500; }
         .wf-row-right { display: flex; align-items: center; gap: 8px; }
-
         .wf-row-count {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-500);
-            background: var(--gray-100);
-            padding: 2px 8px;
-            border-radius: 10px;
-            min-width: 28px;
-            text-align: center;
+            font-size: 13px; font-weight: 600; color: var(--gray-500);
+            background: var(--gray-100); padding: 2px 8px; border-radius: 10px;
+            min-width: 28px; text-align: center;
         }
-
         .wf-row-count.highlight { background: var(--amber-bg); color: var(--amber); }
         .wf-row-count.success { background: var(--green-bg); color: var(--green); }
-
         .wf-row-amount { font-size: 12px; color: var(--gray-400); }
-
         .wf-cta {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px;
-            margin: 8px;
-            border-radius: 8px;
-            background: var(--gray-50);
-            color: var(--forest);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
+            display: flex; align-items: center; justify-content: center;
+            gap: 6px; padding: 10px; margin: 8px; border-radius: 8px;
+            background: var(--gray-50); color: var(--forest);
+            text-decoration: none; font-size: 13px; font-weight: 600;
             transition: all 0.15s;
         }
-
         .wf-cta:hover { background: var(--gray-100); }
-        .wf-cta svg { width: 16px; height: 16px; }
 
         /* Bottom Grid */
-        .bottom-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-top: 20px;
-        }
-
-        .card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
+        .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+        .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
         .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--gray-100);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
         }
-
-        .card-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .card-header h3 svg { width: 16px; height: 16px; color: var(--gray-400); }
-
-        .card-header a {
-            font-size: 12px;
-            color: var(--gray-400);
-            text-decoration: none;
-        }
-
+        .card-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .card-header a { font-size: 12px; color: var(--gray-400); text-decoration: none; }
         .card-header a:hover { color: var(--forest); }
-
         .card-body { padding: 8px; }
 
         .recent-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 10px;
-            border-radius: 8px;
-            text-decoration: none;
-            color: var(--gray-700);
-            transition: background 0.15s;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 10px; border-radius: 8px; text-decoration: none;
+            color: var(--gray-700); transition: background 0.15s;
         }
-
         .recent-item:hover { background: var(--gray-50); }
         .recent-item-info { flex: 1; min-width: 0; }
         .recent-item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .recent-item-sub { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        .status-badge {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 10px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
+        .status-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
         .status-new { background: var(--blue-bg); color: var(--blue); }
         .status-active, .status-read { background: var(--green-bg); color: var(--green); }
         .status-unread { background: var(--amber-bg); color: var(--amber); }
 
-        .empty-state { padding: 24px; text-align: center; font-size: 13px; color: var(--gray-400); }
+        /* Activity Feed */
+        .activity-item {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 10px; border-radius: 8px; transition: background 0.15s;
+            text-decoration: none; color: var(--gray-700);
+        }
+        .activity-item:hover { background: var(--gray-50); }
+        .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+        .activity-dot.quote_sent { background: var(--blue); }
+        .activity-dot.quote_signed { background: var(--green); }
+        .activity-dot.invoice_created { background: var(--purple); }
+        .activity-dot.payment_received { background: var(--green); }
+        .activity-dot.job_completed { background: var(--forest); }
+        .activity-dot.job_scheduled { background: var(--amber); }
+        .activity-dot.new_customer { background: var(--blue); }
+        .activity-text { font-size: 13px; line-height: 1.4; flex: 1; min-width: 0; }
+        .activity-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; white-space: nowrap; }
 
+        .empty-state { padding: 24px; text-align: center; font-size: 13px; color: var(--gray-400); }
         .loading { padding: 24px; text-align: center; }
         .spinner { width: 24px; height: 24px; border: 2px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* Toast */
         .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; background: var(--forest); color: var(--white); font-size: 13px; font-weight: 500; z-index: 9999; animation: toastIn 0.3s ease-out; }
+        .toast.toast-error { background: var(--red); }
         @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 24px;
+        }
+        .modal-overlay.visible { display: flex; }
+        .modal {
+            background: var(--white); border-radius: 12px;
+            width: 100%; max-width: 540px; max-height: 90vh;
+            overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 20px; border-bottom: 1px solid var(--gray-100);
+        }
+        .modal-header h2 { font-size: 16px; font-weight: 700; color: var(--forest); }
+        .modal-close {
+            background: none; border: none; cursor: pointer; padding: 4px;
+            color: var(--gray-400); transition: color 0.15s;
+        }
+        .modal-close:hover { color: var(--gray-700); }
+        .modal-close svg { width: 20px; height: 20px; }
+        .modal-body { padding: 20px; }
+        .modal-footer {
+            display: flex; justify-content: flex-end; gap: 8px;
+            padding: 16px 20px; border-top: 1px solid var(--gray-100);
+        }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 9px 12px; border: 1px solid var(--gray-200);
+            border-radius: 8px; font-size: 13px; font-family: inherit;
+            background: var(--white); outline: none; transition: border-color 0.15s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--forest); }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn-primary {
+            padding: 9px 18px; border-radius: 8px; border: none;
+            background: var(--forest); color: var(--white); font-size: 13px;
+            font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s;
+        }
+        .btn-primary:hover { background: var(--forest-dark); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary {
+            padding: 9px 18px; border-radius: 8px;
+            border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-600); font-size: 13px; font-weight: 500;
+            font-family: inherit; cursor: pointer; transition: all 0.15s;
+        }
+        .btn-secondary:hover { background: var(--gray-50); }
+
+        /* Autocomplete dropdown */
+        .autocomplete-wrap { position: relative; }
+        .autocomplete-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 8px; margin-top: 2px; max-height: 180px;
+            overflow-y: auto; z-index: 1100; display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .autocomplete-list.visible { display: block; }
+        .autocomplete-option { padding: 8px 12px; font-size: 13px; cursor: pointer; transition: background 0.1s; }
+        .autocomplete-option:hover { background: var(--gray-50); }
+        .autocomplete-option .ac-sub { font-size: 11px; color: var(--gray-400); }
+
+        /* Line items for invoice modal */
+        .line-items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+        .line-items-table th { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; padding: 4px 8px; text-align: left; }
+        .line-items-table td { padding: 4px 8px; }
+        .line-items-table input { width: 100%; }
+        .line-items-table .li-remove { background: none; border: none; color: var(--gray-400); cursor: pointer; font-size: 16px; padding: 4px; }
+        .line-items-table .li-remove:hover { color: var(--red); }
+        .add-line-btn {
+            font-size: 12px; color: var(--forest); font-weight: 600;
+            background: none; border: none; cursor: pointer; padding: 4px 0; font-family: inherit;
+        }
+        .add-line-btn:hover { text-decoration: underline; }
+        .invoice-total-row { display: flex; justify-content: flex-end; gap: 16px; font-size: 14px; font-weight: 700; color: var(--forest); padding: 8px 0; }
 
         /* Responsive */
         @media (max-width: 1100px) {
             .stat-row { grid-template-columns: repeat(2, 1fr); }
             .workflow-columns { grid-template-columns: 1fr; }
             .bottom-grid { grid-template-columns: 1fr; }
+            .sparkline-row { grid-template-columns: 1fr; }
         }
-
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
             .sidebar.open { transform: translateX(0); }
@@ -532,15 +512,13 @@
         <!-- Overview -->
         <div class="nav-section">
             <div class="nav-section-label">Overview</div>
-            <a href="index.html" class="nav-item active">
-                <span>📊</span>
-                <span>Dashboard</span>
-            </a>
+            <a href="index.html" class="nav-item active"><span>📊</span><span>Dashboard</span></a>
         </div>
         <!-- Sales -->
         <div class="nav-section">
             <div class="nav-section-label">Sales</div>
             <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="pipeline.html" class="nav-item"><span>🔀</span><span>Pipeline</span></a>
             <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
             <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
             <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
@@ -552,11 +530,14 @@
             <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
             <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
             <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
+            <a href="work-requests.html" class="nav-item"><span>📥</span><span>Work Requests</span></a>
+            <a href="programs.html" class="nav-item"><span>🔄</span><span>Service Programs</span></a>
         </div>
         <!-- Communications -->
         <div class="nav-section">
             <div class="nav-section-label">Communications</div>
             <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
+            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
             <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
         </div>
         <!-- Marketing -->
@@ -570,7 +551,7 @@
             <div class="nav-section-label">Finance</div>
             <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
             <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
+            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
             <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
         </div>
         <!-- Analytics -->
@@ -583,12 +564,13 @@
         <div class="nav-section">
             <div class="nav-section-label">Team</div>
             <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a>
         </div>
-                <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
+        <div class="nav-section">
+            <div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
+        </div>
+    </nav>
     <div class="sidebar-footer">
         <div class="sidebar-user">
             <div class="avatar">TP</div>
@@ -618,9 +600,30 @@
             </div>
         </div>
         <div class="topbar-actions">
-            <a href="quote-generator.html" class="btn-icon" title="New Quote">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-            </a>
+            <div class="quick-create-wrap" id="quick-create-wrap">
+                <button class="quick-create-btn" id="quick-create-btn" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                    New
+                </button>
+                <div class="quick-create-menu" id="quick-create-menu">
+                    <button type="button" onclick="openModal('customer-modal')">
+                        <div class="qc-icon" style="background:var(--blue-bg);color:var(--blue)">👥</div>
+                        <span>New Customer</span>
+                    </button>
+                    <button type="button" onclick="openModal('job-modal')">
+                        <div class="qc-icon" style="background:var(--green-bg);color:var(--green)">📅</div>
+                        <span>New Job</span>
+                    </button>
+                    <a href="quote-generator.html">
+                        <div class="qc-icon" style="background:var(--purple-bg);color:var(--purple)">✨</div>
+                        <span>New Quote</span>
+                    </a>
+                    <button type="button" onclick="openModal('invoice-modal')">
+                        <div class="qc-icon" style="background:var(--amber-bg);color:var(--amber)">📄</div>
+                        <span>New Invoice</span>
+                    </button>
+                </div>
+            </div>
             <button class="btn-icon" onclick="loadAll()" title="Refresh">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
             </button>
@@ -638,23 +641,55 @@
         <div class="stat-row">
             <div class="stat-card">
                 <div class="stat-label">Revenue This Month</div>
-                <div class="stat-value" id="stat-revenue">—</div>
+                <div class="stat-value" id="stat-revenue">--</div>
                 <div class="stat-sub" id="stat-revenue-sub"></div>
             </div>
             <div class="stat-card">
+                <div class="stat-label">YTD Revenue</div>
+                <div class="stat-value" id="stat-ytd">--</div>
+                <div class="stat-sub" id="stat-ytd-sub"></div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-label">Outstanding Invoices</div>
-                <div class="stat-value" id="stat-outstanding">—</div>
+                <div class="stat-value" id="stat-outstanding">--</div>
                 <div class="stat-sub" id="stat-outstanding-sub"></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Quotes Sent</div>
-                <div class="stat-value" id="stat-quotes">—</div>
-                <div class="stat-sub" id="stat-quotes-sub"></div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-label">Total Customers</div>
-                <div class="stat-value" id="stat-customers">—</div>
+                <div class="stat-value" id="stat-customers">--</div>
                 <div class="stat-sub" id="stat-customers-sub"></div>
+            </div>
+        </div>
+
+        <!-- Revenue Sparkline + Quotes -->
+        <div class="sparkline-row">
+            <div class="sparkline-card">
+                <div class="spark-header">
+                    <div>
+                        <div class="spark-title">6-Month Revenue</div>
+                        <div class="spark-value" id="spark-total">--</div>
+                    </div>
+                    <div class="spark-sub" id="spark-trend"></div>
+                </div>
+                <div class="spark-bar-container" id="spark-bars"></div>
+            </div>
+            <div class="sparkline-card">
+                <div class="spark-header">
+                    <div>
+                        <div class="spark-title">Quotes This Month</div>
+                        <div class="spark-value" id="stat-quotes">--</div>
+                    </div>
+                </div>
+                <div class="stat-sub" id="stat-quotes-sub" style="margin-top:4px"></div>
+                <div style="margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-bottom:4px">
+                        <span>Conversion Rate</span>
+                        <span id="conversion-rate">--</span>
+                    </div>
+                    <div style="height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden">
+                        <div id="conversion-bar" style="height:100%;background:var(--green);border-radius:3px;width:0%;transition:width 0.5s"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -667,9 +702,17 @@
             <div class="action-items" id="action-items"></div>
         </div>
 
+        <!-- Today's Schedule -->
+        <div class="today-schedule" id="today-schedule-section" style="display:none;">
+            <div class="schedule-header">
+                <h2>📅 Today's Schedule</h2>
+                <a href="scheduling.html">View Full Schedule →</a>
+            </div>
+            <div class="schedule-jobs" id="today-jobs"></div>
+        </div>
+
         <!-- Workflow Columns -->
         <div class="workflow-columns">
-            <!-- REQUESTS -->
             <div class="wf-col">
                 <div class="wf-col-header">
                     <h3>📋 Requests</h3>
@@ -678,21 +721,20 @@
                 <div class="wf-rows">
                     <a href="quotes.html?status=new" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">New</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-new">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-new">--</span></div>
                     </a>
                     <a href="quotes.html?status=contacted" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">Contacted</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-contacted">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-contacted">--</span></div>
                     </a>
                     <a href="quotes.html?status=quoted" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--purple)"></div><span class="wf-row-label">Quoted</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-quoted">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-quoted">--</span></div>
                     </a>
                 </div>
                 <a href="quotes.html" class="wf-cta">📋 Review Requests</a>
             </div>
 
-            <!-- QUOTES -->
             <div class="wf-col">
                 <div class="wf-col-header">
                     <h3>📤 Quotes</h3>
@@ -701,25 +743,24 @@
                 <div class="wf-rows">
                     <a href="sent-quotes.html?status=sent" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">Sent / Viewed</span></div>
-                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-sent-amt"></span><span class="wf-row-count" id="wf-q-sent">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-sent-amt"></span><span class="wf-row-count" id="wf-q-sent">--</span></div>
                     </a>
                     <a href="sent-quotes.html?status=signed" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--green)"></div><span class="wf-row-label">Signed</span></div>
-                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-signed-amt"></span><span class="wf-row-count success" id="wf-q-signed">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-signed-amt"></span><span class="wf-row-count success" id="wf-q-signed">--</span></div>
                     </a>
                     <a href="sent-quotes.html?status=changes_requested" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">Changes Requested</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count highlight" id="wf-q-changes">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count highlight" id="wf-q-changes">--</span></div>
                     </a>
                     <a href="sent-quotes.html?status=contracted" class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--forest)"></div><span class="wf-row-label">Contracted</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count success" id="wf-q-contracted">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count success" id="wf-q-contracted">--</span></div>
                     </a>
                 </div>
                 <a href="quote-generator.html" class="wf-cta">✨ Create New Quote</a>
             </div>
 
-            <!-- JOBS -->
             <div class="wf-col">
                 <div class="wf-col-header">
                     <h3>📅 Jobs</h3>
@@ -728,15 +769,15 @@
                 <div class="wf-rows">
                     <div class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">Today</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-today">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-today">--</span></div>
                     </div>
                     <div class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">This Week</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-week">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-week">--</span></div>
                     </div>
                     <div class="wf-row">
                         <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--green)"></div><span class="wf-row-label">Pending</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-pending">—</span></div>
+                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-pending">--</span></div>
                     </div>
                 </div>
                 <a href="scheduling.html" class="wf-cta">📅 View Schedule</a>
@@ -745,28 +786,185 @@
 
         <!-- Bottom Grid -->
         <div class="bottom-grid">
-            <!-- Recent Messages -->
             <div class="card">
                 <div class="card-header">
-                    <h3>💬 Recent Messages</h3>
-                    <a href="communications.html">View All →</a>
+                    <h3>⚡ Activity Feed</h3>
                 </div>
                 <div class="card-body">
-                    <div id="messages-list"><div class="loading"><div class="spinner"></div></div></div>
+                    <div id="activity-feed"><div class="loading"><div class="spinner"></div></div></div>
                 </div>
             </div>
-
-            <!-- Recent Customers -->
-            <div class="card">
-                <div class="card-header">
-                    <h3>👥 Recent Customers</h3>
-                    <a href="customers.html">View All →</a>
+            <div style="display:flex;flex-direction:column;gap:16px;">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>💬 Recent Messages</h3>
+                        <a href="communications.html">View All →</a>
+                    </div>
+                    <div class="card-body">
+                        <div id="messages-list"><div class="loading"><div class="spinner"></div></div></div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div id="customers-list"><div class="loading"><div class="spinner"></div></div></div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>👥 Recent Customers</h3>
+                        <a href="customers.html">View All →</a>
+                    </div>
+                    <div class="card-body">
+                        <div id="customers-list"><div class="loading"><div class="spinner"></div></div></div>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Quick New Customer Modal -->
+<div class="modal-overlay" id="customer-modal" onclick="if(event.target===this)closeModal('customer-modal')">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>New Customer</h2>
+            <button class="modal-close" onclick="closeModal('customer-modal')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form id="customer-form" onsubmit="return submitCustomer(event)">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" id="cust-name" required placeholder="John Smith">
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="cust-type">
+                            <option value="residential">Residential</option>
+                            <option value="commercial">Commercial</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="cust-email" placeholder="john@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="cust-phone" placeholder="(555) 123-4567">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address</label>
+                    <input type="text" id="cust-address" placeholder="123 Main St, City, State">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal('customer-modal')">Cancel</button>
+                <button type="submit" class="btn-primary" id="cust-submit-btn">Create Customer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quick New Job Modal -->
+<div class="modal-overlay" id="job-modal" onclick="if(event.target===this)closeModal('job-modal')">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>New Job</h2>
+            <button class="modal-close" onclick="closeModal('job-modal')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form id="job-form" onsubmit="return submitJob(event)">
+            <div class="modal-body">
+                <div class="form-group autocomplete-wrap">
+                    <label>Customer *</label>
+                    <input type="text" id="job-customer-search" placeholder="Search customers..." autocomplete="off" required>
+                    <input type="hidden" id="job-customer-id">
+                    <div class="autocomplete-list" id="job-customer-list"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" id="job-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Service Type *</label>
+                        <input type="text" id="job-service" required placeholder="Mowing, Cleanup, etc.">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address *</label>
+                    <input type="text" id="job-address" required placeholder="Service address">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Crew</label>
+                        <select id="job-crew"><option value="">-- Select Crew --</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Price</label>
+                        <input type="number" id="job-price" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="job-notes" placeholder="Special instructions..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal('job-modal')">Cancel</button>
+                <button type="submit" class="btn-primary" id="job-submit-btn">Create Job</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quick New Invoice Modal -->
+<div class="modal-overlay" id="invoice-modal" onclick="if(event.target===this)closeModal('invoice-modal')">
+    <div class="modal" style="max-width:600px">
+        <div class="modal-header">
+            <h2>New Invoice</h2>
+            <button class="modal-close" onclick="closeModal('invoice-modal')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form id="invoice-form" onsubmit="return submitInvoice(event)">
+            <div class="modal-body">
+                <div class="form-group autocomplete-wrap">
+                    <label>Customer *</label>
+                    <input type="text" id="inv-customer-search" placeholder="Search customers..." autocomplete="off" required>
+                    <input type="hidden" id="inv-customer-id">
+                    <input type="hidden" id="inv-customer-email">
+                    <div class="autocomplete-list" id="inv-customer-list"></div>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="inv-due-date">
+                </div>
+                <div class="form-group">
+                    <label>Line Items</label>
+                    <table class="line-items-table">
+                        <thead><tr><th style="width:60%">Description</th><th style="width:30%">Amount</th><th style="width:10%"></th></tr></thead>
+                        <tbody id="inv-line-items">
+                            <tr>
+                                <td><input type="text" class="li-desc" placeholder="Service description"></td>
+                                <td><input type="number" class="li-amt" step="0.01" placeholder="0.00" oninput="calcInvoiceTotal()"></td>
+                                <td><button type="button" class="li-remove" onclick="removeLineItem(this)" title="Remove">&times;</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <button type="button" class="add-line-btn" onclick="addLineItem()">+ Add Line Item</button>
+                </div>
+                <div class="invoice-total-row">
+                    <span>Total:</span>
+                    <span id="inv-total-display">$0.00</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
+                <button type="submit" class="btn-primary" id="inv-submit-btn">Create Invoice</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -806,83 +1004,313 @@ function fmtMoney(n) {
 }
 
 function renderItem(name, sub, status, href) {
-    return `<a href="${href}" class="recent-item">
-        <div class="recent-item-info">
-            <div class="recent-item-name">${esc(name)}</div>
-            <div class="recent-item-sub">${esc(sub)}</div>
-        </div>
-        <span class="status-badge status-${status}">${status}</span>
-    </a>`;
+    return '<a href="' + href + '" class="recent-item">' +
+        '<div class="recent-item-info">' +
+            '<div class="recent-item-name">' + esc(name) + '</div>' +
+            '<div class="recent-item-sub">' + esc(sub) + '</div>' +
+        '</div>' +
+        '<span class="status-badge status-' + status + '">' + status + '</span>' +
+    '</a>';
 }
 
 function showEmpty(el, msg) {
-    el.innerHTML = `<div class="empty-state">${msg}</div>`;
+    el.innerHTML = '<div class="empty-state">' + msg + '</div>';
 }
 
-// Greeting
+function showToast(msg, isError) {
+    var t = document.createElement('div');
+    t.className = 'toast' + (isError ? ' toast-error' : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 3000);
+}
+
+// ── Modal Handling ──────────────────────────────────────────
+function openModal(id) {
+    document.getElementById(id).classList.add('visible');
+    document.getElementById('quick-create-menu').classList.remove('visible');
+    if (id === 'job-modal') loadCrews();
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('visible');
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.visible').forEach(function(m) { m.classList.remove('visible'); });
+        closeSearch();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('search-input').focus(); }
+});
+
+// ── Quick-Create Dropdown ──────────────────────────────────
+document.getElementById('quick-create-btn').addEventListener('click', function() {
+    document.getElementById('quick-create-menu').classList.toggle('visible');
+});
+document.addEventListener('click', function(e) {
+    if (!document.getElementById('quick-create-wrap').contains(e.target)) {
+        document.getElementById('quick-create-menu').classList.remove('visible');
+    }
+});
+
+// ── Customer Autocomplete (shared) ─────────────────────────
+var customerAutoTimer = null;
+function setupCustomerAutocomplete(inputId, listId, customerIdField, emailField) {
+    var input = document.getElementById(inputId);
+    var list = document.getElementById(listId);
+    input.addEventListener('input', function() {
+        clearTimeout(customerAutoTimer);
+        var q = input.value.trim();
+        if (q.length < 2) { list.classList.remove('visible'); return; }
+        customerAutoTimer = setTimeout(async function() {
+            try {
+                var res = await fetch('/api/customers/search?q=' + encodeURIComponent(q) + '&limit=8');
+                var data = await res.json();
+                var customers = data.customers || [];
+                if (!customers.length) {
+                    list.innerHTML = '<div class="autocomplete-option" style="color:var(--gray-400)">No customers found</div>';
+                    list.classList.add('visible');
+                    return;
+                }
+                list.innerHTML = customers.map(function(c) {
+                    return '<div class="autocomplete-option" data-id="' + c.id + '" data-name="' + esc(c.name||'') + '" data-email="' + esc(c.email||'') + '" data-address="' + esc(c.street||c.address||'') + '">' +
+                        '<div>' + esc(c.name||'Unknown') + '</div>' +
+                        '<div class="ac-sub">' + esc(c.email||'') + (c.city ? ' - ' + esc(c.city) : '') + '</div>' +
+                    '</div>';
+                }).join('');
+                list.classList.add('visible');
+                list.querySelectorAll('.autocomplete-option').forEach(function(opt) {
+                    opt.addEventListener('click', function() {
+                        input.value = opt.dataset.name;
+                        document.getElementById(customerIdField).value = opt.dataset.id;
+                        if (emailField) document.getElementById(emailField).value = opt.dataset.email || '';
+                        var addrField = input.closest('form').querySelector('[id$="-address"]');
+                        if (addrField && opt.dataset.address && !addrField.value) addrField.value = opt.dataset.address;
+                        list.classList.remove('visible');
+                    });
+                });
+            } catch (e) { list.classList.remove('visible'); }
+        }, 300);
+    });
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !list.contains(e.target)) list.classList.remove('visible');
+    });
+}
+
+// ── Submit Customer ────────────────────────────────────────
+async function submitCustomer(e) {
+    e.preventDefault();
+    var btn = document.getElementById('cust-submit-btn');
+    btn.disabled = true; btn.textContent = 'Creating...';
+    try {
+        var res = await fetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: document.getElementById('cust-name').value.trim(),
+                email: document.getElementById('cust-email').value.trim(),
+                phone: document.getElementById('cust-phone').value.trim(),
+                street: document.getElementById('cust-address').value.trim(),
+                customer_type: document.getElementById('cust-type').value,
+                status: 'active'
+            })
+        });
+        var data = await res.json();
+        if (data.success || data.customer) {
+            showToast('Customer created successfully');
+            closeModal('customer-modal');
+            document.getElementById('customer-form').reset();
+            loadCustomers();
+        } else {
+            showToast(data.error || 'Failed to create customer', true);
+        }
+    } catch (err) {
+        showToast('Error creating customer', true);
+    }
+    btn.disabled = false; btn.textContent = 'Create Customer';
+    return false;
+}
+
+// ── Load Crews ─────────────────────────────────────────────
+async function loadCrews() {
+    try {
+        var res = await fetch('/api/crews');
+        var data = await res.json();
+        var crews = data.crews || [];
+        var sel = document.getElementById('job-crew');
+        sel.innerHTML = '<option value="">-- Select Crew --</option>';
+        crews.forEach(function(c) {
+            sel.innerHTML += '<option value="' + esc(c.name || c.crew_name || '') + '">' + esc(c.name || c.crew_name || 'Crew #'+c.id) + '</option>';
+        });
+    } catch (e) {}
+}
+
+// ── Submit Job ─────────────────────────────────────────────
+async function submitJob(e) {
+    e.preventDefault();
+    var btn = document.getElementById('job-submit-btn');
+    btn.disabled = true; btn.textContent = 'Creating...';
+    try {
+        var res = await fetch('/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customer_name: document.getElementById('job-customer-search').value.trim(),
+                customer_id: document.getElementById('job-customer-id').value || null,
+                job_date: document.getElementById('job-date').value,
+                service_type: document.getElementById('job-service').value.trim(),
+                address: document.getElementById('job-address').value.trim(),
+                crew_assigned: document.getElementById('job-crew').value || null,
+                service_price: parseFloat(document.getElementById('job-price').value) || 0,
+                special_notes: document.getElementById('job-notes').value.trim(),
+                status: 'pending'
+            })
+        });
+        var data = await res.json();
+        if (data.success || data.job) {
+            showToast('Job created successfully');
+            closeModal('job-modal');
+            document.getElementById('job-form').reset();
+            loadJobsColumn();
+            loadTodaySchedule();
+        } else {
+            showToast(data.error || 'Failed to create job', true);
+        }
+    } catch (err) {
+        showToast('Error creating job', true);
+    }
+    btn.disabled = false; btn.textContent = 'Create Job';
+    return false;
+}
+
+// ── Invoice Line Items ─────────────────────────────────────
+function addLineItem() {
+    var tbody = document.getElementById('inv-line-items');
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="text" class="li-desc" placeholder="Service description"></td>' +
+        '<td><input type="number" class="li-amt" step="0.01" placeholder="0.00" oninput="calcInvoiceTotal()"></td>' +
+        '<td><button type="button" class="li-remove" onclick="removeLineItem(this)" title="Remove">&times;</button></td>';
+    tbody.appendChild(tr);
+}
+
+function removeLineItem(btn) {
+    var tbody = document.getElementById('inv-line-items');
+    if (tbody.children.length > 1) { btn.closest('tr').remove(); calcInvoiceTotal(); }
+}
+
+function calcInvoiceTotal() {
+    var total = 0;
+    document.querySelectorAll('#inv-line-items .li-amt').forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+    document.getElementById('inv-total-display').textContent = '$' + total.toFixed(2);
+}
+
+// ── Submit Invoice ─────────────────────────────────────────
+async function submitInvoice(e) {
+    e.preventDefault();
+    var btn = document.getElementById('inv-submit-btn');
+    btn.disabled = true; btn.textContent = 'Creating...';
+    try {
+        var lineItems = [];
+        document.querySelectorAll('#inv-line-items tr').forEach(function(row) {
+            var desc = row.querySelector('.li-desc').value.trim();
+            var amt = parseFloat(row.querySelector('.li-amt').value) || 0;
+            if (desc || amt) lineItems.push({ description: desc, amount: amt });
+        });
+        var total = lineItems.reduce(function(s, li) { return s + li.amount; }, 0);
+        var res = await fetch('/api/invoices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customer_id: document.getElementById('inv-customer-id').value || null,
+                customer_name: document.getElementById('inv-customer-search').value.trim(),
+                customer_email: document.getElementById('inv-customer-email').value || '',
+                subtotal: total,
+                total: total,
+                due_date: document.getElementById('inv-due-date').value || null,
+                line_items: lineItems
+            })
+        });
+        var data = await res.json();
+        if (data.success || data.invoice) {
+            showToast('Invoice created successfully');
+            closeModal('invoice-modal');
+            document.getElementById('invoice-form').reset();
+            document.getElementById('inv-total-display').textContent = '$0.00';
+            document.getElementById('inv-line-items').innerHTML =
+                '<tr><td><input type="text" class="li-desc" placeholder="Service description"></td>' +
+                '<td><input type="number" class="li-amt" step="0.01" placeholder="0.00" oninput="calcInvoiceTotal()"></td>' +
+                '<td><button type="button" class="li-remove" onclick="removeLineItem(this)" title="Remove">&times;</button></td></tr>';
+            loadStatCards();
+        } else {
+            showToast(data.error || 'Failed to create invoice', true);
+        }
+    } catch (err) {
+        showToast('Error creating invoice', true);
+    }
+    btn.disabled = false; btn.textContent = 'Create Invoice';
+    return false;
+}
+
+// ── Greeting ──────────────────────────────────────────────
 function updateGreeting() {
-    const now = new Date();
-    const hour = now.getHours();
-    let greeting = 'Good evening';
+    var now = new Date();
+    var hour = now.getHours();
+    var greeting = 'Good evening';
     if (hour < 12) greeting = 'Good morning';
     else if (hour < 17) greeting = 'Good afternoon';
-    document.getElementById('greeting-text').textContent = greeting + ', Theresa';
+    var name = localStorage.getItem('adminName') || 'Theresa';
+    document.getElementById('greeting-text').textContent = greeting + ', ' + name.split(' ')[0];
     document.getElementById('date-line').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-// Search
-const searchInput = document.getElementById('search-input');
-const searchDropdown = document.getElementById('search-dropdown');
-const searchClear = document.getElementById('search-clear');
+// ── Search ──────────────────────────────────────────────
+var searchInput = document.getElementById('search-input');
+var searchDropdown = document.getElementById('search-dropdown');
+var searchClear = document.getElementById('search-clear');
 
 function closeSearch() { searchDropdown.classList.remove('visible'); }
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', function(e) {
     if (!document.getElementById('search-container').contains(e.target)) closeSearch();
 });
 
-document.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); searchInput.focus(); }
-    if (e.key === 'Escape') closeSearch();
-});
-
-searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
+searchInput.addEventListener('input', function(e) {
+    var query = e.target.value.trim();
     searchClear.classList.toggle('visible', query.length > 0);
     if (query.length < 2) { closeSearch(); return; }
     clearTimeout(searchDebounceTimer);
     searchDropdown.innerHTML = '<div class="search-empty">Searching...</div>';
     searchDropdown.classList.add('visible');
-    searchDebounceTimer = setTimeout(() => performSearch(query), 300);
+    searchDebounceTimer = setTimeout(function() { performSearch(query); }, 300);
 });
 
-searchClear.addEventListener('click', () => { searchInput.value = ''; searchClear.classList.remove('visible'); closeSearch(); });
+searchClear.addEventListener('click', function() { searchInput.value = ''; searchClear.classList.remove('visible'); closeSearch(); });
 
 async function performSearch(query) {
     try {
-        const [cRes, qRes, pRes] = await Promise.all([
-            fetch(`/api/customers?search=${encodeURIComponent(query)}&limit=5`).catch(() => null),
-            fetch(`/api/sent-quotes?search=${encodeURIComponent(query)}&limit=5`).catch(() => null),
-            fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=5`).catch(() => null)
+        var [cRes, qRes, pRes] = await Promise.all([
+            fetch('/api/customers?search=' + encodeURIComponent(query) + '&limit=5').catch(function() { return null; }),
+            fetch('/api/sent-quotes?search=' + encodeURIComponent(query) + '&limit=5').catch(function() { return null; }),
+            fetch('/api/properties?search=' + encodeURIComponent(query) + '&limit=5').catch(function() { return null; })
         ]);
-        const customers = (cRes && cRes.ok ? await cRes.json() : {}).customers || [];
-        const quotes = (qRes && qRes.ok ? await qRes.json() : {}).quotes || [];
-        const properties = (pRes && pRes.ok ? await pRes.json() : {}).properties || [];
-
-        let html = '';
+        var customers = (cRes && cRes.ok ? await cRes.json() : {}).customers || [];
+        var quotes = (qRes && qRes.ok ? await qRes.json() : {}).quotes || [];
+        var properties = (pRes && pRes.ok ? await pRes.json() : {}).properties || [];
+        var html = '';
         if (customers.length) {
             html += '<div class="search-group"><div class="search-group-title">Customers</div>';
-            customers.forEach(c => { html += `<a href="customer-detail.html?id=${c.id}" class="search-item">${esc(c.name || 'Unknown')}</a>`; });
+            customers.forEach(function(c) { html += '<a href="customer-detail.html?id=' + c.id + '" class="search-item">' + esc(c.name || 'Unknown') + '</a>'; });
             html += '</div>';
         }
         if (quotes.length) {
             html += '<div class="search-group"><div class="search-group-title">Quotes</div>';
-            quotes.forEach(q => { html += `<a href="sent-quotes.html?quote=${q.id}" class="search-item">${esc(q.customer_name || 'Unknown')}</a>`; });
+            quotes.forEach(function(q) { html += '<a href="sent-quotes.html?quote=' + q.id + '" class="search-item">' + esc(q.customer_name || 'Unknown') + '</a>'; });
             html += '</div>';
         }
         if (properties.length) {
             html += '<div class="search-group"><div class="search-group-title">Properties</div>';
-            properties.forEach(p => { html += `<a href="properties.html?id=${p.id}" class="search-item">${esc(p.property_name || p.street || 'Unknown')}</a>`; });
+            properties.forEach(function(p) { html += '<a href="properties.html?id=' + p.id + '" class="search-item">' + esc(p.property_name || p.street || 'Unknown') + '</a>'; });
             html += '</div>';
         }
         searchDropdown.innerHTML = html || '<div class="search-empty">No results found</div>';
@@ -900,74 +1328,232 @@ async function loadAll() {
     loadJobsColumn();
     loadMessages();
     loadCustomers();
+    loadTodaySchedule();
+    loadActivityFeed();
+    loadActionItems();
 }
 
 async function loadStatCards() {
     try {
-        const [finRes, invRes, custRes] = await Promise.all([
-            fetch('/api/finance/summary').catch(() => null),
-            fetch('/api/invoices/stats').catch(() => null),
-            fetch('/api/customers/stats').catch(() => null)
+        var [finRes, invRes, custRes] = await Promise.all([
+            fetch('/api/finance/summary').catch(function() { return null; }),
+            fetch('/api/invoices/stats').catch(function() { return null; }),
+            fetch('/api/customers/stats').catch(function() { return null; })
         ]);
 
-        // Revenue
-        const fin = finRes && finRes.ok ? await finRes.json() : {};
-        const revMonth = parseFloat(fin.revenueMonth) || 0;
-        const revYear = parseFloat(fin.revenueYear) || 0;
+        var fin = finRes && finRes.ok ? await finRes.json() : {};
+        var revMonth = parseFloat(fin.thisMonth && fin.thisMonth.revenue) || parseFloat(fin.revenueMonth) || 0;
+        var revYear = parseFloat(fin.yearToDate && fin.yearToDate.revenue) || parseFloat(fin.revenueYear) || 0;
+        var revLastMonth = parseFloat(fin.lastMonth && fin.lastMonth.revenue) || 0;
         document.getElementById('stat-revenue').textContent = fmtMoney(revMonth);
-        document.getElementById('stat-revenue-sub').textContent = fmtMoney(revYear) + ' this year';
+        if (revLastMonth > 0) {
+            var pctChange = Math.round(((revMonth - revLastMonth) / revLastMonth) * 100);
+            if (pctChange >= 0) {
+                document.getElementById('stat-revenue-sub').innerHTML = '<span class="up">&uarr; ' + pctChange + '%</span> vs last month';
+            } else {
+                document.getElementById('stat-revenue-sub').innerHTML = '<span class="down">&darr; ' + Math.abs(pctChange) + '%</span> vs last month';
+            }
+        } else {
+            document.getElementById('stat-revenue-sub').textContent = fmtMoney(revYear) + ' this year';
+        }
 
-        // Outstanding invoices
-        const inv = invRes && invRes.ok ? await invRes.json() : {};
-        const outstanding = parseFloat(inv.outstanding) || 0;
-        const overdue = parseInt(inv.overdue_count) || 0;
+        document.getElementById('stat-ytd').textContent = fmtMoney(revYear);
+        var allTimeRev = parseFloat(fin.allTime && fin.allTime.revenue) || 0;
+        document.getElementById('stat-ytd-sub').textContent = allTimeRev > revYear ? fmtMoney(allTimeRev) + ' all time' : '';
+
+        var inv = invRes && invRes.ok ? await invRes.json() : {};
+        var outstanding = parseFloat(inv.outstanding) || parseFloat(fin.outstanding && fin.outstanding.totalOutstanding) || 0;
+        var overdue = parseInt(inv.overdue_count) || parseInt(fin.outstanding && fin.outstanding.overdueCount) || 0;
         document.getElementById('stat-outstanding').textContent = fmtMoney(outstanding);
         if (overdue > 0) {
-            document.getElementById('stat-outstanding-sub').innerHTML = `<span class="down">${overdue} overdue</span>`;
+            document.getElementById('stat-outstanding-sub').innerHTML = '<span class="down">' + overdue + ' overdue</span>';
         } else {
             document.getElementById('stat-outstanding-sub').textContent = 'All current';
         }
 
-        // Quotes sent (this month)
-        const sentRes = await fetch('/api/sent-quotes?limit=200').catch(() => null);
-        const sentData = sentRes && sentRes.ok ? await sentRes.json() : {};
-        const allQuotes = sentData.quotes || [];
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const thisMonthQuotes = allQuotes.filter(q => new Date(q.created_at) >= monthStart);
-        const signedThisMonth = thisMonthQuotes.filter(q => q.status === 'signed' || q.status === 'contracted').length;
-        document.getElementById('stat-quotes').textContent = thisMonthQuotes.length;
-        if (thisMonthQuotes.length > 0) {
-            const rate = Math.round((signedThisMonth / thisMonthQuotes.length) * 100);
-            document.getElementById('stat-quotes-sub').textContent = rate + '% conversion rate';
-        }
-
-        // Customers
-        const cust = custRes && custRes.ok ? await custRes.json() : {};
+        var cust = custRes && custRes.ok ? await custRes.json() : {};
         document.getElementById('stat-customers').textContent = cust.total || 0;
         if (cust.trend) {
-            const pct = cust.trend.pct;
+            var pct = cust.trend.pct;
             if (pct > 0) {
-                document.getElementById('stat-customers-sub').innerHTML = `<span class="up">↑ ${pct}%</span> last 30 days`;
+                document.getElementById('stat-customers-sub').innerHTML = '<span class="up">&uarr; ' + pct + '%</span> last 30 days';
             } else if (pct < 0) {
-                document.getElementById('stat-customers-sub').innerHTML = `<span class="down">↓ ${Math.abs(pct)}%</span> last 30 days`;
+                document.getElementById('stat-customers-sub').innerHTML = '<span class="down">&darr; ' + Math.abs(pct) + '%</span> last 30 days';
             } else {
                 document.getElementById('stat-customers-sub').textContent = 'Steady last 30 days';
             }
+        }
+
+        renderSparkline(fin.monthlyRevenue || []);
+
+        var sentRes = await fetch('/api/sent-quotes?limit=200').catch(function() { return null; });
+        var sentData = sentRes && sentRes.ok ? await sentRes.json() : {};
+        var allQuotes = sentData.quotes || [];
+        var now = new Date();
+        var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        var thisMonthQuotes = allQuotes.filter(function(q) { return new Date(q.created_at) >= monthStart; });
+        var signedThisMonth = thisMonthQuotes.filter(function(q) { return q.status === 'signed' || q.status === 'contracted'; }).length;
+        document.getElementById('stat-quotes').textContent = thisMonthQuotes.length;
+        var totalValue = thisMonthQuotes.reduce(function(s, q) { return s + (parseFloat(q.total_price) || 0); }, 0);
+        document.getElementById('stat-quotes-sub').textContent = totalValue ? fmtMoney(totalValue) + ' total value' : '';
+        if (thisMonthQuotes.length > 0) {
+            var rate = Math.round((signedThisMonth / thisMonthQuotes.length) * 100);
+            document.getElementById('conversion-rate').textContent = rate + '%';
+            document.getElementById('conversion-bar').style.width = rate + '%';
+        } else {
+            document.getElementById('conversion-rate').textContent = '--';
         }
     } catch (e) {
         console.error('Failed to load stat cards:', e);
     }
 }
 
+function renderSparkline(monthlyRev) {
+    var container = document.getElementById('spark-bars');
+    var now = new Date();
+    var currentMonth = now.getMonth();
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var months = [];
+    for (var i = 5; i >= 0; i--) {
+        var mIdx = (currentMonth - i + 12) % 12;
+        months.push({ label: monthNames[mIdx], value: monthlyRev[mIdx] || 0 });
+    }
+    var max = Math.max.apply(null, months.map(function(m) { return m.value; }).concat([1]));
+    var sixMonthTotal = months.reduce(function(s, m) { return s + m.value; }, 0);
+    document.getElementById('spark-total').textContent = fmtMoney(sixMonthTotal);
+
+    var first3 = months.slice(0, 3).reduce(function(s, m) { return s + m.value; }, 0);
+    var last3 = months.slice(3).reduce(function(s, m) { return s + m.value; }, 0);
+    var trendEl = document.getElementById('spark-trend');
+    if (first3 > 0) {
+        var pct = Math.round(((last3 - first3) / first3) * 100);
+        if (pct >= 0) {
+            trendEl.innerHTML = '<span style="color:var(--green);font-weight:600">&uarr; ' + pct + '%</span>';
+        } else {
+            trendEl.innerHTML = '<span style="color:var(--red);font-weight:600">&darr; ' + Math.abs(pct) + '%</span>';
+        }
+    }
+
+    container.innerHTML = months.map(function(m) {
+        var h = Math.max(3, (m.value / max) * 60);
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
+            '<div class="spark-bar" style="height:' + h + 'px;width:100%;background:var(--lime);border-radius:3px 3px 0 0;min-height:3px" title="' + m.label + ': ' + fmtMoney(m.value) + '"></div>' +
+            '<div style="font-size:9px;color:var(--gray-400);margin-top:4px">' + m.label + '</div>' +
+        '</div>';
+    }).join('');
+}
+
+async function loadActionItems() {
+    try {
+        var res = await fetch('/api/dashboard/today-summary');
+        var data = res.ok ? await res.json() : {};
+        var actions = [];
+
+        if (data.overdue_invoices > 0) {
+            actions.push({ title: 'Overdue Invoices', sub: 'Past due date, payment needed', count: data.overdue_invoices, href: 'invoices.html?status=overdue', iconClass: 'red-icon', countClass: 'red', icon: '📄' });
+        }
+        if (data.pending_quotes > 0) {
+            actions.push({ title: 'Unsigned Quotes', sub: 'Sent but awaiting signature', count: data.pending_quotes, href: 'sent-quotes.html?status=sent', iconClass: 'purple-icon', countClass: 'purple', icon: '📤' });
+        }
+        if (data.unread_messages > 0) {
+            actions.push({ title: 'Unread Messages', sub: 'Customer messages need reply', count: data.unread_messages, href: 'communications.html', iconClass: 'blue-icon', countClass: 'blue', icon: '💬' });
+        }
+
+        var qRes = await fetch('/api/sent-quotes?limit=200').catch(function() { return null; });
+        var qData = qRes && qRes.ok ? await qRes.json() : {};
+        var quotes = qData.quotes || [];
+        var thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        var recentSigned = quotes.filter(function(q) { return q.status === 'signed' && new Date(q.signed_at || q.created_at) > thirtyDaysAgo; }).length;
+        var recentChanges = quotes.filter(function(q) { return q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo; }).length;
+
+        if (recentSigned > 0) {
+            actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed', iconClass: 'amber-icon', countClass: '', icon: '✍️' });
+        }
+        if (recentChanges > 0) {
+            actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested', iconClass: 'amber-icon', countClass: '', icon: '⚠️' });
+        }
+
+        var section = document.getElementById('action-section');
+        if (actions.length > 0) {
+            section.style.display = 'block';
+            document.getElementById('action-items').innerHTML = actions.map(function(a) {
+                return '<a href="' + a.href + '" class="action-item">' +
+                    '<div class="action-item-info">' +
+                        '<div class="action-item-icon ' + a.iconClass + '">' + a.icon + '</div>' +
+                        '<div class="action-item-text"><strong>' + a.title + '</strong><span>' + a.sub + '</span></div>' +
+                    '</div>' +
+                    '<span class="action-item-count ' + a.countClass + '">' + a.count + '</span>' +
+                '</a>';
+            }).join('');
+        } else {
+            section.style.display = 'none';
+        }
+    } catch (e) { console.error('Action items:', e); }
+}
+
+async function loadTodaySchedule() {
+    try {
+        var today = new Date().toISOString().split('T')[0];
+        var res = await fetch('/api/jobs?date=' + today);
+        var data = res.ok ? await res.json() : {};
+        var jobs = data.jobs || [];
+        var section = document.getElementById('today-schedule-section');
+        if (!jobs.length) { section.style.display = 'none'; return; }
+        section.style.display = 'block';
+        var statusColors = {
+            pending: 'var(--amber)', scheduled: 'var(--blue)',
+            'in-progress': 'var(--purple)', in_progress: 'var(--purple)',
+            completed: 'var(--green)', done: 'var(--green)',
+            cancelled: 'var(--gray-400)'
+        };
+        document.getElementById('today-jobs').innerHTML = jobs.slice(0, 8).map(function(j) {
+            var color = statusColors[j.status] || 'var(--gray-400)';
+            var addr = (j.address || '').split(',')[0];
+            return '<a href="job-detail.html?id=' + j.id + '" class="schedule-job">' +
+                '<div class="schedule-job-status" style="background:' + color + '"></div>' +
+                '<div class="schedule-job-info">' +
+                    '<div class="schedule-job-customer">' + esc(j.customer_name || 'Unknown') + '</div>' +
+                    '<div class="schedule-job-details">' + esc(addr) + '</div>' +
+                '</div>' +
+                '<div class="schedule-job-meta">' +
+                    '<div class="schedule-job-crew">' + esc(j.crew_assigned || '') + '</div>' +
+                    '<div class="schedule-job-type">' + esc(j.service_type || '') + '</div>' +
+                '</div>' +
+            '</a>';
+        }).join('');
+    } catch (e) {
+        console.error('Today schedule:', e);
+        document.getElementById('today-schedule-section').style.display = 'none';
+    }
+}
+
+async function loadActivityFeed() {
+    var container = document.getElementById('activity-feed');
+    try {
+        var res = await fetch('/api/dashboard/activity-feed');
+        var data = res.ok ? await res.json() : {};
+        var events = data.events || [];
+        if (!events.length) { container.innerHTML = '<div class="empty-state">No recent activity</div>'; return; }
+        container.innerHTML = events.map(function(ev) {
+            return '<a href="' + (ev.link || '#') + '" class="activity-item">' +
+                '<div class="activity-dot ' + ev.type + '"></div>' +
+                '<div class="activity-text">' + esc(ev.description) + '</div>' +
+                '<div class="activity-time">' + timeAgo(ev.timestamp) + '</div>' +
+            '</a>';
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<div class="empty-state">Unable to load activity</div>';
+    }
+}
+
 async function loadRequestsColumn() {
     try {
-        const res = await fetch('/api/quotes?limit=200');
-        const data = await res.json();
-        const quotes = data.quotes || [];
-        const newCount = quotes.filter(q => q.status === 'new').length;
-        const contactedCount = quotes.filter(q => q.status === 'contacted').length;
-        const quotedCount = quotes.filter(q => q.status === 'quoted').length;
+        var res = await fetch('/api/quotes?limit=200');
+        var data = await res.json();
+        var quotes = data.quotes || [];
+        var newCount = quotes.filter(function(q) { return q.status === 'new'; }).length;
+        var contactedCount = quotes.filter(function(q) { return q.status === 'contacted'; }).length;
+        var quotedCount = quotes.filter(function(q) { return q.status === 'quoted'; }).length;
         document.getElementById('wf-req-new').textContent = newCount;
         document.getElementById('wf-req-contacted').textContent = contactedCount;
         document.getElementById('wf-req-quoted').textContent = quotedCount;
@@ -977,111 +1563,83 @@ async function loadRequestsColumn() {
 
 async function loadQuotesColumn() {
     try {
-        const res = await fetch('/api/sent-quotes?limit=200');
-        const data = await res.json();
-        const quotes = data.quotes || [];
-        const counts = data.counts || {};
-
-        const sentViewed = (counts.sent || 0) + (counts.viewed || 0);
+        var res = await fetch('/api/sent-quotes?limit=200');
+        var data = await res.json();
+        var quotes = data.quotes || [];
+        var counts = data.counts || {};
+        var sentViewed = (counts.sent || 0) + (counts.viewed || 0);
         document.getElementById('wf-q-sent').textContent = sentViewed;
         document.getElementById('wf-q-signed').textContent = counts.signed || 0;
         document.getElementById('wf-q-changes').textContent = counts.changes_requested || 0;
         document.getElementById('wf-q-contracted').textContent = counts.contracted || 0;
-
-        const sentQuotes = quotes.filter(q => q.status === 'sent' || q.status === 'viewed');
-        const signedQuotes = quotes.filter(q => q.status === 'signed');
-        const sentTotal = sentQuotes.reduce((sum, q) => sum + (parseFloat(q.total_price) || 0), 0);
-        const signedTotal = signedQuotes.reduce((sum, q) => sum + (parseFloat(q.total_price) || 0), 0);
+        var sentQuotes = quotes.filter(function(q) { return q.status === 'sent' || q.status === 'viewed'; });
+        var signedQuotes = quotes.filter(function(q) { return q.status === 'signed'; });
+        var sentTotal = sentQuotes.reduce(function(sum, q) { return sum + (parseFloat(q.total_price) || 0); }, 0);
+        var signedTotal = signedQuotes.reduce(function(sum, q) { return sum + (parseFloat(q.total_price) || 0); }, 0);
         document.getElementById('wf-q-sent-amt').textContent = sentTotal ? fmtMoney(sentTotal) : '';
         document.getElementById('wf-q-signed-amt').textContent = signedTotal ? fmtMoney(signedTotal) : '';
-
-        // Action items - only show recent (last 30 days) as pending action
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const recentSigned = quotes.filter(q => q.status === 'signed' && !q.contract_signed_at && new Date(q.signed_at || q.created_at) > thirtyDaysAgo).length;
-        const recentChanges = quotes.filter(q => q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo).length;
-        const recentContracted = quotes.filter(q => q.status === 'contracted' && new Date(q.contract_signed_at || q.created_at) > thirtyDaysAgo).length;
-        const actions = [];
-        if (recentSigned > 0) actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed' });
-        if (recentChanges > 0) actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested' });
-        if (recentContracted > 0) actions.push({ title: 'Send Portal Invites', sub: 'New customers need card on file', count: recentContracted, href: 'sent-quotes.html?status=contracted' });
-
-        const section = document.getElementById('action-section');
-        if (actions.length > 0) {
-            section.style.display = 'block';
-            document.getElementById('action-items').innerHTML = actions.map(a => `
-                <a href="${a.href}" class="action-item">
-                    <div class="action-item-info">
-                        <div class="action-item-icon">⚠️</div>
-                        <div class="action-item-text"><strong>${a.title}</strong><span>${a.sub}</span></div>
-                    </div>
-                    <span class="action-item-count">${a.count}</span>
-                </a>`).join('');
-        } else {
-            section.style.display = 'none';
-        }
     } catch (e) { console.error('Quotes:', e); }
 }
 
 async function loadJobsColumn() {
     try {
-        const res = await fetch('/api/jobs/dashboard');
-        const data = await res.json();
+        var res = await fetch('/api/jobs/dashboard');
+        var data = await res.json();
         if (data.success) {
-            document.getElementById('wf-j-today').textContent = data.stats?.today || 0;
-            document.getElementById('wf-j-week').textContent = data.stats?.thisWeek || data.stats?.week || 0;
-            document.getElementById('wf-j-pending').textContent = data.stats?.pending || 0;
+            document.getElementById('wf-j-today').textContent = data.stats && data.stats.today || 0;
+            document.getElementById('wf-j-week').textContent = data.stats && (data.stats.thisWeek || data.stats.week) || 0;
+            document.getElementById('wf-j-pending').textContent = data.stats && data.stats.pending || 0;
         }
     } catch (e) { console.error('Jobs:', e); }
 }
 
 async function loadMessages() {
-    const list = document.getElementById('messages-list');
+    var list = document.getElementById('messages-list');
     try {
-        const res = await fetch('/api/messages?limit=5');
-        const data = res.ok ? await res.json() : {};
-        const messages = data.messages || [];
-
+        var res = await fetch('/api/messages?limit=5');
+        var data = res.ok ? await res.json() : {};
+        var messages = data.messages || [];
         if (!messages.length) { showEmpty(list, 'No recent messages'); return; }
-
-        list.innerHTML = messages.slice(0, 5).map(m => {
-            const body = (m.body || '').substring(0, 40);
-            const ago = timeAgo(m.created_at || m.timestamp);
-            const sub = [body, ago].filter(Boolean).join(' · ');
+        list.innerHTML = messages.slice(0, 5).map(function(m) {
+            var body = (m.body || '').substring(0, 40);
+            var ago = timeAgo(m.created_at || m.timestamp);
+            var sub = [body, ago].filter(Boolean).join(' . ');
             return renderItem(
                 m.customer_name || m.customerName || fmtPhone(m.from_number || m.from),
-                sub,
-                m.read ? 'read' : 'unread',
-                'communications.html'
+                sub, m.read ? 'read' : 'unread', 'communications.html'
             );
         }).join('');
     } catch (e) { showEmpty(list, 'Unable to load messages'); }
 }
 
 async function loadCustomers() {
-    const list = document.getElementById('customers-list');
+    var list = document.getElementById('customers-list');
     try {
-        const res = await fetch('/api/customers?limit=5&sort=newest');
-        const data = await res.json();
-        const customers = data.customers || [];
-
+        var res = await fetch('/api/customers?limit=5&sort=newest');
+        var data = await res.json();
+        var customers = data.customers || [];
         if (!customers.length) { showEmpty(list, 'No customers yet'); return; }
-
-        list.innerHTML = customers.slice(0, 5).map(c => {
-            const ago = timeAgo(c.created_at);
-            const sub = [c.city || c.street || '', ago].filter(Boolean).join(' · ');
+        list.innerHTML = customers.slice(0, 5).map(function(c) {
+            var ago = timeAgo(c.created_at);
+            var sub = [c.city || c.street || '', ago].filter(Boolean).join(' . ');
             return renderItem(
                 c.name || c.customer_company_name || 'Unknown',
-                sub,
-                'active',
-                `customer-detail.html?id=${c.id || c.customer_id}`
+                sub, 'active', 'customer-detail.html?id=' + (c.id || c.customer_id)
             );
         }).join('');
     } catch (e) { showEmpty(list, 'Unable to load customers'); }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// ── Init ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
     updateGreeting();
     loadAll();
+    setupCustomerAutocomplete('job-customer-search', 'job-customer-list', 'job-customer-id', null);
+    setupCustomerAutocomplete('inv-customer-search', 'inv-customer-list', 'inv-customer-id', 'inv-customer-email');
+    document.getElementById('job-date').value = new Date().toISOString().split('T')[0];
+    var dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    document.getElementById('inv-due-date').value = dueDate.toISOString().split('T')[0];
 });
 setInterval(loadAll, 60000);
 </script>

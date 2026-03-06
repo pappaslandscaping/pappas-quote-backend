@@ -264,24 +264,38 @@
     <div class="sidebar-brand"><img src="logo.png" alt="YardDesk" onerror="this.outerHTML='<span style=\'font-family:Qualy,serif;font-size:22px;color:var(--forest)\'>YardDesk</span>'"></div>
     <nav class="sidebar-nav">
         <div class="nav-section"><div class="nav-section-label">Overview</div>
-            <a class="nav-item" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a></div>
-        <div class="nav-section"><div class="nav-section-label">Clients</div>
-            <a class="nav-item active" href="customers.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customers</a>
-            <a class="nav-item" href="properties.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Properties</a></div>
-        <div class="nav-section"><div class="nav-section-label">Work</div>
-            <a class="nav-item" href="quotes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quotes</a>
-            <a class="nav-item" href="scheduling.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Scheduling</a>
-            <a class="nav-item" href="dispatch.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Dispatch</a></div>
-        <div class="nav-section"><div class="nav-section-label">Billing</div>
-            <a class="nav-item" href="invoices.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Invoices</a>
-            <a class="nav-item" href="payments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Payments</a></div>
-        <div class="nav-section"><div class="nav-section-label">Communications</div>
-            <a class="nav-item" href="communications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Messages</a>
-            <a class="nav-item" href="email-log.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Email Log</a></div>
+            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+            <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
         <div class="nav-section"><div class="nav-section-label">Operations</div>
-            <a class="nav-item" href="pipeline.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Pipeline</a>
-            <a class="nav-item" href="time-tracking.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Time Tracking</a>
-            <a class="nav-item" href="programs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>Programs</a></div>
+            <a href="customers.html" class="nav-item active"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
+            <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
+            <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
+            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Analytics</div>
+            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
+            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
     </nav>
     <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div></div></div>
 </aside>
@@ -342,6 +356,7 @@ async function loadCustomer() {
         loadCommunications();
         loadEmailHistory();
         loadNotes();
+        loadAIIntel();
     } catch (e) {
         document.getElementById('customerContent').innerHTML = '<p style="color:var(--red)">Customer not found.</p>';
     }
@@ -399,12 +414,14 @@ function render() {
                         <div class="ov-tab" onclick="switchOvTab('quotes')">Quotes</div>
                         <div class="ov-tab" onclick="switchOvTab('invoices')">Invoices</div>
                         <div class="ov-tab" onclick="switchOvTab('emails')">Emails</div>
+                        <div class="ov-tab" onclick="switchOvTab('timeline')">Timeline</div>
                     </div>
                     <div class="card-body">
                         <div class="ov-panel active" id="panel-jobs"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
                         <div class="ov-panel" id="panel-quotes"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
                         <div class="ov-panel" id="panel-invoices"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
                         <div class="ov-panel" id="panel-emails"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                        <div class="ov-panel" id="panel-timeline"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
                     </div>
                 </div>
 
@@ -419,6 +436,14 @@ function render() {
             </div>
 
             <div class="right-col">
+                <!-- AI Intelligence -->
+                <div class="sidebar-card">
+                    <div class="sc-header">CRM Intelligence</div>
+                    <div class="sc-body" id="aiIntelCard" style="padding:16px 20px;">
+                        <div style="text-align:center;color:var(--gray-400);font-size:13px">Loading...</div>
+                    </div>
+                </div>
+
                 <!-- Contact Info -->
                 <div class="sidebar-card">
                     <div class="sc-header">Contact info</div>
@@ -513,6 +538,34 @@ function switchOvTab(tab) {
     document.querySelectorAll('.ov-panel').forEach(p => p.classList.remove('active'));
     event.target.classList.add('active');
     document.getElementById('panel-' + tab).classList.add('active');
+    if (tab === 'timeline' && !timelineLoaded) loadTimeline();
+}
+
+let timelineLoaded = false;
+async function loadTimeline() {
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/timeline');
+        const data = await res.json();
+        const events = data.timeline || [];
+        timelineLoaded = true;
+        const typeIcons = { quote: '📋', job: '🔧', invoice: '📄', payment: '💳', message: '💬' };
+        const typeColors = { quote: 'var(--purple-bg)', job: 'var(--blue-bg)', invoice: 'var(--amber-bg)', payment: 'var(--green-bg)', message: 'var(--gray-100)' };
+        document.getElementById('panel-timeline').innerHTML = events.length ? events.map(ev => {
+            const d = ev.date ? new Date(ev.date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+            const icon = typeIcons[ev.type] || '📌';
+            const bgColor = typeColors[ev.type] || 'var(--gray-100)';
+            return `<div class="timeline-item">
+                <div style="width:32px;height:32px;border-radius:8px;background:${bgColor};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">${icon}</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:600;color:var(--gray-700);">${esc(ev.title)}</div>
+                    <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${esc(ev.detail || '')}</div>
+                </div>
+                <div style="font-size:11px;color:var(--gray-400);flex-shrink:0;">${d}</div>
+            </div>`;
+        }).join('') : '<div class="empty-list">No activity found.</div>';
+    } catch(e) {
+        document.getElementById('panel-timeline').innerHTML = '<div class="empty-list">Unable to load timeline.</div>';
+    }
 }
 
 function toggleDropdown() {
@@ -710,6 +763,69 @@ async function togglePin(id, pinned) {
 
 async function deleteNote(id) {
     try { await fetch('/api/notes/' + id, { method: 'DELETE' }); showToast('Note deleted'); loadNotes(); } catch(e) {}
+}
+
+// ─── AI Intelligence (Lead Score + Churn Risk) ────────────
+
+async function loadAIIntel() {
+    const el = document.getElementById('aiIntelCard');
+    if (!el) return;
+    try {
+        const [leadRes, churnRes] = await Promise.all([
+            fetch('/api/customers/' + customerId + '/lead-score').catch(() => null),
+            fetch('/api/ai/churn-risk').catch(() => null)
+        ]);
+        const leadData = leadRes && leadRes.ok ? await leadRes.json() : {};
+        const churnData = churnRes && churnRes.ok ? await churnRes.json() : {};
+
+        // Find this customer in churn results
+        const churnCustomer = (churnData.customers || []).find(c => String(c.id) === String(customerId));
+
+        let html = '';
+
+        // Lead Score
+        if (leadData.success) {
+            const gradeColors = { Hot: 'background:var(--red-bg);color:var(--red)', Warm: 'background:var(--amber-bg);color:var(--amber)', Cold: 'background:var(--blue-bg);color:var(--blue)' };
+            html += '<div style="margin-bottom:14px;">';
+            html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+            html += '<span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;">Lead Score</span>';
+            html += '<span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;' + (gradeColors[leadData.grade] || '') + '">' + esc(leadData.grade) + ' (' + leadData.score + ' pts)</span>';
+            html += '</div>';
+            if (leadData.factors && leadData.factors.length) {
+                leadData.factors.forEach(f => {
+                    html += '<div style="font-size:12px;color:var(--gray-500);padding:2px 0;">' + esc(f) + '</div>';
+                });
+            } else {
+                html += '<div style="font-size:12px;color:var(--gray-400);">No scoring factors</div>';
+            }
+            html += '</div>';
+        }
+
+        // Churn Risk
+        html += '<div style="border-top:1px solid var(--gray-100);padding-top:14px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+        html += '<span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;">Churn Risk</span>';
+        if (churnCustomer) {
+            const riskColors = { High: 'background:var(--red-bg);color:var(--red)', Medium: 'background:var(--amber-bg);color:var(--amber)', Low: 'background:var(--green-bg);color:var(--green)' };
+            html += '<span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;' + (riskColors[churnCustomer.risk_level] || '') + '">' + esc(churnCustomer.risk_level) + ' (' + churnCustomer.risk_score + ' pts)</span>';
+        } else {
+            html += '<span style="display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;background:var(--green-bg);color:var(--green);">No Risk</span>';
+        }
+        html += '</div>';
+        if (churnCustomer && churnCustomer.factors && churnCustomer.factors.length) {
+            churnCustomer.factors.forEach(f => {
+                html += '<div style="font-size:12px;color:var(--gray-500);padding:2px 0;">' + esc(f) + '</div>';
+            });
+        } else {
+            html += '<div style="font-size:12px;color:var(--gray-400);">No risk factors detected</div>';
+        }
+        html += '</div>';
+
+        el.innerHTML = html;
+    } catch (e) {
+        el.innerHTML = '<div style="font-size:13px;color:var(--gray-400);">Unable to load intelligence data</div>';
+        console.error('AI Intel error:', e);
+    }
 }
 
 // ─── Save / Delete ─────────────────────────────────────────

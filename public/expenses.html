@@ -334,6 +334,13 @@
         .cat-losses { background: #fee2e2; color: #dc2626; }
         .cat-advertising\/accounting { background: #e0f2fe; color: #0284c7; }
         .cat-utilities { background: #f0fdf4; color: #16a34a; }
+        .cat-insurance { background: #f5f3ff; color: #7c3aed; }
+        .cat-vehicle { background: var(--amber-bg); color: var(--amber); }
+        .cat-labor { background: #fce7f3; color: #db2777; }
+        .cat-materials { background: #e0f2fe; color: #0284c7; }
+        .cat-office { background: var(--gray-100); color: var(--gray-600); }
+        .cat-marketing { background: #faf5ff; color: #9333ea; }
+        .cat-other { background: var(--gray-100); color: var(--gray-500); }
 
         .month-divider td {
             background: var(--gray-50);
@@ -852,15 +859,22 @@
                     </select>
                     <select class="filter-select" id="filterCat" onchange="renderTable()">
                         <option value="">All Categories</option>
-                        <option value="Supplies">Supplies</option>
-                        <option value="Service Repairs">Service Repairs</option>
+                        <option value="Fuel">Fuel</option>
                         <option value="Equipment">Equipment</option>
+                        <option value="Supplies">Supplies</option>
+                        <option value="Insurance">Insurance</option>
+                        <option value="Vehicle">Vehicle</option>
+                        <option value="Labor">Labor</option>
+                        <option value="Materials">Materials</option>
+                        <option value="Office">Office</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Service Repairs">Service Repairs</option>
                         <option value="Operating Costs">Operating Costs</option>
                         <option value="Cost of Goods Sold">Cost of Goods Sold</option>
-                        <option value="Fuel">Fuel</option>
                         <option value="Losses">Losses</option>
                         <option value="Advertising/Accounting">Advertising/Accounting</option>
                         <option value="Utilities">Utilities</option>
+                        <option value="Other">Other</option>
                     </select>
                 </div>
             </div>
@@ -882,11 +896,11 @@
     </div>
 </div>
 
-<!-- ADD EXPENSE PANEL -->
+<!-- ADD/EDIT EXPENSE PANEL -->
 <div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
 <div class="panel" id="addPanel">
     <div class="panel-header">
-        <h2>Add Expense</h2>
+        <h2 id="panelTitle">Add Expense</h2>
         <button class="panel-close" onclick="closePanel()">&times;</button>
     </div>
     <div class="panel-body">
@@ -914,21 +928,56 @@
         <div class="form-group">
             <label>Category</label>
             <select id="inputCategory">
-                <option value="Supplies">Supplies</option>
-                <option value="Service Repairs">Service Repairs</option>
+                <option value="Fuel">Fuel</option>
                 <option value="Equipment">Equipment</option>
+                <option value="Supplies">Supplies</option>
+                <option value="Insurance">Insurance</option>
+                <option value="Vehicle">Vehicle</option>
+                <option value="Labor">Labor</option>
+                <option value="Materials">Materials</option>
+                <option value="Office">Office</option>
+                <option value="Marketing">Marketing</option>
+                <option value="Service Repairs">Service Repairs</option>
                 <option value="Operating Costs">Operating Costs</option>
                 <option value="Cost of Goods Sold">Cost of Goods Sold</option>
-                <option value="Fuel">Fuel</option>
                 <option value="Losses">Losses</option>
                 <option value="Advertising/Accounting">Advertising/Accounting</option>
                 <option value="Utilities">Utilities</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Payment Method</label>
+            <select id="inputPaymentMethod">
+                <option value="">-- Select --</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="card">Credit/Debit Card</option>
+                <option value="ach">ACH / Bank Transfer</option>
+                <option value="online">Online Payment</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Description / Notes</label>
+            <textarea id="inputNotes" style="width:100%;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:60px;" placeholder="Additional details..."></textarea>
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" id="inputRecurring" style="width:18px;height:18px;accent-color:var(--forest);">
+            <label for="inputRecurring" style="margin-bottom:0;text-transform:none;font-size:13px;font-weight:500;color:var(--gray-600);letter-spacing:0;">Recurring expense</label>
+        </div>
+        <div class="form-group" id="recurringFreqGroup" style="display:none;">
+            <label>Frequency</label>
+            <select id="inputFrequency">
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="annually">Annually</option>
             </select>
         </div>
     </div>
     <div class="panel-footer">
         <button class="btn btn-secondary" onclick="closePanel()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+        <button class="btn btn-primary" id="panelSaveBtn" onclick="saveExpense()">Save Expense</button>
     </div>
 </div>
 
@@ -949,6 +998,12 @@ const API_BASE = window.location.hostname === 'localhost'
     : '';
 
 let expenses = [];
+let editingExpenseId = null;
+
+// ── RECURRING TOGGLE ──────────────────────────────
+document.getElementById('inputRecurring').addEventListener('change', function() {
+    document.getElementById('recurringFreqGroup').style.display = this.checked ? 'block' : 'none';
+});
 
 // ── LOAD DATA FROM API ───────────────────────────
 async function loadExpenses() {
@@ -969,7 +1024,11 @@ async function loadExpenses() {
                 amount: e.amount,
                 date: e.expense_date ? e.expense_date.split('T')[0] : '',
                 category: e.category,
-                image: e.receipt_image
+                image: e.receipt_image,
+                notes: e.notes || '',
+                payment_method: e.payment_method || '',
+                is_recurring: e.is_recurring || false,
+                frequency: e.frequency || ''
             }));
             renderTable();
         }
@@ -1048,6 +1107,7 @@ function renderTable() {
                 <td><span class="category-pill cat-${catClass}">${e.category}</span></td>
                 <td style="font-weight:700">$${parseFloat(e.amount).toFixed(2)}</td>
                 <td><div class="row-actions">
+                    <button class="row-btn" onclick="editExpense(${e.id})">Edit</button>
                     <button class="row-btn delete" onclick="deleteExpense(${e.id})">Delete</button>
                 </div></td>
             </tr>`;
@@ -1076,23 +1136,59 @@ function formatDate(d) {
 }
 
 // ── PANEL ─────────────────────────────────────
-function openPanel() {
-    document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+function openPanel(expense) {
+    editingExpenseId = expense ? expense.id : null;
+    document.getElementById('panelTitle').textContent = expense ? 'Edit Expense' : 'Add Expense';
+    document.getElementById('panelSaveBtn').textContent = expense ? 'Update Expense' : 'Save Expense';
+
+    if (expense) {
+        document.getElementById('inputVendor').value = expense.vendor || '';
+        document.getElementById('inputAmount').value = expense.amount || '';
+        document.getElementById('inputDate').value = expense.date || '';
+        document.getElementById('inputCategory').value = expense.category || 'Other';
+        document.getElementById('inputNotes').value = expense.notes || '';
+        document.getElementById('inputPaymentMethod').value = expense.payment_method || '';
+        document.getElementById('inputRecurring').checked = !!expense.is_recurring;
+        document.getElementById('recurringFreqGroup').style.display = expense.is_recurring ? 'block' : 'none';
+        document.getElementById('inputFrequency').value = expense.frequency || 'monthly';
+        if (expense.image) {
+            document.getElementById('receiptPreview').src = expense.image;
+            document.getElementById('receiptPreview').classList.add('show');
+        }
+    } else {
+        document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('inputNotes').value = '';
+        document.getElementById('inputPaymentMethod').value = '';
+        document.getElementById('inputRecurring').checked = false;
+        document.getElementById('recurringFreqGroup').style.display = 'none';
+        document.getElementById('inputFrequency').value = 'monthly';
+    }
+
     document.getElementById('panelOverlay').classList.add('show');
     document.getElementById('addPanel').classList.add('open');
+}
+
+function editExpense(id) {
+    const exp = expenses.find(e => e.id === id);
+    if (exp) openPanel(exp);
 }
 
 function closePanel() {
     document.getElementById('panelOverlay').classList.remove('show');
     document.getElementById('addPanel').classList.remove('open');
     document.getElementById('scanStatus').style.display = 'none';
+    editingExpenseId = null;
     setTimeout(() => {
         document.getElementById('receiptPreview').classList.remove('show');
         document.getElementById('receiptPreview').src = '';
         document.getElementById('receiptFile').value = '';
         document.getElementById('inputVendor').value = '';
         document.getElementById('inputAmount').value = '';
-        document.getElementById('inputCategory').value = 'Supplies';
+        document.getElementById('inputCategory').value = 'Fuel';
+        document.getElementById('inputNotes').value = '';
+        document.getElementById('inputPaymentMethod').value = '';
+        document.getElementById('inputRecurring').checked = false;
+        document.getElementById('recurringFreqGroup').style.display = 'none';
     }, 300);
 }
 
@@ -1113,6 +1209,10 @@ async function saveExpense() {
     const amount = document.getElementById('inputAmount').value;
     const date = document.getElementById('inputDate').value;
     const category = document.getElementById('inputCategory').value;
+    const notes = document.getElementById('inputNotes').value.trim();
+    const paymentMethod = document.getElementById('inputPaymentMethod').value;
+    const isRecurring = document.getElementById('inputRecurring').checked;
+    const frequency = document.getElementById('inputFrequency').value;
     const fileInput = document.getElementById('receiptFile');
 
     if (!vendor || !amount || !date) {
@@ -1121,7 +1221,7 @@ async function saveExpense() {
     }
 
     // Get image if present
-    let receiptImage = null;
+    let receiptImage = undefined;
     if (fileInput.files[0] && fileInput.files[0].type.startsWith('image/')) {
         receiptImage = await new Promise((resolve) => {
             const reader = new FileReader();
@@ -1130,17 +1230,24 @@ async function saveExpense() {
         });
     }
 
+    const payload = {
+        vendor,
+        amount: parseFloat(amount),
+        expense_date: date,
+        category,
+        notes
+    };
+    if (receiptImage !== undefined) payload.receipt_image = receiptImage;
+
     try {
-        const res = await fetch(`${API_BASE}/api/expenses`, {
-            method: 'POST',
+        const isEdit = !!editingExpenseId;
+        const url = isEdit ? `${API_BASE}/api/expenses/${editingExpenseId}` : `${API_BASE}/api/expenses`;
+        const method = isEdit ? 'PATCH' : 'POST';
+
+        const res = await fetch(url, {
+            method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                vendor,
-                amount: parseFloat(amount),
-                expense_date: date,
-                category,
-                receipt_image: receiptImage
-            })
+            body: JSON.stringify(payload)
         });
 
         const data = await res.json();
@@ -1148,7 +1255,7 @@ async function saveExpense() {
         if (data.success) {
             closePanel();
             loadExpenses();
-            showToast('Expense saved!');
+            showToast(isEdit ? 'Expense updated!' : 'Expense saved!');
         } else {
             showToast('Failed to save: ' + (data.error || 'Unknown error'));
         }

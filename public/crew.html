@@ -3,830 +3,205 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crew Dashboard — YardDesk</title>
+    <title>Crew Management — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
+        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); }
+        h1, h2, h3.section-title { font-family: 'Qualy', serif !important; }
 
         :root {
-            --sidebar-w: 240px;
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --cream: #f5f1eb;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
+            --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
+            --lime: #c9dd80; --lime-soft: #dce9a8;
+            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2; --gray-300: #c8ccc8; --gray-400: #9ca09c;
+            --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
+            --red: #dc4a4a; --red-bg: #fef0f0;
+            --blue: #3b82f6; --blue-bg: #eff6ff;
+            --amber: #d97706; --amber-bg: #fffbeb;
+            --green: #059669; --green-bg: #ecfdf5;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --sidebar-w: 240px; --header-h: 64px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--cream);
-            color: var(--gray-700);
-            line-height: 1.5;
-            min-height: 100vh;
-        }
-
-        /* Header */
-        .header {
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            padding: 16px 20px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .header-logo {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            object-fit: cover;
-        }
-
-        .header-info h1 {
-            font-family: 'Qualy', serif;
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--forest);
-        }
-
-        .header-info p {
-            font-size: 13px;
-            color: var(--gray-500);
-        }
-
-        /* Date Navigation */
-        .date-nav {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .date-nav-btn {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 12px;
-            border: 1px solid var(--gray-200);
-            background: var(--white);
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-600);
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        .date-nav-btn:hover {
-            background: var(--gray-50);
-        }
-
-        .date-nav-btn.today {
-            background: var(--forest);
-            color: var(--white);
-            border-color: var(--forest);
-        }
-
-        .date-input {
-            flex: 1;
-            min-width: 140px;
-            padding: 8px 12px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: inherit;
-            background: var(--white);
-        }
-
-        .date-display {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 0;
-            font-size: 14px;
-            color: var(--gray-600);
-        }
-
-        .date-display .cal-icon {
-            width: 18px;
-            height: 18px;
-            color: var(--gray-400);
-        }
-
-        /* Crew Selector */
-        .crew-selector {
-            padding: 12px 20px;
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .crew-selector select {
-            width: 100%;
-            padding: 12px 14px;
-            font-size: 14px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            background: var(--white);
-            font-weight: 500;
-            color: var(--gray-700);
-            font-family: inherit;
-        }
-
-        /* Stats Cards */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            padding: 20px;
-        }
-
-        .stat-card {
-            background: var(--white);
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            border: 1px solid var(--gray-200);
-        }
-
-        .stat-card .label {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-500);
-            margin-bottom: 6px;
-        }
-
-        .stat-card .value {
-            font-family: 'Qualy', serif;
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--gray-700);
-        }
-
-        .stat-card .value.done { color: var(--green); }
-        .stat-card .value.left { color: var(--amber); }
-
-        /* Summary Bar */
-        .summary-bar {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 24px;
-            padding: 12px 20px;
-            background: var(--white);
-            margin: 0 20px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--gray-200);
-            font-size: 14px;
-        }
-
-        .summary-item {
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
-        }
-
-        .summary-item .num {
-            font-family: 'Qualy', serif;
-            font-weight: 700;
-            font-size: 18px;
-            color: var(--gray-700);
-        }
-
-        .summary-item .txt {
-            color: var(--gray-500);
-            font-size: 12px;
-            text-transform: uppercase;
-        }
-
-        /* Job List */
-        .job-list {
-            padding: 0 20px 100px;
-        }
-
-        .job-card {
-            background: var(--white);
-            border-radius: 12px;
-            margin-bottom: 12px;
-            overflow: hidden;
-            border: 1px solid var(--gray-200);
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-
-        .job-card:active {
-            transform: scale(0.99);
-        }
-
-        .job-card.completed {
-            opacity: 0.6;
-        }
-
-        .job-card.completed .job-header {
-            background: var(--green-bg);
-        }
-
-        .job-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            background: var(--gray-50);
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .job-number {
-            width: 28px;
-            height: 28px;
-            background: var(--forest);
-            color: var(--white);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 12px;
-            flex-shrink: 0;
-        }
-
-        .job-card.completed .job-number {
-            background: var(--green);
-        }
-
-        .job-title {
-            flex: 1;
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--gray-700);
-        }
-
-        .job-price {
-            font-weight: 700;
-            color: var(--forest);
-            font-size: 15px;
-        }
-
-        .job-body {
-            padding: 14px 16px;
-        }
-
-        .job-address {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 12px;
-            color: var(--gray-600);
-            font-size: 13px;
-        }
-
-        .job-address svg {
-            width: 16px;
-            height: 16px;
-            flex-shrink: 0;
-            margin-top: 2px;
-            color: var(--gray-400);
-        }
-
-        .job-meta {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .job-service {
-            display: inline-block;
-            padding: 4px 10px;
-            background: var(--lime);
-            color: var(--forest);
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .job-duration {
-            font-size: 12px;
-            color: var(--gray-500);
-        }
-
-        .job-notes {
-            margin-top: 12px;
-            padding: 10px 12px;
-            background: var(--amber-bg);
-            border-radius: 8px;
-            border-left: 3px solid var(--amber);
-            font-size: 12px;
-            color: var(--gray-700);
-        }
-
-        .job-notes-label {
-            font-weight: 600;
-            color: var(--amber);
-            font-size: 10px;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--gray-500);
-        }
-
-        .empty-state svg {
-            width: 64px;
-            height: 64px;
-            margin-bottom: 16px;
-            color: var(--gray-300);
-        }
-
-        .empty-state h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: 6px;
-        }
-
-        /* Modal */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 200;
-            display: none;
-            align-items: flex-end;
-            justify-content: center;
-        }
-
-        .modal-overlay.open {
-            display: flex;
-        }
-
-        .modal {
-            background: var(--white);
-            border-radius: 20px 20px 0 0;
-            width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
-
-        .modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            background: var(--white);
-            z-index: 10;
-        }
-
-        .modal-title {
-            font-size: 17px;
-            font-weight: 700;
-            color: var(--gray-700);
-        }
-
-        .modal-close {
-            width: 32px;
-            height: 32px;
-            border: none;
-            background: var(--gray-100);
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
-            color: var(--gray-600);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-body {
-            padding: 20px;
-        }
-
-        .modal-job-info {
-            background: var(--gray-50);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 20px;
-            border: 1px solid var(--gray-200);
-        }
-
-        .modal-job-name {
-            font-weight: 600;
-            font-size: 16px;
-            color: var(--gray-800);
-            margin-bottom: 4px;
-        }
-
-        .modal-job-address {
-            font-size: 13px;
-            color: var(--gray-500);
-            margin-bottom: 10px;
-        }
-
-        .modal-job-service {
-            display: inline-block;
-            padding: 4px 10px;
-            background: var(--lime);
-            color: var(--forest);
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .modal-job-price {
-            margin-left: 8px;
-            font-weight: 600;
-            color: var(--forest);
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-600);
-            margin-bottom: 6px;
-        }
-
-        .form-textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--gray-200);
-            border-radius: 10px;
-            font-size: 14px;
-            font-family: inherit;
-            resize: none;
-            min-height: 80px;
-        }
-
-        .form-textarea:focus {
-            outline: none;
-            border-color: var(--forest);
-        }
-
-        .photo-upload {
-            border: 2px dashed var(--gray-300);
-            border-radius: 12px;
-            padding: 24px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .photo-upload:active {
-            background: var(--gray-50);
-            border-color: var(--forest);
-        }
-
-        .photo-upload-icon {
-            font-size: 32px;
-            margin-bottom: 8px;
-        }
-
-        .photo-upload-text {
-            font-size: 13px;
-            color: var(--gray-500);
-        }
-
-        .photo-preview {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .photo-thumb-wrap {
-            position: relative;
-        }
-
-        .photo-thumb {
-            width: 72px;
-            height: 72px;
-            border-radius: 10px;
-            object-fit: cover;
-            border: 1px solid var(--gray-200);
-        }
-
-        .photo-remove {
-            position: absolute;
-            top: -6px;
-            right: -6px;
-            width: 22px;
-            height: 22px;
-            background: var(--red);
-            color: var(--white);
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        .gps-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 14px;
-            background: var(--gray-50);
-            border-radius: 10px;
-            font-size: 13px;
-            color: var(--gray-600);
-            border: 1px solid var(--gray-200);
-        }
-
-        .gps-status.success {
-            background: var(--green-bg);
-            color: var(--green);
-            border-color: #a7f3d0;
-        }
-
-        .gps-status.error {
-            background: #fef2f2;
-            color: var(--red);
-            border-color: #fecaca;
-        }
-
-        .gps-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--gray-400);
-            animation: pulse 2s infinite;
-        }
-
-        .gps-status.success .gps-dot { background: var(--green); }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        .modal-footer {
-            padding: 16px 20px;
-            border-top: 1px solid var(--gray-200);
-            display: flex;
-            gap: 12px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 14px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover {
-            background: var(--forest-dark, #1f2b29);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-
-        .btn-success {
-            background: var(--green);
-            color: var(--white);
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--gray-800);
-            color: var(--white);
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            z-index: 300;
-            display: none;
-        }
-
-        .toast.show {
-            display: block;
-            animation: fadeInUp 0.3s ease;
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-            to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-
-        .spinner {
-            width: 18px;
-            height: 18px;
-            border: 2px solid transparent;
-            border-top-color: currentColor;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Mobile notice */
-        .mobile-notice {
-            display: none;
-            padding: 12px 20px;
-            background: var(--amber-bg);
-            color: var(--amber);
-            font-size: 13px;
-            text-align: center;
-            border-bottom: 1px solid #fcd34d;
-        }
-
-        @media (min-width: 768px) {
-            .mobile-notice { display: block; }
-            .job-list { max-width: 600px; margin: 0 auto; }
-            .stats-row { max-width: 600px; margin: 0 auto; }
-        }
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-        }
-
-        .sidebar-brand {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .sidebar-brand img {
-            max-height: 48px;
-            width: auto;
-            max-width: 180px;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px;
-        }
-
-        .nav-section {
-            margin-bottom: 8px;
-        }
-
-        .nav-section-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 8px 12px 4px;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.15s;
-            cursor: pointer;
-        }
-
-        .nav-item:hover {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .nav-item.active {
-            background: var(--forest);
-            color: var(--lime);
-        }
-
-        .sidebar-footer {
-            padding: 12px 20px;
-            border-top: 1px solid var(--gray-100);
-        }
-
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .sidebar-user .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .sidebar-user .name {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        .sidebar-user .role {
-            font-size: 11px;
-            color: var(--gray-400);
-        }
-
-        .main {
-            margin-left: var(--sidebar-w);
-            min-height: 100vh;
-        }
-
+        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; }
+
+        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
+        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+        .nav-section { margin-bottom: 8px; }
+        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
+        .nav-item.active { background: var(--forest); color: var(--lime); }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+        .sidebar-user .name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
+
+        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
+        .topbar h1 { font-size: 28px; color: var(--forest); }
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
         .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
+
+        .content { padding: 32px; }
+
+        /* View Tabs */
+        .view-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+        .view-tab { padding: 8px 20px; border-radius: 8px; border: 1px solid var(--gray-200); background: var(--white); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--gray-600); transition: all 0.15s; font-family: inherit; }
+        .view-tab.active { background: var(--forest); color: var(--lime); border-color: var(--forest); }
+        .view-tab:hover:not(.active) { border-color: var(--forest); color: var(--forest); }
+
+        /* Stats */
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
+        .stat-card .label { font-size: 12px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .stat-card .number { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+
+        /* Crew Table */
+        .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+        .table-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-200); }
+        .table-header h2 { font-size: 18px; color: var(--forest); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: var(--gray-50); padding: 10px 16px; font-size: 11px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; text-align: left; border-bottom: 1px solid var(--gray-200); }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+        tbody tr:hover td { background: var(--gray-50); }
+
+        .crew-color { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+        .status-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+        .status-badge.active { background: var(--green-bg); color: var(--green); }
+        .status-badge.inactive { background: var(--gray-100); color: var(--gray-500); }
+
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; text-decoration: none; }
+        .btn-primary { background: var(--forest); color: var(--lime); }
+        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
+        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
+
+        /* Performance Cards */
+        .perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .perf-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
+        .perf-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .perf-card-header .crew-dot { width: 14px; height: 14px; border-radius: 50%; }
+        .perf-card-header h3 { font-size: 16px; font-weight: 700; color: var(--forest); flex: 1; }
+        .perf-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .perf-stat { background: var(--gray-50); border-radius: 8px; padding: 12px; text-align: center; }
+        .perf-stat .ps-value { font-family: 'Qualy', serif; font-size: 22px; font-weight: 700; color: var(--forest); }
+        .perf-stat .ps-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; }
+        .progress-bar { height: 6px; background: var(--gray-200); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 0.5s ease; }
+
+        /* Upcoming jobs list in perf card */
+        .upcoming-list { margin-top: 12px; }
+        .upcoming-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--gray-100); font-size: 12px; }
+        .upcoming-item:last-child { border-bottom: none; }
+        .upcoming-item .ui-name { color: var(--gray-700); font-weight: 500; }
+        .upcoming-item .ui-date { color: var(--gray-400); }
+
+        /* Field View */
+        .field-view { display: none; }
+        .field-view.active { display: block; }
+        .admin-view { display: none; }
+        .admin-view.active { display: block; }
+
+        /* Field view styles */
+        .crew-selector select { width: 100%; padding: 12px 14px; font-size: 14px; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); font-weight: 500; color: var(--gray-700); font-family: inherit; }
+        .date-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .date-nav-btn { display: flex; align-items: center; gap: 4px; padding: 8px 12px; border: 1px solid var(--gray-200); background: var(--white); border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--gray-600); cursor: pointer; font-family: inherit; }
+        .date-nav-btn:hover { background: var(--gray-50); }
+        .date-nav-btn.today { background: var(--forest); color: var(--white); border-color: var(--forest); }
+        .date-input { flex: 1; min-width: 140px; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--white); }
+        .field-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+        .field-stat-card { background: var(--white); border-radius: 12px; padding: 16px; text-align: center; border: 1px solid var(--gray-200); }
+        .field-stat-card .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); margin-bottom: 6px; }
+        .field-stat-card .value { font-family: 'Qualy', serif; font-size: 32px; font-weight: 700; color: var(--gray-700); }
+        .field-stat-card .value.done { color: var(--green); }
+        .field-stat-card .value.left { color: var(--amber); }
+        .summary-bar { display: flex; align-items: center; justify-content: center; gap: 24px; padding: 12px 20px; background: var(--white); border-radius: 12px; border: 1px solid var(--gray-200); font-size: 14px; margin-bottom: 12px; }
+        .summary-item { display: flex; align-items: baseline; gap: 4px; }
+        .summary-item .num { font-family: 'Qualy', serif; font-weight: 700; font-size: 18px; color: var(--gray-700); }
+        .summary-item .txt { color: var(--gray-500); font-size: 12px; text-transform: uppercase; }
+
+        .job-card { background: var(--white); border-radius: 12px; margin-bottom: 12px; overflow: hidden; border: 1px solid var(--gray-200); cursor: pointer; transition: transform 0.1s; }
+        .job-card:active { transform: scale(0.99); }
+        .job-card.completed { opacity: 0.6; }
+        .job-card.completed .job-header { background: var(--green-bg); }
+        .job-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }
+        .job-number { width: 28px; height: 28px; background: var(--forest); color: var(--white); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+        .job-card.completed .job-number { background: var(--green); }
+        .job-title { flex: 1; font-weight: 600; font-size: 14px; color: var(--gray-700); }
+        .job-price { font-weight: 700; color: var(--forest); font-size: 15px; }
+        .job-body { padding: 14px 16px; }
+        .job-address { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; color: var(--gray-600); font-size: 13px; }
+        .job-address svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; color: var(--gray-400); }
+        .job-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .job-service { display: inline-block; padding: 4px 10px; background: var(--lime); color: var(--forest); border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .job-duration { font-size: 12px; color: var(--gray-500); }
+        .job-notes { margin-top: 12px; padding: 10px 12px; background: var(--amber-bg); border-radius: 8px; border-left: 3px solid var(--amber); font-size: 12px; color: var(--gray-700); }
+        .job-notes-label { font-weight: 600; color: var(--amber); font-size: 10px; text-transform: uppercase; margin-bottom: 4px; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-500); }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; color: var(--gray-300); }
+        .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--gray-700); margin-bottom: 6px; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: var(--white); border-radius: 16px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+        .modal-header h3 { font-size: 18px; font-weight: 700; color: var(--forest); }
+        .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); padding: 4px 8px; border-radius: 6px; }
+        .modal-close:hover { background: var(--gray-100); }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 12px; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 14px; font-family: inherit; color: var(--gray-700); background: var(--white); }
+        .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .form-textarea { min-height: 80px; resize: vertical; }
+        .color-picker-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .color-swatch { width: 32px; height: 32px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; }
+        .color-swatch.selected { border-color: var(--forest); box-shadow: 0 0 0 2px var(--lime); }
+
+        /* Job Detail Modal (field view) */
+        .modal-job-info { background: var(--gray-50); border-radius: 12px; padding: 16px; margin-bottom: 20px; border: 1px solid var(--gray-200); }
+        .modal-job-name { font-weight: 600; font-size: 16px; color: var(--gray-700); margin-bottom: 4px; }
+        .modal-job-address { font-size: 13px; color: var(--gray-500); margin-bottom: 10px; }
+        .modal-job-service { display: inline-block; padding: 4px 10px; background: var(--lime); color: var(--forest); border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .modal-job-price { margin-left: 8px; font-weight: 600; color: var(--forest); }
+        .photo-upload { border: 2px dashed var(--gray-300); border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; }
+        .photo-upload:active { background: var(--gray-50); border-color: var(--forest); }
+        .photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .photo-thumb { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; border: 1px solid var(--gray-200); }
+        .photo-thumb-wrap { position: relative; }
+        .photo-remove { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; background: var(--red); color: var(--white); border: none; border-radius: 50%; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .gps-status { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--gray-50); border-radius: 10px; font-size: 13px; color: var(--gray-600); border: 1px solid var(--gray-200); }
+        .gps-status.success { background: var(--green-bg); color: var(--green); border-color: #a7f3d0; }
+        .gps-status.error { background: #fef2f2; color: var(--red); border-color: #fecaca; }
+        .gps-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gray-400); animation: pulse 2s infinite; }
+        .gps-status.success .gps-dot { background: var(--green); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .btn-success { background: var(--green); color: var(--white); padding: 14px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1; }
+        .spinner { width: 18px; height: 18px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
 
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
             .sidebar.open { transform: translateX(0); }
             .main { margin-left: 0; }
             .mobile-menu-btn { display: block; }
+            .content { padding: 16px; }
+            .topbar { padding: 0 16px; }
+            .perf-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -860,545 +235,601 @@
 })();
 </script>
 
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/logo.png" alt="YardDesk"></div>
+    <nav class="sidebar-nav">
+        <div class="nav-section"><div class="nav-section-label">Overview</div>
+            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Sales</div>
+            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
+            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
+            <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Operations</div>
+            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
+            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
+            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
+            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
+            <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
+            <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Communications</div>
+            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
+            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
+            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Marketing</div>
+            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
+            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Finance</div>
+            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
+            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
+            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
+            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Analytics</div>
+            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
+            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">Team</div>
+            <a href="crew.html" class="nav-item active"><span>👷</span><span>Crew</span></a>
+            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
+        <div class="nav-section"><div class="nav-section-label">System</div>
+            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
+    </nav>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="avatar">TP</div>
+            <div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div>
         </div>
-        <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
+    </div>
+</aside>
 
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item active">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-                <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </aside>
-
-    <div class="main">
-
-    <header class="header">
+<div class="main">
+    <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px;">
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <h2 style="font-family:'Qualy',serif;font-size:28px;font-weight:700;color:var(--forest);">Crew Dashboard</h2>
+            <h1>Crew Management</h1>
         </div>
-        <div class="date-nav">
-            <button class="date-nav-btn" onclick="changeDate(-1)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-                Prev
-            </button>
-            <input type="date" class="date-input" id="dateInput" onchange="setDate(this.value)">
-            <button class="date-nav-btn" onclick="changeDate(1)">
-                Next
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-            <button class="date-nav-btn today" onclick="goToday()">Today</button>
-        </div>
-    </header>
-
-    <div class="crew-selector">
-        <select id="crewSelect" onchange="loadJobs()">
-            <option value="">Select Your Crew...</option>
-        </select>
-    </div>
-
-    <div class="stats-row">
-        <div class="stat-card">
-            <div class="label">Total</div>
-            <div class="value" id="statTotal">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="label">Done</div>
-            <div class="value done" id="statDone">0</div>
-        </div>
-        <div class="stat-card">
-            <div class="label">Left</div>
-            <div class="value left" id="statLeft">0</div>
+        <div class="topbar-actions">
+            <button class="btn btn-primary" onclick="openCrewModal()">+ Add Crew</button>
         </div>
     </div>
 
-    <div class="summary-bar" id="summaryBar" style="display:none;">
-        <div class="summary-item"><span class="num" id="summaryJobs">0</span><span class="txt">Jobs</span></div>
-        <div class="summary-item"><span class="num" id="summaryRevenue">$0</span><span class="txt">Revenue</span></div>
-        <div class="summary-item"><span class="num" id="summaryTime">0h</span><span class="txt">Est. Time</span></div>
-    </div>
-
-    <div class="job-list" id="jobList">
-        <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-            <h3>Select Your Crew</h3>
-            <p>Choose your crew from the dropdown above</p>
+    <div class="content">
+        <!-- View Tabs -->
+        <div class="view-tabs">
+            <button class="view-tab active" onclick="switchView('admin')">Admin View</button>
+            <button class="view-tab" onclick="switchView('field')">Field Worker View</button>
         </div>
-    </div>
 
-    <!-- Job Detail Modal -->
-    <div class="modal-overlay" id="jobModal">
-        <div class="modal">
-            <div class="modal-header">
-                <span class="modal-title">Job Details</span>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+        <!-- Admin View -->
+        <div class="admin-view active" id="adminView">
+            <div class="stats-row" id="adminStats">
+                <div class="stat-card"><div class="label">Total Crews</div><div class="number" id="statTotalCrews">0</div></div>
+                <div class="stat-card"><div class="label">Active Crews</div><div class="number" id="statActiveCrews">0</div></div>
+                <div class="stat-card"><div class="label">Jobs This Month</div><div class="number" id="statMonthJobs">0</div></div>
+                <div class="stat-card"><div class="label">Total Revenue</div><div class="number" id="statTotalRevenue">$0</div></div>
             </div>
-            <div class="modal-body">
-                <div class="modal-job-info" id="modalJobInfo"></div>
 
-                <div class="form-group">
-                    <label class="form-label">GPS Location</label>
-                    <div class="gps-status" id="gpsStatus">
-                        <div class="gps-dot"></div>
-                        <span>Getting your location...</span>
-                    </div>
+            <!-- Crew List Table -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h2>All Crews</h2>
                 </div>
-
-                <div class="form-group">
-                    <label class="form-label">Photos (optional)</label>
-                    <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
-                        <div class="photo-upload-icon">📷</div>
-                        <div class="photo-upload-text">Tap to add before/after photos</div>
-                    </div>
-                    <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this.files)">
-                    <div class="photo-preview" id="photoPreview"></div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Notes (optional)</label>
-                    <textarea class="form-textarea" id="completionNotes" placeholder="Any issues or notes about this job..."></textarea>
-                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Crew Name</th>
+                            <th>Members</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="crewTableBody">
+                        <tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:40px;">Loading crews...</td></tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="modal-footer">
-                <a class="btn btn-secondary" id="modalDirectionsBtn" href="#" target="_blank">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                    Directions
-                </a>
-                <button class="btn btn-success" id="submitComplete" onclick="submitCompletion()">
-                    ✓ Complete
+
+            <!-- Performance Section -->
+            <h2 style="margin-bottom:16px;">Performance Metrics</h2>
+            <div class="perf-grid" id="perfGrid">
+                <div style="text-align:center;color:var(--gray-400);padding:40px;">Loading performance data...</div>
+            </div>
+        </div>
+
+        <!-- Field Worker View -->
+        <div class="field-view" id="fieldView">
+            <div style="margin-bottom:16px;">
+                <select id="crewSelect" onchange="loadFieldJobs()" style="width:100%;padding:12px 14px;font-size:14px;border:1px solid var(--gray-200);border-radius:8px;background:var(--white);font-weight:500;color:var(--gray-700);font-family:inherit;">
+                    <option value="">Select Your Crew...</option>
+                </select>
+            </div>
+            <div class="date-nav" style="margin-bottom:16px;">
+                <button class="date-nav-btn" onclick="changeDate(-1)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Prev
                 </button>
+                <input type="date" class="date-input" id="dateInput" onchange="setDate(this.value)">
+                <button class="date-nav-btn" onclick="changeDate(1)">
+                    Next <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+                <button class="date-nav-btn today" onclick="goToday()">Today</button>
+            </div>
+            <div class="field-stats">
+                <div class="field-stat-card"><div class="label">Total</div><div class="value" id="fieldStatTotal">0</div></div>
+                <div class="field-stat-card"><div class="label">Done</div><div class="value done" id="fieldStatDone">0</div></div>
+                <div class="field-stat-card"><div class="label">Left</div><div class="value left" id="fieldStatLeft">0</div></div>
+            </div>
+            <div class="summary-bar" id="summaryBar" style="display:none;">
+                <div class="summary-item"><span class="num" id="summaryJobs">0</span><span class="txt">Jobs</span></div>
+                <div class="summary-item"><span class="num" id="summaryRevenue">$0</span><span class="txt">Revenue</span></div>
+                <div class="summary-item"><span class="num" id="summaryTime">0h</span><span class="txt">Est. Time</span></div>
+            </div>
+            <div id="jobList">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    <h3>Select Your Crew</h3>
+                    <p>Choose your crew from the dropdown above</p>
+                </div>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="toast" id="toast"></div>
-
-    <script>
-        let allJobs = [];
-        let allCrews = [];
-        let currentJob = null;
-        let currentLocation = null;
-        let selectedPhotos = [];
-        let selectedDate = new Date().toISOString().split('T')[0];
-
-        document.getElementById('dateInput').value = selectedDate;
-
-        function changeDate(days) {
-            const date = new Date(selectedDate);
-            date.setDate(date.getDate() + days);
-            selectedDate = date.toISOString().split('T')[0];
-            document.getElementById('dateInput').value = selectedDate;
-            loadJobs();
-        }
-
-        function setDate(dateStr) {
-            selectedDate = dateStr;
-            loadJobs();
-        }
-
-        function goToday() {
-            selectedDate = new Date().toISOString().split('T')[0];
-            document.getElementById('dateInput').value = selectedDate;
-            loadJobs();
-        }
-
-        async function init() {
-            try {
-                const res = await fetch('/api/crews');
-                const data = await res.json();
-                allCrews = data.crews || [];
-                const sel = document.getElementById('crewSelect');
-                sel.innerHTML = '<option value="">Select Your Crew...</option>' +
-                    allCrews.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
-                const saved = localStorage.getItem('selectedCrew');
-                if (saved) {
-                    sel.value = saved;
-                    loadJobs();
-                }
-            } catch (e) {
-                console.error('Failed to load crews:', e);
-            }
-        }
-
-        async function loadJobs() {
-            const crew = document.getElementById('crewSelect').value;
-            if (!crew) {
-                document.getElementById('jobList').innerHTML = `
-                    <div class="empty-state">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                        <h3>Select Your Crew</h3>
-                        <p>Choose your crew from the dropdown above</p>
-                    </div>`;
-                updateStats([]);
-                return;
-            }
-            localStorage.setItem('selectedCrew', crew);
-            try {
-                const res = await fetch('/api/jobs?date=' + selectedDate);
-                const data = await res.json();
-                allJobs = (data.jobs || []).filter(j => j.crew_assigned === crew);
-                allJobs.sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
-                renderJobs();
-                updateStats(allJobs);
-            } catch (e) {
-                console.error('Failed to load jobs:', e);
-                showToast('Failed to load jobs');
-            }
-        }
-
-        function updateStats(jobs) {
-            const total = jobs.length;
-            const done = jobs.filter(j => j.status === 'completed').length;
-            const left = total - done;
-            document.getElementById('statTotal').textContent = total;
-            document.getElementById('statDone').textContent = done;
-            document.getElementById('statLeft').textContent = left;
-
-            // Summary bar
-            if (total > 0) {
-                const revenue = jobs.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
-                const time = jobs.reduce((sum, j) => sum + (j.estimated_duration || 30), 0);
-                document.getElementById('summaryJobs').textContent = total;
-                document.getElementById('summaryRevenue').textContent = '$' + revenue.toFixed(0);
-                document.getElementById('summaryTime').textContent = Math.floor(time / 60) + 'h ' + (time % 60) + 'm';
-                document.getElementById('summaryBar').style.display = 'flex';
-            } else {
-                document.getElementById('summaryBar').style.display = 'none';
-            }
-        }
-
-        function renderJobs() {
-            if (allJobs.length === 0) {
-                document.getElementById('jobList').innerHTML = `
-                    <div class="empty-state">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        <h3>No Jobs</h3>
-                        <p>No jobs assigned for this date</p>
-                    </div>`;
-                return;
-            }
-
-            document.getElementById('jobList').innerHTML = allJobs.map((job, idx) => {
-                const isCompleted = job.status === 'completed';
-                const addr = buildAddress(job);
-                const completedTime = job.completed_at ? new Date(job.completed_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-                return `
-                    <div class="job-card ${isCompleted ? 'completed' : ''}" onclick="openJobModal(${job.id})">
-                        <div class="job-header">
-                            <div class="job-number">${isCompleted ? '✓' : job.route_order || (idx + 1)}</div>
-                            <div class="job-title">${esc(job.customer_name)}</div>
-                            <div class="job-price">$${parseFloat(job.service_price || 0).toFixed(0)}</div>
-                        </div>
-                        <div class="job-body">
-                            <div class="job-address">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                <span>${esc(addr)}</span>
-                            </div>
-                            <div class="job-meta">
-                                <span class="job-service">${esc(job.service_type)}</span>
-                                <span class="job-duration">${job.estimated_duration || 30} min</span>
-                            </div>
-                            ${job.special_notes || job.property_notes ? `
-                                <div class="job-notes">
-                                    <div class="job-notes-label">⚠️ Notes</div>
-                                    ${esc(job.special_notes || job.property_notes)}
-                                </div>
-                            ` : ''}
-                            ${isCompleted ? `
-                                <div style="margin-top:10px;padding:8px 10px;background:var(--green-bg);border-radius:6px;font-size:12px;color:var(--green);">
-                                    ✓ Completed ${completedTime}${job.completed_by ? ' by ' + esc(job.completed_by) : ''}
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function buildAddress(job) {
-            let addr = job.address || '';
-            if (addr && !/^\d/.test(addr.trim())) {
-                const match = job.customer_name.match(/\d+\s+[\w\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Circle|Cir|Place|Pl)/i);
-                if (match) addr = match[0] + ', ' + addr;
-            }
-            return addr;
-        }
-
-        function openJobModal(jobId) {
-            currentJob = allJobs.find(j => j.id === jobId);
-            if (!currentJob) return;
-
-            currentLocation = null;
-            selectedPhotos = [];
-            document.getElementById('photoPreview').innerHTML = '';
-            document.getElementById('completionNotes').value = currentJob.completion_notes || '';
-
-            const addr = buildAddress(currentJob);
-            const mapsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr);
-
-            document.getElementById('modalJobInfo').innerHTML = `
-                <div class="modal-job-name">${esc(currentJob.customer_name)}</div>
-                <div class="modal-job-address">${esc(addr)}</div>
-                <span class="modal-job-service">${esc(currentJob.service_type)}</span>
-                <span class="modal-job-price">$${parseFloat(currentJob.service_price || 0).toFixed(0)}</span>
-                ${currentJob.phone ? `<div style="margin-top:10px;"><a href="tel:${esc(currentJob.phone)}" style="color:var(--forest);font-size:13px;">📞 ${esc(currentJob.phone)}</a></div>` : ''}
-            `;
-
-            document.getElementById('modalDirectionsBtn').href = mapsUrl;
-
-            const btn = document.getElementById('submitComplete');
-            if (currentJob.status === 'completed') {
-                btn.textContent = '✓ Already Completed';
-                btn.disabled = true;
-            } else {
-                btn.textContent = '✓ Complete';
-                btn.disabled = false;
-            }
-
-            document.getElementById('jobModal').classList.add('open');
-            getLocation();
-        }
-
-        function closeModal() {
-            document.getElementById('jobModal').classList.remove('open');
-            currentJob = null;
-        }
-
-        function getLocation() {
-            const el = document.getElementById('gpsStatus');
-            if (!navigator.geolocation) {
-                el.innerHTML = '<span>GPS not available</span>';
-                el.className = 'gps-status error';
-                return;
-            }
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-                    el.innerHTML = `<div class="gps-dot"></div><span>📍 Location captured (±${Math.round(currentLocation.accuracy)}m)</span>`;
-                    el.className = 'gps-status success';
-                },
-                (err) => {
-                    el.innerHTML = '<span>Could not get location</span>';
-                    el.className = 'gps-status error';
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-            );
-        }
-
-        function handlePhotos(files) {
-            for (const file of files) {
-                if (selectedPhotos.length >= 5) { showToast('Maximum 5 photos'); break; }
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    selectedPhotos.push({ file, dataUrl: e.target.result });
-                    renderPhotoPreviews();
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function renderPhotoPreviews() {
-            document.getElementById('photoPreview').innerHTML = selectedPhotos.map((p, i) => `
-                <div class="photo-thumb-wrap">
-                    <img src="${p.dataUrl}" class="photo-thumb">
-                    <button class="photo-remove" onclick="event.stopPropagation();removePhoto(${i})">×</button>
+<!-- Add/Edit Crew Modal -->
+<div class="modal-overlay" id="crewModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="crewModalTitle">Add Crew</h3>
+            <button class="modal-close" onclick="closeCrewModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="crewEditId">
+            <div class="form-group">
+                <label class="form-label">Crew Name *</label>
+                <input type="text" class="form-input" id="crewName" placeholder="e.g. Team Alpha">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Members</label>
+                <input type="text" class="form-input" id="crewMembers" placeholder="e.g. John, Mike, Sarah">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input type="tel" class="form-input" id="crewPhone" placeholder="(555) 123-4567">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Crew Type</label>
+                <select class="form-select" id="crewType">
+                    <option value="mowing">Mowing</option>
+                    <option value="landscaping">Landscaping</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="irrigation">Irrigation</option>
+                    <option value="hardscape">Hardscape</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Color</label>
+                <div class="color-picker-row" id="colorPicker">
+                    <div class="color-swatch selected" style="background:#059669" data-color="#059669"></div>
+                    <div class="color-swatch" style="background:#3b82f6" data-color="#3b82f6"></div>
+                    <div class="color-swatch" style="background:#d97706" data-color="#d97706"></div>
+                    <div class="color-swatch" style="background:#dc4a4a" data-color="#dc4a4a"></div>
+                    <div class="color-swatch" style="background:#7c3aed" data-color="#7c3aed"></div>
+                    <div class="color-swatch" style="background:#2e403d" data-color="#2e403d"></div>
+                    <div class="color-swatch" style="background:#ec4899" data-color="#ec4899"></div>
+                    <div class="color-swatch" style="background:#14b8a6" data-color="#14b8a6"></div>
                 </div>
-            `).join('');
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="crewStatus">
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-textarea" id="crewNotes" placeholder="Additional notes..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeCrewModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveCrew()">Save Crew</button>
+        </div>
+    </div>
+</div>
+
+<!-- Job Detail Modal (field view) -->
+<div class="modal-overlay" id="jobModal">
+    <div class="modal" style="max-width:500px;">
+        <div class="modal-header">
+            <h3>Job Details</h3>
+            <button class="modal-close" onclick="closeJobModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-job-info" id="modalJobInfo"></div>
+            <div class="form-group">
+                <label class="form-label">GPS Location</label>
+                <div class="gps-status" id="gpsStatus"><div class="gps-dot"></div><span>Getting your location...</span></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Photos (optional)</label>
+                <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
+                    <div style="font-size:32px;margin-bottom:8px;">📷</div>
+                    <div style="font-size:13px;color:var(--gray-500);">Tap to add before/after photos</div>
+                </div>
+                <input type="file" id="photoInput" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(this.files)">
+                <div class="photo-preview" id="photoPreview"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <textarea class="form-textarea" id="completionNotes" placeholder="Any issues or notes about this job..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer" style="gap:12px;">
+            <a class="btn btn-secondary" id="modalDirectionsBtn" href="#" target="_blank" style="flex:1;justify-content:center;text-decoration:none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Directions
+            </a>
+            <button class="btn-success" id="submitComplete" onclick="submitCompletion()">Complete</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    let allCrews = [];
+    let allFieldJobs = [];
+    let currentJob = null;
+    let currentLocation = null;
+    let selectedPhotos = [];
+    let selectedDate = new Date().toISOString().split('T')[0];
+    let selectedColor = '#059669';
+
+    document.getElementById('dateInput').value = selectedDate;
+
+    // Color picker
+    document.getElementById('colorPicker').addEventListener('click', (e) => {
+        const swatch = e.target.closest('.color-swatch');
+        if (!swatch) return;
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+        selectedColor = swatch.dataset.color;
+    });
+
+    // View switching
+    function switchView(view) {
+        document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('adminView').classList.toggle('active', view === 'admin');
+        document.getElementById('fieldView').classList.toggle('active', view === 'field');
+        if (view === 'field') initFieldView();
+    }
+
+    // ==================== ADMIN VIEW ====================
+    async function loadCrews() {
+        try {
+            const res = await fetch('/api/crews');
+            const data = await res.json();
+            allCrews = data.crews || data || [];
+            renderCrewTable();
+            updateAdminStats();
+            loadAllPerformance();
+        } catch (e) {
+            console.error('Failed to load crews:', e);
+        }
+    }
+
+    function renderCrewTable() {
+        const tbody = document.getElementById('crewTableBody');
+        if (allCrews.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:40px;">No crews found. Click "Add Crew" to get started.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = allCrews.map(c => {
+            const color = c.color || '#059669';
+            const isActive = c.is_active !== false;
+            return `<tr>
+                <td><span class="crew-color" style="background:${esc(color)}"></span><strong>${esc(c.name)}</strong></td>
+                <td>${esc(c.members || '-')}</td>
+                <td>${esc(c.crew_type || 'General')}</td>
+                <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="editCrew(${c.id})">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteCrew(${c.id})">Delete</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function updateAdminStats() {
+        document.getElementById('statTotalCrews').textContent = allCrews.length;
+        document.getElementById('statActiveCrews').textContent = allCrews.filter(c => c.is_active !== false).length;
+    }
+
+    async function loadAllPerformance() {
+        const grid = document.getElementById('perfGrid');
+        if (allCrews.length === 0) {
+            grid.innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:40px;">No crews to show performance for.</div>';
+            return;
         }
 
-        function removePhoto(idx) {
-            selectedPhotos.splice(idx, 1);
-            renderPhotoPreviews();
-        }
+        let totalMonthJobs = 0;
+        let totalRevenue = 0;
+        const cards = [];
 
-        async function submitCompletion() {
-            if (!currentJob || currentJob.status === 'completed') return;
-
-            const completedBy = document.getElementById('crewSelect').value;
-            if (!completedBy) {
-                showToast('Please select your crew first');
-                return;
-            }
-
-            const btn = document.getElementById('submitComplete');
-            btn.innerHTML = '<span class="spinner"></span> Saving...';
-            btn.disabled = true;
-
+        for (const crew of allCrews) {
             try {
-                let photoUrls = [];
-                if (selectedPhotos.length > 0) {
-                    const fd = new FormData();
-                    selectedPhotos.forEach(p => fd.append('photos', p.file));
-                    const photoRes = await fetch('/api/jobs/' + currentJob.id + '/photos', { method: 'POST', body: fd });
-                    if (photoRes.ok) {
-                        const photoData = await photoRes.json();
-                        photoUrls = photoData.photos || [];
-                    }
-                }
+                const res = await fetch(`/api/crews/${crew.id}/performance`);
+                const perf = await res.json();
+                const color = crew.color || '#059669';
+                totalMonthJobs += perf.completed_last_30 || 0;
+                totalRevenue += perf.total_revenue || 0;
 
-                await fetch('/api/jobs/' + currentJob.id + '/complete', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        completion_lat: currentLocation?.lat || null,
-                        completion_lng: currentLocation?.lng || null,
-                        completion_notes: document.getElementById('completionNotes').value || null,
-                        completion_photos: photoUrls.length > 0 ? photoUrls : null,
-                        completed_by: completedBy
-                    })
-                });
+                // Load upcoming schedule
+                const schedRes = await fetch(`/api/crews/${crew.id}/schedule`);
+                const schedData = await schedRes.json();
+                const upcoming = (schedData.jobs || []).slice(0, 3);
 
-                showToast('✓ Job completed!');
-                closeModal();
-                loadJobs();
-            } catch (e) {
-                showToast('Error: ' + e.message);
-                btn.textContent = '✓ Complete';
-                btn.disabled = false;
+                cards.push(`
+                    <div class="perf-card">
+                        <div class="perf-card-header">
+                            <div class="crew-dot" style="background:${esc(color)}"></div>
+                            <h3>${esc(crew.name)}</h3>
+                            <span class="status-badge ${crew.is_active !== false ? 'active' : 'inactive'}">${crew.is_active !== false ? 'Active' : 'Inactive'}</span>
+                        </div>
+                        <div class="perf-stats">
+                            <div class="perf-stat"><div class="ps-value">${perf.completed_jobs || 0}</div><div class="ps-label">Jobs Done</div></div>
+                            <div class="perf-stat"><div class="ps-value">${perf.on_time_rate || 0}%</div><div class="ps-label">Completion Rate</div></div>
+                            <div class="perf-stat"><div class="ps-value">$${(perf.total_revenue || 0).toLocaleString()}</div><div class="ps-label">Revenue</div></div>
+                            <div class="perf-stat"><div class="ps-value">${perf.completed_last_30 || 0}</div><div class="ps-label">Last 30 Days</div></div>
+                        </div>
+                        <div class="progress-bar"><div class="progress-fill" style="width:${perf.on_time_rate || 0}%"></div></div>
+                        ${upcoming.length > 0 ? `
+                            <div class="upcoming-list">
+                                <div style="font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;margin-top:12px;margin-bottom:8px;">Upcoming Jobs</div>
+                                ${upcoming.map(j => `<div class="upcoming-item"><span class="ui-name">${esc(j.customer_name)} - ${esc(j.service_type)}</span><span class="ui-date">${new Date(j.scheduled_date).toLocaleDateString()}</span></div>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `);
+            } catch(e) {
+                cards.push(`<div class="perf-card"><div class="perf-card-header"><div class="crew-dot" style="background:${crew.color || '#059669'}"></div><h3>${esc(crew.name)}</h3></div><p style="color:var(--gray-400)">Could not load performance data</p></div>`);
             }
         }
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
-        }
+        document.getElementById('statMonthJobs').textContent = totalMonthJobs;
+        document.getElementById('statTotalRevenue').textContent = '$' + totalRevenue.toLocaleString();
+        grid.innerHTML = cards.join('');
+    }
 
-        function esc(s) {
-            return s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : '';
-        }
+    // Crew Modal
+    function openCrewModal(crew) {
+        document.getElementById('crewEditId').value = crew ? crew.id : '';
+        document.getElementById('crewModalTitle').textContent = crew ? 'Edit Crew' : 'Add Crew';
+        document.getElementById('crewName').value = crew ? crew.name : '';
+        document.getElementById('crewMembers').value = crew ? (crew.members || '') : '';
+        document.getElementById('crewPhone').value = crew ? (crew.phone || '') : '';
+        document.getElementById('crewType').value = crew ? (crew.crew_type || 'general') : 'mowing';
+        document.getElementById('crewStatus').value = crew ? (crew.is_active === false ? 'inactive' : 'active') : 'active';
+        document.getElementById('crewNotes').value = crew ? (crew.notes || '') : '';
+        selectedColor = crew && crew.color ? crew.color : '#059669';
+        document.querySelectorAll('.color-swatch').forEach(s => {
+            s.classList.toggle('selected', s.dataset.color === selectedColor);
+        });
+        document.getElementById('crewModal').classList.add('open');
+    }
 
-        init();
-    </script>
-    </div><!-- end .main -->
+    function closeCrewModal() {
+        document.getElementById('crewModal').classList.remove('open');
+    }
+
+    function editCrew(id) {
+        const crew = allCrews.find(c => c.id === id);
+        if (crew) openCrewModal(crew);
+    }
+
+    async function saveCrew() {
+        const id = document.getElementById('crewEditId').value;
+        const body = {
+            name: document.getElementById('crewName').value.trim(),
+            members: document.getElementById('crewMembers').value.trim(),
+            crew_type: document.getElementById('crewType').value,
+            notes: document.getElementById('crewNotes').value.trim(),
+            is_active: document.getElementById('crewStatus').value === 'active',
+            color: selectedColor
+        };
+        if (!body.name) { showToast('Crew name is required'); return; }
+
+        try {
+            const url = id ? `/api/crews/${id}` : '/api/crews';
+            const method = id ? 'PATCH' : 'POST';
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Failed to save');
+            showToast(id ? 'Crew updated' : 'Crew created');
+            closeCrewModal();
+            loadCrews();
+        } catch (e) {
+            showToast('Error: ' + e.message);
+        }
+    }
+
+    async function deleteCrew(id) {
+        if (!confirm('Delete this crew?')) return;
+        try {
+            const res = await fetch(`/api/crews/${id}`, { method: 'DELETE' });
+            showToast('Crew deleted');
+            loadCrews();
+        } catch (e) {
+            showToast('Error: ' + e.message);
+        }
+    }
+
+    // ==================== FIELD VIEW ====================
+    function initFieldView() {
+        const sel = document.getElementById('crewSelect');
+        sel.innerHTML = '<option value="">Select Your Crew...</option>' +
+            allCrews.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+        const saved = localStorage.getItem('selectedCrew');
+        if (saved) { sel.value = saved; loadFieldJobs(); }
+    }
+
+    function changeDate(days) {
+        const date = new Date(selectedDate);
+        date.setDate(date.getDate() + days);
+        selectedDate = date.toISOString().split('T')[0];
+        document.getElementById('dateInput').value = selectedDate;
+        loadFieldJobs();
+    }
+
+    function setDate(dateStr) { selectedDate = dateStr; loadFieldJobs(); }
+    function goToday() { selectedDate = new Date().toISOString().split('T')[0]; document.getElementById('dateInput').value = selectedDate; loadFieldJobs(); }
+
+    async function loadFieldJobs() {
+        const crew = document.getElementById('crewSelect').value;
+        if (!crew) {
+            document.getElementById('jobList').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><h3>Select Your Crew</h3><p>Choose your crew from the dropdown above</p></div>';
+            updateFieldStats([]);
+            return;
+        }
+        localStorage.setItem('selectedCrew', crew);
+        try {
+            const res = await fetch('/api/jobs?date=' + selectedDate);
+            const data = await res.json();
+            allFieldJobs = (data.jobs || []).filter(j => j.crew_assigned === crew);
+            allFieldJobs.sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+            renderFieldJobs();
+            updateFieldStats(allFieldJobs);
+        } catch (e) {
+            console.error('Failed to load jobs:', e);
+            showToast('Failed to load jobs');
+        }
+    }
+
+    function updateFieldStats(jobs) {
+        const total = jobs.length, done = jobs.filter(j => j.status === 'completed').length;
+        document.getElementById('fieldStatTotal').textContent = total;
+        document.getElementById('fieldStatDone').textContent = done;
+        document.getElementById('fieldStatLeft').textContent = total - done;
+        if (total > 0) {
+            const revenue = jobs.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
+            const time = jobs.reduce((sum, j) => sum + (j.estimated_duration || 30), 0);
+            document.getElementById('summaryJobs').textContent = total;
+            document.getElementById('summaryRevenue').textContent = '$' + revenue.toFixed(0);
+            document.getElementById('summaryTime').textContent = Math.floor(time / 60) + 'h ' + (time % 60) + 'm';
+            document.getElementById('summaryBar').style.display = 'flex';
+        } else { document.getElementById('summaryBar').style.display = 'none'; }
+    }
+
+    function renderFieldJobs() {
+        if (allFieldJobs.length === 0) {
+            document.getElementById('jobList').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><h3>No Jobs</h3><p>No jobs assigned for this date</p></div>';
+            return;
+        }
+        document.getElementById('jobList').innerHTML = allFieldJobs.map((job, idx) => {
+            const isCompleted = job.status === 'completed';
+            const addr = buildAddress(job);
+            const completedTime = job.completed_at ? new Date(job.completed_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+            return `<div class="job-card ${isCompleted ? 'completed' : ''}" onclick="openJobModal(${job.id})">
+                <div class="job-header"><div class="job-number">${isCompleted ? '✓' : job.route_order || (idx + 1)}</div><div class="job-title">${esc(job.customer_name)}</div><div class="job-price">$${parseFloat(job.service_price || 0).toFixed(0)}</div></div>
+                <div class="job-body">
+                    <div class="job-address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${esc(addr)}</span></div>
+                    <div class="job-meta"><span class="job-service">${esc(job.service_type)}</span><span class="job-duration">${job.estimated_duration || 30} min</span></div>
+                    ${job.special_notes || job.property_notes ? `<div class="job-notes"><div class="job-notes-label">Notes</div>${esc(job.special_notes || job.property_notes)}</div>` : ''}
+                    ${isCompleted ? `<div style="margin-top:10px;padding:8px 10px;background:var(--green-bg);border-radius:6px;font-size:12px;color:var(--green);">Completed ${completedTime}${job.completed_by ? ' by ' + esc(job.completed_by) : ''}</div>` : ''}
+                </div></div>`;
+        }).join('');
+    }
+
+    function buildAddress(job) {
+        let addr = job.address || '';
+        if (addr && !/^\d/.test(addr.trim())) {
+            const match = (job.customer_name || '').match(/\d+\s+[\w\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Circle|Cir|Place|Pl)/i);
+            if (match) addr = match[0] + ', ' + addr;
+        }
+        return addr;
+    }
+
+    function openJobModal(jobId) {
+        currentJob = allFieldJobs.find(j => j.id === jobId);
+        if (!currentJob) return;
+        currentLocation = null; selectedPhotos = [];
+        document.getElementById('photoPreview').innerHTML = '';
+        document.getElementById('completionNotes').value = currentJob.completion_notes || '';
+        const addr = buildAddress(currentJob);
+        document.getElementById('modalJobInfo').innerHTML = `
+            <div class="modal-job-name">${esc(currentJob.customer_name)}</div>
+            <div class="modal-job-address">${esc(addr)}</div>
+            <span class="modal-job-service">${esc(currentJob.service_type)}</span>
+            <span class="modal-job-price">$${parseFloat(currentJob.service_price || 0).toFixed(0)}</span>
+            ${currentJob.phone ? `<div style="margin-top:10px;"><a href="tel:${esc(currentJob.phone)}" style="color:var(--forest);font-size:13px;">📞 ${esc(currentJob.phone)}</a></div>` : ''}`;
+        document.getElementById('modalDirectionsBtn').href = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr);
+        const btn = document.getElementById('submitComplete');
+        if (currentJob.status === 'completed') { btn.textContent = 'Already Completed'; btn.disabled = true; }
+        else { btn.textContent = 'Complete'; btn.disabled = false; }
+        document.getElementById('jobModal').classList.add('open');
+        getLocation();
+    }
+
+    function closeJobModal() { document.getElementById('jobModal').classList.remove('open'); currentJob = null; }
+
+    function getLocation() {
+        const el = document.getElementById('gpsStatus');
+        if (!navigator.geolocation) { el.innerHTML = '<span>GPS not available</span>'; el.className = 'gps-status error'; return; }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; el.innerHTML = `<div class="gps-dot"></div><span>Location captured (+/-${Math.round(currentLocation.accuracy)}m)</span>`; el.className = 'gps-status success'; },
+            () => { el.innerHTML = '<span>Could not get location</span>'; el.className = 'gps-status error'; },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+    }
+
+    function handlePhotos(files) {
+        for (const file of files) {
+            if (selectedPhotos.length >= 5) { showToast('Maximum 5 photos'); break; }
+            const reader = new FileReader();
+            reader.onload = (e) => { selectedPhotos.push({ file, dataUrl: e.target.result }); renderPhotoPreviews(); };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function renderPhotoPreviews() {
+        document.getElementById('photoPreview').innerHTML = selectedPhotos.map((p, i) => `<div class="photo-thumb-wrap"><img src="${p.dataUrl}" class="photo-thumb"><button class="photo-remove" onclick="event.stopPropagation();removePhoto(${i})">x</button></div>`).join('');
+    }
+
+    function removePhoto(idx) { selectedPhotos.splice(idx, 1); renderPhotoPreviews(); }
+
+    async function submitCompletion() {
+        if (!currentJob || currentJob.status === 'completed') return;
+        const completedBy = document.getElementById('crewSelect').value;
+        if (!completedBy) { showToast('Please select your crew first'); return; }
+        const btn = document.getElementById('submitComplete');
+        btn.innerHTML = '<span class="spinner"></span> Saving...'; btn.disabled = true;
+        try {
+            let photoUrls = [];
+            if (selectedPhotos.length > 0) {
+                const fd = new FormData();
+                selectedPhotos.forEach(p => fd.append('photos', p.file));
+                const photoRes = await fetch('/api/jobs/' + currentJob.id + '/photos', { method: 'POST', body: fd });
+                if (photoRes.ok) { const photoData = await photoRes.json(); photoUrls = photoData.photos || []; }
+            }
+            await fetch('/api/jobs/' + currentJob.id + '/complete', {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ completion_lat: currentLocation?.lat || null, completion_lng: currentLocation?.lng || null, completion_notes: document.getElementById('completionNotes').value || null, completion_photos: photoUrls.length > 0 ? photoUrls : null, completed_by: completedBy })
+            });
+            showToast('Job completed!'); closeJobModal(); loadFieldJobs();
+        } catch (e) { showToast('Error: ' + e.message); btn.textContent = 'Complete'; btn.disabled = false; }
+    }
+
+    // Utilities
+    function showToast(msg) {
+        const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+    function esc(s) { return s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : ''; }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => { loadCrews(); });
+</script>
 </body>
 </html>

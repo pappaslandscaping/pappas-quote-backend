@@ -728,6 +728,41 @@
             white-space: nowrap;
         }
         .copy-link-btn:hover { background: var(--gray-100); color: var(--forest); }
+
+        /* Aging AR */
+        .aging-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 28px; }
+        .aging-bucket { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; text-align: center; }
+        .aging-bucket-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 6px; }
+        .aging-bucket-value { font-size: 20px; font-weight: 700; color: var(--gray-700); }
+        .aging-bucket-count { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+        .aging-bucket.current { border-left: 3px solid var(--green); }
+        .aging-bucket.warn { border-left: 3px solid var(--amber); }
+        .aging-bucket.danger { border-left: 3px solid var(--red); }
+
+        /* Batch bar */
+        .batch-bar { display: none; align-items: center; gap: 12px; padding: 12px 16px; background: var(--forest); color: var(--lime); border-radius: 10px; margin-bottom: 16px; }
+        .batch-bar.show { display: flex; }
+        .batch-bar span { font-size: 13px; font-weight: 600; }
+        .batch-bar .btn { background: var(--lime); color: var(--forest); }
+        .batch-bar .btn:hover { background: #b8cc6f; }
+        .batch-bar .btn-cancel { background: transparent; color: var(--lime); border: 1px solid var(--lime); }
+
+        /* Job invoice modal */
+        .job-list { max-height: 400px; overflow-y: auto; }
+        .job-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--gray-100); transition: background 0.1s; }
+        .job-item:hover { background: var(--gray-50); }
+        .job-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--forest); flex-shrink: 0; }
+        .job-item-info { flex: 1; min-width: 0; }
+        .job-item-name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+        .job-item-detail { font-size: 12px; color: var(--gray-400); }
+        .job-item-amount { font-weight: 700; color: var(--green); font-size: 14px; white-space: nowrap; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 400; transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 900px) { .aging-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 600px) { .aging-grid { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
 <body>
@@ -902,10 +937,16 @@
         <!-- Topbar -->
         <div class="topbar">
             <div class="topbar-title">Invoices</div>
-            <button class="btn btn-primary" onclick="openCreateModal()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New Invoice
-            </button>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <button class="btn btn-secondary" onclick="openJobInvoiceModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Invoice from Job
+                </button>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New Invoice
+                </button>
+            </div>
         </div>
 
         <!-- Content -->
@@ -928,6 +969,42 @@
                     <div class="stat-label">Total Revenue</div>
                     <div class="stat-value" id="totalRevenueStat">$0</div>
                 </div>
+            </div>
+
+            <!-- Aging AR Buckets -->
+            <div class="aging-grid" id="agingGrid">
+                <div class="aging-bucket current">
+                    <div class="aging-bucket-label">Current</div>
+                    <div class="aging-bucket-value" id="agingCurrent">$0</div>
+                    <div class="aging-bucket-count" id="agingCurrentCount">0 invoices</div>
+                </div>
+                <div class="aging-bucket">
+                    <div class="aging-bucket-label">1-30 Days</div>
+                    <div class="aging-bucket-value" id="aging1_30">$0</div>
+                    <div class="aging-bucket-count" id="aging1_30Count">0 invoices</div>
+                </div>
+                <div class="aging-bucket warn">
+                    <div class="aging-bucket-label">31-60 Days</div>
+                    <div class="aging-bucket-value" id="aging31_60">$0</div>
+                    <div class="aging-bucket-count" id="aging31_60Count">0 invoices</div>
+                </div>
+                <div class="aging-bucket warn">
+                    <div class="aging-bucket-label">61-90 Days</div>
+                    <div class="aging-bucket-value" id="aging61_90">$0</div>
+                    <div class="aging-bucket-count" id="aging61_90Count">0 invoices</div>
+                </div>
+                <div class="aging-bucket danger">
+                    <div class="aging-bucket-label">90+ Days</div>
+                    <div class="aging-bucket-value" id="aging90_plus">$0</div>
+                    <div class="aging-bucket-count" id="aging90_plusCount">0 invoices</div>
+                </div>
+            </div>
+
+            <!-- Batch Invoicing Bar -->
+            <div class="batch-bar" id="batchBar">
+                <span id="batchCount">0 jobs selected</span>
+                <button class="btn" onclick="batchInvoice()">Invoice Selected</button>
+                <button class="btn btn-cancel" onclick="cancelBatch()">Cancel</button>
             </div>
 
             <!-- Filters -->
@@ -1085,6 +1162,34 @@
             </div>
         </div>
     </div>
+
+    <!-- Invoice from Job Modal -->
+    <div class="modal-overlay" id="jobInvoiceModal">
+        <div class="modal" style="max-width:650px;">
+            <div class="modal-header">
+                <div class="modal-title">Invoice from Completed Jobs</div>
+                <button class="modal-close" onclick="closeJobInvoiceModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding:0;">
+                <div style="padding:16px 24px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;gap:12px;">
+                    <label style="font-size:13px;font-weight:600;color:var(--gray-600);white-space:nowrap;">
+                        <input type="checkbox" id="selectAllJobs" onchange="toggleSelectAllJobs()" style="width:16px;height:16px;accent-color:var(--forest);margin-right:6px;">
+                        Select All
+                    </label>
+                    <span style="font-size:12px;color:var(--gray-400);" id="jobSelectionCount">0 selected</span>
+                </div>
+                <div class="job-list" id="jobList">
+                    <div style="text-align:center;padding:40px;color:var(--gray-400);">Loading completed jobs...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeJobInvoiceModal()">Cancel</button>
+                <button class="btn btn-primary" id="batchInvoiceBtn" onclick="createJobInvoices()" disabled>Create Invoices</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
 
     <script>
         const API_BASE = '/api';
@@ -1527,10 +1632,156 @@
             }
         }
 
+        // ── TOAST ──────────────────────────────────────
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        // ── AGING AR ──────────────────────────────────
+        async function loadAging() {
+            try {
+                const res = await fetch(`${API_BASE}/invoices/aging`);
+                const data = await res.json();
+                if (!data.success) return;
+                const b = data.buckets;
+                const f = n => formatCurrency(n || 0);
+                const c = (n) => n + ' invoice' + (n !== 1 ? 's' : '');
+
+                document.getElementById('agingCurrent').textContent = f(b.current.total);
+                document.getElementById('agingCurrentCount').textContent = c(b.current.count);
+                document.getElementById('aging1_30').textContent = f(b['1_30'].total);
+                document.getElementById('aging1_30Count').textContent = c(b['1_30'].count);
+                document.getElementById('aging31_60').textContent = f(b['31_60'].total);
+                document.getElementById('aging31_60Count').textContent = c(b['31_60'].count);
+                document.getElementById('aging61_90').textContent = f(b['61_90'].total);
+                document.getElementById('aging61_90Count').textContent = c(b['61_90'].count);
+                document.getElementById('aging90_plus').textContent = f(b['90_plus'].total);
+                document.getElementById('aging90_plusCount').textContent = c(b['90_plus'].count);
+            } catch (e) {
+                console.error('Error loading aging:', e);
+            }
+        }
+
+        // ── INVOICE FROM JOB ──────────────────────────
+        let completedJobs = [];
+        let selectedJobIds = new Set();
+
+        async function openJobInvoiceModal() {
+            selectedJobIds.clear();
+            document.getElementById('selectAllJobs').checked = false;
+            document.getElementById('jobInvoiceModal').classList.add('active');
+            document.getElementById('jobList').innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">Loading...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/jobs/completed-uninvoiced`);
+                const data = await res.json();
+                completedJobs = data.jobs || [];
+
+                if (completedJobs.length === 0) {
+                    document.getElementById('jobList').innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">No completed jobs without invoices.</div>';
+                    return;
+                }
+
+                document.getElementById('jobList').innerHTML = completedJobs.map(j => {
+                    const d = j.job_date ? new Date(j.job_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+                    return `<div class="job-item">
+                        <input type="checkbox" value="${j.id}" onchange="toggleJobSelection(this)">
+                        <div class="job-item-info">
+                            <div class="job-item-name">${j.customer_name || 'Unknown'}</div>
+                            <div class="job-item-detail">${j.service_type || 'Service'} &middot; ${d} &middot; ${j.address || ''}</div>
+                        </div>
+                        <div class="job-item-amount">${formatCurrency(j.service_price || 0)}</div>
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                document.getElementById('jobList').innerHTML = '<div style="text-align:center;padding:40px;color:var(--red);">Error loading jobs.</div>';
+            }
+            updateJobSelectionCount();
+        }
+
+        function closeJobInvoiceModal() {
+            document.getElementById('jobInvoiceModal').classList.remove('active');
+        }
+
+        function toggleJobSelection(cb) {
+            if (cb.checked) selectedJobIds.add(parseInt(cb.value));
+            else selectedJobIds.delete(parseInt(cb.value));
+            updateJobSelectionCount();
+        }
+
+        function toggleSelectAllJobs() {
+            const checked = document.getElementById('selectAllJobs').checked;
+            document.querySelectorAll('#jobList input[type="checkbox"]').forEach(cb => {
+                cb.checked = checked;
+                if (checked) selectedJobIds.add(parseInt(cb.value));
+                else selectedJobIds.delete(parseInt(cb.value));
+            });
+            updateJobSelectionCount();
+        }
+
+        function updateJobSelectionCount() {
+            document.getElementById('jobSelectionCount').textContent = selectedJobIds.size + ' selected';
+            document.getElementById('batchInvoiceBtn').disabled = selectedJobIds.size === 0;
+            document.getElementById('batchInvoiceBtn').textContent = selectedJobIds.size > 1
+                ? `Create ${selectedJobIds.size} Invoices`
+                : selectedJobIds.size === 1 ? 'Create Invoice' : 'Create Invoices';
+        }
+
+        async function createJobInvoices() {
+            if (selectedJobIds.size === 0) return;
+            document.getElementById('batchInvoiceBtn').disabled = true;
+            document.getElementById('batchInvoiceBtn').textContent = 'Creating...';
+
+            try {
+                const res = await fetch(`${API_BASE}/invoices/batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_ids: Array.from(selectedJobIds) })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeJobInvoiceModal();
+                    loadInvoices();
+                    loadStats();
+                    loadAging();
+                    showToast(data.count + ' invoice' + (data.count !== 1 ? 's' : '') + ' created!');
+                } else {
+                    showToast('Error: ' + (data.error || 'Failed'));
+                    document.getElementById('batchInvoiceBtn').disabled = false;
+                    document.getElementById('batchInvoiceBtn').textContent = 'Create Invoices';
+                }
+            } catch (e) {
+                showToast('Error creating invoices');
+                document.getElementById('batchInvoiceBtn').disabled = false;
+                document.getElementById('batchInvoiceBtn').textContent = 'Create Invoices';
+            }
+        }
+
+        // Close modals on escape/backdrop
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeCreateModal();
+                closeFromQuoteModal();
+                closeJobInvoiceModal();
+            }
+        });
+
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+
         // Initial load
         document.addEventListener('DOMContentLoaded', function() {
             loadStats();
             loadInvoices();
+            loadAging();
 
             // Auto-open create modal if coming from scheduling with pre-fill data
             const params = new URLSearchParams(window.location.search);

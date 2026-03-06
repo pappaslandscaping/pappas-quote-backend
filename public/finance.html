@@ -507,6 +507,10 @@
             margin-bottom: 24px;
             font-size: 14px;
         }
+
+        @media (max-width: 1100px) {
+            .two-col-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -763,8 +767,27 @@
             </div>
         </div>
 
-        <!-- Two Column Grid -->
-        <div class="two-col-grid">
+        <!-- Profit Margin Trend -->
+        <div class="chart-card">
+            <h2 class="chart-title">Profit Margin Trend (Revenue - Expenses)</h2>
+            <div class="chart-container">
+                <svg id="profitChart" class="chart-svg" viewBox="0 0 1000 260">
+                    <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading...</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Three Column Grid -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-bottom:40px;">
+            <!-- Expense Breakdown Donut -->
+            <div class="service-table-card" style="display:flex;flex-direction:column;align-items:center;">
+                <h3 style="align-self:flex-start;">Expense Breakdown</h3>
+                <svg id="expenseDonut" viewBox="0 0 280 280" style="width:240px;height:240px;margin:16px 0;">
+                    <text x="140" y="140" text-anchor="middle" dy=".3em" fill="var(--gray-400)" font-size="13">Loading...</text>
+                </svg>
+                <div id="donutLegend" style="display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;font-size:12px;color:var(--gray-600);"></div>
+            </div>
+
             <!-- Service Breakdown Table -->
             <div class="service-table-card">
                 <h3>Revenue by Service Type</h3>
@@ -781,28 +804,49 @@
                 </table>
             </div>
 
-            <!-- Outstanding Invoices -->
-            <div class="outstanding-card">
-                <h3>Outstanding Invoices</h3>
-                <div class="outstanding-stats">
-                    <div class="outstanding-stat">
-                        <span class="outstanding-label">Total Outstanding</span>
-                        <span class="outstanding-value" id="outstandingAmount">$0.00</span>
+            <!-- Outstanding Invoices + Cash Flow -->
+            <div style="display:flex;flex-direction:column;gap:24px;">
+                <div class="outstanding-card">
+                    <h3>Outstanding Invoices</h3>
+                    <div class="outstanding-stats">
+                        <div class="outstanding-stat">
+                            <span class="outstanding-label">Total Outstanding</span>
+                            <span class="outstanding-value" id="outstandingAmount">$0.00</span>
+                        </div>
+                        <div class="outstanding-stat">
+                            <span class="outstanding-label">Overdue Invoices</span>
+                            <span class="outstanding-value" id="overdueCount">0</span>
+                        </div>
                     </div>
-                    <div class="outstanding-stat">
-                        <span class="outstanding-label">Overdue Invoices</span>
-                        <span class="outstanding-value" id="overdueCount">0</span>
+                    <div id="overdueWarning" style="display: none;" class="outstanding-overdue">
+                        <strong id="overdueText">0 invoices</strong> are overdue
+                    </div>
+                    <a href="invoices.html" class="outstanding-link">
+                        View Invoices
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </a>
+                </div>
+
+                <!-- Cash Flow Forecast -->
+                <div class="outstanding-card" id="cashFlowCard">
+                    <h3>Cash Flow Forecast (90 Days)</h3>
+                    <div class="outstanding-stats" id="cashFlowStats">
+                        <div class="outstanding-stat">
+                            <span class="outstanding-label">Expected Inflows</span>
+                            <span class="outstanding-value" id="forecastInflow" style="color:var(--green);">$0</span>
+                        </div>
+                        <div class="outstanding-stat">
+                            <span class="outstanding-label">Est. Outflows</span>
+                            <span class="outstanding-value" id="forecastOutflow" style="color:var(--red);">$0</span>
+                        </div>
+                        <div class="outstanding-stat">
+                            <span class="outstanding-label">Net Forecast</span>
+                            <span class="outstanding-value" id="forecastNet">$0</span>
+                        </div>
                     </div>
                 </div>
-                <div id="overdueWarning" style="display: none;" class="outstanding-overdue">
-                    <strong id="overdueText">0 invoices</strong> are overdue
-                </div>
-                <a href="invoices.html" class="outstanding-link">
-                    View Invoices
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                </a>
             </div>
         </div>
     </main>
@@ -865,40 +909,6 @@
             if (_financeData) updateStatCards(_financeData);
         }
 
-        function updateStatCards(data) {
-            const allTime = data.allTime || {};
-            const ytd = data.yearToDate || {};
-            const month = data.thisMonth || {};
-
-            let rev, exp, label;
-            if (_activePeriod === 'ytd') {
-                rev = ytd.revenue || 0; exp = ytd.expenses || 0; label = new Date().getFullYear() + ' Year to Date';
-            } else if (_activePeriod === 'alltime') {
-                rev = allTime.revenue || 0; exp = allTime.expenses || 0; label = 'All Time';
-            } else {
-                rev = month.revenue || 0; exp = month.expenses || 0; label = 'This Month';
-            }
-
-            document.getElementById('revenueLabel').textContent = 'Revenue — ' + label;
-            document.getElementById('expensesLabel').textContent = 'Expenses — ' + label;
-            document.getElementById('profitLabel').textContent = 'Profit — ' + label;
-            document.getElementById('revenueThisMonth').textContent = formatCurrency(rev);
-            document.getElementById('expensesThisMonth').textContent = formatCurrency(exp);
-            document.getElementById('profitThisMonth').textContent = formatCurrency(rev - exp);
-
-            // Trend badge only makes sense for this month
-            const trendEl = document.getElementById('revenueTrend');
-            if (_activePeriod === 'month') {
-                const lastMonthRevenue = data.lastMonth?.revenue || 0;
-                const diff = lastMonthRevenue > 0 ? ((rev - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
-                trendEl.style.display = '';
-                trendEl.className = 'trend-badge ' + (diff >= 0 ? 'up' : 'down');
-                document.getElementById('revenueTrendText').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(0) + '% vs last month';
-            } else {
-                trendEl.style.display = 'none';
-            }
-        }
-
         // Populate all finance data
         function populateFinanceData(data) {
             _financeData = data;
@@ -907,11 +917,18 @@
             // Chart
             buildRevenueChart(data.monthlyRevenue || [], data.monthlyExpenses || []);
 
+            // Profit margin trend line
+            buildProfitChart(data.monthlyRevenue || [], data.monthlyExpenses || []);
+
             // Service breakdown table
             populateServiceTable(data.serviceBreakdown || []);
 
             // Outstanding invoices
             populateOutstandingInvoices(data.outstanding || {});
+
+            // Load expense breakdown and cash flow forecast
+            loadExpenseBreakdown();
+            loadCashFlowForecast();
         }
 
         // Build chart
@@ -1064,6 +1081,162 @@
                     overdueCount: 3
                 }
             };
+        }
+
+        // ── PROFIT MARGIN TREND LINE ─────────────────
+        function buildProfitChart(monthlyRevenue, monthlyExpenses) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const chartEl = document.getElementById('profitChart');
+            const revenue = monthlyRevenue.slice(0, 12);
+            const expenses = monthlyExpenses.slice(0, 12);
+            while (revenue.length < 12) revenue.push(0);
+            while (expenses.length < 12) expenses.push(0);
+
+            const profits = revenue.map((r, i) => r - (expenses[i] || 0));
+            const maxVal = Math.max(...profits.map(Math.abs), 1);
+            const chartH = 180, leftM = 60, chartW = 920, topM = 20;
+
+            let svg = '';
+            // Zero line
+            const zeroY = topM + chartH / 2;
+            svg += `<line x1="${leftM}" y1="${zeroY}" x2="${leftM + chartW}" y2="${zeroY}" stroke="#c8ccc8" stroke-width="1"/>`;
+            svg += `<text x="${leftM - 12}" y="${zeroY + 4}" text-anchor="end" font-size="11" fill="#6e726e" font-family="DM Sans">$0</text>`;
+            // Top/bottom labels
+            svg += `<text x="${leftM - 12}" y="${topM + 4}" text-anchor="end" font-size="11" fill="#6e726e" font-family="DM Sans">${formatNumber(maxVal)}</text>`;
+            svg += `<text x="${leftM - 12}" y="${topM + chartH + 4}" text-anchor="end" font-size="11" fill="#6e726e" font-family="DM Sans">-${formatNumber(maxVal)}</text>`;
+
+            // Build line path
+            const points = [];
+            const step = chartW / 11;
+            for (let i = 0; i < 12; i++) {
+                const x = leftM + (i * step);
+                const y = zeroY - (profits[i] / maxVal) * (chartH / 2);
+                points.push({ x, y, val: profits[i] });
+            }
+
+            // Area fill
+            let areaPath = `M${points[0].x},${zeroY}`;
+            points.forEach(p => areaPath += ` L${p.x},${p.y}`);
+            areaPath += ` L${points[points.length - 1].x},${zeroY} Z`;
+            svg += `<path d="${areaPath}" fill="rgba(46,64,61,0.08)"/>`;
+
+            // Line
+            let linePath = `M${points[0].x},${points[0].y}`;
+            points.slice(1).forEach(p => linePath += ` L${p.x},${p.y}`);
+            svg += `<path d="${linePath}" fill="none" stroke="#2e403d" stroke-width="2.5" stroke-linejoin="round"/>`;
+
+            // Dots and labels
+            points.forEach((p, i) => {
+                const color = p.val >= 0 ? '#059669' : '#dc4a4a';
+                svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${color}" stroke="white" stroke-width="2"/>`;
+                svg += `<text x="${p.x}" y="${topM + chartH + 30}" text-anchor="middle" font-size="12" fill="#6e726e" font-family="DM Sans">${months[i]}</text>`;
+            });
+
+            chartEl.innerHTML = svg;
+        }
+
+        // ── EXPENSE BREAKDOWN DONUT ──────────────────
+        async function loadExpenseBreakdown() {
+            try {
+                const res = await fetch('/api/expenses/stats');
+                const data = await res.json();
+                if (!data.success) return;
+                const cats = (data.stats.byCategory || []).filter(c => parseFloat(c.total) > 0).sort((a, b) => b.total - a.total);
+                if (cats.length === 0) {
+                    document.getElementById('expenseDonut').innerHTML = '<text x="140" y="140" text-anchor="middle" dy=".3em" fill="#9ca09c" font-size="13">No expense data</text>';
+                    return;
+                }
+                const colors = ['#2e403d', '#c9dd80', '#3b82f6', '#d97706', '#059669', '#7c3aed', '#dc4a4a', '#db2777', '#0284c7', '#16a34a'];
+                const total = cats.reduce((s, c) => s + parseFloat(c.total), 0);
+                let svg = '';
+                let startAngle = -90;
+                const cx = 140, cy = 140, r = 100, ir = 60;
+
+                cats.forEach((cat, i) => {
+                    const pct = parseFloat(cat.total) / total;
+                    const angle = pct * 360;
+                    const endAngle = startAngle + angle;
+                    const largeArc = angle > 180 ? 1 : 0;
+                    const s1 = Math.PI * startAngle / 180;
+                    const s2 = Math.PI * endAngle / 180;
+
+                    const x1 = cx + r * Math.cos(s1), y1 = cy + r * Math.sin(s1);
+                    const x2 = cx + r * Math.cos(s2), y2 = cy + r * Math.sin(s2);
+                    const ix1 = cx + ir * Math.cos(s2), iy1 = cy + ir * Math.sin(s2);
+                    const ix2 = cx + ir * Math.cos(s1), iy2 = cy + ir * Math.sin(s1);
+
+                    svg += `<path d="M${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} L${ix1},${iy1} A${ir},${ir} 0 ${largeArc} 0 ${ix2},${iy2} Z" fill="${colors[i % colors.length]}" stroke="white" stroke-width="2"/>`;
+                    startAngle = endAngle;
+                });
+
+                // Center text
+                svg += `<text x="${cx}" y="${cy - 8}" text-anchor="middle" font-size="20" font-weight="700" fill="#333633" font-family="DM Sans">${formatNumber(total)}</text>`;
+                svg += `<text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="11" fill="#9ca09c" font-family="DM Sans">total</text>`;
+
+                document.getElementById('expenseDonut').innerHTML = svg;
+
+                // Legend
+                document.getElementById('donutLegend').innerHTML = cats.slice(0, 8).map((cat, i) =>
+                    `<span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:${colors[i % colors.length]};display:inline-block;"></span>${cat.category} (${(parseFloat(cat.total) / total * 100).toFixed(0)}%)</span>`
+                ).join('');
+            } catch (e) {
+                console.error('Expense breakdown error:', e);
+            }
+        }
+
+        // ── CASH FLOW FORECAST ───────────────────────
+        async function loadCashFlowForecast() {
+            try {
+                const res = await fetch('/api/finance/cash-flow-forecast');
+                const data = await res.json();
+                if (!data.success) return;
+
+                const totalIn = data.total_expected_inflow || 0;
+                const totalOut = (data.monthly_expense_avg || 0) * 3;
+                const net = totalIn - totalOut;
+
+                document.getElementById('forecastInflow').textContent = formatCurrency(totalIn);
+                document.getElementById('forecastOutflow').textContent = formatCurrency(totalOut);
+                document.getElementById('forecastNet').textContent = formatCurrency(net);
+                document.getElementById('forecastNet').style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
+            } catch (e) {
+                console.error('Cash flow forecast error:', e);
+            }
+        }
+
+        // ── PERIOD COMPARISON (vs last month) ────────
+        function updateStatCards(data) {
+            const allTime = data.allTime || {};
+            const ytd = data.yearToDate || {};
+            const month = data.thisMonth || {};
+
+            let rev, exp, label;
+            if (_activePeriod === 'ytd') {
+                rev = ytd.revenue || 0; exp = ytd.expenses || 0; label = new Date().getFullYear() + ' Year to Date';
+            } else if (_activePeriod === 'alltime') {
+                rev = allTime.revenue || 0; exp = allTime.expenses || 0; label = 'All Time';
+            } else {
+                rev = month.revenue || 0; exp = month.expenses || 0; label = 'This Month';
+            }
+
+            document.getElementById('revenueLabel').textContent = 'Revenue -- ' + label;
+            document.getElementById('expensesLabel').textContent = 'Expenses -- ' + label;
+            document.getElementById('profitLabel').textContent = 'Profit -- ' + label;
+            document.getElementById('revenueThisMonth').textContent = formatCurrency(rev);
+            document.getElementById('expensesThisMonth').textContent = formatCurrency(exp);
+            document.getElementById('profitThisMonth').textContent = formatCurrency(rev - exp);
+
+            // Trend badge
+            const trendEl = document.getElementById('revenueTrend');
+            if (_activePeriod === 'month') {
+                const lastMonthRevenue = data.lastMonth?.revenue || 0;
+                const diff = lastMonthRevenue > 0 ? ((rev - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+                trendEl.style.display = '';
+                trendEl.className = 'trend-badge ' + (diff >= 0 ? 'up' : 'down');
+                document.getElementById('revenueTrendText').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(0) + '% vs last month';
+            } else {
+                trendEl.style.display = 'none';
+            }
         }
 
         // Load data on page load

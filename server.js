@@ -5352,9 +5352,12 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
 
     const identity = req.user?.email || req.user?.id || 'pappas-user';
 
+    const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID || 'CRba4f897221fa170112ab6b3b7bfa97a9';
+
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: twimlAppSid,
       incomingAllow: true,
+      pushCredentialSid: pushCredentialSid,
     });
 
     const token = new AccessToken(TWILIO_ACCOUNT_SID, apiKeySid, apiKeySecret, {
@@ -5363,7 +5366,7 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
     });
     token.addGrant(voiceGrant);
 
-    console.log(`🎙️ Voice token issued for identity: ${identity}`);
+    console.log(`🎙️ Voice token issued for identity: ${identity} with push credential: ${pushCredentialSid}`);
     res.json({ token: token.toJwt(), identity });
   } catch (error) {
     console.error('Voice token error:', error);
@@ -10748,14 +10751,17 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
       { identity }
     );
 
+    const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID || 'CRba4f897221fa170112ab6b3b7bfa97a9';
+
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID,
       incomingAllow: true,
+      pushCredentialSid: pushCredentialSid,
     });
 
     accessToken.addGrant(voiceGrant);
 
-    console.log('Voice token generated for:', identity);
+    console.log('Voice token generated for:', identity, 'push:', pushCredentialSid);
     res.json({ token: accessToken.toJwt(), identity });
   } catch (error) {
     console.error('Voice token error:', error);

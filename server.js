@@ -5374,6 +5374,12 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
   }
 });
 
+// Debug endpoint for voice SDK registration status
+app.post('/api/app/voice/debug', (req, res) => {
+  console.log('📱 VOICE SDK DEBUG:', JSON.stringify(req.body));
+  res.json({ ok: true });
+});
+
 // TwiML for incoming calls routed to the app Client
 app.all('/api/app/voice/incoming', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;

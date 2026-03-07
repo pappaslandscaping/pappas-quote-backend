@@ -5352,7 +5352,7 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
 
     const identity = req.user?.email || req.user?.id || 'pappas-user';
 
-    const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID || 'CRba4f897221fa170112ab6b3b7bfa97a9';
+    const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID || 'CR0cf89f77173745be7d6de6eac56cad7d';
 
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: twimlAppSid,
@@ -10751,7 +10751,7 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
       { identity }
     );
 
-    const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID || 'CRba4f897221fa170112ab6b3b7bfa97a9';
+    const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID || 'CR0cf89f77173745be7d6de6eac56cad7d';
 
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID,

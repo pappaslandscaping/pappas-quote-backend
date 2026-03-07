@@ -5401,7 +5401,10 @@ app.all('/api/app/voice/incoming', (req, res) => {
 app.all('/api/app/voice/connect', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
-  const to = req.body.To || req.query.To;
+  let to = (req.body.To || req.query.To || '').trim();
+  if (to && !to.startsWith('+')) to = '+' + to;
+
+  console.log('📞 Voice connect TwiML for:', to);
 
   if (to) {
     const dial = twiml.dial({ callerId: TWILIO_PHONE_NUMBER });

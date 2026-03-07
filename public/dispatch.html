@@ -1628,9 +1628,10 @@ function toggleEmptyCrews() {
 function renderDayView(data) {
     const container = document.getElementById('dayBoard');
     let crews = data.crews || [];
+    const hasUnassigned = (data.unassigned || []).length > 0;
 
-    // Filter out empty crews unless toggled on
-    if (!showEmptyCrews) {
+    // Show all crews when there are unassigned jobs (so user can drop to assign)
+    if (!showEmptyCrews && !hasUnassigned) {
         crews = crews.filter(c => (c.jobs || []).length > 0);
     }
 
@@ -1846,7 +1847,25 @@ function updateUnassignedPanel(jobs) {
         return;
     }
 
-    body.innerHTML = jobs.map(job => renderJobCard(job)).join('');
+    body.innerHTML = jobs.map(job => {
+        const card = renderJobCard(job);
+        // Add assign-to-crew dropdown for unassigned jobs
+        const assignHtml = `
+            <div style="padding:4px 8px 8px;border-top:1px solid var(--gray-100);">
+                <select onchange="quickAssignCrew(${job.id}, this.value)" onclick="event.stopPropagation()"
+                    style="width:100%;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid var(--gray-200);font-family:'DM Sans',sans-serif;cursor:pointer;">
+                    <option value="">Assign to crew...</option>
+                    ${allCrews.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
+                </select>
+            </div>`;
+        // Insert before closing </div> of job-card
+        return card.replace(/<\/div>\s*$/, assignHtml + '</div>');
+    }).join('');
+}
+
+async function quickAssignCrew(jobId, crewName) {
+    if (!crewName) return;
+    await assignJob(jobId, crewName, null);
 }
 
 /* ═══════════════════════════════════════════════════════════

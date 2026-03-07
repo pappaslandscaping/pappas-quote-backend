@@ -5378,10 +5378,11 @@ app.all('/api/app/voice/incoming', (req, res) => {
   const from = req.body.From || req.query.From || 'Unknown';
 
   twiml.say({ voice: 'alice' }, 'Connecting you now.');
-  const dial = twiml.dial({ callerId: from });
-  // Ring all registered Client devices with identity 'pappas-user'
-  // Falls back to cell if no one picks up in 30 seconds
-  dial.client({ statusCallback: 'https://pappas-quote-backend-production.up.railway.app/api/app/calls/status-callback' }, 'pappas-user');
+  const dial = twiml.dial({ callerId: from, timeout: 30 });
+  // Ring all registered app users — identity matches the email used in voice token
+  dial.client('hello@pappaslandscaping.com');
+  dial.client('montague.theresa@gmail.com');
+  dial.client('tim@pappaslandscaping.com');
 
   res.type('text/xml');
   res.send(twiml.toString());

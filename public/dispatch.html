@@ -990,26 +990,36 @@ function filterMapByCrew(crewName) {
     // Toggle: click same crew again to clear filter
     if (activeCrewFilter === crewName || !crewName) {
         activeCrewFilter = null;
-        showToast('Showing all crews on map');
     } else {
         activeCrewFilter = crewName;
-        showToast(`Filtering map: ${crewName}`);
     }
 
     // Sync dropdown
     const filterSel = document.getElementById('crewFilterSelect');
     if (filterSel) filterSel.value = activeCrewFilter || '';
 
-    // Highlight active crew lane
+    // Highlight active crew lane with border, no dimming
     document.querySelectorAll('.crew-lane').forEach(lane => {
-        lane.style.opacity = activeCrewFilter && lane.querySelector('.crew-name')?.textContent !== activeCrewFilter ? '0.4' : '1';
+        const laneName = lane.querySelector('.crew-name')?.textContent;
+        const isActive = activeCrewFilter && laneName === activeCrewFilter;
+        lane.style.outline = isActive ? '3px solid var(--forest)' : '';
+        lane.style.outlineOffset = isActive ? '-3px' : '';
+        // Scroll to active crew lane
+        if (isActive) lane.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     });
 
-    // Show/hide markers
+    if (!routeMap) return;
+
+    // Show/hide markers based on filter
     const bounds = new google.maps.LatLngBounds();
     let visibleCount = 0;
     mapMarkers.forEach(m => {
-        const show = !activeCrewFilter || (m.jobData && m.jobData.crew_assigned === activeCrewFilter);
+        let show = true;
+        if (activeCrewFilter === '__unassigned') {
+            show = !m.jobData.crew_assigned;
+        } else if (activeCrewFilter) {
+            show = m.jobData && m.jobData.crew_assigned === activeCrewFilter;
+        }
         m.setVisible(show);
         if (show && m.getPosition()) {
             bounds.extend(m.getPosition());
@@ -1017,18 +1027,16 @@ function filterMapByCrew(crewName) {
         }
     });
 
-    // Show/hide route lines
-    routeLines.forEach(l => {
-        if (!activeCrewFilter) { l.setMap(routeMap); return; }
-        // Route lines don't store crew name, so rebuild
-    });
-    if (activeCrewFilter) drawRouteLines();
+    // Rebuild route lines with filter
+    drawRouteLines();
 
     // Fit to visible markers
     if (visibleCount > 0 && !bounds.isEmpty()) {
         routeMap.fitBounds(bounds);
         if (routeMap.getZoom() > 15) routeMap.setZoom(15);
     }
+
+    showToast(activeCrewFilter ? (activeCrewFilter === '__unassigned' ? 'Showing unassigned jobs' : `Showing: ${activeCrewFilter}`) : 'Showing all jobs');
 }
 
 function toggleLassoMode() {
@@ -1199,6 +1207,10 @@ function navigateDate(delta) {
         currentDate.setDate(currentDate.getDate() + delta);
     }
     autoGeocodeRan = false;
+    activeCrewFilter = null;
+    const fs = document.getElementById('crewFilterSelect');
+    if (fs) fs.value = '';
+    document.querySelectorAll('.crew-lane').forEach(l => { l.style.outline = ''; l.style.outlineOffset = ''; });
     setDatePicker(currentDate);
     loadBoard();
 }
@@ -1208,6 +1220,10 @@ function onDateChange() {
     if (val) {
         currentDate = new Date(val + 'T00:00:00');
         autoGeocodeRan = false;
+        activeCrewFilter = null;
+        const fs = document.getElementById('crewFilterSelect');
+        if (fs) fs.value = '';
+        document.querySelectorAll('.crew-lane').forEach(l => { l.style.outline = ''; l.style.outlineOffset = ''; });
         setDatePicker(currentDate);
         loadBoard();
     }
@@ -1216,6 +1232,10 @@ function onDateChange() {
 function goToToday() {
     currentDate = new Date();
     autoGeocodeRan = false;
+    activeCrewFilter = null;
+    const fs = document.getElementById('crewFilterSelect');
+    if (fs) fs.value = '';
+    document.querySelectorAll('.crew-lane').forEach(l => { l.style.outline = ''; l.style.outlineOffset = ''; });
     setDatePicker(currentDate);
     loadBoard();
 }
@@ -2049,6 +2069,7 @@ function populateCrewSelect(crews) {
         crews.forEach(c => {
             filterSel.innerHTML += `<option value="${esc(c.name)}">${esc(c.name)}</option>`;
         });
+        filterSel.innerHTML += '<option value="__unassigned">Unassigned</option>';
         if (current) filterSel.value = current;
     }
 }

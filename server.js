@@ -5299,6 +5299,111 @@ app.all('/api/app/calls/hold-music', (req, res) => {
   res.send(twiml.toString());
 });
 
+// ============================================================
+// Voice SDK — Access Token & Client Routing
+// ============================================================
+
+// One-time setup: creates a TwiML App + API Key for Voice SDK
+// Call this once, then store the returned values as env vars
+app.post('/api/app/voice/setup', authenticateToken, async (req, res) => {
+  try {
+    // Create TwiML App
+    const twimlApp = await twilioClient.applications.create({
+      friendlyName: 'TwilioConnect Mobile',
+      voiceUrl: 'https://pappas-quote-backend-production.up.railway.app/api/app/voice/connect',
+      voiceMethod: 'POST',
+    });
+
+    // Create API Key
+    const apiKey = await twilioClient.newKeys.create({ friendlyName: 'TwilioConnect Voice' });
+
+    console.log('=== VOICE SDK SETUP — SAVE THESE AS ENV VARS ===');
+    console.log(`TWILIO_TWIML_APP_SID=${twimlApp.sid}`);
+    console.log(`TWILIO_API_KEY_SID=${apiKey.sid}`);
+    console.log(`TWILIO_API_KEY_SECRET=${apiKey.secret}`);
+    console.log('================================================');
+
+    res.json({
+      success: true,
+      message: 'Save these as environment variables in Railway',
+      twimlAppSid: twimlApp.sid,
+      apiKeySid: apiKey.sid,
+      apiKeySecret: apiKey.secret,
+    });
+  } catch (error) {
+    console.error('Voice setup error:', error);
+    res.status(500).json({ message: 'Setup failed', error: error.message });
+  }
+});
+
+// Generate Twilio Access Token for Voice SDK
+app.get('/api/app/voice/token', authenticateToken, (req, res) => {
+  try {
+    const apiKeySid = process.env.TWILIO_API_KEY_SID;
+    const apiKeySecret = process.env.TWILIO_API_KEY_SECRET;
+    const twimlAppSid = process.env.TWILIO_TWIML_APP_SID;
+
+    if (!apiKeySid || !apiKeySecret || !twimlAppSid) {
+      return res.status(503).json({ message: 'Voice not configured. Run /api/app/voice/setup first.' });
+    }
+
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
+
+    const identity = req.user?.email || req.user?.id || 'pappas-user';
+
+    const voiceGrant = new VoiceGrant({
+      outgoingApplicationSid: twimlAppSid,
+      incomingAllow: true,
+    });
+
+    const token = new AccessToken(TWILIO_ACCOUNT_SID, apiKeySid, apiKeySecret, {
+      identity: identity,
+      ttl: 3600,
+    });
+    token.addGrant(voiceGrant);
+
+    console.log(`🎙️ Voice token issued for identity: ${identity}`);
+    res.json({ token: token.toJwt(), identity });
+  } catch (error) {
+    console.error('Voice token error:', error);
+    res.status(500).json({ message: 'Failed to generate voice token' });
+  }
+});
+
+// TwiML for incoming calls routed to the app Client
+app.all('/api/app/voice/incoming', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const from = req.body.From || req.query.From || 'Unknown';
+
+  twiml.say({ voice: 'alice' }, 'Connecting you now.');
+  const dial = twiml.dial({ callerId: from });
+  // Ring all registered Client devices with identity 'pappas-user'
+  // Falls back to cell if no one picks up in 30 seconds
+  dial.client({ statusCallback: 'https://pappas-quote-backend-production.up.railway.app/api/app/calls/status-callback' }, 'pappas-user');
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// TwiML for outbound calls from the app Client
+app.all('/api/app/voice/connect', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const to = req.body.To || req.query.To;
+
+  if (to) {
+    const dial = twiml.dial({ callerId: TWILIO_PHONE_NUMBER });
+    dial.number(to);
+  } else {
+    twiml.say({ voice: 'alice' }, 'No destination number provided.');
+  }
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
 // Recent calls
 app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;

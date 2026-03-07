@@ -5303,7 +5303,8 @@ app.all('/api/app/calls/hold-music', (req, res) => {
 app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   try {
-    const calls = await twilioClient.calls.list({ limit });
+    // Fetch extra to account for client: calls that get filtered out
+    const calls = await twilioClient.calls.list({ limit: Math.min(limit * 3, 200) });
     const enrichedCalls = (await Promise.all(calls.map(async (call) => {
       const phoneNumber = call.direction === 'inbound' ? call.from : call.to;
       // Skip calls to/from client: identities (IVR app forwarding legs)
@@ -5314,7 +5315,7 @@ app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
 if (customerResult.rows.length > 0) contactName = customerResult.rows[0].name;
       const twilioNumber = call.direction === 'inbound' ? call.to : call.from;
       return { id: call.sid, phoneNumber, twilioNumber, direction: call.direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
-    }))).filter(Boolean);
+    }))).filter(Boolean).slice(0, limit);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayCalls = enrichedCalls.filter(c => new Date(c.timestamp) >= today).length;
     const missedCalls = enrichedCalls.filter(c => c.status === 'no-answer' || c.status === 'busy' || c.status === 'canceled').length;

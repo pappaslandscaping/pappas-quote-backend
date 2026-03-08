@@ -5,105 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dispatch Board — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="shared.css">
+    <script>(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__aw",d="__gmp",b="__",e=b+"esm",n=b+"gmsm",r=document,u=window;u=u[c]||(u[c]={});var v=u.maps||(u.maps={}),w=new Set,x=new URLSearchParams,y=()=>h||(h=new Promise(async(f,z)=>{await (a=r.createElement("script"));x.set("libraries",[...w]+"");for(k in g)x.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);x.set("callback",c+".maps."+d+l);a.src=`https://maps.${c}apis.com/maps/api/js?`+x;v[d+l]=f;a.onerror=()=>h=z(Error(p+" could not load."));a.nonce=r.querySelector("script[nonce]")?.nonce||"";r.head.append(a)}));v[l]?console.warn(p+" only loads once."):v[l]=(f,...z)=>w.add(f)&&y().then(()=>v[l](f,...z))})({key:"AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4",v:"weekly"});</script>
     <style>
-        .route-marker { background: none !important; border: none !important; }
-
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
-        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
-        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --cream: #ffffff;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            overflow-x: hidden;
-        }
-
-        /* ─── Sidebar ───────────────────────────────────────── */
-        .sidebar {
-            position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh;
-            background: var(--white); border-right: 1px solid var(--gray-200);
-            display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s;
-        }
-        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
-        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
-        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
-        .nav-section { margin-bottom: 8px; }
-        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
-        .nav-item .badge { margin-left: auto; background: var(--forest); color: var(--lime); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; }
-        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
-
-        /* ─── Main Content ──────────────────────────────────── */
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
-        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; flex-shrink: 0; }
-        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
-        .topbar-left p { font-size: 13px; color: var(--gray-400); }
-        .topbar-actions { display: flex; align-items: center; gap: 12px; }
-
-        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; text-decoration: none; }
-        .btn svg { width: 16px; height: 16px; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15); }
-        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
-        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); transform: translateY(-1px); }
-        .btn-ghost { background: transparent; color: var(--gray-500); padding: 8px; }
-        .btn-ghost:hover { background: var(--gray-100); }
+        /* Google Maps overrides */
+        .gm-style iframe + div { border: none !important; }
+        body { overflow-x: hidden; }
+        
+        
         .btn-sm { padding: 5px 10px; font-size: 12px; }
         .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid #fecaca; }
         .btn-danger:hover { background: #fde2e2; }
-
-        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
 
         /* ─── Top Tabs (Routes / Quick Dispatch / Templates) ── */
         .dispatch-tabs {
@@ -115,8 +27,8 @@
             cursor: pointer; border: none; background: none; font-family: inherit;
             border-bottom: 3px solid transparent; transition: all 0.15s;
         }
-        .dispatch-tab:hover { color: var(--forest); background: var(--gray-50); }
-        .dispatch-tab.active { color: var(--forest); border-bottom-color: var(--lime); }
+        .dispatch-tab:hover { color: var(--primary); background: var(--gray-50); }
+        .dispatch-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
         .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
         .tab-content.active { display: flex; }
 
@@ -130,15 +42,15 @@
         .date-nav { display: flex; align-items: center; gap: 4px; }
         .date-nav-btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--gray-200); background: var(--white); border-radius: 8px; font-size: 16px; color: var(--gray-600); cursor: pointer; transition: all 0.15s; font-family: inherit; }
         .date-nav-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
-        .date-input { font-family: inherit; font-size: 14px; font-weight: 600; color: var(--forest); border: 1px solid var(--gray-200); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; min-width: 155px; text-align: center; }
-        .date-input:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1); }
-        .today-btn { padding: 6px 14px; background: var(--forest); color: var(--lime); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-        .today-btn:hover { background: var(--forest-dark); }
+        .date-input { font-family: inherit; font-size: 14px; font-weight: 600; color: var(--primary); border: 1px solid var(--gray-200); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; min-width: 155px; text-align: center; }
+        .date-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
+        .today-btn { padding: 6px 14px; background: var(--primary); color: var(--white); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+        .today-btn:hover { background: var(--primary-dark); }
 
         .view-toggle { display: flex; border: 1px solid var(--gray-200); border-radius: 8px; overflow: hidden; }
         .view-toggle-btn { padding: 6px 16px; border: none; background: var(--white); font-size: 13px; font-weight: 600; color: var(--gray-500); cursor: pointer; font-family: inherit; transition: all 0.15s; }
         .view-toggle-btn + .view-toggle-btn { border-left: 1px solid var(--gray-200); }
-        .view-toggle-btn.active { background: var(--forest); color: var(--lime); }
+        .view-toggle-btn.active { background: var(--primary); color: var(--white); }
         .view-toggle-btn:hover:not(.active) { background: var(--gray-50); }
 
         .unassigned-toggle { position: relative; }
@@ -147,33 +59,62 @@
         /* ─── Bulk Actions Bar ─────────────────────────────── */
         .bulk-bar {
             display: none; align-items: center; gap: 12px; padding: 10px 32px;
-            background: var(--forest); color: var(--lime); flex-shrink: 0;
+            background: var(--primary); color: var(--white); flex-shrink: 0;
         }
         .bulk-bar.active { display: flex; }
         .bulk-bar .bulk-count { font-size: 13px; font-weight: 700; margin-right: 8px; }
         .bulk-bar .bulk-btn {
             padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
             border: 1px solid rgba(201,221,128,0.3); background: rgba(255,255,255,0.1);
-            color: var(--lime); cursor: pointer; font-family: inherit; transition: all 0.15s;
+            color: var(--white); cursor: pointer; font-family: inherit; transition: all 0.15s;
         }
         .bulk-bar .bulk-btn:hover { background: rgba(255,255,255,0.2); }
-        .bulk-bar .bulk-close { margin-left: auto; background: none; border: none; color: var(--lime); cursor: pointer; font-size: 18px; padding: 4px; }
+        .bulk-bar .bulk-close { margin-left: auto; background: none; border: none; color: var(--white); cursor: pointer; font-size: 18px; padding: 4px; }
 
-        /* ─── Map Panel ───────────────────────────────────── */
-        .map-container {
-            height: 350px; background: var(--gray-100); position: relative;
-            border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
-            transition: height 0.3s;
-        }
-        .map-container.collapsed { height: 0; overflow: hidden; border-bottom: none; }
+        /* ─── Map-on-Top Layout ──────────────────────────── */
+        .dispatch-body { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+        .map-panel { width: 100%; height: 350px; position: relative; background: var(--gray-100); border-bottom: 1px solid var(--gray-200); flex-shrink: 0; transition: height 0.3s; }
+        .map-panel.collapsed { height: 0; overflow: hidden; border-bottom: none; }
         #routeMap { width: 100%; height: 100%; }
-        .map-toggle-btn {
-            position: absolute; top: 10px; right: 10px; z-index: 500;
-            padding: 6px 14px; background: var(--white); border: 1px solid var(--gray-200);
-            border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--gray-600);
-            cursor: pointer; font-family: inherit; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        }
-        .map-toggle-btn:hover { background: var(--gray-50); }
+        .map-options-bar { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 6px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); font-size: 12px; color: var(--gray-600); flex-shrink: 0; }
+        .map-options-bar label { display: flex; align-items: center; gap: 5px; cursor: pointer; font-weight: 600; user-select: none; }
+        .map-options-bar input[type="checkbox"] { accent-color: var(--primary); }
+        .board-side { flex: 1; display: flex; overflow: hidden; min-width: 0; }
+
+        /* ─── Map Overlays ────────────────────────────────── */
+        .map-crew-filter { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 500; background: rgba(255,255,255,0.95); padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--blue); box-shadow: 0 2px 6px rgba(0,0,0,0.15); display: none; align-items: center; gap: 8px; font-family: DM Sans, sans-serif; }
+        .map-crew-filter.active { display: flex; }
+        .map-crew-filter button { padding: 2px 8px; border: 1px solid var(--gray-300); border-radius: 4px; background: var(--white); color: var(--gray-600); font-size: 11px; cursor: pointer; font-family: inherit; }
+        .map-crew-filter button:hover { background: var(--gray-100); }
+        .map-legend { position: absolute; bottom: 10px; right: 10px; z-index: 500; background: rgba(255,255,255,0.92); padding: 8px 12px; border-radius: 8px; font-size: 11px; color: var(--gray-600); box-shadow: 0 2px 6px rgba(0,0,0,0.12); font-family: DM Sans, sans-serif; }
+        .map-legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+        .map-legend-item:last-child { margin-bottom: 0; }
+        .map-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ─── Toolbar Row 1: Action Buttons ──────────────── */
+        .dispatch-actions-row { display: flex; align-items: center; gap: 10px; padding: 8px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); flex-shrink: 0; flex-wrap: wrap; }
+        .action-dropdown { position: relative; display: inline-block; }
+        .action-dropdown-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; transition: all 0.15s; }
+        .action-dropdown-btn.primary { background: var(--primary); color: var(--white); }
+        .action-dropdown-btn.primary:hover { background: var(--primary-dark); }
+        .action-dropdown-btn.orange { background: #f59e0b; color: var(--white); }
+        .action-dropdown-btn.orange:hover { background: #d97706; }
+        .action-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; margin-top: 4px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 200px; z-index: 50; overflow: hidden; }
+        .action-dropdown-menu.open { display: block; }
+        .action-dropdown-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--gray-700); cursor: pointer; transition: background 0.1s; }
+        .action-dropdown-item:hover { background: var(--gray-50); }
+        .action-dropdown-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.6; }
+
+        /* ─── Toolbar Row 2: Filter Actions ──────────────── */
+        .dispatch-filters { display: flex; align-items: center; gap: 8px; padding: 6px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); flex-shrink: 0; flex-wrap: wrap; }
+        .dispatch-filters select { padding: 6px 10px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--gray-600); background: var(--white); cursor: pointer; }
+        .dispatch-filters select:focus { outline: none; border-color: var(--primary); }
+        .filter-actions { display: flex; align-items: center; gap: 0; font-size: 12px; font-weight: 600; }
+        .filter-actions a { color: var(--gray-600); text-decoration: none; cursor: pointer; padding: 4px 10px; border-radius: 4px; transition: all 0.15s; }
+        .filter-actions a:hover { color: var(--primary); background: var(--gray-50); }
+        .filter-actions a.danger { color: var(--red); }
+        .filter-actions a.danger:hover { background: var(--red-bg); }
+        .filter-actions .sep { color: var(--gray-300); padding: 0 2px; }
 
         /* ─── Board Layout ─────────────────────────────────── */
         .board-wrapper { display: flex; flex: 1; overflow: hidden; }
@@ -182,12 +123,15 @@
         /* ─── Day View ─────────────────────────────────────── */
         .day-board { display: flex; gap: 16px; min-height: calc(100vh - var(--header-h) - 130px); }
         .crew-lane { flex: 1; min-width: 280px; max-width: 380px; display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; transition: box-shadow 0.2s; }
-        .crew-lane.drag-over { box-shadow: 0 0 0 2px var(--forest), 0 4px 16px rgba(46, 64, 61, 0.15); }
+        .crew-lane.drag-over { box-shadow: 0 0 0 2px var(--primary), 0 4px 16px rgba(22,163,74,0.15); }
         .crew-lane-header { padding: 16px; border-bottom: 1px solid var(--gray-200); position: relative; }
         .crew-lane-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
         .crew-name-row { display: flex; align-items: center; gap: 8px; }
         .crew-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-        .crew-name { font-size: 15px; font-weight: 700; color: var(--forest); }
+        .crew-name { font-size: 15px; font-weight: 700; color: var(--primary); cursor: pointer; }
+        .crew-name:hover { text-decoration: underline; }
+        .crew-name.active-filter { background: var(--primary); color: var(--white); padding: 2px 8px; border-radius: 4px; }
+        .crew-filter-bar { display: none; }  /* moved to .map-crew-filter overlay */
         .availability-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .availability-dot.green { background: var(--green); }
         .availability-dot.yellow { background: var(--amber); }
@@ -202,7 +146,7 @@
         .crew-lane-body.drag-over .drop-placeholder { display: block; }
         .crew-lane-footer { padding: 12px; border-top: 1px solid var(--gray-100); }
         .add-job-btn { width: 100%; padding: 8px; border: 1px dashed var(--gray-300); border-radius: 8px; background: transparent; color: var(--gray-400); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 4px; }
-        .add-job-btn:hover { border-color: var(--forest); color: var(--forest); background: var(--gray-50); }
+        .add-job-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--gray-50); }
 
         /* ─── Job Card ─────────────────────────────────────── */
         .job-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px; cursor: grab; transition: all 0.15s; border-left: 3px solid var(--gray-300); position: relative; }
@@ -226,7 +170,7 @@
         .job-status.status-in-progress { background: var(--blue-bg); color: var(--blue); }
         .job-status.status-completed { background: var(--green-bg); color: var(--green); }
         .job-status.status-cancelled { background: var(--red-bg); color: var(--red); }
-        .job-route-order { position: absolute; top: -6px; left: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--forest); color: var(--lime); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+        .job-route-order { position: absolute; top: -6px; left: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: var(--white); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
         /* ─── Route Table ──────────────────────────────────── */
         .route-table-wrap { flex: 1; overflow: auto; padding: 0; }
@@ -241,8 +185,8 @@
         .route-table tr:hover td { background: var(--gray-50); }
         .route-table tr.selected td { background: var(--blue-bg); }
         .route-table .stop-num {
-            width: 24px; height: 24px; border-radius: 50%; background: var(--forest);
-            color: var(--lime); font-size: 11px; font-weight: 700; display: inline-flex;
+            width: 24px; height: 24px; border-radius: 50%; background: var(--primary);
+            color: var(--white); font-size: 11px; font-weight: 700; display: inline-flex;
             align-items: center; justify-content: center;
         }
         .route-table .crew-pill {
@@ -257,15 +201,15 @@
         .day-board.active { display: flex; }
         .week-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; background: var(--white); }
         .week-table th { background: var(--gray-50); padding: 12px 8px; font-size: 12px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--gray-200); text-align: center; min-width: 140px; }
-        .week-table th:first-child { min-width: 120px; text-align: left; padding-left: 16px; background: var(--forest); color: var(--lime); }
+        .week-table th:first-child { min-width: 120px; text-align: left; padding-left: 16px; background: var(--primary); color: var(--white); }
         .week-table th.today-col { background: var(--green-bg); color: var(--green); }
         .week-table td { padding: 8px; vertical-align: top; border-bottom: 1px solid var(--gray-100); border-right: 1px solid var(--gray-100); min-height: 80px; }
-        .week-table td:first-child { background: var(--gray-50); padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--forest); border-right: 1px solid var(--gray-200); }
+        .week-table td:first-child { background: var(--gray-50); padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--primary); border-right: 1px solid var(--gray-200); }
         .week-table tr:last-child td { border-bottom: none; }
         .week-crew-label { display: flex; align-items: center; gap: 6px; }
         .week-crew-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .week-cell { min-height: 60px; }
-        .week-cell.drag-over { background: var(--gray-50); outline: 2px dashed var(--forest); outline-offset: -2px; border-radius: 4px; }
+        .week-cell.drag-over { background: var(--gray-50); outline: 2px dashed var(--primary); outline-offset: -2px; border-radius: 4px; }
         .week-job-card { padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; font-size: 11px; cursor: grab; transition: all 0.15s; border-left: 3px solid var(--gray-300); background: var(--white); border-top: 1px solid var(--gray-100); border-right: 1px solid var(--gray-100); border-bottom: 1px solid var(--gray-100); }
         .week-job-card:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
         .week-job-card.dragging { opacity: 0.5; }
@@ -277,25 +221,47 @@
         .week-job-service { color: var(--gray-400); font-size: 10px; }
 
         /* ─── Unassigned Sidebar ───────────────────────────── */
-        .unassigned-panel { width: 300px; background: var(--white); border-left: 1px solid var(--gray-200); display: flex; flex-direction: column; flex-shrink: 0; transition: width 0.3s, opacity 0.3s; overflow: hidden; }
+        .unassigned-panel { width: 380px; background: var(--white); border-left: 1px solid var(--gray-200); display: flex; flex-direction: column; flex-shrink: 0; transition: width 0.3s, opacity 0.3s; overflow: hidden; }
         .unassigned-panel.collapsed { width: 0; opacity: 0; border-left: none; }
-        .unassigned-header { padding: 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
-        .unassigned-title { font-size: 14px; font-weight: 700; color: var(--forest); display: flex; align-items: center; gap: 8px; }
+        .unassigned-header { padding: 12px 16px; border-bottom: 1px solid var(--gray-200); }
+        .unassigned-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .unassigned-title { font-size: 14px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
         .unassigned-count { background: var(--red-bg); color: var(--red); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
         .unassigned-close { background: none; border: none; cursor: pointer; color: var(--gray-400); font-size: 18px; padding: 4px; line-height: 1; border-radius: 4px; transition: all 0.15s; }
         .unassigned-close:hover { background: var(--gray-100); color: var(--gray-600); }
-        .unassigned-body { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .unassigned-actions { display: flex; align-items: center; gap: 6px; }
+        .unassigned-actions select { padding: 5px 8px; border: 1px solid var(--gray-200); border-radius: 6px; font-family: inherit; font-size: 11px; font-weight: 600; color: var(--gray-600); flex: 1; }
+        .unassigned-actions button { padding: 5px 10px; border: none; border-radius: 6px; font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+        .unassigned-body { flex: 1; padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
         .unassigned-empty { text-align: center; padding: 32px 16px; color: var(--gray-400); font-size: 13px; }
         .unassigned-empty svg { width: 40px; height: 40px; margin-bottom: 8px; opacity: 0.4; }
+
+        /* ─── Compact Unassigned Job Card ─────────────────── */
+        .ucard { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; border-left: 3px solid var(--gray-300); cursor: grab; transition: all 0.12s; font-size: 12px; }
+        .ucard:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-color: var(--gray-300); }
+        .ucard.dragging { opacity: 0.5; }
+        .ucard.map-highlight { border-color: var(--primary) !important; box-shadow: 0 0 0 2px var(--primary) !important; }
+        .ucard.service-mowing { border-left-color: var(--green); }
+        .ucard.service-cleanup { border-left-color: var(--blue); }
+        .ucard.service-mulch { border-left-color: var(--amber); }
+        .ucard.service-aeration { border-left-color: var(--purple); }
+        .ucard-check { flex-shrink: 0; }
+        .ucard-info { flex: 1; min-width: 0; }
+        .ucard-name { font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ucard-detail { color: var(--gray-400); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ucard-price { font-weight: 700; color: var(--green); font-size: 12px; white-space: nowrap; }
+        .ucard-assign { flex-shrink: 0; }
+        .ucard-assign select { padding: 3px 4px; border: 1px solid var(--gray-200); border-radius: 5px; font-family: inherit; font-size: 10px; font-weight: 600; color: var(--gray-500); background: var(--gray-50); cursor: pointer; max-width: 90px; }
+        .ucard-assign select:focus { border-color: var(--primary); outline: none; }
 
         /* ─── Quick Dispatch Tab ───────────────────────────── */
         .qd-layout { padding: 32px; display: flex; gap: 24px; flex: 1; overflow: auto; }
         .qd-form-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 24px; width: 400px; flex-shrink: 0; align-self: flex-start; }
-        .qd-form-card h3 { font-family: 'Qualy', serif; font-size: 18px; color: var(--forest); margin-bottom: 16px; }
+        .qd-form-card h3 { font-size: 18px; color: var(--primary); margin-bottom: 16px; }
         .qd-results { flex: 1; }
-        .qd-results h3 { font-family: 'Qualy', serif; font-size: 18px; color: var(--forest); margin-bottom: 16px; }
+        .qd-results h3 { font-size: 18px; color: var(--primary); margin-bottom: 16px; }
         .qd-match-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-        .qd-match-card .match-name { font-weight: 700; color: var(--forest); font-size: 15px; margin-bottom: 4px; }
+        .qd-match-card .match-name { font-weight: 700; color: var(--primary); font-size: 15px; margin-bottom: 4px; }
         .qd-match-card .match-detail { font-size: 12px; color: var(--gray-500); margin-bottom: 2px; }
 
         /* ─── Templates Tab ────────────────────────────────── */
@@ -303,7 +269,7 @@
         .templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
         .template-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; transition: all 0.15s; }
         .template-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
-        .template-card .tpl-name { font-size: 16px; font-weight: 700; color: var(--forest); margin-bottom: 8px; }
+        .template-card .tpl-name { font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
         .template-card .tpl-detail { font-size: 12px; color: var(--gray-500); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
         .template-card .tpl-zips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
         .template-card .zip-tag { background: var(--green-bg); color: var(--green); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
@@ -314,7 +280,7 @@
         .modal-overlay.active { display: flex; }
         .modal { background: var(--white); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease; }
         .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--gray-200); }
-        .modal-header h3 { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .modal-header h3 { font-size: 20px; font-weight: 700; color: var(--primary); }
         .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); padding: 4px 8px; border-radius: 6px; transition: all 0.15s; }
         .modal-close:hover { background: var(--gray-100); color: var(--gray-600); }
         .modal-body { padding: 24px; }
@@ -331,7 +297,7 @@
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 14px; color: var(--gray-700); transition: all 0.15s; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
         .form-group textarea { resize: vertical; min-height: 80px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -339,8 +305,9 @@
         @media print {
             .sidebar, .topbar, .dispatch-toolbar, .unassigned-panel,
             .modal-overlay, .add-job-btn, .crew-lane-footer,
-            .job-route-order, .no-print, .dispatch-tabs, .bulk-bar, .map-container { display: none !important; }
-            .main { margin-left: 0 !important; }
+            .job-route-order, .no-print, .dispatch-tabs, .bulk-bar,
+            .map-panel, .map-options-bar, .dispatch-filters, .dispatch-actions-row { display: none !important; }
+            
             .board-wrapper { display: block !important; }
             .board-area { padding: 0 !important; overflow: visible !important; }
             .day-board { flex-direction: column !important; gap: 24px !important; }
@@ -355,27 +322,60 @@
 
         /* ─── Toast ────────────────────────────────────────── */
         .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
-        .toast { background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; display: flex; align-items: center; gap: 8px; }
+        .toast { background: var(--primary); color: var(--white); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; display: flex; align-items: center; gap: 8px; }
         .toast.error { background: var(--red); color: white; }
 
         /* ─── Loading ──────────────────────────────────────── */
         .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; z-index: 10; }
-        .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
         .board-loading { display: flex; align-items: center; justify-content: center; padding: 80px; color: var(--gray-400); font-size: 14px; gap: 12px; }
+
+        /* ─── Hover Highlight ─────────────────────────────── */
+        .job-card.map-highlight { border-color: var(--primary) !important; box-shadow: 0 0 0 2px var(--primary), 0 4px 12px rgba(22,163,74,0.2) !important; }
+        .job-card[data-job-id]:hover { z-index: 2; }
+
+        /* ─── Bad Address Pin Warning ─────────────────────── */
+        .pin-bad-address { outline: 2px solid #d97706 !important; outline-offset: -2px; }
+
+        /* ─── Toolbar Icon Buttons ────────────────────────── */
+        .toolbar-icon-btn-sq { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--gray-200); background: var(--white); border-radius: 8px; color: var(--gray-500); cursor: pointer; transition: all 0.15s; }
+        .toolbar-icon-btn-sq:hover { background: var(--gray-50); border-color: var(--gray-300); color: var(--gray-700); }
+        .toolbar-icon-btn-sq.active { background: var(--primary); color: var(--white); border-color: var(--primary); }
 
         /* ─── Animations ───────────────────────────────────── */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ─── Crew Lane Map Icon ──────────────────────────── */
+        .crew-map-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; transition: all 0.15s; opacity: 0.4; }
+        .crew-map-icon:hover { opacity: 0.8; }
+        .crew-map-icon.active { opacity: 1; background: var(--primary); color: white; border-radius: 4px; }
+        .crew-map-icon svg { width: 14px; height: 14px; }
+
+        /* ─── Unassigned Search & Grouping ────────────────── */
+        .unassigned-search { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 12px; width: 100%; margin-bottom: 8px; transition: border-color 0.15s; }
+        .unassigned-search:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
+        .unassigned-group-select { padding: 5px 8px; border: 1px solid var(--gray-200); border-radius: 6px; font-family: inherit; font-size: 11px; font-weight: 600; color: var(--gray-600); }
+        .group-section { margin-bottom: 8px; }
+        .group-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
+        .group-header-left { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--gray-700); }
+        .group-header-count { font-size: 10px; font-weight: 600; color: var(--gray-400); }
+        .group-assign-btn { padding: 3px 10px; border: 1px solid var(--primary); border-radius: 6px; background: var(--white); color: var(--primary); font-size: 10px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+        .group-assign-btn:hover { background: var(--primary); color: var(--white); }
+        .group-body { display: flex; flex-direction: column; gap: 4px; }
+        .group-body.collapsed { display: none; }
+
         /* ─── Responsive ───────────────────────────────────── */
         @media (max-width: 1024px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; }
-            .mobile-menu-btn { display: block; }
+            .map-panel { height: 250px; }
+            .map-panel.collapsed { height: 0; }
+            .board-side { flex-direction: column; }
             .unassigned-panel { width: 260px; }
             .crew-lane { min-width: 250px; }
+            .dispatch-filters { padding: 6px 16px; }
+            .dispatch-actions-row { padding: 8px 16px; }
+            .map-options-bar { padding: 6px 16px; }
         }
         @media (max-width: 768px) {
             .dispatch-toolbar { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
@@ -383,9 +383,9 @@
             .board-area { padding: 12px; }
             .day-board { flex-direction: column; }
             .crew-lane { max-width: unset; min-width: unset; }
-            .unassigned-panel { position: fixed; right: 0; top: 0; height: 100vh; z-index: 110; box-shadow: -4px 0 20px rgba(0,0,0,0.1); }
+            .unassigned-panel { position: fixed; right: 0; top: 0; height: 100vh; z-index: 110; box-shadow: -4px 0 20px rgba(0,0,0,0.1); width: 320px; }
             .unassigned-panel.collapsed { width: 0; }
-            .topbar { padding: 0 16px; }
+
             .dispatch-tabs { padding: 0 16px; }
             .qd-layout { flex-direction: column; padding: 16px; }
             .qd-form-card { width: 100%; }
@@ -393,117 +393,25 @@
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-<!-- ─── Sidebar ─────────────────────────────────────────── -->
-<div class="sidebar">
-    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="YardDesk"></a></div>
-    <div class="sidebar-nav">
-        <div class="nav-section">
-            <div class="nav-section-label">Overview</div>
-            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Sales</div>
-            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-            <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
-            <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
-            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Operations</div>
-            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
-            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-            <a href="work-requests.html" class="nav-item"><span>📥</span><span>Work Requests</span></a>
-            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-            <a href="dispatch.html" class="nav-item active"><span>🗓️</span><span>Dispatch Board</span></a>
-            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a>
-            <a href="programs.html" class="nav-item"><span>🔄</span><span>Service Programs</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Communications</div>
-            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages &amp; Calls</span></a>
-            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Marketing</div>
-            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Finance</div>
-            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Analytics</div>
-            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">Team</div>
-            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">System</div>
-            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-        </div>
-    </div>
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="avatar">TP</div>
-            <div><div class="name">Tim Pappas</div><div class="role">Owner</div></div>
-        </div>
-    </div>
-</div>
+<script src="shell.js"></script>
 
 <!-- ─── Main ────────────────────────────────────────────── -->
 <div class="main">
 
     <!-- Topbar -->
     <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px;">
-            <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </button>
-            <div class="topbar-left">
-                <h2>Dispatch Board</h2>
-            </div>
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <h1>Dispatch Board</h1>
         </div>
         <div class="topbar-actions">
+            <div class="topbar-search-wrap" id="search-container"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off"><div class="search-dropdown" id="search-dropdown"></div></div>
             <button class="btn btn-secondary no-print" onclick="printDispatch()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 Print Sheet
             </button>
+            <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+            <div class="topbar-avatar" title="Account">TP</div>
         </div>
     </div>
 
@@ -531,39 +439,22 @@
                 </div>
                 <button class="today-btn" onclick="goToToday()">Today</button>
                 <div class="view-toggle">
-                    <button class="view-toggle-btn active" id="viewDay" onclick="setView('day')">Day</button>
+                    <button class="view-toggle-btn" id="viewDay" onclick="setView('day')">Day</button>
                     <button class="view-toggle-btn" id="viewWeek" onclick="setView('week')">Week</button>
-                    <button class="view-toggle-btn" id="viewRoute" onclick="setView('route')">Route Table</button>
+                    <button class="view-toggle-btn active" id="viewRoute" onclick="setView('route')">Route Table</button>
                 </div>
             </div>
             <div class="toolbar-right">
-                <button class="btn btn-secondary" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    Geocode
-                </button>
-                <button class="btn btn-secondary" id="lassoBtn" onclick="toggleLassoMode()" title="Draw to select jobs on the map, then assign to crew">
+                <button class="toolbar-icon-btn-sq" id="lassoBtn" onclick="toggleLassoMode()" title="Lasso — drag on map to select jobs">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
-                    Lasso
                 </button>
-                <button class="btn btn-primary" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
+                <button class="toolbar-icon-btn-sq" onclick="optimizeRoute()" title="Optimize route order">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    Optimize Route
                 </button>
-                <button class="btn btn-secondary" id="mapToggleToolbar" onclick="toggleMap()">
+                <button class="toolbar-icon-btn-sq" id="mapToggleToolbar" onclick="toggleMap()" title="Toggle map">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-                    <span id="mapToggleLabel">Hide Map</span>
                 </button>
-                <button class="btn btn-secondary" id="emptyCrewsBtn" onclick="toggleEmptyCrews()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                    <span id="emptyCrewsLabel">Show All Crews</span>
-                </button>
-                <div class="unassigned-toggle">
-                    <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                        Unassigned
-                    </button>
-                    <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
-                </div>
+                <span id="unassignedBadge" style="display:none;"></span>
             </div>
         </div>
 
@@ -576,65 +467,158 @@
             <button class="bulk-close" onclick="clearBulkSelection()">&times;</button>
         </div>
 
-        <!-- Map -->
-        <div class="map-container" id="mapContainer">
-            <div id="routeMap"></div>
-            <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(46,64,61,0.85);color:#c9dd80;padding:4px 14px;border-radius:6px;font-size:11px;font-weight:600;pointer-events:none;">
-                Click Lasso then drag to select jobs — or hold Shift + drag
-            </div>
-        </div>
-
         <!-- Print Header -->
         <div class="print-header">
             <h1>Pappas & Co. - Daily Dispatch Sheet</h1>
             <p id="printDate"></p>
         </div>
 
-        <!-- Board -->
-        <div class="board-wrapper" id="boardWrapper">
-            <div class="board-area" id="boardArea">
-                <div class="board-loading" id="boardLoading">
-                    <div class="spinner"></div>
-                    Loading dispatch board...
+        <!-- Main Content Area -->
+        <div class="dispatch-body">
+
+            <!-- Map Panel (top, full width) -->
+            <div class="map-panel" id="mapPanel">
+                <div id="routeMap"></div>
+                <!-- Crew Filter Overlay -->
+                <div class="map-crew-filter" id="mapCrewFilter">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                    <span>Showing: <strong id="crewFilterName"></strong></span>
+                    <button onclick="clearCrewFilter()">&#x2715; Clear</button>
                 </div>
-                <div class="day-board active" id="dayBoard" style="display:none;"></div>
-                <div class="week-board" id="weekBoard"></div>
-                <!-- Route Table View -->
-                <div id="routeTableView" style="display:none;">
-                    <div class="route-table-wrap">
-                        <table class="route-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:40px;"><input type="checkbox" id="selectAllRoutes" onchange="toggleSelectAll(this)"></th>
-                                    <th>Stop</th>
-                                    <th>Date</th>
-                                    <th>Title</th>
-                                    <th>Crew</th>
-                                    <th>Customer</th>
-                                    <th>Address</th>
-                                    <th>Type</th>
-                                    <th>Duration</th>
-                                    <th>Price</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="routeTableBody"></tbody>
-                        </table>
+                <!-- Map Legend -->
+                <div class="map-legend" id="mapLegend"></div>
+            </div>
+
+            <!-- Map Options Bar (like home.works) -->
+            <div class="map-options-bar no-print" id="mapOptionsBar">
+                <label><input type="checkbox" id="optLasso" onchange="toggleLassoMode()"> Lasso Select</label>
+                <label><input type="checkbox" id="optRouteOrder" checked onchange="toggleRouteOrderDisplay()"> Route Order</label>
+                <label><input type="checkbox" id="optShowMap" checked onchange="toggleMap()"> Show/Hide Map</label>
+            </div>
+
+            <!-- Action Buttons Row (like home.works) -->
+            <div class="dispatch-actions-row no-print">
+                <!-- Order Stops Dropdown -->
+                <div class="action-dropdown" id="orderStopsDropdown">
+                    <button class="action-dropdown-btn primary" onclick="toggleDropdown('orderStopsDropdown')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Order Stops <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="action-dropdown-menu" id="orderStopsMenu">
+                        <div class="action-dropdown-item" onclick="orderStopsSequential(); closeDropdowns();">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+                            Order sequentially &amp; save
+                        </div>
+                        <div class="action-dropdown-item" onclick="reverseStopOrder(); closeDropdowns();">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                            Reverse order &amp; save
+                        </div>
+                        <div class="action-dropdown-item" onclick="optimizeRoute(); closeDropdowns();">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            Optimize &amp; save
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Apply to Future Weeks Dropdown -->
+                <div class="action-dropdown" id="applyFutureDropdown">
+                    <button class="action-dropdown-btn orange" onclick="toggleDropdown('applyFutureDropdown')" id="applyFutureBtn" disabled title="Save today's order first">
+                        Apply to future weeks <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="action-dropdown-menu" id="applyFutureMenu">
+                        <div class="action-dropdown-item" onclick="applyToFutureWeeks('weekly'); closeDropdowns();">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            Apply for every week
+                        </div>
+                        <div class="action-dropdown-item" onclick="applyToFutureWeeks('biweekly'); closeDropdowns();">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01"/></svg>
+                            Apply for every other week
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Spacer / Right-side filters -->
+                <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                    <select id="filterStatus" onchange="applyFilters()">
+                        <option value="">Any Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                    <select id="filterCrew" onchange="applyFilters()">
+                        <option value="">All Crews</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Filter Actions Row -->
+            <div class="dispatch-filters no-print" id="dispatchFilters">
+                <div class="filter-actions">
+                    <a class="danger" onclick="event.preventDefault(); bulkDelete();" href="#">Delete</a>
+                    <span class="sep">|</span>
+                    <a onclick="event.preventDefault(); bulkComplete()" href="#">Complete</a>
+                    <span class="sep">|</span>
+                    <a onclick="event.preventDefault(); bulkReopen()" href="#">Reopen Events</a>
+                    <span class="sep">|</span>
+                    <a onclick="event.preventDefault(); bulkDuplicate()" href="#">Duplicate Events</a>
+                    <span class="sep">|</span>
+                    <a onclick="event.preventDefault(); printDispatch()" href="#">Print</a>
+                    <span class="sep">|</span>
+                    <a onclick="event.preventDefault(); bulkAssignCrew()" href="#">Assign Crew</a>
+                    <span class="sep">|</span>
+                    <a onclick="event.preventDefault(); bulkMoveEvents()" href="#">Move These Events</a>
+                </div>
+                <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                    <button class="btn btn-sm" id="toggleNotesBtn" onclick="toggleShowNotes()" style="background:var(--white);border:1px solid var(--gray-200);color:var(--gray-600);font-weight:600;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;">Show Notes</button>
+                    <button class="btn btn-sm" id="toggleStatsBtn" onclick="toggleShowStats()" style="background:var(--white);border:1px solid var(--gray-200);color:var(--gray-600);font-weight:600;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;">Show Stats</button>
+                    <div class="action-dropdown" id="columnPickerDropdown">
+                        <button class="action-dropdown-btn" onclick="toggleDropdown('columnPickerDropdown')" style="background:var(--primary);color:white;padding:5px 12px;font-size:12px;">
+                            <span id="colCountLabel">11/11</span> Columns <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="action-dropdown-menu" id="columnPickerMenu" style="min-width:220px;max-height:400px;overflow-y:auto;padding:8px 0;"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Unassigned Panel -->
-            <div class="unassigned-panel" id="unassignedPanel">
-                <div class="unassigned-header">
-                    <div class="unassigned-title">
-                        Unassigned Jobs
-                        <span class="unassigned-count" id="unassignedCount">0</span>
+            <!-- Board Content -->
+            <div class="board-side">
+                <div class="board-wrapper" id="boardWrapper">
+                    <div class="board-area" id="boardArea">
+                        <div class="board-loading" id="boardLoading">
+                            <div class="spinner"></div>
+                            Loading dispatch board...
+                        </div>
+                        <div class="day-board active" id="dayBoard" style="display:none;"></div>
+                        <div class="week-board" id="weekBoard"></div>
+                        <!-- Route Table View -->
+                        <div id="routeTableView" style="display:none;">
+                            <div class="route-table-wrap">
+                                <table class="route-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:40px;"><input type="checkbox" id="selectAllRoutes" onchange="toggleSelectAll(this)"></th>
+                                            <th data-col="stop">Stop</th>
+                                            <th data-col="date">Date</th>
+                                            <th data-col="title">Title</th>
+                                            <th data-col="crew">Crew</th>
+                                            <th data-col="customer">Customer</th>
+                                            <th data-col="address">Address</th>
+                                            <th data-col="type">Type</th>
+                                            <th data-col="frequency">Frequency</th>
+                                            <th data-col="status">Status</th>
+                                            <th data-col="duration">Est Hours</th>
+                                            <th data-col="price">Price</th>
+                                            <th data-col="notes" style="display:none;">Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="routeTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
-                    <button class="unassigned-close" onclick="toggleUnassigned()">&times;</button>
-                </div>
-                <div class="unassigned-body" id="unassignedBody"
-                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleUnassignedDrop(event)">
+
+                    <!-- Unassigned count hidden element for badge tracking -->
+                    <span id="unassignedCount" style="display:none;">0</span>
                 </div>
             </div>
         </div>
@@ -686,7 +670,7 @@
     <div class="tab-content" id="tab-templates">
         <div class="templates-layout">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <h3 style="font-family:'Qualy',serif;font-size:20px;color:var(--forest);">Quick Dispatch Templates</h3>
+                <h3 style="font-size:20px;font-weight:700;color:var(--gray-800);">Quick Dispatch Templates</h3>
                 <button class="btn btn-primary" onclick="openTemplateModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Template
@@ -862,6 +846,30 @@
     </div>
 </div>
 
+<!-- ─── Move Events Modal ─────────────────────────────── -->
+<div class="modal-overlay" id="moveEventsModal">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+            <h3>Move Events</h3>
+            <button class="modal-close" onclick="closeModal('moveEventsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">Select a date to move <strong id="moveEventCount">0</strong> selected event(s) to:</p>
+            <div class="form-group">
+                <label>New Date</label>
+                <input type="date" id="moveEventDate" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:inherit;font-size:15px;color:var(--gray-700);">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('moveEventsModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="applyMoveEvents()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Move Events
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── Toast Container ────────────────────────────────── -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -870,7 +878,7 @@
    STATE
    ═══════════════════════════════════════════════════════════ */
 let currentDate = new Date();
-let currentView = 'day';
+let currentView = 'route';
 let boardData = null;
 let draggedJob = null;
 let dragSourceCrewId = null;
@@ -880,12 +888,17 @@ let mapMarkers = [];
 let mapVisible = true;
 let allCrews = [];
 let showEmptyCrews = false;
+let selectedCrewFilter = null; // crew name to filter map, or null for all
 const geocodeCache = {};
-let drawingRect = false;
-let rectStart = null;
-let drawRect = null;
+let lassoPoints = [];      // Array of {lat,lng} for polygon drawing
+let lassoPolyline = null;  // Preview polyline while drawing
+let lassoPolygon = null;   // Final polygon after double-click
 let routeLines = [];
 let lassoMode = false;
+let infoWindow = null;
+let markerByJobId = {};
+let showUnassignedOnMap = false;
+let cachedUnassignedJobs = [];
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -895,6 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('qdDate').value = formatDate(currentDate);
     initMap();
     loadBoard();
+    initColumnPicker();
 });
 
 /* ═══════════════════════════════════════════════════════════
@@ -909,98 +923,297 @@ function setDispatchTab(tab) {
     document.getElementById('tab-' + tab).classList.add('active');
 
     if (tab === 'templates') loadTemplates();
-    if (tab === 'routes' && routeMap) setTimeout(() => routeMap.invalidateSize(), 100);
+    if (tab === 'routes' && routeMap) setTimeout(() => google.maps.event.trigger(routeMap, 'resize'), 100);
 }
 
 /* ═══════════════════════════════════════════════════════════
    MAP
    ═══════════════════════════════════════════════════════════ */
-function initMap() {
-    routeMap = L.map('routeMap').setView([41.48, -81.68], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 18
-    }).addTo(routeMap);
-    setTimeout(() => routeMap.invalidateSize(), 200);
+async function initMap() {
+    const { Map } = await google.maps.importLibrary("maps");
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+    await google.maps.importLibrary("geometry"); // needed for poly.containsLocation (lasso)
 
-    // Draw-to-select: Lasso mode (toggle via button) OR hold Shift + drag
-    routeMap.on('mousedown', function(e) {
-        if (!lassoMode && !e.originalEvent.shiftKey) return;
-        drawingRect = true;
-        rectStart = e.latlng;
-        routeMap.dragging.disable();
-        if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; }
+    routeMap = new Map(document.getElementById('routeMap'), {
+        center: { lat: 41.48, lng: -81.68 },
+        zoom: 11,
+        mapId: 'yarddesk-dispatch',
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        gestureHandling: 'greedy'
     });
-    routeMap.on('mousemove', function(e) {
-        if (!drawingRect || !rectStart) return;
-        if (drawRect) routeMap.removeLayer(drawRect);
-        drawRect = L.rectangle([rectStart, e.latlng], { color: '#2e403d', weight: 2, fillOpacity: 0.15, dashArray: '6' }).addTo(routeMap);
+
+    infoWindow = new google.maps.InfoWindow();
+
+    // Lasso / polygon draw-to-select (click to add points, double-click to complete)
+    // Single click = add point, double click = close polygon and select jobs inside
+    routeMap.addListener('click', function(e) {
+        if (!lassoMode) return;
+        // Don't fire lasso when a modal is open
+        if (document.querySelector('.modal-overlay.active')) return;
+        // If a completed polygon exists, clear it first on next click
+        if (lassoPolygon) { clearLassoDrawing(); }
+
+        const pt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+        lassoPoints.push(pt);
+
+        // Update the preview polyline
+        if (lassoPolyline) lassoPolyline.setMap(null);
+        lassoPolyline = new google.maps.Polyline({
+            path: lassoPoints,
+            strokeColor: '#2e403d',
+            strokeWeight: 2,
+            strokeOpacity: 0.8,
+            map: routeMap,
+            clickable: false
+        });
+
+        // Show point count in lasso info
+        updateLassoInfo(`${lassoPoints.length} point${lassoPoints.length > 1 ? 's' : ''} — double-click to complete`);
     });
-    routeMap.on('mouseup', function(e) {
-        if (!drawingRect) return;
-        drawingRect = false;
-        routeMap.dragging.enable();
-        if (!rectStart || !drawRect) return;
-        const bounds = L.latLngBounds(rectStart, e.latlng);
+
+    routeMap.addListener('dblclick', function(e) {
+        if (!lassoMode || lassoPoints.length < 3) return;
+        if (document.querySelector('.modal-overlay.active')) return;
+        e.stop(); // Prevent zoom on double-click
+
+        // Close the polygon
+        if (lassoPolyline) { lassoPolyline.setMap(null); lassoPolyline = null; }
+        lassoPolygon = new google.maps.Polygon({
+            paths: lassoPoints,
+            strokeColor: '#2e403d',
+            strokeWeight: 2,
+            strokeOpacity: 0.8,
+            fillColor: '#2e403d',
+            fillOpacity: 0.12,
+            map: routeMap,
+            clickable: false
+        });
+
+        // Select jobs inside polygon
         selectedJobs.clear();
         mapMarkers.forEach(m => {
-            if (bounds.contains(m.getLatLng())) {
+            const pos = m.position;
+            let lat, lng;
+            if (pos instanceof google.maps.LatLng) { lat = pos.lat(); lng = pos.lng(); }
+            else if (typeof pos.lat === 'function') { lat = pos.lat(); lng = pos.lng(); }
+            else { lat = pos.lat; lng = pos.lng; }
+            const latLng = new google.maps.LatLng(lat, lng);
+            if (google.maps.geometry.poly.containsLocation(latLng, lassoPolygon)) {
                 selectedJobs.add(m.jobId);
-                const el = m.getElement();
-                if (el) { const d = el.querySelector('div'); if (d) d.style.outline = '3px solid #c9dd80'; }
+                if (m.content) m.content.style.outline = '3px solid #2e403d';
             }
         });
+
         if (selectedJobs.size > 0) {
             updateBulkBar();
+            updateMarkerVisibility();
+            document.querySelectorAll('.route-job-check').forEach(cb => {
+                const id = parseInt(cb.dataset.jobId);
+                cb.checked = selectedJobs.has(id);
+            });
+            updateLassoInfo(`${selectedJobs.size} job${selectedJobs.size > 1 ? 's' : ''} selected — <a href="#" onclick="event.preventDefault();clearLassoSelection();" style="color:white;text-decoration:underline;">Clear</a>`);
             showToast(`Selected ${selectedJobs.size} job${selectedJobs.size > 1 ? 's' : ''} — use bulk actions above`);
+        } else {
+            updateLassoInfo('No jobs in selection — <a href="#" onclick="event.preventDefault();clearLassoDrawing();" style="color:white;text-decoration:underline;">Clear</a>');
         }
-        rectStart = null;
-        setTimeout(() => { if (drawRect) { routeMap.removeLayer(drawRect); drawRect = null; } }, 2000);
-        // Auto-exit lasso mode after selection
-        if (lassoMode) toggleLassoMode();
+        lassoPoints = [];
     });
 }
 
 function toggleLassoMode() {
-    lassoMode = !lassoMode;
-    const btn = document.getElementById('lassoBtn');
-    if (lassoMode) {
-        btn.classList.remove('btn-secondary');
-        btn.classList.add('btn-primary');
-        btn.style.background = '#d97706';
-        showToast('Lasso mode ON — drag on the map to select jobs');
-        if (routeMap) routeMap.getContainer().style.cursor = 'crosshair';
+    const checkbox = document.getElementById('optLasso');
+    if (checkbox && document.activeElement === checkbox) {
+        lassoMode = checkbox.checked;
     } else {
-        btn.classList.remove('btn-primary');
-        btn.classList.add('btn-secondary');
-        btn.style.background = '';
-        if (routeMap) routeMap.getContainer().style.cursor = '';
+        lassoMode = !lassoMode;
+        if (checkbox) checkbox.checked = lassoMode;
+    }
+    const btn = document.getElementById('lassoBtn');
+    const mapEl = document.getElementById('routeMap');
+    if (lassoMode) {
+        if (btn) { btn.classList.add('active'); btn.style.background = '#d97706'; btn.style.borderColor = '#d97706'; }
+        mapEl.style.cursor = 'crosshair';
+        updateLassoInfo('Click on map to add points. Double-click to complete selection.');
+    } else {
+        if (btn) { btn.classList.remove('active'); btn.style.background = ''; btn.style.borderColor = ''; }
+        mapEl.style.cursor = '';
+        clearLassoDrawing();
+        hideLassoInfo();
     }
 }
 
-function toggleMap() {
-    mapVisible = !mapVisible;
-    document.getElementById('mapContainer').classList.toggle('collapsed', !mapVisible);
-    document.getElementById('mapToggleLabel').textContent = mapVisible ? 'Hide Map' : 'Show Map';
-    if (mapVisible && routeMap) setTimeout(() => routeMap.invalidateSize(), 350);
+function clearLassoDrawing() {
+    if (lassoPolyline) { lassoPolyline.setMap(null); lassoPolyline = null; }
+    if (lassoPolygon) { lassoPolygon.setMap(null); lassoPolygon = null; }
+    lassoPoints = [];
+    // Clear pin outlines
+    mapMarkers.forEach(m => { if (m.content) m.content.style.outline = ''; });
 }
 
-function updateMapMarkers(jobs) {
-    mapMarkers.forEach(m => routeMap.removeLayer(m));
-    routeLines.forEach(l => routeMap.removeLayer(l));
+function clearLassoSelection() {
+    clearLassoDrawing();
+    selectedJobs.clear();
+    document.querySelectorAll('.route-job-check').forEach(cb => cb.checked = false);
+    if (document.getElementById('selectAllRoutes')) document.getElementById('selectAllRoutes').checked = false;
+    updateBulkBar();
+    updateMarkerVisibility();
+    if (lassoMode) {
+        updateLassoInfo('Selection cleared. Click to start a new selection.');
+    } else {
+        hideLassoInfo();
+    }
+}
+
+function updateLassoInfo(html) {
+    let info = document.getElementById('lassoInfoBar');
+    if (!info) {
+        info = document.createElement('div');
+        info.id = 'lassoInfoBar';
+        info.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(46,64,61,0.92);color:white;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;font-family:DM Sans,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.2);display:flex;align-items:center;gap:8px;white-space:nowrap;';
+        document.getElementById('mapPanel').appendChild(info);
+    }
+    info.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg> ${html}`;
+    info.style.display = 'flex';
+}
+
+function hideLassoInfo() {
+    const info = document.getElementById('lassoInfoBar');
+    if (info) info.style.display = 'none';
+}
+
+function toggleMap() {
+    const checkbox = document.getElementById('optShowMap');
+    // If called from checkbox, read its value; if called from toolbar button, toggle
+    if (checkbox && document.activeElement === checkbox) {
+        mapVisible = checkbox.checked;
+    } else {
+        mapVisible = !mapVisible;
+        if (checkbox) checkbox.checked = mapVisible;
+    }
+    document.getElementById('mapPanel').classList.toggle('collapsed', !mapVisible);
+    const btn = document.getElementById('mapToggleToolbar');
+    if (btn) btn.classList.toggle('active', mapVisible);
+    document.getElementById('mapOptionsBar').style.display = mapVisible ? '' : 'none';
+    if (mapVisible && routeMap) {
+        setTimeout(() => google.maps.event.trigger(routeMap, 'resize'), 350);
+    }
+}
+
+let showRouteOrder = true;
+function toggleRouteOrderDisplay() {
+    showRouteOrder = document.getElementById('optRouteOrder').checked;
+    if (boardData) {
+        updateMapMarkers(collectAllJobs());
+        if (currentView === 'route') renderRouteTable(boardData);
+    }
+}
+
+function applyFilters() {
+    const crewFilter = document.getElementById('filterCrew')?.value || '';
+    // Sync map crew filter with dropdown
+    if (crewFilter === '__unassigned') {
+        selectedCrewFilter = '__unassigned';
+        showUnassignedOnMap = true;
+    } else if (crewFilter) {
+        selectedCrewFilter = crewFilter;
+        showUnassignedOnMap = false;
+    } else {
+        selectedCrewFilter = null;
+        showUnassignedOnMap = false;
+    }
+
+    if (boardData) {
+        if (currentView === 'day') renderDayView(boardData);
+        else if (currentView === 'route') renderRouteTable(boardData);
+        else if (currentView === 'week') renderWeekView(boardData);
+        updateMapMarkers(collectAllJobs());
+    }
+}
+
+function filterMapByCrew(crewName) {
+    if (selectedCrewFilter === crewName) {
+        clearCrewFilter();
+        return;
+    }
+    selectedCrewFilter = crewName;
+    const overlay = document.getElementById('mapCrewFilter');
+    overlay.classList.add('active');
+    document.getElementById('crewFilterName').textContent = crewName === '__unassigned' ? 'Unassigned Jobs' : crewName;
+    // Highlight active crew name in lanes + map icons
+    document.querySelectorAll('.crew-name').forEach(el => {
+        el.classList.toggle('active-filter', el.textContent === crewName);
+    });
+    document.querySelectorAll('.crew-map-icon').forEach(el => {
+        el.classList.toggle('active', el.dataset.crew === crewName);
+    });
+    // Re-render map with filter
+    if (boardData) {
+        const allJobs = collectAllJobs();
+        updateMapMarkers(allJobs);
+    }
+}
+
+function clearCrewFilter() {
+    selectedCrewFilter = null;
+    document.getElementById('mapCrewFilter').classList.remove('active');
+    document.querySelectorAll('.crew-name').forEach(el => el.classList.remove('active-filter'));
+    document.querySelectorAll('.crew-map-icon').forEach(el => el.classList.remove('active'));
+    if (boardData) {
+        const allJobs = collectAllJobs();
+        updateMapMarkers(allJobs);
+    }
+}
+
+function collectAllJobs() {
+    const allJobs = [];
+    (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
+    (boardData.unassigned || []).forEach(j => allJobs.push(j));
+    return allJobs;
+}
+
+async function updateMapMarkers(jobs) {
+    // Clear existing markers and lines
+    mapMarkers.forEach(m => m.setMap(null));
+    routeLines.forEach(l => { if (l.setMap) l.setMap(null); });
     mapMarkers = [];
     routeLines = [];
+    markerByJobId = {};
     if (!jobs || jobs.length === 0) return;
 
-    const bounds = [];
-    let stopNum = 0;
+    // Build crew color map from boardData
+    const crewColorMap = {};
+    (boardData?.crews || []).forEach(c => { crewColorMap[c.name] = c.color || '#9ca09c'; });
+
+    // Filter: hide unassigned unless toggled on (or filtered to unassigned)
+    let filteredJobs = jobs.filter(j => {
+        const isUnassigned = !j.crew_assigned;
+        if (isUnassigned && !showUnassignedOnMap && selectedCrewFilter !== '__unassigned') return false;
+        return true;
+    });
+
+    // Apply selectedCrewFilter if set
+    if (selectedCrewFilter) {
+        if (selectedCrewFilter === '__unassigned') {
+            filteredJobs = filteredJobs.filter(j => !j.crew_assigned);
+        } else {
+            filteredJobs = filteredJobs.filter(j => j.crew_assigned === selectedCrewFilter);
+        }
+    }
+
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+    const bounds = new google.maps.LatLngBounds();
     let missingGeocode = 0;
+    let cityLevelCount = 0;
+    const totalFiltered = filteredJobs.length;
+    const isOneCrewFiltered = !!selectedCrewFilter;
 
-    for (const job of jobs) {
-        if (!job.address) continue;
-        stopNum++;
+    for (const job of filteredJobs) {
+        if (!job.address && !job.cust_street) continue;
 
-        // Use stored lat/lng from database
         const lat = parseFloat(job.lat);
         const lng = parseFloat(job.lng);
         if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
@@ -1008,48 +1221,220 @@ function updateMapMarkers(jobs) {
             continue;
         }
 
-        const icon = L.divIcon({
-            className: 'route-marker',
-            html: `<div style="width:28px;height:28px;border-radius:50%;background:var(--forest,#2e403d);color:#c9dd80;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${job.route_order || stopNum}</div>`,
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
-        });
+        const isUnassigned = !job.crew_assigned;
+        const pinColor = isUnassigned ? '#9ca3af' : (crewColorMap[job.crew_assigned] || '#2e403d');
+        const isBadAddress = job.geocode_quality && job.geocode_quality !== 'street';
+        if (isBadAddress) cityLevelCount++;
 
-        const marker = L.marker([lat, lng], { icon }).addTo(routeMap);
+        // Auto-size pins: 24px for dots, min-width 26px with padding for numbers
+        const hasNumber = !isUnassigned && showRouteOrder && job.route_order;
+        const pinSize = hasNumber ? 'min-width:24px;height:24px;padding:0 5px;border-radius:12px;' : 'width:24px;height:24px;border-radius:50%;';
+        const pin = document.createElement('div');
+        pin.style.cssText = `${pinSize}background:${pinColor};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer;transition:transform 0.15s;position:relative;`;
+
+        // Content: route_order number for assigned, small dot for unassigned or no order
+        if (isUnassigned) {
+            pin.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:white;"></span>';
+        } else if (hasNumber) {
+            pin.textContent = job.route_order;
+        } else if (!isUnassigned) {
+            pin.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:white;"></span>';
+        }
+
+        // Bad address: tiny yellow triangle badge
+        if (isBadAddress) {
+            const badge = document.createElement('span');
+            badge.style.cssText = 'position:absolute;top:-2px;right:-2px;width:10px;height:10px;font-size:8px;line-height:10px;text-align:center;background:#fbbf24;color:#92400e;border-radius:2px;font-weight:700;';
+            badge.textContent = '!';
+            pin.appendChild(badge);
+        }
+
+        const marker = new AdvancedMarkerElement({
+            map: routeMap,
+            position: { lat, lng },
+            content: pin,
+            title: job.customer_name || ''
+        });
         marker.jobId = job.id;
         marker.jobData = job;
-        marker.bindPopup(`<strong>${esc(job.customer_name)}</strong><br>${esc(job.address || '')}<br><em>${esc(job.service_type || '')}</em>`);
+        markerByJobId[job.id] = marker;
+
+        const displayAddress = buildDisplayAddress(job);
+
+        // Pin click → InfoWindow
+        marker.addEventListener('gmp-click', () => {
+            const crewLabel = job.crew_assigned ? esc(job.crew_assigned) : '<span style="color:#9ca3af">Unassigned</span>';
+            const badWarn = isBadAddress ? '<div style="color:#d97706;font-size:11px;font-weight:600;margin-top:4px;">Approximate location</div>' : '';
+            const dirUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            infoWindow.setContent(`<div style="font-family:DM Sans,sans-serif;padding:4px;">
+                <strong style="font-size:14px;">${esc(job.customer_name)}</strong><br>
+                <span style="color:#666;">${esc(displayAddress)}</span><br>
+                <em>${esc(job.service_type || '')}</em> · ${formatPrice(job.service_price)}<br>
+                <span>Crew: ${crewLabel}</span>
+                ${badWarn}
+                <div style="margin-top:6px;"><a href="${dirUrl}" target="_blank" style="color:#2e403d;font-weight:600;font-size:12px;text-decoration:none;">Get Directions</a></div>
+            </div>`);
+            infoWindow.open({ map: routeMap, anchor: marker });
+        });
+
+        // Pin hover → highlight job card
+        pin.addEventListener('mouseenter', () => {
+            const card = document.querySelector(`.job-card[data-job-id="${job.id}"], .ucard[data-job-id="${job.id}"]`);
+            if (card) {
+                card.classList.add('map-highlight');
+                const scrollParent = card.closest('.crew-lane-body, .unassigned-body, .board-area');
+                if (scrollParent) {
+                    const parentRect = scrollParent.getBoundingClientRect();
+                    const cardRect = card.getBoundingClientRect();
+                    if (cardRect.top < parentRect.top || cardRect.bottom > parentRect.bottom) {
+                        scrollParent.scrollTo({ top: scrollParent.scrollTop + (cardRect.top - parentRect.top) - 20, behavior: 'smooth' });
+                    }
+                }
+            }
+        });
+        pin.addEventListener('mouseleave', () => {
+            const card = document.querySelector(`.job-card[data-job-id="${job.id}"], .ucard[data-job-id="${job.id}"]`);
+            if (card) card.classList.remove('map-highlight');
+        });
+
         mapMarkers.push(marker);
-        bounds.push([lat, lng]);
+        bounds.extend({ lat, lng });
     }
 
-    if (bounds.length > 0) {
-        routeMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    // Update map status badge
+    updateMapStatus(mapMarkers.length, totalFiltered, missingGeocode, cityLevelCount);
+
+    // Hide all markers initially — only checked jobs show pins
+    updateMarkerVisibility();
+
+    if (mapMarkers.length > 0 && selectedJobs.size > 0) {
+        routeMap.fitBounds(bounds, { padding: 40 });
+        if (routeMap.getZoom() > 14) routeMap.setZoom(14);
     }
 
-    // Draw route lines per crew (connecting stops in route_order)
+    // Draw dashed route lines per crew (straight lines, no Directions API)
     const crewJobs = {};
     for (const m of mapMarkers) {
         const crew = m.jobData.crew_assigned || '__unassigned';
         if (!crewJobs[crew]) crewJobs[crew] = [];
-        crewJobs[crew].push({ latlng: m.getLatLng(), order: m.jobData.route_order || 999 });
+        crewJobs[crew].push({ lat: m.position.lat, lng: m.position.lng, order: m.jobData.route_order || 999 });
     }
-    const crewColors = ['#2e403d', '#3b82f6', '#7c3aed', '#d97706', '#dc4a4a', '#059669'];
-    let ci = 0;
     for (const crew of Object.keys(crewJobs)) {
         const sorted = crewJobs[crew].sort((a, b) => a.order - b.order);
         if (sorted.length > 1) {
-            const line = L.polyline(sorted.map(s => s.latlng), {
-                color: crewColors[ci % crewColors.length], weight: 3, opacity: 0.6, dashArray: '8 4'
-            }).addTo(routeMap);
-            routeLines.push(line);
+            const lineColor = crew === '__unassigned' ? '#9ca3af' : (crewColorMap[crew] || '#2e403d');
+            const opacity = isOneCrewFiltered ? 0.8 : 0.4;
+            drawRouteLine(sorted, lineColor, opacity);
         }
-        ci++;
     }
 
-    // Show geocode prompt if many jobs are missing coordinates
+    // Update map legend
+    updateMapLegend(crewColorMap);
+
+    // Auto-geocode if jobs missing coordinates
     if (missingGeocode > 0) {
-        showToast(`${missingGeocode} job${missingGeocode > 1 ? 's' : ''} missing map coordinates — click "Geocode" to fix`);
+        showToast(`${missingGeocode} of ${totalFiltered} jobs missing coordinates — geocoding now...`);
+        autoGeocodeAndRefreshMap();
+    }
+}
+
+function buildDisplayAddress(job) {
+    // Prefer customer table street address
+    if (job.cust_street && job.cust_street.trim()) {
+        const parts = [job.cust_street.trim()];
+        if (job.cust_city) parts.push(job.cust_city);
+        if (job.cust_state) parts.push(job.cust_state);
+        if (job.cust_zip) parts.push(job.cust_zip);
+        return parts.join(', ');
+    }
+    return job.address || 'No address';
+}
+
+function drawRouteLine(sorted, lineColor, opacity) {
+    const line = new google.maps.Polyline({
+        path: sorted.map(s => ({ lat: s.lat, lng: s.lng })),
+        strokeColor: lineColor,
+        strokeWeight: 3,
+        strokeOpacity: 0,
+        map: routeMap,
+        icons: [
+            { icon: { path: 'M 0,-1 0,1', strokeOpacity: opacity, strokeColor: lineColor, scale: 3 }, offset: '0', repeat: '14px' },
+            { icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, strokeOpacity: opacity, strokeColor: lineColor, scale: 2.5, fillColor: lineColor, fillOpacity: opacity }, offset: '50%', repeat: '120px' }
+        ]
+    });
+    routeLines.push(line);
+}
+
+function updateMapLegend(crewColorMap) {
+    const legend = document.getElementById('mapLegend');
+    if (!legend) return;
+    const crews = Object.keys(crewColorMap);
+    if (crews.length === 0) { legend.style.display = 'none'; return; }
+    legend.style.display = 'block';
+    let html = '';
+    crews.forEach(name => {
+        html += `<div class="map-legend-item"><span class="map-legend-dot" style="background:${crewColorMap[name]}"></span>${esc(name)}</div>`;
+    });
+    if (showUnassignedOnMap) {
+        html += `<div class="map-legend-item"><span class="map-legend-dot" style="background:#9ca3af"></span>Unassigned</div>`;
+    }
+    legend.innerHTML = html;
+}
+
+// Hover-to-highlight: job card → map pin
+function highlightMapPin(jobId) {
+    const marker = markerByJobId[jobId];
+    if (marker && marker.content) {
+        marker.content.style.transform = 'scale(1.4)';
+        marker.content.style.zIndex = '100';
+    }
+}
+function unhighlightMapPin(jobId) {
+    const marker = markerByJobId[jobId];
+    if (marker && marker.content) {
+        marker.content.style.transform = '';
+        marker.content.style.zIndex = '';
+    }
+}
+
+function updateMapStatus(pinCount, totalJobs, missing, cityLevel) {
+    let badge = document.getElementById('mapStatusBadge');
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'mapStatusBadge';
+        badge.style.cssText = 'position:absolute;top:10px;left:10px;z-index:500;background:rgba(255,255,255,0.95);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;color:#374151;box-shadow:0 2px 6px rgba(0,0,0,0.15);font-family:DM Sans,sans-serif;';
+        document.getElementById('routeMap').appendChild(badge);
+    }
+    let parts = [];
+    parts.push(`<span style="color:#2e403d;">${pinCount} pins</span>`);
+    if (missing > 0) {
+        parts.push(`<span style="color:#dc4a4a;">${missing} need geocoding</span>`);
+    }
+    if (cityLevel > 0) {
+        parts.push(`<span style="color:#d97706;">${cityLevel} city-level</span> <a href="#" onclick="regeocodeAllCityLevel();return false;" style="color:var(--blue,#3b82f6);font-size:11px;text-decoration:underline;">fix</a>`);
+    }
+    badge.innerHTML = parts.join(' · ');
+    badge.style.display = 'block';
+}
+
+async function autoGeocodeAndRefreshMap() {
+    try {
+        const res = await fetch('/api/dispatch/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate) })
+        });
+        const data = await res.json();
+        if (data.success && data.geocoded > 0) {
+            showToast(`Geocoded ${data.geocoded} jobs — refreshing map`);
+            // Reload board data to get updated lat/lng
+            autoGeocodeRan = true;
+            loadBoard();
+        } else if (data.success && data.geocoded === 0 && data.total > 0) {
+            showToast(`Could not geocode ${data.total} jobs — addresses may be invalid`, 'error');
+        }
+    } catch (e) {
+        console.error('Auto-geocode failed:', e);
     }
 }
 
@@ -1115,7 +1500,12 @@ function setView(view) {
    UNASSIGNED PANEL
    ═══════════════════════════════════════════════════════════ */
 function toggleUnassigned() {
-    document.getElementById('unassignedPanel').classList.toggle('collapsed');
+    // Unassigned now in route table — toggle crew filter to show them
+    const filterCrew = document.getElementById('filterCrew');
+    if (filterCrew) {
+        filterCrew.value = filterCrew.value === '__unassigned' ? '' : '__unassigned';
+        applyFilters();
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1125,6 +1515,7 @@ function toggleJobSelect(jobId, checkbox) {
     if (checkbox.checked) selectedJobs.add(jobId);
     else selectedJobs.delete(jobId);
     updateBulkBar();
+    updateMarkerVisibility();
 }
 
 function toggleSelectAll(master) {
@@ -1136,6 +1527,7 @@ function toggleSelectAll(master) {
         else selectedJobs.delete(id);
     });
     updateBulkBar();
+    updateMarkerVisibility();
 }
 
 function updateBulkBar() {
@@ -1153,6 +1545,22 @@ function clearBulkSelection() {
     document.querySelectorAll('.route-job-check').forEach(cb => cb.checked = false);
     document.getElementById('selectAllRoutes').checked = false;
     updateBulkBar();
+    updateMarkerVisibility();
+}
+
+function updateMarkerVisibility() {
+    // Only show pins for checked jobs; no checks = no pins
+    for (const [jobId, marker] of Object.entries(markerByJobId)) {
+        marker.map = selectedJobs.has(parseInt(jobId)) ? routeMap : null;
+    }
+    // Update pin count badge
+    const badge = document.getElementById('mapStatusBadge');
+    if (badge) {
+        const total = Object.keys(markerByJobId).length;
+        badge.innerHTML = selectedJobs.size > 0
+            ? `<span style="color:#2e403d;">${selectedJobs.size} of ${total} pins</span>`
+            : `<span style="color:#2e403d;">0 pins</span>`;
+    }
 }
 
 async function bulkOrderStops() {
@@ -1259,15 +1667,17 @@ async function loadBoard() {
         updateUnassignedPanel(data.unassigned || []);
         populateCrewSelect(data.crews || []);
 
-        // Collect all jobs for map (assigned + unassigned)
-        const allJobs = [];
-        (data.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
-        (data.unassigned || []).forEach(j => allJobs.push(j));
-        updateMapMarkers(allJobs);
+        // Tag crew names on jobs
+        (data.crews || []).forEach(c => (c.jobs || []).forEach(j => {
+            if (!j.crew_assigned) j.crew_assigned = c.name;
+        }));
+        // Update map
+        updateMapMarkers(collectAllJobs());
 
         // Auto-geocode if many jobs are missing lat/lng
-        const missingGeo = allJobs.filter(j => !j.lat || !j.lng).length;
-        if (missingGeo > 0 && allJobs.length > 0) {
+        const allJobsCheck = collectAllJobs();
+        const missingGeo = allJobsCheck.filter(j => !j.lat || !j.lng).length;
+        if (missingGeo > 0 && allJobsCheck.length > 0) {
             autoGeocodeInBackground();
         }
 
@@ -1406,13 +1816,13 @@ async function autoGeocodeInBackground() {
 }
 
 async function geocodeAllJobs() {
-    autoGeocodeRan = false; // Allow re-geocode on manual click
-    showToast('Geocoding job addresses...');
+    autoGeocodeRan = false;
+    showToast('Geocoding all job addresses (force re-geocode)...');
     try {
         const res = await fetch('/api/dispatch/geocode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date: formatDate(currentDate) })
+            body: JSON.stringify({ date: formatDate(currentDate), force: true })
         });
         const data = await res.json();
         if (data.success) {
@@ -1426,6 +1836,45 @@ async function geocodeAllJobs() {
     }
 }
 
+async function regeocodeJob(jobId) {
+    showToast('Re-geocoding job address...');
+    try {
+        const res = await fetch('/api/dispatch/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate), force: true, jobId: jobId })
+        });
+        const data = await res.json();
+        if (data.success && data.geocoded > 0) {
+            showToast('Address geocoded successfully — refreshing');
+            loadBoard();
+            document.getElementById('jobDetailModal').style.display = 'none';
+        } else {
+            showToast('Could not geocode — try updating the customer address', 'error');
+        }
+    } catch (e) {
+        showToast('Geocoding failed: ' + e.message, 'error');
+    }
+}
+
+async function regeocodeAllCityLevel() {
+    showToast('Re-geocoding all city-level jobs (force)...');
+    try {
+        const res = await fetch('/api/dispatch/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate), force: true })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Re-geocoded ${data.geocoded} of ${data.total} jobs`);
+            loadBoard();
+        }
+    } catch (e) {
+        showToast('Geocoding failed: ' + e.message, 'error');
+    }
+}
+
 async function optimizeRoute() {
     // Get crews with jobs
     const crewsWithJobs = (boardData?.crews || []).filter(c => (c.jobs || []).length > 1);
@@ -1434,41 +1883,62 @@ async function optimizeRoute() {
         return;
     }
 
-    // If only one crew has jobs, optimize that one. Otherwise show picker.
+    // If only one crew has jobs, optimize that one directly
     if (crewsWithJobs.length === 1) {
         await optimizeCrewRoute(crewsWithJobs[0].name);
-    } else {
-        // Show a simple crew selection
-        const crewName = prompt('Which crew to optimize?\n\n' + crewsWithJobs.map(c => `${c.name} (${c.jobs.length} jobs)`).join('\n'));
-        if (!crewName) return;
-        // Match partial input
-        const match = crewsWithJobs.find(c => c.name.toLowerCase().includes(crewName.toLowerCase()));
-        if (match) {
-            await optimizeCrewRoute(match.name);
-        } else {
-            showToast('Crew not found', 'error');
-        }
+        return;
     }
+
+    // Show crew picker dropdown
+    let existing = document.getElementById('crewOptimizeModal');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'crewOptimizeModal';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:white;border-radius:12px;padding:24px;max-width:400px;width:90%;';
+    modal.innerHTML = `
+        <h3 style="margin-bottom:16px;font-size:16px;color:var(--gray-800);">Optimize Route for Crew</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            ${crewsWithJobs.map(c => `
+                <button class="btn btn-secondary" style="justify-content:space-between;width:100%;padding:12px 16px;" onclick="document.getElementById('crewOptimizeModal').remove(); optimizeCrewRoute('${c.name.replace(/'/g, "\\'")}')">
+                    <span style="font-weight:600;">${c.name}</span>
+                    <span style="color:var(--gray-400);font-size:12px;">${c.jobs.length} jobs</span>
+                </button>
+            `).join('')}
+            <button class="btn btn-secondary" style="margin-top:8px;" onclick="document.getElementById('crewOptimizeModal').remove()">Cancel</button>
+        </div>
+    `;
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
 }
 
 async function optimizeCrewRoute(crewName) {
     showToast(`Optimizing route for ${crewName}...`);
     try {
+        // Fetch home base from settings
+        let startLat = 41.4268, startLng = -81.7356; // defaults
+        try {
+            const hbRes = await fetch('/api/settings/home-base', { headers: { 'Authorization': 'Bearer ' + token } });
+            const hb = await hbRes.json();
+            if (hb.success && hb.lat && hb.lng) { startLat = hb.lat; startLng = hb.lng; }
+        } catch (e) { /* use defaults */ }
         const res = await fetch('/api/dispatch/optimize-route', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 date: formatDate(currentDate),
                 crew_name: crewName,
-                // Start from Lakewood, OH (Pappas HQ area)
-                start_lat: 41.4820,
-                start_lng: -81.7982
+                start_lat: startLat,
+                start_lng: startLng
             })
         });
         const data = await res.json();
         if (data.success) {
             const count = data.optimized ? data.optimized.length : 0;
             showToast(`Route optimized! ${count} stops reordered for ${crewName}`);
+            enableApplyFuture();
             loadBoard();
         } else {
             showToast(data.error || 'Optimization failed', 'error');
@@ -1496,9 +1966,6 @@ function formatPrice(price) {
    ═══════════════════════════════════════════════════════════ */
 function toggleEmptyCrews() {
     showEmptyCrews = !showEmptyCrews;
-    document.getElementById('emptyCrewsLabel').textContent = showEmptyCrews ? 'Hide Empty Crews' : 'Show All Crews';
-    document.getElementById('emptyCrewsBtn').classList.toggle('btn-primary', showEmptyCrews);
-    document.getElementById('emptyCrewsBtn').classList.toggle('btn-secondary', !showEmptyCrews);
     if (boardData) {
         if (currentView === 'day') renderDayView(boardData);
         else if (currentView === 'week') renderWeekView(boardData);
@@ -1522,7 +1989,8 @@ function renderDayView(data) {
                         <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
                     <p style="font-size:15px;font-weight:600;margin-bottom:4px;">No crews with jobs</p>
-                    <p style="font-size:13px;">${showEmptyCrews ? 'No crew data found for this date.' : 'No crews have jobs for this date. Click "Show All Crews" to see empty lanes.'}</p>
+                    <p style="font-size:13px;">${showEmptyCrews ? 'No crew data found for this date.' : 'No crews have jobs for this date.'}</p>
+                    ${!showEmptyCrews ? '<p style="margin-top:8px;"><a href="#" onclick="event.preventDefault();toggleEmptyCrews()" style="color:var(--primary);font-size:13px;font-weight:600;">Show all crews</a></p>' : ''}
                 </div>
             </div>`;
         return;
@@ -1538,14 +2006,20 @@ function renderDayView(data) {
                 <div class="crew-lane-header-top">
                     <div class="crew-name-row">
                         <span class="crew-color-dot" style="background:${crew.color || '#9ca09c'}"></span>
-                        <span class="crew-name">${esc(crew.name)}</span>
+                        <span class="crew-name ${selectedCrewFilter === crew.name ? 'active-filter' : ''}" onclick="event.stopPropagation(); filterMapByCrew('${esc(crew.name).replace(/'/g, "\\'")}')" title="Click to filter map to this crew">${esc(crew.name)}</span>
+                        <span class="crew-map-icon ${selectedCrewFilter === crew.name ? 'active' : ''}" data-crew="${esc(crew.name)}" onclick="event.stopPropagation(); filterMapByCrew('${esc(crew.name).replace(/'/g, "\\'")}')" title="Show on map">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg>
+                        </span>
                     </div>
                     <span class="availability-dot ${avail}" title="${(crew.totalHours || 0).toFixed(1)}h scheduled"></span>
                 </div>
                 <div class="crew-members">${esc(crew.members || '--')}</div>
-                <div class="crew-stats">
-                    <span><strong>${crew.jobCount || jobs.length}</strong> jobs</span>
-                    <span><strong>${(crew.totalHours || 0).toFixed(1)}</strong> hours</span>
+                <div class="crew-stats" style="display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <span><strong>${crew.jobCount || jobs.length}</strong> jobs</span>
+                        <span><strong>${(crew.totalHours || 0).toFixed(1)}</strong> hours</span>
+                    </div>
+                    ${jobs.length > 1 ? `<button onclick="optimizeCrewRoute('${esc(crew.name).replace(/'/g, "\\'")}')" style="padding:4px 10px;font-size:11px;font-weight:600;border:1px solid var(--gray-300);border-radius:6px;background:var(--white);color:var(--primary);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;" title="Optimize route for ${esc(crew.name)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Optimize</button>` : ''}
                 </div>
             </div>
             <div class="crew-lane-body" data-crew-id="${crew.id}"
@@ -1568,18 +2042,21 @@ function renderJobCard(job) {
     const svcClass = getServiceClass(job.service_type);
     const statusClass = getStatusClass(job.status);
     const statusLabel = getStatusLabel(job.status);
+    const displayAddr = buildDisplayAddress(job);
+    const badAddr = job.geocode_quality && job.geocode_quality !== 'street';
 
     return `
     <div class="job-card ${svcClass}" draggable="true" data-job-id="${job.id}"
          ondragstart="handleDragStart(event, ${job.id})" ondragend="handleDragEnd(event)"
-         onclick="openJobDetail(${job.id})">
+         onclick="openJobDetail(${job.id})"
+         onmouseenter="highlightMapPin(${job.id})" onmouseleave="unhighlightMapPin(${job.id})">
         ${job.route_order ? `<span class="job-route-order">${job.route_order}</span>` : ''}
         <div class="job-card-top">
             <span class="job-customer">${esc(job.customer_name)}</span>
             <span class="job-price">${formatPrice(job.service_price)}</span>
         </div>
         <div class="job-service">${esc(job.service_type || 'Service')}</div>
-        <div class="job-address" title="${esc(job.address || '')}">${esc(job.address || 'No address')}</div>
+        <div class="job-address" title="${esc(displayAddr)}">${badAddr ? '<span style="color:#d97706;">⚠</span> ' : ''}${esc(displayAddr)}</div>
         <div class="job-card-bottom">
             <span class="job-duration">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1595,19 +2072,44 @@ function renderJobCard(job) {
    ═══════════════════════════════════════════════════════════ */
 function renderRouteTable(data) {
     const tbody = document.getElementById('routeTableBody');
-    const allJobs = [];
+    let allJobs = [];
 
+    // Include assigned jobs
     (data.crews || []).forEach(crew => {
         (crew.jobs || []).forEach(job => {
             allJobs.push({ ...job, crewName: crew.name, crewColor: crew.color || '#9ca09c' });
         });
     });
 
+    // Include unassigned jobs
+    (data.unassigned || []).forEach(job => {
+        allJobs.push({ ...job, crewName: 'Unassigned', crewColor: '#9ca3af' });
+    });
+
+    // Apply filters
+    const statusFilter = document.getElementById('filterStatus')?.value || '';
+    const crewFilter = document.getElementById('filterCrew')?.value || '';
+    if (statusFilter) {
+        allJobs = allJobs.filter(j => {
+            const s = (j.status || 'pending').toLowerCase().replace(/[_\s]/g, '-');
+            return s === statusFilter;
+        });
+    }
+    if (crewFilter) {
+        if (crewFilter === '__unassigned') {
+            allJobs = allJobs.filter(j => j.crewName === 'Unassigned');
+        } else {
+            allJobs = allJobs.filter(j => j.crewName === crewFilter);
+        }
+    }
+
     // Sort by route_order, then crew
-    allJobs.sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+    if (showRouteOrder) {
+        allJobs.sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+    }
 
     if (allJobs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--gray-400);">No jobs scheduled for this date</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--gray-400);">No jobs scheduled for this date</td></tr>';
         return;
     }
 
@@ -1615,21 +2117,44 @@ function renderRouteTable(data) {
         const statusClass = getStatusClass(job.status);
         const statusLabel = getStatusLabel(job.status);
         const isSelected = selectedJobs.has(job.id);
+        const stopDisplay = showRouteOrder ? (job.route_order || (i + 1)) : (i + 1);
+        const freqLabel = job.is_recurring ? (job.recurring_pattern || 'Recurring') : (job.service_frequency || 'One-time');
+        const notesCol = columnDefs.find(c => c.key === 'notes');
         return `
-        <tr class="${isSelected ? 'selected' : ''}" onclick="openJobDetail(${job.id})">
+        <tr class="${isSelected ? 'selected' : ''}" onclick="openJobDetail(${job.id})" onmouseenter="highlightMapPin(${job.id})" onmouseleave="unhighlightMapPin(${job.id})">
             <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${job.id}" ${isSelected ? 'checked' : ''} onchange="toggleJobSelect(${job.id}, this)"></td>
-            <td><span class="stop-num">${job.route_order || (i + 1)}</span></td>
-            <td style="white-space:nowrap;">${job.job_date ? job.job_date.split('T')[0] : formatDate(currentDate)}</td>
-            <td style="font-weight:600;">${esc(job.service_type || 'Service')}</td>
-            <td><span class="crew-pill"><span class="crew-dot" style="background:${job.crewColor}"></span>${esc(job.crewName)}</span></td>
-            <td>${esc(job.customer_name)}</td>
-            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(job.address || '--')}</td>
-            <td>${esc(job.service_type || '--')}</td>
-            <td>${formatDuration(job.estimated_duration)}</td>
-            <td style="font-weight:700;color:var(--green);">${formatPrice(job.service_price)}</td>
-            <td><span class="job-status ${statusClass}">${statusLabel}</span></td>
+            <td data-col="stop"><span class="stop-num" style="background:${job.crewColor || 'var(--primary)'}">${stopDisplay}</span></td>
+            <td data-col="date" style="white-space:nowrap;">${job.job_date ? job.job_date.split('T')[0] : formatDate(currentDate)}</td>
+            <td data-col="title" style="font-weight:600;">${esc(job.service_type || 'Service')}</td>
+            <td data-col="crew"><span class="crew-pill"><span class="crew-dot" style="background:${job.crewColor}"></span>${esc(job.crewName)}</span></td>
+            <td data-col="customer">${esc(job.customer_name)}</td>
+            <td data-col="address" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(buildDisplayAddress(job))}</td>
+            <td data-col="type">${esc(job.service_type || '--')}</td>
+            <td data-col="frequency"><span style="font-size:12px;color:var(--gray-500);">${esc(freqLabel)}</span></td>
+            <td data-col="status"><span class="job-status ${statusClass}">${statusLabel}</span></td>
+            <td data-col="duration">${job.estimated_duration ? (job.estimated_duration / 60).toFixed(1) : '--'}</td>
+            <td data-col="price" style="font-weight:700;color:var(--green);">${formatPrice(job.service_price)}</td>
+            <td data-col="notes" style="${notesCol && !notesCol.visible ? 'display:none;' : ''}max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--gray-500);">${esc(job.special_notes || '')}</td>
         </tr>`;
     }).join('');
+
+    // Add stats summary row
+    const totalPrice = allJobs.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
+    const totalHours = allJobs.reduce((sum, j) => sum + ((j.estimated_duration || 0) / 60), 0);
+    const statsHtml = `<tr id="routeStatsRow" style="${showStats ? '' : 'display:none;'}background:var(--gray-50);font-weight:700;">
+        <td></td><td data-col="stop"></td><td data-col="date"></td><td data-col="title">Totals</td><td data-col="crew"></td><td data-col="customer">${allJobs.length} jobs</td><td data-col="address"></td><td data-col="type"></td><td data-col="frequency"></td><td data-col="status"></td>
+        <td data-col="duration">${totalHours.toFixed(1)}</td>
+        <td data-col="price" style="color:var(--green);">$${totalPrice.toFixed(0)}</td>
+        <td data-col="notes" style="${!showNotes ? 'display:none;' : ''}"></td>
+    </tr>`;
+    tbody.innerHTML += statsHtml;
+
+    // Apply column visibility
+    columnDefs.forEach(col => {
+        if (!col.visible) {
+            document.querySelectorAll(`[data-col="${col.key}"]`).forEach(el => el.style.display = 'none');
+        }
+    });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1702,31 +2227,31 @@ function renderWeekView(data) {
    UNASSIGNED PANEL
    ═══════════════════════════════════════════════════════════ */
 function updateUnassignedPanel(jobs) {
-    const body = document.getElementById('unassignedBody');
+    cachedUnassignedJobs = jobs;
     const countEl = document.getElementById('unassignedCount');
-    const badge = document.getElementById('unassignedBadge');
+    if (countEl) countEl.textContent = jobs.length;
 
-    countEl.textContent = jobs.length;
-    if (jobs.length > 0) {
-        badge.style.display = 'flex';
-        badge.textContent = jobs.length;
-    } else {
-        badge.style.display = 'none';
+    // Update the crew filter dropdown to show unassigned count
+    const filterCrew = document.getElementById('filterCrew');
+    if (filterCrew) {
+        const unOpt = filterCrew.querySelector('option[value="__unassigned"]');
+        if (unOpt) unOpt.textContent = `Unassigned (${jobs.length})`;
     }
+}
 
-    if (jobs.length === 0) {
-        body.innerHTML = `
-            <div class="unassigned-empty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M9 12l2 2 4-4"/>
-                    <circle cx="12" cy="12" r="10"/>
-                </svg>
-                <p>All jobs assigned!</p>
-            </div>`;
-        return;
-    }
+// Unassigned jobs now appear in the route table — no separate panel needed
+function rerenderUnassigned() {}
+function filterUnassignedCards() {}
+function toggleUnassignedSelectAll() {}
 
-    body.innerHTML = jobs.map(job => renderJobCard(job)).join('');
+async function quickAssignUnassigned(jobId, crewName) {
+    if (!crewName) return;
+    await assignJob(jobId, crewName, null);
+}
+
+async function batchAssignUnassigned() {
+    // Now handled via bulk actions in route table
+    bulkAssignCrew();
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1817,7 +2342,7 @@ function openJobDetail(jobId) {
             </div>
             <div class="detail-item full-width">
                 <div class="detail-label">Address</div>
-                <div class="detail-value">${esc(job.address || 'No address')}</div>
+                <div class="detail-value">${esc(buildDisplayAddress(job))}${job.geocode_quality && job.geocode_quality !== 'street' ? ' <span style="color:#d97706;font-size:11px;">⚠ city-level only</span> <a href="#" onclick="regeocodeJob(${job.id});return false;" style="color:var(--blue);font-size:11px;">Re-geocode</a>' : ''}</div>
             </div>
             <div class="detail-item">
                 <div class="detail-label">Service Type</div>
@@ -1901,6 +2426,17 @@ function populateCrewSelect(crews) {
         });
         if (current) sel.value = current;
     });
+
+    // Populate filter crew dropdown
+    const filterCrew = document.getElementById('filterCrew');
+    if (filterCrew) {
+        const cur = filterCrew.value;
+        filterCrew.innerHTML = '<option value="">All Crews</option><option value="__unassigned">Unassigned</option>';
+        crews.forEach(c => {
+            filterCrew.innerHTML += `<option value="${esc(c.name)}">${esc(c.name)}</option>`;
+        });
+        if (cur) filterCrew.value = cur;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2096,6 +2632,63 @@ function printDispatch() {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   DROPDOWN MENUS
+   ═══════════════════════════════════════════════════════════ */
+function toggleDropdown(id) {
+    const menu = document.querySelector('#' + id + ' .action-dropdown-menu');
+    if (!menu) return;
+    const wasOpen = menu.classList.contains('open');
+    closeDropdowns();
+    if (!wasOpen) menu.classList.add('open');
+}
+function closeDropdowns() {
+    document.querySelectorAll('.action-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.action-dropdown')) closeDropdowns();
+});
+
+async function orderStopsSequential() {
+    if (!boardData) return;
+    const crewFilter = document.getElementById('filterCrew')?.value || '';
+    const crews = crewFilter ? (boardData.crews || []).filter(c => c.name === crewFilter) : (boardData.crews || []);
+    const assignments = [];
+    for (const crew of crews) {
+        (crew.jobs || []).forEach((j, i) => {
+            assignments.push({ job_id: j.id, crew_assigned: crew.name, route_order: i + 1 });
+        });
+    }
+    if (assignments.length === 0) { showToast('No jobs to order', 'error'); return; }
+    try {
+        await fetch('/api/dispatch/assign', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignments }) });
+        showToast(`Ordered ${assignments.length} stops sequentially`);
+        enableApplyFuture();
+        loadBoard();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+}
+
+async function reverseStopOrder() {
+    if (!boardData) return;
+    const crewFilter = document.getElementById('filterCrew')?.value || '';
+    const crews = crewFilter ? (boardData.crews || []).filter(c => c.name === crewFilter) : (boardData.crews || []);
+    const assignments = [];
+    for (const crew of crews) {
+        const jobs = (crew.jobs || []).sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+        const total = jobs.length;
+        jobs.forEach((j, i) => {
+            assignments.push({ job_id: j.id, crew_assigned: crew.name, route_order: total - i });
+        });
+    }
+    if (assignments.length === 0) { showToast('No jobs to reverse', 'error'); return; }
+    try {
+        await fetch('/api/dispatch/assign', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignments }) });
+        showToast(`Reversed ${assignments.length} stops`);
+        enableApplyFuture();
+        loadBoard();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════════════
    TOAST
    ═══════════════════════════════════════════════════════════ */
 function showToast(message, type = 'success') {
@@ -2127,6 +2720,254 @@ function esc(str) {
     d.textContent = str;
     return d.innerHTML;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   APPLY TO FUTURE WEEKS
+   ═══════════════════════════════════════════════════════════ */
+let routeOrderSavedToday = false;
+
+function enableApplyFuture() {
+    routeOrderSavedToday = true;
+    const btn = document.getElementById('applyFutureBtn');
+    if (btn) { btn.disabled = false; btn.title = 'Apply saved route order to future weeks'; }
+}
+
+async function applyToFutureWeeks(frequency) {
+    const crewFilter = document.getElementById('filterCrew')?.value || '';
+    if (!crewFilter || crewFilter === '__unassigned') {
+        showToast('Select a specific crew first to apply route order', 'error');
+        return;
+    }
+    if (!routeOrderSavedToday) {
+        showToast('Save the route order for today first using Order Stops', 'error');
+        return;
+    }
+
+    const label = frequency === 'weekly' ? 'every week' : 'every other week';
+    if (!confirm(`Apply current route order to future ${crewFilter} visits for ${label}?`)) return;
+
+    try {
+        const res = await fetch('/api/dispatch/apply-future-weeks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: formatDate(currentDate),
+                crew_name: crewFilter,
+                frequency: frequency
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message || `Applied to ${data.updated} future visits`);
+        } else {
+            showToast(data.error || 'Failed to apply', 'error');
+        }
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BULK ACTIONS (expanded for home.works parity)
+   ═══════════════════════════════════════════════════════════ */
+async function bulkDelete() {
+    if (selectedJobs.size === 0) { showToast('Select jobs first', 'error'); return; }
+    if (!confirm(`Delete ${selectedJobs.size} selected job(s)? This cannot be undone.`)) return;
+    try {
+        const ids = [...selectedJobs];
+        for (const id of ids) {
+            await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+        }
+        showToast(`Deleted ${ids.length} jobs`);
+        clearBulkSelection();
+        loadBoard();
+    } catch (err) {
+        showToast('Delete failed: ' + err.message, 'error');
+    }
+}
+
+async function bulkReopen() {
+    if (selectedJobs.size === 0) { showToast('Select jobs first', 'error'); return; }
+    try {
+        const ids = [...selectedJobs];
+        for (const id of ids) {
+            await fetch(`/api/jobs/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'pending' })
+            });
+        }
+        showToast(`Reopened ${ids.length} events`);
+        clearBulkSelection();
+        loadBoard();
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+async function bulkDuplicate() {
+    if (selectedJobs.size === 0) { showToast('Select jobs first', 'error'); return; }
+    const jobs = [...selectedJobs].map(id => findJob(id)).filter(Boolean);
+    try {
+        for (const job of jobs) {
+            await fetch('/api/jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    job_date: job.job_date || formatDate(currentDate),
+                    customer_name: job.customer_name,
+                    customer_id: job.customer_id,
+                    service_type: job.service_type,
+                    service_price: job.service_price,
+                    address: job.address || buildDisplayAddress(job),
+                    estimated_duration: job.estimated_duration,
+                    crew_assigned: job.crew_assigned,
+                    special_notes: job.special_notes,
+                    status: 'pending'
+                })
+            });
+        }
+        showToast(`Duplicated ${jobs.length} events`);
+        clearBulkSelection();
+        loadBoard();
+    } catch (err) {
+        showToast('Duplicate failed: ' + err.message, 'error');
+    }
+}
+
+function bulkMoveEvents() {
+    if (selectedJobs.size === 0) { showToast('Select jobs first', 'error'); return; }
+    document.getElementById('moveEventCount').textContent = selectedJobs.size;
+    // Default to tomorrow
+    const tomorrow = new Date(currentDate);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('moveEventDate').value = formatDate(tomorrow);
+    openModal('moveEventsModal');
+}
+
+async function applyMoveEvents() {
+    const newDate = document.getElementById('moveEventDate').value;
+    if (!newDate) { showToast('Please select a date', 'error'); return; }
+    const count = selectedJobs.size;
+    try {
+        await Promise.all([...selectedJobs].map(id =>
+            fetch(`/api/jobs/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_date: newDate })
+            })
+        ));
+        showToast(`Moved ${count} events to ${newDate}`);
+        closeModal('moveEventsModal');
+        clearBulkSelection();
+        loadBoard();
+    } catch (err) {
+        showToast('Move failed: ' + err.message, 'error');
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SHOW NOTES / SHOW STATS TOGGLES
+   ═══════════════════════════════════════════════════════════ */
+let showNotes = false;
+let showStats = false;
+
+function toggleShowNotes() {
+    showNotes = !showNotes;
+    const btn = document.getElementById('toggleNotesBtn');
+    if (btn) {
+        btn.style.background = showNotes ? 'var(--primary)' : 'var(--white)';
+        btn.style.color = showNotes ? 'white' : 'var(--gray-600)';
+        btn.style.borderColor = showNotes ? 'var(--primary)' : 'var(--gray-200)';
+    }
+    // Show/hide notes column in route table
+    document.querySelectorAll('[data-col="notes"]').forEach(el => {
+        el.style.display = showNotes ? '' : 'none';
+    });
+    updateColumnCount();
+    if (boardData && currentView === 'route') renderRouteTable(boardData);
+}
+
+function toggleShowStats() {
+    showStats = !showStats;
+    const btn = document.getElementById('toggleStatsBtn');
+    if (btn) {
+        btn.style.background = showStats ? 'var(--primary)' : 'var(--white)';
+        btn.style.color = showStats ? 'white' : 'var(--gray-600)';
+        btn.style.borderColor = showStats ? 'var(--primary)' : 'var(--gray-200)';
+    }
+    // Show/hide stats summary row
+    const statsRow = document.getElementById('routeStatsRow');
+    if (statsRow) statsRow.style.display = showStats ? '' : 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COLUMN PICKER
+   ═══════════════════════════════════════════════════════════ */
+const columnDefs = [
+    { key: 'stop', label: 'Stop Order', visible: true },
+    { key: 'date', label: 'Date', visible: true },
+    { key: 'title', label: 'Title', visible: true },
+    { key: 'crew', label: 'Crew', visible: true },
+    { key: 'customer', label: 'Customer', visible: true },
+    { key: 'address', label: 'Address', visible: true },
+    { key: 'type', label: 'Type', visible: true },
+    { key: 'frequency', label: 'Frequency', visible: true },
+    { key: 'status', label: 'Status', visible: true },
+    { key: 'duration', label: 'Est Hours', visible: true },
+    { key: 'price', label: 'Price', visible: true },
+    { key: 'notes', label: 'Notes', visible: false }
+];
+
+function initColumnPicker() {
+    const menu = document.getElementById('columnPickerMenu');
+    if (!menu) return;
+    menu.innerHTML = columnDefs.map(col => `
+        <label class="action-dropdown-item" style="cursor:pointer;user-select:none;" onclick="event.stopPropagation();">
+            <input type="checkbox" ${col.visible ? 'checked' : ''} onchange="toggleColumn('${col.key}', this.checked)" style="accent-color:var(--primary);margin-right:6px;">
+            ${col.label}
+        </label>
+    `).join('');
+    updateColumnCount();
+}
+
+function toggleColumn(key, visible) {
+    const col = columnDefs.find(c => c.key === key);
+    if (col) col.visible = visible;
+    document.querySelectorAll(`[data-col="${key}"]`).forEach(el => {
+        el.style.display = visible ? '' : 'none';
+    });
+    updateColumnCount();
+}
+
+function updateColumnCount() {
+    const visible = columnDefs.filter(c => c.visible).length;
+    const label = document.getElementById('colCountLabel');
+    if (label) label.textContent = `${visible}/${columnDefs.length}`;
+}
+</script>
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
 </script>
 </body>
 </html>

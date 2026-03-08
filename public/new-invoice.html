@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Invoice — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        /* ─── New Invoice — Jobber-style multi-step ─────────────── */
+        .content { padding: 0; max-width: 900px; margin: 0 auto; }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            display: flex; align-items: center; gap: 8px;
+            padding: 20px 24px 12px; font-size: 13px; color: var(--gray-500);
+        }
+        .breadcrumb a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .breadcrumb .sep { color: var(--gray-300); }
+
+        /* Step Container */
+        .step-container { padding: 0 24px 40px; }
+
+        /* ─── Step 1: Client Search ────────────────────────────── */
+        .step-title {
+            font-size: 28px; font-weight: 700; color: var(--gray-800);
+            margin-bottom: 8px;
+        }
+        .step-subtitle {
+            font-size: 14px; color: var(--gray-500); margin-bottom: 24px;
+        }
+
+        .client-search-row {
+            display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+        }
+        .client-search-input {
+            flex: 1; padding: 14px 18px; font-size: 15px;
+            border: 2px solid var(--gray-200); border-radius: 10px;
+            font-family: inherit; color: var(--gray-700); outline: none;
+            transition: border-color 0.15s;
+        }
+        .client-search-input:focus { border-color: var(--primary); }
+        .client-search-input::placeholder { color: var(--gray-400); }
+
+        .or-text { font-size: 14px; color: var(--gray-400); font-weight: 500; flex-shrink: 0; }
+
+        .btn-create-client {
+            padding: 14px 24px; background: var(--primary); color: var(--white);
+            border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit; white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .btn-create-client:hover { background: var(--primary-dark); }
+
+        /* Client List */
+        .client-section-label {
+            font-size: 13px; font-weight: 700; color: var(--primary);
+            margin-bottom: 8px;
+        }
+        .client-list { }
+        .client-item {
+            display: flex; align-items: center; gap: 14px;
+            padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
+            cursor: pointer; transition: background 0.1s; text-decoration: none; color: inherit;
+        }
+        .client-item:hover { background: var(--gray-50); }
+        .client-item:last-child { border-bottom: none; }
+        .client-icon {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--gray-100); color: var(--gray-500);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .client-icon svg { width: 18px; height: 18px; }
+        .client-info { flex: 1; min-width: 0; }
+        .client-name { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+        .client-detail { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+        .client-activity { font-size: 12px; color: var(--gray-400); white-space: nowrap; }
+
+        /* ─── Step 2: Select Jobs ──────────────────────────────── */
+        .invoice-doc-card {
+            background: var(--white); border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden; border-top: 4px solid var(--primary);
+        }
+        .invoice-doc-header {
+            display: flex; align-items: center; gap: 14px;
+            padding: 24px 28px; border-bottom: 1px solid var(--gray-100);
+        }
+        .invoice-doc-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            background: var(--primary-light); color: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .invoice-doc-icon svg { width: 18px; height: 18px; }
+        .invoice-doc-title { font-size: 20px; font-weight: 700; color: var(--gray-800); }
+
+        .invoice-doc-body { padding: 28px; }
+
+        .jobs-section-title {
+            font-size: 16px; font-weight: 700; color: var(--gray-800);
+            margin-bottom: 16px;
+        }
+
+        .jobs-table { width: 100%; border-collapse: collapse; }
+        .jobs-table th {
+            text-align: left; padding: 10px 12px;
+            font-size: 12px; font-weight: 700; color: var(--gray-500);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .jobs-table th:last-child { text-align: right; }
+        .jobs-table td {
+            padding: 14px 12px; font-size: 14px; color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .jobs-table td:last-child { text-align: right; font-weight: 700; }
+        .jobs-table tr:last-child td { border-bottom: none; }
+        .jobs-table input[type="checkbox"] {
+            width: 18px; height: 18px; accent-color: var(--primary);
+        }
+        .job-name-cell { font-weight: 600; color: var(--gray-800); }
+        .job-address-cell { font-size: 13px; color: var(--gray-500); }
+        .uninvoiced-amount { font-size: 13px; color: var(--gray-500); }
+
+        .no-jobs-msg {
+            text-align: center; padding: 40px; color: var(--gray-400);
+            font-size: 14px;
+        }
+
+        .step-footer {
+            display: flex; justify-content: flex-end; gap: 12px;
+            padding: 20px 28px; border-top: 1px solid var(--gray-100);
+        }
+        .btn-cancel {
+            padding: 10px 20px; background: var(--white); border: 1px solid var(--gray-300);
+            color: var(--gray-600); border-radius: 8px; font-size: 14px; font-weight: 500;
+            cursor: pointer; font-family: inherit;
+        }
+        .btn-cancel:hover { background: var(--gray-50); }
+        .btn-next {
+            padding: 10px 24px; background: var(--primary); color: var(--white);
+            border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .btn-next:hover { background: var(--primary-dark); }
+        .btn-next:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ─── Step 3: Invoice Editor ───────────────────────────── */
+        .editor-section {
+            margin-bottom: 24px;
+        }
+        .editor-section h4 {
+            font-size: 12px; font-weight: 700; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
+        }
+        .editor-row {
+            display: grid; grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px; margin-bottom: 16px;
+        }
+        .editor-field label {
+            display: block; font-size: 12px; font-weight: 600;
+            color: var(--gray-500); margin-bottom: 4px;
+        }
+        .editor-field input, .editor-field select, .editor-field textarea {
+            width: 100%; padding: 9px 12px; border: 1px solid var(--gray-200);
+            border-radius: 8px; font-size: 13px; font-family: inherit;
+            color: var(--gray-700); outline: none;
+        }
+        .editor-field input:focus, .editor-field select:focus, .editor-field textarea:focus {
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        /* Product/Service line items editor */
+        .product-header-row {
+            font-size: 13px; font-weight: 700; color: var(--primary);
+            padding-bottom: 8px; border-bottom: 2px solid var(--gray-200);
+            margin-bottom: 0;
+        }
+        .li-table { width: 100%; border-collapse: collapse; }
+        .li-table th {
+            text-align: left; padding: 10px 8px;
+            font-size: 12px; font-weight: 700; color: var(--gray-500);
+        }
+        .li-table td { padding: 8px; vertical-align: top; }
+        .li-table input {
+            width: 100%; padding: 8px 10px; border: 1px solid var(--gray-200);
+            border-radius: 6px; font-size: 13px; font-family: inherit;
+            color: var(--gray-700); outline: none;
+        }
+        .li-table input:focus { border-color: var(--primary); }
+        .li-table .col-name { width: 34%; }
+        .li-table .col-qty { width: 8%; }
+        .li-table .col-price { width: 16%; }
+        .li-table .col-total { width: 16%; }
+        .li-table .col-tax { width: 8%; text-align: center; }
+        .li-table .col-actions { width: 8%; text-align: center; }
+        .li-table .col-tax input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); }
+        .li-remove-btn {
+            background: none; border: none; color: var(--gray-400);
+            cursor: pointer; padding: 6px; font-size: 18px;
+        }
+        .li-remove-btn:hover { color: var(--red); }
+        .li-desc-input {
+            margin-top: 4px; padding: 6px 10px !important;
+            font-size: 12px !important; color: var(--gray-500) !important;
+        }
+        .add-line-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            margin-top: 8px; padding: 6px 12px; font-size: 13px;
+            color: var(--primary); font-weight: 600;
+            background: none; border: none; cursor: pointer;
+            font-family: inherit;
+        }
+        .add-line-btn:hover { text-decoration: underline; }
+
+        /* Totals */
+        .editor-totals {
+            display: flex; flex-direction: column; align-items: flex-end;
+            margin-top: 16px; padding-top: 12px;
+        }
+        .editor-totals-row {
+            display: flex; justify-content: space-between;
+            width: 280px; padding: 6px 0; font-size: 14px;
+        }
+        .editor-totals-row .label { color: var(--gray-600); }
+        .editor-totals-row .value { font-weight: 500; }
+        .editor-totals-row.total {
+            font-weight: 700; font-size: 16px; color: var(--gray-800);
+            border-top: 2px solid var(--primary); padding-top: 10px; margin-top: 4px;
+        }
+
+        /* Notes */
+        .notes-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--gray-100); }
+        .notes-section textarea {
+            width: 100%; min-height: 80px; resize: vertical;
+            padding: 10px 12px; border: 1px solid var(--gray-200);
+            border-radius: 8px; font-size: 13px; font-family: inherit;
+            color: var(--gray-700); outline: none;
+        }
+        .notes-section textarea:focus { border-color: var(--primary); }
+
+        /* Invoice details sidebar */
+        .inv-details-grid {
+            display: grid; grid-template-columns: 2fr 1fr;
+            gap: 28px;
+        }
+        .inv-details-box {
+            background: var(--gray-50); border-radius: 10px; padding: 16px 20px;
+        }
+        .inv-detail-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; font-size: 13px;
+        }
+        .inv-detail-row + .inv-detail-row { border-top: 1px solid var(--gray-200); }
+        .inv-detail-label { color: var(--gray-500); }
+        .inv-detail-value { font-weight: 500; color: var(--gray-700); }
+        .inv-detail-value a { color: var(--primary); text-decoration: none; cursor: pointer; }
+        .inv-detail-value a:hover { text-decoration: underline; }
+
+        /* Loading */
+        .loading { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gray-800); color: var(--white); padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        /* Service Autocomplete */
+        .name-cell-wrap { position: relative; }
+        .svc-autocomplete {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            max-height: 240px; overflow-y: auto; margin-top: 2px;
+        }
+        .svc-autocomplete-item {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--gray-50);
+        }
+        .svc-autocomplete-item:last-child { border-bottom: none; }
+        .svc-autocomplete-item:hover { background: var(--primary-light); }
+        .svc-autocomplete-item .svc-name { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+        .svc-autocomplete-item .svc-desc { font-size: 11px; color: var(--gray-500); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        @media (max-width: 768px) {
+            .client-search-row { flex-direction: column; }
+            .editor-row { grid-template-columns: 1fr; }
+            .inv-details-grid { grid-template-columns: 1fr; }
+            .step-container { padding: 0 16px 32px; }
+            .editor-totals-row { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+    <main class="main">
+        <div class="topbar">
+            <div class="topbar-left">
+                <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+                <h1 id="pageTitle">New Invoice</h1>
+            </div>
+            <div class="topbar-actions">
+                <div class="topbar-search-wrap"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" placeholder="Search..." autocomplete="off"></div>
+                <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+                <div class="topbar-avatar" title="Account">TP</div>
+            </div>
+        </div>
+
+        <div class="content" id="mainContent">
+            <!-- Step 1: Client Search (default view) -->
+            <div id="step1">
+                <div class="breadcrumb">
+                    <a href="invoices.html">Pappas & Co. Landscaping</a>
+                    <span class="sep">|</span>
+                    <span>New Invoice</span>
+                </div>
+                <div class="step-container">
+                    <div class="step-title">New Invoice</div>
+                    <div class="step-subtitle">Which client would you like to create this invoice for?</div>
+
+                    <div class="client-search-row">
+                        <input type="text" class="client-search-input" id="clientSearch"
+                               placeholder="Search clients..." oninput="filterClients()">
+                        <span class="or-text">or</span>
+                        <button class="btn-create-client" onclick="window.location.href='customers.html?new=1'">+ Create New Client</button>
+                    </div>
+
+                    <div id="clientListContainer">
+                        <div class="loading">Loading clients...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Select Jobs -->
+            <div id="step2" style="display:none;">
+                <div class="breadcrumb">
+                    <a href="invoices.html">Pappas & Co. Landscaping</a>
+                    <span class="sep">|</span>
+                    <span id="step2Breadcrumb">New Invoice for Client</span>
+                </div>
+                <div class="step-container">
+                    <div class="invoice-doc-card">
+                        <div class="invoice-doc-header">
+                            <div class="invoice-doc-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                            </div>
+                            <div class="invoice-doc-title" id="step2Title">New Invoice For Client</div>
+                        </div>
+                        <div class="invoice-doc-body">
+                            <div class="jobs-section-title">Select the jobs you want to invoice:</div>
+                            <div id="jobsTableContainer">
+                                <div class="loading">Loading jobs...</div>
+                            </div>
+                        </div>
+                        <div class="step-footer">
+                            <button class="btn-cancel" onclick="goToStep(1)">Cancel</button>
+                            <button class="btn-next" id="nextStepBtn" onclick="goToStep(3)" disabled>Next Step</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Invoice Editor -->
+            <div id="step3" style="display:none;">
+                <div class="breadcrumb">
+                    <a href="invoices.html">Pappas & Co. Landscaping</a>
+                    <span class="sep">|</span>
+                    <span id="step3Breadcrumb">Invoice for Client</span>
+                </div>
+                <div class="step-container">
+                    <div class="invoice-doc-card">
+                        <div class="invoice-doc-body">
+                            <!-- Invoice Header -->
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+                                <div>
+                                    <div style="font-size:24px;font-weight:700;color:var(--gray-800);margin-bottom:4px;" id="editorTitle">Invoice for Client</div>
+                                    <div class="editor-section" style="margin-top:12px;">
+                                        <h4>Invoice subject</h4>
+                                        <input type="text" id="invoiceSubject" value="For Services Rendered"
+                                               style="padding:10px 14px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;width:100%;max-width:500px;outline:none;">
+                                    </div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="font-size:14px;color:var(--gray-500);" id="editorInvNumber">Invoice #</div>
+                                </div>
+                            </div>
+
+                            <!-- Details Grid -->
+                            <div class="inv-details-grid" style="margin-bottom:28px;">
+                                <div>
+                                    <div class="editor-row">
+                                        <div class="editor-field">
+                                            <label>Billing address</label>
+                                            <input type="text" id="editorAddress" placeholder="Address">
+                                        </div>
+                                        <div class="editor-field">
+                                            <label>Contact email</label>
+                                            <input type="email" id="editorEmail" placeholder="email@example.com">
+                                        </div>
+                                        <div class="editor-field">
+                                            <label>Phone</label>
+                                            <input type="text" id="editorPhone" placeholder="Phone number">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="inv-details-box">
+                                    <div class="inv-detail-row">
+                                        <span class="inv-detail-label">Issued date</span>
+                                        <span class="inv-detail-value"><a onclick="document.getElementById('issuedDate').showPicker()" id="issuedDateDisplay">Date Sent</a><input type="date" id="issuedDate" style="position:absolute;opacity:0;width:0;" onchange="document.getElementById('issuedDateDisplay').textContent=this.value?new Date(this.value+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Date Sent'"></span>
+                                    </div>
+                                    <div class="inv-detail-row">
+                                        <span class="inv-detail-label">Payment due</span>
+                                        <span class="inv-detail-value">
+                                            <select id="paymentTerms" style="border:none;font-size:13px;font-weight:500;color:var(--primary);background:none;cursor:pointer;">
+                                                <option value="on_receipt">On Receipt</option>
+                                                <option value="net_15">Net 15</option>
+                                                <option value="net_30" selected>Net 30</option>
+                                                <option value="net_60">Net 60</option>
+                                                <option value="custom">Custom Date</option>
+                                            </select>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Line Items -->
+                            <div class="product-header-row">Product / Service</div>
+                            <table class="li-table" id="lineItemsTable">
+                                <thead>
+                                    <tr>
+                                        <th class="col-name">Name</th>
+                                        <th class="col-qty">Qty.</th>
+                                        <th class="col-price">Unit Price</th>
+                                        <th class="col-total">Total</th>
+                                        <th class="col-tax">Tax</th>
+                                        <th class="col-actions"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lineItemsBody">
+                                </tbody>
+                            </table>
+                            <button class="add-line-btn" onclick="addEditorLine()">+ Add Line Item</button>
+
+                            <!-- Totals -->
+                            <div class="editor-totals" id="editorTotals">
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="notes-section">
+                                <div class="editor-field">
+                                    <label>Contract / Disclaimer</label>
+                                    <textarea id="editorNotes" placeholder="Thank you for your business. Please contact us with any questions regarding this invoice."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="step-footer">
+                            <button class="btn-cancel" onclick="goToStep(2)">Back</button>
+                            <button class="btn-cancel" onclick="saveDraft()">Save as Draft</button>
+                            <button class="btn-cancel" onclick="saveAndPrint()">Save & Print PDF</button>
+                            <button class="btn-next" onclick="saveAndSend()">Save & Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let allClients = [];
+        let selectedClient = null;
+        let clientJobs = [];
+        let selectedJobIds = new Set();
+        let editorLineItems = [];
+        let currentTaxRate = 0;
+        let currentTaxAmount = 0;
+        let allServices = [];
+        let activeAutocompleteIdx = null;
+
+        function clientName(c) {
+            return c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim() || c.customer_name || 'Unknown';
+        }
+
+        // Load services for autocomplete
+        async function loadServices() {
+            try {
+                const res = await fetch('/api/services');
+                const data = await res.json();
+                allServices = data.services || [];
+            } catch(e) { console.error('Could not load services'); }
+        }
+        loadServices();
+
+        async function recalculateTax() {
+            const items = editorLineItems.map(li => ({
+                name: li.name || li.description || '',
+                amount: parseFloat(li.amount) || 0,
+                taxable: li.taxable !== false
+            }));
+            if (items.length === 0 || items.every(i => i.amount === 0)) {
+                updateTaxDisplay(0, 0, 0);
+                return;
+            }
+            try {
+                const res = await fetch('/api/tax/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customer_id: selectedClient ? selectedClient.id : null,
+                        property_id: null,
+                        line_items: items
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentTaxRate = data.effectiveRate;
+                    currentTaxAmount = data.taxAmount;
+                    updateTaxDisplay(data.subtotal, data.taxAmount, data.total);
+                }
+            } catch(e) { console.error('Tax calc error:', e); }
+        }
+
+        function updateTaxDisplay(subtotal, taxAmount, total) {
+            currentTaxAmount = taxAmount;
+            const rateStr = currentTaxRate ? ' (' + (currentTaxRate * 100).toFixed(2) + '%)' : '';
+            document.getElementById('editorTotals').innerHTML = `
+                <div class="editor-totals-row"><span class="label">Subtotal</span><span class="value">${formatCurrency(subtotal)}</span></div>
+                <div class="editor-totals-row"><span class="label">Tax${rateStr}</span><span class="value">${formatCurrency(taxAmount)}</span></div>
+                <div class="editor-totals-row total"><span class="label">Total</span><span class="value">${formatCurrency(total)}</span></div>
+            `;
+        }
+
+        function showServiceAutocomplete(inputEl, idx) {
+            const q = inputEl.value.toLowerCase().trim();
+            hideAllAutocompletes();
+            if (q.length < 1) return;
+            const matches = allServices.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
+            if (matches.length === 0) return;
+
+            activeAutocompleteIdx = idx;
+            const wrap = inputEl.closest('.name-cell-wrap');
+            const dropdown = document.createElement('div');
+            dropdown.className = 'svc-autocomplete';
+            dropdown.id = 'svc-ac-' + idx;
+            matches.forEach(s => {
+                const shortDesc = s.description.replace(/<br\s*\/?>/gi, ' ').substring(0, 80);
+                const item = document.createElement('div');
+                item.className = 'svc-autocomplete-item';
+                item.innerHTML = '<div class="svc-name">' + esc(s.name) + '</div><div class="svc-desc">' + esc(shortDesc) + '</div>';
+                item.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    editorLineItems[idx].name = s.name;
+                    editorLineItems[idx].description = s.description.replace(/<br\s*\/?>/gi, '\n').substring(0, 200);
+                    renderEditorLines();
+                    updateEditorTotals();
+                });
+                dropdown.appendChild(item);
+            });
+            wrap.appendChild(dropdown);
+        }
+
+        function hideAllAutocompletes() {
+            document.querySelectorAll('.svc-autocomplete').forEach(el => el.remove());
+            activeAutocompleteIdx = null;
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.name-cell-wrap')) hideAllAutocompletes();
+        });
+
+        // ─── Init ─────────────────────────────────────────────
+        loadClients();
+
+        // Check if pre-selected client from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const preClientId = urlParams.get('client_id') || urlParams.get('customer_id') || urlParams.get('customer');
+
+        async function loadClients() {
+            try {
+                const res = await fetch('/api/customers');
+                const data = await res.json();
+                allClients = data.customers || data || [];
+                if (preClientId) {
+                    const c = allClients.find(c => String(c.id) === preClientId);
+                    if (c) { selectClient(c); return; }
+                }
+                renderClients(allClients);
+            } catch (e) {
+                document.getElementById('clientListContainer').innerHTML =
+                    '<div style="color:var(--red);padding:20px;">Error loading clients</div>';
+            }
+        }
+
+        function filterClients() {
+            const q = document.getElementById('clientSearch').value.toLowerCase();
+            const filtered = allClients.filter(c => {
+                const name = clientName(c).toLowerCase();
+                const email = (c.email || '').toLowerCase();
+                const phone = (c.phone || c.mobile || '').toLowerCase();
+                const addr = (c.street || c.address || '').toLowerCase();
+                return name.includes(q) || email.includes(q) || phone.includes(q) || addr.includes(q);
+            });
+            renderClients(filtered);
+        }
+
+        function renderClients(clients) {
+            if (clients.length === 0) {
+                document.getElementById('clientListContainer').innerHTML =
+                    '<div style="text-align:center;padding:32px;color:var(--gray-400);">No clients found</div>';
+                return;
+            }
+
+            const active = clients.filter(c => c.customer_type !== 'inactive');
+            window._displayedClients = active;
+            let html = '';
+            if (active.length > 0) {
+                html += '<div class="client-section-label">Active</div><div class="client-list">';
+                html += active.map((c, idx) => {
+                    const name = clientName(c);
+                    const phone = c.phone || c.mobile || '';
+                    const addr = c.street ? [c.street, c.city, c.state].filter(Boolean).join(', ') : (c.address || '');
+                    const detail = [phone, addr].filter(Boolean).join(' · ');
+                    return `<div class="client-item" onclick="selectClient(window._displayedClients[${idx}])">
+                        <div class="client-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                        <div class="client-info">
+                            <div class="client-name">${esc(name)}</div>
+                            <div class="client-detail">${esc(detail)}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+                html += '</div>';
+            }
+            document.getElementById('clientListContainer').innerHTML = html;
+        }
+
+        function selectClient(client) {
+            selectedClient = client;
+            const name = clientName(client);
+            document.getElementById('step2Title').textContent = 'New Invoice For ' + name;
+            document.getElementById('step2Breadcrumb').textContent = 'New Invoice for ' + name;
+            document.getElementById('pageTitle').textContent = 'New Invoice for ' + name;
+            goToStep(2);
+            loadClientJobs(client.id);
+        }
+
+        async function loadClientJobs(clientId) {
+            selectedJobIds.clear();
+            document.getElementById('jobsTableContainer').innerHTML = '<div class="loading">Loading completed jobs...</div>';
+            try {
+                const res = await fetch('/api/jobs/completed-uninvoiced');
+                const data = await res.json();
+                const allJobs = data.jobs || [];
+                clientJobs = allJobs.filter(j => String(j.customer_id) === String(clientId));
+
+                if (clientJobs.length === 0) {
+                    document.getElementById('jobsTableContainer').innerHTML =
+                        `<div class="no-jobs-msg">No uninvoiced completed jobs for this client.<br><br>
+                        <button class="btn-next" onclick="goToStep(3)" style="font-size:13px;">Create blank invoice instead</button></div>`;
+                    document.getElementById('nextStepBtn').disabled = false;
+                    return;
+                }
+
+                let html = '<table class="jobs-table"><thead><tr>' +
+                    '<th style="width:40px;"></th><th>Job name</th><th>Address</th><th>Job type</th><th>Uninvoiced</th><th style="text-align:right;">Invoice amount</th>' +
+                    '</tr></thead><tbody>';
+
+                clientJobs.forEach(j => {
+                    const d = j.job_date ? new Date(j.job_date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+                    html += `<tr>
+                        <td><input type="checkbox" value="${j.id}" onchange="toggleJob(this)"></td>
+                        <td class="job-name-cell">#${j.id} ${esc(j.service_type || 'Service')}${d ? ' (' + d + ')' : ''}</td>
+                        <td class="job-address-cell">${esc(j.address || '')}</td>
+                        <td>One-off</td>
+                        <td class="uninvoiced-amount">${formatCurrency(j.service_price || 0)}</td>
+                        <td style="text-align:right;font-weight:700;">${formatCurrency(j.service_price || 0)}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table>';
+                document.getElementById('jobsTableContainer').innerHTML = html;
+                updateNextBtn();
+            } catch (e) {
+                document.getElementById('jobsTableContainer').innerHTML =
+                    '<div style="color:var(--red);padding:20px;text-align:center;">Error loading jobs</div>';
+            }
+        }
+
+        function toggleJob(cb) {
+            const id = parseInt(cb.value);
+            if (cb.checked) selectedJobIds.add(id);
+            else selectedJobIds.delete(id);
+            updateNextBtn();
+        }
+
+        function updateNextBtn() {
+            const btn = document.getElementById('nextStepBtn');
+            btn.disabled = selectedJobIds.size === 0 && clientJobs.length > 0;
+        }
+
+        function goToStep(step) {
+            document.getElementById('step1').style.display = step === 1 ? '' : 'none';
+            document.getElementById('step2').style.display = step === 2 ? '' : 'none';
+            document.getElementById('step3').style.display = step === 3 ? '' : 'none';
+
+            if (step === 1) {
+                document.getElementById('pageTitle').textContent = 'New Invoice';
+            }
+            if (step === 3) {
+                buildEditorFromJobs();
+            }
+        }
+
+        function buildEditorFromJobs() {
+            const name = clientName(selectedClient);
+            document.getElementById('editorTitle').textContent = 'Invoice for ' + name;
+            document.getElementById('step3Breadcrumb').textContent = 'Invoice for ' + name;
+            // Build full address from customer fields
+            let addr = selectedClient.address || '';
+            if (!addr && selectedClient.street) {
+                const parts = [selectedClient.street, selectedClient.street2].filter(Boolean);
+                const cityLine = [selectedClient.city, selectedClient.state].filter(Boolean).join(', ');
+                if (selectedClient.postal_code) parts.push(cityLine ? cityLine + ' ' + selectedClient.postal_code : selectedClient.postal_code);
+                else if (cityLine) parts.push(cityLine);
+                addr = parts.join(', ');
+            }
+            document.getElementById('editorAddress').value = addr;
+            document.getElementById('editorEmail').value = selectedClient.email || '';
+            document.getElementById('editorPhone').value = selectedClient.phone || selectedClient.mobile || '';
+
+            // Build line items from selected jobs
+            editorLineItems = [];
+            const selectedJobs = clientJobs.filter(j => selectedJobIds.has(j.id));
+
+            if (selectedJobs.length > 0) {
+                selectedJobs.forEach(j => {
+                    const d = j.job_date ? new Date(j.job_date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+                    editorLineItems.push({
+                        name: j.service_type || 'Service',
+                        description: 'Job #' + j.id + (d ? ' - ' + d : ''),
+                        quantity: 1,
+                        rate: parseFloat(j.service_price) || 0,
+                        amount: parseFloat(j.service_price) || 0,
+                        job_id: j.id,
+                        taxable: true
+                    });
+                });
+            } else {
+                // Blank line item
+                editorLineItems.push({ name: '', description: '', quantity: 1, rate: 0, amount: 0, taxable: true });
+            }
+
+            renderEditorLines();
+            updateEditorTotals();
+        }
+
+        function renderEditorLines() {
+            const tbody = document.getElementById('lineItemsBody');
+            tbody.innerHTML = editorLineItems.map((item, i) => `
+                <tr>
+                    <td class="col-name">
+                        <div class="name-cell-wrap">
+                            <input type="text" value="${esc(item.name)}" placeholder="Name"
+                                   oninput="editorLineItems[${i}].name=this.value; showServiceAutocomplete(this, ${i})"
+                                   onfocus="showServiceAutocomplete(this, ${i})"
+                                   onblur="setTimeout(hideAllAutocompletes, 200)">
+                        </div>
+                        <input type="text" class="li-desc-input" value="${esc(item.description)}" placeholder="Description"
+                               oninput="editorLineItems[${i}].description=this.value">
+                    </td>
+                    <td class="col-qty">
+                        <input type="number" value="${item.quantity}" min="1" step="1"
+                               onchange="updateLineAmount(${i}, this.value, null)" style="text-align:center;">
+                    </td>
+                    <td class="col-price">
+                        <input type="number" value="${item.rate.toFixed(2)}" min="0" step="0.01"
+                               onchange="updateLineAmount(${i}, null, this.value)" style="text-align:right;">
+                    </td>
+                    <td class="col-total" style="font-weight:600;padding-top:16px;">
+                        ${formatCurrency(item.amount)}
+                    </td>
+                    <td class="col-tax" style="padding-top:16px;">
+                        <input type="checkbox" ${item.taxable !== false ? 'checked' : ''}
+                               onchange="editorLineItems[${i}].taxable=this.checked; updateEditorTotals()" title="Taxable">
+                    </td>
+                    <td class="col-actions">
+                        <button class="li-remove-btn" onclick="removeEditorLine(${i})" title="Remove">&times;</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateLineAmount(idx, qty, rate) {
+            if (qty !== null) editorLineItems[idx].quantity = parseInt(qty) || 1;
+            if (rate !== null) editorLineItems[idx].rate = parseFloat(rate) || 0;
+            editorLineItems[idx].amount = editorLineItems[idx].quantity * editorLineItems[idx].rate;
+            renderEditorLines();
+            updateEditorTotals();
+        }
+
+        function addEditorLine() {
+            editorLineItems.push({ name: '', description: '', quantity: 1, rate: 0, amount: 0, taxable: true });
+            renderEditorLines();
+        }
+
+        function removeEditorLine(idx) {
+            editorLineItems.splice(idx, 1);
+            if (editorLineItems.length === 0) addEditorLine();
+            renderEditorLines();
+            updateEditorTotals();
+        }
+
+        function updateEditorTotals() {
+            recalculateTax();
+        }
+
+        async function saveDraft() {
+            await saveInvoice('draft');
+        }
+
+        async function saveAndSend() {
+            await saveInvoice('send');
+        }
+
+        async function saveAndPrint() {
+            await saveInvoice('print');
+        }
+
+        async function saveInvoice(action) {
+            const name = clientName(selectedClient);
+            const subtotal = editorLineItems.reduce((s, i) => s + (i.amount || 0), 0);
+            const total = subtotal + currentTaxAmount;
+
+            // Calculate due date from payment terms
+            let dueDate = null;
+            const terms = document.getElementById('paymentTerms').value;
+            const now = new Date();
+            if (terms === 'net_15') dueDate = new Date(now.getTime() + 15*86400000);
+            else if (terms === 'net_30') dueDate = new Date(now.getTime() + 30*86400000);
+            else if (terms === 'net_60') dueDate = new Date(now.getTime() + 60*86400000);
+
+            const payload = {
+                customer_id: selectedClient.id,
+                customer_name: name,
+                customer_email: document.getElementById('editorEmail').value,
+                customer_address: document.getElementById('editorAddress').value,
+                line_items: editorLineItems.map(li => ({
+                    name: li.name, description: li.description,
+                    quantity: li.quantity, rate: li.rate, amount: li.amount,
+                    taxable: li.taxable !== false
+                })),
+                subtotal, tax_rate: currentTaxRate, tax_amount: currentTaxAmount, total,
+                due_date: dueDate ? dueDate.toISOString().split('T')[0] : null,
+                notes: document.getElementById('editorNotes').value
+            };
+
+            try {
+                const res = await fetch('/api/invoices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) { showToast('Error creating invoice', true); return; }
+
+                const invoiceId = data.id || data.invoice?.id;
+
+                // Link selected jobs to this invoice
+                for (const jobId of selectedJobIds) {
+                    await fetch(`/api/jobs/${jobId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ invoice_id: invoiceId })
+                    });
+                }
+
+                if (action === 'send' && invoiceId) {
+                    await fetch(`/api/invoices/${invoiceId}/send`, { method: 'POST' });
+                    showToast('Invoice created and sent!');
+                } else if (action === 'print' && invoiceId) {
+                    showToast('Invoice saved — generating PDF...');
+                    window.open(`/api/invoices/${invoiceId}/pdf`, '_blank');
+                } else {
+                    showToast('Invoice saved as draft');
+                }
+
+                setTimeout(() => {
+                    window.location.href = invoiceId
+                        ? `invoice-detail.html?id=${invoiceId}`
+                        : 'invoices.html';
+                }, 1500);
+            } catch (e) {
+                showToast('Error creating invoice', true);
+            }
+        }
+
+        // ─── Helpers ──────────────────────────────────────────
+        function formatCurrency(amt) {
+            return '$' + parseFloat(amt || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.background = isError ? 'var(--red)' : 'var(--gray-800)';
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+    </script>
+</body>
+</html>

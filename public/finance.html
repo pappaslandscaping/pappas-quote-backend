@@ -5,227 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Revenue & Finance - YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --lime: #c9dd80;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --spacing-xs: 4px;
-            --spacing-sm: 8px;
-            --spacing-md: 16px;
-            --spacing-lg: 24px;
-            --spacing-xl: 32px;
-            --white: #ffffff;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-        }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            overflow-x: hidden;
-        }
-
-        /* Sidebar Styles */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: white;
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            z-index: 100;
-        }
-
-        .sidebar-brand {
-            padding: 20px;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 80px;
-        }
-
-        .sidebar-brand img {
-            max-height: 48px;
-            width: auto;
-            max-width: 180px;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            overflow-y: auto;
-            padding: var(--spacing-sm);
-        }
-
-        .nav-section {
-            margin-bottom: var(--spacing-sm);
-        }
-
-        .nav-section-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: var(--spacing-sm) var(--spacing-md);
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.15s;
-            cursor: pointer;
-        }
-
-        .nav-item svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
-
-        .nav-item:hover {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .nav-item.active {
-            background: var(--forest);
-            color: var(--lime);
-        }
-
-        .sidebar-footer {
-            padding: var(--spacing-md);
-            border-top: 1px solid var(--gray-100);
-        }
-
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .sidebar-user .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .sidebar-user .name {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        .sidebar-user .role {
-            font-size: 11px;
-            color: var(--gray-400);
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: var(--sidebar-w);
-            padding: 40px;
-            min-height: 100vh;
-        }
-
-        /* Topbar */
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-        }
-
-        .topbar h1 {
-            font-family: 'Qualy', serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--forest);
-        }
-
-        .refresh-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            color: var(--gray-600);
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-        }
-
-        .refresh-btn:hover {
-            background: var(--gray-50);
-            color: var(--forest);
-        }
-
-        .refresh-btn svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* Stat Cards Grid */
+        /* Period Toggle */
         .period-btn {
             padding: 7px 18px; border-radius: 20px; border: 1px solid var(--gray-300);
             background: white; color: var(--gray-600); font-size: 13px; font-weight: 500;
-            cursor: pointer; transition: all 0.15s;
+            cursor: pointer; transition: all 0.15s; font-family: inherit;
         }
         .period-btn:hover { background: var(--gray-100); }
         .period-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
+        /* Stat Cards Grid */
         .stat-cards {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -235,7 +26,7 @@
 
         .stat-card {
             background: white;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             border-radius: 12px;
             padding: 24px;
             display: flex;
@@ -258,25 +49,10 @@
             justify-content: center;
         }
 
-        .stat-card-icon.green {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .stat-card-icon.red {
-            background: var(--red-bg);
-            color: var(--red);
-        }
-
-        .stat-card-icon.blue {
-            background: var(--blue-bg);
-            color: var(--blue);
-        }
-
-        .stat-card-icon svg {
-            width: 24px;
-            height: 24px;
-        }
+        .stat-card-icon.green { background: var(--green-bg); color: var(--green); }
+        .stat-card-icon.red { background: var(--red-bg); color: var(--red); }
+        .stat-card-icon.blue { background: var(--blue-bg); color: var(--blue); }
+        .stat-card-icon svg { width: 24px; height: 24px; }
 
         .stat-card-title {
             font-size: 13px;
@@ -308,20 +84,13 @@
             font-weight: 600;
         }
 
-        .trend-badge.up {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .trend-badge.down {
-            background: var(--red-bg);
-            color: var(--red);
-        }
+        .trend-badge.up { background: var(--green-bg); color: var(--green); }
+        .trend-badge.down { background: var(--red-bg); color: var(--red); }
 
         /* Chart Card */
         .chart-card {
             background: white;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             border-radius: 12px;
             padding: 24px;
             margin-bottom: 40px;
@@ -345,17 +114,10 @@
             min-width: 800px;
         }
 
-        /* Two Column Grid */
-        .two-col-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-        }
-
         /* Service Breakdown Table */
         .service-table-card {
             background: white;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             border-radius: 12px;
             padding: 24px;
         }
@@ -389,25 +151,15 @@
             font-size: 14px;
         }
 
-        .service-table tr:last-child td {
-            border-bottom: none;
-        }
+        .service-table tr:last-child td { border-bottom: none; }
 
-        .service-name {
-            font-weight: 500;
-            color: var(--gray-700);
-        }
-
-        .service-revenue {
-            text-align: right;
-            font-weight: 600;
-            color: var(--green);
-        }
+        .service-name { font-weight: 500; color: var(--gray-700); }
+        .service-revenue { text-align: right; font-weight: 600; color: var(--green); }
 
         /* Outstanding Invoices Card */
         .outstanding-card {
             background: white;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
             border-radius: 12px;
             padding: 24px;
             display: flex;
@@ -421,28 +173,10 @@
             color: var(--gray-700);
         }
 
-        .outstanding-stats {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .outstanding-stat {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .outstanding-label {
-            font-size: 14px;
-            color: var(--gray-600);
-        }
-
-        .outstanding-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--gray-700);
-        }
+        .outstanding-stats { display: flex; flex-direction: column; gap: 16px; }
+        .outstanding-stat { display: flex; justify-content: space-between; align-items: center; }
+        .outstanding-label { font-size: 14px; color: var(--gray-600); }
+        .outstanding-value { font-size: 24px; font-weight: 700; color: var(--gray-700); }
 
         .outstanding-overdue {
             padding: 12px;
@@ -467,35 +201,28 @@
             transition: all 0.2s;
         }
 
-        .outstanding-link:hover {
-            border-bottom-color: var(--blue);
+        .outstanding-link:hover { border-bottom-color: var(--blue); }
+        .outstanding-link svg { width: 16px; height: 16px; }
+
+        /* Refresh Button */
+        .refresh-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            color: var(--gray-600);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
         }
 
-        .outstanding-link svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* Loading State */
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--gray-500);
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            border: 2px solid var(--gray-300);
-            border-top-color: var(--forest);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        .refresh-btn:hover { background: var(--gray-50); color: var(--primary); }
+        .refresh-btn svg { width: 16px; height: 16px; }
 
         /* Error State */
         .error-message {
@@ -509,341 +236,191 @@
         }
 
         @media (max-width: 1100px) {
-            .two-col-grid { grid-template-columns: 1fr; }
+            .three-col-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
-        <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item active">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-                <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div></div>
-    </aside>
+<script src="shell.js"></script>
 
     <!-- Main Content -->
-    <main class="main-content">
-        <!-- Topbar -->
+    <main class="main">
         <div class="topbar">
-            <h1>Revenue</h1>
-            <button class="refresh-btn" onclick="loadFinance()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"></path>
-                </svg>
-                Refresh
-            </button>
-        </div>
-
-        <!-- Error Message -->
-        <div id="errorMessage" style="display: none;"></div>
-
-        <!-- Period Toggle -->
-        <div style="display:flex; gap:8px; margin-bottom:16px;">
-            <button onclick="setPeriod('month')" id="btnMonth" class="period-btn active">This Month</button>
-            <button onclick="setPeriod('ytd')" id="btnYTD" class="period-btn">Year to Date</button>
-            <button onclick="setPeriod('alltime')" id="btnAllTime" class="period-btn">All Time</button>
-        </div>
-
-        <!-- Stat Cards -->
-        <div class="stat-cards">
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div class="stat-card-icon green">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2v20m10-10H2"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="stat-card-title" id="revenueLabel">Revenue This Month</div>
-                <div class="stat-card-value" id="revenueThisMonth">$0.00</div>
-                <div class="stat-card-footer">
-                    <span id="revenueTrend" class="trend-badge up">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;">
-                            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                            <polyline points="17 6 23 6 23 12"></polyline>
-                        </svg>
-                        <span id="revenueTrendText">+0%</span>
-                    </span>
-                </div>
+            <div class="topbar-left">
+                <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+                <h1>Revenue</h1>
             </div>
-
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div class="stat-card-icon red">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="1"/><path d="M19.07 4.93L5.95 18.05M19.07 18.05L5.95 4.93"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="stat-card-title" id="expensesLabel">Expenses This Month</div>
-                <div class="stat-card-value" id="expensesThisMonth">$0.00</div>
-                <div class="stat-card-footer">
-                    <span style="color: var(--gray-500); font-size: 13px;"></span>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div class="stat-card-header">
-                    <div class="stat-card-icon blue">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="stat-card-title" id="profitLabel">Profit This Month</div>
-                <div class="stat-card-value" id="profitThisMonth">$0.00</div>
-                <div class="stat-card-footer">
-                    <span style="color: var(--gray-500); font-size: 13px;"></span>
-                </div>
+            <div class="topbar-actions">
+                <div class="topbar-search-wrap" id="search-container"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off"><div class="search-dropdown" id="search-dropdown"></div></div>
+                <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+                <div class="topbar-avatar" title="Account">TP</div>
             </div>
         </div>
 
-        <!-- Revenue vs Expenses Chart -->
-        <div class="chart-card">
-            <h2 class="chart-title">Revenue vs Expenses (Last 12 Months)</h2>
-            <div class="chart-container">
-                <svg id="revenueChart" class="chart-svg" viewBox="0 0 1000 310">
-                    <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading chart...</text>
-                </svg>
-            </div>
-        </div>
-
-        <!-- Profit Margin Trend -->
-        <div class="chart-card">
-            <h2 class="chart-title">Profit Margin Trend (Revenue - Expenses)</h2>
-            <div class="chart-container">
-                <svg id="profitChart" class="chart-svg" viewBox="0 0 1000 260">
-                    <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading...</text>
-                </svg>
-            </div>
-        </div>
-
-        <!-- Three Column Grid -->
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-bottom:40px;">
-            <!-- Expense Breakdown Donut -->
-            <div class="service-table-card" style="display:flex;flex-direction:column;align-items:center;">
-                <h3 style="align-self:flex-start;">Expense Breakdown</h3>
-                <svg id="expenseDonut" viewBox="0 0 280 280" style="width:240px;height:240px;margin:16px 0;">
-                    <text x="140" y="140" text-anchor="middle" dy=".3em" fill="var(--gray-400)" font-size="13">Loading...</text>
-                </svg>
-                <div id="donutLegend" style="display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;font-size:12px;color:var(--gray-600);"></div>
+        <div class="page-content">
+            <!-- Refresh Button -->
+            <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+                <button class="refresh-btn" onclick="loadFinance()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"></path>
+                    </svg>
+                    Refresh
+                </button>
             </div>
 
-            <!-- Service Breakdown Table -->
-            <div class="service-table-card">
-                <h3>Revenue by Service Type</h3>
-                <table class="service-table" id="serviceTable">
-                    <thead>
-                        <tr>
-                            <th>Service</th>
-                            <th style="text-align: right;">Revenue</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="2" style="text-align: center; padding: 40px 0; color: var(--gray-400);">Loading...</td></tr>
-                    </tbody>
-                </table>
+            <!-- Error Message -->
+            <div id="errorMessage" style="display: none;"></div>
+
+            <!-- Period Toggle -->
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+                <button onclick="setPeriod('month')" id="btnMonth" class="period-btn active">This Month</button>
+                <button onclick="setPeriod('ytd')" id="btnYTD" class="period-btn">Year to Date</button>
+                <button onclick="setPeriod('alltime')" id="btnAllTime" class="period-btn">All Time</button>
             </div>
 
-            <!-- Outstanding Invoices + Cash Flow -->
-            <div style="display:flex;flex-direction:column;gap:24px;">
-                <div class="outstanding-card">
-                    <h3>Outstanding Invoices</h3>
-                    <div class="outstanding-stats">
-                        <div class="outstanding-stat">
-                            <span class="outstanding-label">Total Outstanding</span>
-                            <span class="outstanding-value" id="outstandingAmount">$0.00</span>
-                        </div>
-                        <div class="outstanding-stat">
-                            <span class="outstanding-label">Overdue Invoices</span>
-                            <span class="outstanding-value" id="overdueCount">0</span>
+            <!-- Stat Cards -->
+            <div class="stat-cards">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-icon green">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2v20m10-10H2"/>
+                            </svg>
                         </div>
                     </div>
-                    <div id="overdueWarning" style="display: none;" class="outstanding-overdue">
-                        <strong id="overdueText">0 invoices</strong> are overdue
+                    <div class="stat-card-title" id="revenueLabel">Revenue This Month</div>
+                    <div class="stat-card-value" id="revenueThisMonth">$0.00</div>
+                    <div class="stat-card-footer">
+                        <span id="revenueTrend" class="trend-badge up">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;">
+                                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                                <polyline points="17 6 23 6 23 12"></polyline>
+                            </svg>
+                            <span id="revenueTrendText">+0%</span>
+                        </span>
                     </div>
-                    <a href="invoices.html" class="outstanding-link">
-                        View Invoices
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="9 18 15 12 9 6"></polyline>
-                        </svg>
-                    </a>
                 </div>
 
-                <!-- Cash Flow Forecast -->
-                <div class="outstanding-card" id="cashFlowCard">
-                    <h3>Cash Flow Forecast (90 Days)</h3>
-                    <div class="outstanding-stats" id="cashFlowStats">
-                        <div class="outstanding-stat">
-                            <span class="outstanding-label">Expected Inflows</span>
-                            <span class="outstanding-value" id="forecastInflow" style="color:var(--green);">$0</span>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-icon red">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="1"/><path d="M19.07 4.93L5.95 18.05M19.07 18.05L5.95 4.93"/>
+                            </svg>
                         </div>
-                        <div class="outstanding-stat">
-                            <span class="outstanding-label">Est. Outflows</span>
-                            <span class="outstanding-value" id="forecastOutflow" style="color:var(--red);">$0</span>
+                    </div>
+                    <div class="stat-card-title" id="expensesLabel">Expenses This Month</div>
+                    <div class="stat-card-value" id="expensesThisMonth">$0.00</div>
+                    <div class="stat-card-footer">
+                        <span style="color: var(--gray-500); font-size: 13px;"></span>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-icon blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            </svg>
                         </div>
-                        <div class="outstanding-stat">
-                            <span class="outstanding-label">Net Forecast</span>
-                            <span class="outstanding-value" id="forecastNet">$0</span>
+                    </div>
+                    <div class="stat-card-title" id="profitLabel">Profit This Month</div>
+                    <div class="stat-card-value" id="profitThisMonth">$0.00</div>
+                    <div class="stat-card-footer">
+                        <span style="color: var(--gray-500); font-size: 13px;"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Revenue vs Expenses Chart -->
+            <div class="chart-card">
+                <h2 class="chart-title">Revenue vs Expenses (Last 12 Months)</h2>
+                <div class="chart-container">
+                    <svg id="revenueChart" class="chart-svg" viewBox="0 0 1000 310">
+                        <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading chart...</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Profit Margin Trend -->
+            <div class="chart-card">
+                <h2 class="chart-title">Profit Margin Trend (Revenue - Expenses)</h2>
+                <div class="chart-container">
+                    <svg id="profitChart" class="chart-svg" viewBox="0 0 1000 260">
+                        <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="var(--gray-400)">Loading...</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Three Column Grid -->
+            <div class="three-col-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;margin-bottom:40px;">
+                <!-- Expense Breakdown Donut -->
+                <div class="service-table-card" style="display:flex;flex-direction:column;align-items:center;">
+                    <h3 style="align-self:flex-start;">Expense Breakdown</h3>
+                    <svg id="expenseDonut" viewBox="0 0 280 280" style="width:240px;height:240px;margin:16px 0;">
+                        <text x="140" y="140" text-anchor="middle" dy=".3em" fill="var(--gray-400)" font-size="13">Loading...</text>
+                    </svg>
+                    <div id="donutLegend" style="display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;font-size:12px;color:var(--gray-600);"></div>
+                </div>
+
+                <!-- Service Breakdown Table -->
+                <div class="service-table-card">
+                    <h3>Revenue by Service Type</h3>
+                    <table class="service-table" id="serviceTable">
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th style="text-align: right;">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="2" style="text-align: center; padding: 40px 0; color: var(--gray-400);">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Outstanding Invoices + Cash Flow -->
+                <div style="display:flex;flex-direction:column;gap:24px;">
+                    <div class="outstanding-card">
+                        <h3>Outstanding Invoices</h3>
+                        <div class="outstanding-stats">
+                            <div class="outstanding-stat">
+                                <span class="outstanding-label">Total Outstanding</span>
+                                <span class="outstanding-value" id="outstandingAmount">$0.00</span>
+                            </div>
+                            <div class="outstanding-stat">
+                                <span class="outstanding-label">Overdue Invoices</span>
+                                <span class="outstanding-value" id="overdueCount">0</span>
+                            </div>
+                        </div>
+                        <div id="overdueWarning" style="display: none;" class="outstanding-overdue">
+                            <strong id="overdueText">0 invoices</strong> are overdue
+                        </div>
+                        <a href="invoices.html" class="outstanding-link">
+                            View Invoices
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </a>
+                    </div>
+
+                    <!-- Cash Flow Forecast -->
+                    <div class="outstanding-card" id="cashFlowCard">
+                        <h3>Cash Flow Forecast (90 Days)</h3>
+                        <div class="outstanding-stats" id="cashFlowStats">
+                            <div class="outstanding-stat">
+                                <span class="outstanding-label">Expected Inflows</span>
+                                <span class="outstanding-value" id="forecastInflow" style="color:var(--green);">$0</span>
+                            </div>
+                            <div class="outstanding-stat">
+                                <span class="outstanding-label">Est. Outflows</span>
+                                <span class="outstanding-value" id="forecastOutflow" style="color:var(--red);">$0</span>
+                            </div>
+                            <div class="outstanding-stat">
+                                <span class="outstanding-label">Net Forecast</span>
+                                <span class="outstanding-value" id="forecastNet">$0</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -937,7 +514,7 @@
             const chartElement = document.getElementById('revenueChart');
 
             // Use hardcoded colors (CSS vars don't work reliably in SVG)
-            const revenueColor = '#2e403d'; // forest green
+            const revenueColor = '#2e403d'; // primary green
             const expenseColor = '#dc4a4a'; // red
 
             // Ensure arrays have 12 months
@@ -1083,7 +660,7 @@
             };
         }
 
-        // ── PROFIT MARGIN TREND LINE ─────────────────
+        // -- PROFIT MARGIN TREND LINE --
         function buildProfitChart(monthlyRevenue, monthlyExpenses) {
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             const chartEl = document.getElementById('profitChart');
@@ -1118,7 +695,7 @@
             let areaPath = `M${points[0].x},${zeroY}`;
             points.forEach(p => areaPath += ` L${p.x},${p.y}`);
             areaPath += ` L${points[points.length - 1].x},${zeroY} Z`;
-            svg += `<path d="${areaPath}" fill="rgba(46,64,61,0.08)"/>`;
+            svg += `<path d="${areaPath}" fill="rgba(22,163,74,0.08)"/>`;
 
             // Line
             let linePath = `M${points[0].x},${points[0].y}`;
@@ -1135,7 +712,7 @@
             chartEl.innerHTML = svg;
         }
 
-        // ── EXPENSE BREAKDOWN DONUT ──────────────────
+        // -- EXPENSE BREAKDOWN DONUT --
         async function loadExpenseBreakdown() {
             try {
                 const res = await fetch('/api/expenses/stats');
@@ -1146,7 +723,7 @@
                     document.getElementById('expenseDonut').innerHTML = '<text x="140" y="140" text-anchor="middle" dy=".3em" fill="#9ca09c" font-size="13">No expense data</text>';
                     return;
                 }
-                const colors = ['#2e403d', '#c9dd80', '#3b82f6', '#d97706', '#059669', '#7c3aed', '#dc4a4a', '#db2777', '#0284c7', '#16a34a'];
+                const colors = ['#2e403d', '#3b82f6', '#d97706', '#7c3aed', '#059669', '#dc4a4a', '#db2777', '#0284c7', '#34d399', '#333633'];
                 const total = cats.reduce((s, c) => s + parseFloat(c.total), 0);
                 let svg = '';
                 let startAngle = -90;
@@ -1184,7 +761,7 @@
             }
         }
 
-        // ── CASH FLOW FORECAST ───────────────────────
+        // -- CASH FLOW FORECAST --
         async function loadCashFlowForecast() {
             try {
                 const res = await fetch('/api/finance/cash-flow-forecast');
@@ -1204,7 +781,7 @@
             }
         }
 
-        // ── PERIOD COMPARISON (vs last month) ────────
+        // -- PERIOD COMPARISON (vs last month) --
         function updateStatCards(data) {
             const allTime = data.allTime || {};
             const ytd = data.yearToDate || {};
@@ -1245,5 +822,6 @@
             loadFinance();
         });
     </script>
+
 </body>
 </html>

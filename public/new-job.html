@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Job — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .content { padding: 0; max-width: 900px; margin: 0 auto; }
+
+        .breadcrumb {
+            display: flex; align-items: center; gap: 8px;
+            padding: 20px 24px 12px; font-size: 13px; color: var(--gray-500);
+        }
+        .breadcrumb a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .breadcrumb .sep { color: var(--gray-300); }
+
+        .step-container { padding: 0 24px 40px; }
+
+        .step-title {
+            font-size: 28px; font-weight: 700; color: var(--gray-800);
+            margin-bottom: 8px;
+        }
+        .step-subtitle {
+            font-size: 14px; color: var(--gray-500); margin-bottom: 24px;
+        }
+
+        /* Client search */
+        .client-search-row {
+            display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+        }
+        .client-search-input {
+            flex: 1; padding: 14px 18px; font-size: 15px; border: 1px solid var(--gray-200);
+            border-radius: 10px; font-family: inherit; outline: none;
+        }
+        .client-search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .or-divider { color: var(--gray-400); font-size: 13px; font-weight: 500; }
+        .btn-new-client {
+            padding: 12px 20px; background: var(--primary); color: var(--white);
+            border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit; white-space: nowrap;
+        }
+        .btn-new-client:hover { background: var(--primary-dark); }
+
+        .client-section-label {
+            font-size: 12px; font-weight: 700; color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: 0.05em;
+            padding: 12px 0 8px;
+        }
+        .client-list { border-top: 1px solid var(--gray-100); }
+        .client-item {
+            display: flex; align-items: center; gap: 14px;
+            padding: 14px 8px; border-bottom: 1px solid var(--gray-50);
+            cursor: pointer; border-radius: 8px; transition: background 0.15s;
+        }
+        .client-item:hover { background: var(--primary-light); }
+        .client-icon {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--gray-100); display: flex;
+            align-items: center; justify-content: center; color: var(--gray-400);
+        }
+        .client-icon svg { width: 18px; height: 18px; }
+        .client-info { flex: 1; min-width: 0; }
+        .client-name { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+        .client-detail { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+
+        /* Job form card */
+        .job-doc {
+            background: var(--white); border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            border-top: 4px solid var(--primary); overflow: hidden;
+        }
+        .job-doc-header {
+            display: flex; align-items: center; gap: 14px;
+            padding: 24px 28px; border-bottom: 1px solid var(--gray-100);
+        }
+        .job-doc-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            background: var(--primary-light); color: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .job-doc-icon svg { width: 18px; height: 18px; }
+        .job-doc-title { font-size: 20px; font-weight: 700; color: var(--gray-800); }
+
+        .job-doc-body { padding: 28px; }
+
+        .form-section { margin-bottom: 28px; }
+        .form-section h4 {
+            font-size: 12px; font-weight: 700; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;
+        }
+        .form-row-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 16px; margin-bottom: 16px;
+        }
+        .form-row-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+        .form-field label {
+            display: block; font-size: 12px; font-weight: 600;
+            color: var(--gray-500); margin-bottom: 4px;
+        }
+        .form-field input, .form-field select, .form-field textarea {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200);
+            border-radius: 8px; font-size: 13px; font-family: inherit;
+            color: var(--gray-700); outline: none; box-sizing: border-box;
+        }
+        .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+            border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+        .form-field textarea { min-height: 80px; resize: vertical; }
+
+        /* Service autocomplete */
+        .svc-wrap { position: relative; }
+        .svc-dropdown {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+            background: var(--white); border: 1px solid var(--gray-200);
+            border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            max-height: 240px; overflow-y: auto; margin-top: 2px;
+        }
+        .svc-dropdown-item {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--gray-50);
+        }
+        .svc-dropdown-item:last-child { border-bottom: none; }
+        .svc-dropdown-item:hover { background: var(--primary-light); }
+        .svc-dropdown-item .svc-name { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+        .svc-dropdown-item .svc-desc { font-size: 11px; color: var(--gray-500); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Property dropdown */
+        .property-row { display: none; margin-bottom: 16px; }
+        .property-row.visible { display: block; }
+
+        /* Recurring section */
+        .recurring-toggle {
+            display: flex; align-items: center; gap: 12px;
+            padding: 16px 0; cursor: pointer;
+        }
+        .recurring-toggle input[type="checkbox"] {
+            width: 20px; height: 20px; accent-color: var(--primary);
+        }
+        .recurring-toggle label {
+            font-size: 14px; font-weight: 600; color: var(--gray-800); cursor: pointer;
+        }
+        .recurring-toggle .recurring-hint {
+            font-size: 12px; color: var(--gray-500); font-weight: 400;
+        }
+        .recurring-options {
+            display: none; padding: 20px; background: var(--gray-50);
+            border-radius: 10px; margin-bottom: 16px;
+        }
+        .recurring-options.visible { display: block; }
+        .recurring-options h4 {
+            font-size: 13px; font-weight: 700; color: var(--gray-700);
+            margin-bottom: 14px;
+        }
+        .pattern-chips {
+            display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+        }
+        .pattern-chip {
+            padding: 8px 16px; border: 1px solid var(--gray-200);
+            border-radius: 20px; font-size: 13px; font-weight: 500;
+            color: var(--gray-600); cursor: pointer; background: var(--white);
+            font-family: inherit; transition: all 0.15s;
+        }
+        .pattern-chip:hover { border-color: var(--primary); color: var(--primary); }
+        .pattern-chip.active {
+            background: var(--primary); color: var(--white);
+            border-color: var(--primary);
+        }
+        .day-chips {
+            display: flex; gap: 6px; margin-bottom: 16px;
+        }
+        .day-chip {
+            width: 36px; height: 36px; border-radius: 50%;
+            border: 1px solid var(--gray-200); display: flex;
+            align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            background: var(--white); color: var(--gray-600);
+            font-family: inherit; transition: all 0.15s;
+        }
+        .day-chip:hover { border-color: var(--primary); color: var(--primary); }
+        .day-chip.active {
+            background: var(--primary); color: var(--white);
+            border-color: var(--primary);
+        }
+        .recurring-summary {
+            padding: 12px 16px; background: var(--white);
+            border-radius: 8px; border: 1px solid var(--gray-200);
+            font-size: 13px; color: var(--gray-700); margin-top: 12px;
+        }
+        .recurring-summary strong { color: var(--gray-800); }
+
+        /* Footer */
+        .step-footer {
+            display: flex; justify-content: flex-end; gap: 12px;
+            padding: 20px 28px; border-top: 1px solid var(--gray-100);
+        }
+        .btn-cancel {
+            padding: 10px 20px; background: var(--white); border: 1px solid var(--gray-300);
+            color: var(--gray-600); border-radius: 8px; font-size: 14px; font-weight: 500;
+            cursor: pointer; font-family: inherit;
+        }
+        .btn-cancel:hover { background: var(--gray-50); }
+        .btn-save {
+            padding: 10px 24px; background: var(--primary); color: var(--white);
+            border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .btn-save:hover { background: var(--primary-dark); }
+        .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-outline {
+            padding: 10px 24px; background: var(--white); color: var(--primary);
+            border: 1px solid var(--primary); border-radius: 8px; font-size: 14px;
+            font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .btn-outline:hover { background: var(--primary-light); }
+
+        .loading { text-align: center; padding: 60px 20px; color: var(--gray-400); }
+        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gray-800); color: var(--white); padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        @media (max-width: 768px) {
+            .client-search-row { flex-direction: column; }
+            .form-row-grid { grid-template-columns: 1fr; }
+            .form-row-grid.three { grid-template-columns: 1fr; }
+            .step-container { padding: 0 16px 32px; }
+            .pattern-chips { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+        <main class="main-content">
+            <div class="content">
+                <div class="breadcrumb">
+                    <a href="index.html">Pappas & Co. Landscaping</a>
+                    <span class="sep">|</span>
+                    <span id="breadcrumbText">New Job</span>
+                </div>
+
+                <!-- Step 1: Select Client -->
+                <div id="step1" class="step-container">
+                    <div class="step-title">New Job</div>
+                    <div class="step-subtitle">Which client is this job for?</div>
+
+                    <div class="client-search-row">
+                        <input type="text" class="client-search-input" id="clientSearch" placeholder="Search clients..." oninput="filterClients()" autofocus>
+                        <span class="or-divider">or</span>
+                        <a href="new-customer.html" class="btn-new-client">+ Create New Client</a>
+                    </div>
+
+                    <div id="clientListContainer"><div class="loading">Loading clients...</div></div>
+                </div>
+
+                <!-- Step 2: Job Details -->
+                <div id="step2" style="display:none;" class="step-container">
+                    <div class="job-doc">
+                        <div class="job-doc-header">
+                            <div class="job-doc-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                            </div>
+                            <div class="job-doc-title" id="jobDocTitle">New Job</div>
+                        </div>
+                        <div class="job-doc-body">
+
+                            <!-- Client info (read-only summary) -->
+                            <div class="form-section">
+                                <h4>Client</h4>
+                                <div class="form-row-grid">
+                                    <div class="form-field">
+                                        <label>Name</label>
+                                        <input type="text" id="fldClientName" readonly style="background:var(--gray-50);">
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Phone</label>
+                                        <input type="text" id="fldPhone" placeholder="Phone number">
+                                    </div>
+                                </div>
+                                <div class="form-field" style="margin-bottom:16px;">
+                                    <label>Service Address</label>
+                                    <input type="text" id="fldAddress" placeholder="Service address" required>
+                                </div>
+                                <div class="property-row" id="propertyRow">
+                                    <div class="form-field">
+                                        <label>Property</label>
+                                        <select id="fldProperty" onchange="selectProperty()">
+                                            <option value="">-- Select Property --</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Service details -->
+                            <div class="form-section">
+                                <h4>Service Details</h4>
+                                <div class="form-row-grid">
+                                    <div class="form-field">
+                                        <label>Service Type *</label>
+                                        <div class="svc-wrap">
+                                            <input type="text" id="fldServiceType" placeholder="Start typing... (e.g. Mowing)" autocomplete="off"
+                                                   oninput="showServiceDropdown()" onfocus="showServiceDropdown()" onblur="setTimeout(hideServiceDropdown, 200)">
+                                            <div class="svc-dropdown" id="svcDropdown" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Price</label>
+                                        <input type="number" id="fldPrice" step="0.01" placeholder="0.00">
+                                    </div>
+                                </div>
+                                <div class="form-row-grid three">
+                                    <div class="form-field">
+                                        <label>Date *</label>
+                                        <input type="date" id="fldDate" required>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Crew</label>
+                                        <select id="fldCrew"><option value="">-- Select Crew --</option></select>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Duration (min)</label>
+                                        <input type="number" id="fldDuration" value="30" min="5" step="5">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recurring scheduling -->
+                            <div class="form-section">
+                                <div class="recurring-toggle">
+                                    <input type="checkbox" id="recurringCheck" onchange="toggleRecurring()">
+                                    <div>
+                                        <label for="recurringCheck">Make this a recurring job</label>
+                                        <div class="recurring-hint">Automatically schedule this job on a repeating basis</div>
+                                    </div>
+                                </div>
+
+                                <div class="recurring-options" id="recurringOptions">
+                                    <h4>Schedule Pattern</h4>
+                                    <div class="pattern-chips" id="patternChips">
+                                        <button type="button" class="pattern-chip active" data-pattern="weekly" onclick="setPattern('weekly')">Weekly</button>
+                                        <button type="button" class="pattern-chip" data-pattern="biweekly" onclick="setPattern('biweekly')">Bi-Weekly</button>
+                                        <button type="button" class="pattern-chip" data-pattern="monthly" onclick="setPattern('monthly')">Monthly</button>
+                                    </div>
+
+                                    <h4>Preferred Day</h4>
+                                    <div class="day-chips" id="dayChips">
+                                        <button type="button" class="day-chip" data-day="0" onclick="setDay(0)">Su</button>
+                                        <button type="button" class="day-chip" data-day="1" onclick="setDay(1)">Mo</button>
+                                        <button type="button" class="day-chip" data-day="2" onclick="setDay(2)">Tu</button>
+                                        <button type="button" class="day-chip" data-day="3" onclick="setDay(3)">We</button>
+                                        <button type="button" class="day-chip" data-day="4" onclick="setDay(4)">Th</button>
+                                        <button type="button" class="day-chip" data-day="5" onclick="setDay(5)">Fr</button>
+                                        <button type="button" class="day-chip" data-day="6" onclick="setDay(6)">Sa</button>
+                                    </div>
+
+                                    <div class="form-row-grid">
+                                        <div class="form-field">
+                                            <label>Start Date</label>
+                                            <input type="date" id="fldRecurStart">
+                                        </div>
+                                        <div class="form-field">
+                                            <label>End Date (optional)</label>
+                                            <input type="date" id="fldRecurEnd">
+                                        </div>
+                                    </div>
+
+                                    <div class="recurring-summary" id="recurringSummary">
+                                        <strong>Preview:</strong> Every week — jobs will be auto-generated on the schedule.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="form-section">
+                                <h4>Notes</h4>
+                                <div class="form-field">
+                                    <textarea id="fldNotes" placeholder="Gate code, dog in yard, special instructions..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="step-footer">
+                            <button class="btn-cancel" onclick="goToStep(1)">Back</button>
+                            <button class="btn-outline" onclick="saveJob('schedule')">Save & Go to Schedule</button>
+                            <button class="btn-save" onclick="saveJob('create')">Create Job</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let allClients = [];
+        let selectedClient = null;
+        let allServices = [];
+        let allCrews = [];
+        let clientProperties = [];
+        let recurPattern = 'weekly';
+        let recurDay = null;
+
+        function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+        function clientName(c) {
+            return c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim() || c.customer_name || 'Unknown';
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // ─── Init ─────────────────────────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+        const preCustomerId = urlParams.get('customer_id') || urlParams.get('customer');
+        const preQuoteId = urlParams.get('from_quote');
+
+        loadClients();
+        loadServices();
+        loadCrews();
+
+        // Set default date to today
+        document.getElementById('fldDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('fldRecurStart').value = new Date().toISOString().split('T')[0];
+
+        // ─── Data Loading ─────────────────────────────────────
+        async function loadClients() {
+            try {
+                const res = await fetch('/api/customers');
+                const data = await res.json();
+                allClients = data.customers || data || [];
+                // Pre-select client if passed via URL
+                if (preCustomerId) {
+                    const c = allClients.find(c => String(c.id) === String(preCustomerId));
+                    if (c) { selectClient(c); return; }
+                }
+                renderClients(allClients);
+            } catch (e) {
+                document.getElementById('clientListContainer').innerHTML =
+                    '<div style="color:var(--red);padding:20px;">Error loading clients</div>';
+            }
+        }
+
+        async function loadServices() {
+            try {
+                const res = await fetch('/api/services');
+                const data = await res.json();
+                allServices = data.services || [];
+            } catch(e) {}
+        }
+
+        async function loadCrews() {
+            try {
+                const res = await fetch('/api/crews');
+                const data = await res.json();
+                allCrews = data.crews || data.crew || data.members || [];
+                const sel = document.getElementById('fldCrew');
+                allCrews.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name || c.crew_name;
+                    opt.textContent = c.name || c.crew_name;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+
+        async function loadProperties(customerId) {
+            try {
+                const res = await fetch('/api/properties?customer_id=' + customerId);
+                const data = await res.json();
+                clientProperties = data.properties || [];
+                if (clientProperties.length > 0) {
+                    const sel = document.getElementById('fldProperty');
+                    sel.innerHTML = '<option value="">-- Select Property --</option>';
+                    clientProperties.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.address || p.street || 'Property #' + p.id;
+                        sel.appendChild(opt);
+                    });
+                    document.getElementById('propertyRow').classList.add('visible');
+                }
+            } catch(e) {}
+        }
+
+        // ─── Client List ──────────────────────────────────────
+        function filterClients() {
+            const q = document.getElementById('clientSearch').value.toLowerCase();
+            const filtered = allClients.filter(c => {
+                const name = clientName(c).toLowerCase();
+                const email = (c.email || '').toLowerCase();
+                const phone = (c.phone || c.mobile || '').toLowerCase();
+                const addr = (c.street || c.address || '').toLowerCase();
+                return name.includes(q) || email.includes(q) || phone.includes(q) || addr.includes(q);
+            });
+            renderClients(filtered);
+        }
+
+        function renderClients(clients) {
+            if (clients.length === 0) {
+                document.getElementById('clientListContainer').innerHTML =
+                    '<div style="text-align:center;padding:32px;color:var(--gray-400);">No clients found</div>';
+                return;
+            }
+            const active = clients.filter(c => c.customer_type !== 'inactive').slice(0, 50);
+            window._displayedClients = active;
+            let html = '<div class="client-section-label">Active</div><div class="client-list">';
+            html += active.map((c, idx) => {
+                const name = clientName(c);
+                const phone = c.phone || c.mobile || '';
+                const addr = c.street ? [c.street, c.city, c.state].filter(Boolean).join(', ') : (c.address || '');
+                const detail = [phone, addr].filter(Boolean).join(' · ');
+                return `<div class="client-item" onclick="selectClient(window._displayedClients[${idx}])">
+                    <div class="client-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                    <div class="client-info">
+                        <div class="client-name">${esc(name)}</div>
+                        <div class="client-detail">${esc(detail)}</div>
+                    </div>
+                </div>`;
+            }).join('');
+            html += '</div>';
+            document.getElementById('clientListContainer').innerHTML = html;
+        }
+
+        // ─── Client Selection ─────────────────────────────────
+        function selectClient(client) {
+            selectedClient = client;
+            const name = clientName(client);
+
+            document.getElementById('pageTitle').textContent = 'New Job for ' + name;
+            document.getElementById('breadcrumbText').textContent = 'New Job for ' + name;
+            document.getElementById('jobDocTitle').textContent = 'Job for ' + name;
+            document.getElementById('fldClientName').value = name;
+
+            // Auto-fill address
+            let addr = client.address || '';
+            if (!addr && client.street) {
+                const parts = [client.street, client.street2].filter(Boolean);
+                const cityLine = [client.city, client.state].filter(Boolean).join(', ');
+                if (client.postal_code) parts.push(cityLine ? cityLine + ' ' + client.postal_code : client.postal_code);
+                else if (cityLine) parts.push(cityLine);
+                addr = parts.join(', ');
+            }
+            document.getElementById('fldAddress').value = addr;
+            document.getElementById('fldPhone').value = client.phone || client.mobile || '';
+
+            // Load properties for this customer
+            if (client.id) loadProperties(client.id);
+
+            goToStep(2);
+        }
+
+        function selectProperty() {
+            const propId = document.getElementById('fldProperty').value;
+            if (!propId) return;
+            const prop = clientProperties.find(p => String(p.id) === propId);
+            if (prop) {
+                document.getElementById('fldAddress').value = prop.address || prop.street || '';
+                if (prop.mowing_price && !document.getElementById('fldPrice').value) {
+                    document.getElementById('fldPrice').value = prop.mowing_price;
+                }
+            }
+        }
+
+        // ─── Steps ────────────────────────────────────────────
+        function goToStep(step) {
+            document.getElementById('step1').style.display = step === 1 ? '' : 'none';
+            document.getElementById('step2').style.display = step === 2 ? '' : 'none';
+            if (step === 1) {
+                document.getElementById('pageTitle').textContent = 'New Job';
+                document.getElementById('breadcrumbText').textContent = 'New Job';
+            }
+        }
+
+        // ─── Service Autocomplete ─────────────────────────────
+        function showServiceDropdown() {
+            const q = document.getElementById('fldServiceType').value.toLowerCase().trim();
+            const dropdown = document.getElementById('svcDropdown');
+            if (q.length < 1) { dropdown.style.display = 'none'; return; }
+            const matches = allServices.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
+            if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+
+            dropdown.innerHTML = matches.map(s => {
+                const shortDesc = s.description.substring(0, 80);
+                return `<div class="svc-dropdown-item" onmousedown="pickService('${esc(s.name.replace(/'/g,"\\'"))}')">
+                    <div class="svc-name">${esc(s.name)}</div>
+                    <div class="svc-desc">${esc(shortDesc)}</div>
+                </div>`;
+            }).join('');
+            dropdown.style.display = 'block';
+        }
+
+        function hideServiceDropdown() {
+            document.getElementById('svcDropdown').style.display = 'none';
+        }
+
+        function pickService(name) {
+            document.getElementById('fldServiceType').value = name;
+            hideServiceDropdown();
+            // Set frequency hint
+            if (name.includes('Weekly') && !name.includes('Bi')) {
+                document.getElementById('recurringCheck').checked = true;
+                toggleRecurring();
+                setPattern('weekly');
+            } else if (name.includes('Bi-Weekly')) {
+                document.getElementById('recurringCheck').checked = true;
+                toggleRecurring();
+                setPattern('biweekly');
+            } else if (name.includes('Monthly')) {
+                document.getElementById('recurringCheck').checked = true;
+                toggleRecurring();
+                setPattern('monthly');
+            }
+        }
+
+        // ─── Recurring Options ────────────────────────────────
+        function toggleRecurring() {
+            const checked = document.getElementById('recurringCheck').checked;
+            document.getElementById('recurringOptions').classList.toggle('visible', checked);
+        }
+
+        function setPattern(pattern) {
+            recurPattern = pattern;
+            document.querySelectorAll('.pattern-chip').forEach(el => {
+                el.classList.toggle('active', el.dataset.pattern === pattern);
+            });
+            updateRecurringSummary();
+        }
+
+        function setDay(day) {
+            recurDay = day;
+            document.querySelectorAll('.day-chip').forEach(el => {
+                el.classList.toggle('active', parseInt(el.dataset.day) === day);
+            });
+            // Update the job date to match the next occurrence of this day
+            const today = new Date();
+            const diff = (day - today.getDay() + 7) % 7 || 7;
+            const nextDay = new Date(today);
+            nextDay.setDate(today.getDate() + (diff === 0 && today.getDay() === day ? 0 : diff));
+            document.getElementById('fldDate').value = nextDay.toISOString().split('T')[0];
+            document.getElementById('fldRecurStart').value = nextDay.toISOString().split('T')[0];
+            updateRecurringSummary();
+        }
+
+        function updateRecurringSummary() {
+            const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const patternLabel = recurPattern === 'weekly' ? 'Every week' : recurPattern === 'biweekly' ? 'Every 2 weeks' : 'Every month';
+            const dayLabel = recurDay !== null ? ' on ' + days[recurDay] : '';
+            const startDate = document.getElementById('fldRecurStart').value;
+            const endDate = document.getElementById('fldRecurEnd').value;
+            let dateRange = '';
+            if (startDate) dateRange += ' starting ' + new Date(startDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+            if (endDate) dateRange += ' until ' + new Date(endDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+            document.getElementById('recurringSummary').innerHTML =
+                '<strong>Preview:</strong> ' + patternLabel + dayLabel + dateRange + ' — jobs will be auto-generated on the schedule.';
+        }
+
+        // ─── Save Job ─────────────────────────────────────────
+        async function saveJob(action) {
+            const serviceType = document.getElementById('fldServiceType').value.trim();
+            const address = document.getElementById('fldAddress').value.trim();
+            const jobDate = document.getElementById('fldDate').value;
+
+            if (!serviceType) { showToast('Please enter a service type'); return; }
+            if (!address) { showToast('Please enter a service address'); return; }
+            if (!jobDate) { showToast('Please select a date'); return; }
+
+            const name = clientName(selectedClient);
+            const isRecurring = document.getElementById('recurringCheck').checked;
+
+            // Determine frequency label
+            let frequency = 'One-Time';
+            if (isRecurring) {
+                if (recurPattern === 'weekly') frequency = 'Weekly';
+                else if (recurPattern === 'biweekly') frequency = 'Bi-Weekly';
+                else if (recurPattern === 'monthly') frequency = 'Monthly';
+            }
+
+            const payload = {
+                job_date: jobDate,
+                customer_name: name,
+                customer_id: selectedClient.id || null,
+                service_type: serviceType,
+                service_frequency: frequency,
+                service_price: parseFloat(document.getElementById('fldPrice').value) || 0,
+                address: address,
+                phone: document.getElementById('fldPhone').value || '',
+                special_notes: document.getElementById('fldNotes').value || '',
+                property_notes: '',
+                status: 'pending',
+                estimated_duration: parseInt(document.getElementById('fldDuration').value) || 30,
+                crew_assigned: document.getElementById('fldCrew').value || null
+            };
+
+            try {
+                const res = await fetch('/api/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Failed to create job');
+
+                const jobId = data.job.id;
+
+                // Set up recurring if enabled
+                if (isRecurring) {
+                    const startDate = document.getElementById('fldRecurStart').value || jobDate;
+                    const endDate = document.getElementById('fldRecurEnd').value || null;
+                    // Auto-generate 12 weeks by default, or until end date
+                    const autoWeeks = endDate ? 0 : 12;
+
+                    try {
+                        await fetch('/api/jobs/' + jobId + '/setup-recurring', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                pattern: recurPattern,
+                                day_of_week: recurDay,
+                                start_date: startDate,
+                                end_date: endDate,
+                                auto_generate_weeks: autoWeeks
+                            })
+                        });
+                    } catch(e) {
+                        console.error('Recurring setup failed:', e);
+                    }
+                }
+
+                showToast('Job created successfully!');
+                if (action === 'schedule') {
+                    window.location.href = 'scheduling.html?date=' + jobDate;
+                } else {
+                    window.location.href = 'job-detail.html?id=' + jobId;
+                }
+            } catch (e) {
+                showToast('Error: ' + e.message);
+            }
+        }
+
+        // ─── From Quote Pre-fill ──────────────────────────────
+        async function loadFromQuote() {
+            if (!preQuoteId) return;
+            try {
+                const res = await fetch('/api/sent-quotes/' + preQuoteId);
+                const data = await res.json();
+                if (!data.success) return;
+                const q = data.quote;
+                // Pre-fill service and price
+                let services = q.services;
+                if (typeof services === 'string') services = JSON.parse(services);
+                if (Array.isArray(services) && services.length > 0) {
+                    document.getElementById('fldServiceType').value = services[0].name || services[0].service || '';
+                    document.getElementById('fldPrice').value = q.total || q.subtotal || '';
+                }
+            } catch(e) {}
+        }
+        if (preQuoteId) loadFromQuote();
+    </script>
+</body>
+</html>

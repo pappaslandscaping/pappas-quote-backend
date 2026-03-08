@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broadcasts — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        /* ─── Two-Column Layout ─────────────────────────────── */
+        .broadcast-layout {
+            display: flex;
+            gap: 24px;
+            padding: 24px;
+            min-height: calc(100vh - var(--topbar-h));
+        }
+
+        .builder-col {
+            flex: 0 0 60%;
+            max-width: 60%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .preview-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ─── Cards ─────────────────────────────────────────── */
+        .bc-card {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .bc-card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: default;
+        }
+
+        .bc-card-header.collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .bc-card-header.collapsible:hover {
+            background: var(--gray-50);
+        }
+
+        .bc-card-header h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--gray-700);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bc-card-header h3 svg {
+            width: 18px;
+            height: 18px;
+            color: var(--primary);
+        }
+
+        .bc-card-body {
+            padding: 20px;
+        }
+
+        .bc-card-body.collapsed {
+            display: none;
+        }
+
+        .collapse-icon {
+            width: 18px;
+            height: 18px;
+            color: var(--gray-400);
+            transition: transform 0.2s ease;
+        }
+
+        .collapse-icon.rotated {
+            transform: rotate(-90deg);
+        }
+
+        /* ─── Channel Selector ──────────────────────────────── */
+        .channel-options {
+            display: flex;
+            gap: 12px;
+        }
+
+        .channel-option {
+            flex: 1;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .channel-option input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .channel-option .channel-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 12px;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        .channel-option .channel-card:hover {
+            border-color: var(--gray-300);
+            background: var(--gray-50);
+        }
+
+        .channel-option input:checked + .channel-card {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .channel-card svg {
+            width: 24px;
+            height: 24px;
+            color: var(--gray-400);
+        }
+
+        .channel-option input:checked + .channel-card svg {
+            color: var(--primary);
+        }
+
+        .channel-card .ch-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-600);
+        }
+
+        .channel-option input:checked + .channel-card .ch-label {
+            color: var(--primary);
+        }
+
+        /* ─── Filter Rows ───────────────────────────────────── */
+        .filter-row {
+            margin-bottom: 16px;
+        }
+
+        .filter-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .filter-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        .filter-input-wrap {
+            position: relative;
+        }
+
+        .filter-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-700);
+            background: var(--white);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .filter-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.08);
+        }
+
+        select.filter-input {
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%239ca3af' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+
+        .filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--green-bg);
+            color: var(--primary);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .filter-chip .remove {
+            cursor: pointer;
+            opacity: 0.6;
+            display: flex;
+            align-items: center;
+        }
+
+        .filter-chip .remove:hover {
+            opacity: 1;
+        }
+
+        .filter-chip .remove svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .filter-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            z-index: 50;
+            display: none;
+        }
+
+        .filter-dropdown.open {
+            display: block;
+        }
+
+        .filter-dropdown-item {
+            padding: 8px 12px;
+            font-size: 13px;
+            color: var(--gray-700);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .filter-dropdown-item:hover {
+            background: var(--gray-50);
+        }
+
+        .filter-dropdown-item.selected {
+            background: var(--green-bg);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .filter-row-inline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-row-inline input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .filter-row-inline label {
+            font-size: 13px;
+            color: var(--gray-600);
+            cursor: pointer;
+        }
+
+        .filter-row-inline input[type="number"] {
+            width: 60px;
+            padding: 6px 8px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            text-align: center;
+        }
+
+        .filter-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .filter-count {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .filter-count strong {
+            color: var(--primary);
+        }
+
+        .btn-clear-filters {
+            font-size: 12px;
+            color: var(--gray-500);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+            text-decoration: underline;
+        }
+
+        .btn-clear-filters:hover {
+            color: var(--red);
+        }
+
+        /* ─── Template Section ──────────────────────────────── */
+        .template-preview-box {
+            margin-top: 12px;
+            padding: 14px 16px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            background: var(--gray-50);
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+
+        .template-preview-box .tpl-subject {
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 4px;
+        }
+
+        .template-preview-box .tpl-snippet {
+            font-size: 12px;
+            color: var(--gray-500);
+            line-height: 1.6;
+        }
+
+        .template-preview-box.empty {
+            color: var(--gray-400);
+            font-style: italic;
+        }
+
+        /* ─── SMS Section ───────────────────────────────────── */
+        .sms-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-700);
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .sms-textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.08);
+        }
+
+        .sms-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+        }
+
+        .char-counter {
+            font-size: 12px;
+            color: var(--gray-400);
+        }
+
+        .char-counter.warn {
+            color: var(--amber);
+        }
+
+        .merge-vars {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .merge-btn {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            color: var(--gray-600);
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.1s;
+        }
+
+        .merge-btn:hover {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-use-template-sms {
+            margin-top: 8px;
+            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            color: var(--primary);
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+        }
+
+        .btn-use-template-sms:hover {
+            background: var(--green-bg);
+        }
+
+        /* ─── Send Button ───────────────────────────────────── */
+        .send-section {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .btn-send-broadcast {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 32px;
+            background: var(--primary);
+            color: var(--white);
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-send-broadcast:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46,64,61,0.3);
+        }
+
+        .btn-send-broadcast:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-send-broadcast svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* ─── Audience Preview ──────────────────────────────── */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .summary-stat {
+            text-align: center;
+            padding: 12px 8px;
+            background: var(--gray-50);
+            border-radius: 8px;
+        }
+
+        .summary-stat.total {
+            grid-column: 1 / -1;
+            background: var(--primary-light);
+        }
+
+        .summary-stat .stat-num {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1.1;
+        }
+
+        .summary-stat.total .stat-num {
+            font-size: 36px;
+        }
+
+        .summary-stat .stat-desc {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--gray-500);
+            margin-top: 2px;
+        }
+
+        /* ─── Customer List ─────────────────────────────────── */
+        .audience-search {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .audience-search input {
+            width: 100%;
+            padding: 8px 12px 8px 32px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: 10px center;
+        }
+
+        .audience-search input:focus {
+            border-color: var(--primary);
+        }
+
+        .audience-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .audience-toolbar button {
+            font-size: 12px;
+            color: var(--primary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+
+        .audience-toolbar .sel-count {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .customer-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .cust-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--gray-50);
+            transition: background 0.1s;
+        }
+
+        .cust-row:hover {
+            background: var(--gray-50);
+        }
+
+        .cust-row input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            accent-color: var(--primary);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .cust-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .cust-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cust-meta {
+            font-size: 11px;
+            color: var(--gray-400);
+            margin-top: 1px;
+        }
+
+        .cust-icons {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .cust-icons svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .cust-icons .has {
+            color: var(--green);
+        }
+
+        .cust-icons .missing {
+            color: var(--gray-300);
+        }
+
+        .empty-audience {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--gray-400);
+            font-size: 13px;
+        }
+
+        .empty-audience svg {
+            width: 48px;
+            height: 48px;
+            color: var(--gray-300);
+            margin-bottom: 12px;
+        }
+
+        /* ─── Confirmation Modal ────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--white);
+            border-radius: 14px;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 460px;
+            animation: fadeIn 0.15s ease;
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--gray-400);
+            padding: 4px;
+        }
+
+        .modal-close:hover {
+            color: var(--gray-700);
+        }
+
+        .modal-close svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-100);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .confirm-detail {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+
+        .confirm-detail svg {
+            width: 18px;
+            height: 18px;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .confirm-detail strong {
+            color: var(--gray-800);
+        }
+
+        /* ─── Progress / Results ────────────────────────────── */
+        .progress-wrap {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .progress-bar-track {
+            width: 100%;
+            height: 8px;
+            background: var(--gray-100);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        .results-summary {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .results-summary .result-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--green-bg);
+            color: var(--green);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        .results-summary .result-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .results-summary h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 12px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .result-stat {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .result-stat .r-num {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .result-stat .r-num.success { color: var(--green); }
+        .result-stat .r-num.error { color: var(--red); }
+        .result-stat .r-num.skip { color: var(--amber); }
+
+        .result-stat .r-label {
+            font-size: 11px;
+            color: var(--gray-500);
+            margin-top: 2px;
+        }
+
+        /* ─── Responsive ────────────────────────────────────── */
+        @media (max-width: 900px) {
+            .broadcast-layout {
+                flex-direction: column;
+            }
+            .builder-col, .preview-col {
+                flex: 1;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<!-- Topbar -->
+<header class="topbar">
+    <div class="topbar-left">
+        <h1 style="font-size:18px;font-weight:700;color:var(--gray-800);">Broadcasts</h1>
+    </div>
+</header>
+
+<div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+    <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
+    <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Templates</a>
+    <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
+    <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
+    <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Broadcasts</a>
+</div>
+
+<div class="main-content">
+    <div class="broadcast-layout">
+
+        <!-- ═══ LEFT: Broadcast Builder ═══ -->
+        <div class="builder-col">
+
+            <!-- 1. Channel Selection -->
+            <div class="bc-card">
+                <div class="bc-card-header">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                        Channel
+                    </h3>
+                </div>
+                <div class="bc-card-body">
+                    <div class="channel-options">
+                        <label class="channel-option">
+                            <input type="radio" name="channel" value="email" checked onchange="setChannel('email')">
+                            <div class="channel-card">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                <span class="ch-label">Email Only</span>
+                            </div>
+                        </label>
+                        <label class="channel-option">
+                            <input type="radio" name="channel" value="sms" onchange="setChannel('sms')">
+                            <div class="channel-card">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                                <span class="ch-label">SMS Only</span>
+                            </div>
+                        </label>
+                        <label class="channel-option">
+                            <input type="radio" name="channel" value="both" onchange="setChannel('both')">
+                            <div class="channel-card">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:-6px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                                <span class="ch-label">Email + SMS</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Audience Filters -->
+            <div class="bc-card">
+                <div class="bc-card-header collapsible" onclick="toggleCard('filters')">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                        Audience Filters
+                        <span id="activeFilterBadge" style="display:none;font-size:11px;background:var(--primary);color:var(--white);border-radius:10px;padding:1px 8px;font-weight:600;margin-left:4px;"></span>
+                    </h3>
+                    <svg class="collapse-icon" id="filtersCollapseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <div class="bc-card-body" id="filtersBody">
+
+                    <!-- Tags -->
+                    <div class="filter-row">
+                        <div class="filter-label">Tags</div>
+                        <div class="filter-input-wrap">
+                            <input type="text" class="filter-input" id="tagInput" placeholder="Search tags..." onfocus="openDropdown('tags')" oninput="filterDropdown('tags')">
+                            <div class="filter-dropdown" id="tagsDropdown"></div>
+                        </div>
+                        <div class="filter-chips" id="tagChips"></div>
+                    </div>
+
+                    <!-- Zip Code -->
+                    <div class="filter-row">
+                        <div class="filter-label">Zip Code</div>
+                        <div class="filter-input-wrap">
+                            <input type="text" class="filter-input" id="zipInput" placeholder="Search zip codes..." onfocus="openDropdown('zips')" oninput="filterDropdown('zips')">
+                            <div class="filter-dropdown" id="zipsDropdown"></div>
+                        </div>
+                        <div class="filter-chips" id="zipChips"></div>
+                    </div>
+
+                    <!-- City -->
+                    <div class="filter-row">
+                        <div class="filter-label">City</div>
+                        <div class="filter-input-wrap">
+                            <input type="text" class="filter-input" id="cityInput" placeholder="Search cities..." onfocus="openDropdown('cities')" oninput="filterDropdown('cities')">
+                            <div class="filter-dropdown" id="citiesDropdown"></div>
+                        </div>
+                        <div class="filter-chips" id="cityChips"></div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="filter-row">
+                        <div class="filter-label">Status</div>
+                        <select class="filter-input" id="statusFilter" onchange="onFilterChange()">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    <!-- Customer Type -->
+                    <div class="filter-row">
+                        <div class="filter-label">Customer Type</div>
+                        <select class="filter-input" id="typeFilter" onchange="onFilterChange()">
+                            <option value="">All Types</option>
+                            <option value="customer">Customer</option>
+                            <option value="lead">Lead</option>
+                        </select>
+                    </div>
+
+                    <!-- Monthly Plan -->
+                    <div class="filter-row">
+                        <div class="filter-row-inline">
+                            <input type="checkbox" id="monthlyPlanFilter" onchange="onFilterChange()">
+                            <label for="monthlyPlanFilter">Only monthly plan customers</label>
+                        </div>
+                    </div>
+
+                    <!-- Active Recently -->
+                    <div class="filter-row">
+                        <div class="filter-row-inline">
+                            <input type="checkbox" id="recentlyActiveFilter" onchange="toggleRecentMonths()">
+                            <label for="recentlyActiveFilter">Had jobs in last</label>
+                            <input type="number" id="recentMonths" value="6" min="1" max="36" disabled onchange="onFilterChange()">
+                            <label style="margin-left:0;">months</label>
+                        </div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <span class="filter-count" id="filterCountLabel">No filters active</span>
+                        <button class="btn-clear-filters" onclick="clearAllFilters()">Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Email Template (shown when channel includes email) -->
+            <div class="bc-card" id="emailSection">
+                <div class="bc-card-header">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Email Template
+                    </h3>
+                </div>
+                <div class="bc-card-body">
+                    <select class="filter-input" id="templateSelect" onchange="previewTemplate()">
+                        <option value="">Select a template...</option>
+                    </select>
+                    <div class="template-preview-box empty" id="templatePreview">
+                        Select a template to see preview
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. SMS Message (shown when channel includes SMS) -->
+            <div class="bc-card" id="smsSection" style="display:none;">
+                <div class="bc-card-header">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                        SMS Message
+                    </h3>
+                </div>
+                <div class="bc-card-body">
+                    <textarea class="sms-textarea" id="smsBody" placeholder="Type your SMS message..." oninput="updateCharCount()"></textarea>
+                    <div class="sms-footer">
+                        <span class="char-counter" id="charCounter">0 / 160 (1 segment)</span>
+                        <div class="merge-vars">
+                            <button type="button" class="merge-btn" onclick="insertMergeVar('{customer_first_name}')">{customer_first_name}</button>
+                            <button type="button" class="merge-btn" onclick="insertMergeVar('{customer_name}')">{customer_name}</button>
+                            <button type="button" class="merge-btn" onclick="insertMergeVar('{company_name}')">{company_name}</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-use-template-sms" id="useTemplateSmsBtn" style="display:none;" onclick="useTemplateSms()">
+                        Use template SMS body
+                    </button>
+                </div>
+            </div>
+
+            <!-- 5. Send -->
+            <div class="bc-card">
+                <div class="send-section">
+                    <button class="btn-send-broadcast" id="sendBtn" onclick="openConfirmModal()" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                        <span id="sendBtnLabel">Send to 0 customers</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ RIGHT: Audience Preview ═══ -->
+        <div class="preview-col">
+
+            <!-- Summary Card -->
+            <div class="bc-card">
+                <div class="bc-card-header">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        Audience Summary
+                    </h3>
+                </div>
+                <div class="bc-card-body">
+                    <div class="summary-grid">
+                        <div class="summary-stat total">
+                            <div class="stat-num" id="totalMatching">0</div>
+                            <div class="stat-desc">Total Matching</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="stat-num" id="withEmail">0</div>
+                            <div class="stat-desc">With Email</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="stat-num" id="withMobile">0</div>
+                            <div class="stat-desc">With Mobile</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="stat-num" id="emailOptIn">0</div>
+                            <div class="stat-desc">Email Opted-In</div>
+                        </div>
+                        <div class="summary-stat">
+                            <div class="stat-num" id="smsOptIn">0</div>
+                            <div class="stat-desc">SMS Opted-In</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer List -->
+            <div class="bc-card" style="flex:1;display:flex;flex-direction:column;">
+                <div class="audience-search">
+                    <input type="text" id="audienceSearch" placeholder="Search within results..." oninput="filterAudienceList()">
+                </div>
+                <div class="audience-toolbar">
+                    <span class="sel-count" id="selCount">0 selected</span>
+                    <div>
+                        <button onclick="selectAll()">Select All</button>
+                        <button onclick="deselectAll()">Deselect All</button>
+                    </div>
+                </div>
+                <div class="customer-list" id="customerList">
+                    <div class="empty-audience" id="emptyAudience">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                        <div>Apply filters or load audience to see matching customers</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Confirm Broadcast</h3>
+            <button class="modal-close" onclick="closeConfirmModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body" id="confirmBody">
+            <!-- Filled dynamically -->
+        </div>
+        <div class="modal-footer" id="confirmFooter">
+            <button type="button" class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
+            <button type="button" class="btn-send-broadcast" onclick="sendBroadcast()" style="font-size:14px;padding:10px 24px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                Confirm &amp; Send
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal -->
+<div class="modal-overlay" id="resultsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Broadcast Results</h3>
+            <button class="modal-close" onclick="closeResultsModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body" id="resultsBody">
+            <!-- Filled dynamically -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="closeResultsModal()">Done</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   Broadcasts — Mass Email/SMS Builder
+   ═══════════════════════════════════════════════════════════ */
+
+let filterOptions = {};     // { tags: [], zips: [], cities: [] }
+let templates = [];
+let audienceResults = [];
+let selectedCustomerIds = new Set();
+let currentChannel = 'email';
+let debounceTimer = null;
+let selectedTemplate = null;
+
+// Multi-select state for chip-based filters
+const chipSelections = { tags: [], zips: [], cities: [] };
+
+// ─── Init ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    loadFilterOptions();
+    loadTemplates();
+    refreshAudience();
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.filter-input-wrap')) {
+            document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('open'));
+        }
+    });
+});
+
+function getAuthHeaders() {
+    const token = localStorage.getItem('jwt_token') || localStorage.getItem('token');
+    return {
+        'Authorization': 'Bearer ' + (token || ''),
+        'Content-Type': 'application/json'
+    };
+}
+
+// ─── Load Filter Options ───────────────────────────────────
+async function loadFilterOptions() {
+    try {
+        const res = await fetch('/api/broadcasts/filter-options', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            filterOptions = { tags: data.tags || [], zips: data.postal_codes || data.zips || [], cities: data.cities || [] };
+        }
+    } catch (e) {
+        console.warn('Could not load filter options:', e);
+        filterOptions = { tags: [], zips: [], cities: [] };
+    }
+}
+
+// ─── Load Templates ────────────────────────────────────────
+async function loadTemplates() {
+    try {
+        const res = await fetch('/api/templates', { headers: getAuthHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            templates = data.templates || data || [];
+            const sel = document.getElementById('templateSelect');
+            templates.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name || t.subject || 'Template #' + t.id;
+                sel.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.warn('Could not load templates:', e);
+    }
+}
+
+// ─── Channel ───────────────────────────────────────────────
+function setChannel(ch) {
+    currentChannel = ch;
+    document.getElementById('emailSection').style.display = (ch === 'email' || ch === 'both') ? '' : 'none';
+    document.getElementById('smsSection').style.display = (ch === 'sms' || ch === 'both') ? '' : 'none';
+    updateSendButton();
+}
+
+// ─── Card Collapse ─────────────────────────────────────────
+function toggleCard(id) {
+    const body = document.getElementById(id + 'Body');
+    const icon = document.getElementById(id + 'CollapseIcon');
+    body.classList.toggle('collapsed');
+    icon.classList.toggle('rotated');
+}
+
+// ─── Filter Dropdowns (multi-select chips) ─────────────────
+function openDropdown(type) {
+    renderDropdown(type);
+    document.getElementById(type + 'Dropdown').classList.add('open');
+}
+
+function filterDropdown(type) {
+    renderDropdown(type);
+    document.getElementById(type + 'Dropdown').classList.add('open');
+}
+
+function renderDropdown(type) {
+    const inputMap = { tags: 'tagInput', zips: 'zipInput', cities: 'cityInput' };
+    const query = document.getElementById(inputMap[type]).value.toLowerCase();
+    const options = filterOptions[type] || [];
+    const filtered = options.filter(o => o.toLowerCase().includes(query));
+    const dd = document.getElementById(type + 'Dropdown');
+    const selected = chipSelections[type];
+
+    dd.innerHTML = filtered.length === 0
+        ? '<div class="filter-dropdown-item" style="color:var(--gray-400);">No options found</div>'
+        : filtered.map(o => `
+            <div class="filter-dropdown-item ${selected.includes(o) ? 'selected' : ''}"
+                 onclick="toggleChip('${type}', '${o.replace(/'/g, "\\'")}')">
+                ${escHtml(o)}
+            </div>
+        `).join('');
+}
+
+function toggleChip(type, value) {
+    const idx = chipSelections[type].indexOf(value);
+    if (idx >= 0) {
+        chipSelections[type].splice(idx, 1);
+    } else {
+        chipSelections[type].push(value);
+    }
+    renderChips(type);
+    renderDropdown(type);
+    onFilterChange();
+}
+
+function removeChip(type, value) {
+    const idx = chipSelections[type].indexOf(value);
+    if (idx >= 0) chipSelections[type].splice(idx, 1);
+    renderChips(type);
+    onFilterChange();
+}
+
+function renderChips(type) {
+    const containerMap = { tags: 'tagChips', zips: 'zipChips', cities: 'cityChips' };
+    const container = document.getElementById(containerMap[type]);
+    container.innerHTML = chipSelections[type].map(v => `
+        <span class="filter-chip">
+            ${escHtml(v)}
+            <span class="remove" onclick="removeChip('${type}', '${v.replace(/'/g, "\\'")}')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </span>
+        </span>
+    `).join('');
+}
+
+// ─── Filter Change Handler ─────────────────────────────────
+function onFilterChange() {
+    updateFilterCount();
+    debouncedRefresh();
+}
+
+function toggleRecentMonths() {
+    const cb = document.getElementById('recentlyActiveFilter');
+    document.getElementById('recentMonths').disabled = !cb.checked;
+    onFilterChange();
+}
+
+function updateFilterCount() {
+    let count = 0;
+    if (chipSelections.tags.length) count++;
+    if (chipSelections.zips.length) count++;
+    if (chipSelections.cities.length) count++;
+    if (document.getElementById('statusFilter').value) count++;
+    if (document.getElementById('typeFilter').value) count++;
+    if (document.getElementById('monthlyPlanFilter').checked) count++;
+    if (document.getElementById('recentlyActiveFilter').checked) count++;
+
+    const badge = document.getElementById('activeFilterBadge');
+    const label = document.getElementById('filterCountLabel');
+    if (count > 0) {
+        badge.style.display = '';
+        badge.textContent = count;
+        label.innerHTML = '<strong>' + count + '</strong> filter' + (count !== 1 ? 's' : '') + ' active';
+    } else {
+        badge.style.display = 'none';
+        label.textContent = 'No filters active';
+    }
+}
+
+function clearAllFilters() {
+    chipSelections.tags = [];
+    chipSelections.zips = [];
+    chipSelections.cities = [];
+    renderChips('tags');
+    renderChips('zips');
+    renderChips('cities');
+    document.getElementById('tagInput').value = '';
+    document.getElementById('zipInput').value = '';
+    document.getElementById('cityInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('typeFilter').value = '';
+    document.getElementById('monthlyPlanFilter').checked = false;
+    document.getElementById('recentlyActiveFilter').checked = false;
+    document.getElementById('recentMonths').disabled = true;
+    document.getElementById('recentMonths').value = 6;
+    onFilterChange();
+}
+
+// ─── Build Filter Payload ──────────────────────────────────
+function buildFilterPayload() {
+    const payload = {};
+    if (chipSelections.tags.length) payload.tags = chipSelections.tags;
+    if (chipSelections.zips.length) payload.postal_codes = chipSelections.zips;
+    if (chipSelections.cities.length) payload.cities = chipSelections.cities;
+    const status = document.getElementById('statusFilter').value;
+    if (status) payload.status = status;
+    const type = document.getElementById('typeFilter').value;
+    if (type) payload.customer_type = type;
+    if (document.getElementById('monthlyPlanFilter').checked) payload.monthly_plan = true;
+    if (document.getElementById('recentlyActiveFilter').checked) {
+        payload.active_since_months = parseInt(document.getElementById('recentMonths').value) || 6;
+    }
+    return payload;
+}
+
+// ─── Audience Refresh (debounced) ──────────────────────────
+function debouncedRefresh() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(refreshAudience, 300);
+}
+
+async function refreshAudience() {
+    const filters = buildFilterPayload();
+    try {
+        const res = await fetch('/api/broadcasts/preview', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ filters, channel: currentChannel })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            audienceResults = data.customers || [];
+            // Auto-select all by default
+            selectedCustomerIds = new Set(audienceResults.map(c => c.id));
+            renderAudienceSummary(data.summary || {});
+            renderAudiencePreview();
+            updateSendButton();
+        }
+    } catch (e) {
+        console.warn('Could not refresh audience:', e);
+    }
+}
+
+// ─── Render Audience Summary ───────────────────────────────
+function renderAudienceSummary(summary) {
+    document.getElementById('totalMatching').textContent = summary.total || audienceResults.length;
+    document.getElementById('withEmail').textContent = summary.with_email || 0;
+    document.getElementById('withMobile').textContent = summary.with_mobile || 0;
+    document.getElementById('emailOptIn').textContent = summary.email_opted_in || 0;
+    document.getElementById('smsOptIn').textContent = summary.sms_opted_in || 0;
+}
+
+// ─── Render Audience List ──────────────────────────────────
+function renderAudiencePreview() {
+    const list = document.getElementById('customerList');
+    const search = document.getElementById('audienceSearch').value.toLowerCase();
+
+    const filtered = audienceResults.filter(c => {
+        const name = c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim() || 'Unknown';
+        return name.toLowerCase().includes(search)
+            || (c.email || '').toLowerCase().includes(search)
+            || (c.city || '').toLowerCase().includes(search)
+            || (c.postal_code || '').includes(search);
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = `
+            <div class="empty-audience">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                <div>${audienceResults.length === 0 ? 'No customers match your filters' : 'No results for this search'}</div>
+            </div>`;
+        updateSelCount();
+        return;
+    }
+
+    list.innerHTML = filtered.map(c => {
+        const name = c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim() || 'Unknown';
+        const hasEmail = !!c.email;
+        const hasMobile = !!(c.mobile || c.phone);
+        const meta = [c.city, c.postal_code].filter(Boolean).join(', ');
+        const checked = selectedCustomerIds.has(c.id) ? 'checked' : '';
+
+        return `
+            <div class="cust-row">
+                <input type="checkbox" ${checked} onchange="toggleCustomer(${c.id}, this.checked)">
+                <div class="cust-info">
+                    <div class="cust-name">${escHtml(name)}</div>
+                    ${meta ? `<div class="cust-meta">${escHtml(meta)}</div>` : ''}
+                </div>
+                <div class="cust-icons">
+                    <svg class="${hasEmail ? 'has' : 'missing'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" title="${hasEmail ? c.email : 'No email'}"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <svg class="${hasMobile ? 'has' : 'missing'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" title="${hasMobile ? (c.mobile || c.phone) : 'No phone'}"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                </div>
+            </div>`;
+    }).join('');
+
+    updateSelCount();
+}
+
+function filterAudienceList() {
+    renderAudiencePreview();
+}
+
+function toggleCustomer(id, checked) {
+    if (checked) {
+        selectedCustomerIds.add(id);
+    } else {
+        selectedCustomerIds.delete(id);
+    }
+    updateSelCount();
+    updateSendButton();
+}
+
+function selectAll() {
+    audienceResults.forEach(c => selectedCustomerIds.add(c.id));
+    renderAudiencePreview();
+    updateSendButton();
+}
+
+function deselectAll() {
+    selectedCustomerIds.clear();
+    renderAudiencePreview();
+    updateSendButton();
+}
+
+function updateSelCount() {
+    const count = selectedCustomerIds.size;
+    document.getElementById('selCount').textContent = count + ' selected';
+}
+
+// ─── Template Preview ──────────────────────────────────────
+function previewTemplate() {
+    const sel = document.getElementById('templateSelect');
+    const preview = document.getElementById('templatePreview');
+    const id = sel.value;
+    if (!id) {
+        preview.className = 'template-preview-box empty';
+        preview.textContent = 'Select a template to see preview';
+        selectedTemplate = null;
+        document.getElementById('useTemplateSmsBtn').style.display = 'none';
+        return;
+    }
+    selectedTemplate = templates.find(t => String(t.id) === id);
+    if (!selectedTemplate) return;
+
+    const subject = selectedTemplate.subject || 'No subject';
+    const body = selectedTemplate.body || selectedTemplate.html_body || '';
+    // Strip HTML tags for snippet
+    const snippet = body.replace(/<[^>]*>/g, '').substring(0, 200);
+
+    preview.className = 'template-preview-box';
+    preview.innerHTML = `
+        <div class="tpl-subject">${escHtml(subject)}</div>
+        <div class="tpl-snippet">${escHtml(snippet)}${snippet.length >= 200 ? '...' : ''}</div>
+    `;
+
+    // Show "Use template SMS" button if template has sms_body
+    if (selectedTemplate.sms_body && (currentChannel === 'sms' || currentChannel === 'both')) {
+        document.getElementById('useTemplateSmsBtn').style.display = '';
+    } else {
+        document.getElementById('useTemplateSmsBtn').style.display = 'none';
+    }
+}
+
+function useTemplateSms() {
+    if (selectedTemplate && selectedTemplate.sms_body) {
+        document.getElementById('smsBody').value = selectedTemplate.sms_body;
+        updateCharCount();
+    }
+}
+
+// ─── SMS Char Counter ──────────────────────────────────────
+function updateCharCount() {
+    const text = document.getElementById('smsBody').value;
+    const len = text.length;
+    const segments = Math.max(1, Math.ceil(len / 160));
+    const counter = document.getElementById('charCounter');
+    counter.textContent = len + ' / 160 (' + segments + ' segment' + (segments !== 1 ? 's' : '') + ')';
+    counter.className = 'char-counter' + (segments > 1 ? ' warn' : '');
+}
+
+function insertMergeVar(v) {
+    const ta = document.getElementById('smsBody');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const text = ta.value;
+    ta.value = text.substring(0, start) + v + text.substring(end);
+    ta.selectionStart = ta.selectionEnd = start + v.length;
+    ta.focus();
+    updateCharCount();
+}
+
+// ─── Send Button ───────────────────────────────────────────
+function updateSendButton() {
+    const count = selectedCustomerIds.size;
+    const label = document.getElementById('sendBtnLabel');
+    const btn = document.getElementById('sendBtn');
+    label.textContent = 'Send to ' + count + ' customer' + (count !== 1 ? 's' : '');
+    btn.disabled = count === 0;
+}
+
+// ─── Confirm Modal ─────────────────────────────────────────
+function openConfirmModal() {
+    const count = selectedCustomerIds.size;
+    if (count === 0) return;
+
+    const channelLabel = { email: 'Email', sms: 'SMS', both: 'Email + SMS' }[currentChannel];
+    const tplName = selectedTemplate ? (selectedTemplate.name || selectedTemplate.subject || 'Selected template') : 'None';
+    const smsLen = document.getElementById('smsBody').value.length;
+
+    let html = '';
+
+    html += `<div class="confirm-detail">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span>Sending to <strong>${count}</strong> customer${count !== 1 ? 's' : ''}</span>
+    </div>`;
+
+    html += `<div class="confirm-detail">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+        <span>Channel: <strong>${channelLabel}</strong></span>
+    </div>`;
+
+    if (currentChannel === 'email' || currentChannel === 'both') {
+        html += `<div class="confirm-detail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>Email template: <strong>${escHtml(tplName)}</strong></span>
+        </div>`;
+    }
+
+    if (currentChannel === 'sms' || currentChannel === 'both') {
+        html += `<div class="confirm-detail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span>SMS: <strong>${smsLen} characters</strong></span>
+        </div>`;
+    }
+
+    document.getElementById('confirmBody').innerHTML = html;
+    document.getElementById('confirmModal').classList.add('open');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.remove('open');
+}
+
+// ─── Send Broadcast ────────────────────────────────────────
+async function sendBroadcast() {
+    closeConfirmModal();
+
+    // Show progress
+    const sendSection = document.querySelector('.send-section');
+    sendSection.innerHTML = `
+        <div class="progress-wrap">
+            <div style="font-size:14px;font-weight:600;color:var(--gray-700);margin-bottom:8px;">Sending broadcast...</div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Preparing...</div>
+        </div>`;
+
+    // Animate progress bar
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress = Math.min(progress + Math.random() * 15, 90);
+        document.getElementById('progressFill').style.width = progress + '%';
+        document.getElementById('progressText').textContent = 'Sending... ' + Math.round(progress) + '%';
+    }, 400);
+
+    try {
+        const payload = {
+            channel: currentChannel,
+            customer_ids: Array.from(selectedCustomerIds),
+            filters: buildFilterPayload()
+        };
+
+        if (currentChannel === 'email' || currentChannel === 'both') {
+            payload.template_id = document.getElementById('templateSelect').value || null;
+        }
+        if (currentChannel === 'sms' || currentChannel === 'both') {
+            payload.sms_body = document.getElementById('smsBody').value;
+        }
+
+        const res = await fetch('/api/broadcasts/send', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        clearInterval(progressInterval);
+
+        if (res.ok) {
+            const result = await res.json();
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('progressText').textContent = 'Complete!';
+            setTimeout(() => showResults(result), 500);
+        } else {
+            const err = await res.json().catch(() => ({ error: 'Send failed' }));
+            clearInterval(progressInterval);
+            sendSection.innerHTML = `
+                <div style="color:var(--red);font-weight:600;margin-bottom:8px;">Send failed</div>
+                <div style="font-size:13px;color:var(--gray-500);">${escHtml(err.error || 'Unknown error')}</div>
+                <button class="btn-send-broadcast" style="margin-top:16px;font-size:14px;padding:10px 24px;" onclick="resetSendButton()">
+                    Try Again
+                </button>`;
+        }
+    } catch (e) {
+        clearInterval(progressInterval);
+        const sendSection2 = document.querySelector('.send-section');
+        sendSection2.innerHTML = `
+            <div style="color:var(--red);font-weight:600;margin-bottom:8px;">Network error</div>
+            <div style="font-size:13px;color:var(--gray-500);">${escHtml(e.message)}</div>
+            <button class="btn-send-broadcast" style="margin-top:16px;font-size:14px;padding:10px 24px;" onclick="resetSendButton()">
+                Try Again
+            </button>`;
+    }
+}
+
+function resetSendButton() {
+    const sendSection = document.querySelector('.send-section');
+    const count = selectedCustomerIds.size;
+    sendSection.innerHTML = `
+        <button class="btn-send-broadcast" id="sendBtn" onclick="openConfirmModal()" ${count === 0 ? 'disabled' : ''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+            <span id="sendBtnLabel">Send to ${count} customer${count !== 1 ? 's' : ''}</span>
+        </button>`;
+}
+
+// ─── Results ───────────────────────────────────────────────
+function showResults(result) {
+    const sent = result.sent || 0;
+    const errors = result.errors || 0;
+    const skipped = result.skipped || 0;
+
+    document.getElementById('resultsBody').innerHTML = `
+        <div class="results-summary">
+            <div class="result-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h4>Broadcast Sent!</h4>
+            <div class="results-grid">
+                <div class="result-stat">
+                    <div class="r-num success">${sent}</div>
+                    <div class="r-label">Sent</div>
+                </div>
+                <div class="result-stat">
+                    <div class="r-num error">${errors}</div>
+                    <div class="r-label">Errors</div>
+                </div>
+                <div class="result-stat">
+                    <div class="r-num skip">${skipped}</div>
+                    <div class="r-label">Skipped</div>
+                </div>
+            </div>
+        </div>`;
+
+    document.getElementById('resultsModal').classList.add('open');
+    resetSendButton();
+}
+
+function closeResultsModal() {
+    document.getElementById('resultsModal').classList.remove('open');
+}
+
+// ─── Helpers ───────────────────────────────────────────────
+function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

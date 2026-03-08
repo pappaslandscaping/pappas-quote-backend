@@ -5,45 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monthly Plan Quote Request — Pappas & Co. Landscaping</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            min-height: 100vh;
-        }
-
         /* Header */
         .header {
             background: var(--white);
@@ -60,10 +23,9 @@
         }
 
         .header-text h1 {
-            font-family: 'Qualy', serif;
             font-size: 20px;
             font-weight: 700;
-            color: var(--forest);
+            color: var(--primary);
         }
 
         .header-text p {
@@ -81,8 +43,8 @@
         /* Intro Card */
         .intro-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
             border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             padding: 24px;
             margin-bottom: 24px;
         }
@@ -99,9 +61,9 @@
         }
 
         .intro-card h2 {
-            font-family: 'Qualy', serif;
             font-size: 22px;
-            color: var(--forest);
+            font-weight: 700;
+            color: var(--primary);
             margin-bottom: 12px;
         }
 
@@ -135,14 +97,14 @@
         /* Form Card */
         .form-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
             border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             padding: 24px;
         }
 
         .form-card h3 {
-            font-family: 'Qualy', serif;
             font-size: 18px;
+            font-weight: 700;
             color: var(--gray-700);
             margin-bottom: 20px;
         }
@@ -177,7 +139,7 @@
 
         .form-input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
         }
 
@@ -245,7 +207,7 @@
 
         .checkbox-item.selected {
             background: rgba(46, 64, 61, 0.06);
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
 
         .checkbox-item input {
@@ -265,14 +227,14 @@
         }
 
         .checkbox-item.selected .checkbox-box {
-            background: var(--forest);
-            border-color: var(--forest);
+            background: var(--primary);
+            border-color: var(--primary);
         }
 
         .checkbox-box svg {
             width: 12px;
             height: 12px;
-            color: var(--lime);
+            color: var(--white);
             opacity: 0;
             transition: opacity 0.15s;
         }
@@ -291,8 +253,8 @@
         .btn-submit {
             width: 100%;
             padding: 14px 24px;
-            background: var(--forest);
-            color: var(--lime);
+            background: var(--primary);
+            color: var(--white);
             border: none;
             border-radius: 8px;
             font-family: inherit;
@@ -307,7 +269,7 @@
         }
 
         .btn-submit:hover {
-            background: var(--forest-dark);
+            background: var(--primary-dark);
             box-shadow: 0 4px 12px rgba(46, 64, 61, 0.3);
         }
 
@@ -324,8 +286,8 @@
         /* Success State */
         .success-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
             border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             padding: 40px 24px;
             text-align: center;
             display: none;
@@ -353,9 +315,9 @@
         }
 
         .success-card h2 {
-            font-family: 'Qualy', serif;
             font-size: 22px;
-            color: var(--forest);
+            font-weight: 700;
+            color: var(--primary);
             margin-bottom: 12px;
         }
 
@@ -375,7 +337,7 @@
         }
 
         .footer a {
-            color: var(--forest);
+            color: var(--primary);
             text-decoration: none;
         }
 
@@ -387,7 +349,7 @@
         .spinner {
             width: 18px;
             height: 18px;
-            border: 2px solid var(--lime);
+            border: 2px solid var(--white);
             border-top-color: transparent;
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
@@ -464,7 +426,7 @@
     <div class="intro-card" id="introCard">
         <h2>Annual Landscape Care Plan</h2>
         <p>Bundle your landscaping services into one plan with 12 equal monthly payments. No surprises, no hassle — just a great-looking property year-round.</p>
-        
+
         <ul class="benefit-list">
             <li>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -490,7 +452,7 @@
     <!-- Form Card -->
     <div class="form-card" id="formCard">
         <h3>Request Your Custom Quote</h3>
-        
+
         <form id="quoteForm">
             <div class="form-row">
                 <div class="form-group">
@@ -688,7 +650,7 @@
     document.getElementById('phone').addEventListener('input', (e) => {
         let value = e.target.value.replace(/\D/g, '');
         if (value.length > 10) value = value.slice(0, 10);
-        
+
         if (value.length >= 6) {
             e.target.value = `${value.slice(0, 3)}-${value.slice(3, 6)}-${value.slice(6)}`;
         } else if (value.length >= 3) {
@@ -759,7 +721,7 @@
                     .success-page { max-width: 500px; margin: 80px auto; padding: 40px 20px; text-align: center; }
                     .success-icon { width: 80px; height: 80px; background: #ecfdf5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
                     .success-icon svg { width: 40px; height: 40px; color: #059669; }
-                    h1 { font-family: 'Qualy', serif; font-size: 28px; color: #2e403d; margin-bottom: 16px; }
+                    h1 { font-size: 28px; font-weight: 700; color: #2e403d; margin-bottom: 16px; }
                     p { font-size: 16px; color: #6e726e; line-height: 1.6; }
                     .footer { margin-top: 40px; font-size: 14px; color: #9ca09c; }
                     .footer a { color: #2e403d; }

@@ -5,252 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Templates — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            overflow-x: hidden;
-        }
-
-        /* ─── Sidebar ───────────────────────────────────────── */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-            transition: transform 0.3s;
-        }
-
-        .sidebar-brand {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .sidebar-brand img {
-            max-height: 48px;
-            width: auto;
-            max-width: 180px;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            padding: 16px 12px;
-            overflow-y: auto;
-        }
-
-        .nav-section { margin-bottom: 8px; }
-
-        .nav-section-label {
-            color: var(--gray-400);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 8px 12px 4px;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .nav-item:hover {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .nav-item.active {
-            background: var(--forest);
-            color: var(--lime);
-        }
-
-        .sidebar-footer {
-            padding: 16px 20px;
-            border-top: 1px solid var(--gray-100);
-        }
-
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .sidebar-user .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 13px;
-        }
-
-        .sidebar-user .name {
-            color: var(--gray-700);
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .sidebar-user .role {
-            color: var(--gray-400);
-            font-size: 11px;
-        }
-
-        /* ─── Main Content ──────────────────────────────────── */
-        .main {
-            margin-left: var(--sidebar-w);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .topbar {
-            position: sticky;
-            top: 0;
-            height: var(--header-h);
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 32px;
-            z-index: 50;
-            flex-shrink: 0;
-        }
-
-        .topbar-left h2 {
-            font-family: 'Qualy', serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--forest);
-        }
-
-        .topbar-left p {
-            font-size: 13px;
-            color: var(--gray-400);
-        }
-
-        .topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        /* ─── Buttons ──────────────────────────────────────── */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            border: none;
-            transition: all 0.15s;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover { background: var(--forest-dark); }
-
-        .btn-secondary {
-            background: var(--white);
-            color: var(--gray-600);
-            border: 1px solid var(--gray-200);
-        }
-        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
-
-        .btn-danger {
-            background: var(--red-bg);
-            color: var(--red);
-        }
-        .btn-danger:hover { background: #fde2e2; }
-
-        .btn-lime {
-            background: var(--lime);
-            color: var(--forest);
-        }
-        .btn-lime:hover { background: var(--lime-soft); }
-
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 6px; }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
         /* ─── Split Layout ─────────────────────────────────── */
         .workspace {
             flex: 1;
             display: flex;
             overflow: hidden;
-            height: calc(100vh - var(--header-h));
+            height: calc(100vh - var(--topbar-h));
         }
 
         /* ─── Template List Panel ──────────────────────────── */
@@ -301,7 +63,7 @@
 
         .search-box input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             background: var(--white);
         }
 
@@ -340,9 +102,9 @@
         }
 
         .category-pill.active {
-            background: var(--forest);
-            color: var(--lime);
-            border-color: var(--forest);
+            background: var(--primary);
+            color: var(--white);
+            border-color: var(--primary);
         }
 
         /* Template Cards */
@@ -410,7 +172,7 @@
         .cat-payments { background: var(--green-bg); color: var(--green); }
         .cat-followups { background: var(--amber-bg); color: var(--amber); }
         .cat-portal { background: var(--purple-bg); color: var(--purple); }
-        .cat-marketing { background: var(--lime-soft); color: var(--forest); }
+        .cat-marketing { background: #f0fdf4; color: var(--primary); }
         .cat-system { background: var(--gray-100); color: var(--gray-600); }
 
         .template-card-date {
@@ -439,8 +201,8 @@
         .default-badge {
             font-size: 9px;
             font-weight: 700;
-            background: var(--lime);
-            color: var(--forest);
+            background: var(--primary);
+            color: var(--white);
             padding: 1px 5px;
             border-radius: 4px;
             text-transform: uppercase;
@@ -512,7 +274,7 @@
         .editor-section {
             background: var(--white);
             border-radius: 12px;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             padding: 20px;
             margin-bottom: 16px;
         }
@@ -558,7 +320,7 @@
 
         .form-input:focus, .form-textarea:focus, .form-select:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
 
         .form-textarea {
@@ -671,7 +433,7 @@
 
         .html-textarea:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             background: var(--white);
         }
 
@@ -730,9 +492,9 @@
         }
 
         .var-pill:hover {
-            background: var(--lime-soft);
-            color: var(--forest);
-            border-color: var(--lime);
+            background: #f0fdf4;
+            color: var(--primary);
+            border-color: var(--primary);
         }
 
         .var-pill:active {
@@ -782,9 +544,9 @@
         }
 
         .radio-option.selected {
-            border-color: var(--forest);
-            background: var(--forest);
-            color: var(--lime);
+            border-color: var(--primary);
+            background: var(--primary);
+            color: var(--white);
         }
 
         .radio-option input[type="radio"] {
@@ -801,7 +563,7 @@
             font-size: 13px;
             font-weight: 600;
             color: var(--white);
-            background: var(--forest);
+            background: var(--primary);
             z-index: 9999;
             transform: translateY(80px);
             opacity: 0;
@@ -924,6 +686,14 @@
 
         .unsaved-dot.show { display: inline-block; }
 
+        .btn-lime {
+            background: var(--primary);
+            color: var(--white);
+        }
+        .btn-lime:hover { opacity: 0.9; }
+
+        .btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 6px; }
+
         /* Scrollbar */
         .template-cards::-webkit-scrollbar,
         .editor-content::-webkit-scrollbar {
@@ -952,132 +722,34 @@
         }
 
         @media (max-width: 900px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; }
             .template-list-panel { width: 280px; min-width: 280px; }
         }
-/* Universal Search */
-.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
-.search-input-group{position:relative;display:flex;align-items:center}
-.search-icon{position:absolute;left:12px;width:18px;height:18px;color:var(--gray-400);pointer-events:none}
-.search-input-us{width:100%;padding:8px 36px 8px 40px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
-.search-input-us:focus{outline:none;border-color:var(--forest);box-shadow:0 0 0 3px rgba(46,64,61,.1)}
-.search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
-.search-clear-btn:hover{color:#4a4e4a}
-.search-clear-btn svg{width:16px;height:16px}
-.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
-.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
-.search-results-group:last-child{border-bottom:none}
-.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
-.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
-.search-result-item:hover{background:#f8faf8}
-.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
-.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
-.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
-.search-result-icon.property{background:#ecfdf5;color:#059669}
-.search-result-content{flex:1;min-width:0}
-.search-result-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
-@media(max-width:768px){.universal-search-wrapper{display:none}}
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-<!-- ─── Sidebar ──────────────────────────────────────────── -->
-<div class="sidebar">
-    <div class="sidebar-brand"><a href="index.html"><img src="logo.png" alt="YardDesk"></a></div>
-    <div class="sidebar-nav">
-        <div class="nav-section"><div class="nav-section-label">Overview</div>
-            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Sales</div>
-            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-            <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Operations</div>
-            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
-            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-            <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
-            <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Communications</div>
-            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages &amp; Calls</span></a>
-            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
-            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Marketing</div>
-            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-            <a href="templates.html" class="nav-item active"><span>📝</span><span>Templates</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Finance</div>
-            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Analytics</div>
-            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Team</div>
-            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">System</div>
-            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
-    </div>
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="avatar">TP</div>
-            <div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div>
-        </div>
-    </div>
-</div>
+<script src="shell.js"></script>
 
 <!-- ─── Main ─────────────────────────────────────────────── -->
 <div class="main">
     <div class="topbar">
         <div class="topbar-left">
-            <h2>Email &amp; SMS Templates</h2>
-            <p>Manage outbound communication templates</p>
-        </div>
-        <div class="universal-search-wrapper">
-            <div class="search-input-group">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="text" id="universalSearch" class="search-input-us" placeholder="Search customers, quotes, properties... (Cmd+K)" autocomplete="off">
-                <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <h1>Templates</h1>
         </div>
         <div class="topbar-actions">
             <span class="unsaved-dot" id="unsavedDot" title="Unsaved changes"></span>
             <button class="btn btn-secondary btn-sm" onclick="loadTemplates()" title="Refresh">&#x21BB; Refresh</button>
         </div>
+    </div>
+
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+        <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
+        <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Templates</a>
+        <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
+        <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
+        <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Broadcasts</a>
     </div>
 
     <div class="workspace">
@@ -1123,7 +795,7 @@
                 <div class="editor-toolbar">
                     <div class="editor-toolbar-left">
                         <input type="text" class="form-input" id="editorName" placeholder="Template Name" style="font-weight:600; font-size:15px; max-width:260px;" oninput="markDirty()">
-                        <input type="text" class="form-input" id="editorSlug" placeholder="template-slug" style="font-size:12px; color:var(--gray-400); max-width:180px;" oninput="markDirty()">
+                        <input type="hidden" id="editorSlug">
                         <select class="form-select" id="editorCategory" style="max-width:130px; font-size:12px;" onchange="markDirty()">
                             <option value="quotes">Quotes</option>
                             <option value="invoices">Invoices</option>
@@ -1216,13 +888,36 @@
                         <div class="sms-counter" id="smsCounter">0 / 160</div>
                     </div>
 
+                    <!-- AI Assistant Chat -->
+                    <div class="editor-section" style="background:linear-gradient(135deg, #f0fdf4, #ecfdf5); border:1px solid #bbf7d0;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Template Assistant</div>
+                            <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="clearAiChat()" title="Clear conversation">Clear Chat</button>
+                        </div>
+                        <div id="aiChatMessages" style="max-height:320px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px;"></div>
+                        <div style="display:flex; gap:8px; align-items:end;">
+                            <textarea class="form-textarea" id="aiPrompt" rows="2" placeholder="Ask me to generate, rewrite, tweak, or suggest subjects..." style="flex:1; resize:vertical; min-height:40px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <button class="btn btn-primary" onclick="aiSend()" id="aiSendBtn" style="white-space:nowrap;">Send</button>
+                                <button class="btn btn-secondary" onclick="aiSend('apply')" id="aiApplyBtn" style="white-space:nowrap; font-size:11px; padding:4px 10px;" title="Generate and apply to template">Apply</button>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Rewrite and improve the current email template')">Rewrite</button>
+                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Suggest 5 subject lines for this email')">Suggest Subject</button>
+                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make the tone more friendly and casual')">More Casual</button>
+                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make it shorter and more concise')">Shorter</button>
+                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Write an SMS version of this email')">SMS Version</button>
+                        </div>
+                    </div>
+
                     <!-- Actions -->
-                    <div class="editor-section" style="background:transparent; border:none; padding:0; display:flex; gap:8px; flex-wrap:wrap;">
-                        <button class="btn btn-primary" id="btnSave" onclick="saveTemplate()">&#x1F4BE; Save Template</button>
-                        <button class="btn btn-lime" onclick="duplicateTemplate()">&#x1F4CB; Duplicate</button>
-                        <button class="btn btn-secondary" onclick="sendTestEmail()">&#x2709;&#xFE0F; Send Test Email</button>
+                    <div class="editor-section" style="background:transparent; border:none; box-shadow:none; padding:0; display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-primary" id="btnSave" onclick="saveTemplate()">Save Template</button>
+                        <button class="btn btn-lime" onclick="duplicateTemplate()">Duplicate</button>
+                        <button class="btn btn-secondary" onclick="sendTestEmail()">Send Test Email</button>
                         <div style="flex:1;"></div>
-                        <button class="btn btn-danger" onclick="confirmDelete()">&#x1F5D1;&#xFE0F; Delete</button>
+                        <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
                     </div>
                 </div>
             </div>
@@ -1251,9 +946,9 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    State
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 let templates = [];
 let selectedId = null;
 let isDirty = false;
@@ -1290,9 +985,9 @@ const SAMPLE_VARS = {
     portal_link: 'https://portal.pappaslandscaping.com'
 };
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Init
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 document.addEventListener('DOMContentLoaded', () => {
     loadTemplates();
     loadVariables();
@@ -1313,9 +1008,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    API Helpers
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 async function api(method, path, body) {
     const opts = {
         method,
@@ -1330,9 +1025,9 @@ async function api(method, path, body) {
     return res.json();
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Load Templates
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 async function loadTemplates() {
     try {
         const data = await api('GET', '');
@@ -1350,9 +1045,9 @@ async function loadTemplates() {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Load Variables
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 async function loadVariables() {
     try {
         const data = await api('GET', '/variables');
@@ -1371,9 +1066,9 @@ async function loadVariables() {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Render Template List
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function renderTemplateList() {
     const container = document.getElementById('templateCards');
     const search = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -1420,9 +1115,9 @@ function renderTemplateList() {
     }).join('');
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Render Variables
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function renderVariables() {
     const container = document.getElementById('variablesContainer');
     if (!variablesByCategory || Object.keys(variablesByCategory).length === 0) {
@@ -1440,9 +1135,9 @@ function renderVariables() {
     `).join('');
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Select / Open Template
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function selectTemplate(id) {
     if (isDirty && selectedId !== id) {
         if (!confirm('You have unsaved changes. Discard them?')) return;
@@ -1485,9 +1180,9 @@ function openTemplate(t) {
     refreshPreview();
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Create New Template
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function createNewTemplate() {
     if (isDirty) {
         if (!confirm('You have unsaved changes. Discard them?')) return;
@@ -1537,22 +1232,22 @@ function defaultBodyTemplate() {
 </p>`;
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Save Template
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 async function saveTemplate() {
     const name = document.getElementById('editorName').value.trim();
-    const slug = document.getElementById('editorSlug').value.trim();
+    let slug = document.getElementById('editorSlug').value.trim();
 
     if (!name) {
         showToast('Template name is required', 'error');
         document.getElementById('editorName').focus();
         return;
     }
+    // Auto-generate slug from name if not set
     if (!slug) {
-        showToast('Template slug is required', 'error');
-        document.getElementById('editorSlug').focus();
-        return;
+        slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        document.getElementById('editorSlug').value = slug;
     }
 
     const payload = {
@@ -1591,9 +1286,9 @@ async function saveTemplate() {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Duplicate Template
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 async function duplicateTemplate() {
     if (!selectedId) {
         showToast('Save the template first before duplicating', 'error');
@@ -1613,9 +1308,9 @@ async function duplicateTemplate() {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Delete Template
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function confirmDelete() {
     if (!selectedId) return;
     const t = templates.find(t => t.id === selectedId);
@@ -1644,28 +1339,40 @@ async function deleteTemplate() {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Send Test Email
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 async function sendTestEmail() {
-    if (!selectedId) {
-        showToast('Save the template first before sending a test', 'error');
+    const subject = document.getElementById('editorSubject').value;
+    const body = document.getElementById('editorBody').value;
+    if (!subject && !body) {
+        showToast('Add a subject and body first', 'error');
         return;
     }
     try {
-        await api('POST', '/send-preview', {
-            template_id: selectedId,
-            slug: document.getElementById('editorSlug').value
+        const res = await fetch('/api/templates/send-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject: subject || document.getElementById('editorName').value || 'Test Template',
+                html_content: body,
+                template_id: selectedId
+            })
         });
-        showToast('Test email sent to hello@pappaslandscaping.com', 'success');
+        const data = await res.json();
+        if (data.success) {
+            showToast('Test email sent to hello@pappaslandscaping.com', 'success');
+        } else {
+            showToast('Send failed: ' + (data.error || 'Unknown error'), 'error');
+        }
     } catch (err) {
         showToast('Send failed: ' + err.message, 'error');
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Preview
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function debouncedPreview() {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(refreshPreview, 500);
@@ -1702,35 +1409,26 @@ function wrapEmail(bodyHtml, subject) {
     const isMinimal = currentWrapper === 'minimal';
 
     const header = isMinimal ? '' : `
-        <div style="background:#2e403d;padding:24px 32px;text-align:center;">
-            <div style="font-family:Georgia,serif;font-size:22px;font-weight:700;color:#c9dd80;letter-spacing:0.5px;">
-                Pappas & Co.
-            </div>
-            <div style="color:#9ca09c;font-size:12px;margin-top:4px;">Landscaping & Property Care</div>
+        <div style="background:#2e403d;padding:36px 48px;text-align:center;">
+            <img src="/logo.png" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
         </div>
     `;
 
     const footer = isMinimal ? `
-        <div style="padding:20px 32px;text-align:center;font-size:12px;color:#9ca09c;">
+        <div style="padding:20px 32px;text-align:center;font-size:12px;color:#57694e;font-family:-apple-system,Arial,sans-serif;">
             Pappas & Co. Landscaping &bull; hello@pappaslandscaping.com
         </div>
     ` : `
-        <div style="background:#2e403d;padding:28px 32px;text-align:center;">
-            <div style="font-family:Georgia,serif;font-size:16px;font-weight:700;color:#c9dd80;margin-bottom:8px;">
-                Pappas & Co.
+        <div style="background:#2e403d;padding:28px 40px;text-align:center;">
+            <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;font-family:-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <span style="color:#c9dd80;font-weight:600;">(440) 886-7318</span></p>
+            <div style="margin:0 0 16px;">
+                <span style="display:inline-block;width:28px;height:28px;background:#57694e;border-radius:50%;margin:0 4px;line-height:28px;text-align:center;font-size:14px;color:white;">f</span>
+                <span style="display:inline-block;width:28px;height:28px;background:#57694e;border-radius:50%;margin:0 4px;line-height:28px;text-align:center;font-size:14px;color:white;">ig</span>
+                <span style="display:inline-block;width:28px;height:28px;background:#57694e;border-radius:50%;margin:0 4px;line-height:28px;text-align:center;font-size:14px;color:white;">nd</span>
             </div>
-            <div style="color:#c8ccc8;font-size:12px;line-height:1.8;">
-                (555) 867-5309 &bull; hello@pappaslandscaping.com<br>
-                pappaslandscaping.com
-            </div>
-            <div style="margin-top:14px;">
-                <a href="#" style="color:#c9dd80;text-decoration:none;font-size:12px;margin:0 8px;">Facebook</a>
-                <a href="#" style="color:#c9dd80;text-decoration:none;font-size:12px;margin:0 8px;">Instagram</a>
-                <a href="#" style="color:#c9dd80;text-decoration:none;font-size:12px;margin:0 8px;">Google</a>
-            </div>
-            <div style="color:#6e726e;font-size:10px;margin-top:16px;">
-                &copy; ${new Date().getFullYear()} Pappas & Co. Landscaping. All rights reserved.
-            </div>
+            <p style="margin:0 0 3px;font-size:12px;color:#7a9477;font-family:-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
+            <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;font-family:-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+            <p style="margin:0;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-family:-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
         </div>
     `;
 
@@ -1740,13 +1438,13 @@ function wrapEmail(bodyHtml, subject) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { margin: 0; padding: 0; background: #f0f2f0; font-family: 'DM Sans', -apple-system, sans-serif; }
+        body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
     </style>
 </head>
 <body>
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:0;">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
         ${header}
-        <div style="padding:32px;color:#333633;font-size:15px;line-height:1.7;">
+        <div style="padding:40px 48px;color:#4a5568;font-size:15px;line-height:1.8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
             ${bodyHtml}
         </div>
         ${footer}
@@ -1755,9 +1453,9 @@ function wrapEmail(bodyHtml, subject) {
 </html>`;
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Insert Variable at Cursor
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function insertVariable(varName) {
     const target = lastFocusedTextarea || document.getElementById('editorBody');
     const text = '{' + varName + '}';
@@ -1783,9 +1481,9 @@ function insertVariable(varName) {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Wrapper Selection
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function selectWrapper(value, el) {
     currentWrapper = value;
     document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
@@ -1796,9 +1494,9 @@ function selectWrapper(value, el) {
     refreshPreview();
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    SMS Counter
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function updateSmsCounter() {
     const sms = document.getElementById('editorSms').value;
     const len = sms.length;
@@ -1814,9 +1512,9 @@ function updateSmsCounter() {
     }
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Category Filter
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function setCategory(cat, btn) {
     activeCategory = cat;
     document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
@@ -1828,17 +1526,17 @@ function filterTemplates() {
     renderTemplateList();
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Dirty State
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function markDirty() {
     isDirty = true;
     document.getElementById('unsavedDot').classList.add('show');
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Toast Notifications
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function showToast(msg, type = '') {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -1847,9 +1545,9 @@ function showToast(msg, type = '') {
     setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Utilities
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 function escapeHtml(str) {
     if (!str) return '';
     const d = document.createElement('div');
@@ -1868,9 +1566,9 @@ function timeAgo(dateStr) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ==============================================================
    Keyboard Shortcuts
-   ══════════════════════════════════════════════════════════ */
+   ============================================================== */
 document.addEventListener('keydown', (e) => {
     // Cmd/Ctrl+S to save
     if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -1880,15 +1578,235 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+/* ==============================================================
+   AI Template Assistant (Chat-based)
+   ============================================================== */
+let aiChatHistory = []; // {role:'user'|'assistant', content:'...'}
+
+function clearAiChat() {
+    aiChatHistory = [];
+    document.getElementById('aiChatMessages').innerHTML = '';
+}
+
+function addChatBubble(role, html) {
+    const container = document.getElementById('aiChatMessages');
+    const bubble = document.createElement('div');
+    bubble.style.cssText = role === 'user'
+        ? 'align-self:flex-end;background:#2e403d;color:white;padding:8px 12px;border-radius:12px 12px 2px 12px;max-width:80%;font-size:13px;line-height:1.5;'
+        : 'align-self:flex-start;background:white;color:#334155;padding:10px 14px;border-radius:12px 12px 12px 2px;max-width:90%;font-size:13px;line-height:1.6;border:1px solid #d1fae5;';
+    bubble.innerHTML = html;
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+    return bubble;
+}
+
+function aiQuickAction(text) {
+    document.getElementById('aiPrompt').value = text;
+    aiSend();
+}
+
+async function aiSend(mode) {
+    const input = document.getElementById('aiPrompt');
+    const prompt = input.value.trim();
+    if (!prompt) { showToast('Type a message', 'error'); return; }
+
+    const sendBtn = document.getElementById('aiSendBtn');
+    const applyBtn = document.getElementById('aiApplyBtn');
+    const shouldApply = mode === 'apply';
+
+    // Include current template context
+    const currentBody = document.getElementById('editorBody').value.trim();
+    const currentSubject = document.getElementById('editorSubject').value.trim();
+    const currentSms = document.getElementById('editorSms').value.trim();
+    const templateName = document.getElementById('editorName').value.trim();
+
+    // Build context-enriched user message
+    let contextMsg = prompt;
+    if (currentBody || currentSubject || currentSms) {
+        contextMsg += '\n\n--- CURRENT TEMPLATE ---';
+        if (templateName) contextMsg += '\nName: ' + templateName;
+        if (currentSubject) contextMsg += '\nSubject: ' + currentSubject;
+        if (currentBody) contextMsg += '\nEmail Body:\n' + currentBody;
+        if (currentSms) contextMsg += '\nSMS Body: ' + currentSms;
+    }
+
+    // Add user message to chat
+    addChatBubble('user', escHtml(prompt));
+    aiChatHistory.push({ role: 'user', content: contextMsg });
+    input.value = '';
+    input.style.height = 'auto';
+
+    // Show thinking indicator
+    const thinkingBubble = addChatBubble('assistant', '<span style="color:#94a3b8;">Thinking...</span>');
+
+    sendBtn.disabled = true;
+    applyBtn.disabled = true;
+
+    try {
+        const res = await fetch('/api/ai/generate-template', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: contextMsg,
+                type: 'email',
+                action: 'chat',
+                history: aiChatHistory.slice(0, -1), // all except the current message (already in prompt)
+                apply: shouldApply
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Generation failed');
+
+        const result = data.result;
+        let replyHtml = '';
+
+        // Handle structured results (template generation)
+        if (result.blocks && (shouldApply || result._auto_apply)) {
+            // Apply blocks to template
+            let emailHtml = '';
+            result.blocks.forEach(block => {
+                switch (block.type) {
+                    case 'title':
+                        emailHtml += '<h1 style="color:#1e293b;font-family:-apple-system,Arial,sans-serif;font-size:28px;font-weight:700;text-align:center;margin:0 0 24px;">' + block.content + '</h1>\n';
+                        break;
+                    case 'paragraph':
+                        emailHtml += '<p style="color:#4a5568;font-size:15px;line-height:1.8;margin:0 0 18px;">' + block.content + '</p>\n';
+                        break;
+                    case 'button':
+                        emailHtml += '<div style="text-align:center;margin:28px 0 20px;"><a href="' + (block.url || '#') + '" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">' + block.content + ' &#x2192;</a></div>\n';
+                        break;
+                    case 'list':
+                        if (Array.isArray(block.content)) {
+                            emailHtml += '<ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">\n';
+                            block.content.forEach(item => { emailHtml += '  <li>' + item + '</li>\n'; });
+                            emailHtml += '</ul>\n';
+                        }
+                        break;
+                    case 'divider':
+                        emailHtml += '<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;">\n';
+                        break;
+                }
+            });
+            if (result.subject) document.getElementById('editorSubject').value = result.subject;
+            document.getElementById('editorBody').value = emailHtml;
+            markDirty();
+            refreshPreview();
+            replyHtml = (result.message || 'Template applied!') + '<br><span style="color:#16a34a;font-size:11px;">Applied to editor above</span>';
+        } else if (result.subjects) {
+            // Subject line suggestions
+            replyHtml = '<strong>Subject line ideas:</strong><ol style="margin:6px 0 0;padding-left:18px;">';
+            result.subjects.forEach(s => {
+                replyHtml += '<li style="margin:4px 0;cursor:pointer;color:#2e403d;text-decoration:underline;" onclick="document.getElementById(\'editorSubject\').value=this.textContent;markDirty();showToast(\'Subject applied!\',\'success\');">' + escHtml(s) + '</li>';
+            });
+            replyHtml += '</ol><span style="font-size:11px;color:#94a3b8;">Click to use</span>';
+        } else if (result.sms) {
+            if (shouldApply) {
+                document.getElementById('editorSms').value = result.sms;
+                markDirty();
+                updateSmsCounter();
+                replyHtml = escHtml(result.sms) + '<br><span style="color:#16a34a;font-size:11px;">Applied to SMS field</span>';
+            } else {
+                replyHtml = '<strong>SMS:</strong> ' + escHtml(result.sms);
+                replyHtml += '<br><button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;margin-top:6px;" onclick="document.getElementById(\'editorSms\').value=' + JSON.stringify(result.sms).replace(/'/g, "\\'") + ';markDirty();updateSmsCounter();showToast(\'Applied!\',\'success\');">Apply to SMS</button>';
+            }
+        } else if (result.message) {
+            replyHtml = escHtml(result.message).replace(/\n/g, '<br>');
+        } else if (typeof result === 'string') {
+            replyHtml = escHtml(result).replace(/\n/g, '<br>');
+        } else {
+            replyHtml = '<pre style="white-space:pre-wrap;font-size:12px;">' + escHtml(JSON.stringify(result, null, 2)) + '</pre>';
+        }
+
+        // If blocks were returned but not applied, show an apply button
+        if (result.blocks && !shouldApply && !result._auto_apply) {
+            replyHtml = (result.message ? escHtml(result.message) + '<br>' : 'Here\'s the template I generated:<br>');
+            replyHtml += '<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;margin-top:6px;" onclick="applyAiBlocks()">Apply to Template</button>';
+            // Stash blocks for later apply
+            window._pendingAiBlocks = result;
+        }
+
+        thinkingBubble.innerHTML = replyHtml;
+        aiChatHistory.push({ role: 'assistant', content: result.message || JSON.stringify(result) });
+
+    } catch (err) {
+        thinkingBubble.innerHTML = '<span style="color:#ef4444;">Error: ' + escHtml(err.message) + '</span>';
+    } finally {
+        sendBtn.disabled = false;
+        applyBtn.disabled = false;
+        const container = document.getElementById('aiChatMessages');
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
+function applyAiBlocks() {
+    const result = window._pendingAiBlocks;
+    if (!result || !result.blocks) { showToast('No pending template to apply', 'error'); return; }
+    let emailHtml = '';
+    result.blocks.forEach(block => {
+        switch (block.type) {
+            case 'title':
+                emailHtml += '<h1 style="color:#1e293b;font-family:-apple-system,Arial,sans-serif;font-size:28px;font-weight:700;text-align:center;margin:0 0 24px;">' + block.content + '</h1>\n';
+                break;
+            case 'paragraph':
+                emailHtml += '<p style="color:#4a5568;font-size:15px;line-height:1.8;margin:0 0 18px;">' + block.content + '</p>\n';
+                break;
+            case 'button':
+                emailHtml += '<div style="text-align:center;margin:28px 0 20px;"><a href="' + (block.url || '#') + '" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">' + block.content + ' &#x2192;</a></div>\n';
+                break;
+            case 'list':
+                if (Array.isArray(block.content)) {
+                    emailHtml += '<ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">\n';
+                    block.content.forEach(item => { emailHtml += '  <li>' + item + '</li>\n'; });
+                    emailHtml += '</ul>\n';
+                }
+                break;
+            case 'divider':
+                emailHtml += '<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;">\n';
+                break;
+        }
+    });
+    if (result.subject) document.getElementById('editorSubject').value = result.subject;
+    document.getElementById('editorBody').value = emailHtml;
+    markDirty();
+    refreshPreview();
+    showToast('Template applied!', 'success');
+    window._pendingAiBlocks = null;
+}
+
+function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 </script>
 <script>
 // Universal Search
 let searchDebounceTimer=null;
 function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>uPerformSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
 function uSearchEscHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
-async function uPerformSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+uSearchEscHtml(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+uSearchEscHtml(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+uSearchEscHtml(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+uSearchEscHtml(q.customer_name||'Unknown')+'</div></div></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+uSearchEscHtml(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+uSearchEscHtml([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+uSearchEscHtml(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+async function uPerformSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">&#x1F464;</div><div class="search-result-content"><div class="search-result-title">'+uSearchEscHtml(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+uSearchEscHtml(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">&#x1F4C4;</div><div class="search-result-content"><div class="search-result-title">Quote #'+uSearchEscHtml(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+uSearchEscHtml(q.customer_name||'Unknown')+'</div></div></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">&#x1F3E0;</div><div class="search-result-content"><div class="search-result-title">'+uSearchEscHtml(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+uSearchEscHtml([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+uSearchEscHtml(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
 document.addEventListener('DOMContentLoaded',initUniversalSearch);
 </script>
 
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
+</script>
 </body>
 </html>

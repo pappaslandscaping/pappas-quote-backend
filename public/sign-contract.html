@@ -6,17 +6,9 @@
     <title>Sign Service Agreement | Pappas & Co. Landscaping</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f8fafc;
-            color: #1e293b;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-
+        :root { --primary: #2e403d; }
         /* Header */
         .header {
             background: white;
@@ -76,7 +68,7 @@
         }
 
         .progress-step.completed {
-            color: #c9dd80;
+            color: var(--primary);
         }
 
         .progress-step.active {
@@ -97,7 +89,7 @@
         }
 
         .progress-step.completed .progress-dot {
-            background: #c9dd80;
+            background: var(--primary);
             color: white;
         }
 
@@ -113,7 +105,7 @@
         }
 
         .progress-step.completed + .progress-line {
-            background: #c9dd80;
+            background: var(--primary);
         }
 
         /* Quote Summary Card */
@@ -159,8 +151,8 @@
         }
 
         .quote-total {
-            background: #c9dd80;
-            color: #1e293b;
+            background: var(--primary);
+            color: var(--white);
             padding: 12px 16px;
             border-radius: 8px;
             text-align: center;
@@ -183,7 +175,7 @@
         .contract-section {
             background: white;
             border-radius: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             margin-bottom: 24px;
             overflow: hidden;
         }
@@ -237,44 +229,44 @@
                 font-size: 11pt;
                 line-height: 1.5;
             }
-            
+
             .header, .progress-bar, .quote-summary, .signature-section,
             .submit-section, .contract-header, .loading-overlay,
             .success-container, .error-message {
                 display: none !important;
             }
-            
+
             .container {
                 max-width: 100%;
                 padding: 0;
                 margin: 0;
             }
-            
+
             .contract-section {
                 box-shadow: none;
                 border: none;
                 margin: 0;
             }
-            
+
             .contract-content {
                 max-height: none;
                 overflow: visible;
                 padding: 0;
                 font-size: 11pt;
             }
-            
+
             .contract-content h1 {
                 font-size: 18pt;
                 margin-bottom: 12pt;
             }
-            
+
             .contract-content h2 {
                 font-size: 13pt;
                 margin-top: 16pt;
                 margin-bottom: 8pt;
                 page-break-after: avoid;
             }
-            
+
             .contract-content .parties {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
@@ -284,17 +276,17 @@
                 border-radius: 0;
                 border: 1px solid #ddd;
             }
-            
+
             .contract-content .highlight-box {
                 background: #f5f5f5;
                 border-left: 3px solid #666;
                 padding: 10px 15px;
             }
-            
+
             .contract-content ul {
                 page-break-inside: avoid;
             }
-            
+
             .contract-content p {
                 orphans: 3;
                 widows: 3;
@@ -379,7 +371,7 @@
         .signature-section {
             background: white;
             border-radius: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             padding: 24px;
             margin-bottom: 24px;
         }
@@ -430,7 +422,7 @@
 
         .signature-pad-container.active {
             border-style: solid;
-            border-color: #c9dd80;
+            border-color: var(--primary);
         }
 
         #signatureCanvas {
@@ -484,7 +476,7 @@
         }
 
         .signature-input:focus {
-            border-color: #c9dd80;
+            border-color: var(--primary);
         }
 
         .signature-preview {
@@ -529,8 +521,8 @@
         }
 
         .form-group input:focus {
-            border-color: #c9dd80;
-            box-shadow: 0 0 0 3px rgba(201, 221, 128, 0.2);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.15);
         }
 
         /* Consent Checkbox */
@@ -556,7 +548,7 @@
             height: 20px;
             margin-top: 2px;
             flex-shrink: 0;
-            accent-color: #c9dd80;
+            accent-color: var(--primary);
         }
 
         /* Submit Button */
@@ -595,8 +587,8 @@
 
         .btn-submit {
             padding: 14px 32px;
-            background: #c9dd80;
-            color: #1e293b;
+            background: var(--primary);
+            color: var(--white);
             border: none;
             border-radius: 8px;
             font-size: 16px;
@@ -609,7 +601,7 @@
         }
 
         .btn-submit:hover:not(:disabled) {
-            background: #bdd264;
+            background: var(--primary-dark);
             transform: translateY(-1px);
         }
 
@@ -645,7 +637,7 @@
             width: 48px;
             height: 48px;
             border: 4px solid #e2e8f0;
-            border-top-color: #c9dd80;
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
@@ -668,7 +660,7 @@
         .success-icon {
             width: 80px;
             height: 80px;
-            background: #c9dd80;
+            background: var(--primary);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -851,20 +843,25 @@
     <!-- Main Content -->
     <div class="container" id="mainContent">
         <!-- Progress -->
-        <div class="progress-bar">
-            <div class="progress-step completed">
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-step completed" id="step1">
                 <div class="progress-dot">✓</div>
                 <span>Review Quote</span>
             </div>
-            <div class="progress-line" style="background: #c9dd80;"></div>
-            <div class="progress-step completed">
+            <div class="progress-line" id="line1" style="background: var(--primary);"></div>
+            <div class="progress-step completed" id="step2">
                 <div class="progress-dot">✓</div>
                 <span>Accept Quote</span>
             </div>
-            <div class="progress-line"></div>
-            <div class="progress-step active">
+            <div class="progress-line" id="line2"></div>
+            <div class="progress-step active" id="step3">
                 <div class="progress-dot">3</div>
                 <span>Sign Agreement</span>
+            </div>
+            <div class="progress-line" id="line3"></div>
+            <div class="progress-step" id="step4">
+                <div class="progress-dot">4</div>
+                <span>Card on File</span>
             </div>
         </div>
 
@@ -954,34 +951,57 @@
         </div>
     </div>
 
-    <!-- Success State -->
+    <!-- Card on File Step -->
+    <div class="container" id="cardContainer" style="display:none;">
+        <div style="text-align:center;margin-bottom:24px;">
+            <div style="width:64px;height:64px;border-radius:50%;background:#dcfce7;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+                <svg fill="none" stroke="#2e403d" viewBox="0 0 24 24" width="32" height="32"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <h2 style="font-size:24px;color:#1e293b;margin:0 0 8px;">Agreement Signed!</h2>
+            <p style="color:#64748b;margin:0;">One more quick step — add a card on file for easy billing.</p>
+        </div>
+
+        <div style="background:white;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:24px;max-width:500px;margin:0 auto;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+                <svg fill="none" stroke="#2e403d" viewBox="0 0 24 24" width="24" height="24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                <div>
+                    <h3 style="font-size:16px;color:#1e293b;margin:0;">Add Payment Method</h3>
+                    <p style="font-size:13px;color:#64748b;margin:0;">Your card is stored securely and only charged when invoices are due.</p>
+                </div>
+            </div>
+
+            <div id="card-container" style="min-height:50px;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:16px;"></div>
+
+            <div id="cardError" style="color:#dc2626;font-size:13px;margin-bottom:12px;display:none;"></div>
+
+            <button id="saveCardBtn" onclick="saveCard()" style="width:100%;padding:14px;background:#2e403d;color:white;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">
+                Save Card on File
+            </button>
+
+            <button onclick="skipCard()" style="width:100%;padding:12px;background:none;border:none;color:#64748b;font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;">
+                Skip for now — I'll add it later
+            </button>
+
+            <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:16px;color:#94a3b8;font-size:11px;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                Secured by Square. Your card info never touches our servers.
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Success State -->
     <div class="container success-container" id="successContainer">
         <div class="success-icon">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
         </div>
-        <h2>Agreement Signed!</h2>
-        <p>Thank you for choosing Pappas & Co. Landscaping. A copy of your signed agreement has been sent to your email.</p>
-        
-        <!-- Important: Set up payment -->
-        <div class="portal-setup-box">
-            <div class="portal-setup-icon">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-            </div>
-            <div class="portal-setup-content">
-                <h3>⚠️ One More Step!</h3>
-                <p>If you haven't already, please add a payment method in your customer portal to complete your setup:</p>
-                <a href="https://secure.copilotcrm.com/client/login/portal/5261" class="portal-btn" target="_blank" style="display:inline-block;background:#92400e;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">Go to Customer Portal →</a>
-            </div>
-        </div>
-        <div style="background:white;border:2px solid #f59e0b;border-radius:10px;padding:14px 18px;margin:12px auto 0;max-width:500px;text-align:center;">
-            <p style="font-size:15px;color:#92400e;margin:0 0 4px;font-weight:700;">🆕 First time?</p>
-            <p style="font-size:14px;color:#78350f;margin:0;">Click <strong>"Forgot Password"</strong> to set up your account using your email address.</p>
-        </div>
+        <h2>You're All Set!</h2>
+        <p>Thank you for choosing Pappas & Co. Landscaping. Your agreement is signed and we're ready to get you on the schedule.</p>
 
         <div class="success-details">
             <h4>What's Next?</h4>
-            <p>✓ Signed agreement details sent to your email</p>
-            <p>✓ Once your payment method is set up, we will add you to the schedule</p>
+            <p>✓ Signed agreement sent to your email</p>
+            <p id="cardSuccessMsg">✓ Payment method saved — you're all set for invoicing</p>
+            <p>✓ We'll be in touch to schedule your first service</p>
         </div>
     </div>
 
@@ -1005,9 +1025,12 @@
         <p>Processing your signature...</p>
     </div>
 
+    <script src="https://sandbox.web.squarecdn.com/v1/square.js"></script>
     <script>
         // Configuration
         const API_BASE = '';
+        const SQUARE_APP_ID = 'sandbox-sq0idb-nmqwPSY5BTm_Dvu_zg6jKA';
+        const SQUARE_LOCATION_ID = 'LSA5P9833E4ZW';
 
         // State
         let quoteData = null;
@@ -1128,7 +1151,7 @@
         // Generate contract HTML
         function generateContractContent() {
             const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-            
+
             const contractHTML = `
                 <h1>Service Agreement</h1>
                 <p class="effective-date">This Agreement is made effective on the date the Client accepts a quote from Pappas & Co. Landscaping (the "Effective Date").</p>
@@ -1175,7 +1198,7 @@
                 <h2>IV. Card on File Authorization and Fees</h2>
                 <p>By placing a credit or debit card on file, the Client authorizes Pappas & Co. Landscaping to charge that card for any services rendered under this Agreement, including applicable fees and surcharges.</p>
                 <p><strong>Processing Fee:</strong> A processing fee of 2.9% + $0.30 applies to each successful domestic card transaction.</p>
-                
+
                 <div class="highlight-box">
                     <strong>For Monthly Service Contracts with card-on-file billing:</strong> If a scheduled payment fails, the Client will be notified and given 5 business days to update payment information. If payment is not resolved, the account will revert to per-service invoicing and standard late fee terms (Section V) will apply.
                 </div>
@@ -1333,7 +1356,7 @@
         function validateForm() {
             const printedName = document.getElementById('printedName').value.trim();
             const consent = document.getElementById('consentCheckbox').checked;
-            
+
             let hasValidSignature = false;
             if (signatureType === 'draw') {
                 hasValidSignature = hasSignature;
@@ -1401,7 +1424,82 @@
         function showSuccess() {
             document.getElementById('mainContent').style.display = 'none';
             document.getElementById('submitSection').style.display = 'none';
+            // Show card step instead of final success
+            showCardStep();
+        }
+
+        function showFinalSuccess() {
+            document.getElementById('cardContainer').style.display = 'none';
             document.getElementById('successContainer').classList.add('active');
+            // Update progress bar to all complete
+            document.getElementById('step4').classList.add('completed');
+            document.getElementById('step4').classList.remove('active');
+            document.getElementById('step4').querySelector('.progress-dot').textContent = '✓';
+            document.getElementById('line3').style.background = 'var(--primary)';
+        }
+
+        // Square Web Payments SDK
+        let squareCard = null;
+
+        async function showCardStep() {
+            document.getElementById('cardContainer').style.display = 'block';
+            // Update progress bar
+            document.getElementById('step3').classList.remove('active');
+            document.getElementById('step3').classList.add('completed');
+            document.getElementById('step3').querySelector('.progress-dot').textContent = '✓';
+            document.getElementById('line2').style.background = 'var(--primary)';
+            document.getElementById('step4').classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            try {
+                const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
+                squareCard = await payments.card();
+                await squareCard.attach('#card-container');
+            } catch (err) {
+                console.error('Square init error:', err);
+                document.getElementById('cardError').textContent = 'Could not load payment form. You can add a card later.';
+                document.getElementById('cardError').style.display = 'block';
+            }
+        }
+
+        async function saveCard() {
+            const btn = document.getElementById('saveCardBtn');
+            const errEl = document.getElementById('cardError');
+            errEl.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                const result = await squareCard.tokenize();
+                if (result.status !== 'OK') {
+                    throw new Error(result.errors ? result.errors[0].message : 'Could not process card');
+                }
+
+                // Send token to server to create card on file
+                const res = await fetch(`${API_BASE}/api/customers/${quoteData.customer_id}/card-on-file`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_id: result.token })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showFinalSuccess();
+                } else {
+                    throw new Error(data.error || 'Failed to save card');
+                }
+            } catch (err) {
+                console.error('Card save error:', err);
+                errEl.textContent = err.message;
+                errEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Save Card on File';
+            }
+        }
+
+        function skipCard() {
+            document.getElementById('cardSuccessMsg').textContent = '○ Add a payment method anytime in your customer portal';
+            showFinalSuccess();
         }
 
         function formatCurrency(amount) {
@@ -1427,7 +1525,7 @@
             // Open in new tab with professional styled contract
             const printWindow = window.open('', '_blank');
             const effectiveDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-            
+
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
@@ -1436,8 +1534,8 @@
                     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet">
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
-                        
-                        body { 
+
+                        body {
                             font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
                             padding: 40px 50px;
                             line-height: 1.6;
@@ -1446,7 +1544,7 @@
                             max-width: 850px;
                             margin: 0 auto;
                         }
-                        
+
                         .header {
                             display: flex;
                             justify-content: space-between;
@@ -1455,59 +1553,59 @@
                             padding-bottom: 20px;
                             border-bottom: 2px solid #2e403d;
                         }
-                        
+
                         .logo-section {
                             display: flex;
                             align-items: center;
                             gap: 15px;
                         }
-                        
+
                         .logo-section img {
                             width: 60px;
                             height: 60px;
                             border-radius: 50%;
                         }
-                        
+
                         .company-info h2 {
                             font-size: 18pt;
                             color: #2e403d;
                             margin-bottom: 4px;
                         }
-                        
+
                         .company-info p {
                             font-size: 9pt;
                             color: #64748b;
                         }
-                        
+
                         .doc-info {
                             text-align: right;
                             font-size: 10pt;
                         }
-                        
+
                         .doc-info .label {
                             color: #64748b;
                             font-size: 9pt;
                         }
-                        
+
                         .doc-info .value {
                             font-weight: 600;
                             color: #1e293b;
                         }
-                        
-                        h1 { 
+
+                        h1 {
                             text-align: center;
                             font-size: 20pt;
                             color: #2e403d;
                             margin-bottom: 8px;
                         }
-                        
+
                         .effective-date {
                             text-align: center;
                             color: #64748b;
                             font-size: 10pt;
                             margin-bottom: 25px;
                         }
-                        
+
                         .parties {
                             display: grid;
                             grid-template-columns: 1fr 1fr;
@@ -1518,7 +1616,7 @@
                             border-radius: 8px;
                             border: 1px solid #e2e8f0;
                         }
-                        
+
                         .party h4 {
                             font-size: 9pt;
                             text-transform: uppercase;
@@ -1527,13 +1625,13 @@
                             margin-bottom: 8px;
                             font-weight: 600;
                         }
-                        
+
                         .party p {
                             margin: 2px 0;
                             font-size: 10pt;
                         }
-                        
-                        h2 { 
+
+                        h2 {
                             font-size: 13pt;
                             margin-top: 22px;
                             margin-bottom: 10px;
@@ -1541,21 +1639,21 @@
                             border-bottom: 1px solid #e2e8f0;
                             padding-bottom: 5px;
                         }
-                        
+
                         p {
                             margin-bottom: 10px;
                             text-align: justify;
                         }
-                        
-                        ul { 
+
+                        ul {
                             margin-left: 25px;
                             margin-bottom: 10px;
                         }
-                        
+
                         li {
                             margin-bottom: 6px;
                         }
-                        
+
                         .highlight-box {
                             background: #fef3c7;
                             border-left: 4px solid #f59e0b;
@@ -1564,7 +1662,7 @@
                             border-radius: 0 6px 6px 0;
                             font-size: 10pt;
                         }
-                        
+
                         .signature-block {
                             margin-top: 40px;
                             padding-top: 30px;
@@ -1573,25 +1671,25 @@
                             grid-template-columns: 1fr 1fr;
                             gap: 40px;
                         }
-                        
+
                         .sig-party h4 {
                             font-size: 10pt;
                             margin-bottom: 30px;
                             color: #64748b;
                         }
-                        
+
                         .sig-line {
                             border-bottom: 1px solid #1e293b;
                             margin-bottom: 5px;
                             height: 25px;
                         }
-                        
+
                         .sig-label {
                             font-size: 9pt;
                             color: #64748b;
                             margin-bottom: 15px;
                         }
-                        
+
                         .footer {
                             margin-top: 40px;
                             padding-top: 15px;
@@ -1600,7 +1698,7 @@
                             font-size: 9pt;
                             color: #94a3b8;
                         }
-                        
+
                         @media print {
                             body { padding: 20px 30px; }
                             .header { margin-bottom: 20px; }
@@ -1624,9 +1722,9 @@
                             <div style="margin-top: 8px;"><span class="label">Date</span><br><span class="value">${effectiveDate}</span></div>
                         </div>
                     </div>
-                    
+
                     ${document.getElementById('contractContent').innerHTML}
-                    
+
                     <div class="signature-block">
                         <div class="sig-party">
                             <h4>SERVICE PROVIDER</h4>
@@ -1647,7 +1745,7 @@
                             <div class="sig-label">Date</div>
                         </div>
                     </div>
-                    
+
                     <div class="footer">
                         Pappas & Co. Landscaping • www.pappaslandscaping.com • (440) 886-7318
                     </div>

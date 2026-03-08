@@ -4,20 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pay Invoice - Pappas & Co. Landscaping</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
-        }
         .container {
             max-width: 700px;
             margin: 40px auto;
@@ -27,10 +16,10 @@
             background: white;
             border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
         .header {
-            background: #2e403d;
+            background: var(--primary);
             padding: 30px 32px;
             text-align: center;
         }
@@ -98,8 +87,8 @@
             margin: 24px 0;
         }
         .services-table th {
-            background: #2e403d;
-            color: white;
+            background: var(--primary);
+            color: var(--white);
             padding: 14px 16px;
             text-align: left;
             font-weight: 600;
@@ -132,9 +121,9 @@
             padding: 12px 16px;
         }
         .totals-row.final td {
-            background: #c9dd80;
+            background: var(--primary);
             font-weight: 700;
-            color: #2e403d;
+            color: var(--white);
             font-size: 18px;
         }
 
@@ -168,11 +157,11 @@
             text-align: center;
         }
         .payment-tab:hover {
-            color: #2e403d;
+            color: var(--primary);
         }
         .payment-tab.active {
-            color: #2e403d;
-            border-bottom-color: #2e403d;
+            color: var(--primary);
+            border-bottom-color: var(--primary);
         }
         .payment-tab svg {
             display: block;
@@ -233,7 +222,7 @@
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #c9dd80;
+            border-color: var(--primary);
         }
         .form-row {
             display: grid;
@@ -245,8 +234,8 @@
         .pay-btn {
             width: 100%;
             padding: 18px;
-            background: #2e403d;
-            color: white;
+            background: var(--primary);
+            color: var(--white);
             border: none;
             border-radius: 8px;
             font-size: 16px;
@@ -259,7 +248,7 @@
             gap: 10px;
         }
         .pay-btn:hover {
-            background: #1e2e2c;
+            background: var(--primary-dark);
         }
         .pay-btn:disabled {
             background: #94a3b8;
@@ -353,15 +342,15 @@
             transition: background 0.2s;
         }
         .success-links .download-link {
-            background: #2e403d;
-            color: white;
+            background: var(--primary);
+            color: var(--white);
         }
         .success-links .download-link:hover {
-            background: #1e2e2c;
+            background: var(--primary-dark);
         }
         .success-links .receipt-link {
             background: #f8fafc;
-            color: #2e403d;
+            color: var(--primary);
             border: 2px solid #e5e5e5;
         }
         .success-links .receipt-link:hover {
@@ -373,7 +362,7 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            color: #2e403d;
+            color: var(--primary);
             font-weight: 600;
             text-decoration: none;
             font-size: 14px;
@@ -394,7 +383,7 @@
             font-size: 14px;
         }
         .contact-info a {
-            color: #2e403d;
+            color: var(--primary);
             font-weight: 600;
             text-decoration: none;
         }
@@ -463,11 +452,24 @@
         let squarePayments = null;
         let invoiceData = null;
         let token = null;
+        let feeConfig = null;
 
         function formatCurrency(amount) {
             const num = parseFloat(amount);
             if (isNaN(num)) return '$0.00';
             return '$' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        function calcProcessingFee(balance, method) {
+            if (!feeConfig || !feeConfig.enabled) return 0;
+            if (method === 'ach') {
+                const pct = parseFloat(feeConfig.ach_fee_percent) || 1.0;
+                const fixed = parseFloat(feeConfig.ach_fee_fixed) || 0;
+                return Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+            }
+            const pct = parseFloat(feeConfig.card_fee_percent) || 2.9;
+            const fixed = parseFloat(feeConfig.card_fee_fixed) || 0.30;
+            return Math.round((balance * (pct / 100) + fixed) * 100) / 100;
         }
 
         async function init() {
@@ -495,6 +497,7 @@
                 }
 
                 invoiceData = invoiceResult.invoice;
+                feeConfig = invoiceData.processing_fee_config || null;
                 renderInvoice(invoiceData);
 
                 // Initialize Square if invoice is not fully paid
@@ -516,7 +519,7 @@
                 </div>
                 <div class="page-error">
                     <p>${message}</p>
-                    <p style="margin-top:16px;font-size:14px;">Please contact us at <a href="tel:4408867318" style="color:#2e403d;font-weight:600;">(440) 886-7318</a></p>
+                    <p style="margin-top:16px;font-size:14px;">Please contact us at <a href="tel:4408867318" style="color:var(--primary);font-weight:600;">(440) 886-7318</a></p>
                 </div>
             `;
         }
@@ -540,7 +543,7 @@
                 </tr>
             `).join('');
 
-            const dueDateStr = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A';
+            const dueDateStr = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'Due upon receipt';
             const invoiceDateStr = invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : new Date().toLocaleDateString();
 
             document.getElementById('paymentCard').innerHTML = `
@@ -551,7 +554,7 @@
                 </div>
 
                 <div class="content">
-                    <h2 style="font-family:'Qualy',Georgia,serif;color:#1e293b;font-size:26px;font-weight:400;text-align:center;margin:0 0 24px;">Invoice #${invoiceNumber}</h2>
+                    <h2 style="font-family:'DM Sans',Georgia,serif;color:#1e293b;font-size:26px;font-weight:700;text-align:center;margin:0 0 24px;">Invoice #${invoiceNumber}</h2>
 
                     ${isPaid ? `
                         <div class="status-banner paid">
@@ -619,6 +622,24 @@
                         <div class="payment-section" id="paymentSection">
                             <h3>Make a Payment</h3>
 
+                            ${feeConfig && feeConfig.enabled ? `
+                            <div id="feeBreakdown" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin-bottom:20px;">
+                                <div style="font-size:13px;color:#92400e;font-weight:600;margin-bottom:8px;">Payment Summary</div>
+                                <div style="display:flex;justify-content:space-between;font-size:14px;color:#78350f;margin-bottom:4px;">
+                                    <span>Invoice Balance</span>
+                                    <span>${formatCurrency(balanceDue)}</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;font-size:14px;color:#78350f;margin-bottom:4px;" id="feeLineItem">
+                                    <span><span id="feeMethodLabel">Credit Card Service Fee (${feeConfig.card_fee_percent || 2.9}% + $${(feeConfig.card_fee_fixed || 0.30).toFixed(2)})</span></span>
+                                    <span id="feeAmount">${formatCurrency(calcProcessingFee(balanceDue, 'card'))}</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#78350f;border-top:1px solid #fde68a;padding-top:8px;margin-top:8px;">
+                                    <span>Total to Pay</span>
+                                    <span id="feeTotalAmount">${formatCurrency(balanceDue + calcProcessingFee(balanceDue, 'card'))}</span>
+                                </div>
+                            </div>
+                            ` : ''}
+
                             <div class="payment-tabs">
                                 <button class="payment-tab active" data-tab="card" onclick="switchTab('card')">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
@@ -639,7 +660,7 @@
                                 <div id="card-container"></div>
                                 <button class="pay-btn" id="cardPayBtn" onclick="payWithCard()">
                                     <span class="spinner"></span>
-                                    <span class="btn-text">Pay ${formatCurrency(balanceDue)}</span>
+                                    <span class="btn-text">Pay ${formatCurrency(balanceDue + calcProcessingFee(balanceDue, 'card'))}</span>
                                 </button>
                             </div>
 
@@ -648,7 +669,7 @@
                                 <div id="ach-container"></div>
                                 <button class="pay-btn" id="achPayBtn" onclick="payWithACH()">
                                     <span class="spinner"></span>
-                                    <span class="btn-text">Pay ${formatCurrency(balanceDue)} via Bank Transfer</span>
+                                    <span class="btn-text">Pay ${formatCurrency(balanceDue + calcProcessingFee(balanceDue, 'ach'))} via Bank Transfer</span>
                                 </button>
                             </div>
 
@@ -710,6 +731,24 @@
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.toggle('active', content.id === `tab-${tab}`);
             });
+            // Update fee breakdown for the selected method
+            if (feeConfig && feeConfig.enabled && invoiceData) {
+                const balanceDue = parseFloat(invoiceData.balance_due || invoiceData.total || 0);
+                const method = tab === 'ach' ? 'ach' : 'card';
+                const fee = calcProcessingFee(balanceDue, method);
+                const feeLabel = document.getElementById('feeMethodLabel');
+                const feeAmount = document.getElementById('feeAmount');
+                const feeTotal = document.getElementById('feeTotalAmount');
+                if (feeLabel) {
+                    if (method === 'ach') {
+                        feeLabel.textContent = `ACH Service Fee (${feeConfig.ach_fee_percent || 1.0}%${feeConfig.ach_fee_fixed ? ' + $' + parseFloat(feeConfig.ach_fee_fixed).toFixed(2) : ''})`;
+                    } else {
+                        feeLabel.textContent = `Credit Card Service Fee (${feeConfig.card_fee_percent || 2.9}% + $${(feeConfig.card_fee_fixed || 0.30).toFixed(2)})`;
+                    }
+                }
+                if (feeAmount) feeAmount.textContent = formatCurrency(fee);
+                if (feeTotal) feeTotal.textContent = formatCurrency(balanceDue + fee);
+            }
             // Clear any visible errors when switching tabs
             hideError();
         }
@@ -935,9 +974,11 @@
             } else if (textEl) {
                 const balanceDue = parseFloat(invoiceData.balance_due || invoiceData.total || 0);
                 if (btn.id === 'achPayBtn') {
-                    textEl.textContent = `Pay ${formatCurrency(balanceDue)} via Bank Transfer`;
+                    const total = balanceDue + calcProcessingFee(balanceDue, 'ach');
+                    textEl.textContent = `Pay ${formatCurrency(total)} via Bank Transfer`;
                 } else {
-                    textEl.textContent = `Pay ${formatCurrency(balanceDue)}`;
+                    const total = balanceDue + calcProcessingFee(balanceDue, 'card');
+                    textEl.textContent = `Pay ${formatCurrency(total)}`;
                 }
             }
         }

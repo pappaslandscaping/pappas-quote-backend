@@ -5,238 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --lime: #c9dd80;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --spacing-xs: 4px;
-            --spacing-sm: 8px;
-            --spacing-md: 16px;
-            --spacing-lg: 24px;
-            --spacing-xl: 32px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            position: fixed;
-            top: 0; left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-        }
-
-        .sidebar-brand {
-            padding: var(--spacing-lg);
-            text-align: center;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
-
-        .sidebar-nav { flex: 1; padding: var(--spacing-sm); overflow-y: auto; }
-        .nav-section { margin-bottom: var(--spacing-sm); }
-
-        .nav-section-label {
-            font-size: 11px; font-weight: 600; color: var(--gray-400);
-            text-transform: uppercase; letter-spacing: 0.05em;
-            padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
-        }
-
-        .nav-item {
-            display: flex; align-items: center; gap: 10px;
-            padding: var(--spacing-sm) var(--spacing-md); border-radius: 8px;
-            color: var(--gray-600); text-decoration: none; font-size: 13px;
-            font-weight: 500; transition: all 0.15s; cursor: pointer;
-        }
-
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-
-        .sidebar-footer { padding: var(--spacing-md); border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; }
-        .sidebar-user .avatar {
-            width: 36px; height: 36px; border-radius: 10px;
-            background: var(--forest); color: var(--lime);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; font-weight: 600;
-        }
-        .sidebar-user .name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
-        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
-
-        /* Main */
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
-
-        /* Topbar */
-        .topbar {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 24px; background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            position: sticky; top: 0; z-index: 50;
-        }
-
-        .topbar-left { display: flex; align-items: center; gap: 12px; flex: 1; }
-
-        .search-container { position: relative; flex: 1; max-width: 420px; }
-        .search-icon {
-            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-            width: 16px; height: 16px; color: var(--gray-400); pointer-events: none;
-        }
-        .search-icon svg { width: 16px; height: 16px; }
-        .search-input {
-            width: 100%; padding: 8px 36px 8px 36px;
-            border: 1px solid var(--gray-200); border-radius: 8px;
-            font-size: 13px; font-family: inherit; background: var(--gray-50);
-            outline: none; transition: border-color 0.15s;
-        }
-        .search-input:focus { border-color: var(--forest); background: var(--white); }
-        .search-clear {
-            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-            background: none; border: none; cursor: pointer; padding: 4px;
-            color: var(--gray-400); display: none;
-        }
-        .search-clear.visible { display: block; }
-        .search-clear svg { width: 14px; height: 14px; }
-        .search-dropdown {
-            position: absolute; top: 100%; left: 0; right: 0;
-            background: var(--white); border: 1px solid var(--gray-200);
-            border-radius: 8px; margin-top: 4px; display: none;
-            max-height: 320px; overflow-y: auto; z-index: 200;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-        }
-        .search-dropdown.visible { display: block; }
-        .search-group { padding: 8px 0; }
-        .search-group + .search-group { border-top: 1px solid var(--gray-100); }
-        .search-group-title { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; padding: 4px 14px; }
-        .search-item { display: block; padding: 8px 14px; font-size: 13px; color: var(--gray-700); text-decoration: none; }
-        .search-item:hover { background: var(--gray-50); }
-        .search-empty { padding: 16px; text-align: center; font-size: 13px; color: var(--gray-400); }
-
-        .topbar-actions { display: flex; gap: 8px; align-items: center; }
-        .btn-icon {
-            display: flex; align-items: center; justify-content: center;
-            width: 36px; height: 36px; border-radius: 8px;
-            border: 1px solid var(--gray-200); background: var(--white);
-            color: var(--gray-600); cursor: pointer; text-decoration: none;
-            transition: all 0.15s;
-        }
-        .btn-icon:hover { background: var(--gray-50); color: var(--forest); }
-        .btn-icon svg { width: 18px; height: 18px; }
-
-        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
-
-        /* Quick-create dropdown */
-        .quick-create-wrap { position: relative; }
-        .quick-create-btn {
-            display: flex; align-items: center; gap: 6px;
-            padding: 7px 14px; border-radius: 8px;
-            background: var(--forest); color: var(--lime);
-            border: none; cursor: pointer; font-size: 13px;
-            font-weight: 600; font-family: inherit; transition: all 0.15s;
-        }
-        .quick-create-btn:hover { background: var(--forest-dark); }
-        .quick-create-btn svg { width: 16px; height: 16px; }
-        .quick-create-menu {
-            position: absolute; top: calc(100% + 6px); right: 0;
-            background: var(--white); border: 1px solid var(--gray-200);
-            border-radius: 10px; min-width: 200px; display: none;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 200; padding: 6px;
-        }
-        .quick-create-menu.visible { display: block; }
-        .quick-create-menu a, .quick-create-menu button {
-            display: flex; align-items: center; gap: 10px;
-            padding: 9px 12px; border-radius: 8px; font-size: 13px;
-            font-weight: 500; color: var(--gray-700); text-decoration: none;
-            cursor: pointer; border: none; background: none; width: 100%;
-            font-family: inherit; transition: background 0.15s;
-        }
-        .quick-create-menu a:hover, .quick-create-menu button:hover { background: var(--gray-50); }
-        .quick-create-menu .qc-icon {
-            width: 28px; height: 28px; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px; flex-shrink: 0;
-        }
-
-        /* Page Content */
-        .page-content { padding: 24px; }
-
-        /* Greeting */
-        .greeting h1 { font-size: 22px; font-weight: 700; color: var(--forest); }
-        .greeting .date-line { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
-
-        /* Stat Cards Row */
+        /* ─── Dashboard-specific styles ─────────────────────── */
         .stat-row {
-            display: grid; grid-template-columns: repeat(4, 1fr);
-            gap: 16px; margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        .stat-card {
-            background: var(--white); border: 1px solid var(--gray-200);
-            border-radius: 12px; padding: 18px;
-        }
-        .stat-card .stat-label {
-            font-size: 12px; font-weight: 600; color: var(--gray-500);
-            text-transform: uppercase; letter-spacing: 0.03em;
-        }
-        .stat-card .stat-value {
-            font-size: 28px; font-weight: 700; color: var(--forest);
-            margin-top: 4px; line-height: 1.1;
-        }
-        .stat-card .stat-sub { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
-        .stat-card .stat-sub .up { color: var(--green); font-weight: 600; }
-        .stat-card .stat-sub .down { color: var(--red); font-weight: 600; }
 
-        /* Revenue Sparkline */
-        .sparkline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        /* Sparkline Cards */
+        .sparkline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
         .sparkline-card {
-            background: var(--white); border: 1px solid var(--gray-200);
-            border-radius: 12px; padding: 18px;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 20px;
         }
-        .sparkline-card .spark-header {
+        .spark-header {
             display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;
         }
-        .sparkline-card .spark-title { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.03em; }
-        .sparkline-card .spark-value { font-size: 22px; font-weight: 700; color: var(--forest); margin-top: 2px; }
-        .sparkline-card .spark-sub { font-size: 12px; color: var(--gray-400); }
+        .spark-title { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.03em; }
+        .spark-value { font-size: 22px; font-weight: 700; color: var(--gray-800); margin-top: 2px; }
+        .spark-sub { font-size: 12px; color: var(--gray-400); }
         .spark-bar-container { padding-bottom: 4px; display: flex; align-items: flex-end; gap: 4px; height: 80px; }
 
         /* Action Required */
         .action-section {
-            margin-top: 20px; background: var(--amber-bg);
-            border: 1px solid #fcd34d; border-radius: 12px; padding: 16px;
+            margin-bottom: 24px;
+            background: var(--amber-bg);
+            border: 1px solid #fcd34d;
+            border-radius: 12px;
+            padding: 16px;
         }
         .action-section h3 {
             font-size: 14px; font-weight: 600; color: var(--amber);
@@ -251,11 +52,8 @@
         }
         .action-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
         .action-item-info { display: flex; align-items: center; gap: 10px; }
-        .action-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
-        .action-item-icon.amber-icon { background: var(--amber-bg); color: var(--amber); }
-        .action-item-icon.red-icon { background: var(--red-bg); color: var(--red); }
-        .action-item-icon.blue-icon { background: var(--blue-bg); color: var(--blue); }
-        .action-item-icon.purple-icon { background: var(--purple-bg); color: var(--purple); }
+        .action-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .action-item-icon svg { width: 16px; height: 16px; }
         .action-item-text strong { font-size: 13px; display: block; }
         .action-item-text span { font-size: 12px; color: var(--gray-500); }
         .action-item-count { font-size: 18px; font-weight: 700; color: var(--amber); }
@@ -264,37 +62,38 @@
         .action-item-count.purple { color: var(--purple); }
 
         /* Today's Schedule */
-        .today-schedule { margin-top: 20px; }
         .schedule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-        .schedule-header h2 { font-size: 16px; font-weight: 700; color: var(--forest); display: flex; align-items: center; gap: 8px; }
-        .schedule-header a { font-size: 12px; color: var(--gray-400); text-decoration: none; }
-        .schedule-header a:hover { color: var(--forest); }
+        .schedule-header h3 { font-size: 16px; font-weight: 700; color: var(--gray-800); display: flex; align-items: center; gap: 8px; }
+        .schedule-header h3 svg { width: 20px; height: 20px; color: var(--primary); }
+        .schedule-header a { font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 500; }
+        .schedule-header a:hover { text-decoration: underline; }
         .schedule-jobs { display: grid; grid-template-columns: 1fr; gap: 8px; }
         .schedule-job {
             display: flex; align-items: center; gap: 14px;
-            padding: 12px 14px; background: var(--white);
-            border: 1px solid var(--gray-200); border-radius: 10px;
+            padding: 12px 16px; background: var(--white);
+            border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             text-decoration: none; color: var(--gray-700); transition: all 0.15s;
         }
-        .schedule-job:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-color: var(--gray-300); }
+        .schedule-job:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .schedule-job-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         .schedule-job-info { flex: 1; min-width: 0; }
         .schedule-job-customer { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .schedule-job-details { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .schedule-job-meta { text-align: right; flex-shrink: 0; }
-        .schedule-job-crew { font-size: 12px; font-weight: 600; color: var(--forest); }
+        .schedule-job-crew { font-size: 12px; font-weight: 600; color: var(--primary); }
         .schedule-job-type { font-size: 11px; color: var(--gray-400); }
 
         /* Workflow Columns */
-        .workflow-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
-        .wf-col { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
+        .workflow-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .wf-col { background: var(--white); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
         .wf-col-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
         }
-        .wf-col-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .wf-col-header a { font-size: 12px; color: var(--gray-400); text-decoration: none; }
-        .wf-col-header a:hover { color: var(--forest); }
+        .wf-col-header h3 { font-size: 14px; font-weight: 600; color: var(--gray-800); display: flex; align-items: center; gap: 8px; }
+        .wf-col-header h3 svg { width: 18px; height: 18px; }
+        .wf-col-header a { font-size: 12px; color: var(--primary); text-decoration: none; }
+        .wf-col-header a:hover { text-decoration: underline; }
         .wf-rows { padding: 8px; }
         .wf-row {
             display: flex; align-items: center; justify-content: space-between;
@@ -317,42 +116,29 @@
         .wf-cta {
             display: flex; align-items: center; justify-content: center;
             gap: 6px; padding: 10px; margin: 8px; border-radius: 8px;
-            background: var(--gray-50); color: var(--forest);
+            background: var(--gray-50); color: var(--primary);
             text-decoration: none; font-size: 13px; font-weight: 600;
             transition: all 0.15s;
         }
         .wf-cta:hover { background: var(--gray-100); }
 
         /* Bottom Grid */
-        .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
-        .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
-        .card-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
-        }
-        .card-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .card-header a { font-size: 12px; color: var(--gray-400); text-decoration: none; }
-        .card-header a:hover { color: var(--forest); }
-        .card-body { padding: 8px; }
+        .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
         .recent-item {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 10px; border-radius: 8px; text-decoration: none;
+            padding: 10px 12px; border-radius: 8px; text-decoration: none;
             color: var(--gray-700); transition: background 0.15s;
         }
         .recent-item:hover { background: var(--gray-50); }
         .recent-item-info { flex: 1; min-width: 0; }
         .recent-item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .recent-item-sub { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .status-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
-        .status-new { background: var(--blue-bg); color: var(--blue); }
-        .status-active, .status-read { background: var(--green-bg); color: var(--green); }
-        .status-unread { background: var(--amber-bg); color: var(--amber); }
 
         /* Activity Feed */
         .activity-item {
             display: flex; align-items: flex-start; gap: 10px;
-            padding: 10px; border-radius: 8px; transition: background 0.15s;
+            padding: 10px 12px; border-radius: 8px; transition: background 0.15s;
             text-decoration: none; color: var(--gray-700);
         }
         .activity-item:hover { background: var(--gray-50); }
@@ -361,102 +147,11 @@
         .activity-dot.quote_signed { background: var(--green); }
         .activity-dot.invoice_created { background: var(--purple); }
         .activity-dot.payment_received { background: var(--green); }
-        .activity-dot.job_completed { background: var(--forest); }
+        .activity-dot.job_completed { background: var(--primary); }
         .activity-dot.job_scheduled { background: var(--amber); }
         .activity-dot.new_customer { background: var(--blue); }
         .activity-text { font-size: 13px; line-height: 1.4; flex: 1; min-width: 0; }
         .activity-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; white-space: nowrap; }
-
-        .empty-state { padding: 24px; text-align: center; font-size: 13px; color: var(--gray-400); }
-        .loading { padding: 24px; text-align: center; }
-        .spinner { width: 24px; height: 24px; border: 2px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Toast */
-        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; background: var(--forest); color: var(--white); font-size: 13px; font-weight: 500; z-index: 9999; animation: toastIn 0.3s ease-out; }
-        .toast.toast-error { background: var(--red); }
-        @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* Modal Styles */
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-            display: none; align-items: center; justify-content: center;
-            z-index: 1000; padding: 24px;
-        }
-        .modal-overlay.visible { display: flex; }
-        .modal {
-            background: var(--white); border-radius: 12px;
-            width: 100%; max-width: 540px; max-height: 90vh;
-            overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-        }
-        .modal-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 18px 20px; border-bottom: 1px solid var(--gray-100);
-        }
-        .modal-header h2 { font-size: 16px; font-weight: 700; color: var(--forest); }
-        .modal-close {
-            background: none; border: none; cursor: pointer; padding: 4px;
-            color: var(--gray-400); transition: color 0.15s;
-        }
-        .modal-close:hover { color: var(--gray-700); }
-        .modal-close svg { width: 20px; height: 20px; }
-        .modal-body { padding: 20px; }
-        .modal-footer {
-            display: flex; justify-content: flex-end; gap: 8px;
-            padding: 16px 20px; border-top: 1px solid var(--gray-100);
-        }
-        .form-group { margin-bottom: 14px; }
-        .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%; padding: 9px 12px; border: 1px solid var(--gray-200);
-            border-radius: 8px; font-size: 13px; font-family: inherit;
-            background: var(--white); outline: none; transition: border-color 0.15s;
-        }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--forest); }
-        .form-group textarea { resize: vertical; min-height: 60px; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .btn-primary {
-            padding: 9px 18px; border-radius: 8px; border: none;
-            background: var(--forest); color: var(--white); font-size: 13px;
-            font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s;
-        }
-        .btn-primary:hover { background: var(--forest-dark); }
-        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-secondary {
-            padding: 9px 18px; border-radius: 8px;
-            border: 1px solid var(--gray-200); background: var(--white);
-            color: var(--gray-600); font-size: 13px; font-weight: 500;
-            font-family: inherit; cursor: pointer; transition: all 0.15s;
-        }
-        .btn-secondary:hover { background: var(--gray-50); }
-
-        /* Autocomplete dropdown */
-        .autocomplete-wrap { position: relative; }
-        .autocomplete-list {
-            position: absolute; top: 100%; left: 0; right: 0;
-            background: var(--white); border: 1px solid var(--gray-200);
-            border-radius: 8px; margin-top: 2px; max-height: 180px;
-            overflow-y: auto; z-index: 1100; display: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .autocomplete-list.visible { display: block; }
-        .autocomplete-option { padding: 8px 12px; font-size: 13px; cursor: pointer; transition: background 0.1s; }
-        .autocomplete-option:hover { background: var(--gray-50); }
-        .autocomplete-option .ac-sub { font-size: 11px; color: var(--gray-400); }
-
-        /* Line items for invoice modal */
-        .line-items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-        .line-items-table th { font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; padding: 4px 8px; text-align: left; }
-        .line-items-table td { padding: 4px 8px; }
-        .line-items-table input { width: 100%; }
-        .line-items-table .li-remove { background: none; border: none; color: var(--gray-400); cursor: pointer; font-size: 16px; padding: 4px; }
-        .line-items-table .li-remove:hover { color: var(--red); }
-        .add-line-btn {
-            font-size: 12px; color: var(--forest); font-weight: 600;
-            background: none; border: none; cursor: pointer; padding: 4px 0; font-family: inherit;
-        }
-        .add-line-btn:hover { text-decoration: underline; }
-        .invoice-total-row { display: flex; justify-content: flex-end; gap: 16px; font-size: 14px; font-weight: 700; color: var(--forest); padding: 8px 0; }
 
         /* Responsive */
         @media (max-width: 1100px) {
@@ -464,123 +159,197 @@
             .workflow-columns { grid-template-columns: 1fr; }
             .bottom-grid { grid-template-columns: 1fr; }
             .sparkline-row { grid-template-columns: 1fr; }
+            .feature-cards { grid-template-columns: repeat(3, 1fr) !important; }
         }
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
-            .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; }
-            .mobile-menu-btn { display: block; }
             .stat-row { grid-template-columns: 1fr 1fr; }
+            .feature-cards { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        /* ─── AI Assistant Panel ──────────────────────────────── */
+        .ai-fab {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: var(--white);
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(22,163,74,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .ai-fab:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(22,163,74,0.45); }
+        .ai-fab svg { width: 26px; height: 26px; }
+
+        .ai-panel-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.25);
+            z-index: 1200;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s;
+        }
+        .ai-panel-overlay.open { opacity: 1; visibility: visible; }
+
+        .ai-panel {
+            position: fixed;
+            top: 0;
+            right: -420px;
+            width: 400px;
+            height: 100vh;
+            background: var(--white);
+            z-index: 1300;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s ease;
+        }
+        .ai-panel.open { right: 0; }
+
+        .ai-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-100);
+            background: var(--gray-50);
+        }
+        .ai-panel-header h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ai-panel-header h3 svg { width: 18px; height: 18px; color: var(--primary); }
+        .ai-panel-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--gray-400);
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+        .ai-panel-close:hover { background: var(--gray-100); color: var(--gray-700); }
+        .ai-panel-close svg { width: 20px; height: 20px; }
+
+        .ai-quick-actions {
+            display: flex;
+            gap: 8px;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--gray-100);
+            flex-wrap: wrap;
+        }
+        .ai-quick-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .ai-quick-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+        .ai-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .ai-msg {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        .ai-msg.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: var(--white);
+            border-bottom-right-radius: 4px;
+        }
+        .ai-msg.assistant {
+            align-self: flex-start;
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border-bottom-left-radius: 4px;
+        }
+        .ai-msg.assistant .ai-typing {
+            display: inline-flex;
+            gap: 4px;
+        }
+        .ai-msg.assistant .ai-typing span {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--gray-400);
+            animation: aiBounce 1.2s infinite;
+        }
+        .ai-msg.assistant .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .ai-msg.assistant .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes aiBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-4px)} }
+
+        .ai-input-area {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid var(--gray-100);
+            background: var(--gray-50);
+        }
+        .ai-input-area input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .ai-input-area input:focus { border-color: var(--primary); }
+        .ai-send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary);
+            color: var(--white);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .ai-send-btn:hover { background: var(--primary-dark); }
+        .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ai-send-btn svg { width: 18px; height: 18px; }
+
+        @media (max-width: 500px) {
+            .ai-panel { width: 100%; right: -105%; }
         }
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-        <img src="/logo.png" alt="YardDesk">
-    </div>
-    <nav class="sidebar-nav">
-        <!-- Overview -->
-        <div class="nav-section">
-            <div class="nav-section-label">Overview</div>
-            <a href="index.html" class="nav-item active"><span>📊</span><span>Dashboard</span></a>
-        </div>
-        <!-- Sales -->
-        <div class="nav-section">
-            <div class="nav-section-label">Sales</div>
-            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-            <a href="pipeline.html" class="nav-item"><span>🔀</span><span>Pipeline</span></a>
-            <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
-            <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
-            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-        </div>
-        <!-- Operations -->
-        <div class="nav-section">
-            <div class="nav-section-label">Operations</div>
-            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
-            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-            <a href="work-requests.html" class="nav-item"><span>📥</span><span>Work Requests</span></a>
-            <a href="programs.html" class="nav-item"><span>🔄</span><span>Service Programs</span></a>
-        </div>
-        <!-- Communications -->
-        <div class="nav-section">
-            <div class="nav-section-label">Communications</div>
-            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
-            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
-            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
-        </div>
-        <!-- Marketing -->
-        <div class="nav-section">
-            <div class="nav-section-label">Marketing</div>
-            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
-        </div>
-        <!-- Finance -->
-        <div class="nav-section">
-            <div class="nav-section-label">Finance</div>
-            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
-        </div>
-        <!-- Analytics -->
-        <div class="nav-section">
-            <div class="nav-section-label">Analytics</div>
-            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
-        </div>
-        <!-- Team -->
-        <div class="nav-section">
-            <div class="nav-section-label">Team</div>
-            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a>
-        </div>
-        <div class="nav-section">
-            <div class="nav-section-label">System</div>
-            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-        </div>
-    </nav>
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="avatar">TP</div>
-            <div>
-                <div class="name">Theresa Pappas</div>
-                <div class="role">Admin</div>
-            </div>
-        </div>
-    </div>
-</aside>
+<script src="shell.js"></script>
 
 <div class="main">
     <div class="topbar">
@@ -588,77 +357,151 @@
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div class="search-container" id="search-container">
-                <div class="search-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                </div>
-                <input type="text" class="search-input" id="search-input" placeholder="Search customers, quotes, properties..." autocomplete="off">
-                <button class="search-clear" id="search-clear" type="button">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-                <div class="search-dropdown" id="search-dropdown"></div>
-            </div>
+            <h1>Dashboard</h1>
         </div>
         <div class="topbar-actions">
-            <div class="quick-create-wrap" id="quick-create-wrap">
-                <button class="quick-create-btn" id="quick-create-btn" type="button">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-                    New
-                </button>
-                <div class="quick-create-menu" id="quick-create-menu">
-                    <button type="button" onclick="openModal('customer-modal')">
-                        <div class="qc-icon" style="background:var(--blue-bg);color:var(--blue)">👥</div>
-                        <span>New Customer</span>
-                    </button>
-                    <button type="button" onclick="openModal('job-modal')">
-                        <div class="qc-icon" style="background:var(--green-bg);color:var(--green)">📅</div>
-                        <span>New Job</span>
-                    </button>
-                    <a href="quote-generator.html">
-                        <div class="qc-icon" style="background:var(--purple-bg);color:var(--purple)">✨</div>
-                        <span>New Quote</span>
-                    </a>
-                    <button type="button" onclick="openModal('invoice-modal')">
-                        <div class="qc-icon" style="background:var(--amber-bg);color:var(--amber)">📄</div>
-                        <span>New Invoice</span>
-                    </button>
+            <div class="topbar-search-wrap" id="search-container">
+                <div class="topbar-search-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                 </div>
+                <input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off">
+                <div class="search-dropdown" id="search-dropdown"></div>
             </div>
-            <button class="btn-icon" onclick="loadAll()" title="Refresh">
+            <button class="topbar-icon-btn" onclick="loadAll()" title="Refresh">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
             </button>
+            <button class="topbar-icon-btn" title="Notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                <div class="notif-badge"></div>
+            </button>
+            <div class="topbar-avatar" title="Account">TP</div>
         </div>
     </div>
 
     <div class="page-content">
-        <!-- Greeting -->
-        <div class="greeting">
-            <h1 id="greeting-text">Good morning, Theresa</h1>
-            <div class="date-line" id="date-line"></div>
+        <!-- Page Title -->
+        <div style="margin-bottom: 24px;">
+            <div style="font-size: 13px; color: var(--gray-400);" id="date-line"></div>
         </div>
 
         <!-- Stat Cards -->
         <div class="stat-row">
             <div class="stat-card">
-                <div class="stat-label">Revenue This Month</div>
+                <div class="stat-header">
+                    <div class="stat-label">Revenue This Month</div>
+                    <div class="stat-icon icon-green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                    </div>
+                </div>
                 <div class="stat-value" id="stat-revenue">--</div>
                 <div class="stat-sub" id="stat-revenue-sub"></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">YTD Revenue</div>
+                <div class="stat-header">
+                    <div class="stat-label">YTD Revenue</div>
+                    <div class="stat-icon icon-blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    </div>
+                </div>
                 <div class="stat-value" id="stat-ytd">--</div>
                 <div class="stat-sub" id="stat-ytd-sub"></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Outstanding Invoices</div>
+                <div class="stat-header">
+                    <div class="stat-label">Outstanding Invoices</div>
+                    <div class="stat-icon icon-amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    </div>
+                </div>
                 <div class="stat-value" id="stat-outstanding">--</div>
                 <div class="stat-sub" id="stat-outstanding-sub"></div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Total Customers</div>
+                <div class="stat-header">
+                    <div class="stat-label">Total Customers</div>
+                    <div class="stat-icon icon-purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    </div>
+                </div>
                 <div class="stat-value" id="stat-customers">--</div>
                 <div class="stat-sub" id="stat-customers-sub"></div>
             </div>
+        </div>
+
+        <!-- Workflow Pipeline -->
+        <div class="workflow-pipeline">
+            <a href="quotes.html" class="pipeline-stage">
+                <div class="stage-label">Requests</div>
+                <div class="stage-count" id="pipe-requests">--</div>
+                <div class="stage-value" id="pipe-requests-val"></div>
+                <svg class="pipeline-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+            <a href="sent-quotes.html" class="pipeline-stage">
+                <div class="stage-label">Quotes</div>
+                <div class="stage-count" id="pipe-quotes">--</div>
+                <div class="stage-value" id="pipe-quotes-val"></div>
+                <svg class="pipeline-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+            <a href="scheduling.html" class="pipeline-stage">
+                <div class="stage-label">Jobs</div>
+                <div class="stage-count" id="pipe-jobs">--</div>
+                <div class="stage-value" id="pipe-jobs-val"></div>
+                <svg class="pipeline-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+            <a href="invoices.html" class="pipeline-stage">
+                <div class="stage-label">Invoices</div>
+                <div class="stage-count" id="pipe-invoices">--</div>
+                <div class="stage-value" id="pipe-invoices-val"></div>
+            </a>
+        </div>
+
+        <!-- Quick Access Features -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;" class="feature-cards">
+            <a href="customers.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                <div style="width:44px;height:44px;border-radius:10px;background:var(--green-bg);display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                </div>
+                <div>
+                    <div style="font-size:13px;font-weight:700;">Manage Customers</div>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Client details, job notes & history in one place</div>
+                </div>
+            </a>
+            <a href="dispatch.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                <div style="width:44px;height:44px;border-radius:10px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div>
+                    <div style="font-size:13px;font-weight:700;">Schedule & Dispatch</div>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Assign jobs, optimize routes & update crews in real-time</div>
+                </div>
+            </a>
+            <a href="invoices.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                <div style="width:44px;height:44px;border-radius:10px;background:var(--amber-bg);display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                </div>
+                <div>
+                    <div style="font-size:13px;font-weight:700;">Invoices & Payments</div>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Automate billing & make it easy for customers to pay</div>
+                </div>
+            </a>
+            <a href="marketing.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                <div style="width:44px;height:44px;border-radius:10px;background:#fce7f3;display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                </div>
+                <div>
+                    <div style="font-size:13px;font-weight:700;">Follow-ups & Reminders</div>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Reduce no-shows & stay on top of communication</div>
+                </div>
+            </a>
+            <a href="reports.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
+                <div style="width:44px;height:44px;border-radius:10px;background:#ede9fe;display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </div>
+                <div>
+                    <div style="font-size:13px;font-weight:700;">Track Performance</div>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Reports for profitability & business growth</div>
+                </div>
+            </a>
         </div>
 
         <!-- Revenue Sparkline + Quotes -->
@@ -687,7 +530,7 @@
                         <span id="conversion-rate">--</span>
                     </div>
                     <div style="height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden">
-                        <div id="conversion-bar" style="height:100%;background:var(--green);border-radius:3px;width:0%;transition:width 0.5s"></div>
+                        <div id="conversion-bar" style="height:100%;background:var(--primary);border-radius:3px;width:0%;transition:width 0.5s"></div>
                     </div>
                 </div>
             </div>
@@ -703,10 +546,13 @@
         </div>
 
         <!-- Today's Schedule -->
-        <div class="today-schedule" id="today-schedule-section" style="display:none;">
+        <div id="today-schedule-section" style="display:none; margin-bottom: 24px;">
             <div class="schedule-header">
-                <h2>📅 Today's Schedule</h2>
-                <a href="scheduling.html">View Full Schedule →</a>
+                <h3>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Today's Schedule
+                </h3>
+                <a href="scheduling.html">View Full Schedule</a>
             </div>
             <div class="schedule-jobs" id="today-jobs"></div>
         </div>
@@ -715,8 +561,11 @@
         <div class="workflow-columns">
             <div class="wf-col">
                 <div class="wf-col-header">
-                    <h3>📋 Requests</h3>
-                    <a href="quotes.html">View All →</a>
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        Requests
+                    </h3>
+                    <a href="quotes.html">View All</a>
                 </div>
                 <div class="wf-rows">
                     <a href="quotes.html?status=new" class="wf-row">
@@ -732,13 +581,16 @@
                         <div class="wf-row-right"><span class="wf-row-count" id="wf-req-quoted">--</span></div>
                     </a>
                 </div>
-                <a href="quotes.html" class="wf-cta">📋 Review Requests</a>
+                <a href="quotes.html" class="wf-cta">Review Requests</a>
             </div>
 
             <div class="wf-col">
                 <div class="wf-col-header">
-                    <h3>📤 Quotes</h3>
-                    <a href="sent-quotes.html">View All →</a>
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        Quotes
+                    </h3>
+                    <a href="sent-quotes.html">View All</a>
                 </div>
                 <div class="wf-rows">
                     <a href="sent-quotes.html?status=sent" class="wf-row">
@@ -754,17 +606,20 @@
                         <div class="wf-row-right"><span class="wf-row-count highlight" id="wf-q-changes">--</span></div>
                     </a>
                     <a href="sent-quotes.html?status=contracted" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--forest)"></div><span class="wf-row-label">Contracted</span></div>
+                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--primary)"></div><span class="wf-row-label">Contracted</span></div>
                         <div class="wf-row-right"><span class="wf-row-count success" id="wf-q-contracted">--</span></div>
                     </a>
                 </div>
-                <a href="quote-generator.html" class="wf-cta">✨ Create New Quote</a>
+                <a href="quote-generator.html" class="wf-cta">Create New Quote</a>
             </div>
 
             <div class="wf-col">
                 <div class="wf-col-header">
-                    <h3>📅 Jobs</h3>
-                    <a href="scheduling.html">View All →</a>
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        Jobs
+                    </h3>
+                    <a href="scheduling.html">View All</a>
                 </div>
                 <div class="wf-rows">
                     <div class="wf-row">
@@ -780,7 +635,7 @@
                         <div class="wf-row-right"><span class="wf-row-count" id="wf-j-pending">--</span></div>
                     </div>
                 </div>
-                <a href="scheduling.html" class="wf-cta">📅 View Schedule</a>
+                <a href="scheduling.html" class="wf-cta">View Schedule</a>
             </div>
         </div>
 
@@ -788,28 +643,37 @@
         <div class="bottom-grid">
             <div class="card">
                 <div class="card-header">
-                    <h3>⚡ Activity Feed</h3>
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Activity Feed
+                    </h3>
                 </div>
-                <div class="card-body">
+                <div class="card-body" style="padding: 8px;">
                     <div id="activity-feed"><div class="loading"><div class="spinner"></div></div></div>
                 </div>
             </div>
             <div style="display:flex;flex-direction:column;gap:16px;">
                 <div class="card">
                     <div class="card-header">
-                        <h3>💬 Recent Messages</h3>
-                        <a href="communications.html">View All →</a>
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                            Recent Messages
+                        </h3>
+                        <a href="communications.html">View All</a>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="padding: 8px;">
                         <div id="messages-list"><div class="loading"><div class="spinner"></div></div></div>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-header">
-                        <h3>👥 Recent Customers</h3>
-                        <a href="customers.html">View All →</a>
+                        <h3>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                            Recent Customers
+                        </h3>
+                        <a href="customers.html">View All</a>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body" style="padding: 8px;">
                         <div id="customers-list"><div class="loading"><div class="spinner"></div></div></div>
                     </div>
                 </div>
@@ -858,8 +722,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-secondary" onclick="closeModal('customer-modal')">Cancel</button>
-                <button type="submit" class="btn-primary" id="cust-submit-btn">Create Customer</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('customer-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="cust-submit-btn">Create Customer</button>
             </div>
         </form>
     </div>
@@ -912,8 +776,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-secondary" onclick="closeModal('job-modal')">Cancel</button>
-                <button type="submit" class="btn-primary" id="job-submit-btn">Create Job</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('job-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="job-submit-btn">Create Job</button>
             </div>
         </form>
     </div>
@@ -961,8 +825,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
-                <button type="submit" class="btn-primary" id="inv-submit-btn">Create Invoice</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="inv-submit-btn">Create Invoice</button>
             </div>
         </form>
     </div>
@@ -1025,7 +889,7 @@ function showToast(msg, isError) {
     setTimeout(function() { t.remove(); }, 3000);
 }
 
-// ── Modal Handling ──────────────────────────────────────────
+// Modal Handling
 function openModal(id) {
     document.getElementById(id).classList.add('visible');
     document.getElementById('quick-create-menu').classList.remove('visible');
@@ -1044,17 +908,23 @@ document.addEventListener('keydown', function(e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('search-input').focus(); }
 });
 
-// ── Quick-Create Dropdown ──────────────────────────────────
+// Quick-Create Dropdown
 document.getElementById('quick-create-btn').addEventListener('click', function() {
     document.getElementById('quick-create-menu').classList.toggle('visible');
+    document.getElementById('qc-overlay').classList.toggle('visible');
 });
 document.addEventListener('click', function(e) {
-    if (!document.getElementById('quick-create-wrap').contains(e.target)) {
+    if (!document.getElementById('quick-create-btn').contains(e.target) && !document.getElementById('quick-create-menu').contains(e.target)) {
         document.getElementById('quick-create-menu').classList.remove('visible');
+        document.getElementById('qc-overlay').classList.remove('visible');
     }
 });
+document.getElementById('qc-overlay').addEventListener('click', function() {
+    document.getElementById('quick-create-menu').classList.remove('visible');
+    document.getElementById('qc-overlay').classList.remove('visible');
+});
 
-// ── Customer Autocomplete (shared) ─────────────────────────
+// Customer Autocomplete (shared)
 var customerAutoTimer = null;
 function setupCustomerAutocomplete(inputId, listId, customerIdField, emailField) {
     var input = document.getElementById(inputId);
@@ -1098,7 +968,7 @@ function setupCustomerAutocomplete(inputId, listId, customerIdField, emailField)
     });
 }
 
-// ── Submit Customer ────────────────────────────────────────
+// Submit Customer
 async function submitCustomer(e) {
     e.preventDefault();
     var btn = document.getElementById('cust-submit-btn');
@@ -1132,7 +1002,7 @@ async function submitCustomer(e) {
     return false;
 }
 
-// ── Load Crews ─────────────────────────────────────────────
+// Load Crews
 async function loadCrews() {
     try {
         var res = await fetch('/api/crews');
@@ -1146,7 +1016,7 @@ async function loadCrews() {
     } catch (e) {}
 }
 
-// ── Submit Job ─────────────────────────────────────────────
+// Submit Job
 async function submitJob(e) {
     e.preventDefault();
     var btn = document.getElementById('job-submit-btn');
@@ -1184,7 +1054,7 @@ async function submitJob(e) {
     return false;
 }
 
-// ── Invoice Line Items ─────────────────────────────────────
+// Invoice Line Items
 function addLineItem() {
     var tbody = document.getElementById('inv-line-items');
     var tr = document.createElement('tr');
@@ -1205,7 +1075,7 @@ function calcInvoiceTotal() {
     document.getElementById('inv-total-display').textContent = '$' + total.toFixed(2);
 }
 
-// ── Submit Invoice ─────────────────────────────────────────
+// Submit Invoice
 async function submitInvoice(e) {
     e.preventDefault();
     var btn = document.getElementById('inv-submit-btn');
@@ -1252,22 +1122,15 @@ async function submitInvoice(e) {
     return false;
 }
 
-// ── Greeting ──────────────────────────────────────────────
-function updateGreeting() {
+// Date Display
+function updateDate() {
     var now = new Date();
-    var hour = now.getHours();
-    var greeting = 'Good evening';
-    if (hour < 12) greeting = 'Good morning';
-    else if (hour < 17) greeting = 'Good afternoon';
-    var name = localStorage.getItem('adminName') || 'Theresa';
-    document.getElementById('greeting-text').textContent = greeting + ', ' + name.split(' ')[0];
     document.getElementById('date-line').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-// ── Search ──────────────────────────────────────────────
+// Search
 var searchInput = document.getElementById('search-input');
 var searchDropdown = document.getElementById('search-dropdown');
-var searchClear = document.getElementById('search-clear');
 
 function closeSearch() { searchDropdown.classList.remove('visible'); }
 
@@ -1277,15 +1140,12 @@ document.addEventListener('click', function(e) {
 
 searchInput.addEventListener('input', function(e) {
     var query = e.target.value.trim();
-    searchClear.classList.toggle('visible', query.length > 0);
     if (query.length < 2) { closeSearch(); return; }
     clearTimeout(searchDebounceTimer);
     searchDropdown.innerHTML = '<div class="search-empty">Searching...</div>';
     searchDropdown.classList.add('visible');
     searchDebounceTimer = setTimeout(function() { performSearch(query); }, 300);
 });
-
-searchClear.addEventListener('click', function() { searchInput.value = ''; searchClear.classList.remove('visible'); closeSearch(); });
 
 async function performSearch(query) {
     try {
@@ -1319,8 +1179,7 @@ async function performSearch(query) {
     }
 }
 
-// ── Data Loading ──────────────────────────────────────────
-
+// Data Loading
 async function loadAll() {
     loadStatCards();
     loadRequestsColumn();
@@ -1331,6 +1190,40 @@ async function loadAll() {
     loadTodaySchedule();
     loadActivityFeed();
     loadActionItems();
+    loadPipeline();
+}
+
+async function loadPipeline() {
+    try {
+        var [reqRes, quoteRes, jobRes, invRes] = await Promise.all([
+            fetch('/api/quotes?limit=500').catch(function() { return null; }),
+            fetch('/api/sent-quotes?limit=500').catch(function() { return null; }),
+            fetch('/api/jobs/dashboard').catch(function() { return null; }),
+            fetch('/api/invoices/stats').catch(function() { return null; })
+        ]);
+        var reqData = reqRes && reqRes.ok ? await reqRes.json() : {};
+        var quoteData = quoteRes && quoteRes.ok ? await quoteRes.json() : {};
+        var jobData = jobRes && jobRes.ok ? await jobRes.json() : {};
+        var invData = invRes && invRes.ok ? await invRes.json() : {};
+
+        var requests = reqData.quotes || [];
+        var activeReqs = requests.filter(function(q) { return q.status !== 'archived' && q.status !== 'cancelled'; });
+        document.getElementById('pipe-requests').textContent = activeReqs.length;
+
+        var quotes = quoteData.quotes || [];
+        var activeQuotes = quotes.filter(function(q) { return q.status === 'sent' || q.status === 'viewed'; });
+        var quoteVal = activeQuotes.reduce(function(s, q) { return s + (parseFloat(q.total_price) || 0); }, 0);
+        document.getElementById('pipe-quotes').textContent = activeQuotes.length;
+        document.getElementById('pipe-quotes-val').textContent = quoteVal ? fmtMoney(quoteVal) : '';
+
+        var totalJobs = (jobData.stats && (jobData.stats.thisWeek || jobData.stats.week)) || 0;
+        document.getElementById('pipe-jobs').textContent = totalJobs;
+
+        var outstanding = parseFloat(invData.outstanding) || 0;
+        var totalInvoices = parseInt(invData.outstanding_count) || 0;
+        document.getElementById('pipe-invoices').textContent = totalInvoices;
+        document.getElementById('pipe-invoices-val').textContent = outstanding ? fmtMoney(outstanding) : '';
+    } catch (e) { console.error('Pipeline:', e); }
 }
 
 async function loadStatCards() {
@@ -1371,7 +1264,8 @@ async function loadStatCards() {
             document.getElementById('stat-outstanding-sub').textContent = 'All current';
         }
 
-        var cust = custRes && custRes.ok ? await custRes.json() : {};
+        var custData = custRes && custRes.ok ? await custRes.json() : {};
+        var cust = custData.stats || custData;
         document.getElementById('stat-customers').textContent = cust.total || 0;
         if (cust.trend) {
             var pct = cust.trend.pct;
@@ -1437,7 +1331,7 @@ function renderSparkline(monthlyRev) {
     container.innerHTML = months.map(function(m) {
         var h = Math.max(3, (m.value / max) * 60);
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
-            '<div class="spark-bar" style="height:' + h + 'px;width:100%;background:var(--lime);border-radius:3px 3px 0 0;min-height:3px" title="' + m.label + ': ' + fmtMoney(m.value) + '"></div>' +
+            '<div style="height:' + h + 'px;width:100%;background:var(--primary);border-radius:3px 3px 0 0;min-height:3px;opacity:0.7" title="' + m.label + ': ' + fmtMoney(m.value) + '"></div>' +
             '<div style="font-size:9px;color:var(--gray-400);margin-top:4px">' + m.label + '</div>' +
         '</div>';
     }).join('');
@@ -1450,13 +1344,13 @@ async function loadActionItems() {
         var actions = [];
 
         if (data.overdue_invoices > 0) {
-            actions.push({ title: 'Overdue Invoices', sub: 'Past due date, payment needed', count: data.overdue_invoices, href: 'invoices.html?status=overdue', iconClass: 'red-icon', countClass: 'red', icon: '📄' });
+            actions.push({ title: 'Overdue Invoices', sub: 'Past due date, payment needed', count: data.overdue_invoices, href: 'invoices.html?status=overdue', iconClass: 'icon-red', countClass: 'red', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' });
         }
         if (data.pending_quotes > 0) {
-            actions.push({ title: 'Unsigned Quotes', sub: 'Sent but awaiting signature', count: data.pending_quotes, href: 'sent-quotes.html?status=sent', iconClass: 'purple-icon', countClass: 'purple', icon: '📤' });
+            actions.push({ title: 'Unsigned Quotes', sub: 'Sent but awaiting signature', count: data.pending_quotes, href: 'sent-quotes.html?status=sent', iconClass: 'icon-purple', countClass: 'purple', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' });
         }
         if (data.unread_messages > 0) {
-            actions.push({ title: 'Unread Messages', sub: 'Customer messages need reply', count: data.unread_messages, href: 'communications.html', iconClass: 'blue-icon', countClass: 'blue', icon: '💬' });
+            actions.push({ title: 'Unread Messages', sub: 'Customer messages need reply', count: data.unread_messages, href: 'communications.html', iconClass: 'icon-blue', countClass: 'blue', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' });
         }
 
         var qRes = await fetch('/api/sent-quotes?limit=200').catch(function() { return null; });
@@ -1467,10 +1361,10 @@ async function loadActionItems() {
         var recentChanges = quotes.filter(function(q) { return q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo; }).length;
 
         if (recentSigned > 0) {
-            actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed', iconClass: 'amber-icon', countClass: '', icon: '✍️' });
+            actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed', iconClass: 'icon-amber', countClass: '', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' });
         }
         if (recentChanges > 0) {
-            actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested', iconClass: 'amber-icon', countClass: '', icon: '⚠️' });
+            actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested', iconClass: 'icon-amber', countClass: '', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' });
         }
 
         var section = document.getElementById('action-section');
@@ -1630,9 +1524,9 @@ async function loadCustomers() {
     } catch (e) { showEmpty(list, 'Unable to load customers'); }
 }
 
-// ── Init ──────────────────────────────────────────────────
+// Init
 document.addEventListener('DOMContentLoaded', function() {
-    updateGreeting();
+    updateDate();
     loadAll();
     setupCustomerAutocomplete('job-customer-search', 'job-customer-list', 'job-customer-id', null);
     setupCustomerAutocomplete('inv-customer-search', 'inv-customer-list', 'inv-customer-id', 'inv-customer-email');
@@ -1642,6 +1536,274 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('inv-due-date').value = dueDate.toISOString().split('T')[0];
 });
 setInterval(loadAll, 60000);
+</script>
+
+<!-- AI Assistant FAB + Panel -->
+<button class="ai-fab" id="aiFab" title="AI Assistant">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/>
+    </svg>
+</button>
+<div class="ai-panel-overlay" id="aiOverlay"></div>
+<div class="ai-panel" id="aiPanel">
+    <div class="ai-panel-header">
+        <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/>
+            </svg>
+            YardDesk AI
+        </h3>
+        <button class="ai-panel-close" id="aiClose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
+    <div class="ai-quick-actions">
+        <button class="ai-quick-btn" data-action="generate-quote">Generate Quote</button>
+        <button class="ai-quick-btn" data-action="write-followup">Write Follow-up</button>
+        <button class="ai-quick-btn" data-action="ask-ai">Ask AI</button>
+    </div>
+    <div class="ai-messages" id="aiMessages">
+        <div class="ai-msg assistant">Hi! I'm your YardDesk AI assistant. Use the quick actions above or type a message below. I can help generate quotes, write follow-ups, or answer questions.</div>
+    </div>
+    <div class="ai-input-area">
+        <input type="text" id="aiInput" placeholder="Type a message..." autocomplete="off">
+        <button class="ai-send-btn" id="aiSend">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const fab = document.getElementById('aiFab');
+    const panel = document.getElementById('aiPanel');
+    const overlay = document.getElementById('aiOverlay');
+    const closeBtn = document.getElementById('aiClose');
+    const input = document.getElementById('aiInput');
+    const sendBtn = document.getElementById('aiSend');
+    const messagesEl = document.getElementById('aiMessages');
+
+    let currentMode = 'ask-ai';
+    let quoteStep = null; // 'name' or 'address'
+    let followupStep = null; // 'details' or 'channel'
+    let collected = {};
+
+    function getToken() {
+        return localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
+    }
+
+    function openPanel() {
+        panel.classList.add('open');
+        overlay.classList.add('open');
+        fab.style.display = 'none';
+        setTimeout(() => input.focus(), 350);
+    }
+
+    function closePanel() {
+        panel.classList.remove('open');
+        overlay.classList.remove('open');
+        fab.style.display = 'flex';
+    }
+
+    fab.addEventListener('click', openPanel);
+    closeBtn.addEventListener('click', closePanel);
+    overlay.addEventListener('click', closePanel);
+
+    function addMessage(text, role) {
+        const div = document.createElement('div');
+        div.className = 'ai-msg ' + role;
+        div.textContent = text;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+    }
+
+    function addTypingIndicator() {
+        const div = document.createElement('div');
+        div.className = 'ai-msg assistant';
+        div.id = 'aiTyping';
+        div.innerHTML = '<div class="ai-typing"><span></span><span></span><span></span></div>';
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+    }
+
+    function removeTypingIndicator() {
+        const el = document.getElementById('aiTyping');
+        if (el) el.remove();
+    }
+
+    async function sendToAPI(endpoint, body) {
+        const token = getToken();
+        try {
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || data.message || 'Request failed');
+            return data;
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    async function handleSend() {
+        const text = input.value.trim();
+        if (!text) return;
+
+        addMessage(text, 'user');
+        input.value = '';
+        sendBtn.disabled = true;
+
+        // Quote flow: collect name, then address, then call API
+        if (quoteStep === 'name') {
+            collected.customer_name = text;
+            quoteStep = 'address';
+            addMessage('Great! Now enter the property address:', 'assistant');
+            input.placeholder = 'Enter property address...';
+            sendBtn.disabled = false;
+            input.focus();
+            return;
+        }
+        if (quoteStep === 'address') {
+            collected.address = text;
+            quoteStep = null;
+            addTypingIndicator();
+            try {
+                const data = await sendToAPI('/api/ai/generate-quote', {
+                    address: collected.address,
+                    customer_name: collected.customer_name
+                });
+                removeTypingIndicator();
+                let response;
+                if (data.quote && typeof data.quote === 'object') {
+                    const q = data.quote;
+                    let lines = [];
+                    if (q.summary) lines.push(q.summary);
+                    if (q.services && q.services.length) {
+                        lines.push('\nServices:');
+                        q.services.forEach(s => {
+                            lines.push('• ' + s.name + ' — $' + s.price + (s.frequency ? ' (' + s.frequency + ')' : ''));
+                            if (s.description) lines.push('  ' + s.description);
+                        });
+                    }
+                    if (q.total) lines.push('\nTotal: $' + q.total);
+                    if (q.notes) lines.push('\n' + q.notes);
+                    response = lines.join('\n');
+                } else {
+                    response = typeof data.quote === 'string' ? data.quote : JSON.stringify(data, null, 2);
+                }
+                addMessage(response, 'assistant');
+            } catch (err) {
+                removeTypingIndicator();
+                addMessage('Error: ' + err.message, 'assistant');
+            }
+            collected = {};
+            input.placeholder = 'Type a message...';
+            sendBtn.disabled = false;
+            return;
+        }
+
+        // Follow-up flow: collect details, then channel
+        if (followupStep === 'details') {
+            collected.customer_name = text;
+            followupStep = 'channel';
+            addMessage('Email or SMS?', 'assistant');
+            input.placeholder = 'Type email or sms...';
+            sendBtn.disabled = false;
+            input.focus();
+            return;
+        }
+        if (followupStep === 'channel') {
+            const ch = text.toLowerCase().includes('sms') || text.toLowerCase().includes('text') ? 'sms' : 'email';
+            collected.channel = ch;
+            followupStep = null;
+            addTypingIndicator();
+            try {
+                const data = await sendToAPI('/api/ai/generate-followup', {
+                    customer_name: collected.customer_name,
+                    channel: collected.channel
+                });
+                removeTypingIndicator();
+                let response;
+                const msg = data.message || data.followup || data.result;
+                if (msg && typeof msg === 'object') {
+                    let lines = [];
+                    if (msg.subject) lines.push('Subject: ' + msg.subject + '\n');
+                    if (msg.body) lines.push(msg.body.replace(/<[^>]+>/g, ''));
+                    response = lines.join('\n');
+                } else {
+                    response = typeof msg === 'string' ? msg : JSON.stringify(data, null, 2);
+                }
+                addMessage(response, 'assistant');
+            } catch (err) {
+                removeTypingIndicator();
+                addMessage('Error: ' + err.message, 'assistant');
+            }
+            collected = {};
+            input.placeholder = 'Type a message...';
+            sendBtn.disabled = false;
+            return;
+        }
+
+        // Default: general chat
+        addTypingIndicator();
+        try {
+            const data = await sendToAPI('/api/ai/chat', { message: text });
+            removeTypingIndicator();
+            const response = data.reply || data.response || data.result || data.message || JSON.stringify(data);
+            addMessage(response, 'assistant');
+        } catch (err) {
+            removeTypingIndicator();
+            addMessage('Error: ' + err.message, 'assistant');
+        }
+
+        sendBtn.disabled = false;
+    }
+
+    sendBtn.addEventListener('click', handleSend);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    });
+
+    document.querySelectorAll('.ai-quick-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const action = this.dataset.action;
+            document.querySelectorAll('.ai-quick-btn').forEach(b => b.style.borderColor = '');
+            this.style.borderColor = 'var(--primary)';
+            quoteStep = null;
+            followupStep = null;
+            collected = {};
+
+            if (action === 'generate-quote') {
+                currentMode = 'generate-quote';
+                quoteStep = 'name';
+                addMessage('Let\'s generate a quote! What is the customer\'s name?', 'assistant');
+                input.placeholder = 'Enter customer name...';
+                input.focus();
+            } else if (action === 'write-followup') {
+                currentMode = 'write-followup';
+                followupStep = 'details';
+                addMessage('Who is this follow-up for? Enter the customer\'s name.', 'assistant');
+                input.placeholder = 'Enter customer name...';
+                input.focus();
+            } else if (action === 'ask-ai') {
+                currentMode = 'ask-ai';
+                addMessage('Ask me anything about your business, quotes, or lawn care!', 'assistant');
+                input.placeholder = 'Type a message...';
+                input.focus();
+            }
+        });
+    });
+})();
 </script>
 </body>
 </html>

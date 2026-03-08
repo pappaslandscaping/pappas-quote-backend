@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Tax Report - YardDesk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        /* ─── Controls Bar ─────────────────────────────────── */
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .controls-bar .spacer { flex: 1; }
+
+        .ctrl-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+            background: #fff;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .ctrl-btn:hover { border-color: var(--gray-400); }
+        .ctrl-btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(46,64,61,.15); }
+        .ctrl-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+        .ctrl-select {
+            padding: 8px 32px 8px 14px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-700);
+            background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 10px center no-repeat;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        .ctrl-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(46,64,61,.15); }
+
+        /* ─── Export Dropdown ───────────────────────────────── */
+        .export-wrap { position: relative; }
+        .export-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,.1);
+            min-width: 140px;
+            z-index: 50;
+            padding: 4px 0;
+        }
+        .export-menu.open { display: block; }
+        .export-menu button {
+            display: block;
+            width: 100%;
+            padding: 8px 16px;
+            text-align: left;
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-700);
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        .export-menu button:hover { background: var(--gray-50); }
+
+        /* ─── Date Range Picker ─────────────────────────────── */
+        .daterange-wrap { position: relative; }
+        .daterange-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,.12);
+            z-index: 60;
+            width: 680px;
+            overflow: hidden;
+        }
+        .daterange-dropdown.open { display: flex; flex-direction: column; }
+
+        .dr-body { display: flex; }
+        .dr-presets {
+            width: 190px;
+            border-right: 1px solid var(--gray-200);
+            padding: 12px 0;
+            flex-shrink: 0;
+            max-height: 340px;
+            overflow-y: auto;
+        }
+        .dr-presets button {
+            display: block;
+            width: 100%;
+            padding: 7px 16px;
+            text-align: left;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-600);
+            background: none;
+            border: none;
+            cursor: pointer;
+            border-radius: 0;
+        }
+        .dr-presets button:hover { background: var(--gray-50); color: var(--gray-700); }
+        .dr-presets button.active { background: var(--primary-light, #e8f0e4); color: var(--primary, #2e403d); font-weight: 600; }
+
+        .dr-calendars {
+            flex: 1;
+            display: flex;
+            gap: 16px;
+            padding: 16px 20px;
+        }
+
+        .cal-panel { flex: 1; }
+        .cal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .cal-header span {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+        .cal-nav {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            color: var(--gray-500);
+            display: flex;
+            align-items: center;
+        }
+        .cal-nav:hover { background: var(--gray-100); color: var(--gray-700); }
+        .cal-nav svg { width: 16px; height: 16px; }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            text-align: center;
+        }
+        .cal-dow {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-400);
+            padding: 4px 0;
+            text-transform: uppercase;
+        }
+        .cal-day {
+            font-size: 13px;
+            padding: 6px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--gray-700);
+            background: none;
+            border: none;
+            font-family: inherit;
+            line-height: 1;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cal-day:hover { background: var(--gray-100); }
+        .cal-day.other-month { color: var(--gray-300); }
+        .cal-day.today { font-weight: 700; }
+        .cal-day.in-range { background: #e8f0e4; border-radius: 0; }
+        .cal-day.range-start { background: var(--primary, #2e403d); color: #fff; border-radius: 6px 0 0 6px; }
+        .cal-day.range-end { background: var(--primary, #2e403d); color: #fff; border-radius: 0 6px 6px 0; }
+        .cal-day.range-start.range-end { border-radius: 6px; }
+        .cal-day.disabled { opacity: .3; pointer-events: none; }
+
+        .dr-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid var(--gray-200);
+            padding: 12px 20px;
+        }
+        .dr-footer .range-label { font-size: 13px; color: var(--gray-500); }
+        .dr-footer .dr-actions { display: flex; gap: 8px; }
+        .dr-footer .btn-cancel {
+            padding: 6px 16px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            background: none;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--gray-600);
+        }
+        .dr-footer .btn-cancel:hover { background: var(--gray-50); }
+        .dr-footer .btn-apply {
+            padding: 6px 16px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--primary, #2e403d);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .dr-footer .btn-apply:hover { opacity: .9; }
+
+        /* ─── Report Content ────────────────────────────────── */
+        .report-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 20px;
+        }
+        .report-subtitle {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-bottom: 20px;
+        }
+        .report-company {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-800, #1f2937);
+            margin-bottom: 4px;
+        }
+        .report-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 2px;
+        }
+        .report-period {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-bottom: 24px;
+        }
+
+        /* ─── Table ────────────────────────────────────────── */
+        .tax-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .tax-table th {
+            text-align: right;
+            padding: 10px 12px;
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+        .tax-table th:first-child { text-align: left; }
+        .tax-table td {
+            padding: 10px 12px;
+            text-align: right;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .tax-table td:first-child { text-align: left; font-weight: 500; }
+        .tax-table tbody tr:hover { background: var(--gray-50); }
+        .tax-table .summary-row td {
+            border-top: 2px solid var(--gray-300);
+            border-bottom: none;
+            font-weight: 700;
+            color: var(--primary, #2e403d);
+            padding-top: 14px;
+        }
+
+        /* ─── Not Taxable Card ──────────────────────────────── */
+        .not-taxable-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 24px 32px;
+            margin-bottom: 20px;
+        }
+        .not-taxable-card h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 12px;
+        }
+        .nt-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .nt-table th {
+            text-align: right;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+        .nt-table th:first-child { text-align: left; }
+        .nt-table td {
+            padding: 8px 12px;
+            text-align: right;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .nt-table td:first-child { text-align: left; font-weight: 500; }
+
+        /* ─── Loading / Empty ───────────────────────────────── */
+        .loading-spinner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 0;
+            color: var(--gray-400);
+            gap: 10px;
+            font-size: 14px;
+        }
+        .loading-spinner .spin {
+            width: 20px; height: 20px;
+            border: 2px solid var(--gray-200);
+            border-top-color: var(--primary, #2e403d);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        /* ─── Print ─────────────────────────────────────────── */
+        @media print {
+            .sidebar, .topbar, .controls-bar, .daterange-dropdown, .export-menu { display: none !important; }
+            .main { margin-left: 0 !important; }
+            .page-content { padding: 0 !important; }
+            .report-card, .not-taxable-card { border: none; box-shadow: none; padding: 16px 0; }
+            body { background: #fff; }
+        }
+
+        /* ─── Responsive ────────────────────────────────────── */
+        @media (max-width: 800px) {
+            .daterange-dropdown { width: calc(100vw - 48px); }
+            .dr-presets { display: none; }
+            .dr-calendars { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <h1 class="topbar-title">Sales Tax Report</h1>
+        </div>
+    </div>
+
+    <div class="page-content" style="padding:24px;max-width:1000px;">
+        <!-- Controls Bar -->
+        <div class="controls-bar">
+            <!-- Date Range Picker -->
+            <div class="daterange-wrap">
+                <button class="ctrl-btn" id="daterangeBtn">
+                    <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M1 7h14M5 1v4M11 1v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <span id="daterangeLabel">Jan 01, 2026 - Mar 08, 2026</span>
+                    <svg viewBox="0 0 12 12" fill="none" style="width:12px;height:12px"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="daterange-dropdown" id="daterangeDrop">
+                    <div class="dr-body">
+                        <div class="dr-presets" id="drPresets"></div>
+                        <div class="dr-calendars">
+                            <div class="cal-panel" id="calLeft">
+                                <div class="cal-header">
+                                    <button class="cal-nav" id="prevMonth"><svg viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                                    <span id="calLeftTitle"></span>
+                                    <span></span>
+                                </div>
+                                <div class="cal-grid" id="calLeftGrid"></div>
+                            </div>
+                            <div class="cal-panel" id="calRight">
+                                <div class="cal-header">
+                                    <span></span>
+                                    <span id="calRightTitle"></span>
+                                    <button class="cal-nav" id="nextMonth"><svg viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                                </div>
+                                <div class="cal-grid" id="calRightGrid"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dr-footer">
+                        <span class="range-label" id="drRangeLabel"></span>
+                        <div class="dr-actions">
+                            <button class="btn-cancel" id="drCancel">Cancel</button>
+                            <button class="btn-apply" id="drApply">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Type Selector -->
+            <select class="ctrl-select" id="typeSelect">
+                <option value="billed">Billed</option>
+                <option value="collected">Collected</option>
+                <option value="outstanding">Outstanding</option>
+            </select>
+
+            <div class="spacer"></div>
+
+            <!-- Export -->
+            <div class="export-wrap">
+                <button class="ctrl-btn" id="exportBtn">
+                    <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Export
+                    <svg viewBox="0 0 12 12" fill="none" style="width:12px;height:12px"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="export-menu" id="exportMenu">
+                    <button onclick="exportCSV()">CSV</button>
+                    <button onclick="exportExcel()">Excel (CSV)</button>
+                </div>
+            </div>
+
+            <!-- Print -->
+            <button class="ctrl-btn" onclick="window.print()">
+                <svg viewBox="0 0 16 16" fill="none"><path d="M4 6V1h8v5M4 12H2a1 1 0 01-1-1V7a1 1 0 011-1h12a1 1 0 011 1v4a1 1 0 01-1 1h-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="9" width="8" height="5" rx=".5" stroke="currentColor" stroke-width="1.5"/></svg>
+                Print
+            </button>
+        </div>
+
+        <!-- Report Content -->
+        <div id="reportArea">
+            <div class="loading-spinner" id="loadingSpinner">
+                <div class="spin"></div>
+                Loading report...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────
+const today = new Date();
+let startDate = new Date(today.getFullYear(), 0, 1);
+let endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+let tempStart = null;
+let tempEnd = null;
+let calViewLeft = new Date(startDate);
+let reportData = null;
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+// ─── Helpers ────────────────────────────────────────────────
+function fmt(d) { return `${MONTHS_SHORT[d.getMonth()]} ${String(d.getDate()).padStart(2,'0')}, ${d.getFullYear()}`; }
+function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function money(v) {
+    const n = Number(v) || 0;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function sameDay(a, b) { return a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function inRange(d, s, e) { return s && e && d >= s && d <= e; }
+
+// ─── Date Label ─────────────────────────────────────────────
+function updateLabel() {
+    document.getElementById('daterangeLabel').textContent = `${fmt(startDate)} - ${fmt(endDate)}`;
+}
+
+// ─── Presets ────────────────────────────────────────────────
+const presets = [
+    { label: 'Today', fn: () => { const d = new Date(); return [d, d]; } },
+    { label: 'Yesterday', fn: () => { const d = new Date(); d.setDate(d.getDate()-1); return [d, new Date(d)]; } },
+    { label: 'This Week', fn: () => { const d = new Date(); const s = new Date(d); s.setDate(d.getDate()-d.getDay()); const e = new Date(s); e.setDate(s.getDate()+6); return [s, e]; } },
+    { label: 'Last Week', fn: () => { const d = new Date(); const s = new Date(d); s.setDate(d.getDate()-d.getDay()-7); const e = new Date(s); e.setDate(s.getDate()+6); return [s, e]; } },
+    { label: 'This Week-to-Date', fn: () => { const d = new Date(); const s = new Date(d); s.setDate(d.getDate()-d.getDay()); return [s, d]; } },
+    { label: 'Last 7 Days', fn: () => { const e = new Date(); const s = new Date(e); s.setDate(e.getDate()-6); return [s, e]; } },
+    { label: 'Last 30 Days', fn: () => { const e = new Date(); const s = new Date(e); s.setDate(e.getDate()-29); return [s, e]; } },
+    { label: 'This Month', fn: () => { const d = new Date(); return [new Date(d.getFullYear(),d.getMonth(),1), new Date(d.getFullYear(),d.getMonth()+1,0)]; } },
+    { label: 'This Month-to-Date', fn: () => { const d = new Date(); return [new Date(d.getFullYear(),d.getMonth(),1), d]; } },
+    { label: 'Last Month', fn: () => { const d = new Date(); return [new Date(d.getFullYear(),d.getMonth()-1,1), new Date(d.getFullYear(),d.getMonth(),0)]; } },
+    { label: 'This Year', fn: () => { const d = new Date(); return [new Date(d.getFullYear(),0,1), new Date(d.getFullYear(),11,31)]; } },
+    { label: 'This Year to Date', fn: () => { const d = new Date(); return [new Date(d.getFullYear(),0,1), d]; } },
+    { label: 'Last Year', fn: () => { const d = new Date(); return [new Date(d.getFullYear()-1,0,1), new Date(d.getFullYear()-1,11,31)]; } },
+    { label: 'Custom Range', fn: null }
+];
+
+function buildPresets() {
+    const wrap = document.getElementById('drPresets');
+    wrap.innerHTML = '';
+    presets.forEach((p, i) => {
+        const btn = document.createElement('button');
+        btn.textContent = p.label;
+        btn.addEventListener('click', () => {
+            wrap.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (p.fn) {
+                const [s, e] = p.fn();
+                tempStart = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+                tempEnd = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+                calViewLeft = new Date(tempStart.getFullYear(), tempStart.getMonth(), 1);
+                renderCalendars();
+                updateFooterLabel();
+            }
+        });
+        wrap.appendChild(btn);
+    });
+    // Default: This Year to Date
+    wrap.children[11].classList.add('active');
+}
+
+// ─── Calendar Rendering ─────────────────────────────────────
+function renderCalendars() {
+    renderMonth('calLeftGrid', 'calLeftTitle', calViewLeft.getFullYear(), calViewLeft.getMonth());
+    const rightMonth = new Date(calViewLeft.getFullYear(), calViewLeft.getMonth() + 1, 1);
+    renderMonth('calRightGrid', 'calRightTitle', rightMonth.getFullYear(), rightMonth.getMonth());
+}
+
+function renderMonth(gridId, titleId, year, month) {
+    document.getElementById(titleId).textContent = `${MONTHS[month]} ${year}`;
+    const grid = document.getElementById(gridId);
+    grid.innerHTML = '';
+
+    // Day-of-week headers
+    DAYS.forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'cal-dow';
+        el.textContent = d;
+        grid.appendChild(el);
+    });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrev = new Date(year, month, 0).getDate();
+
+    // Previous month filler
+    for (let i = firstDay - 1; i >= 0; i--) {
+        const btn = document.createElement('button');
+        btn.className = 'cal-day other-month';
+        btn.textContent = daysInPrev - i;
+        btn.disabled = true;
+        grid.appendChild(btn);
+    }
+
+    // Current month days
+    for (let d = 1; d <= daysInMonth; d++) {
+        const btn = document.createElement('button');
+        btn.className = 'cal-day';
+        btn.textContent = d;
+        const date = new Date(year, month, d);
+
+        if (sameDay(date, today)) btn.classList.add('today');
+        if (tempStart && tempEnd) {
+            if (sameDay(date, tempStart)) btn.classList.add('range-start');
+            if (sameDay(date, tempEnd)) btn.classList.add('range-end');
+            if (inRange(date, tempStart, tempEnd)) btn.classList.add('in-range');
+        } else if (tempStart && sameDay(date, tempStart)) {
+            btn.classList.add('range-start', 'range-end');
+        }
+
+        btn.addEventListener('click', () => handleDayClick(date));
+        grid.appendChild(btn);
+    }
+
+    // Next month filler
+    const totalCells = firstDay + daysInMonth;
+    const remaining = (7 - (totalCells % 7)) % 7;
+    for (let i = 1; i <= remaining; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'cal-day other-month';
+        btn.textContent = i;
+        btn.disabled = true;
+        grid.appendChild(btn);
+    }
+}
+
+function handleDayClick(date) {
+    if (!tempStart || (tempStart && tempEnd)) {
+        tempStart = date;
+        tempEnd = null;
+    } else {
+        if (date < tempStart) {
+            tempEnd = tempStart;
+            tempStart = date;
+        } else {
+            tempEnd = date;
+        }
+    }
+    // Deselect preset
+    document.querySelectorAll('#drPresets button').forEach(b => b.classList.remove('active'));
+    document.querySelector('#drPresets button:last-child').classList.add('active'); // Custom Range
+    renderCalendars();
+    updateFooterLabel();
+}
+
+function updateFooterLabel() {
+    const label = document.getElementById('drRangeLabel');
+    if (tempStart && tempEnd) {
+        label.textContent = `${fmt(tempStart)} - ${fmt(tempEnd)}`;
+    } else if (tempStart) {
+        label.textContent = `${fmt(tempStart)} - ...`;
+    } else {
+        label.textContent = '';
+    }
+}
+
+// ─── Dropdown Toggle ────────────────────────────────────────
+document.getElementById('daterangeBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const drop = document.getElementById('daterangeDrop');
+    const isOpen = drop.classList.contains('open');
+    closeAllDropdowns();
+    if (!isOpen) {
+        tempStart = new Date(startDate);
+        tempEnd = new Date(endDate);
+        calViewLeft = new Date(tempStart.getFullYear(), tempStart.getMonth(), 1);
+        drop.classList.add('open');
+        renderCalendars();
+        updateFooterLabel();
+    }
+});
+
+document.getElementById('prevMonth').addEventListener('click', (e) => {
+    e.stopPropagation();
+    calViewLeft.setMonth(calViewLeft.getMonth() - 1);
+    renderCalendars();
+});
+
+document.getElementById('nextMonth').addEventListener('click', (e) => {
+    e.stopPropagation();
+    calViewLeft.setMonth(calViewLeft.getMonth() + 1);
+    renderCalendars();
+});
+
+document.getElementById('drCancel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('daterangeDrop').classList.remove('open');
+});
+
+document.getElementById('drApply').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (tempStart && tempEnd) {
+        startDate = new Date(tempStart);
+        endDate = new Date(tempEnd);
+        updateLabel();
+        document.getElementById('daterangeDrop').classList.remove('open');
+        fetchReport();
+    }
+});
+
+// ─── Export Dropdown ────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById('exportMenu');
+    const isOpen = menu.classList.contains('open');
+    closeAllDropdowns();
+    if (!isOpen) menu.classList.add('open');
+});
+
+function closeAllDropdowns() {
+    document.getElementById('daterangeDrop').classList.remove('open');
+    document.getElementById('exportMenu').classList.remove('open');
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.daterange-wrap') && !e.target.closest('.export-wrap')) {
+        closeAllDropdowns();
+    }
+});
+
+// Stop propagation inside dropdowns
+document.getElementById('daterangeDrop').addEventListener('click', (e) => e.stopPropagation());
+
+// ─── Type Select ────────────────────────────────────────────
+document.getElementById('typeSelect').addEventListener('change', fetchReport);
+
+// ─── Fetch Report ───────────────────────────────────────────
+async function fetchReport() {
+    const type = document.getElementById('typeSelect').value;
+    const area = document.getElementById('reportArea');
+    area.innerHTML = '<div class="loading-spinner"><div class="spin"></div>Loading report...</div>';
+
+    try {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const res = await fetch(`/api/reports/sales-tax?start_date=${isoDate(startDate)}&end_date=${isoDate(endDate)}&type=${type}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to load report');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to load report');
+        reportData = data;
+        renderReport(data);
+    } catch (err) {
+        area.innerHTML = `<div class="report-card"><p style="color:var(--red);text-align:center;padding:40px 0;">Error loading report: ${err.message}</p></div>`;
+    }
+}
+
+// ─── Render Report ──────────────────────────────────────────
+function renderReport(data) {
+    const type = document.getElementById('typeSelect').value;
+    const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+    const area = document.getElementById('reportArea');
+
+    const rows = (data.rows || []).map(r => `
+        <tr>
+            <td>${Number(r.tax_rate).toFixed(2)}%</td>
+            <td>${money(r.total_sales)}</td>
+            <td>${money(r.taxable_amount)}</td>
+            <td>${money(r.discount)}</td>
+            <td>${money(r.tax_amount)}</td>
+        </tr>
+    `).join('');
+
+    const s = data.summary || {};
+
+    // Not taxable rows
+    const nt = data.not_taxable || {};
+    let ntRows = '';
+    if (nt.processing_fees !== undefined) {
+        ntRows += `<tr><td>Processing Fees</td><td>${money(nt.processing_fees)}</td></tr>`;
+    }
+    if (type === 'collected' && nt.tips !== undefined) {
+        ntRows += `<tr><td>Tips</td><td>${money(nt.tips)}</td></tr>`;
+    }
+
+    area.innerHTML = `
+        <div class="report-card">
+            <p class="report-subtitle">This report shows a breakdown of the different tax rates.</p>
+            <div class="report-company">Pappas &amp; Co. Landscaping</div>
+            <div class="report-title">Sales Tax Report</div>
+            <div class="report-period">${fmt(startDate)} - ${fmt(endDate)} (${typeLabel})</div>
+            <table class="tax-table">
+                <thead>
+                    <tr>
+                        <th>Tax Rate</th>
+                        <th>Total Sales</th>
+                        <th>Taxable Amount</th>
+                        <th>Discount</th>
+                        <th>Tax Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows || '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:24px;">No data for this period.</td></tr>'}
+                    ${data.rows && data.rows.length ? `
+                    <tr class="summary-row">
+                        <td>Total</td>
+                        <td>${money(s.total_sales)}</td>
+                        <td>${money(s.taxable_amount)}</td>
+                        <td>${money(s.discount)}</td>
+                        <td>${money(s.tax_amount)}</td>
+                    </tr>` : ''}
+                </tbody>
+            </table>
+        </div>
+        ${ntRows ? `
+        <div class="not-taxable-card">
+            <h3>Not Taxable</h3>
+            <table class="nt-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:left;"></th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>${ntRows}</tbody>
+            </table>
+        </div>` : ''}
+    `;
+}
+
+// ─── Export ─────────────────────────────────────────────────
+function exportCSV() {
+    if (!reportData) return;
+    const type = document.getElementById('typeSelect').value;
+    let csv = 'Tax Rate,Total Sales,Taxable Amount,Discount,Tax Amount\n';
+    (reportData.rows || []).forEach(r => {
+        csv += `${Number(r.tax_rate).toFixed(2)}%,${Number(r.total_sales||0).toFixed(2)},${Number(r.taxable_amount||0).toFixed(2)},${Number(r.discount||0).toFixed(2)},${Number(r.tax_amount||0).toFixed(2)}\n`;
+    });
+    if (reportData.summary) {
+        const s = reportData.summary;
+        csv += `Total,${Number(s.total_sales||0).toFixed(2)},${Number(s.taxable_amount||0).toFixed(2)},${Number(s.discount||0).toFixed(2)},${Number(s.tax_amount||0).toFixed(2)}\n`;
+    }
+    csv += '\nNot Taxable\n';
+    const nt = reportData.not_taxable || {};
+    if (nt.processing_fees !== undefined) csv += `Processing Fees,${Number(nt.processing_fees||0).toFixed(2)}\n`;
+    if (type === 'collected' && nt.tips !== undefined) csv += `Tips,${Number(nt.tips||0).toFixed(2)}\n`;
+
+    downloadFile(csv, `sales-tax-report-${isoDate(startDate)}-to-${isoDate(endDate)}.csv`, 'text/csv');
+    document.getElementById('exportMenu').classList.remove('open');
+}
+
+function exportExcel() {
+    // Export as CSV with .csv extension (Excel can open it)
+    exportCSV();
+}
+
+function downloadFile(content, filename, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ─── Init ───────────────────────────────────────────────────
+buildPresets();
+updateLabel();
+// Wait for shell.js to set up auth, then fetch
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(fetchReport, 300));
+} else {
+    setTimeout(fetchReport, 300);
+}
+</script>
+</body>
+</html>

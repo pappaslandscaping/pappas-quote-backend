@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automations — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        /* ─── Page Layout ─────────────────────────────────── */
+        .page-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 32px;
+            background: var(--gray-50);
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .page-header-left h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin: 0;
+        }
+
+        .breadcrumb {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-bottom: 4px;
+        }
+
+        .breadcrumb a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        /* ─── Tabs ────────────────────────────────────────── */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--gray-200);
+            margin-bottom: 24px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-400);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .tab-btn:hover {
+            color: var(--gray-600);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ─── Automation Cards ────────────────────────────── */
+        .automation-card {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: box-shadow 0.15s;
+        }
+
+        .automation-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--gray-300);
+            border-radius: 22px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 3px;
+            top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary);
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        .automation-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .automation-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 4px;
+        }
+
+        .automation-desc {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .automation-meta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .trigger-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .meta-item {
+            font-size: 11px;
+            color: var(--gray-400);
+        }
+
+        .meta-item strong {
+            color: var(--gray-600);
+        }
+
+        .automation-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .automation-actions button {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            background: var(--white);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-400);
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+
+        .automation-actions button:hover {
+            background: var(--gray-50);
+            color: var(--gray-600);
+            border-color: var(--gray-300);
+        }
+
+        .automation-actions button.delete-btn:hover {
+            color: #dc2626;
+            border-color: #fca5a5;
+            background: #fef2f2;
+        }
+
+        /* ─── History Table ───────────────────────────────── */
+        .history-table-wrap {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .history-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .history-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .history-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.completed {
+            background: #dcfce7;
+            color: #1f2b29;
+        }
+
+        .status-badge.failed {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .status-badge.pending {
+            background: #fef9c3;
+            color: #a16207;
+        }
+
+        .status-badge.skipped {
+            background: var(--gray-100);
+            color: var(--gray-500);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--gray-400);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+
+        .empty-state h3 {
+            font-size: 16px;
+            color: var(--gray-500);
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+        }
+
+        /* ─── Template Picker Modal ───────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-box {
+            background: var(--white);
+            border-radius: 16px;
+            width: 640px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.15);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--gray-400);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .modal-body {
+            padding: 20px 24px;
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .template-option {
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .template-option:hover {
+            border-color: var(--primary);
+            background: #f0fdf4;
+        }
+
+        .template-option h4 {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+
+        .template-option p {
+            font-size: 11px;
+            color: var(--gray-400);
+            line-height: 1.5;
+        }
+
+        .template-option.scratch {
+            border-style: dashed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            min-height: 100px;
+        }
+
+        .template-option.scratch h4 {
+            color: var(--primary);
+        }
+
+        /* ─── Full-Page Automation Editor ─────────────────── */
+        .editor-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--gray-50);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+        }
+
+        .editor-overlay.show {
+            display: flex;
+        }
+
+        .editor-topbar {
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .editor-topbar input {
+            flex: 1;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            outline: none;
+            color: var(--gray-700);
+            background: transparent;
+        }
+
+        .editor-topbar input::placeholder {
+            color: var(--gray-300);
+        }
+
+        .editor-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .editor-inner {
+            width: 640px;
+            max-width: 100%;
+        }
+
+        .builder-section {
+            margin-bottom: 32px;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--white);
+            padding: 5px 14px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+        }
+
+        .section-label.trigger {
+            background: #2563eb;
+        }
+
+        .section-label.condition {
+            background: #f59e0b;
+        }
+
+        .section-label.action {
+            background: var(--primary);
+        }
+
+        .section-label.settings {
+            background: var(--gray-500);
+        }
+
+        .builder-card {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            padding: 20px;
+            border-left: 4px solid var(--gray-200);
+        }
+
+        .builder-card.trigger {
+            border-left-color: #2563eb;
+        }
+
+        .builder-card.condition {
+            border-left-color: #f59e0b;
+        }
+
+        .builder-card.action {
+            border-left-color: var(--primary);
+        }
+
+        .builder-card.settings-card {
+            border-left-color: var(--gray-500);
+        }
+
+        /* ─── Flow Connector ──────────────────────────────── */
+        .flow-connector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 40px;
+            position: relative;
+        }
+
+        .flow-connector::before {
+            content: '';
+            width: 2px;
+            height: 100%;
+            background: var(--gray-300);
+        }
+
+        .flow-connector::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--gray-300);
+        }
+
+        /* ─── Action Items in Builder ─────────────────────── */
+        .action-item {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .action-item-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .action-item-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-item-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .action-item-controls button {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            background: var(--white);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-400);
+            font-size: 12px;
+            transition: all 0.15s;
+        }
+
+        .action-item-controls button:hover {
+            color: var(--gray-600);
+            border-color: var(--gray-300);
+        }
+
+        .action-connector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 20px;
+            margin-bottom: 12px;
+        }
+
+        .action-connector::before {
+            content: '';
+            width: 2px;
+            height: 100%;
+            background: var(--primary);
+            opacity: 0.3;
+        }
+
+        /* ─── Form Controls in Builder ────────────────────── */
+        .form-row {
+            margin-bottom: 12px;
+        }
+
+        .form-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-row label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-500);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .form-row select,
+        .form-row input[type="text"],
+        .form-row input[type="number"],
+        .form-row textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-700);
+            background: var(--white);
+            transition: border-color 0.15s;
+        }
+
+        .form-row select:focus,
+        .form-row input[type="text"]:focus,
+        .form-row input[type="number"]:focus,
+        .form-row textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .form-row textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .form-row-inline {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .form-row-inline .form-row {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .condition-row {
+            display: flex;
+            gap: 8px;
+            align-items: end;
+            margin-bottom: 8px;
+        }
+
+        .condition-row select,
+        .condition-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--gray-700);
+            background: var(--white);
+        }
+
+        .condition-row .remove-condition {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            background: var(--white);
+            cursor: pointer;
+            color: var(--gray-400);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .condition-row .remove-condition:hover {
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        .add-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: 1px dashed var(--gray-300);
+            border-radius: 8px;
+            background: none;
+            color: var(--gray-500);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .add-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #f0fdf4;
+        }
+
+        .add-btn.primary {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #f0fdf4;
+        }
+
+        .add-btn.primary:hover {
+            background: #dcfce7;
+        }
+
+        /* ─── Settings checkboxes ─────────────────────────── */
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+        }
+
+        .checkbox-row label {
+            font-size: 13px;
+            color: var(--gray-600);
+            text-transform: none;
+            letter-spacing: normal;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        /* ─── Responsive ──────────────────────────────────── */
+        @media (max-width: 768px) {
+            .page-content {
+                padding: 16px;
+            }
+
+            .automation-card {
+                flex-wrap: wrap;
+            }
+
+            .automation-meta {
+                flex-basis: 100%;
+            }
+
+            .template-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .editor-body {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<!-- Main -->
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <h1>Automations</h1>
+        </div>
+        <div class="topbar-actions"></div>
+    </div>
+
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+        <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
+        <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Templates</a>
+        <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
+        <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Automations</a>
+        <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Broadcasts</a>
+    </div>
+
+    <div class="page-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-header-left">
+                <div class="breadcrumb"><a href="communications.html">Communications</a> &rsaquo; Automations</div>
+                <h2>Automations</h2>
+            </div>
+            <button class="btn btn-primary" onclick="showTemplatePicker()">+ Create Automation</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('automations', this)">Automations</button>
+            <button class="tab-btn" onclick="switchTab('history', this)">Automation History</button>
+        </div>
+
+        <!-- Automations Tab -->
+        <div class="tab-content active" id="tab-automations">
+            <div id="automationsList"></div>
+            <div class="empty-state" id="automationsEmpty" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <h3>No automations yet</h3>
+                <p>Create your first automation to streamline your workflow.</p>
+            </div>
+        </div>
+
+        <!-- Automation History Tab -->
+        <div class="tab-content" id="tab-history">
+            <div class="history-table-wrap">
+                <table class="history-table" id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Automation Name</th>
+                            <th>Trigger</th>
+                            <th>Customer</th>
+                            <th>Actions Taken</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+            </div>
+            <div class="empty-state" id="historyEmpty" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <h3>No automation history</h3>
+                <p>History will appear here once automations have run.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template Picker Modal -->
+<div class="modal-overlay" id="templatePickerModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Create Automation</h3>
+            <button class="modal-close" onclick="closeTemplatePicker()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">Choose a pre-built template or start from scratch.</p>
+            <div class="template-grid">
+                <div class="template-option" onclick="loadPrebuilt('quote-followup')">
+                    <h4>Quote Follow-up Sequence</h4>
+                    <p>Send 4 follow-up emails over 25 days for unsigned quotes.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('quote-viewed')">
+                    <h4>Quote Viewed, Not Signed</h4>
+                    <p>Nudge customers who opened their quote but haven't signed.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('contract-unsigned')">
+                    <h4>Contract Unsigned Follow-up</h4>
+                    <p>Text customers who accepted a quote but didn't sign the agreement.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('invoice-payment-link')">
+                    <h4>Invoice Payment Link</h4>
+                    <p>Text a payment link as soon as an invoice is sent.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('invoice-overdue')">
+                    <h4>Invoice Overdue Reminder</h4>
+                    <p>Send reminders at 3, 7, 14, and 30 days overdue.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('payment-thank-you')">
+                    <h4>Payment Received Thank You</h4>
+                    <p>Auto thank you text when a payment comes in.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('welcome')">
+                    <h4>New Customer Welcome</h4>
+                    <p>Send welcome email + onboarding info to new customers.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('job-reminder')">
+                    <h4>Job Reminder (Day Before)</h4>
+                    <p>Text the customer the day before their scheduled job.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('job-followup')">
+                    <h4>Job Completed Follow-up</h4>
+                    <p>Thank you text + Google review request after a job.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('first-job')">
+                    <h4>First Job Complete</h4>
+                    <p>Special welcome after their very first service with you.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('job-rescheduled')">
+                    <h4>Job Rescheduled Notice</h4>
+                    <p>Notify customer when their job date/time changes.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('recurring-reminder')">
+                    <h4>Weekly Mowing Reminder</h4>
+                    <p>Sunday night reminder for recurring weekly service.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('re-engagement')">
+                    <h4>No Service Re-engagement</h4>
+                    <p>Reach out to customers with no service in 60 days.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('anniversary')">
+                    <h4>Customer Anniversary</h4>
+                    <p>Celebrate 1 year since their first service.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('spring-kickoff')">
+                    <h4>Spring Kickoff</h4>
+                    <p>March outreach to last year's customers about starting service.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('fall-cleanup')">
+                    <h4>Fall Cleanup</h4>
+                    <p>October push for leaf removal and winterization.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('snow-season')">
+                    <h4>Snow Season</h4>
+                    <p>November outreach for snow removal contracts.</p>
+                </div>
+                <div class="template-option" onclick="loadPrebuilt('seasonal')">
+                    <h4>Custom Seasonal Campaign</h4>
+                    <p>Set your own date range for seasonal outreach.</p>
+                </div>
+                <div class="template-option scratch" onclick="loadPrebuilt('scratch')">
+                    <h4>+ Start from Scratch</h4>
+                    <p style="color:var(--gray-400)">Build a custom automation</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Full-Page Automation Editor -->
+<div class="editor-overlay" id="editorOverlay">
+    <div class="editor-topbar">
+        <button class="btn btn-secondary btn-sm" onclick="closeEditor()">Cancel</button>
+        <input type="text" id="editorName" placeholder="Automation name...">
+        <button class="btn btn-primary btn-sm" onclick="saveAutomation()">Save Automation</button>
+    </div>
+    <div class="editor-body">
+        <div class="editor-inner">
+
+            <!-- Trigger Section -->
+            <div class="builder-section">
+                <div class="section-label trigger">IF &mdash; Trigger</div>
+                <div class="builder-card trigger">
+                    <div class="form-row">
+                        <label>Trigger Type</label>
+                        <select id="triggerType" onchange="updateTriggerConfig()">
+                            <option value="">Select a trigger...</option>
+                            <optgroup label="Quotes">
+                                <option value="quote_accepted">Quote Accepted</option>
+                                <option value="quote_declined">Quote Declined</option>
+                                <option value="quote_no_response">Quote No Response (X days)</option>
+                                <option value="quote_viewed_not_signed">Quote Viewed but Not Signed</option>
+                                <option value="quote_accepted_no_contract">Quote Accepted, Contract Unsigned</option>
+                            </optgroup>
+                            <optgroup label="Invoices & Payments">
+                                <option value="invoice_created">Invoice Sent</option>
+                                <option value="invoice_overdue">Invoice Overdue (X days)</option>
+                                <option value="invoice_paid">Payment Received</option>
+                            </optgroup>
+                            <optgroup label="Jobs & Scheduling">
+                                <option value="job_scheduled">Job Scheduled (X days before)</option>
+                                <option value="job_completed">Job Completed</option>
+                                <option value="first_job_complete">First Job Completed</option>
+                                <option value="job_rescheduled">Job Rescheduled</option>
+                                <option value="recurring_job_reminder">Recurring Job Reminder (weekly)</option>
+                            </optgroup>
+                            <optgroup label="Customers">
+                                <option value="new_customer">New Customer Created</option>
+                                <option value="no_service_days">No Service in X Days</option>
+                                <option value="customer_anniversary">Customer Anniversary</option>
+                                <option value="customer_birthday">Customer Birthday</option>
+                            </optgroup>
+                            <optgroup label="Seasonal">
+                                <option value="seasonal">Seasonal (specific date range)</option>
+                                <option value="spring_kickoff">Spring Kickoff (March)</option>
+                                <option value="fall_cleanup">Fall Cleanup (October)</option>
+                                <option value="snow_season">Snow Season (November)</option>
+                            </optgroup>
+                            <optgroup label="Other">
+                                <option value="manual">Manual Trigger</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div id="triggerConfig"></div>
+                </div>
+            </div>
+
+            <div class="flow-connector"></div>
+
+            <!-- Conditions Section -->
+            <div class="builder-section">
+                <div class="section-label condition">AND/OR &mdash; Conditions</div>
+                <div class="builder-card condition">
+                    <div id="conditionsList"></div>
+                    <button class="add-btn" onclick="addCondition()">+ Add Condition</button>
+                </div>
+            </div>
+
+            <div class="flow-connector"></div>
+
+            <!-- Actions Section -->
+            <div class="builder-section">
+                <div class="section-label action">THEN &mdash; Actions</div>
+                <div class="builder-card action">
+                    <div id="actionsList"></div>
+                    <button class="add-btn primary" onclick="addAction()">+ Add Action</button>
+                </div>
+            </div>
+
+            <div class="flow-connector"></div>
+
+            <!-- Settings Section -->
+            <div class="builder-section">
+                <div class="section-label settings">Settings</div>
+                <div class="builder-card settings-card">
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="reviewBeforeExec">
+                        <label for="reviewBeforeExec">Review before execution</label>
+                    </div>
+                    <div class="form-row">
+                        <label>Stop When</label>
+                        <select id="stopWhen">
+                            <option value="never">Never</option>
+                            <option value="customer_replies">Customer replies</option>
+                            <option value="quote_accepted">Quote accepted</option>
+                            <option value="invoice_paid">Invoice paid</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Description</label>
+                        <textarea id="automationDescription" placeholder="Describe what this automation does..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+/* ─── State ─────────────────────────────────────────────── */
+var automations = [];
+var editingId = null;
+var editorActions = [];
+var editorConditions = [];
+
+/* ─── Tab Switching ─────────────────────────────────────── */
+function switchTab(tab, btn) {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'history') loadHistory();
+}
+
+/* ─── Load Automations ──────────────────────────────────── */
+function loadAutomations() {
+    fetch('/api/automations').then(function(r) { return r.json(); }).then(function(data) {
+        automations = Array.isArray(data) ? data : (data.automations || []);
+        renderAutomations();
+    }).catch(function() {
+        automations = [];
+        renderAutomations();
+    });
+}
+
+function renderAutomations() {
+    var list = document.getElementById('automationsList');
+    var empty = document.getElementById('automationsEmpty');
+    if (!automations.length) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = automations.map(function(a) {
+        var actionCount = (a.actions || []).length;
+        var isActive = a.active !== false;
+        var triggerLabel = getTriggerLabel(a.trigger_type || a.triggerType || '');
+        var lastRun = a.last_run ? new Date(a.last_run).toLocaleDateString() : 'Never';
+        return '<div class="automation-card">' +
+            '<label class="toggle-switch">' +
+                '<input type="checkbox" ' + (isActive ? 'checked' : '') + ' onchange="toggleAutomation(\'' + a._id + '\', this.checked)">' +
+                '<span class="toggle-slider"></span>' +
+            '</label>' +
+            '<div class="automation-info">' +
+                '<div class="automation-name">' + esc(a.name || 'Untitled') + '</div>' +
+                '<div class="automation-desc">' + esc(a.description || '') + '</div>' +
+                '<div class="automation-meta">' +
+                    '<span class="trigger-badge">' + esc(triggerLabel) + '</span>' +
+                    '<span class="meta-item"><strong>' + actionCount + '</strong> action' + (actionCount !== 1 ? 's' : '') + '</span>' +
+                    '<span class="meta-item">Runs: <strong>' + (a.run_count || 0) + '</strong></span>' +
+                    '<span class="meta-item">Last run: ' + lastRun + '</span>' +
+                '</div>' +
+            '</div>' +
+            '<div class="automation-actions">' +
+                '<button onclick="editAutomation(\'' + a._id + '\')" title="Edit">&#9998;</button>' +
+                '<button onclick="duplicateAutomation(\'' + a._id + '\')" title="Duplicate">&#10697;</button>' +
+                '<button class="delete-btn" onclick="deleteAutomation(\'' + a._id + '\')" title="Delete">&#10005;</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function getTriggerLabel(type) {
+    var labels = {
+        quote_accepted: 'Quote Accepted',
+        quote_declined: 'Quote Declined',
+        quote_no_response: 'Quote No Response',
+        quote_viewed_not_signed: 'Quote Viewed, Not Signed',
+        quote_accepted_no_contract: 'Accepted, Contract Unsigned',
+        invoice_created: 'Invoice Sent',
+        invoice_overdue: 'Invoice Overdue',
+        invoice_paid: 'Payment Received',
+        new_customer: 'New Customer',
+        job_completed: 'Job Completed',
+        first_job_complete: 'First Job Complete',
+        job_scheduled: 'Job Scheduled',
+        job_rescheduled: 'Job Rescheduled',
+        recurring_job_reminder: 'Recurring Job Reminder',
+        no_service_days: 'No Service (Inactive)',
+        customer_anniversary: 'Customer Anniversary',
+        customer_birthday: 'Customer Birthday',
+        seasonal: 'Seasonal',
+        spring_kickoff: 'Spring Kickoff',
+        fall_cleanup: 'Fall Cleanup',
+        snow_season: 'Snow Season',
+        manual: 'Manual Trigger'
+    };
+    return labels[type] || type || 'No Trigger';
+}
+
+function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+/* ─── Toggle / Delete / Duplicate ───────────────────────── */
+function toggleAutomation(id, active) {
+    fetch('/api/automations/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: active })
+    }).then(function() { loadAutomations(); });
+}
+
+function deleteAutomation(id) {
+    if (!confirm('Delete this automation?')) return;
+    fetch('/api/automations/' + id, { method: 'DELETE' }).then(function() { loadAutomations(); });
+}
+
+function duplicateAutomation(id) {
+    var a = automations.find(function(x) { return x._id === id; });
+    if (!a) return;
+    var copy = JSON.parse(JSON.stringify(a));
+    delete copy._id;
+    copy.name = (copy.name || 'Untitled') + ' (Copy)';
+    copy.active = false;
+    copy.run_count = 0;
+    copy.last_run = null;
+    fetch('/api/automations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(copy)
+    }).then(function() { loadAutomations(); });
+}
+
+/* ─── History ───────────────────────────────────────────── */
+function loadHistory() {
+    var body = document.getElementById('historyBody');
+    var empty = document.getElementById('historyEmpty');
+    // Try loading history for all automations
+    var promises = automations.map(function(a) {
+        return fetch('/api/automations/' + a._id + '/history').then(function(r) { return r.json(); }).catch(function() { return []; });
+    });
+    Promise.all(promises).then(function(results) {
+        var allHistory = [];
+        results.forEach(function(hist) {
+            if (Array.isArray(hist)) allHistory = allHistory.concat(hist);
+            else if (hist && hist.history) allHistory = allHistory.concat(hist.history);
+        });
+        allHistory.sort(function(a, b) { return new Date(b.date || b.created_at) - new Date(a.date || a.created_at); });
+        if (!allHistory.length) {
+            body.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+        body.innerHTML = allHistory.map(function(h) {
+            var statusClass = (h.status || '').toLowerCase();
+            if (statusClass === 'pending review' || statusClass === 'pending_review') statusClass = 'pending';
+            return '<tr>' +
+                '<td>' + new Date(h.date || h.created_at).toLocaleString() + '</td>' +
+                '<td>' + esc(h.automation_name || h.automationName || '') + '</td>' +
+                '<td>' + esc(getTriggerLabel(h.trigger || h.trigger_type || '')) + '</td>' +
+                '<td>' + esc(h.customer_name || h.customer || '') + '</td>' +
+                '<td>' + esc(h.actions_taken || h.actionsTaken || '') + '</td>' +
+                '<td><span class="status-badge ' + statusClass + '">' + esc(h.status || '') + '</span></td>' +
+            '</tr>';
+        }).join('');
+    });
+}
+
+/* ─── Template Picker ───────────────────────────────────── */
+function showTemplatePicker() {
+    document.getElementById('templatePickerModal').classList.add('show');
+}
+
+function closeTemplatePicker() {
+    document.getElementById('templatePickerModal').classList.remove('show');
+}
+
+function loadPrebuilt(template) {
+    closeTemplatePicker();
+    editingId = null;
+    editorConditions = [];
+    editorActions = [];
+
+    var name = '';
+    var triggerType = '';
+    var triggerDays = '';
+    var description = '';
+    var stopWhen = 'never';
+
+    if (template === 'quote-followup') {
+        name = 'Quote Follow-up Sequence';
+        triggerType = 'quote_no_response';
+        triggerDays = '3';
+        description = 'Automatically follow up on unsigned quotes with a sequence of 4 emails over 25 days.';
+        stopWhen = 'quote_accepted';
+        editorActions = [
+            { type: 'send_email', template: 'quote_followup_1' },
+            { type: 'wait', waitAmount: '5', waitUnit: 'days' },
+            { type: 'send_email', template: 'quote_followup_2' },
+            { type: 'wait', waitAmount: '7', waitUnit: 'days' },
+            { type: 'send_email', template: 'quote_followup_3' },
+            { type: 'wait', waitAmount: '10', waitUnit: 'days' },
+            { type: 'send_email', template: 'quote_followup_final' }
+        ];
+    } else if (template === 'invoice-overdue') {
+        name = 'Invoice Overdue Reminder';
+        triggerType = 'invoice_overdue';
+        triggerDays = '7';
+        description = 'Send reminders at 7, 14, and 30 days overdue.';
+        stopWhen = 'invoice_paid';
+        editorActions = [
+            { type: 'send_email', template: 'invoice_reminder_1' },
+            { type: 'wait', waitAmount: '7', waitUnit: 'days' },
+            { type: 'send_email', template: 'invoice_reminder_2' },
+            { type: 'wait', waitAmount: '16', waitUnit: 'days' },
+            { type: 'send_email', template: 'invoice_reminder_final' }
+        ];
+    } else if (template === 'welcome') {
+        name = 'New Customer Welcome';
+        triggerType = 'new_customer';
+        description = 'Send welcome email and onboarding info to new customers.';
+        editorActions = [
+            { type: 'send_email', template: 'welcome_email' },
+            { type: 'wait', waitAmount: '2', waitUnit: 'days' },
+            { type: 'send_email', template: 'onboarding_info' },
+            { type: 'update_tag', tag: 'onboarded' }
+        ];
+    } else if (template === 'job-followup') {
+        name = 'Job Completed Follow-up';
+        triggerType = 'job_completed';
+        description = 'Send thank you email and request a review after job completion.';
+        editorActions = [
+            { type: 'send_email', template: 'thank_you' },
+            { type: 'wait', waitAmount: '3', waitUnit: 'days' },
+            { type: 'send_email', template: 'review_request' }
+        ];
+    } else if (template === 'job-reminder') {
+        name = 'Job Reminder — Day Before';
+        triggerType = 'job_scheduled';
+        triggerDays = '1';
+        description = 'Send an SMS reminder to the customer the day before their scheduled job with the time and crew details.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}, this is Pappas & Co. Landscaping! Just a reminder that we have you on the schedule for tomorrow. Please make sure gates are unlocked and pets are secured. See you then!' }
+        ];
+    } else if (template === 'contract-unsigned') {
+        name = 'Contract Unsigned Follow-up';
+        triggerType = 'quote_accepted_no_contract';
+        triggerDays = '1';
+        description = 'Follow up with customers who accepted a quote but didn\'t finish signing the service agreement.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! You accepted your quote from Pappas & Co. but we still need your signature on the service agreement to get started. Sign here: #{contract_link} — takes less than a minute!' },
+            { type: 'send_email', template: 'contract_unsigned_reminder' },
+            { type: 'wait', waitAmount: '2', waitUnit: 'days' },
+            { type: 'send_sms', template: 'Hi #{customer_first_name}, just a friendly reminder — we need your signed agreement before we can schedule your service. Here\'s the link: #{contract_link}. Questions? Call us at (555) 123-4567!' },
+            { type: 'wait', waitAmount: '2', waitUnit: 'days' },
+            { type: 'send_email', template: 'contract_unsigned_final' },
+            { type: 'wait', waitAmount: '1', waitUnit: 'days' },
+            { type: 'create_task', taskTitle: 'Call customer — accepted quote but contract still unsigned' }
+        ];
+        stopWhen = 'contract_signed';
+    } else if (template === 'quote-viewed') {
+        name = 'Quote Viewed — Not Signed';
+        triggerType = 'quote_viewed_not_signed';
+        triggerDays = '1';
+        description = 'Send a nudge when a customer views their quote but doesn\'t sign within 24 hours.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! Looks like you had a chance to check out your quote from Pappas & Co. Any questions? We\'d love to get you on the schedule. Reply here or call us at (555) 123-4567!' }
+        ];
+    } else if (template === 'invoice-payment-link') {
+        name = 'Invoice Payment Link Text';
+        triggerType = 'invoice_created';
+        description = 'Immediately text the customer a payment link when an invoice is sent.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}, your invoice from Pappas & Co. Landscaping is ready! Amount due: #{invoice_amount}. Pay online here: #{payment_link} — Thanks!' }
+        ];
+    } else if (template === 'payment-thank-you') {
+        name = 'Payment Received — Thank You';
+        triggerType = 'invoice_paid';
+        description = 'Send an automatic thank you text when a payment is received.';
+        editorActions = [
+            { type: 'send_sms', template: 'Thank you, #{customer_first_name}! We received your payment of #{payment_amount}. We appreciate your business! — Pappas & Co. Landscaping' }
+        ];
+    } else if (template === 'first-job') {
+        name = 'First Job Complete — Welcome';
+        triggerType = 'first_job_complete';
+        description = 'Special thank you after a customer\'s very first service with you. Ask for a Google review.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! Thank you for choosing Pappas & Co. for your first service. We hope everything looks great! If you have a moment, a Google review would mean the world to us: #{review_link}' },
+            { type: 'wait', waitAmount: '3', waitUnit: 'days' },
+            { type: 'send_email', template: 'first_job_followup_email' },
+            { type: 'update_tag', tag: 'first-job-complete' }
+        ];
+    } else if (template === 'job-rescheduled') {
+        name = 'Job Rescheduled Notice';
+        triggerType = 'job_rescheduled';
+        description = 'Notify the customer when their scheduled job date or time changes.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}, your service with Pappas & Co. has been rescheduled to #{job_date} at #{job_time}. Please let us know if this doesn\'t work for you. Thanks!' }
+        ];
+    } else if (template === 'recurring-reminder') {
+        name = 'Weekly Mowing Reminder';
+        triggerType = 'recurring_job_reminder';
+        description = 'Send a Sunday evening reminder for customers with recurring weekly service.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! Just a heads up — our crew is scheduled for your lawn service this week. Please make sure gates are unlocked and pets are inside. Thanks! — Pappas & Co.' }
+        ];
+    } else if (template === 're-engagement') {
+        name = 'No Service in 60 Days';
+        triggerType = 'no_service_days';
+        triggerDays = '60';
+        description = 'Reach out to customers who haven\'t had service in 60 days to re-engage them.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! It\'s been a while since your last service with Pappas & Co. Your lawn misses us! 😄 Ready to get back on the schedule? Reply YES or call (555) 123-4567.' },
+            { type: 'wait', waitAmount: '5', waitUnit: 'days' },
+            { type: 'send_email', template: 're_engagement_email' },
+            { type: 'wait', waitAmount: '7', waitUnit: 'days' },
+            { type: 'create_task', taskTitle: 'Call inactive customer for re-engagement' }
+        ];
+    } else if (template === 'anniversary') {
+        name = 'Customer Anniversary — 1 Year';
+        triggerType = 'customer_anniversary';
+        description = 'Celebrate 1 year since the customer\'s first service. Send a thank you and a loyalty discount.';
+        editorActions = [
+            { type: 'send_sms', template: 'Happy anniversary, #{customer_first_name}! 🎉 It\'s been 1 year since you joined the Pappas & Co. family. Thank you for your loyalty! Enjoy 10% off your next service — just mention this text.' },
+            { type: 'send_email', template: 'anniversary_email' },
+            { type: 'update_tag', tag: '1-year-customer' }
+        ];
+    } else if (template === 'spring-kickoff') {
+        name = 'Spring Kickoff Campaign';
+        triggerType = 'spring_kickoff';
+        description = 'March outreach to last year\'s customers about starting spring service.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! Spring is here and Pappas & Co. is ready to get your lawn looking great. Spots are filling up fast — reply YES to get on the schedule!' },
+            { type: 'wait', waitAmount: '3', waitUnit: 'days' },
+            { type: 'send_email', template: 'spring_kickoff_email' },
+            { type: 'wait', waitAmount: '7', waitUnit: 'days' },
+            { type: 'create_task', taskTitle: 'Call customer about spring service' }
+        ];
+    } else if (template === 'fall-cleanup') {
+        name = 'Fall Cleanup Campaign';
+        triggerType = 'fall_cleanup';
+        description = 'October push for leaf removal, aeration, and winterization services.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! Fall is here — time for leaf cleanup, aeration & winterization. Pappas & Co. has limited spots available. Want us to schedule you? Reply YES!' },
+            { type: 'wait', waitAmount: '5', waitUnit: 'days' },
+            { type: 'send_email', template: 'fall_cleanup_email' },
+            { type: 'create_task', taskTitle: 'Follow up on fall cleanup interest' }
+        ];
+    } else if (template === 'snow-season') {
+        name = 'Snow Season — Contract Push';
+        triggerType = 'snow_season';
+        description = 'November outreach to secure snow removal contracts before the season starts.';
+        editorActions = [
+            { type: 'send_sms', template: 'Hi #{customer_first_name}! Snow season is coming. Pappas & Co. is offering early-bird snow removal contracts. Lock in your rate before spots fill up! Call (555) 123-4567 or reply for details.' },
+            { type: 'wait', waitAmount: '5', waitUnit: 'days' },
+            { type: 'send_email', template: 'snow_contract_email' },
+            { type: 'wait', waitAmount: '7', waitUnit: 'days' },
+            { type: 'send_sms', template: 'Last chance, #{customer_first_name}! Snow removal contracts are almost full. Don\'t get left out — reply or call to secure your spot with Pappas & Co.' }
+        ];
+    } else if (template === 'seasonal') {
+        name = 'Custom Seasonal Campaign';
+        triggerType = 'seasonal';
+        description = 'Contact customers about seasonal services during a custom date range.';
+        editorActions = [
+            { type: 'send_email', template: 'seasonal_promo' },
+            { type: 'wait', waitAmount: '7', waitUnit: 'days' },
+            { type: 'send_sms', template: 'seasonal_reminder_sms' },
+            { type: 'create_task', taskTitle: 'Call customer for seasonal booking' }
+        ];
+    }
+    // 'scratch' leaves everything empty
+
+    document.getElementById('editorName').value = name;
+    document.getElementById('triggerType').value = triggerType;
+    document.getElementById('automationDescription').value = description;
+    document.getElementById('stopWhen').value = stopWhen;
+    document.getElementById('reviewBeforeExec').checked = false;
+    updateTriggerConfig();
+    if (triggerDays) {
+        var daysInput = document.getElementById('triggerDays');
+        if (daysInput) daysInput.value = triggerDays;
+    }
+    renderConditions();
+    renderActions();
+    openEditor();
+}
+
+/* ─── Editor Open / Close ───────────────────────────────── */
+function openEditor() {
+    document.getElementById('editorOverlay').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEditor() {
+    document.getElementById('editorOverlay').classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function editAutomation(id) {
+    var a = automations.find(function(x) { return x._id === id; });
+    if (!a) return;
+    editingId = id;
+    document.getElementById('editorName').value = a.name || '';
+    document.getElementById('triggerType').value = a.trigger_type || a.triggerType || '';
+    document.getElementById('automationDescription').value = a.description || '';
+    document.getElementById('stopWhen').value = a.stop_when || a.stopWhen || 'never';
+    document.getElementById('reviewBeforeExec').checked = a.review_before || a.reviewBefore || false;
+    editorConditions = (a.conditions || []).slice();
+    editorActions = (a.actions || []).slice();
+    updateTriggerConfig();
+    // Restore trigger-specific fields
+    if (a.trigger_days || a.triggerDays) {
+        setTimeout(function() {
+            var daysInput = document.getElementById('triggerDays');
+            if (daysInput) daysInput.value = a.trigger_days || a.triggerDays || '';
+        }, 0);
+    }
+    if (a.trigger_start_date) {
+        setTimeout(function() {
+            var el = document.getElementById('triggerStartDate');
+            if (el) el.value = a.trigger_start_date || '';
+            var el2 = document.getElementById('triggerEndDate');
+            if (el2) el2.value = a.trigger_end_date || '';
+        }, 0);
+    }
+    renderConditions();
+    renderActions();
+    openEditor();
+}
+
+/* ─── Trigger Config ────────────────────────────────────── */
+function updateTriggerConfig() {
+    var type = document.getElementById('triggerType').value;
+    var cfg = document.getElementById('triggerConfig');
+    cfg.innerHTML = '';
+    if (type === 'quote_no_response' || type === 'invoice_overdue') {
+        var label = type === 'quote_no_response' ? 'Days with no response' : 'Days overdue';
+        cfg.innerHTML = '<div class="form-row" style="margin-top:12px">' +
+            '<label>' + label + '</label>' +
+            '<input type="number" id="triggerDays" min="1" value="7" style="width:120px">' +
+        '</div>';
+    } else if (type === 'job_scheduled') {
+        cfg.innerHTML = '<div class="form-row" style="margin-top:12px">' +
+            '<label>Days before scheduled job</label>' +
+            '<input type="number" id="triggerDays" min="1" value="1" style="width:120px">' +
+        '</div>';
+    } else if (type === 'quote_viewed_not_signed') {
+        cfg.innerHTML = '<div class="form-row" style="margin-top:12px">' +
+            '<label>Days after viewed without signing</label>' +
+            '<input type="number" id="triggerDays" min="1" value="1" style="width:120px">' +
+        '</div>';
+    } else if (type === 'quote_accepted_no_contract') {
+        cfg.innerHTML = '<div class="form-row" style="margin-top:12px">' +
+            '<label>Hours after accepting without signing contract</label>' +
+            '<input type="number" id="triggerDays" min="1" value="2" style="width:120px">' +
+        '</div>';
+    } else if (type === 'no_service_days') {
+        cfg.innerHTML = '<div class="form-row" style="margin-top:12px">' +
+            '<label>Days since last service</label>' +
+            '<input type="number" id="triggerDays" min="1" value="60" style="width:120px">' +
+        '</div>';
+    } else if (type === 'seasonal') {
+        cfg.innerHTML = '<div class="form-row-inline" style="margin-top:12px">' +
+            '<div class="form-row"><label>Start Date</label><input type="text" id="triggerStartDate" placeholder="MM/DD"></div>' +
+            '<div class="form-row"><label>End Date</label><input type="text" id="triggerEndDate" placeholder="MM/DD"></div>' +
+        '</div>';
+    }
+}
+
+/* ─── Conditions ────────────────────────────────────────── */
+function addCondition() {
+    editorConditions.push({ field: '', operator: '', value: '' });
+    renderConditions();
+}
+
+function removeCondition(idx) {
+    editorConditions.splice(idx, 1);
+    renderConditions();
+}
+
+function renderConditions() {
+    var container = document.getElementById('conditionsList');
+    if (!editorConditions.length) {
+        container.innerHTML = '<p style="font-size:12px;color:var(--gray-400);margin:0 0 12px;">No conditions. All triggers will fire.</p>';
+        return;
+    }
+    container.innerHTML = editorConditions.map(function(c, i) {
+        return '<div class="condition-row">' +
+            '<select onchange="editorConditions[' + i + '].field=this.value">' +
+                '<option value="">Field...</option>' +
+                '<option value="customer_tag"' + (c.field === 'customer_tag' ? ' selected' : '') + '>Customer tag equals</option>' +
+                '<option value="service_type"' + (c.field === 'service_type' ? ' selected' : '') + '>Service type contains</option>' +
+                '<option value="quote_amount_gt"' + (c.field === 'quote_amount_gt' ? ' selected' : '') + '>Quote amount greater than</option>' +
+                '<option value="quote_amount_lt"' + (c.field === 'quote_amount_lt' ? ' selected' : '') + '>Quote amount less than</option>' +
+                '<option value="customer_age_days"' + (c.field === 'customer_age_days' ? ' selected' : '') + '>Customer created within last X days</option>' +
+            '</select>' +
+            '<input type="text" placeholder="Value..." value="' + esc(c.value || '') + '" onchange="editorConditions[' + i + '].value=this.value">' +
+            '<button class="remove-condition" onclick="removeCondition(' + i + ')">&times;</button>' +
+        '</div>';
+    }).join('');
+}
+
+/* ─── Actions ───────────────────────────────────────────── */
+function addAction() {
+    editorActions.push({ type: '' });
+    renderActions();
+}
+
+function removeAction(idx) {
+    editorActions.splice(idx, 1);
+    renderActions();
+}
+
+function moveAction(idx, dir) {
+    var newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= editorActions.length) return;
+    var temp = editorActions[idx];
+    editorActions[idx] = editorActions[newIdx];
+    editorActions[newIdx] = temp;
+    renderActions();
+}
+
+function updateActionType(idx, type) {
+    editorActions[idx].type = type;
+    // Reset config fields
+    editorActions[idx] = { type: type };
+    renderActions();
+}
+
+function updateActionField(idx, field, value) {
+    editorActions[idx][field] = value;
+}
+
+function renderActions() {
+    var container = document.getElementById('actionsList');
+    if (!editorActions.length) {
+        container.innerHTML = '<p style="font-size:12px;color:var(--gray-400);margin:0 0 12px;">No actions. Add at least one action.</p>';
+        return;
+    }
+    container.innerHTML = editorActions.map(function(a, i) {
+        var configHtml = getActionConfigHtml(a, i);
+        var connector = (i < editorActions.length - 1) ? '<div class="action-connector"></div>' : '';
+        return '<div class="action-item">' +
+            '<div class="action-item-header">' +
+                '<span class="action-item-number">' + (i + 1) + '</span>' +
+                '<div class="action-item-controls">' +
+                    '<button onclick="moveAction(' + i + ', -1)" title="Move up">&uarr;</button>' +
+                    '<button onclick="moveAction(' + i + ', 1)" title="Move down">&darr;</button>' +
+                    '<button onclick="removeAction(' + i + ')" title="Delete">&times;</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="form-row">' +
+                '<label>Action Type</label>' +
+                '<select onchange="updateActionType(' + i + ', this.value)">' +
+                    '<option value="">Select action...</option>' +
+                    '<option value="send_email"' + (a.type === 'send_email' ? ' selected' : '') + '>Send Email</option>' +
+                    '<option value="send_sms"' + (a.type === 'send_sms' ? ' selected' : '') + '>Send SMS</option>' +
+                    '<option value="wait"' + (a.type === 'wait' ? ' selected' : '') + '>Wait</option>' +
+                    '<option value="create_task"' + (a.type === 'create_task' ? ' selected' : '') + '>Create Task</option>' +
+                    '<option value="update_tag"' + (a.type === 'update_tag' ? ' selected' : '') + '>Update Customer Tag</option>' +
+                    '<option value="internal_notification"' + (a.type === 'internal_notification' ? ' selected' : '') + '>Send Internal Notification</option>' +
+                    '<option value="create_followup_job"' + (a.type === 'create_followup_job' ? ' selected' : '') + '>Create Follow-up Job</option>' +
+                '</select>' +
+            '</div>' +
+            configHtml +
+        '</div>' + connector;
+    }).join('');
+}
+
+function getActionConfigHtml(a, idx) {
+    if (a.type === 'send_email' || a.type === 'send_sms') {
+        var label = a.type === 'send_email' ? 'Email Template' : 'SMS Template';
+        return '<div class="form-row">' +
+            '<label>' + label + '</label>' +
+            '<input type="text" placeholder="Template name or ID" value="' + esc(a.template || '') + '" onchange="updateActionField(' + idx + ', \'template\', this.value)">' +
+        '</div>';
+    }
+    if (a.type === 'wait') {
+        return '<div class="form-row-inline">' +
+            '<div class="form-row"><label>Amount</label><input type="number" min="1" value="' + esc(a.waitAmount || '1') + '" onchange="updateActionField(' + idx + ', \'waitAmount\', this.value)"></div>' +
+            '<div class="form-row"><label>Unit</label><select onchange="updateActionField(' + idx + ', \'waitUnit\', this.value)">' +
+                '<option value="hours"' + (a.waitUnit === 'hours' ? ' selected' : '') + '>Hours</option>' +
+                '<option value="days"' + ((a.waitUnit === 'days' || !a.waitUnit) ? ' selected' : '') + '>Days</option>' +
+            '</select></div>' +
+        '</div>';
+    }
+    if (a.type === 'create_task') {
+        return '<div class="form-row">' +
+            '<label>Task Title</label>' +
+            '<input type="text" placeholder="Task title..." value="' + esc(a.taskTitle || '') + '" onchange="updateActionField(' + idx + ', \'taskTitle\', this.value)">' +
+        '</div>';
+    }
+    if (a.type === 'update_tag') {
+        return '<div class="form-row">' +
+            '<label>Tag</label>' +
+            '<input type="text" placeholder="Tag name..." value="' + esc(a.tag || '') + '" onchange="updateActionField(' + idx + ', \'tag\', this.value)">' +
+        '</div>';
+    }
+    if (a.type === 'internal_notification') {
+        return '<div class="form-row">' +
+            '<label>Notification Message</label>' +
+            '<input type="text" placeholder="Notification message..." value="' + esc(a.message || '') + '" onchange="updateActionField(' + idx + ', \'message\', this.value)">' +
+        '</div>';
+    }
+    if (a.type === 'create_followup_job') {
+        return '<div class="form-row">' +
+            '<label>Job Description</label>' +
+            '<input type="text" placeholder="Follow-up job description..." value="' + esc(a.jobDescription || '') + '" onchange="updateActionField(' + idx + ', \'jobDescription\', this.value)">' +
+        '</div>';
+    }
+    return '';
+}
+
+/* ─── Save ──────────────────────────────────────────────── */
+function saveAutomation() {
+    var name = document.getElementById('editorName').value.trim();
+    if (!name) { alert('Please enter an automation name.'); return; }
+
+    var triggerType = document.getElementById('triggerType').value;
+    if (!triggerType) { alert('Please select a trigger type.'); return; }
+
+    var payload = {
+        name: name,
+        trigger_type: triggerType,
+        conditions: editorConditions,
+        actions: editorActions,
+        description: document.getElementById('automationDescription').value,
+        stop_when: document.getElementById('stopWhen').value,
+        review_before: document.getElementById('reviewBeforeExec').checked,
+        active: true
+    };
+
+    // Add trigger-specific config
+    var daysInput = document.getElementById('triggerDays');
+    if (daysInput) payload.trigger_days = parseInt(daysInput.value) || 7;
+    var startDate = document.getElementById('triggerStartDate');
+    if (startDate) {
+        payload.trigger_start_date = startDate.value;
+        payload.trigger_end_date = (document.getElementById('triggerEndDate') || {}).value || '';
+    }
+
+    var method = editingId ? 'PATCH' : 'POST';
+    var url = editingId ? '/api/automations/' + editingId : '/api/automations';
+
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) {
+        if (r.ok) {
+            closeEditor();
+            loadAutomations();
+        } else {
+            r.text().then(function(t) { alert('Error saving: ' + t); });
+        }
+    }).catch(function(err) {
+        alert('Error: ' + err.message);
+    });
+}
+
+/* ─── Init ──────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+    loadAutomations();
+});
+</script>
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
+</script>
+</body>
+</html>

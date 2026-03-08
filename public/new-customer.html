@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Client - YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .form-page {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 32px 0 120px;
+        }
+        .form-page h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 32px;
+        }
+        .form-section {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 32px;
+            padding: 28px 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .form-section:last-of-type { border-bottom: none; }
+        .form-section-label h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 6px;
+        }
+        .form-section-label p {
+            font-size: 13px;
+            color: var(--gray-500);
+            line-height: 1.5;
+        }
+        .form-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .form-row:last-child { margin-bottom: 0; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--gray-700);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: var(--primary);
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .phone-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            margin-bottom: 14px;
+        }
+        .phone-row .form-group:first-child { flex: 1; }
+        .phone-row select { width: 110px; }
+        .add-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 0;
+            font-family: inherit;
+        }
+        .add-btn:hover { text-decoration: underline; }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .toggle {
+            width: 44px;
+            height: 24px;
+            border-radius: 12px;
+            background: var(--gray-300);
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle.active { background: var(--primary); }
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .toggle.active::after { transform: translateX(20px); }
+        .toggle-label { font-size: 13px; font-weight: 500; color: var(--gray-700); }
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapsible-header h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+        .collapsible-header svg {
+            width: 18px;
+            height: 18px;
+            color: var(--gray-400);
+            transition: transform 0.2s;
+        }
+        .collapsible-header.open svg { transform: rotate(180deg); }
+        .collapsible-content { display: none; padding-bottom: 8px; }
+        .collapsible-content.open { display: block; }
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .checkbox-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+        .checkbox-row label {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: var(--sidebar-w);
+            right: 0;
+            background: var(--white);
+            border-top: 1px solid var(--gray-200);
+            padding: 14px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+        }
+        .bottom-bar .right-actions { display: flex; gap: 12px; }
+        .radio-group { display: flex; gap: 16px; }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--gray-700);
+            cursor: pointer;
+        }
+        .radio-group input[type="radio"] { accent-color: var(--primary); }
+        @media (max-width: 768px) {
+            .form-section { grid-template-columns: 1fr; gap: 12px; }
+            .bottom-bar { left: 0; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div style="font-size:13px;color:var(--gray-400);">
+                <a href="customers.html" style="color:var(--gray-400);text-decoration:none;">Clients</a>
+                <span style="margin:0 6px;">/</span>
+                <span style="color:var(--gray-700);">New Client</span>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <div class="topbar-search-wrap">
+                <div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+                <input type="text" class="topbar-search-input" placeholder="Search...">
+            </div>
+            <button class="topbar-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+            <div class="topbar-avatar">TP</div>
+        </div>
+    </div>
+
+    <div class="page-content" style="padding: 28px 32px;">
+        <div class="form-page">
+            <h1>New Client</h1>
+
+            <!-- Primary Contact Details -->
+            <div class="form-section">
+                <div class="form-section-label">
+                    <h3>Primary contact details</h3>
+                    <p>Provide the main point of contact to ensure smooth communication and reliable client records.</p>
+                </div>
+                <div class="form-card">
+                    <div class="form-row" style="grid-template-columns: 100px 1fr 1fr;">
+                        <div class="form-group">
+                            <label>Title</label>
+                            <select id="nc-title">
+                                <option value="">No title</option>
+                                <option value="Mr.">Mr.</option>
+                                <option value="Mrs.">Mrs.</option>
+                                <option value="Ms.">Ms.</option>
+                                <option value="Dr.">Dr.</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>First name</label>
+                            <input type="text" id="nc-first-name" placeholder="First name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Last name</label>
+                            <input type="text" id="nc-last-name" placeholder="Last name" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Company name</label>
+                        <input type="text" id="nc-company" placeholder="Company name (optional)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Communication -->
+            <div class="form-section">
+                <div class="form-section-label">
+                    <h3>Communication</h3>
+                    <p>Add phone numbers and email addresses for this client.</p>
+                </div>
+                <div class="form-card">
+                    <div id="phone-rows">
+                        <div class="phone-row">
+                            <div class="form-group">
+                                <label>Phone number</label>
+                                <input type="tel" class="nc-phone" placeholder="(440) 555-1234">
+                            </div>
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <select class="nc-phone-type">
+                                    <option value="Mobile">Mobile</option>
+                                    <option value="Home">Home</option>
+                                    <option value="Work">Work</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="add-btn" onclick="addPhoneRow()">+ Add phone</button>
+
+                    <div class="toggle-row" style="margin: 16px 0;">
+                        <div class="toggle active" id="nc-receives-messages" onclick="this.classList.toggle('active')"></div>
+                        <span class="toggle-label">Receives messages</span>
+                    </div>
+
+                    <div id="email-rows">
+                        <div class="phone-row">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" class="nc-email" placeholder="email@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <select class="nc-email-type">
+                                    <option value="Main">Main</option>
+                                    <option value="Personal">Personal</option>
+                                    <option value="Work">Work</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="add-btn" onclick="addEmailRow()">+ Add email</button>
+                </div>
+            </div>
+
+            <!-- Lead Information -->
+            <div class="form-section">
+                <div class="form-section-label">
+                    <h3>Lead information</h3>
+                    <p>Track where this client came from.</p>
+                </div>
+                <div class="form-card">
+                    <div class="form-group">
+                        <label>Lead source</label>
+                        <select id="nc-lead-source">
+                            <option value="">Select...</option>
+                            <option value="Referral">Referral</option>
+                            <option value="Google">Google</option>
+                            <option value="Website">Website</option>
+                            <option value="Social Media">Social Media</option>
+                            <option value="Door-to-door">Door-to-door</option>
+                            <option value="Yard Sign">Yard Sign</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Type -->
+            <div class="form-section">
+                <div class="form-section-label">
+                    <h3>Client type</h3>
+                </div>
+                <div class="form-card">
+                    <div class="radio-group">
+                        <label><input type="radio" name="nc-type" value="residential" checked> Residential</label>
+                        <label><input type="radio" name="nc-type" value="commercial"> Commercial</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Details (collapsible) -->
+            <div class="form-section">
+                <div class="form-section-label">
+                    <h3>Additional details</h3>
+                </div>
+                <div class="form-card" style="padding:0;">
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)" style="padding:14px 20px;">
+                        <h4>Additional client details</h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="collapsible-content" style="padding:0 20px;">
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label>Notes</label>
+                            <textarea id="nc-notes" placeholder="Any notes about this client..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Address -->
+            <div class="form-section">
+                <div class="form-section-label">
+                    <h3>Property address</h3>
+                    <p>Enter the primary service address, billing address, or any additional locations where services may take place.</p>
+                </div>
+                <div class="form-card">
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label>Street 1</label>
+                        <input type="text" id="nc-street" placeholder="Street address">
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label>Street 2</label>
+                        <input type="text" id="nc-street2" placeholder="Apt, suite, etc.">
+                    </div>
+                    <div class="form-row" style="grid-template-columns: 1fr 140px 100px;">
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="nc-city" placeholder="City">
+                        </div>
+                        <div class="form-group">
+                            <label>State</label>
+                            <select id="nc-state">
+                                <option value="Ohio" selected>Ohio</option>
+                                <option value="Alabama">Alabama</option>
+                                <option value="Alaska">Alaska</option>
+                                <option value="Arizona">Arizona</option>
+                                <option value="California">California</option>
+                                <option value="Colorado">Colorado</option>
+                                <option value="Connecticut">Connecticut</option>
+                                <option value="Florida">Florida</option>
+                                <option value="Georgia">Georgia</option>
+                                <option value="Illinois">Illinois</option>
+                                <option value="Indiana">Indiana</option>
+                                <option value="Kentucky">Kentucky</option>
+                                <option value="Michigan">Michigan</option>
+                                <option value="New York">New York</option>
+                                <option value="Pennsylvania">Pennsylvania</option>
+                                <option value="Texas">Texas</option>
+                                <option value="Virginia">Virginia</option>
+                                <option value="West Virginia">West Virginia</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>ZIP code</label>
+                            <input type="text" id="nc-zip" placeholder="44107">
+                        </div>
+                    </div>
+                    <div class="checkbox-row" style="margin-top:14px;">
+                        <input type="checkbox" id="nc-billing-same" checked onchange="toggleBilling()">
+                        <label for="nc-billing-same">Billing address is the same as property address</label>
+                    </div>
+                    <div id="billing-fields" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--gray-100);">
+                        <div style="font-size:13px; font-weight:600; color:var(--gray-600); margin-bottom:12px;">Billing Address</div>
+                        <div class="form-group" style="margin-bottom:14px;">
+                            <label>Street 1</label>
+                            <input type="text" id="nc-bill-street" placeholder="Billing street address">
+                        </div>
+                        <div class="form-group" style="margin-bottom:14px;">
+                            <label>Street 2</label>
+                            <input type="text" id="nc-bill-street2" placeholder="Apt, suite, etc.">
+                        </div>
+                        <div class="form-row" style="grid-template-columns: 1fr 140px 100px;">
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="nc-bill-city" placeholder="City">
+                            </div>
+                            <div class="form-group">
+                                <label>State</label>
+                                <select id="nc-bill-state">
+                                    <option value="Ohio" selected>Ohio</option>
+                                    <option value="Alabama">Alabama</option>
+                                    <option value="California">California</option>
+                                    <option value="Florida">Florida</option>
+                                    <option value="Indiana">Indiana</option>
+                                    <option value="Michigan">Michigan</option>
+                                    <option value="New York">New York</option>
+                                    <option value="Pennsylvania">Pennsylvania</option>
+                                    <option value="Texas">Texas</option>
+                                    <option value="West Virginia">West Virginia</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>ZIP code</label>
+                                <input type="text" id="nc-bill-zip" placeholder="44107">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom action bar -->
+    <div class="bottom-bar">
+        <a href="customers.html" class="btn btn-secondary">Cancel</a>
+        <div class="right-actions">
+            <button type="button" class="btn btn-secondary" onclick="saveClient(true)">Save and Create Another</button>
+            <button type="button" class="btn btn-primary" onclick="saveClient(false)">Save Client</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function addPhoneRow() {
+    const container = document.getElementById('phone-rows');
+    const row = document.createElement('div');
+    row.className = 'phone-row';
+    row.innerHTML = '<div class="form-group"><label>&nbsp;</label><input type="tel" class="nc-phone" placeholder="(440) 555-1234"></div><div class="form-group"><label>&nbsp;</label><select class="nc-phone-type"><option value="Mobile">Mobile</option><option value="Home">Home</option><option value="Work">Work</option></select></div>';
+    container.appendChild(row);
+}
+
+function addEmailRow() {
+    const container = document.getElementById('email-rows');
+    const row = document.createElement('div');
+    row.className = 'phone-row';
+    row.innerHTML = '<div class="form-group"><label>&nbsp;</label><input type="email" class="nc-email" placeholder="email@example.com"></div><div class="form-group"><label>&nbsp;</label><select class="nc-email-type"><option value="Main">Main</option><option value="Personal">Personal</option><option value="Work">Work</option></select></div>';
+    container.appendChild(row);
+}
+
+function toggleBilling() {
+    const checked = document.getElementById('nc-billing-same').checked;
+    document.getElementById('billing-fields').style.display = checked ? 'none' : 'block';
+}
+
+function toggleCollapsible(header) {
+    header.classList.toggle('open');
+    header.nextElementSibling.classList.toggle('open');
+}
+
+async function saveClient(createAnother) {
+    const firstName = document.getElementById('nc-first-name').value.trim();
+    const lastName = document.getElementById('nc-last-name').value.trim();
+
+    if (!firstName && !lastName) {
+        alert('Please enter at least a first or last name.');
+        return;
+    }
+
+    const phones = document.querySelectorAll('.nc-phone');
+    const emails = document.querySelectorAll('.nc-email');
+    const phone = phones[0]?.value.trim() || '';
+    const email = emails[0]?.value.trim() || '';
+
+    const body = {
+        first_name: firstName,
+        last_name: lastName,
+        name: (firstName + ' ' + lastName).trim(),
+        email: email || null,
+        phone: phone || null,
+        type: document.querySelector('input[name="nc-type"]:checked')?.value || 'residential',
+        street: document.getElementById('nc-street').value.trim() || null,
+        street2: document.getElementById('nc-street2').value.trim() || null,
+        city: document.getElementById('nc-city').value.trim() || null,
+        state: document.getElementById('nc-state').value || null,
+        postal_code: document.getElementById('nc-zip').value.trim() || null,
+        notes: document.getElementById('nc-notes')?.value.trim() || null,
+        tags: document.getElementById('nc-lead-source').value || null,
+        status: 'Active'
+    };
+
+    try {
+        const resp = await fetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to create client');
+
+        if (createAnother) {
+            document.getElementById('nc-first-name').value = '';
+            document.getElementById('nc-last-name').value = '';
+            document.getElementById('nc-company').value = '';
+            document.querySelectorAll('.nc-phone').forEach(el => el.value = '');
+            document.querySelectorAll('.nc-email').forEach(el => el.value = '');
+            document.getElementById('nc-street').value = '';
+            document.getElementById('nc-street2').value = '';
+            document.getElementById('nc-city').value = '';
+            document.getElementById('nc-zip').value = '';
+            document.getElementById('nc-notes').value = '';
+            document.getElementById('nc-first-name').focus();
+            showToast('Client saved! Create another.');
+        } else {
+            const id = data.customer_id || data.customer?.id || data.id;
+            if (id) {
+                window.location.href = 'customer-detail.html?id=' + id;
+            } else {
+                window.location.href = 'customers.html';
+            }
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:80px;right:24px;background:var(--primary);color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;z-index:1000;';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+</script>
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
+</script>
+</body>
+</html>

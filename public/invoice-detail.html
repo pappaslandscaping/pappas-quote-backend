@@ -41,35 +41,26 @@
         body { font-family: 'DM Sans', sans-serif; background: var(--gray-50); color: var(--gray-700); }
 
         /* Sidebar */
-        .sidebar {
-            position: fixed; top: 0; left: 0; bottom: 0;
-            width: var(--sidebar-w); background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex; flex-direction: column;
-            z-index: 100; overflow-y: auto;
-        }
-        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
-        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
-        .sidebar-nav { flex: 1; overflow-y: auto; padding: 12px; }
-        .nav-section { margin-bottom: 8px; }
-        .nav-section-label { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.15s; }
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-        .sidebar-footer { padding: 12px; border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 8px; }
-        .sidebar-user .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
-        .sidebar-user .name { font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
         /* Main */
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
-        .topbar {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 16px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200);
-        }
+        
+        
         .topbar-left { display: flex; align-items: center; gap: 16px; }
-        .topbar h1 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        
         .back-link { display: flex; align-items: center; gap: 6px; color: var(--gray-500); text-decoration: none; font-size: 13px; font-weight: 500; }
         .back-link:hover { color: var(--forest); }
         .content { padding: 32px; max-width: 900px; }
@@ -229,110 +220,57 @@
         .split-row input { flex: 1; }
         .split-total { display: flex; justify-content: space-between; padding: 12px 0; font-weight: 700; font-size: 14px; border-top: 2px solid var(--lime); margin-top: 8px; }
         .split-total.mismatch { color: var(--red); }
+        /* Edit Modal */
+        .edit-modal .modal { max-width: 640px; }
+        .edit-modal .line-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .edit-modal .line-item-row input { padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 13px; font-family: inherit; }
+        .edit-modal .line-item-row input.li-desc { flex: 3; }
+        .edit-modal .line-item-row input.li-qty { flex: 0.7; text-align: center; }
+        .edit-modal .line-item-row input.li-rate { flex: 1; text-align: right; }
+        .edit-modal .line-item-row .li-amount { flex: 1; text-align: right; font-weight: 600; font-size: 13px; color: var(--gray-600); min-width: 70px; }
+        .edit-modal .line-item-row .li-remove { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; padding: 4px; flex-shrink: 0; }
+        .edit-modal .line-item-row .li-remove:hover { background: var(--red-bg); border-radius: 4px; }
+        .edit-li-header { display: flex; gap: 8px; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-400); font-weight: 600; }
+        .edit-li-header span:nth-child(1) { flex: 3; }
+        .edit-li-header span:nth-child(2) { flex: 0.7; text-align: center; }
+        .edit-li-header span:nth-child(3) { flex: 1; text-align: right; }
+        .edit-li-header span:nth-child(4) { flex: 1; text-align: right; min-width: 70px; }
+        .edit-li-header span:nth-child(5) { width: 26px; }
+        .btn-add-line { background: none; border: 1px dashed var(--gray-300); color: var(--gray-500); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; width: 100%; margin-top: 4px; }
+        .btn-add-line:hover { border-color: var(--forest); color: var(--forest); }
+
+        /* Print Styles */
+        @media print {
+            .sidebar, .topbar, .actions, .pay-link-box, #breadcrumb,
+            .modal-overlay, .toast { display: none !important; }
+            .main { margin-left: 0 !important; padding: 0 !important; }
+            .content { padding: 20px 0 !important; max-width: 100% !important; }
+            body { background: white !important; }
+            .detail-card, .payment-card, .overdue-card { break-inside: avoid; border: 1px solid #ddd !important; }
+            .print-header { display: flex !important; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 3px solid #2e403d; }
+            .print-header .company { font-family: 'Qualy', 'DM Sans', sans-serif; font-size: 22px; color: #2e403d; font-weight: 700; }
+            .print-header .company-sub { font-size: 12px; color: #6e726e; margin-top: 4px; }
+            .print-header .inv-info { text-align: right; }
+            .print-header .inv-number { font-size: 20px; font-weight: 700; color: #2e403d; }
+            .print-header .inv-due { font-size: 13px; color: #4a4e4a; margin-top: 4px; }
+        }
+        .print-header { display: none; }
     </style>
+    <link rel="stylesheet" href="shared.css">
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-    <aside class="sidebar">
-        <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
-        <nav class="sidebar-nav">
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-                <a href="quote-calculator.html" class="nav-item"><span>🧮</span><span>Quote Calculator</span></a>
-                <a href="quote-generator.html" class="nav-item"><span>✨</span><span>Quote Generator</span></a>
-                <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
-                <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-                <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-                <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
-                <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-                <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-                <a href="invoices.html" class="nav-item active"><span>📄</span><span>Invoices</span></a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-        </nav>
-        <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </aside>
-
-    <main class="main">
+<script src="shell.js"></script>
+<main class="main">
         <div class="topbar">
             <div class="topbar-left">
-                <a href="invoices.html" class="back-link">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-                    Back to Invoices
-                </a>
-                <h1 id="pageTitle">Invoice</h1>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                    <div id="breadcrumb" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-400);">
+                        <a href="invoices.html" style="color:var(--gray-400);text-decoration:none;">Invoices</a>
+                        <span>/</span>
+                        <span id="breadcrumbInv">Invoice</span>
+                    </div>
+                    <h1 id="pageTitle">Invoice</h1>
+                </div>
             </div>
         </div>
 
@@ -353,7 +291,12 @@
                 <select id="rpMethod">
                     <option value="cash">Cash</option>
                     <option value="check">Check</option>
-                    <option value="card">Card (offline)</option>
+                    <option value="credit_card">Credit Card (offline)</option>
+                    <option value="debit_card">Debit Card (offline)</option>
+                    <option value="venmo">Venmo</option>
+                    <option value="zelle">Zelle</option>
+                    <option value="ach">ACH/Bank Transfer</option>
+                    <option value="money_order">Money Order</option>
                     <option value="other">Other</option>
                 </select>
             </div>
@@ -386,6 +329,52 @@
             <div style="display:flex;gap:10px;margin-top:16px;">
                 <button class="btn btn-outline" style="flex:1;" onclick="hideSplitPayment()">Cancel</button>
                 <button class="btn btn-primary" style="flex:1;" onclick="savePaymentSchedule()">Save Schedule</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay edit-modal" id="editInvoiceModal">
+        <div class="modal">
+            <h3>Edit Invoice</h3>
+            <div class="form-group">
+                <label>Customer Name</label>
+                <input type="text" id="editCustName">
+            </div>
+            <div class="form-group">
+                <label>Customer Email</label>
+                <input type="email" id="editCustEmail">
+            </div>
+            <div class="form-group">
+                <label>Customer Address</label>
+                <input type="text" id="editCustAddress">
+            </div>
+            <div class="form-group">
+                <label>Due Date</label>
+                <input type="date" id="editDueDate">
+            </div>
+            <div class="form-group">
+                <label>Line Items</label>
+                <div class="edit-li-header">
+                    <span>Description</span>
+                    <span>Qty</span>
+                    <span>Rate</span>
+                    <span>Amount</span>
+                    <span></span>
+                </div>
+                <div id="editLineItems"></div>
+                <button type="button" class="btn-add-line" onclick="addEditLineItem()">+ Add Line Item</button>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 0;border-top:2px solid var(--lime);">
+                <strong style="font-size:14px;">Total</strong>
+                <strong style="font-size:16px;color:var(--forest);" id="editTotal">$0.00</strong>
+            </div>
+            <div class="form-group" style="margin-top:14px;">
+                <label>Notes</label>
+                <textarea id="editNotes" rows="3" placeholder="Internal notes..."></textarea>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="hideEditModal()">Cancel</button>
+                <button class="btn btn-primary" style="flex:1;" onclick="saveInvoiceEdit()">Save Changes</button>
             </div>
         </div>
     </div>
@@ -445,6 +434,13 @@
             }
 
             document.getElementById('pageTitle').textContent = invNum;
+            // Breadcrumb
+            var bc = '<a href="invoices.html" style="color:var(--gray-400);text-decoration:none;">Invoices</a><span style="margin:0 4px">/</span>';
+            if (inv.customer_id) {
+                bc += '<a href="customer-detail.html?id=' + inv.customer_id + '" style="color:var(--primary);text-decoration:none;">' + esc(custName) + '</a><span style="margin:0 4px">/</span>';
+            }
+            bc += '<span style="color:var(--gray-600)">' + esc(invNum) + '</span>';
+            document.getElementById('breadcrumb').innerHTML = bc;
 
             // Build the payment/overdue info card
             let paymentHtml = '';
@@ -533,13 +529,24 @@
             }
 
             const html = `
+                <div class="print-header">
+                    <div>
+                        <div class="company">Pappas & Co. Landscaping</div>
+                        <div class="company-sub">Cleveland, OH</div>
+                    </div>
+                    <div class="inv-info">
+                        <div class="inv-number">${esc(invNum)}</div>
+                        <div class="inv-due">Due: ${dueDate ? formatDate(dueDate) : 'Upon receipt'}</div>
+                    </div>
+                </div>
+
                 ${paymentHtml}
 
                 <div class="detail-grid">
                     <div class="detail-card">
                         <h3>Customer</h3>
                         <div class="detail-field">
-                            <div class="value" style="font-size:16px;font-weight:700;">${esc(custName)}</div>
+                            <div class="value" style="font-size:16px;font-weight:700;">${inv.customer_id ? `<a href="customer-detail.html?id=${inv.customer_id}" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--gray-300)">${esc(custName)}</a>` : esc(custName)}</div>
                         </div>
                         ${custEmail ? `<div class="detail-field"><div class="label">Email</div><div class="value"><a href="mailto:${esc(custEmail)}" style="color:var(--blue);text-decoration:none;">${esc(custEmail)}</a></div></div>` : ''}
                         ${custAddress ? `<div class="detail-field"><div class="label">Address</div><div class="value">${esc(custAddress)}</div></div>` : ''}
@@ -556,7 +563,7 @@
                             <div class="label">Invoice #</div>
                             <div class="value">${esc(invNum)}</div>
                         </div>
-                        ${dueDate ? `<div class="detail-field"><div class="label">Due Date</div><div class="value">${formatDate(dueDate)}</div></div>` : ''}
+                        <div class="detail-field"><div class="label">Due Date</div><div class="value">${dueDate ? formatDate(dueDate) : 'Due upon receipt'}</div></div>
                         ${createdAt ? `<div class="detail-field"><div class="label">Created</div><div class="value">${formatDate(createdAt)}</div></div>` : ''}
                         ${sentAt ? `<div class="detail-field"><div class="label">Sent</div><div class="value">${formatDate(sentAt)}</div></div>` : ''}
                         ${qbId ? `<div class="detail-field"><div class="label">QuickBooks</div><div class="value"><span class="qb-badge">QB #${esc(qbId)}</span></div></div>` : ''}
@@ -577,7 +584,7 @@
                         ${inv.payment_history.map(p => `
                             <div class="payment-entry">
                                 <div>
-                                    <span class="method">${p.method === 'card' ? '💳 Card' : p.method === 'ach' ? '🏦 ACH' : p.method === 'apple_pay' ? '🍎 Apple Pay' : p.method === 'cash' ? '💵 Cash' : p.method === 'check' ? '📝 Check' : '💰 ' + (p.method || 'Payment')}</span>
+                                    <span class="method">${{'card':'💳 Card','credit_card':'💳 Credit Card','debit_card':'💳 Debit Card','ach':'🏦 ACH','apple_pay':'🍎 Apple Pay','cash':'💵 Cash','check':'📝 Check','venmo':'Venmo','zelle':'Zelle','money_order':'📝 Money Order'}[p.method] || '💰 ' + (p.method || 'Payment')}</span>
                                     ${p.card_last4 ? '<span style="font-size:11px;color:var(--gray-400);margin-left:4px;">•••• ' + p.card_last4 + '</span>' : ''}
                                     ${p.square_receipt_url ? '<a href="' + p.square_receipt_url + '" target="_blank" style="font-size:11px;color:var(--blue);margin-left:8px;">Receipt</a>' : ''}
                                 </div>
@@ -609,6 +616,7 @@
                     ${status === 'draft' ? `<button class="btn btn-primary" onclick="sendInvoice()">📤 Send Invoice</button>` : ''}
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
+                    <button class="btn btn-outline" onclick="showEditModal()">✏️ Edit</button>
                     <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showRecordPayment()">💵 Record Payment</button>` : ''}
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showSplitPayment()">📅 Split Payments</button>` : ''}
@@ -719,7 +727,19 @@
         }
 
         async function downloadPDF() {
-            window.open(`/api/invoices/${invoiceId}/pdf`, '_blank');
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/pdf`);
+                if (!res.ok) throw new Error('Download failed');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `invoice-${invoice.invoice_number || invoiceId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch(e) { showToast('Failed to download PDF', true); }
         }
 
         // Payment Schedule
@@ -787,6 +807,129 @@
             const match = Math.abs(sum - total) < 0.02;
             document.getElementById('spTotal').innerHTML = `<span>Installment Total: ${formatCurrency(sum)}</span><span>Invoice Balance: ${formatCurrency(total)}</span>`;
             document.getElementById('spTotal').className = 'split-total' + (match ? '' : ' mismatch');
+        }
+
+        // --- Edit Invoice ---
+        function showEditModal() {
+            const inv = invoice;
+            document.getElementById('editCustName').value = inv.customer_name || '';
+            document.getElementById('editCustEmail').value = inv.customer_email || '';
+            document.getElementById('editCustAddress').value = inv.customer_address || '';
+            document.getElementById('editDueDate').value = inv.due_date ? inv.due_date.split('T')[0] : '';
+            document.getElementById('editNotes').value = inv.notes || '';
+
+            let lineItems = inv.line_items || [];
+            if (typeof lineItems === 'string') {
+                try { lineItems = JSON.parse(lineItems); } catch(e) { lineItems = []; }
+            }
+
+            const container = document.getElementById('editLineItems');
+            container.innerHTML = '';
+            if (lineItems.length === 0) {
+                addEditLineItem();
+            } else {
+                lineItems.forEach(item => {
+                    const desc = item.name || item.description || '';
+                    const qty = item.quantity || item.qty || 1;
+                    const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
+                    addEditLineItem(desc, qty, rate);
+                });
+            }
+            updateEditTotal();
+            document.getElementById('editInvoiceModal').classList.add('show');
+        }
+
+        function hideEditModal() {
+            document.getElementById('editInvoiceModal').classList.remove('show');
+        }
+
+        function addEditLineItem(desc, qty, rate) {
+            desc = desc || '';
+            qty = qty || 1;
+            rate = rate || 0;
+            const container = document.getElementById('editLineItems');
+            const row = document.createElement('div');
+            row.className = 'line-item-row';
+            row.innerHTML = `
+                <input type="text" class="li-desc" value="${esc(desc)}" placeholder="Description">
+                <input type="number" class="li-qty" value="${qty}" min="1" step="1" oninput="updateEditTotal()">
+                <input type="number" class="li-rate" value="${parseFloat(rate).toFixed(2)}" min="0" step="0.01" oninput="updateEditTotal()">
+                <span class="li-amount">${formatCurrency(qty * rate)}</span>
+                <button type="button" class="li-remove" onclick="removeEditLineItem(this)" title="Remove">&times;</button>
+            `;
+            container.appendChild(row);
+            updateEditTotal();
+        }
+
+        function removeEditLineItem(btn) {
+            const container = document.getElementById('editLineItems');
+            btn.closest('.line-item-row').remove();
+            if (container.children.length === 0) addEditLineItem();
+            updateEditTotal();
+        }
+
+        function updateEditTotal() {
+            let total = 0;
+            document.querySelectorAll('#editLineItems .line-item-row').forEach(row => {
+                const qty = parseFloat(row.querySelector('.li-qty').value) || 0;
+                const rate = parseFloat(row.querySelector('.li-rate').value) || 0;
+                const amt = qty * rate;
+                row.querySelector('.li-amount').textContent = formatCurrency(amt);
+                total += amt;
+            });
+            document.getElementById('editTotal').textContent = formatCurrency(total);
+        }
+
+        async function saveInvoiceEdit() {
+            const lineItems = [];
+            let subtotal = 0;
+            document.querySelectorAll('#editLineItems .line-item-row').forEach(row => {
+                const desc = row.querySelector('.li-desc').value.trim();
+                const qty = parseFloat(row.querySelector('.li-qty').value) || 1;
+                const rate = parseFloat(row.querySelector('.li-rate').value) || 0;
+                const amount = qty * rate;
+                if (desc || rate > 0) {
+                    lineItems.push({ description: desc, name: desc, quantity: qty, qty: qty, rate: rate, unit_price: rate, amount: amount });
+                    subtotal += amount;
+                }
+            });
+
+            const taxRate = parseFloat(invoice.tax_rate) || 0;
+            const taxAmount = subtotal * (taxRate / 100);
+            const total = subtotal + taxAmount;
+
+            const dueDateVal = document.getElementById('editDueDate').value || null;
+
+            const body = {
+                customer_name: document.getElementById('editCustName').value.trim(),
+                customer_email: document.getElementById('editCustEmail').value.trim(),
+                customer_address: document.getElementById('editCustAddress').value.trim(),
+                due_date: dueDateVal,
+                notes: document.getElementById('editNotes').value.trim(),
+                line_items: lineItems,
+                subtotal: subtotal,
+                tax_rate: taxRate,
+                tax_amount: taxAmount,
+                total: total
+            };
+
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.success !== false) {
+                    showToast('Invoice updated!');
+                    hideEditModal();
+                    loadInvoice();
+                } else {
+                    showToast(data.error || 'Failed to update invoice', true);
+                }
+            } catch (e) {
+                showToast('Failed to update invoice', true);
+            }
         }
 
         async function savePaymentSchedule() {

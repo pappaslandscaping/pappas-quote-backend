@@ -5,174 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sent Quotes | YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-        }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(8px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            min-height: 100vh;
-        }
-
-        /* ─── Sidebar ───────────────────────────────────────── */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-            transition: transform 0.3s;
-        }
-
-        .sidebar-brand {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .sidebar-brand img {
-            max-height: 48px;
-            width: auto;
-            max-width: 180px;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            padding: 16px 12px;
-            overflow-y: auto;
-        }
-
-        .nav-section { margin-bottom: 8px; }
-
-        .nav-section-label {
-            color: var(--gray-400);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 8px 12px 4px;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .nav-item:hover {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .nav-item.active {
-            background: var(--forest);
-            color: var(--lime);
-        }
-
-        .nav-item svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
-
-        .nav-item .badge {
-            margin-left: auto;
-            background: var(--forest);
-            color: var(--lime);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-
-        .sidebar-footer {
-            padding: 16px 20px;
-            border-top: 1px solid var(--gray-100);
-        }
-
-        .sidebar-user { display: flex; align-items: center; gap: 10px; }
-
-        .sidebar-user .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 13px;
-        }
-
-        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
-
-        .main {
-            margin-left: var(--sidebar-w);
-            padding: 32px 40px;
-            animation: fadeIn 0.4s ease;
-        }
+        
 
         .page-header {
             display: flex;
@@ -182,9 +17,9 @@
         }
 
         .page-title {
-            font-family: 'Qualy', sans-serif;
             font-size: 28px;
-            color: var(--forest);
+            font-weight: 700;
+            color: var(--gray-700);
         }
 
         .btn-new {
@@ -192,8 +27,8 @@
             align-items: center;
             gap: 6px;
             padding: 8px 16px;
-            background: var(--forest);
-            color: var(--lime);
+            background: var(--primary);
+            color: var(--white);
             border: none;
             border-radius: 8px;
             font-size: 13px;
@@ -205,9 +40,9 @@
         }
 
         .btn-new:hover {
-            background: var(--forest-dark, #1f2b29);
+            background: var(--primary-dark);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
+            box-shadow: 0 4px 12px rgba(46,64,61,0.15);
         }
         .btn-new svg { width: 18px; height: 18px; }
 
@@ -222,7 +57,7 @@
             background: white;
             border-radius: 10px;
             padding: 20px;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             transition: all 0.15s ease;
         }
 
@@ -240,8 +75,8 @@
         }
 
         .stat-card .value {
-            font-family: 'Qualy', sans-serif;
             font-size: 28px;
+            font-weight: 700;
             color: var(--gray-700);
         }
 
@@ -264,7 +99,7 @@
         }
 
         .filter-btn:hover { border-color: var(--gray-400); }
-        .filter-btn.active { background: var(--forest); color: white; border-color: var(--forest); }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
         .search-box {
             flex: 1;
@@ -284,7 +119,7 @@
 
         .search-box input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
         }
 
@@ -301,7 +136,7 @@
         .quotes-table {
             background: white;
             border-radius: 12px;
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             overflow: hidden;
         }
 
@@ -339,7 +174,7 @@
 
         .customer-info .name {
             font-weight: 600;
-            color: var(--forest);
+            color: var(--primary);
             margin-bottom: 2px;
             cursor: pointer;
             text-decoration: none;
@@ -408,97 +243,21 @@
             gap: 8px;
         }
 
-        .btn-icon {
-            width: 32px;
-            height: 32px;
-            border: 1px solid var(--gray-200);
-            background: white;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--gray-500);
-            transition: all 0.15s ease;
-        }
-
-        .btn-icon:hover { border-color: var(--gray-400); color: var(--gray-700); }
-        .btn-icon svg { width: 16px; height: 16px; }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--gray-500);
-        }
-
-        .empty-state svg {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 16px;
-            opacity: 0.4;
-        }
-
         .empty-state h3 {
             font-size: 16px;
             color: var(--gray-600);
             margin-bottom: 8px;
         }
 
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: var(--forest);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.3s;
-            z-index: 1000;
-        }
-
-        .toast.show { opacity: 1; transform: translateY(0); }
-
         @media (max-width: 1200px) {
             .stats-row { grid-template-columns: repeat(3, 1fr); }
         }
 
         @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .main { margin-left: 0; padding: 20px; }
+            
             .stats-row { grid-template-columns: repeat(2, 1fr); }
             .filters { flex-wrap: wrap; }
         }
-
-        /* Universal Search */
-        .universal-search-wrapper { position:relative; flex:1; max-width:380px; margin:0 24px; }
-        .search-input-group { position:relative; display:flex; align-items:center; }
-        .search-icon { position:absolute; left:12px; width:18px; height:18px; color:var(--gray-400, #9ca09c); pointer-events:none; }
-        .search-input { width:100%; padding:8px 36px 8px 40px; border:1px solid #e2e5e2; border-radius:8px; font-size:13px; font-family:inherit; background:#fff; transition:all 0.15s ease; }
-        .search-input:focus { outline:none; border-color:#2e403d; box-shadow:0 0 0 3px rgba(46,64,61,0.1); }
-        .search-input::placeholder { color:#9ca09c; }
-        .search-clear-btn { position:absolute; right:8px; background:none; border:none; cursor:pointer; padding:4px; color:#9ca09c; display:flex; }
-        .search-clear-btn:hover { color:#4a4e4a; }
-        .search-clear-btn svg { width:16px; height:16px; }
-        .search-results-dropdown { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e5e2; border-top:none; border-radius:0 0 8px 8px; max-height:400px; overflow-y:auto; box-shadow:0 8px 16px rgba(0,0,0,0.1); z-index:200; }
-        .search-results-group { padding:8px 0; border-bottom:1px solid #f0f2f0; }
-        .search-results-group:last-child { border-bottom:none; }
-        .search-group-label { padding:6px 16px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#9ca09c; }
-        .search-result-item { display:flex; align-items:center; gap:12px; padding:10px 16px; text-decoration:none; cursor:pointer; transition:background 0.15s ease; color:#333633; }
-        .search-result-item:hover { background:#f8faf8; }
-        .search-result-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:14px; }
-        .search-result-icon.customer { background:#eff6ff; color:#3b82f6; }
-        .search-result-icon.quote { background:#f5f3ff; color:#7c3aed; }
-        .search-result-icon.property { background:#ecfdf5; color:#059669; }
-        .search-result-content { flex:1; min-width:0; }
-        .search-result-title { font-size:13px; font-weight:600; color:#333633; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .search-result-subtitle { font-size:12px; color:#6e726e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .search-result-badge { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; text-transform:uppercase; white-space:nowrap; flex-shrink:0; }
-        .search-empty { text-align:center; padding:24px 16px; color:#9ca09c; font-size:13px; }
-        .search-loading { text-align:center; padding:16px; color:#6e726e; }
-        @media (max-width:768px) { .universal-search-wrapper { display:none; } }
 
         /* ─── View Count Badge ───────────────────────────────── */
         .view-badge {
@@ -528,58 +287,6 @@
         .view-badge svg { width: 14px; height: 14px; }
 
         /* ─── View History Modal ─────────────────────────────── */
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.4);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-        }
-        .modal-overlay.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-        .modal {
-            background: var(--white);
-            border-radius: 16px;
-            width: 560px;
-            max-width: 90vw;
-            max-height: 80vh;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-            transform: scale(0.95);
-            transition: transform 0.2s;
-        }
-        .modal-overlay.active .modal {
-            transform: scale(1);
-        }
-        .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--gray-200);
-        }
-        .modal-header h3 { font-size: 16px; font-weight: 600; color: var(--gray-700); }
-        .modal-close {
-            width: 32px; height: 32px;
-            border: none; background: var(--gray-100);
-            border-radius: 8px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            color: var(--gray-500);
-            transition: all 0.15s;
-        }
-        .modal-close:hover { background: var(--gray-200); color: var(--gray-700); }
-        .modal-body {
-            padding: 16px 24px 24px;
-            overflow-y: auto;
-            max-height: 60vh;
-        }
         .view-list { list-style: none; padding: 0; margin: 0; }
         .view-item {
             display: flex;
@@ -612,184 +319,36 @@
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
-    <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item active">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-            <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</aside>
+<script src="shell.js"></script>
 
 <main class="main">
-    <div class="page-header">
-        <h1 class="page-title">Sent Quotes</h1>
-        <!-- Universal Search -->
-        <div class="universal-search-wrapper">
-            <div class="search-input-group">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
-                <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <h1>Sent Quotes</h1>
         </div>
+        <div class="topbar-actions">
+            <div class="topbar-search-wrap" id="search-container">
+                <div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+                <input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off">
+                <div class="search-dropdown" id="search-dropdown"></div>
+            </div>
+            <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+            <div class="topbar-avatar" title="Account">TP</div>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+        <a href="quotes.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Requests</a>
+        <a href="sent-quotes.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Sent Quotes</a>
+        <a href="quote-generator.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Quote Generator</a>
+        <a href="quote-calculator.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Calculator</a>
+    </div>
+
+    <div class="page-header" style="padding: 24px 40px 0;">
+        <h2 class="page-title">Sent Quotes</h2>
         <a href="quote-generator.html" class="btn-new">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New Quote
@@ -1185,30 +744,29 @@
             <html><head>
             <title>Quote ${quoteNumber} - ${quote.customer_name}</title>
             <style>
-                @font-face { font-family: 'Qualy'; src: url('/Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
-                * { margin: 0; padding: 0; box-sizing: border-box; }
+                                * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; background: white; color: #333; }
                 .page { max-width: 800px; margin: 0 auto; padding: 30px 40px; }
 
-                .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 4px solid #c9dd80; margin-bottom: 20px; }
+                
                 .header-left { display: flex; align-items: center; gap: 12px; }
                 .header-logo { width: 50px; height: 50px; border-radius: 50%; }
-                .header-title h1 { color: #2e403d; font-size: 20px; margin: 0 0 2px; font-family: 'Qualy', Georgia, serif; }
+                .header-title h1 { color: #2e403d; font-size: 20px; margin: 0 0 2px; font-family: 'DM Sans', Georgia, serif; }
                 .header-title p { color: #64748b; font-size: 12px; margin: 0; }
                 .header-right { text-align: right; font-size: 11px; color: #64748b; line-height: 1.4; }
                 
-                .quote-badge { display: inline-block; background: #2e403d; color: #c9dd80; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
+                .quote-badge { display: inline-block; background: #2e403d; color: #ffffff; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
                 
                 .info-section { display: flex; gap: 30px; margin-bottom: 20px; }
                 .info-box { flex: 1; }
-                .info-box.highlight { background: #f8faf5; border: 2px solid #c9dd80; border-radius: 10px; padding: 14px; }
+                .info-box.highlight { background: #ecfdf5; border: 2px solid #2e403d; border-radius: 10px; padding: 14px; }
                 .info-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 6px; font-weight: 600; }
-                .info-box h3 { color: #2e403d; font-size: 15px; margin: 0 0 4px; font-family: 'Qualy', Georgia, serif; }
+                .info-box h3 { color: #2e403d; font-size: 15px; margin: 0 0 4px; font-family: 'DM Sans', Georgia, serif; }
                 .info-box p { color: #374151; font-size: 12px; line-height: 1.5; margin: 0; }
                 
                 .services-section { margin-bottom: 20px; }
                 .services-header { background: #2e403d; color: white; padding: 10px 16px; border-radius: 10px 10px 0 0; }
-                .services-header h2 { font-size: 14px; margin: 0; font-weight: 600; font-family: 'Qualy', Georgia, serif; }
+                .services-header h2 { font-size: 14px; margin: 0; font-weight: 600; font-family: 'DM Sans', Georgia, serif; }
                 .services-table { width: 100%; border-collapse: collapse; background: white; border: 2px solid #2e403d; border-top: none; border-radius: 0 0 10px 10px; overflow: hidden; }
                 .services-table th { background: #f8f8f8; padding: 8px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 1px solid #e5e5e5; }
                 .services-table th:last-child { text-align: right; }
@@ -1216,17 +774,17 @@
                 .services-table td:last-child { text-align: right; font-weight: 500; }
                 .services-table tr:last-child td { border-bottom: none; }
                 
-                .totals-section { background: #f8faf5; border: 2px solid #c9dd80; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+                .totals-section { background: #ecfdf5; border: 2px solid #2e403d; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
                 .totals-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e5e5e5; font-size: 13px; }
                 .totals-row:last-child { border-bottom: none; }
                 .totals-row.subtotal, .totals-row.tax { color: #64748b; }
-                .totals-row.total { font-size: 18px; font-weight: 700; color: #2e403d; padding-top: 10px; margin-top: 6px; border-top: 2px solid #c9dd80; }
+                .totals-row.total { font-size: 18px; font-weight: 700; color: #2e403d; padding-top: 10px; margin-top: 6px; border-top: 2px solid #2e403d; }
                 .totals-row.monthly { background: #2e403d; color: white; margin: 12px -14px -14px; padding: 12px 14px; border-radius: 0 0 8px 8px; font-weight: 600; }
                 
                 .validity { background: #ffffff; border: 1px solid #d4d4d4; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
                 .validity p { color: #525252; font-size: 12px; margin: 0; }
                 
-                .footer { border-top: 3px solid #c9dd80; padding-top: 12px; text-align: center; }
+                .footer { border-top: 3px solid #2e403d; padding-top: 12px; text-align: center; }
                 .footer p { color: #64748b; font-size: 10px; margin: 0; }
                 .footer strong { color: #2e403d; }
                 
@@ -1355,11 +913,10 @@
             <title>Service Agreement - ${quote.customer_name} - ${quoteNumber}</title>
             <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&display=swap" rel="stylesheet">
             <style>
-                @font-face { font-family: 'Qualy'; src: url('/Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
-                body { font-family: Arial, sans-serif; padding: 30px 40px; max-width: 800px; margin: 0 auto; font-size: 11px; line-height: 1.5; color: #333; }
-                h1 { color: #2e403d; margin-bottom: 4px; font-size: 22px; font-family: 'Qualy', Georgia, serif; }
-                h2 { color: #2e403d; font-size: 13px; margin: 20px 0 8px; border-bottom: 2px solid #c9dd80; padding-bottom: 4px; font-family: 'Qualy', Georgia, serif; }
-                .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #c9dd80; padding-bottom: 16px; margin-bottom: 20px; }
+                                body { font-family: Arial, sans-serif; padding: 30px 40px; max-width: 800px; margin: 0 auto; font-size: 11px; line-height: 1.5; color: #333; }
+                h1 { color: #2e403d; margin-bottom: 4px; font-size: 22px; font-family: 'DM Sans', Georgia, serif; }
+                h2 { color: #2e403d; font-size: 13px; margin: 20px 0 8px; border-bottom: 2px solid #2e403d; padding-bottom: 4px; font-family: 'DM Sans', Georgia, serif; }
+                
                 .header-left { display: flex; align-items: center; gap: 16px; }
                 .header-logo { width: 70px; height: 70px; }
                 .header-title h1 { margin: 0; }
@@ -1368,22 +925,22 @@
                 .parties-table { width: 100%; margin: 16px 0; border-collapse: separate; border-spacing: 12px 0; }
                 .parties-table td { width: 48%; vertical-align: top; padding: 16px; background: #f8f8f8; border-radius: 8px; border-left: 3px solid #2e403d; }
                 .party-label { font-size: 10px; text-transform: uppercase; color: #666; margin: 0 0 8px; font-weight: bold; letter-spacing: 1px; }
-                .services-box { background: #ffffff; border: 2px solid #c9dd80; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+                .services-box { background: #ecfdf5; border: 2px solid #2e403d; border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
                 .services-box h3 { margin: 0 0 12px; color: #2e403d; font-size: 13px; font-weight: bold; }
                 .services-list { margin: 0; padding-left: 20px; }
                 .services-list li { margin: 6px 0; }
-                .total-line { font-size: 14px; font-weight: bold; margin-top: 12px; padding-top: 12px; border-top: 2px solid #c9dd80; color: #2e403d; }
+                .total-line { font-size: 14px; font-weight: bold; margin-top: 12px; padding-top: 12px; border-top: 2px solid #2e403d; color: #2e403d; }
                 .section p { margin: 6px 0; text-align: justify; }
                 .section ul { margin: 6px 0 6px 20px; padding: 0; }
                 .section li { margin: 4px 0; }
-                .highlight-box { background: #fafdf5; border-left: 4px solid #c9dd80; padding: 12px 14px; margin: 12px 0; font-size: 10px; border-radius: 0 6px 6px 0; }
+                .highlight-box { background: #ecfdf5; border-left: 4px solid #2e403d; padding: 12px 14px; margin: 12px 0; font-size: 10px; border-radius: 0 6px 6px 0; }
                 .signature-section { margin-top: 30px; border: 2px solid #2e403d; border-radius: 8px; padding: 24px; background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%); page-break-inside: avoid; }
                 .signature-section h3 { margin: 0 0 16px; color: #2e403d; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-                .signature-section h3::before { content: '✓'; color: #2e403d; background: #c9dd80; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+                .signature-section h3::before { content: '✓'; color: #2e403d; background: #dcfce7; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
                 .signature-line { border-bottom: 1px solid #333; margin: 8px 0; }
                 .signature-meta { font-size: 10px; color: #666; margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd; }
                 .signature-meta p { margin: 4px 0; }
-                .footer { margin-top: 24px; padding-top: 16px; border-top: 3px solid #c9dd80; font-size: 10px; color: #666; text-align: center; }
+                .footer { margin-top: 24px; padding-top: 16px; border-top: 3px solid #2e403d; font-size: 10px; color: #666; text-align: center; }
                 .footer p { margin: 4px 0; }
                 .download-btn { position: fixed; top: 20px; right: 20px; background: #2e403d; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 100; }
                 .download-btn:hover { background: #232f2d; }
@@ -1734,6 +1291,29 @@
         await Promise.all([loadViewCounts(), loadEventCounts()]);
         loadQuotes();
     })();
+</script>
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
 </script>
 </body>
 </html>

@@ -18,18 +18,72 @@ const SQUARE_APP_ID = process.env.SQUARE_APPLICATION_ID || '';
 const SQUARE_LOCATION_ID = process.env.SQUARE_LOCATION_ID || '';
 try {
   const square = require('square');
-  ApiError = square.ApiError;
+  ApiError = square.SquareError || square.ApiError;
   if (process.env.SQUARE_ACCESS_TOKEN) {
-    squareClient = new square.Client({
-      accessToken: process.env.SQUARE_ACCESS_TOKEN,
-      environment: process.env.SQUARE_ENVIRONMENT === 'production' ? square.Environment.Production : square.Environment.Sandbox,
-    });
+    // New SDK uses SquareClient, old SDK uses Client
+    if (square.SquareClient) {
+      const env = process.env.SQUARE_ENVIRONMENT === 'production' ? square.SquareEnvironment.Production : square.SquareEnvironment.Sandbox;
+      squareClient = new square.SquareClient({
+        token: process.env.SQUARE_ACCESS_TOKEN,
+        environment: env,
+      });
+    } else {
+      squareClient = new square.Client({
+        accessToken: process.env.SQUARE_ACCESS_TOKEN,
+        environment: process.env.SQUARE_ENVIRONMENT === 'production' ? square.Environment.Production : square.Environment.Sandbox,
+      });
+    }
+    // Add compatibility shims for new SDK (v41+) to match old API style
+    if (squareClient && !squareClient.cardsApi && squareClient.cards) {
+      const wrapApi = (api, methodMap) => {
+        return new Proxy({}, {
+          get(_, prop) {
+            // Map old method names to new (e.g. createCustomer -> create, createCard -> create, createPayment -> create)
+            const mapped = methodMap[prop] || prop;
+            if (typeof api[mapped] === 'function') {
+              return async (...args) => {
+                const res = await api[mapped](...args);
+                return { result: res };
+              };
+            }
+            return undefined;
+          }
+        });
+      };
+      squareClient.customersApi = wrapApi(squareClient.customers, {
+        createCustomer: 'create', listCustomers: 'list', searchCustomers: 'search',
+        retrieveCustomer: 'get', updateCustomer: 'update', deleteCustomer: 'delete'
+      });
+      squareClient.cardsApi = wrapApi(squareClient.cards, {
+        createCard: 'create', listCards: 'list', retrieveCard: 'get', disableCard: 'disable'
+      });
+      squareClient.paymentsApi = wrapApi(squareClient.payments, {
+        createPayment: 'create', listPayments: 'list', getPayment: 'get', cancelPayment: 'cancel'
+      });
+      squareClient.locationsApi = wrapApi(squareClient.locations, {
+        listLocations: 'list', retrieveLocation: 'get'
+      });
+    }
     console.log('✅ Square SDK initialized (' + (process.env.SQUARE_ENVIRONMENT || 'sandbox') + ')');
   } else {
     console.log('⚠️ Square SDK loaded but no SQUARE_ACCESS_TOKEN set');
   }
 } catch (err) {
   console.error('⚠️ Square SDK not available:', err.message);
+}
+
+// Anthropic Claude AI Configuration (optional — server runs fine without it)
+let anthropicClient = null;
+try {
+  const Anthropic = require('@anthropic-ai/sdk');
+  if (process.env.ANTHROPIC_API_KEY) {
+    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    console.log('✅ Anthropic Claude AI initialized');
+  } else {
+    console.log('⚠️ Anthropic SDK loaded but no ANTHROPIC_API_KEY set');
+  }
+} catch (err) {
+  console.log('⚠️ Anthropic SDK not available:', err.message);
 }
 
 const upload = multer({ 
@@ -141,7 +195,17 @@ const TWILIO_NUMBERS = {
 };
 const TWILIO_PHONE_NUMBER = '+14408867318'; // Default for backward compatibility
 const JWT_SECRET = process.env.JWT_SECRET || 'pappas-twilioconnect-secret-2026';
-const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+let twilioClient = null;
+try {
+  if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
+    twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    console.log('Twilio client initialized');
+  } else {
+    console.log('Twilio credentials not set - SMS/voice features disabled');
+  }
+} catch (err) {
+  console.log('Twilio init failed:', err.message);
+}
 
 // ═══════════════════════════════════════════════════════════
 // SERVICE DESCRIPTIONS - From CopilotCRM for quotes and customer-facing displays
@@ -329,12 +393,17 @@ const ADMIN_PUBLIC_PATHS = [
   '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',
   '/api/portal/', '/api/campaigns/submissions', '/api/app/',
   '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
-  '/api/config/', '/health', '/api/test-quote-pdf'
+  '/api/config/', '/health', '/api/test-quote-pdf',
+  '/api/quickbooks/auth', '/api/quickbooks/callback'
 ];
 
 function requireAdmin(req, res, next) {
   // Skip non-API routes
   if (!req.path.startsWith('/api/') && req.path !== '/health') return next();
+  // Allow customer-facing quote endpoints (sign-contract, accept, decline, view by token, card-on-file)
+  if (/^\/api\/sent-quotes\/\d+\/(sign-contract|accept|decline|view|changes)$/.test(req.path)) return next();
+  if (/^\/api\/sent-quotes\/by-token\//.test(req.path)) return next();
+  if (/^\/api\/customers\/\d+\/card-on-file$/.test(req.path)) return next();
   // Skip public API paths
   for (const p of ADMIN_PUBLIC_PATHS) {
     if (req.path.startsWith(p) || req.path === p) return next();
@@ -479,9 +548,10 @@ function emailTemplate(content, options = {}) {
   ` : '';
 
   const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
-  const SOCIAL_FB_WHITE = `${baseUrl}/email-assets/fb-white.png`;
-  const SOCIAL_IG_WHITE = `${baseUrl}/email-assets/ig-white.png`;
-  const SOCIAL_ND_WHITE = `${baseUrl}/email-assets/nd-white.png`;
+  const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
+  const SOCIAL_FB_WHITE = `${assetsUrl}/email-assets/fb-white.png`;
+  const SOCIAL_IG_WHITE = `${assetsUrl}/email-assets/ig-white.png`;
+  const SOCIAL_ND_WHITE = `${assetsUrl}/email-assets/nd-white.png`;
 
   return `
 <!DOCTYPE html>
@@ -512,7 +582,8 @@ function emailTemplate(content, options = {}) {
     </table>
     <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
     <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-    <p style="margin:0;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
+    <p style="margin:0 0 10px;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
+    <p style="margin:0;font-size:10px;color:#5a7a57;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
   </td></tr>
 </table>
 </td></tr>
@@ -1494,24 +1565,62 @@ async function generateInvoicePDF(invoice) {
     page.drawText(amtHeader, { x: rightCol - helveticaBold.widthOfTextAtSize(amtHeader, 9) - 8, y: y + 3, size: 9, font: helveticaBold, color: white });
     y -= 28;
 
+    // Helper: wrap text into lines that fit a given width
+    function wrapText(text, font, fontSize, maxWidth) {
+      const words = text.split(' ');
+      const lines = [];
+      let currentLine = '';
+      for (const word of words) {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        if (font.widthOfTextAtSize(testLine, fontSize) > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      return lines;
+    }
+
     // Table rows
-    for (const item of lineItems) {
-      const desc = pdfSafe(item.description || item.name || 'Service');
+    const descMaxWidth = pageWidth - margin - 170 - margin; // space for qty/rate/amount columns
+    for (let idx = 0; idx < lineItems.length; idx++) {
+      const item = lineItems[idx];
+      const name = pdfSafe(item.name || '');
+      const desc = pdfSafe(item.description || '');
       const qty = item.quantity || item.qty || 1;
       const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
       const amount = parseFloat(item.amount || (qty * rate) || 0);
 
+      // Calculate row height based on wrapped text
+      const nameLines = name ? wrapText(name, helveticaBold, 9, descMaxWidth) : [];
+      const descLines = desc && desc !== name ? wrapText(desc, helvetica, 8, descMaxWidth) : [];
+      const totalLines = nameLines.length + descLines.length;
+      const rowHeight = Math.max(20, totalLines * 12 + 8);
+
       // Alternate row background
-      if (lineItems.indexOf(item) % 2 === 0) {
-        page.drawRectangle({ x: margin, y: y - 4, width: contentWidth, height: 20, color: lightGray });
+      if (idx % 2 === 0) {
+        page.drawRectangle({ x: margin, y: y - 4, width: contentWidth, height: rowHeight, color: lightGray });
       }
 
-      page.drawText(desc.substring(0, 60), { x: margin + 8, y, size: 9, font: helvetica, color: black });
+      // Draw name (bold) with wrapping
+      let textY = y;
+      for (const line of nameLines) {
+        page.drawText(line, { x: margin + 8, y: textY, size: 9, font: helveticaBold, color: black });
+        textY -= 12;
+      }
+      // Draw description (lighter, smaller) with wrapping
+      for (const line of descLines) {
+        page.drawText(line, { x: margin + 8, y: textY, size: 8, font: helvetica, color: gray });
+        textY -= 11;
+      }
+
       page.drawText(String(qty), { x: pageWidth - margin - 140, y, size: 9, font: helvetica, color: gray });
       page.drawText('$' + rate.toFixed(2), { x: pageWidth - margin - 100, y, size: 9, font: helvetica, color: gray });
       const amtStr = '$' + amount.toFixed(2);
       page.drawText(amtStr, { x: rightCol - helvetica.widthOfTextAtSize(amtStr, 9) - 8, y, size: 9, font: helvetica, color: black });
-      y -= 22;
+      y -= rowHeight;
     }
 
     y -= 10;
@@ -1532,7 +1641,8 @@ async function generateInvoicePDF(invoice) {
       const subStr = '$' + subtotal.toFixed(2);
       page.drawText(subStr, { x: rightCol - helvetica.widthOfTextAtSize(subStr, 10) - 8, y, size: 10, font: helvetica, color: black });
       y -= 18;
-      page.drawText('Tax:', { x: totalsX, y, size: 10, font: helvetica, color: gray });
+      const taxLabel = invoice.tax_rate ? `Tax (${parseFloat(invoice.tax_rate).toFixed(3)}%):` : 'Tax:';
+      page.drawText(taxLabel, { x: totalsX, y, size: 10, font: helvetica, color: gray });
       const taxStr = '$' + taxAmount.toFixed(2);
       page.drawText(taxStr, { x: rightCol - helvetica.widthOfTextAtSize(taxStr, 10) - 8, y, size: 10, font: helvetica, color: black });
       y -= 18;
@@ -1654,6 +1764,84 @@ function parseCSVLine(line) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// TAX CALCULATION HELPER
+// ═══════════════════════════════════════════════════════════
+
+async function calculateTax(customerId, propertyId, lineItems) {
+  try {
+    // Level 1: Customer tax exempt
+    if (customerId) {
+      const cust = await pool.query('SELECT tax_exempt FROM customers WHERE id = $1', [customerId]);
+      if (cust.rows[0] && cust.rows[0].tax_exempt) {
+        const subtotal = lineItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+        return { lineItems: lineItems.map(i => ({...i, tax: 0, taxRate: 0})), subtotal, taxAmount: 0, total: subtotal, effectiveRate: 0 };
+      }
+    }
+
+    // Level 3: Property tax rates
+    let propertyTaxRate = null;
+    if (propertyId) {
+      const prop = await pool.query('SELECT county_tax, city_tax, state_tax FROM properties WHERE id = $1', [propertyId]);
+      if (prop.rows[0]) {
+        const p = prop.rows[0];
+        if (p.county_tax !== null || p.city_tax !== null || p.state_tax !== null) {
+          propertyTaxRate = (parseFloat(p.county_tax) || 0) + (parseFloat(p.city_tax) || 0) + (parseFloat(p.state_tax) || 0);
+        }
+      }
+    }
+
+    // Level 6: Default tax rate fallback
+    let defaultRate = 0;
+    const settingsResult = await pool.query("SELECT value FROM business_settings WHERE key = 'tax_defaults'");
+    if (settingsResult.rows[0]) defaultRate = parseFloat(settingsResult.rows[0].value.default_rate) || 0;
+
+    // Calculate per line item
+    let taxTotal = 0;
+    let subtotal = 0;
+    const processedItems = lineItems.map(item => {
+      const amount = parseFloat(item.amount) || 0;
+      subtotal += amount;
+
+      // Level 2: Line item non-taxable
+      if (item.taxable === false) return {...item, tax: 0, taxRate: 0};
+
+      // Level 3: Property tax rate
+      if (propertyTaxRate !== null) {
+        const tax = Math.round(amount * propertyTaxRate) / 100;
+        taxTotal += tax;
+        return {...item, tax, taxRate: propertyTaxRate};
+      }
+
+      // Level 4: Service item's own tax rate
+      if (item.service_tax_rate !== undefined && item.service_tax_rate !== null && parseFloat(item.service_tax_rate) > 0) {
+        const rate = parseFloat(item.service_tax_rate);
+        const tax = Math.round(amount * rate) / 100;
+        taxTotal += tax;
+        return {...item, tax, taxRate: rate};
+      }
+
+      // Level 6: Default rate
+      const tax = Math.round(amount * defaultRate) / 100;
+      taxTotal += tax;
+      return {...item, tax, taxRate: defaultRate};
+    });
+
+    const taxAmount = Math.round(taxTotal * 100) / 100;
+    return {
+      lineItems: processedItems,
+      subtotal,
+      taxAmount,
+      total: subtotal + taxAmount,
+      effectiveRate: subtotal > 0 ? Math.round((taxTotal / subtotal) * 10000) / 100 : 0
+    };
+  } catch(e) {
+    console.error('Tax calculation error:', e);
+    const subtotal = lineItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    return { lineItems, subtotal, taxAmount: 0, total: subtotal, effectiveRate: 0 };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // PROPERTIES ENDPOINTS - Using YOUR existing schema:
 // id, property_name, country, state, street, street2, city, zip, tags, status, lot_size, notes, customer_id
 // ═══════════════════════════════════════════════════════════
@@ -1661,8 +1849,8 @@ function parseCSVLine(line) {
 // GET /api/properties
 app.get('/api/properties', async (req, res) => {
   try {
-    const { status, city, search, sort, limit = 1000, offset = 0 } = req.query;
-    
+    const { status, city, search, sort, limit = 1000, offset = 0, customer_id } = req.query;
+
     let query = `
       SELECT p.*, c.name as customer_display_name, c.email as customer_email, c.phone as customer_phone,
         (SELECT MAX(job_date) FROM scheduled_jobs sj WHERE (sj.customer_id = p.customer_id OR LOWER(TRIM(sj.address)) = LOWER(TRIM(p.street))) AND sj.status IN ('completed','done') AND p.customer_id IS NOT NULL) as last_service_date,
@@ -1676,7 +1864,16 @@ app.get('/api/properties', async (req, res) => {
     const countParams = [];
     let paramCount = 1;
     let countParamCount = 1;
-    
+
+    if (customer_id) {
+      query += ` AND p.customer_id = $${paramCount}`;
+      countQuery += ` AND customer_id = $${countParamCount}`;
+      params.push(customer_id);
+      countParams.push(customer_id);
+      paramCount++;
+      countParamCount++;
+    }
+
     if (status) {
       query += ` AND LOWER(p.status) = LOWER($${paramCount})`;
       countQuery += ` AND LOWER(status) = LOWER($${countParamCount})`;
@@ -1840,13 +2037,17 @@ app.put('/api/properties/:id', async (req, res) => {
     const result = await pool.query(`
       UPDATE properties SET
         property_name = $1, street = $2, street2 = $3, city = $4, state = $5,
-        country = $6, zip = $7, lot_size = $8, tags = $9, status = $10, notes = $11, customer_id = $12
+        country = $6, zip = $7, lot_size = $8, tags = $9, status = $10, notes = $11, customer_id = $12,
+        county_tax = $14, city_tax = $15, state_tax = $16
       WHERE id = $13
       RETURNING *
     `, [
       actualPropertyName, actualStreet, street2 || '', city || '', state || 'OH',
       country || 'US', actualZip, actualLotSize, tags || '', status || 'Active', actualNotes,
-      customer_id || null, id
+      customer_id || null, id,
+      req.body.county_tax !== undefined ? req.body.county_tax : null,
+      req.body.city_tax !== undefined ? req.body.city_tax : null,
+      req.body.state_tax !== undefined ? req.body.state_tax : null
     ]);
     
     if (result.rows.length === 0) {
@@ -1871,7 +2072,7 @@ app.patch('/api/properties/:id', async (req, res) => {
       'property_notes': 'notes', 'customer_name': 'property_name'
     };
     
-    const allowedFields = ['property_name', 'street', 'street2', 'city', 'state', 'country', 'zip', 'lot_size', 'tags', 'status', 'notes', 'customer_id'];
+    const allowedFields = ['property_name', 'street', 'street2', 'city', 'state', 'country', 'zip', 'lot_size', 'tags', 'status', 'notes', 'customer_id', 'county_tax', 'city_tax', 'state_tax'];
     
     const setClause = [];
     const values = [];
@@ -2162,9 +2363,10 @@ app.get('/api/cancellations', async (req, res) => {
   try {
     const { status } = req.query;
     let query = 'SELECT * FROM cancellations';
-    if (status) query += ` WHERE status = '${status}'`;
+    const params = [];
+    if (status) { query += ' WHERE status = $1'; params.push(status); }
     query += ' ORDER BY created_at DESC';
-    const result = await pool.query(query);
+    const result = await pool.query(query, params);
     res.json({ success: true, cancellations: result.rows });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -2270,18 +2472,18 @@ app.get('/api/customers/pipeline-stats', async (req, res) => {
 // IMPORTANT: This must come BEFORE /api/customers/:id to avoid :id matching "search"
 app.get('/api/customers/search', async (req, res) => {
   try {
-    const { name } = req.query;
-    if (!name || name.length < 2) {
+    const query = req.query.name || req.query.q || req.query.search || '';
+    if (!query || query.length < 2) {
       return res.json({ success: true, customers: [] });
     }
 
     const result = await pool.query(
       `SELECT id, name, email, phone, mobile, street, city, state, postal_code
        FROM customers
-       WHERE LOWER(name) LIKE LOWER($1)
+       WHERE LOWER(name) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1) OR phone LIKE $1
        ORDER BY name
        LIMIT 10`,
-      [`%${name}%`]
+      [`%${query}%`]
     );
 
     res.json({ success: true, customers: result.rows });
@@ -2544,11 +2746,16 @@ app.get('/api/customers/:id/properties', async (req, res) => {
 app.patch('/api/customers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const allowed = ['name', 'status', 'email', 'phone', 'mobile', 'street', 'city', 'state', 'postal_code', 'tags', 'notes', 'customer_type'];
+    const allowed = ['name', 'status', 'email', 'phone', 'mobile', 'street', 'city', 'state', 'postal_code', 'tags', 'notes', 'customer_type', 'tax_exempt'];
     const sets = [], vals = [];
     let p = 1;
     Object.keys(req.body).forEach(k => {
-      if (allowed.includes(k)) { sets.push(`${k} = $${p++}`); vals.push(req.body[k]); }
+      if (allowed.includes(k)) {
+        let val = req.body[k];
+        if (k === 'tax_exempt') val = val === true || val === 'true';
+        sets.push(`${k} = $${p++}`);
+        vals.push(val);
+      }
     });
     if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields' });
     sets.push('updated_at = CURRENT_TIMESTAMP');
@@ -2833,6 +3040,36 @@ app.get('/api/jobs/completed-uninvoiced', async (req, res) => {
   }
 });
 
+// GET /api/jobs/pipeline - Jobs grouped by pipeline stage (must be before :id route)
+app.get('/api/jobs/pipeline', async (req, res) => {
+  try {
+    const stages = ['new', 'quoted', 'scheduled', 'in_progress', 'completed', 'invoiced'];
+    // Map existing statuses to pipeline stages
+    const result = await pool.query(`
+      SELECT *,
+        CASE
+          WHEN pipeline_stage IS NOT NULL AND pipeline_stage != '' THEN pipeline_stage
+          WHEN status = 'completed' THEN 'completed'
+          WHEN status = 'in-progress' THEN 'in_progress'
+          WHEN status = 'confirmed' THEN 'scheduled'
+          ELSE 'new'
+        END as stage
+      FROM scheduled_jobs
+      WHERE status != 'cancelled'
+      ORDER BY job_date DESC
+    `);
+    const grouped = {};
+    stages.forEach(s => grouped[s] = []);
+    result.rows.forEach(j => {
+      const s = stages.includes(j.stage) ? j.stage : 'new';
+      grouped[s].push(j);
+    });
+    const counts = {};
+    stages.forEach(s => counts[s] = grouped[s].length);
+    res.json({ success: true, stages, pipeline: grouped, counts });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
 app.get('/api/jobs/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [req.params.id]);
@@ -2892,6 +3129,75 @@ app.patch('/api/jobs/:id/complete', async (req, res) => {
       `UPDATE scheduled_jobs SET status = 'completed', completed_at = CURRENT_TIMESTAMP, completion_lat = $2, completion_lng = $3, completion_notes = $4, completed_by = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
       [req.params.id, completion_lat, completion_lng, completion_notes, completed_by]
     );
+
+    // --- Auto-add completed job to monthly invoice ---
+    try {
+      const completedJob = result.rows[0];
+      const custId = completedJob.customer_id;
+      const custName = completedJob.customer_name;
+
+      if (custId) {
+        // Find current month boundaries
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+        // Look for existing draft invoice for this customer in this month
+        const existingInv = await pool.query(
+          `SELECT id, line_items, subtotal, tax_rate, tax_amount, total FROM invoices
+           WHERE customer_id = $1 AND status = 'draft'
+           AND created_at >= $2 AND created_at <= ($3::date + interval '1 day')
+           ORDER BY created_at DESC LIMIT 1`,
+          [custId, monthStart, monthEnd]
+        );
+
+        const newItem = {
+          name: completedJob.service_type || 'Service',
+          description: 'Job #' + completedJob.id + (completedJob.job_date ? ' - ' + new Date(completedJob.job_date).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : ''),
+          quantity: 1,
+          rate: parseFloat(completedJob.service_price) || 0,
+          amount: parseFloat(completedJob.service_price) || 0
+        };
+
+        const propertyId = completedJob.property_id || null;
+
+        if (existingInv.rows.length > 0) {
+          // Add line item to existing draft invoice
+          const inv = existingInv.rows[0];
+          let items = inv.line_items || [];
+          if (typeof items === 'string') items = JSON.parse(items);
+          items.push(newItem);
+          const taxResult = await calculateTax(custId, propertyId, items);
+
+          await pool.query(
+            `UPDATE invoices SET line_items = $1, subtotal = $2, tax_amount = $3, total = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`,
+            [JSON.stringify(taxResult.lineItems), taxResult.subtotal, taxResult.taxAmount, taxResult.total, inv.id]
+          );
+          await pool.query(`UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2`, [inv.id, completedJob.id]);
+        } else {
+          // Create new monthly draft invoice
+          const custRow = await pool.query(`SELECT email, address FROM customers WHERE id = $1`, [custId]);
+          const custEmail = custRow.rows[0]?.email || '';
+          const custAddress = custRow.rows[0]?.address || completedJob.address || '';
+
+          const invNum = await nextInvoiceNumber();
+          const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // End of current month
+          const taxResult = await calculateTax(custId, propertyId, [newItem]);
+
+          const invResult = await pool.query(
+            `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, customer_address, job_id, status, subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
+             VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, 0, $8, $9, $10, $11, $12) RETURNING id`,
+            [invNum, custId, custName, custEmail, custAddress, completedJob.id, taxResult.subtotal, taxResult.taxAmount, taxResult.total, dueDate.toISOString().split('T')[0],
+             'Monthly invoice - ' + now.toLocaleDateString('en-US', {month:'long', year:'numeric'}),
+             JSON.stringify(taxResult.lineItems)]
+          );
+          await pool.query(`UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2`, [invResult.rows[0].id, completedJob.id]);
+        }
+      }
+    } catch (autoInvErr) {
+      console.error('Auto-invoice error (non-fatal):', autoInvErr.message);
+    }
+
     res.json({ success: true, job: result.rows[0] });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -2918,58 +3224,67 @@ app.post('/api/jobs/optimize-route', async (req, res) => {
     if (jobs.length < 2) return res.json({ success: true, message: 'Not enough jobs', jobs });
 
     // Need lat/lng for all jobs — geocode any missing ones first
+    const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
     const needsGeocode = jobs.filter(j => !j.lat || !j.lng);
     for (const job of needsGeocode) {
       if (!job.address) continue;
       try {
         const q = encodeURIComponent(job.address);
-        const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
-        const gData = await gRes.json();
-        if (gData && gData.length > 0) {
-          job.lat = parseFloat(gData[0].lat);
-          job.lng = parseFloat(gData[0].lon);
-          await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2 WHERE id = $3', [job.lat, job.lng, job.id]);
+        if (GMAPS_KEY) {
+          const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${GMAPS_KEY}`);
+          const gData = await gRes.json();
+          if (gData.status === 'OK' && gData.results && gData.results.length > 0) {
+            const loc = gData.results[0].geometry.location;
+            job.lat = loc.lat;
+            job.lng = loc.lng;
+            await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2 WHERE id = $3', [job.lat, job.lng, job.id]);
+          }
+        } else {
+          const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
+          const gData = await gRes.json();
+          if (gData && gData.length > 0) {
+            job.lat = parseFloat(gData[0].lat);
+            job.lng = parseFloat(gData[0].lon);
+            await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2 WHERE id = $3', [job.lat, job.lng, job.id]);
+          }
+          await new Promise(r => setTimeout(r, 1100));
         }
-        await new Promise(r => setTimeout(r, 1100));
       } catch (e) { /* skip */ }
     }
 
     const geocodedJobs = jobs.filter(j => j.lat && j.lng);
     if (geocodedJobs.length < 2) return res.status(400).json({ success: false, error: 'Not enough geocoded jobs. Check addresses.' });
 
-    // Start location: Pappas HQ
-    const startLat = 41.4268;
-    const startLng = -81.7356;
-
-    const ORS_KEY = process.env.OPENROUTESERVICE_API_KEY;
-    if (ORS_KEY) {
-      // Use OpenRouteService Optimization API (Vroom-based VRP solver)
-      const orsJobs = geocodedJobs.map((j, i) => ({
-        id: i,
-        location: [parseFloat(j.lng), parseFloat(j.lat)],
-        service: Math.max((parseInt(j.estimated_duration) || 30) * 60, 300)
-      }));
-      const orsBody = {
-        jobs: orsJobs,
-        vehicles: [{ id: 0, profile: 'driving-car', start: [startLng, startLat], end: [startLng, startLat] }]
-      };
-      const orsRes = await fetch('https://api.openrouteservice.org/optimization', {
-        method: 'POST',
-        headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify(orsBody)
-      });
-      const orsData = await orsRes.json();
-
-      if (orsData.routes && orsData.routes.length > 0 && orsData.routes[0].steps) {
-        const jobSteps = orsData.routes[0].steps.filter(s => s.type === 'job');
-        const optimizedJobs = jobSteps.map((step, order) => ({ ...geocodedJobs[step.job], route_order: order + 1 }));
-        for (const job of optimizedJobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
-        const totalDistance = orsData.routes[0].distance || 0;
-        const totalDuration = orsData.routes[0].duration || 0;
-        return res.json({ success: true, message: 'Route optimized via OpenRouteService', jobs: optimizedJobs, stats: { totalStops: geocodedJobs.length, totalDistance: (totalDistance / 1609.34).toFixed(1) + ' miles', totalDriveTime: Math.round(totalDuration / 60) + ' minutes' } });
+    // Get home base from settings (default: Pappas HQ)
+    let startLat = 41.4268;
+    let startLng = -81.7356;
+    try {
+      const hbResult = await pool.query("SELECT value FROM business_settings WHERE key = 'home_base'");
+      if (hbResult.rows.length > 0) {
+        const hb = hbResult.rows[0].value;
+        if (hb.lat) startLat = parseFloat(hb.lat);
+        if (hb.lng) startLng = parseFloat(hb.lng);
       }
-      // If ORS failed, fall through to local optimizer
-      console.error('ORS optimization failed, falling back to local:', orsData.error || 'unknown error');
+    } catch(e) { /* use defaults */ }
+
+    if (GMAPS_KEY) {
+      try {
+        // Use Google Directions API with waypoint optimization
+        const origin = `${startLat},${startLng}`;
+        const waypoints = geocodedJobs.map(j => `${parseFloat(j.lat)},${parseFloat(j.lng)}`).join('|');
+        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${origin}&waypoints=optimize:true|${waypoints}&key=${GMAPS_KEY}`;
+        const gRes = await fetch(url);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.routes && gData.routes.length > 0) {
+          const optimizedOrder = gData.routes[0].waypoint_order;
+          const optimizedJobs = optimizedOrder.map((origIdx, newOrder) => ({ ...geocodedJobs[origIdx], route_order: newOrder + 1 }));
+          for (const job of optimizedJobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
+          const legs = gData.routes[0].legs;
+          const totalDistance = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0);
+          const totalDuration = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0);
+          return res.json({ success: true, message: 'Route optimized via Google Directions', jobs: optimizedJobs, stats: { totalStops: geocodedJobs.length, totalDistance: (totalDistance / 1609.34).toFixed(1) + ' miles', totalDriveTime: Math.round(totalDuration / 60) + ' minutes' } });
+        }
+      } catch (e) { console.error('Google Directions optimize failed, using fallback:', e.message); }
     }
 
     // Fallback: nearest-neighbor TSP
@@ -3788,7 +4103,7 @@ app.get('/api/campaigns', async (req, res) => {
         COUNT(CASE WHEN s.status = 'new' THEN 1 END) as new_count,
         COUNT(CASE WHEN s.status = 'enrolled' THEN 1 END) as enrolled_count
       FROM campaigns c
-      LEFT JOIN campaign_submissions s ON c.name = s.campaign_id OR c.id::text = s.campaign_id
+      LEFT JOIN campaign_submissions s ON c.name = s.campaign_id::text OR c.id::text = s.campaign_id::text
       GROUP BY c.id
       ORDER BY c.created_at DESC
     `);
@@ -4320,7 +4635,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     
     const emailContent = `
       <div style="text-align:center;margin:0 0 28px;">
-        <img src="${process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-quote.png" alt="Your Quote is Ready" style="max-width:400px;width:auto;height:34px;" />
+        <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-quote.png" alt="Your Quote is Ready" style="max-width:400px;width:auto;height:34px;" />
       </div>
       <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
 
@@ -4978,7 +5293,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       const firstName = updatedQuote.customer_name.split(' ')[0];
       const customerContent = `
         <div style="text-align:center;margin:0 0 28px;">
-          <img src="${process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-welcome.png" alt="Welcome to the Pappas Family" style="max-width:400px;width:auto;height:34px;" />
+          <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-welcome.png" alt="Welcome to the Pappas Family" style="max-width:400px;width:auto;height:34px;" />
         </div>
 
         <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
@@ -6342,13 +6657,14 @@ app.post('/api/webhooks/customer-replied', async (req, res) => {
 // Follow-up email templates - standalone design (not using shared emailTemplate)
 function getFollowupEmailContent(followup, stage) {
   const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+  const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
 
   // Qualy heading images (pre-generated PNGs)
   const headingImages = {
-    1: `${baseUrl}/email-assets/heading-1.png`,
-    2: `${baseUrl}/email-assets/heading-2.png`,
-    3: `${baseUrl}/email-assets/heading-3.png`,
-    4: `${baseUrl}/email-assets/heading-4.png`
+    1: `${assetsUrl}/email-assets/heading-1.png`,
+    2: `${assetsUrl}/email-assets/heading-2.png`,
+    3: `${assetsUrl}/email-assets/heading-3.png`,
+    4: `${assetsUrl}/email-assets/heading-4.png`
   };
 
   // Shared elements
@@ -6374,9 +6690,9 @@ function getFollowupEmailContent(followup, stage) {
   `;
 
   // White social media icons for dark footer
-  const SOCIAL_FB_WHITE = `${baseUrl}/email-assets/fb-white.png`;
-  const SOCIAL_IG_WHITE = `${baseUrl}/email-assets/ig-white.png`;
-  const SOCIAL_ND_WHITE = `${baseUrl}/email-assets/nd-white.png`;
+  const SOCIAL_FB_WHITE = `${assetsUrl}/email-assets/fb-white.png`;
+  const SOCIAL_IG_WHITE = `${assetsUrl}/email-assets/ig-white.png`;
+  const SOCIAL_ND_WHITE = `${assetsUrl}/email-assets/nd-white.png`;
 
   // Build full HTML for follow-up emails
   function followupTemplate(headingImg, bodyContent) {
@@ -6723,6 +7039,17 @@ app.patch('/api/settings/:key', async (req, res) => {
     );
     res.json({ success: true, setting: result.rows[0] });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/tax/calculate - Calculate tax for line items
+app.post('/api/tax/calculate', async (req, res) => {
+  try {
+    const { customer_id, property_id, line_items } = req.body;
+    const result = await calculateTax(customer_id || null, property_id || null, line_items || []);
+    res.json({ success: true, ...result });
+  } catch(e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -7123,7 +7450,7 @@ app.get('/api/kpi/dashboard', async (req, res) => {
         GROUP BY crew_assigned ORDER BY revenue DESC`),
       // Customer acquisition cost
       pool.query(`SELECT
-        COALESCE((SELECT SUM(amount) FROM expenses WHERE category ILIKE '%marketing%' AND expense_date >= ${dateFilter}::date), 0) as marketing,
+        COALESCE((SELECT SUM(amount) FROM expenses WHERE category ILIKE '%marketing%' AND expense_date >= (${dateFilter})::date), 0) as marketing,
         (SELECT COUNT(*) FROM customers WHERE created_at >= ${dateFilter}) as new_customers`),
       // Labor efficiency
       pool.query(`SELECT
@@ -7231,16 +7558,26 @@ app.get('/api/dispatch/board', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// PATCH /api/dispatch/assign - Batch reassignment
+// PATCH /api/dispatch/assign - Batch reassignment (supports crew, route_order, status, job_date)
 app.patch('/api/dispatch/assign', async (req, res) => {
   try {
     const { assignments } = req.body;
     if (!assignments || !Array.isArray(assignments)) return res.status(400).json({ success: false, error: 'assignments array required' });
     const updated = [];
     for (const a of assignments) {
+      const sets = [];
+      const vals = [];
+      let idx = 1;
+      if (a.crew_assigned !== undefined) { sets.push(`crew_assigned = $${idx++}`); vals.push(a.crew_assigned); }
+      if (a.route_order !== undefined) { sets.push(`route_order = $${idx++}`); vals.push(a.route_order || null); }
+      if (a.status !== undefined) { sets.push(`status = $${idx++}`); vals.push(a.status); }
+      if (a.job_date !== undefined) { sets.push(`job_date = $${idx++}`); vals.push(a.job_date); }
+      sets.push('updated_at = NOW()');
+      if (sets.length <= 1) continue;
+      vals.push(a.job_id);
       const result = await pool.query(
-        'UPDATE scheduled_jobs SET crew_assigned = $1, route_order = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
-        [a.crew_assigned, a.route_order || null, a.job_id]
+        `UPDATE scheduled_jobs SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+        vals
       );
       if (result.rows.length > 0) updated.push(result.rows[0]);
     }
@@ -7264,12 +7601,17 @@ app.get('/api/dispatch/crew-availability', async (req, res) => {
 // POST /api/dispatch/geocode - Geocode all jobs for a date and store lat/lng
 app.post('/api/dispatch/geocode', async (req, res) => {
   try {
-    const { date, force } = req.body;
+    const { date, force, jobId } = req.body;
     const targetDate = date || new Date().toISOString().split('T')[0];
+    // If jobId provided, re-geocode just that one job
     // If force=true, re-geocode all jobs (even those with coords) to fix city-center duplicates
     // Otherwise only geocode jobs missing lat/lng
     let whereClause = 'sj.job_date::date = $1::date AND sj.address IS NOT NULL';
-    if (!force) {
+    const params = [targetDate];
+    if (jobId) {
+      whereClause += ` AND sj.id = $2`;
+      params.push(jobId);
+    } else if (!force) {
       whereClause += ' AND (sj.lat IS NULL OR sj.lng IS NULL)';
     }
     const jobs = await pool.query(
@@ -7278,7 +7620,7 @@ app.post('/api/dispatch/geocode', async (req, res) => {
        FROM scheduled_jobs sj
        LEFT JOIN customers c ON sj.customer_id = c.id
        WHERE ${whereClause}`,
-      [targetDate]
+      params
     );
     let geocoded = 0;
     const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -7349,8 +7691,9 @@ app.post('/api/dispatch/geocode', async (req, res) => {
 // Helper: extract street address from a string like "John Smith 123 Main St" or "SPRING CLEANUP 123 MAIN ST MOWING"
 function extractStreetAddress(text, cityAddress) {
   if (!text) return null;
-  // Look for a street number followed by a street name
-  const match = text.match(/(\d+\s+[A-Za-z][A-Za-z\s]*(?:Street|St|Drive|Dr|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Court|Ct|Circle|Cir|Place|Pl|Way|Pike|Trail|Tr|Parkway|Pkwy))/i);
+  // Look for a street number followed by a street name (allows digits like "165th", "95th")
+  // Non-greedy word-by-word match, longer suffixes first to avoid partial matches
+  const match = text.match(/(\d+\s+(?:[A-Za-z0-9]+\s+)*?(?:Street|Drive|Road|Avenue|Boulevard|Lane|Court|Circle|Place|Way|Pike|Trail|Parkway|Row|St|Dr|Rd|Ave|Blvd|Ln|Ct|Cir|Pl|Tr|Pkwy))\b/i);
   if (match) return match[1].trim();
   return null;
 }
@@ -7369,34 +7712,41 @@ app.post('/api/dispatch/optimize-route', async (req, res) => {
     if (jobs.rows.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
 
     const stops = jobs.rows.map(j => ({ id: j.id, lat: parseFloat(j.lat), lng: parseFloat(j.lng), duration: parseInt(j.estimated_duration) || 30 }));
-    const sLat = start_lat ? parseFloat(start_lat) : 41.4268;
-    const sLng = start_lng ? parseFloat(start_lng) : -81.7356;
+    // Get home base from settings (default: Pappas HQ)
+    let defaultLat = 41.4268, defaultLng = -81.7356;
+    try {
+      const hbResult = await pool.query("SELECT value FROM business_settings WHERE key = 'home_base'");
+      if (hbResult.rows.length > 0) {
+        const hb = hbResult.rows[0].value;
+        if (hb.lat) defaultLat = parseFloat(hb.lat);
+        if (hb.lng) defaultLng = parseFloat(hb.lng);
+      }
+    } catch(e) { /* use defaults */ }
+    const sLat = start_lat ? parseFloat(start_lat) : defaultLat;
+    const sLng = start_lng ? parseFloat(start_lng) : defaultLng;
 
-    const ORS_KEY = process.env.OPENROUTESERVICE_API_KEY;
-    if (ORS_KEY && stops.length >= 2) {
+    const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
+    if (GMAPS_KEY && stops.length >= 2) {
       try {
-        const orsJobs = stops.map((s, i) => ({ id: i, location: [s.lng, s.lat], service: Math.max(s.duration * 60, 300) }));
-        const orsBody = {
-          jobs: orsJobs,
-          vehicles: [{ id: 0, profile: 'driving-car', start: [sLng, sLat], end: [sLng, sLat] }]
-        };
-        const orsRes = await fetch('https://api.openrouteservice.org/optimization', {
-          method: 'POST',
-          headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify(orsBody)
-        });
-        const orsData = await orsRes.json();
-        if (orsData.routes && orsData.routes.length > 0 && orsData.routes[0].steps) {
-          const jobSteps = orsData.routes[0].steps.filter(s => s.type === 'job');
-          const order = jobSteps.map(s => stops[s.job].id);
+        // Use Google Directions API with waypoint optimization
+        const origin = `${sLat},${sLng}`;
+        const destination = origin; // Return to start
+        const waypoints = stops.map(s => `${s.lat},${s.lng}`).join('|');
+        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&waypoints=optimize:true|${waypoints}&key=${GMAPS_KEY}`;
+        const gRes = await fetch(url);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.routes && gData.routes.length > 0) {
+          const optimizedOrder = gData.routes[0].waypoint_order; // Array of original indices in optimized order
+          const order = optimizedOrder.map(i => stops[i].id);
           for (let i = 0; i < order.length; i++) {
             await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, order[i]]);
           }
-          const totalDist = orsData.routes[0].distance || 0;
-          const totalDur = orsData.routes[0].duration || 0;
+          const legs = gData.routes[0].legs;
+          const totalDist = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0);
+          const totalDur = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0);
           return res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })), stats: { totalDistance: (totalDist / 1609.34).toFixed(1) + ' miles', totalDriveTime: Math.round(totalDur / 60) + ' minutes' } });
         }
-      } catch (e) { console.error('ORS dispatch optimize failed, using fallback:', e.message); }
+      } catch (e) { console.error('Google Directions optimize failed, using fallback:', e.message); }
     }
 
     // Fallback: nearest-neighbor TSP
@@ -7420,6 +7770,63 @@ app.post('/api/dispatch/optimize-route', async (req, res) => {
     }
     res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })) });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/dispatch/apply-future-weeks - Apply route order to future recurring visits
+app.post('/api/dispatch/apply-future-weeks', async (req, res) => {
+  try {
+    const { date, crew_name, frequency } = req.body;
+    if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
+
+    const sourceJobs = await pool.query(
+      `SELECT id, route_order, parent_job_id, is_recurring, customer_id, service_type, address
+       FROM scheduled_jobs
+       WHERE job_date::date = $1::date AND crew_assigned = $2 AND route_order IS NOT NULL
+       ORDER BY route_order ASC`,
+      [date, crew_name]
+    );
+
+    if (sourceJobs.rows.length === 0) {
+      return res.json({ success: false, error: 'No ordered jobs found for this date and crew. Save the route order for today first.' });
+    }
+
+    const sourceDate = new Date(date + 'T00:00:00');
+    const sourceDayOfWeek = sourceDate.getDay();
+    let totalUpdated = 0;
+
+    for (const job of sourceJobs.rows) {
+      const seriesRootId = job.parent_job_id || (job.is_recurring ? job.id : null);
+      if (!seriesRootId) continue;
+
+      const futureJobs = await pool.query(
+        `SELECT id, job_date FROM scheduled_jobs
+         WHERE (parent_job_id = $1 OR (id = $1 AND is_recurring = true))
+           AND crew_assigned = $2
+           AND job_date::date > $3::date
+           AND EXTRACT(DOW FROM job_date::date) = $4
+         ORDER BY job_date ASC`,
+        [seriesRootId, crew_name, date, sourceDayOfWeek]
+      );
+
+      for (const futureJob of futureJobs.rows) {
+        if (frequency === 'biweekly') {
+          const futureDate = new Date(futureJob.job_date);
+          const weeksDiff = Math.round((futureDate - sourceDate) / (7 * 24 * 60 * 60 * 1000));
+          if (weeksDiff % 2 !== 0) continue;
+        }
+        await pool.query(
+          'UPDATE scheduled_jobs SET route_order = $1, updated_at = NOW() WHERE id = $2',
+          [job.route_order, futureJob.id]
+        );
+        totalUpdated++;
+      }
+    }
+
+    res.json({ success: true, updated: totalUpdated, message: `Applied route order to ${totalUpdated} future visits (${frequency})` });
+  } catch (err) {
+    console.error('Apply future weeks error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Haversine distance in miles
@@ -7785,29 +8192,49 @@ app.post('/api/invoices/:id/send', async (req, res) => {
     const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
 
     const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
-    const itemsHtml = items.map(i => `<tr><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;">${i.description}</td><td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;">$${parseFloat(i.amount).toFixed(2)}</td></tr>`).join('');
+    const itemsHtml = items.map(i => {
+      const name = i.name || i.description || 'Service';
+      const qty = i.quantity || i.qty || 1;
+      const rate = parseFloat(i.rate || i.unit_price || i.amount || 0);
+      const amount = parseFloat(i.amount || (qty * rate) || 0);
+      return `<tr>
+        <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;">
+          <div style="font-weight:600;color:#1e293b;">${name}</div>
+          ${qty > 1 ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">${qty} x $${rate.toFixed(2)}</div>` : ''}
+        </td>
+        <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#1e293b;white-space:nowrap;vertical-align:top;">$${amount.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+    const taxLabel = inv.tax_rate ? `Tax (${parseFloat(inv.tax_rate).toFixed(3)}%)` : 'Tax';
     const content = `
-      <h2 style="color:#2e403d;margin:0 0 16px;">Invoice ${inv.invoice_number}</h2>
-      <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
-      <p>Here's your invoice from <strong>Pappas & Co. Landscaping</strong>.</p>
-      <div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;">
-        <table style="width:100%;border-collapse:collapse;">
-          <thead><tr><th style="text-align:left;padding:8px 0;border-bottom:2px solid #2e403d;">Description</th><th style="text-align:right;padding:8px 0;border-bottom:2px solid #2e403d;">Amount</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        <div style="margin-top:16px;text-align:right;">
-          ${inv.tax_amount > 0 ? `<p style="margin:4px 0;color:#666;">Subtotal: $${parseFloat(inv.subtotal).toFixed(2)}</p><p style="margin:4px 0;color:#666;">Tax: $${parseFloat(inv.tax_amount).toFixed(2)}</p>` : ''}
-          <p style="margin:8px 0 0;font-size:20px;font-weight:700;color:#2e403d;">Total: $${parseFloat(inv.total).toFixed(2)}</p>
-          ${inv.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due by ${new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</p>` : ''}
-        </div>
-      </div>
-      <div style="text-align:center;margin:28px 0;">
-        <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
-          Pay Now — $${parseFloat(inv.total).toFixed(2)}
+      <h2 style="font-family:'DM Sans',Georgia,serif;color:#2e403d;margin:0 0 8px;font-size:24px;">Invoice ${inv.invoice_number}</h2>
+      <p style="color:#64748b;margin:0 0 24px;font-size:14px;">Hi ${(inv.customer_name || '').split(' ')[0]}, here's your invoice from <strong style="color:#1e293b;">Pappas & Co. Landscaping</strong>.</p>
+
+      <table style="width:100%;border-collapse:collapse;margin:0 0 4px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Service</th>
+            <th style="text-align:right;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;margin:0 0 24px;">
+        ${inv.tax_amount > 0 ? `
+          <tr><td style="padding:6px 0;text-align:right;color:#64748b;font-size:14px;">Subtotal:</td><td style="padding:6px 0 6px 16px;text-align:right;width:100px;font-size:14px;color:#1e293b;">$${parseFloat(inv.subtotal).toFixed(2)}</td></tr>
+          <tr><td style="padding:6px 0;text-align:right;color:#64748b;font-size:14px;">${taxLabel}:</td><td style="padding:6px 0 6px 16px;text-align:right;width:100px;font-size:14px;color:#1e293b;">$${parseFloat(inv.tax_amount).toFixed(2)}</td></tr>
+        ` : ''}
+        <tr><td style="padding:12px 0 4px;text-align:right;font-size:18px;font-weight:700;color:#2e403d;">Total:</td><td style="padding:12px 0 4px 16px;text-align:right;width:100px;font-size:18px;font-weight:700;color:#2e403d;">$${parseFloat(inv.total).toFixed(2)}</td></tr>
+        ${inv.due_date ? `<tr><td colspan="2" style="text-align:right;font-size:12px;color:#94a3b8;padding-top:2px;">Due by ${new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</td></tr>` : ''}
+      </table>
+
+      <div style="text-align:center;margin:28px 0 16px;">
+        <a href="${payUrl}" style="display:inline-block;padding:16px 48px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
+          Pay Now &mdash; $${parseFloat(inv.total).toFixed(2)}
         </a>
       </div>
-      <p style="text-align:center;font-size:12px;color:#9ca09c;">Secure payment powered by Square</p>
-      <p>If you have any questions, feel free to reply to this email or call us.</p>
+      <p style="text-align:center;font-size:12px;color:#94a3b8;margin:0 0 20px;">Secure payment powered by Square</p>
     `;
 
     let attachments = null;
@@ -7850,6 +8277,8 @@ app.post('/api/invoices/:id/mark-paid', async (req, res) => {
 app.delete('/api/invoices/:id', async (req, res) => {
   try {
     await ensureInvoicesTable();
+    // Delete related payments first to avoid foreign key constraint
+    try { await pool.query('DELETE FROM payments WHERE invoice_id = $1', [req.params.id]); } catch(e) { /* */ }
     const r = await pool.query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true });
@@ -7919,6 +8348,14 @@ app.get('/api/pay/:token', async (req, res) => {
       inv.payment_history = payments.rows;
     } catch(e) { inv.payment_history = []; }
 
+    // Get processing fee config
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        inv.processing_fee_config = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+      }
+    } catch(e) { /* no fee config */ }
+
     res.json({ success: true, invoice: inv });
   } catch (error) {
     console.error('Pay token error:', error);
@@ -7941,7 +8378,22 @@ app.post('/api/pay/:token/card', async (req, res) => {
     const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
     if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
 
-    const amountCents = Math.round(balance * 100);
+    // Check processing fee config
+    let processingFee = 0;
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        const feeConfig = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+        if (feeConfig.enabled) {
+          const pct = parseFloat(feeConfig.card_fee_percent) || 2.9;
+          const fixed = parseFloat(feeConfig.card_fee_fixed) || 0.30;
+          processingFee = Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+        }
+      }
+    } catch(e) { /* no fee */ }
+
+    const totalCharge = balance + processingFee;
+    const amountCents = Math.round(totalCharge * 100);
     const idempotencyKey = crypto.randomUUID();
     const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
 
@@ -7951,7 +8403,7 @@ app.post('/api/pay/:token/card', async (req, res) => {
       amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
       locationId: SQUARE_LOCATION_ID,
       referenceId: inv.invoice_number,
-      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}`,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}${processingFee > 0 ? ' (includes service fee)' : ''}`,
     };
     if (verificationToken) paymentRequest.verificationToken = verificationToken;
 
@@ -7962,11 +8414,11 @@ app.post('/api/pay/:token/card', async (req, res) => {
     const method = sqPayment.sourceType === 'WALLET' ? 'apple_pay' : 'card';
     const cardDetails = sqPayment.cardDetails;
 
-    // Record payment
+    // Record payment (amount = balance only, processing_fee tracked separately)
     await pool.query(
       `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, card_brand, card_last4, paid_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)`,
-      [paymentId, inv.id, inv.customer_id, balance, method, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+      [paymentId, inv.id, inv.customer_id, totalCharge, method, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
        sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl,
        cardDetails?.card?.cardBrand, cardDetails?.card?.last4]
     );
@@ -7974,12 +8426,20 @@ app.post('/api/pay/:token/card', async (req, res) => {
     // Update invoice
     const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
     const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
-    await pool.query(
-      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
-      [newAmountPaid, newStatus, inv.id]
-    );
+    if (processingFee > 0) {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id, processingFee]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id]
+      );
+    }
 
     // Send confirmation emails
+    const feeNote = processingFee > 0 ? `<p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Credit Card Service Fee:</strong> $${processingFee.toFixed(2)}</p>` : '';
     try {
       // Customer confirmation
       if (inv.customer_email) {
@@ -7988,7 +8448,9 @@ app.post('/api/pay/:token/card', async (req, res) => {
           <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
           <p>We've received your payment. Thank you!</p>
           <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:20px 0;">
-            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Amount paid:</strong> $${balance.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice amount:</strong> $${balance.toFixed(2)}</p>
+            ${feeNote}
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Total charged:</strong> $${totalCharge.toFixed(2)}</p>
             <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
             <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Method:</strong> ${method === 'apple_pay' ? 'Apple Pay' : 'Card'} ${cardDetails?.card?.last4 ? '•••• ' + cardDetails.card.last4 : ''}</p>
             ${sqPayment.receiptUrl ? `<p style="margin:0;"><a href="${sqPayment.receiptUrl}" style="color:#059669;font-weight:600;">View Receipt</a></p>` : ''}
@@ -7999,19 +8461,22 @@ app.post('/api/pay/:token/card', async (req, res) => {
       // Admin notification
       const adminContent = `
         <h2 style="color:#2e403d;margin:0 0 16px;">Payment Received</h2>
-        <p><strong>${inv.customer_name}</strong> paid <strong>$${balance.toFixed(2)}</strong> on invoice <strong>${inv.invoice_number}</strong>.</p>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${totalCharge.toFixed(2)}</strong> on invoice <strong>${inv.invoice_number}</strong>.</p>
+        ${processingFee > 0 ? `<p>Credit Card Service Fee passed to customer: $${processingFee.toFixed(2)} (Invoice balance: $${balance.toFixed(2)})</p>` : ''}
         <p>Method: ${method === 'apple_pay' ? 'Apple Pay' : 'Card'} ${cardDetails?.card?.last4 ? '•••• ' + cardDetails.card.last4 : ''}</p>
         <p>Square ID: ${sqPayment.id}</p>
         ${sqPayment.receiptUrl ? `<p><a href="${sqPayment.receiptUrl}">View Receipt</a></p>` : ''}
       `;
-      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${balance.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }), null, { type: 'admin_notification', customer_name: inv.customer_name });
+      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${totalCharge.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }), null, { type: 'admin_notification', customer_name: inv.customer_name });
     } catch (emailErr) { console.error('Payment email error:', emailErr); }
 
     res.json({
       success: true,
       payment: {
         id: paymentId,
-        amount: balance,
+        amount: totalCharge,
+        invoiceAmount: balance,
+        processingFee,
         status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
         receiptUrl: sqPayment.receiptUrl,
         cardBrand: cardDetails?.card?.cardBrand,
@@ -8040,7 +8505,22 @@ app.post('/api/pay/:token/ach', async (req, res) => {
     const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
     if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
 
-    const amountCents = Math.round(balance * 100);
+    // Check processing fee config for ACH
+    let processingFee = 0;
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        const feeConfig = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+        if (feeConfig.enabled) {
+          const pct = parseFloat(feeConfig.ach_fee_percent) || 1.0;
+          const fixed = parseFloat(feeConfig.ach_fee_fixed) || 0;
+          processingFee = Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+        }
+      }
+    } catch(e) { /* no fee */ }
+
+    const totalCharge = balance + processingFee;
+    const amountCents = Math.round(totalCharge * 100);
     const idempotencyKey = crypto.randomUUID();
     const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
 
@@ -8050,7 +8530,7 @@ app.post('/api/pay/:token/ach', async (req, res) => {
       amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
       locationId: SQUARE_LOCATION_ID,
       referenceId: inv.invoice_number,
-      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}`,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}${processingFee > 0 ? ' (includes service fee)' : ''}`,
       acceptPartialAuthorization: false,
     });
     const sqPayment = response.result.payment;
@@ -8060,19 +8540,27 @@ app.post('/api/pay/:token/ach', async (req, res) => {
     await pool.query(
       `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, ach_bank_name, paid_at)
        VALUES ($1, $2, $3, $4, 'ach', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)`,
-      [paymentId, inv.id, inv.customer_id, balance, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+      [paymentId, inv.id, inv.customer_id, totalCharge, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
        sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl, bankDetails?.bankName]
     );
 
     // Update invoice
     const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
     const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
-    await pool.query(
-      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
-      [newAmountPaid, newStatus, inv.id]
-    );
+    if (processingFee > 0) {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id, processingFee]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id]
+      );
+    }
 
     // Send emails
+    const feeNote = processingFee > 0 ? `<p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>ACH Service Fee:</strong> $${processingFee.toFixed(2)}</p>` : '';
     try {
       if (inv.customer_email) {
         const custContent = `
@@ -8080,16 +8568,19 @@ app.post('/api/pay/:token/ach', async (req, res) => {
           <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
           <p>We've received your ACH bank transfer. It may take 3-5 business days to clear.</p>
           <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:20px;margin:20px 0;">
-            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Amount:</strong> $${balance.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Invoice amount:</strong> $${balance.toFixed(2)}</p>
+            ${feeNote}
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Total charged:</strong> $${totalCharge.toFixed(2)}</p>
             <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
             <p style="margin:0;font-size:14px;color:#5b21b6;"><strong>Method:</strong> ACH Bank Transfer${bankDetails?.bankName ? ' (' + bankDetails.bankName + ')' : ''}</p>
           </div>
         `;
         await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }));
       }
-      await sendEmail(NOTIFICATION_EMAIL, `ACH Payment: $${balance.toFixed(2)} from ${inv.customer_name}`, emailTemplate(`
+      await sendEmail(NOTIFICATION_EMAIL, `ACH Payment: $${totalCharge.toFixed(2)} from ${inv.customer_name}`, emailTemplate(`
         <h2 style="color:#2e403d;margin:0 0 16px;">ACH Payment Received</h2>
-        <p><strong>${inv.customer_name}</strong> paid <strong>$${balance.toFixed(2)}</strong> via ACH on invoice <strong>${inv.invoice_number}</strong>.</p>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${totalCharge.toFixed(2)}</strong> via ACH on invoice <strong>${inv.invoice_number}</strong>.</p>
+        ${processingFee > 0 ? `<p>ACH Service Fee passed to customer: $${processingFee.toFixed(2)} (Invoice balance: $${balance.toFixed(2)})</p>` : ''}
         <p>Status: ${sqPayment.status} (ACH payments may take 3-5 days to clear)</p>
         <p>Square ID: ${sqPayment.id}</p>
       `, { showSignature: false }));
@@ -8099,7 +8590,9 @@ app.post('/api/pay/:token/ach', async (req, res) => {
       success: true,
       payment: {
         id: paymentId,
-        amount: balance,
+        amount: totalCharge,
+        invoiceAmount: balance,
+        processingFee,
         status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
         receiptUrl: sqPayment.receiptUrl,
         bankName: bankDetails?.bankName,
@@ -8400,6 +8893,48 @@ app.post('/api/portal/:token/cards/save', async (req, res) => {
     res.json({ success: true, card: { id: card.id, brand: card.cardBrand, last4: card.last4, expMonth: card.expMonth, expYear: card.expYear } });
   } catch (error) {
     console.error('Save card error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/customers/:id/card-on-file - Save card during contract signing
+app.post('/api/customers/:id/card-on-file', async (req, res) => {
+  try {
+    const { source_id } = req.body;
+    if (!source_id) return res.status(400).json({ success: false, error: 'source_id required' });
+    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
+
+    const customerId = req.params.id;
+    const custResult = await pool.query('SELECT square_customer_id, name, email FROM customers WHERE id = $1', [customerId]);
+    if (!custResult.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const cust = custResult.rows[0];
+
+    // Ensure Square customer exists
+    let squareCustomerId = cust.square_customer_id;
+    if (!squareCustomerId) {
+      const { result: sqResult } = await squareClient.customersApi.createCustomer({
+        givenName: (cust.name || '').split(' ')[0],
+        familyName: (cust.name || '').split(' ').slice(1).join(' '),
+        emailAddress: cust.email
+      });
+      squareCustomerId = sqResult.customer.id;
+      await pool.query('UPDATE customers SET square_customer_id = $1 WHERE id = $2', [squareCustomerId, customerId]);
+    }
+
+    // Create card-on-file
+    const { result: cardResult } = await squareClient.cardsApi.createCard({
+      idempotencyKey: crypto.randomUUID(),
+      sourceId: source_id,
+      card: { customerId: squareCustomerId, cardholderName: cust.name }
+    });
+    const card = cardResult.card;
+    await pool.query(
+      `INSERT INTO customer_saved_cards (customer_id, square_card_id, card_brand, last4, exp_month, exp_year, cardholder_name) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [customerId, card.id, card.cardBrand, card.last4, card.expMonth, card.expYear, cust.name]
+    );
+    res.json({ success: true, card: { brand: card.cardBrand, last4: card.last4 } });
+  } catch (error) {
+    console.error('Card-on-file save error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -8764,6 +9299,106 @@ app.get('/api/reports/customer-acquisition', async (req, res) => {
   }
 });
 
+// GET /api/reports/sales-tax - Sales tax report (billed, collected, outstanding)
+app.get('/api/reports/sales-tax', async (req, res) => {
+  try {
+    const { start_date, end_date, type = 'billed' } = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+    if (!['billed', 'collected', 'outstanding'].includes(type)) {
+      return res.status(400).json({ success: false, error: 'type must be one of: billed, collected, outstanding' });
+    }
+
+    let query;
+    if (type === 'billed') {
+      query = `
+        SELECT
+          COALESCE(tax_rate, 0) as tax_rate,
+          SUM(subtotal) as total_sales,
+          SUM(CASE WHEN COALESCE(tax_rate, 0) > 0 THEN subtotal ELSE 0 END) as taxable_amount,
+          0 as discount,
+          SUM(COALESCE(tax_amount, 0)) as tax_amount
+        FROM invoices
+        WHERE status IN ('sent', 'paid')
+          AND sent_at >= $1 AND sent_at <= $2
+        GROUP BY COALESCE(tax_rate, 0)
+        ORDER BY tax_rate
+      `;
+    } else if (type === 'collected') {
+      query = `
+        SELECT
+          COALESCE(tax_rate, 0) as tax_rate,
+          SUM(subtotal) as total_sales,
+          SUM(CASE WHEN COALESCE(tax_rate, 0) > 0 THEN subtotal ELSE 0 END) as taxable_amount,
+          0 as discount,
+          SUM(COALESCE(tax_amount, 0)) as tax_amount
+        FROM invoices
+        WHERE status = 'paid'
+          AND paid_at >= $1 AND paid_at <= $2
+        GROUP BY COALESCE(tax_rate, 0)
+        ORDER BY tax_rate
+      `;
+    } else {
+      // outstanding
+      query = `
+        SELECT
+          COALESCE(tax_rate, 0) as tax_rate,
+          SUM(total - COALESCE(amount_paid, 0)) as total_sales,
+          SUM(CASE WHEN COALESCE(tax_rate, 0) > 0 THEN (total - COALESCE(amount_paid, 0)) ELSE 0 END) as taxable_amount,
+          0 as discount,
+          SUM(COALESCE(tax_amount, 0)) as tax_amount
+        FROM invoices
+        WHERE status = 'sent'
+          AND sent_at >= $1 AND sent_at <= $2
+        GROUP BY COALESCE(tax_rate, 0)
+        ORDER BY tax_rate
+      `;
+    }
+
+    const result = await pool.query(query, [start_date, end_date]);
+    const rows = result.rows.map(r => ({
+      tax_rate: parseFloat(r.tax_rate) || 0,
+      total_sales: parseFloat(r.total_sales) || 0,
+      taxable_amount: parseFloat(r.taxable_amount) || 0,
+      discount: parseFloat(r.discount) || 0,
+      tax_amount: parseFloat(r.tax_amount) || 0
+    }));
+
+    const summary = {
+      total_sales: rows.reduce((sum, r) => sum + r.total_sales, 0),
+      taxable_amount: rows.reduce((sum, r) => sum + r.taxable_amount, 0),
+      discount: rows.reduce((sum, r) => sum + r.discount, 0),
+      tax_amount: rows.reduce((sum, r) => sum + r.tax_amount, 0)
+    };
+
+    // Processing fees from payments table
+    const feesResult = await pool.query(`
+      SELECT COALESCE(SUM(CASE WHEN method = 'square' THEN amount * 0.029 + 0.30 ELSE 0 END), 0) as processing_fees
+      FROM payments
+      WHERE status = 'succeeded' AND paid_at >= $1 AND paid_at <= $2
+    `, [start_date, end_date]);
+
+    const not_taxable = {
+      processing_fees: parseFloat(feesResult.rows[0].processing_fees) || 0,
+      tips: 0
+    };
+
+    res.json({
+      success: true,
+      type,
+      start_date,
+      end_date,
+      rows,
+      summary,
+      not_taxable
+    });
+  } catch (error) {
+    console.error('Sales tax report error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════
 // QUICKBOOKS INTEGRATION (One-Way Sync: QB → Pappas)
 // ═══════════════════════════════════════════════════════════
@@ -8879,13 +9514,16 @@ app.get('/api/quickbooks/auth', (req, res) => {
   if (!process.env.QB_CLIENT_ID) {
     return res.status(400).json({ success: false, error: 'QuickBooks credentials not configured. Set QB_CLIENT_ID and QB_CLIENT_SECRET.' });
   }
+  // Encode the origin so the callback knows where to redirect back to
+  const origin = req.query.origin || (req.protocol + '://' + req.get('host'));
   const oauthClient = createOAuthClient();
   const authUri = oauthClient.authorizeUri({
     scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
-    state: 'pappas-qb-connect'
+    state: 'origin:' + origin
   });
   console.log('🔑 QB Auth - redirect_uri:', process.env.QB_REDIRECT_URI);
   console.log('🔑 QB Auth - environment:', process.env.QB_ENVIRONMENT);
+  console.log('🔑 QB Auth - origin:', origin);
   res.redirect(authUri);
 });
 
@@ -8893,7 +9531,10 @@ app.get('/api/quickbooks/auth', (req, res) => {
 app.get('/api/quickbooks/callback', async (req, res) => {
   try {
     const oauthClient = createOAuthClient();
-    const authResponse = await oauthClient.createToken(req.url);
+    // Build the full callback URL using the registered redirect URI for token exchange
+    const redirectUri = process.env.QB_REDIRECT_URI || (req.protocol + '://' + req.get('host') + '/api/quickbooks/callback');
+    const callbackUrl = redirectUri + '?' + new URL(req.protocol + '://' + req.get('host') + req.originalUrl).searchParams.toString();
+    const authResponse = await oauthClient.createToken(callbackUrl);
     const token = authResponse.getJson();
     const realmId = req.query.realmId;
     const expiresAt = new Date(Date.now() + (token.expires_in || 3600) * 1000);
@@ -8906,7 +9547,16 @@ app.get('/api/quickbooks/callback', async (req, res) => {
     );
 
     console.log('✅ QuickBooks connected. Realm ID:', realmId);
-    res.redirect('/settings.html?qb=connected');
+
+    // Redirect back to the origin (localhost in dev, production URL in prod)
+    const state = req.query.state || '';
+    const originMatch = state.match(/^origin:(.+)$/);
+    const returnTo = originMatch ? originMatch[1] : '';
+    if (returnTo && returnTo.startsWith('http://localhost')) {
+      res.redirect(returnTo + '/settings.html?qb=connected');
+    } else {
+      res.redirect('/settings.html?qb=connected');
+    }
   } catch (e) {
     console.error('QB callback error:', e);
     res.redirect('/settings.html?qb=error&msg=' + encodeURIComponent(e.message));
@@ -9387,22 +10037,24 @@ const DEFAULT_TEMPLATES = [
   { name: 'Follow-up Stage 3', slug: 'followup_stage_3', category: 'followups', subject: 'Last chance — lawn care quote', body: '<h2 style="color:#2e403d">Last Chance</h2><p>Hi {customer_first_name},</p><p>This is our final follow-up on quote #{quote_number}. If you\'re still interested, we\'d love to work with you!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">View Quote</a></p>', sms_body: 'Last call, {customer_first_name}! Your Pappas & Co. quote #{quote_number} expires soon. Questions? Call us at (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_link"]' },
   { name: 'Follow-up Stage 4', slug: 'followup_stage_4', category: 'followups', subject: 'We\'d love your feedback — Pappas & Co.', body: '<h2 style="color:#2e403d">We Value Your Feedback</h2><p>Hi {customer_first_name},</p><p>We noticed you haven\'t accepted quote #{quote_number}. Was there something we could improve? Your feedback helps us serve our community better.</p>', sms_body: '', variables: '["customer_first_name","quote_number"]' },
   { name: 'Invoice Sent', slug: 'invoice_sent', category: 'invoices', subject: 'Invoice {invoice_number} from Pappas & Co.', body: '<h2 style="color:#2e403d">Invoice {invoice_number}</h2><p>Hi {customer_first_name},</p><p>Here\'s your invoice from Pappas & Co. Landscaping.</p><div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;text-align:center;"><p style="font-size:24px;font-weight:700;color:#2e403d;margin:0;">${invoice_total}</p><p style="color:#666;margin:4px 0;">Due: {invoice_due_date}</p></div><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now</a></p>', sms_body: 'Hi {customer_first_name}, invoice {invoice_number} for ${invoice_total} from Pappas & Co. is ready. Pay here: {payment_link}', variables: '["customer_first_name","invoice_number","invoice_total","invoice_due_date","payment_link","balance_due"]' },
-  { name: 'Payment Confirmation — Customer', slug: 'payment_confirmation_customer', category: 'payments', subject: 'Payment received — Thank you!', body: '<h2 style="color:#059669">Payment Received!</h2><p>Hi {customer_first_name},</p><p>We\'ve received your payment of <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p><p>Thank you for your business!</p>', sms_body: 'Thanks {customer_first_name}! We received your ${amount_paid} payment for invoice {invoice_number}. - Pappas & Co.', variables: '["customer_first_name","invoice_number","amount_paid"]' },
-  { name: 'Payment Confirmation — Admin', slug: 'payment_confirmation_admin', category: 'payments', subject: 'Payment received: {invoice_number}', body: '<h2 style="color:#059669">Payment Received</h2><p><strong>{customer_name}</strong> paid <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p>', sms_body: '', variables: '["customer_name","invoice_number","amount_paid"]' },
+  { name: 'Payment Confirmation — Customer', slug: 'payment_confirmation_customer', category: 'payments', subject: 'Payment received — Thank you!', body: '<h2 style="color:#2e403d">Payment Received!</h2><p>Hi {customer_first_name},</p><p>We\'ve received your payment of <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p><p>Thank you for your business!</p>', sms_body: 'Thanks {customer_first_name}! We received your ${amount_paid} payment for invoice {invoice_number}. - Pappas & Co.', variables: '["customer_first_name","invoice_number","amount_paid"]' },
+  { name: 'Payment Confirmation — Admin', slug: 'payment_confirmation_admin', category: 'payments', subject: 'Payment received: {invoice_number}', body: '<h2 style="color:#2e403d">Payment Received</h2><p><strong>{customer_name}</strong> paid <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p>', sms_body: '', variables: '["customer_name","invoice_number","amount_paid"]' },
   { name: 'Payment Reminder', slug: 'payment_reminder', category: 'invoices', subject: 'Reminder: Invoice {invoice_number} — ${balance_due} due', body: '<h2 style="color:#2e403d">Payment Reminder</h2><p>Hi {customer_first_name},</p><p>This is a friendly reminder that invoice <strong>{invoice_number}</strong> has a balance of <strong>${balance_due}</strong>{invoice_due_date}.</p><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now — ${balance_due}</a></p><p>If you\'ve already sent payment, please disregard this.</p>', sms_body: 'Reminder: Invoice {invoice_number} has ${balance_due} due. Pay online: {payment_link} - Pappas & Co.', variables: '["customer_first_name","invoice_number","balance_due","invoice_due_date","payment_link"]' },
   { name: 'Portal Magic Link', slug: 'portal_magic_link', category: 'portal', subject: 'Your Pappas & Co. Customer Portal', body: '<h2 style="color:#2e403d">Your Customer Portal Access</h2><p>Hi {customer_first_name},</p><p>Click below to access your Pappas & Co. customer portal.</p><p><a href="{portal_link}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">Access Your Portal</a></p><p style="font-size:13px;color:#9ca09c;">This link is valid for 30 days.</p>', sms_body: 'Access your Pappas & Co. portal: {portal_link}', variables: '["customer_first_name","portal_link"]' },
   { name: 'Late Fee Applied', slug: 'late_fee_applied', category: 'invoices', subject: 'Late Fee Applied — Invoice {invoice_number}', body: '<h2 style="color:#dc4a4a">Late Fee Applied</h2><p>Hi {customer_first_name},</p><p>A late fee has been applied to invoice <strong>{invoice_number}</strong>, which is past due.</p><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now</a></p>', sms_body: 'A late fee has been applied to your Pappas & Co. invoice {invoice_number}. Pay now: {payment_link}', variables: '["customer_first_name","invoice_number","balance_due","payment_link"]' },
   { name: 'Monthly Invoice', slug: 'monthly_invoice', category: 'invoices', subject: 'Monthly Invoice {invoice_number} — ${invoice_total}', body: '<h2 style="color:#2e403d">Monthly Invoice {invoice_number}</h2><p>Hi {customer_first_name},</p><p>Your monthly lawn care invoice is ready.</p><div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;text-align:center;"><p style="font-size:28px;font-weight:700;color:#2e403d;margin:0;">${invoice_total}</p><p style="color:#666;margin:4px 0;">Monthly Lawn Care Plan</p></div><p><a href="{payment_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Pay Now</a></p>', sms_body: 'Your monthly Pappas & Co. invoice {invoice_number} for ${invoice_total} is ready. Pay: {payment_link}', variables: '["customer_first_name","invoice_number","invoice_total","payment_link"]' },
   { name: 'Service Request Received', slug: 'service_request_received', category: 'portal', subject: 'Service Request Received — {service_type}', body: '<h2 style="color:#2e403d">Service Request Received</h2><p>Hi {customer_first_name},</p><p>We\'ve received your service request and will review it shortly.</p><p><strong>Service:</strong> {service_type}</p><p>We\'ll be in touch soon!</p>', sms_body: 'We received your service request, {customer_first_name}! We\'ll review and get back to you soon. - Pappas & Co.', variables: '["customer_first_name","service_type"]' },
-  { name: 'Quote Accepted — Admin', slug: 'quote_accepted_admin', category: 'quotes', subject: 'Quote #{quote_number} Accepted!', body: '<h2 style="color:#059669">Quote Accepted!</h2><p><strong>{customer_name}</strong> accepted quote <strong>#{quote_number}</strong> for <strong>${quote_total}</strong>.</p>', sms_body: '{customer_name} accepted quote #{quote_number} (${quote_total})!', variables: '["customer_name","quote_number","quote_total"]' },
+  { name: 'Quote Accepted — Admin', slug: 'quote_accepted_admin', category: 'quotes', subject: 'Quote #{quote_number} Accepted!', body: '<h2 style="color:#2e403d">Quote Accepted!</h2><p><strong>{customer_name}</strong> accepted quote <strong>#{quote_number}</strong> for <strong>${quote_total}</strong>.</p>', sms_body: '{customer_name} accepted quote #{quote_number} (${quote_total})!', variables: '["customer_name","quote_number","quote_total"]' },
   { name: 'Quote Declined — Admin', slug: 'quote_declined_admin', category: 'quotes', subject: 'Quote #{quote_number} Declined', body: '<h2 style="color:#dc4a4a">Quote Declined</h2><p><strong>{customer_name}</strong> declined quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number"]' },
-  { name: 'Contract Signed', slug: 'contract_signed', category: 'quotes', subject: 'Contract Signed — {customer_name}', body: '<h2 style="color:#059669">Contract Signed!</h2><p><strong>{customer_name}</strong> has signed the service agreement for quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number","quote_total"]' },
-  { name: 'Job Completed', slug: 'job_completed', category: 'system', subject: 'Service Completed — {service_type}', body: '<h2 style="color:#059669">Service Completed</h2><p>Hi {customer_first_name},</p><p>Your <strong>{service_type}</strong> service at <strong>{address}</strong> has been completed by {crew_name}.</p><p>Thank you for choosing Pappas & Co.!</p>', sms_body: 'Your {service_type} service has been completed! Thanks for choosing Pappas & Co. - (440) 886-7318', variables: '["customer_first_name","service_type","address","crew_name","job_date"]' },
+  { name: 'Contract Signed', slug: 'contract_signed', category: 'quotes', subject: 'Contract Signed — {customer_name}', body: '<h2 style="color:#2e403d">Contract Signed!</h2><p><strong>{customer_name}</strong> has signed the service agreement for quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number","quote_total"]' },
+  { name: 'Job Completed', slug: 'job_completed', category: 'system', subject: 'Service Completed — {service_type}', body: '<h2 style="color:#2e403d">Service Completed</h2><p>Hi {customer_first_name},</p><p>Your <strong>{service_type}</strong> service at <strong>{address}</strong> has been completed by {crew_name}.</p><p>Thank you for choosing Pappas & Co.!</p>', sms_body: 'Your {service_type} service has been completed! Thanks for choosing Pappas & Co. - (440) 886-7318', variables: '["customer_first_name","service_type","address","crew_name","job_date"]' },
   { name: 'Welcome Email', slug: 'welcome_email', category: 'marketing', subject: 'Welcome to Pappas & Co. Landscaping!', body: '<h2 style="color:#2e403d">Welcome to the Family!</h2><p>Hi {customer_first_name},</p><p>Thank you for choosing Pappas & Co. Landscaping! We\'re excited to help you keep your property looking beautiful.</p><p>If you ever need anything, just reply to this email or call us at (440) 886-7318.</p>', sms_body: 'Welcome to Pappas & Co., {customer_first_name}! We\'re excited to serve you. Questions? Call (440) 886-7318.', variables: '["customer_first_name","customer_name"]' },
   { name: 'Seasonal Promo', slug: 'seasonal_promo', category: 'marketing', subject: 'Spring Special — Save on Lawn Care!', body: '<h2 style="color:#2e403d">Spring Special!</h2><p>Hi {customer_first_name},</p><p>Spring is here! Book your spring cleanup and get 10% off. Contact us today.</p>', sms_body: 'Spring special from Pappas & Co.! Book a spring cleanup and save 10%. Call (440) 886-7318 to schedule.', variables: '["customer_first_name","customer_name"]' },
   { name: 'Review Request', slug: 'review_request', category: 'marketing', subject: 'How did we do? — Pappas & Co.', body: '<h2 style="color:#2e403d">How Did We Do?</h2><p>Hi {customer_first_name},</p><p>We hope you\'re happy with your recent service! If so, we\'d love a Google review. It helps us grow and serve more neighbors like you.</p>', sms_body: 'Hi {customer_first_name}! Enjoy your recent service from Pappas & Co.? We\'d love a Google review! It really helps us out.', variables: '["customer_first_name"]' },
   { name: 'Appointment Reminder', slug: 'appointment_reminder', category: 'system', subject: 'Service Tomorrow — {service_type}', body: '<h2 style="color:#2e403d">Service Reminder</h2><p>Hi {customer_first_name},</p><p>Just a reminder that your <strong>{service_type}</strong> service is scheduled for <strong>{job_date}</strong> at <strong>{address}</strong>.</p><p>Please ensure gates are unlocked and the area is accessible.</p>', sms_body: 'Reminder: Your {service_type} with Pappas & Co. is tomorrow at {address}. Please unlock gates! Questions? (440) 886-7318', variables: '["customer_first_name","service_type","job_date","address"]' },
   { name: 'Campaign Email', slug: 'campaign_email', category: 'marketing', subject: '{subject}', body: '<p>{body}</p>', sms_body: '{body}', variables: '["customer_first_name","customer_name","subject","body","company_name","company_phone"]' },
+  { name: 'Contract Unsigned Reminder', slug: 'contract_unsigned_reminder', category: 'quotes', subject: 'One more step — sign your service agreement', body: '<h2 style="color:#2e403d">Almost There!</h2><p>Hi {customer_first_name},</p><p>Great news — you accepted your quote <strong>#{quote_number}</strong>! There\'s just one more step before we can get you on the schedule.</p><p>Please sign your service agreement so we can lock in your spot:</p><p><a href="{contract_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Sign Service Agreement</a></p><p style="color:#666;">It only takes about 30 seconds. If you have any questions, reply to this email or call us at (440) 886-7318.</p>', sms_body: 'Hi {customer_first_name}! You accepted your quote from Pappas & Co. but we still need your signature to get started. Sign here: {contract_link}', variables: '["customer_first_name","customer_name","quote_number","quote_total","contract_link"]' },
+  { name: 'Contract Unsigned — Final Reminder', slug: 'contract_unsigned_final', category: 'quotes', subject: 'Don\'t lose your spot — service agreement still needs your signature', body: '<h2 style="color:#2e403d">Your Spot is Waiting</h2><p>Hi {customer_first_name},</p><p>We still need your signed service agreement for quote <strong>#{quote_number}</strong> before we can schedule your service.</p><p>Our schedule fills up fast — please sign today so we don\'t have to give away your spot:</p><p><a href="{contract_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Sign Now — Takes 30 Seconds</a></p><p style="color:#666;">Questions? Call us at (440) 886-7318 or just reply to this email.</p>', sms_body: 'Hi {customer_first_name}, friendly reminder — we need your signed agreement before we can schedule your service. Sign here: {contract_link}', variables: '["customer_first_name","customer_name","quote_number","contract_link"]' },
 ];
 
 // Seed default templates
@@ -9505,20 +10157,40 @@ app.post('/api/templates/preview', async (req, res) => {
 
 app.post('/api/templates/send-preview', async (req, res) => {
   try {
-    const { template_id, slug } = req.body;
-    let template;
-    if (template_id) {
-      const r = await pool.query('SELECT * FROM email_templates WHERE id = $1', [template_id]);
-      template = r.rows[0];
-    } else if (slug) {
-      template = await getTemplate(slug);
-    }
-    if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
+    const { template_id, slug, subject: directSubject, html_content: directHtml, to } = req.body;
     const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
-    const subject = replaceTemplateVars(template.subject, sampleVars);
-    const body = replaceTemplateVars(template.body, sampleVars);
-    await sendEmail('hello@pappaslandscaping.com', `[TEST] ${subject}`, emailTemplate(body));
-    res.json({ success: true, message: 'Test email sent to hello@pappaslandscaping.com' });
+
+    let subject, body;
+
+    if (directSubject && directHtml) {
+      // Direct content from the new templates editor
+      subject = directSubject;
+      body = directHtml;
+    } else {
+      // Look up from database
+      let template;
+      if (template_id) {
+        // Try message_templates first (new table), then email_templates (legacy)
+        let r = await pool.query('SELECT * FROM message_templates WHERE id = $1', [template_id]).catch(() => ({ rows: [] }));
+        if (r.rows.length > 0) {
+          template = { subject: r.rows[0].subject, body: r.rows[0].html_content };
+        } else {
+          r = await pool.query('SELECT * FROM email_templates WHERE id = $1', [template_id]).catch(() => ({ rows: [] }));
+          template = r.rows[0];
+        }
+      } else if (slug) {
+        template = await getTemplate(slug);
+      }
+      if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
+      subject = template.subject;
+      body = template.body || template.html_content;
+    }
+
+    const finalSubject = replaceTemplateVars(subject, sampleVars);
+    const finalBody = replaceTemplateVars(body, sampleVars);
+    const recipient = to || 'hello@pappaslandscaping.com';
+    await sendEmail(recipient, `[TEST] ${finalSubject}`, emailTemplate(finalBody));
+    res.json({ success: true, message: 'Test email sent to ' + recipient });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
@@ -9632,38 +10304,299 @@ app.get('/api/t/:trackingId/click', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// ═══ BROADCAST ENDPOINTS ══════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/broadcasts/filter-options - Available filter values for broadcast audience builder
+app.get('/api/broadcasts/filter-options', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'No token' });
+  try {
+    jwt.verify(token, JWT_SECRET);
+  } catch (err) { return res.status(401).json({ success: false, error: 'Invalid token' }); }
+
+  try {
+    // Get all unique tags (comma-separated field, need to split and deduplicate)
+    const tagsResult = await pool.query(`SELECT DISTINCT tags FROM customers WHERE tags IS NOT NULL AND tags != ''`);
+    const tagSet = new Set();
+    for (const row of tagsResult.rows) {
+      (row.tags || '').split(',').forEach(t => { const trimmed = t.trim(); if (trimmed) tagSet.add(trimmed); });
+    }
+
+    const cities = await pool.query(`SELECT DISTINCT city FROM customers WHERE city IS NOT NULL AND city != '' ORDER BY city`);
+    const postalCodes = await pool.query(`SELECT DISTINCT postal_code FROM customers WHERE postal_code IS NOT NULL AND postal_code != '' ORDER BY postal_code`);
+    const statuses = await pool.query(`SELECT DISTINCT status FROM customers WHERE status IS NOT NULL AND status != '' ORDER BY status`);
+    const customerTypes = await pool.query(`SELECT DISTINCT customer_type FROM customers WHERE customer_type IS NOT NULL AND customer_type != '' ORDER BY customer_type`);
+
+    res.json({
+      success: true,
+      tags: Array.from(tagSet).sort(),
+      cities: cities.rows.map(r => r.city),
+      postal_codes: postalCodes.rows.map(r => r.postal_code),
+      statuses: statuses.rows.map(r => r.status),
+      customer_types: customerTypes.rows.map(r => r.customer_type)
+    });
+  } catch (error) {
+    console.error('Broadcast filter-options error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/broadcasts/preview - Preview audience with filters
+app.post('/api/broadcasts/preview', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'No token' });
+  try {
+    jwt.verify(token, JWT_SECRET);
+  } catch (err) { return res.status(401).json({ success: false, error: 'Invalid token' }); }
+
+  try {
+    const filters = req.body.filters || {};
+    const conditions = [];
+    const params = [];
+    let paramIdx = 1;
+
+    // Tags filter (comma-separated text field, match ANY of the provided tags)
+    if (filters.tags && filters.tags.length > 0) {
+      const tagConditions = filters.tags.map(tag => {
+        params.push(`%${tag}%`);
+        return `c.tags ILIKE $${paramIdx++}`;
+      });
+      conditions.push(`(${tagConditions.join(' OR ')})`);
+    }
+
+    // Postal codes
+    if (filters.postal_codes && filters.postal_codes.length > 0) {
+      params.push(filters.postal_codes);
+      conditions.push(`c.postal_code = ANY($${paramIdx++})`);
+    }
+
+    // Cities (case-insensitive)
+    if (filters.cities && filters.cities.length > 0) {
+      params.push(filters.cities.map(c => c.toLowerCase()));
+      conditions.push(`LOWER(c.city) = ANY($${paramIdx++})`);
+    }
+
+    // Status
+    if (filters.status) {
+      params.push(filters.status);
+      conditions.push(`c.status = $${paramIdx++}`);
+    }
+
+    // Customer type
+    if (filters.customer_type) {
+      params.push(filters.customer_type);
+      conditions.push(`c.customer_type = $${paramIdx++}`);
+    }
+
+    // Has email
+    if (filters.has_email) {
+      conditions.push(`c.email IS NOT NULL AND c.email != ''`);
+    }
+
+    // Has mobile
+    if (filters.has_mobile) {
+      conditions.push(`c.mobile IS NOT NULL AND c.mobile != ''`);
+    }
+
+    // Monthly plan
+    if (filters.monthly_plan) {
+      conditions.push(`c.monthly_plan_amount > 0`);
+    }
+
+    // Active since N months (had jobs in last N months)
+    if (filters.active_since_months) {
+      params.push(filters.active_since_months);
+      conditions.push(`c.id IN (SELECT DISTINCT customer_id FROM scheduled_jobs WHERE created_at >= NOW() - ($${paramIdx++} || ' months')::INTERVAL)`);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const query = `SELECT c.id, c.name, c.first_name, c.last_name, c.email, c.mobile, c.city, c.postal_code, c.tags FROM customers c ${whereClause} ORDER BY c.name`;
+    const result = await pool.query(query, params);
+
+    // Normalize names
+    const customers = result.rows.map(c => ({
+      id: c.id,
+      name: c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim() || 'Unknown',
+      email: c.email,
+      mobile: c.mobile,
+      city: c.city,
+      postal_code: c.postal_code,
+      tags: c.tags
+    }));
+
+    // Build summary stats
+    const summary = {
+      total: customers.length,
+      with_email: customers.filter(c => c.email && c.email.trim()).length,
+      with_mobile: customers.filter(c => c.mobile && c.mobile.trim()).length,
+      email_opted_in: customers.length, // default: assume opted in
+      sms_opted_in: 0
+    };
+
+    // Check communication prefs for opted-in counts
+    if (customers.length > 0) {
+      const custIds = customers.map(c => c.id);
+      const prefs = await pool.query('SELECT customer_id, email_marketing, sms_marketing FROM customer_communication_prefs WHERE customer_id = ANY($1)', [custIds]);
+      const prefsMap = {};
+      prefs.rows.forEach(p => { prefsMap[p.customer_id] = p; });
+      let emailOptIn = 0, smsOptIn = 0;
+      customers.forEach(c => {
+        const p = prefsMap[c.id];
+        if (!p || p.email_marketing !== false) emailOptIn++;
+        if (p && p.sms_marketing === true) smsOptIn++;
+      });
+      summary.email_opted_in = emailOptIn;
+      summary.sms_opted_in = smsOptIn;
+    }
+
+    res.json({ success: true, count: customers.length, customers, summary });
+  } catch (error) {
+    console.error('Broadcast preview error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/broadcasts/send - Send broadcast email and/or SMS
+app.post('/api/broadcasts/send', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'No token' });
+  try {
+    jwt.verify(token, JWT_SECRET);
+  } catch (err) { return res.status(401).json({ success: false, error: 'Invalid token' }); }
+
+  try {
+    const { channel, template_id, sms_body, customer_ids, campaign_id } = req.body;
+    if (!channel || !['email', 'sms', 'both'].includes(channel)) {
+      return res.status(400).json({ success: false, error: 'channel must be email, sms, or both' });
+    }
+    if (!customer_ids || customer_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'customer_ids required' });
+    }
+    if ((channel === 'email' || channel === 'both') && !template_id) {
+      return res.status(400).json({ success: false, error: 'template_id required for email' });
+    }
+    if ((channel === 'sms' || channel === 'both') && !sms_body) {
+      return res.status(400).json({ success: false, error: 'sms_body required for SMS' });
+    }
+
+    // Load template for email
+    let tmpl = null;
+    if (template_id) {
+      const templateResult = await pool.query('SELECT * FROM email_templates WHERE id = $1', [template_id]);
+      if (templateResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
+      tmpl = templateResult.rows[0];
+    }
+
+    // Load customers
+    const custResult = await pool.query('SELECT * FROM customers WHERE id = ANY($1)', [customer_ids]);
+
+    // Load communication preferences for all target customers
+    const prefsResult = await pool.query('SELECT * FROM customer_communication_prefs WHERE customer_id = ANY($1)', [customer_ids]);
+    const prefsMap = {};
+    for (const p of prefsResult.rows) { prefsMap[p.customer_id] = p; }
+
+    const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
+    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+
+    for (const cust of custResult.rows) {
+      const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
+      const vars = {
+        customer_name: custName,
+        customer_first_name: (custName).split(' ')[0],
+        customer_email: cust.email,
+        customer_phone: cust.phone || cust.mobile,
+        customer_address: [cust.street, cust.city, cust.state, cust.postal_code].filter(Boolean).join(', '),
+        company_name: 'Pappas & Co. Landscaping',
+        company_phone: '(440) 886-7318',
+        company_email: 'hello@pappaslandscaping.com',
+        company_website: 'pappaslandscaping.com',
+        portal_link: `${baseUrl}/customer-portal.html`
+      };
+
+      const prefs = prefsMap[cust.id];
+
+      // Send email
+      if (channel === 'email' || channel === 'both') {
+        // Check prefs: default allow email if no prefs row
+        const emailAllowed = prefs ? prefs.email_marketing !== false : true;
+        if (!emailAllowed || !cust.email) {
+          results.email_skipped++;
+        } else {
+          try {
+            const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+            const subject = replaceTemplateVars(tmpl.subject, vars);
+            let body = replaceTemplateVars(tmpl.body, vars);
+            body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
+            await sendEmail(cust.email, subject, emailTemplate(body));
+            // Track in campaign_sends if campaign_id provided
+            if (campaign_id) {
+              await pool.query(
+                'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
+                [campaign_id, template_id, cust.id, cust.email, 'sent', trackingId]
+              );
+            }
+            results.email_sent++;
+          } catch (e) {
+            console.error(`Broadcast email error for customer ${cust.id}:`, e.message);
+            results.email_errors++;
+          }
+        }
+      }
+
+      // Send SMS
+      if (channel === 'sms' || channel === 'both') {
+        // Check prefs: default DO NOT allow sms if no prefs row
+        const smsAllowed = prefs ? prefs.sms_marketing !== false : false;
+        if (!smsAllowed || !cust.mobile) {
+          results.sms_skipped++;
+        } else {
+          try {
+            const smsText = replaceTemplateVars(sms_body, vars);
+            let formattedTo = cust.mobile.replace(/\D/g, '');
+            if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
+            else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
+
+            const twilioMessage = await twilioClient.messages.create({
+              body: smsText,
+              from: TWILIO_PHONE_NUMBER,
+              to: formattedTo
+            });
+
+            // Log to messages table
+            await pool.query(`
+              INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+              VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
+            `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, smsText, twilioMessage.status, cust.id]);
+
+            results.sms_sent++;
+          } catch (e) {
+            console.error(`Broadcast SMS error for customer ${cust.id}:`, e.message);
+            results.sms_errors++;
+          }
+        }
+      }
+    }
+
+    // Update campaign stats if linked
+    if (campaign_id && results.email_sent > 0) {
+      await pool.query('UPDATE campaigns SET template_id = COALESCE(template_id, $1), send_count = COALESCE(send_count, 0) + $2 WHERE id = $3', [template_id, results.email_sent, campaign_id]);
+    }
+
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Broadcast send error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
 
 // ─── Pipeline / Workflow Stages ────────────────────────────────────────────
-
-// GET /api/jobs/pipeline - Jobs grouped by pipeline stage
-app.get('/api/jobs/pipeline', async (req, res) => {
-  try {
-    const stages = ['new', 'quoted', 'scheduled', 'in_progress', 'completed', 'invoiced'];
-    // Map existing statuses to pipeline stages
-    const result = await pool.query(`
-      SELECT *,
-        CASE
-          WHEN pipeline_stage IS NOT NULL AND pipeline_stage != '' THEN pipeline_stage
-          WHEN status = 'completed' THEN 'completed'
-          WHEN status = 'in-progress' THEN 'in_progress'
-          WHEN status = 'confirmed' THEN 'scheduled'
-          ELSE 'new'
-        END as stage
-      FROM scheduled_jobs
-      WHERE status != 'cancelled'
-      ORDER BY job_date DESC
-    `);
-    const grouped = {};
-    stages.forEach(s => grouped[s] = []);
-    result.rows.forEach(j => {
-      const s = stages.includes(j.stage) ? j.stage : 'new';
-      grouped[s].push(j);
-    });
-    const counts = {};
-    stages.forEach(s => counts[s] = grouped[s].length);
-    res.json({ success: true, stages, pipeline: grouped, counts });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
-});
+// NOTE: GET /api/jobs/pipeline is defined earlier (before /api/jobs/:id) to avoid route shadowing.
 
 // PATCH /api/jobs/:id/pipeline - Move job to a pipeline stage
 app.patch('/api/jobs/:id/pipeline', async (req, res) => {
@@ -10346,14 +11279,19 @@ const ensureServiceItemsTable = async () => {
   await pool.query(`CREATE TABLE IF NOT EXISTS service_items (
     id SERIAL PRIMARY KEY, name VARCHAR(255), default_rate DECIMAL(10,2),
     duration_minutes INTEGER, category VARCHAR(100), active BOOLEAN DEFAULT true,
+    description TEXT, tax_rate DECIMAL(5,2) DEFAULT 0,
     created_at TIMESTAMP DEFAULT NOW()
   )`);
+  // Add columns if they don't exist (for existing tables)
+  await pool.query(`ALTER TABLE service_items ADD COLUMN IF NOT EXISTS description TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE service_items ADD COLUMN IF NOT EXISTS tax_rate DECIMAL(5,2) DEFAULT 0`).catch(() => {});
+  await pool.query(`ALTER TABLE service_items ADD COLUMN IF NOT EXISTS taxable BOOLEAN DEFAULT true`).catch(() => {});
 };
 
 app.get('/api/service-items', async (req, res) => {
   try {
     await ensureServiceItemsTable();
-    const result = await pool.query('SELECT * FROM service_items ORDER BY category, name');
+    const result = await pool.query('SELECT * FROM service_items ORDER BY name ASC');
     res.json({ success: true, items: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -10363,11 +11301,11 @@ app.get('/api/service-items', async (req, res) => {
 app.post('/api/service-items', async (req, res) => {
   try {
     await ensureServiceItemsTable();
-    const { name, default_rate, duration_minutes, category } = req.body;
+    const { name, default_rate, duration_minutes, category, description, tax_rate, taxable } = req.body;
     if (!name) return res.status(400).json({ success: false, error: 'Name required' });
     const result = await pool.query(
-      'INSERT INTO service_items (name, default_rate, duration_minutes, category) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, default_rate || 0, duration_minutes || 60, category || 'General']
+      'INSERT INTO service_items (name, default_rate, duration_minutes, category, description, tax_rate, taxable) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [name, default_rate || 0, duration_minutes || 60, category || 'General', description || '', tax_rate || 0, taxable !== false]
     );
     res.json({ success: true, item: result.rows[0] });
   } catch (error) {
@@ -10378,7 +11316,7 @@ app.post('/api/service-items', async (req, res) => {
 app.patch('/api/service-items/:id', async (req, res) => {
   try {
     await ensureServiceItemsTable();
-    const { name, default_rate, duration_minutes, category, active } = req.body;
+    const { name, default_rate, duration_minutes, category, active, description, tax_rate, taxable } = req.body;
     const sets = [], vals = [];
     let p = 1;
     if (name !== undefined) { sets.push(`name = $${p++}`); vals.push(name); }
@@ -10386,6 +11324,9 @@ app.patch('/api/service-items/:id', async (req, res) => {
     if (duration_minutes !== undefined) { sets.push(`duration_minutes = $${p++}`); vals.push(duration_minutes); }
     if (category !== undefined) { sets.push(`category = $${p++}`); vals.push(category); }
     if (active !== undefined) { sets.push(`active = $${p++}`); vals.push(active); }
+    if (description !== undefined) { sets.push(`description = $${p++}`); vals.push(description); }
+    if (tax_rate !== undefined) { sets.push(`tax_rate = $${p++}`); vals.push(tax_rate); }
+    if (taxable !== undefined) { sets.push(`taxable = $${p++}`); vals.push(taxable); }
     if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE service_items SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
@@ -10403,6 +11344,215 @@ app.delete('/api/service-items/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// Bulk import service items
+app.post('/api/service-items/import', async (req, res) => {
+  try {
+    await ensureServiceItemsTable();
+    const { items } = req.body;
+    if (!items || !Array.isArray(items)) return res.status(400).json({ success: false, error: 'items array required' });
+    let imported = 0, skipped = 0;
+    for (const item of items) {
+      if (!item.name) { skipped++; continue; }
+      const exists = await pool.query('SELECT id FROM service_items WHERE LOWER(name) = LOWER($1)', [item.name]);
+      if (exists.rows.length > 0) { skipped++; continue; }
+      await pool.query(
+        'INSERT INTO service_items (name, default_rate, category, description, tax_rate) VALUES ($1, $2, $3, $4, $5)',
+        [item.name, item.default_rate || 0, item.category || 'General', item.description || '', item.tax_rate || 0]
+      );
+      imported++;
+    }
+    res.json({ success: true, imported, skipped, total: items.length });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── Email & SMS Templates ─────────────────────────────────────────
+const ensureTemplatesTable = async () => {
+  await pool.query(`CREATE TABLE IF NOT EXISTS message_templates (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(20) DEFAULT 'email',
+    subject VARCHAR(500),
+    html_content TEXT,
+    text_content TEXT,
+    category VARCHAR(100),
+    tags TEXT[] DEFAULT '{}',
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+};
+
+app.get('/api/templates', async (req, res) => {
+  try {
+    await ensureTemplatesTable();
+    const { type } = req.query;
+    let q = 'SELECT * FROM message_templates';
+    const params = [];
+    if (type) { q += ' WHERE type = $1'; params.push(type); }
+    q += ' ORDER BY name';
+    const result = await pool.query(q, params);
+    res.json({ success: true, templates: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/templates/:id', async (req, res) => {
+  try {
+    await ensureTemplatesTable();
+    const result = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/templates', async (req, res) => {
+  try {
+    await ensureTemplatesTable();
+    const { name, type, subject, html_content, text_content, category, tags } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
+    const result = await pool.query(
+      `INSERT INTO message_templates (name, type, subject, html_content, text_content, category, tags) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, type || 'email', subject || '', html_content || '', text_content || '', category || 'General', tags || []]
+    );
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.patch('/api/templates/:id', async (req, res) => {
+  try {
+    await ensureTemplatesTable();
+    const fields = ['name', 'type', 'subject', 'html_content', 'text_content', 'category', 'tags', 'active'];
+    const sets = [], vals = [];
+    let p = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) { sets.push(`${f} = $${p++}`); vals.push(req.body[f]); }
+    }
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields' });
+    sets.push(`updated_at = NOW()`);
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE message_templates SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.delete('/api/templates/:id', async (req, res) => {
+  try {
+    await ensureTemplatesTable();
+    const result = await pool.query('DELETE FROM message_templates WHERE id = $1 RETURNING *', [req.params.id]);
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// Duplicate a template
+app.post('/api/templates/:id/duplicate', async (req, res) => {
+  try {
+    await ensureTemplatesTable();
+    const orig = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
+    if (orig.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const t = orig.rows[0];
+    const result = await pool.query(
+      `INSERT INTO message_templates (name, type, subject, html_content, text_content, category, tags) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [t.name + ' (Copy)', t.type, t.subject, t.html_content, t.text_content, t.category, t.tags]
+    );
+    res.json({ success: true, template: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ─── Automations / Sequences ────────────────────────────────────────
+const ensureAutomationsTable = async () => {
+  await pool.query(`CREATE TABLE IF NOT EXISTS automations (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    trigger_type VARCHAR(100) NOT NULL,
+    trigger_config JSONB DEFAULT '{}',
+    conditions JSONB DEFAULT '[]',
+    actions JSONB DEFAULT '[]',
+    active BOOLEAN DEFAULT true,
+    review_before_exec BOOLEAN DEFAULT false,
+    run_count INTEGER DEFAULT 0,
+    last_run_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS automation_history (
+    id SERIAL PRIMARY KEY,
+    automation_id INTEGER REFERENCES automations(id) ON DELETE CASCADE,
+    triggered_by VARCHAR(255),
+    trigger_data JSONB DEFAULT '{}',
+    actions_taken JSONB DEFAULT '[]',
+    status VARCHAR(50) DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT NOW()
+  )`);
+};
+
+app.get('/api/automations', async (req, res) => {
+  try {
+    await ensureAutomationsTable();
+    const result = await pool.query('SELECT * FROM automations ORDER BY created_at DESC');
+    res.json({ success: true, automations: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/automations/:id', async (req, res) => {
+  try {
+    await ensureAutomationsTable();
+    const result = await pool.query('SELECT * FROM automations WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, automation: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/automations', async (req, res) => {
+  try {
+    await ensureAutomationsTable();
+    const { name, description, trigger_type, trigger_config, conditions, actions, review_before_exec } = req.body;
+    if (!name || !trigger_type) return res.status(400).json({ success: false, error: 'Name and trigger_type required' });
+    const result = await pool.query(
+      `INSERT INTO automations (name, description, trigger_type, trigger_config, conditions, actions, review_before_exec) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, description || '', trigger_type, JSON.stringify(trigger_config || {}), JSON.stringify(conditions || []), JSON.stringify(actions || []), review_before_exec || false]
+    );
+    res.json({ success: true, automation: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.patch('/api/automations/:id', async (req, res) => {
+  try {
+    await ensureAutomationsTable();
+    const fields = ['name', 'description', 'trigger_type', 'trigger_config', 'conditions', 'actions', 'active', 'review_before_exec'];
+    const sets = [], vals = [];
+    let p = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        sets.push(`${f} = $${p++}`);
+        vals.push(['trigger_config','conditions','actions'].includes(f) ? JSON.stringify(req.body[f]) : req.body[f]);
+      }
+    }
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields' });
+    sets.push(`updated_at = NOW()`);
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE automations SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
+    res.json({ success: true, automation: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.delete('/api/automations/:id', async (req, res) => {
+  try {
+    await ensureAutomationsTable();
+    await pool.query('DELETE FROM automations WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/automations/:id/history', async (req, res) => {
+  try {
+    await ensureAutomationsTable();
+    const result = await pool.query('SELECT * FROM automation_history WHERE automation_id = $1 ORDER BY created_at DESC LIMIT 50', [req.params.id]);
+    res.json({ success: true, history: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
 // 8.5 Customer Activity Timeline
@@ -10726,7 +11876,7 @@ app.get('/api/ai/revenue-forecast', async (req, res) => {
 
       // Pipeline value: contracted quotes not yet invoiced, times 0.8
       const pipeline = await pool.query(
-        `SELECT COALESCE(SUM(total_price), 0) as total FROM sent_quotes
+        `SELECT COALESCE(SUM(total), 0) as total FROM sent_quotes
          WHERE status IN ('signed', 'contracted')
          AND id NOT IN (SELECT sent_quote_id FROM invoices WHERE sent_quote_id IS NOT NULL)`
       );
@@ -10952,16 +12102,7 @@ app.delete('/api/app/voicemails/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-
-app.get('*', (req, res) => {
-  // Only fall back to index.html for routes that don't match a static file
-  const filePath = path.join(__dirname, 'public', req.path);
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    return res.sendFile(filePath);
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// NOTE: Catch-all moved to end of file after all route definitions
 
 // Diagnostic: test quote PDF generation directly
 app.get('/api/test-quote-pdf/:id', async (req, res) => {
@@ -11259,6 +12400,87 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     try { await pool.query(sql); } catch(e) { /* */ }
   }
 
+  // Add processing fee columns to invoices
+  const invoiceFeeCols = [
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS processing_fee DECIMAL(10,2) DEFAULT 0',
+    'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS processing_fee_passed BOOLEAN DEFAULT false',
+  ];
+  for (const sql of invoiceFeeCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  // Quotes table (incoming quote requests from website)
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS quotes (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255),
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      address TEXT,
+      package VARCHAR(100),
+      services TEXT[],
+      questions JSONB,
+      notes TEXT,
+      source VARCHAR(100),
+      status VARCHAR(30) DEFAULT 'new',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log('✅ Quotes table ready');
+  } catch(e) { console.error('Quotes table error:', e.message); }
+
+  // Cancellations table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS cancellations (
+      id SERIAL PRIMARY KEY,
+      customer_name VARCHAR(255),
+      customer_email VARCHAR(255),
+      customer_address TEXT,
+      cancellation_reason TEXT,
+      original_email_body TEXT,
+      status VARCHAR(30) DEFAULT 'pending',
+      copilot_crm_updated BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log('✅ Cancellations table ready');
+  } catch(e) { console.error('Cancellations table error:', e.message); }
+
+  // Campaigns table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS campaigns (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      form_url TEXT,
+      status VARCHAR(30) DEFAULT 'active',
+      template_id INTEGER,
+      send_count INTEGER DEFAULT 0,
+      open_count INTEGER DEFAULT 0,
+      click_count INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log('✅ Campaigns table ready');
+  } catch(e) { console.error('Campaigns table error:', e.message); }
+
+  // Campaign submissions table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS campaign_submissions (
+      id SERIAL PRIMARY KEY,
+      campaign_id VARCHAR(255),
+      name VARCHAR(255),
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      address TEXT,
+      status VARCHAR(30) DEFAULT 'new',
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    console.log('✅ Campaign submissions table ready');
+  } catch(e) { console.error('Campaign submissions table error:', e.message); }
+
   // Internal notes table
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS internal_notes (
@@ -11293,8 +12515,19 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   const customerNewCols = [
     'ALTER TABLE customers ADD COLUMN IF NOT EXISTS square_customer_id VARCHAR(255)',
     'ALTER TABLE customers ADD COLUMN IF NOT EXISTS monthly_plan_amount DECIMAL(10,2) DEFAULT 0',
+    'ALTER TABLE customers ADD COLUMN IF NOT EXISTS tax_exempt BOOLEAN DEFAULT false',
   ];
   for (const sql of customerNewCols) {
+    try { await pool.query(sql); } catch(e) { /* */ }
+  }
+
+  // Add tax columns to properties
+  const propertyNewCols = [
+    'ALTER TABLE properties ADD COLUMN IF NOT EXISTS county_tax DECIMAL(5,3) DEFAULT NULL',
+    'ALTER TABLE properties ADD COLUMN IF NOT EXISTS city_tax DECIMAL(5,3) DEFAULT NULL',
+    'ALTER TABLE properties ADD COLUMN IF NOT EXISTS state_tax DECIMAL(5,3) DEFAULT NULL',
+  ];
+  for (const sql of propertyNewCols) {
     try { await pool.query(sql); } catch(e) { /* */ }
   }
 
@@ -11392,6 +12625,26 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     console.log('✅ Default business settings seeded');
   } catch(e) { console.error('Settings seed error:', e.message); }
 
+  // Seed default invoice settings
+  try {
+    await pool.query(`
+      INSERT INTO business_settings (key, value) VALUES
+        ('invoice_creation_mode', '{"mode": "per_visit"}'),
+        ('invoice_closing_mode', '{"mode": "per_visit"}'),
+        ('invoice_start_number', '{"number": 1001}'),
+        ('invoice_date_mode', '{"mode": "date_sent"}'),
+        ('invoice_defaults', '{"set_service_date_today": true, "notes": "", "terms": "Due upon receipt.", "show_status_stamp": true, "show_property_name": "address_only", "show_custom_fields": false, "due_date_visibility": "show_all", "event_date_mode": "scheduled", "visible_qty": true, "visible_rate": true, "visible_budgeted_hours": false}'),
+        ('invoice_email_settings', '{"attach_pdf": true, "template": "default"}'),
+        ('invoice_sms_settings', '{"template": "default"}'),
+        ('invoice_send_method', '{"preferred": "email"}'),
+        ('invoice_auto_send', '{"enabled": false, "frequency": "weekly", "day": "friday"}'),
+        ('tax_defaults', '{"default_rate": 8}'),
+        ('processing_fee_config', '{"enabled": false, "card_fee_percent": 2.9, "card_fee_fixed": 0.30, "ach_fee_percent": 1.0, "ach_fee_fixed": 0}')
+      ON CONFLICT (key) DO NOTHING
+    `);
+    console.log('✅ Default invoice settings seeded');
+  } catch(e) { console.error('Invoice settings seed error:', e.message); }
+
   // Create admin_users table and seed default admin accounts
   try {
     await pool.query(ADMIN_USERS_TABLE);
@@ -11408,6 +12661,54 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     }
     console.log('✅ Admin users ready');
   } catch(e) { console.error('Admin users error:', e.message); }
+
+  // Ensure crews table exists and seed defaults
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS crews (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      members TEXT,
+      crew_type VARCHAR(50),
+      notes TEXT,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    // Add crew_type column if missing
+    try { await pool.query('ALTER TABLE crews ADD COLUMN IF NOT EXISTS crew_type VARCHAR(50)'); } catch(e2) {}
+    try { await pool.query('ALTER TABLE crews ADD COLUMN IF NOT EXISTS members TEXT'); } catch(e2) {}
+    try { await pool.query('ALTER TABLE crews ADD COLUMN IF NOT EXISTS notes TEXT'); } catch(e2) {}
+    try { await pool.query('ALTER TABLE crews ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true'); } catch(e2) {}
+    try { await pool.query('ALTER TABLE crews ADD COLUMN IF NOT EXISTS color VARCHAR(20)'); } catch(e2) {}
+    try { await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS crews_name_unique ON crews (name)'); } catch(e2) {}
+    // Migrate old placeholder crews to real crew names
+    try {
+      await pool.query(`UPDATE scheduled_jobs SET crew_assigned = 'Mowing' WHERE crew_assigned = 'Crew A'`);
+      await pool.query(`UPDATE scheduled_jobs SET crew_assigned = 'Jobs' WHERE crew_assigned = 'Crew B'`);
+      await pool.query(`UPDATE scheduled_jobs SET crew_assigned = 'Rob Mowing Crew' WHERE crew_assigned = 'Crew C'`);
+      // Remove old placeholder crews
+      await pool.query(`DELETE FROM crews WHERE name IN ('Crew A', 'Crew B', 'Crew C')`);
+    } catch(e2) { console.error('Crew migration error:', e2.message); }
+    // Upsert real crews
+    const realCrews = [
+      ['Chris Snow', 'Christopher Redarowicz', 'snow', '#2e403d'],
+      ['Jobs', 'Christopher Redarowicz, Robert Ellison, Timothy Pappas, Wilkyn Camacho', 'landscaping', '#4a6741'],
+      ['Mowing', 'Timothy Pappas', 'mowing', '#059669'],
+      ['Rob Mowing Crew', 'Robert Ellison, Wilkyn Camacho', 'mowing', '#6b8f3c'],
+      ['Rob Snow', 'Robert Ellison', 'snow', '#3d5a4c'],
+      ['Tim Mowing Crew', 'Christopher Redarowicz, Timothy Pappas', 'mowing', '#7aab55'],
+      ['Tim Snow', 'Timothy Pappas', 'snow', '#335c44'],
+      ['Wilkyn Snow', 'Wilkyn Camacho', 'snow', '#4e7a5e']
+    ];
+    for (const [name, members, crewType, color] of realCrews) {
+      await pool.query(
+        `INSERT INTO crews (name, members, crew_type, color) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (name) DO UPDATE SET members = $2, crew_type = $3, color = $4`,
+        [name, members, crewType, color]
+      );
+    }
+    console.log('✅ Crews table ready');
+  } catch(e) { console.error('Crews table error:', e.message); }
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -11786,7 +13087,7 @@ app.get('/api/kpi/detailed', async (req, res) => {
     const ltv = custCount > 0 ? (parseFloat(totalRevenueAll.rows[0].total) / custCount).toFixed(2) : 0;
 
     // Pending quotes value
-    const pendingQuotes = await pool.query("SELECT COUNT(*) as count, COALESCE(SUM(total_price), 0)::numeric as value FROM sent_quotes WHERE status IN ('sent','viewed','pending')");
+    const pendingQuotes = await pool.query("SELECT COUNT(*) as count, COALESCE(SUM(total), 0)::numeric as value FROM sent_quotes WHERE status IN ('sent','viewed','pending')");
 
     // Booked out (how far ahead)
     const bookedOut = await pool.query("SELECT MAX(job_date) as furthest_date FROM scheduled_jobs WHERE status IN ('pending','scheduled') AND job_date >= CURRENT_DATE");
@@ -11825,6 +13126,361 @@ app.get('/api/kpi/detailed', async (req, res) => {
     console.error('KPI detailed error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// ═══════════════════════════════════════════════════════════
+// AI-POWERED FEATURES (Claude SDK)
+// ═══════════════════════════════════════════════════════════
+
+// 7.10 AI Quote Writer
+app.post('/api/ai/generate-quote', async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured. ANTHROPIC_API_KEY is not set.' });
+    }
+
+    const { address, customer_name, services, notes } = req.body;
+    if (!address || !customer_name) {
+      return res.status(400).json({ success: false, error: 'address and customer_name are required' });
+    }
+
+    const availableServices = Object.keys(SERVICE_DESCRIPTIONS);
+    const currentMonth = new Date().toLocaleString('default', { month: 'long' });
+
+    const prompt = `You are the quoting assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Greater Cleveland area).
+
+The current month is ${currentMonth}. Generate a professional landscaping quote for the following customer:
+
+Customer: ${customer_name}
+Address: ${address}
+${services && services.length > 0 ? `Requested services: ${services.join(', ')}` : 'No specific services requested — recommend appropriate seasonal services.'}
+${notes ? `Additional notes: ${notes}` : ''}
+
+Available services we offer: ${availableServices.join(', ')}
+
+Guidelines:
+- For March/spring, prioritize: Spring Cleanup, Mowing (Weekly), Mulching, Aeration, Fertilizing - Early Spring
+- Use typical Northeast Ohio residential landscaping pricing (e.g., weekly mowing $35-65, spring cleanup $150-350, mulching $200-500, aeration $80-200, fertilizer application $50-100)
+- Write professional but friendly service descriptions (2-3 sentences each)
+- Include a frequency for recurring services (e.g., "weekly", "one-time", "per application")
+
+Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
+{
+  "services": [
+    {"name": "Service Name", "description": "Professional description", "price": 150, "frequency": "one-time"}
+  ],
+  "total": 500,
+  "notes": "Any relevant notes about the quote",
+  "summary": "One paragraph professional summary of the quote"
+}`;
+
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const responseText = message.content[0].text.trim();
+    let quote;
+    try {
+      quote = JSON.parse(responseText);
+    } catch (parseErr) {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        quote = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Failed to parse AI response as JSON');
+      }
+    }
+
+    res.json({ success: true, quote });
+  } catch (error) {
+    console.error('AI generate-quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.11 AI Follow-up Message Generator
+app.post('/api/ai/generate-followup', async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured. ANTHROPIC_API_KEY is not set.' });
+    }
+
+    const { customer_name, service_type, quote_amount, days_since_sent, channel } = req.body;
+    if (!customer_name || !channel) {
+      return res.status(400).json({ success: false, error: 'customer_name and channel (email|sms) are required' });
+    }
+
+    const isSMS = channel === 'sms';
+
+    const prompt = `You are the follow-up assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Lakewood / Greater Cleveland area).
+
+Generate a follow-up message to close the deal with this customer:
+
+Customer: ${customer_name}
+Service: ${service_type || 'landscaping services'}
+Quote amount: ${quote_amount ? '$' + quote_amount : 'not specified'}
+Days since quote was sent: ${days_since_sent || 'unknown'}
+Channel: ${channel}
+
+${isSMS ? `IMPORTANT: This is an SMS message. Keep it under 160 characters. Be casual but professional. Do not include a subject line.` : `This is an email. Write a full professional email with a subject line. Use HTML formatting for the body (paragraphs, bold for key points). Keep it concise but warm and persuasive.`}
+
+Guidelines:
+- Reference the specific service and amount if provided
+- Create urgency if appropriate (seasonal timing, booking up fast, etc.)
+- Be friendly and professional, not pushy
+- Sign off as "Pappas & Co. Landscaping" or "The Pappas Team"
+
+Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
+${isSMS ? '{"body": "The SMS message text"}' : '{"subject": "Email subject line", "body": "<p>HTML email body</p>"}'}`;
+
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const responseText = message.content[0].text.trim();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseErr) {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('Failed to parse AI response as JSON');
+      }
+    }
+
+    res.json({ success: true, message: result });
+  } catch (error) {
+    console.error('AI generate-followup error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7.12 AI Chat / Ask Anything
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured. ANTHROPIC_API_KEY is not set.' });
+    }
+
+    const { message: userMessage, context } = req.body;
+    if (!userMessage) {
+      return res.status(400).json({ success: false, error: 'message is required' });
+    }
+
+    const availableServices = Object.keys(SERVICE_DESCRIPTIONS);
+
+    const systemPrompt = `You are the AI assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Greater Cleveland area).
+
+You help the business owner and staff with:
+- Answering questions about landscaping services, pricing, and scheduling
+- Drafting customer messages (emails, texts)
+- Suggesting pricing based on typical Northeast Ohio residential rates
+- Providing seasonal landscaping advice relevant to the Cleveland/Lakewood climate
+- General business advice for a landscaping company
+
+Available services: ${availableServices.join(', ')}
+
+Typical pricing ranges (Northeast Ohio residential):
+- Weekly mowing: $35-65/visit
+- Spring cleanup: $150-350
+- Fall cleanup: $200-400
+- Mulching: $200-500 (depends on bed size)
+- Aeration: $80-200
+- Overseeding: $100-250
+- Fertilizer application: $50-100/application
+- Shrub trimming: $100-300
+- Power washing: $150-400
+- Bed edging: $75-200
+
+Keep responses concise, practical, and professional. If asked about specific customer situations, provide helpful advice based on the context given.`;
+
+    const messages = [{ role: 'user', content: userMessage }];
+
+    if (context) {
+      messages[0].content = `Context: ${JSON.stringify(context)}\n\nQuestion: ${userMessage}`;
+    }
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages
+    });
+
+    const reply = response.content[0].text;
+    res.json({ success: true, reply });
+  } catch (error) {
+    console.error('AI chat error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── AI Template Generator (Chat-based) ──────────────────────────
+app.post('/api/ai/generate-template', async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured.' });
+    }
+    const { prompt, type, action, history, apply } = req.body;
+    if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
+
+    const systemPrompt = `You are an interactive AI template assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Greater Cleveland).
+
+You help create, edit, and improve email and SMS templates through conversation. You can:
+- Generate new email templates
+- Rewrite or tweak existing templates
+- Suggest subject lines
+- Write SMS versions
+- Answer questions about email marketing best practices
+- Make specific changes the user asks for (tone, length, wording, etc.)
+
+BRAND GUIDELINES:
+- Dark forest green: #2e403d
+- Lime accent: #c9dd80
+- Company: Pappas & Co. Landscaping
+- Tagline: "Your Property, Our Priority."
+- Location: Northeast Ohio (Greater Cleveland)
+
+Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}
+
+RESPONSE FORMAT — Return ONLY valid JSON (no markdown, no backticks). Choose the appropriate format:
+
+1. When generating/rewriting an EMAIL template:
+{"message": "Brief description of what you created/changed", "subject": "Email subject line", "blocks": [{"type":"title|paragraph|button|list|divider", "content":"..."}]}
+Block types:
+- title: {"type":"title","content":"heading text"}
+- paragraph: {"type":"paragraph","content":"text, can include <strong> tags"}
+- button: {"type":"button","content":"Button Text","url":"#"}
+- list: {"type":"list","content":["item 1","item 2"]}
+- divider: {"type":"divider"}
+
+2. When suggesting SUBJECT LINES:
+{"message": "Here are some options:", "subjects": ["Subject 1", "Subject 2", "Subject 3", "Subject 4", "Subject 5"]}
+
+3. When generating an SMS:
+{"message": "Here's the SMS:", "sms": "The SMS text under 160 chars"}
+
+4. When just answering a question or chatting (no template output):
+{"message": "Your conversational response here"}
+
+Keep the tone professional but warm and friendly. Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
+
+    // Build messages array with conversation history
+    const messages = [];
+    if (Array.isArray(history) && history.length > 0) {
+      // Include up to last 10 exchanges for context
+      const recentHistory = history.slice(-20);
+      for (const msg of recentHistory) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      }
+    }
+    // Add current user message
+    let userMsg = prompt;
+    if (apply) userMsg += '\n\n[INSTRUCTION: Generate the template and mark it for auto-apply.]';
+    messages.push({ role: 'user', content: userMsg });
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages
+    });
+
+    const text = response.content[0].text;
+    let parsed;
+    try {
+      const jsonMatch = text.match(/[\[{][\s\S]*[\]}]/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+    } catch (e) {
+      // Fallback: treat as plain text message
+      parsed = { message: text };
+    }
+    // Mark auto-apply if requested
+    if (apply && parsed.blocks) parsed._auto_apply = true;
+    res.json({ success: true, result: parsed });
+  } catch (error) {
+    console.error('AI template generation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// HOME BASE ADDRESS SETTINGS
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/settings/home-base — returns the home base address
+app.get('/api/settings/home-base', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM business_settings WHERE key = 'home_base'");
+    if (result.rows.length > 0) {
+      return res.json({ success: true, ...result.rows[0].value });
+    }
+    res.json({ success: true, address: '', lat: 41.4268, lng: -81.7356 });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/settings/home-base — saves address and geocodes it
+app.post('/api/settings/home-base', async (req, res) => {
+  try {
+    const { address } = req.body;
+    if (!address || !address.trim()) return res.status(400).json({ success: false, error: 'Address is required' });
+
+    // Geocode the address
+    let lat = null, lng = null;
+    const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
+    if (GMAPS_KEY) {
+      try {
+        const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GMAPS_KEY}`);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.results && gData.results.length > 0) {
+          lat = gData.results[0].geometry.location.lat;
+          lng = gData.results[0].geometry.location.lng;
+        }
+      } catch (e) { console.error('Google geocode failed for home base, trying Nominatim:', e.message); }
+    }
+    if (!lat || !lng) {
+      try {
+        const nRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=us`);
+        const nData = await nRes.json();
+        if (nData && nData.length > 0) {
+          lat = parseFloat(nData[0].lat);
+          lng = parseFloat(nData[0].lon);
+        }
+      } catch (e) { console.error('Nominatim geocode failed for home base:', e.message); }
+    }
+    if (!lat || !lng) return res.status(400).json({ success: false, error: 'Could not geocode the address. Please check and try again.' });
+
+    const value = JSON.stringify({ address: address.trim(), lat, lng });
+    await pool.query(
+      `INSERT INTO business_settings (key, value, updated_at) VALUES ('home_base', $1::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = NOW()`,
+      [value]
+    );
+    res.json({ success: true, address: address.trim(), lat, lng });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// CATCH-ALL: Must be LAST route — serves static files or falls back to index.html
+// ═══════════════════════════════════════════════════════════════
+app.get('*', (req, res) => {
+  const filePath = path.join(__dirname, 'public', req.path);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    return res.sendFile(filePath);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

@@ -45,43 +45,32 @@
             line-height: 1.6;
         }
 
-        .sidebar {
-            position: fixed; top: 0; left: 0;
-            width: var(--sidebar-w); height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex; flex-direction: column; z-index: 100;
-        }
-        .sidebar-brand { padding: var(--spacing-lg); text-align: center; border-bottom: 1px solid var(--gray-100); }
-        .sidebar-brand img { max-height: 48px;
-            width: auto;
-            max-width: 180px; }
-        .sidebar-nav { flex: 1; overflow-y: auto; padding: var(--spacing-sm); }
-        .nav-section { margin-bottom: var(--spacing-sm); }
-        .nav-section-label { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs); }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: var(--spacing-sm) var(--spacing-md); border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.15s; cursor: pointer; }
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-        .sidebar-footer { padding: var(--spacing-md); border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; }
-        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
-        .sidebar-user .name { font-size: 13px; font-weight: 600; color: var(--gray-700); }
-        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
-        .main { margin-left: var(--sidebar-w); padding: var(--spacing-xl); min-height: 100vh; }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
         .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
+            
             .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; }
+            
             .mobile-menu-btn { display: block; }
         }
 
-        .topbar {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: var(--spacing-xl);
-        }
-        .topbar h1 { font-family: 'Qualy', 'DM Sans', sans-serif; font-size: 28px; color: var(--forest); }
+        
+        
         .topbar-sub { font-size: 13px; color: var(--gray-400); }
 
         .import-container { max-width: 600px; }
@@ -131,145 +120,11 @@
         .back-link { display: inline-block; margin-top: 20px; color: var(--forest); text-decoration: none; font-weight: 500; }
         .back-link:hover { text-decoration: underline; }
     </style>
+    <link rel="stylesheet" href="shared.css">
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
-        <nav class="sidebar-nav">
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item active">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-        <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </aside>
-
-    <div class="main">
+<script src="shell.js"></script>
+<div class="main">
         <div class="topbar">
             <div>
                 <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">

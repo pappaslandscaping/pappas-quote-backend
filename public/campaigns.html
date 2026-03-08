@@ -5,270 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campaigns — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            overflow-x: hidden;
-        }
-
-        /* ─── Sidebar ───────────────────────────────────────── */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-            transition: transform 0.3s;
-        }
-
-        .sidebar-brand {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .sidebar-brand img {
-            max-height: 48px;
-            width: auto;
-            max-width: 180px;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            padding: 16px 12px;
-            overflow-y: auto;
-        }
-
-        .nav-section {
-            margin-bottom: 8px;
-        }
-
-        .nav-section-label {
-            color: var(--gray-400);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 8px 12px 4px;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .nav-item:hover {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .nav-item.active {
-            background: var(--forest);
-            color: var(--lime);
-        }
-
-        .nav-item svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
-
-        .nav-item .badge {
-            margin-left: auto;
-            background: var(--forest);
-            color: var(--lime);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-
-        .sidebar-footer {
-            padding: 16px 20px;
-            border-top: 1px solid var(--gray-100);
-        }
-
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .sidebar-user .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 13px;
-        }
-
-        .sidebar-user .name {
-            color: var(--gray-700);
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .sidebar-user .role {
-            color: var(--gray-400);
-            font-size: 11px;
-        }
-
-        /* ─── Main Content ──────────────────────────────────── */
-        .main {
-            margin-left: var(--sidebar-w);
-            min-height: 100vh;
-        }
-
-        .topbar {
-            position: sticky;
-            top: 0;
-            height: var(--header-h);
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 32px;
-            z-index: 50;
-        }
-
-        .topbar-left h2 {
-            font-family: 'Qualy', serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--forest);
-        }
-
-        .topbar-left p {
-            font-size: 13px;
-            color: var(--gray-400);
-        }
-
-        .topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-            text-decoration: none;
-        }
-
-        .btn svg { width: 16px; height: 16px; }
-
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover {
-            background: var(--forest-dark, #1f2b29);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-
-        .btn-secondary {
-            background: var(--white);
-            color: var(--gray-600);
-            border: 1px solid var(--gray-200);
-        }
-
-        .btn-secondary:hover {
-            background: var(--gray-50);
-            border-color: var(--gray-300);
-        }
-
-        .mobile-menu-btn {
-            display: none;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px;
-        }
-
-        .mobile-menu-btn svg {
-            width: 24px;
-            height: 24px;
-            color: var(--gray-600);
-        }
-
-        /* ─── Page Content ──────────────────────────────────── */
-        .page-content {
-            padding: 28px 32px;
-            animation: fadeIn 0.4s ease;
-        }
-
         /* ─── Stats Row ─────────────────────────────────────── */
         .stats-row {
             display: grid;
@@ -279,7 +17,7 @@
 
         .stat-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border-radius: 12px;
             padding: 20px;
             transition: all 0.15s ease;
@@ -310,7 +48,6 @@
         .stat-card .stat-icon svg { width: 18px; height: 18px; }
 
         .stat-card .stat-value {
-            font-family: 'Qualy', serif;
             font-size: 28px;
             font-weight: 700;
             color: var(--gray-700);
@@ -331,7 +68,7 @@
 
         .campaign-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border-radius: 12px;
             overflow: hidden;
             transition: all 0.15s ease;
@@ -376,7 +113,6 @@
         .status-ended::before { background: var(--gray-400); }
 
         .campaign-name {
-            font-family: 'Qualy', serif;
             font-size: 18px;
             font-weight: 700;
             color: var(--gray-700);
@@ -428,7 +164,7 @@
         .campaign-link {
             font-size: 12px;
             font-weight: 600;
-            color: var(--forest);
+            color: var(--primary);
             text-decoration: none;
             transition: all 0.15s ease;
         }
@@ -459,7 +195,7 @@
             border: none;
             font-size: 13px;
             font-weight: 600;
-            color: var(--forest);
+            color: var(--primary);
             cursor: pointer;
             font-family: inherit;
             margin-bottom: 20px;
@@ -483,7 +219,6 @@
         }
 
         .detail-title {
-            font-family: 'Qualy', serif;
             font-size: 24px;
             font-weight: 700;
             color: var(--gray-700);
@@ -498,7 +233,7 @@
         /* ─── Table Card ────────────────────────────────────── */
         .table-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border-radius: 12px;
             overflow: hidden;
             transition: all 0.15s ease;
@@ -569,7 +304,7 @@
 
         .filter-select:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
         }
 
@@ -689,12 +424,12 @@
         }
 
         .status-select:hover {
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
 
         .status-select:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
         }
 
@@ -715,8 +450,8 @@
         }
 
         .row-btn:hover {
-            border-color: var(--forest);
-            color: var(--forest);
+            border-color: var(--primary);
+            color: var(--primary);
         }
 
         .row-btn.delete-btn {
@@ -755,7 +490,7 @@
             width: 24px;
             height: 24px;
             border: 3px solid var(--gray-200);
-            border-top-color: var(--forest);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
             margin: 0 auto 12px;
@@ -764,14 +499,8 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(8px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* Toast */
@@ -779,8 +508,8 @@
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: var(--forest);
-            color: var(--lime);
+            background: var(--primary);
+            color: var(--white);
             padding: 12px 20px;
             border-radius: 10px;
             font-size: 13px;
@@ -843,7 +572,6 @@
         }
 
         .modal-header h3 {
-            font-family: 'Qualy', serif;
             font-size: 18px;
             font-weight: 700;
             color: var(--gray-700);
@@ -897,7 +625,7 @@
 
         .form-input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
         }
 
@@ -987,17 +715,17 @@
         }
 
         .audience-option:hover {
-            border-color: var(--forest);
+            border-color: var(--primary);
             background: var(--gray-50);
         }
 
         .audience-option.selected {
-            border-color: var(--forest);
+            border-color: var(--primary);
             background: rgba(46, 64, 61, 0.04);
         }
 
         .audience-option input[type="radio"] {
-            accent-color: var(--forest);
+            accent-color: var(--primary);
             width: 16px;
             height: 16px;
         }
@@ -1046,7 +774,7 @@
         }
 
         .customer-select-item input[type="checkbox"] {
-            accent-color: var(--forest);
+            accent-color: var(--primary);
             width: 15px;
             height: 15px;
         }
@@ -1079,7 +807,7 @@
 
         .customer-search-input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
 
         .recipient-preview {
@@ -1124,7 +852,6 @@
         }
 
         .send-results .result-title {
-            font-family: 'Qualy', serif;
             font-size: 18px;
             font-weight: 700;
             color: var(--gray-700);
@@ -1172,152 +899,22 @@
         }
 
         @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
-            }
-
-            .main { margin-left: 0; }
-
-            .mobile-menu-btn { display: block; }
-
-            .page-content { padding: 20px 16px; }
-
-            .topbar { padding: 0 16px; }
-
             .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
-
             .campaigns-grid { grid-template-columns: 1fr; }
-
             .search-input { width: 100%; }
         }
-    
-/* Universal Search */
-.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
-.search-input-group{position:relative;display:flex;align-items:center}
-.search-icon{position:absolute;left:12px;width:18px;height:18px;color:#9ca09c;pointer-events:none}
-.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid #e2e5e2;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
-.search-input:focus{outline:none;border-color:#2e403d;box-shadow:0 0 0 3px rgba(46,64,61,.1)}
-.search-input::placeholder{color:#9ca09c}
-.search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
-.search-clear-btn:hover{color:#4a4e4a}
-.search-clear-btn svg{width:16px;height:16px}
-.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
-.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
-.search-results-group:last-child{border-bottom:none}
-.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
-.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
-.search-result-item:hover{background:#f8faf8}
-.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
-.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
-.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
-.search-result-icon.property{background:#ecfdf5;color:#059669}
-.search-result-content{flex:1;min-width:0}
-.search-result-title{font-size:13px;font-weight:600;color:#333633;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.search-result-badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
-.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
-.search-loading{text-align:center;padding:16px;color:#6e726e}
-@media(max-width:768px){.universal-search-wrapper{display:none}}
-
-</style>
+    </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
+<script src="shell.js"></script>
 
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><img src="/logo.png" alt="YardDesk"></div>
-    <nav class="sidebar-nav">
-        <div class="nav-section"><div class="nav-section-label">Overview</div>
-            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Sales</div>
-            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-            <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Operations</div>
-            <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
-            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-            <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
-            <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Communications</div>
-            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
-            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
-            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Marketing</div>
-            <a href="campaigns.html" class="nav-item active"><span>📢</span><span>Campaigns</span></a>
-            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Finance</div>
-            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Analytics</div>
-            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Team</div>
-            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">System</div>
-            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
-    </nav>
-    <div class="sidebar-footer">
-        <div class="sidebar-user">
-            <div class="avatar">TP</div>
-            <div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div>
-        </div>
-    </div>
-</aside>
-
-<main class="main">
-    <header class="topbar">
+<div class="main">
+    <div class="topbar">
         <div class="topbar-left">
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div>
-                <h2>Campaigns</h2>
-                <p>Manage marketing campaigns and submissions</p>
-            </div>
-        </div>
-        <div class="universal-search-wrapper">
-            <div class="search-input-group">
-                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes," autocomplete="off">
-                <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
+            <h1>Campaigns</h1>
         </div>
         <div class="topbar-actions">
             <button class="btn btn-primary" onclick="openCreateModal()">
@@ -1325,7 +922,15 @@
                 New Campaign
             </button>
         </div>
-    </header>
+    </div>
+
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+        <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
+        <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Templates</a>
+        <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Campaigns</a>
+        <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
+        <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Broadcasts</a>
+    </div>
 
     <div class="page-content">
         <!-- List View -->
@@ -1339,7 +944,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         </div>
                     </div>
-                    <div class="stat-value" id="stat-active">—</div>
+                    <div class="stat-value" id="stat-active">--</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-header">
@@ -1348,7 +953,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         </div>
                     </div>
-                    <div class="stat-value" id="stat-submissions">—</div>
+                    <div class="stat-value" id="stat-submissions">--</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-header">
@@ -1357,7 +962,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         </div>
                     </div>
-                    <div class="stat-value" id="stat-week">—</div>
+                    <div class="stat-value" id="stat-week">--</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-header">
@@ -1366,7 +971,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                         </div>
                     </div>
-                    <div class="stat-value" id="stat-enrolled">—</div>
+                    <div class="stat-value" id="stat-enrolled">--</div>
                 </div>
             </div>
 
@@ -1448,7 +1053,7 @@
             </div>
         </div>
     </div>
-</main>
+</div>
 
 <!-- Create Campaign Modal -->
 <div class="modal-overlay" id="createModal">
@@ -1594,23 +1199,23 @@ let selectedAudience = 'all';
 function showToast(message, isError = false) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
-    toast.style.background = isError ? 'var(--red)' : 'var(--forest)';
-    toast.style.color = isError ? 'var(--white)' : 'var(--lime)';
+    toast.style.background = isError ? 'var(--red)' : 'var(--primary)';
+    toast.style.color = 'var(--white)';
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
 // Format date
 function formatDate(dateStr) {
-    if (!dateStr) return '—';
+    if (!dateStr) return '--';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatDateTime(dateStr) {
-    if (!dateStr) return '—';
+    if (!dateStr) return '--';
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + 
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
            date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
@@ -1626,17 +1231,17 @@ async function loadCampaigns() {
         const res = await fetch(`${API_BASE}/campaigns`);
         const data = await res.json();
         campaigns = data.campaigns || [];
-        
+
         // Update stats
         const active = campaigns.filter(c => c.status === 'active').length;
         const totalSubs = campaigns.reduce((sum, c) => sum + parseInt(c.submission_count || 0), 0);
         const enrolled = campaigns.reduce((sum, c) => sum + parseInt(c.enrolled_count || 0), 0);
-        
+
         document.getElementById('stat-active').textContent = active;
         document.getElementById('stat-submissions').textContent = totalSubs;
         document.getElementById('stat-enrolled').textContent = enrolled;
         document.getElementById('stat-week').textContent = data.new_this_week || 0;
-        
+
         renderCampaigns();
     } catch (err) {
         console.error('Error loading campaigns:', err);
@@ -1652,7 +1257,7 @@ async function loadCampaigns() {
 // Render campaigns grid
 function renderCampaigns() {
     const grid = document.getElementById('campaignsGrid');
-    
+
     if (!campaigns.length) {
         grid.innerHTML = `
             <div class="empty-state">
@@ -1662,7 +1267,7 @@ function renderCampaigns() {
         `;
         return;
     }
-    
+
     grid.innerHTML = campaigns.map(c => `
         <div class="campaign-card" onclick="viewCampaign('${c.id}')">
             <div class="campaign-header">
@@ -1701,7 +1306,7 @@ function renderCampaigns() {
             </div>` : ''}
             <div class="campaign-footer">
                 <span class="campaign-date">Created ${formatDate(c.created_at)}</span>
-                <span class="campaign-link">View Details →</span>
+                <span class="campaign-link">View Details &#8594;</span>
             </div>
         </div>
     `).join('');
@@ -1711,17 +1316,17 @@ function renderCampaigns() {
 async function viewCampaign(campaignId) {
     currentCampaign = campaigns.find(c => c.id == campaignId || c.name === campaignId);
     if (!currentCampaign) return;
-    
+
     // Update detail header
     document.getElementById('detailTitle').textContent = currentCampaign.name;
     document.getElementById('detailDesc').textContent = currentCampaign.description || 'No description';
     document.getElementById('detailStatus').textContent = currentCampaign.status || 'Active';
     document.getElementById('detailStatus').className = `campaign-status status-${currentCampaign.status || 'active'}`;
-    
+
     // Show detail view
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('detailView').classList.add('active');
-    
+
     // Load submissions using campaign name (which is the campaign_id in submissions table)
     await loadSubmissions(currentCampaign.name);
 }
@@ -1730,7 +1335,7 @@ async function viewCampaign(campaignId) {
 async function loadSubmissions(campaignId) {
     const tbody = document.getElementById('submissionsTable');
     tbody.innerHTML = `<tr><td colspan="6"><div class="loading-state"><div class="loading-spinner"></div>Loading submissions...</div></td></tr>`;
-    
+
     try {
         const res = await fetch(`${API_BASE}/campaigns/${campaignId}/submissions`);
         const data = await res.json();
@@ -1746,12 +1351,12 @@ async function loadSubmissions(campaignId) {
 function renderSubmissions(filtered = null) {
     const tbody = document.getElementById('submissionsTable');
     const data = filtered || submissions;
-    
+
     if (!data.length) {
         tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>No submissions yet</p></div></td></tr>`;
         return;
     }
-    
+
     tbody.innerHTML = data.map(s => `
         <tr>
             <td>
@@ -1760,7 +1365,7 @@ function renderSubmissions(filtered = null) {
             </td>
             <td>
                 <div class="customer-contact">${esc(s.email)}</div>
-                <div class="customer-contact">${esc(s.phone) || '—'}</div>
+                <div class="customer-contact">${esc(s.phone) || '--'}</div>
             </td>
             <td>
                 <div class="services-list">
@@ -1792,21 +1397,21 @@ function renderSubmissions(filtered = null) {
 function filterSubmissions() {
     const search = document.getElementById('searchInput').value.toLowerCase();
     const status = document.getElementById('statusFilter').value;
-    
+
     let filtered = submissions;
-    
+
     if (search) {
-        filtered = filtered.filter(s => 
+        filtered = filtered.filter(s =>
             (s.name || '').toLowerCase().includes(search) ||
             (s.email || '').toLowerCase().includes(search) ||
             (s.address || '').toLowerCase().includes(search)
         );
     }
-    
+
     if (status) {
         filtered = filtered.filter(s => (s.status || 'new') === status);
     }
-    
+
     renderSubmissions(filtered);
 }
 
@@ -1819,7 +1424,7 @@ async function updateStatus(submissionId, newStatus) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: newStatus })
         });
-        
+
         // Update local data
         const sub = submissions.find(s => s.id == submissionId);
         if (sub) sub.status = newStatus;
@@ -1834,17 +1439,17 @@ async function updateStatus(submissionId, newStatus) {
 // Delete submission
 async function deleteSubmission(submissionId) {
     if (!confirm('Are you sure you want to delete this submission?')) return;
-    
+
     try {
         await fetch(`${API_BASE}/campaigns/submissions/${submissionId}`, {
             method: 'DELETE'
         });
-        
+
         // Remove from local data
         submissions = submissions.filter(s => s.id != submissionId);
         renderSubmissions();
         showToast('Submission deleted');
-        
+
         // Refresh campaign stats
         loadCampaigns();
     } catch (err) {
@@ -1888,16 +1493,16 @@ async function createCampaign(e) {
         template_id: form.template_id.value || null,
         status: 'active'
     };
-    
+
     try {
         const res = await fetch(`${API_BASE}/campaigns`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        
+
         if (!res.ok) throw new Error('Failed to create');
-        
+
         closeCreateModal();
         showToast('Campaign created!');
         loadCampaigns();
@@ -2120,7 +1725,7 @@ async function updateRecipientCount() {
         const res = await fetch(url);
         const data = await res.json();
         const count = (data.customers || []).length || data.total || 0;
-        el.textContent = `${labels[selectedAudience]} — ${count} recipient${count !== 1 ? 's' : ''}`;
+        el.textContent = `${labels[selectedAudience]} -- ${count} recipient${count !== 1 ? 's' : ''}`;
     } catch (err) {
         // Keep the label-only display
     }
@@ -2224,10 +1829,33 @@ document.addEventListener('DOMContentLoaded', () => {
 let searchDebounceTimer=null;
 function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>uniSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
 function searchEsc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
-async function uniSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEsc(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEsc(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEsc(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEsc(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEsc([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEsc(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
+async function uniSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">&#x1F464;</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEsc(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">&#x1F4C4;</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEsc(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEsc(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEsc(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">&#x1F3E0;</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEsc([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEsc(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
 document.addEventListener('DOMContentLoaded',initUniversalSearch);
 
 </script>
 
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
+</script>
 </body>
 </html>

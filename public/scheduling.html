@@ -4,296 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scheduling — YardDesk</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        /* Qualy font applications */
-        .header h1,
-        .topbar h1,
-        h1 {
-            font-family: 'Qualy', serif !important;
-        }
-        
-        .card-header h2,
-        h2 {
-            font-family: 'Qualy', serif !important;
-        }
-        
-        .stat-card .number,
-        .stat-value {
-            font-family: 'Qualy', serif !important;
-        }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --cream: #ffffff;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            overflow-x: hidden;
-        }
-
-        /* ─── Sidebar ───────────────────────────────────────── */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-            transition: transform 0.3s;
-        }
-
-        .sidebar-brand {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .sidebar-brand img {
-            max-height: 48px;
-            width: auto;
-            max-width: 180px;
-        }
-
-        .sidebar-nav {
-            flex: 1;
-            padding: 16px 12px;
-            overflow-y: auto;
-        }
-
-        .nav-section {
-            margin-bottom: 8px;
-        }
-
-        .nav-section-label {
-            color: var(--gray-400);
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 8px 12px 4px;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 8px;
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .nav-item:hover {
-            background: var(--gray-100);
-            color: var(--gray-700);
-        }
-
-        .nav-item.active {
-            background: var(--forest);
-            color: var(--lime);
-        }
-
-        .nav-item svg {
-            width: 18px;
-            height: 18px;
-            flex-shrink: 0;
-        }
-
-        .nav-item .badge {
-            margin-left: auto;
-            background: var(--forest);
-            color: var(--lime);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-
-        .sidebar-footer {
-            padding: 16px 20px;
-            border-top: 1px solid var(--gray-100);
-        }
-
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .sidebar-user .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 13px;
-        }
-
-        .sidebar-user .name {
-            color: var(--gray-700);
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .sidebar-user .role {
-            color: var(--gray-400);
-            font-size: 11px;
-        }
-
-        /* ─── Main Content ──────────────────────────────────── */
-        .main {
-            margin-left: var(--sidebar-w);
-            min-height: 100vh;
-        }
-
-        .topbar {
-            position: sticky;
-            top: 0;
-            height: var(--header-h);
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 32px;
-            z-index: 50;
-        }
-
-        .topbar-left h2 {
-            font-family: 'Qualy', serif; font-size: 28px;
-            font-weight: 700;
-            color: var(--forest);
-        }
-
-        .topbar-left p {
-            font-size: 13px;
-            color: var(--gray-400);
-        }
-
-        .topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-            text-decoration: none;
-        }
-
-        .btn svg { width: 16px; height: 16px; }
-
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover {
-            background: var(--forest-dark, #1f2b29);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-
-        .btn-secondary {
-            background: var(--white);
-            color: var(--gray-600);
-            border: 1px solid var(--gray-200);
-        }
-
-        .btn-secondary:hover {
-            background: var(--gray-50);
-            border-color: var(--gray-300);
-            transform: translateY(-1px);
-        }
-
-        .btn-ghost {
-            background: transparent;
-            color: var(--gray-500);
-            padding: 8px;
-        }
-
-        .btn-ghost:hover { background: var(--gray-100); }
-
-        .mobile-menu-btn {
-            display: none;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px;
-        }
-
-        .mobile-menu-btn svg {
-            width: 24px;
-            height: 24px;
-            color: var(--gray-600);
-        }
-
-        /* ─── Page Content ──────────────────────────────────── */
-        .page-content {
-            padding: 28px 32px;
-            animation: fadeIn 0.4s ease;
-        }
+        body { overflow-x: hidden; }
 
         /* ─── Stats Row ─────────────────────────────────────── */
         .stats-row {
@@ -305,7 +19,7 @@
 
         .stat-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border-radius: 12px;
             padding: 20px;
             transition: all 0.2s ease;
@@ -356,7 +70,7 @@
         /* ─── Table Card ────────────────────────────────────── */
         .table-card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border-radius: 12px;
             overflow: hidden;
             transition: all 0.2s ease;
@@ -404,8 +118,8 @@
 
         .filter-select:focus {
             outline: none;
-            border-color: var(--forest);
-            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(22,163,74,0.1);
         }
 
         .search-input {
@@ -422,8 +136,8 @@
 
         .search-input:focus {
             outline: none;
-            border-color: var(--forest);
-            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(22,163,74,0.1);
         }
 
         table {
@@ -474,7 +188,7 @@
             transition: all 0.15s ease;
         }
 
-        .td-phone a:hover { color: var(--forest); }
+        .td-phone a:hover { color: var(--primary); }
 
         .status-pill {
             display: inline-flex;
@@ -526,8 +240,8 @@
         }
 
         .row-btn:hover {
-            border-color: var(--forest);
-            color: var(--forest);
+            border-color: var(--primary);
+            color: var(--primary);
         }
 
         .row-btn.delete {
@@ -565,7 +279,7 @@
             width: 24px;
             height: 24px;
             border: 3px solid var(--gray-200);
-            border-top-color: var(--forest);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
             margin: 0 auto 12px;
@@ -679,7 +393,7 @@
         }
 
         .panel-field-value a {
-            color: var(--forest);
+            color: var(--primary);
             text-decoration: none;
         }
 
@@ -698,7 +412,7 @@
         }
         .panel-select:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
 
         .panel-notes {
@@ -732,7 +446,7 @@
 
         .panel-footer select:focus {
             outline: none;
-            border-color: var(--lime);
+            border-color: var(--primary);
         }
 
         .panel-footer .btn { flex-shrink: 0; }
@@ -749,8 +463,8 @@
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: var(--forest);
-            color: var(--lime);
+            background: var(--primary);
+            color: var(--white);
             padding: 12px 20px;
             border-radius: 10px;
             font-size: 13px;
@@ -773,38 +487,12 @@
         }
 
         @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
-            }
-
-            .main { margin-left: 0; }
-
-            .mobile-menu-btn { display: block; }
-
-            .page-content { padding: 20px 16px; }
-
-            .topbar { padding: 0 16px; }
-
             .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
-
             .stat-card { padding: 16px; }
-
             .stat-card .stat-value { font-size: 24px; }
-
-            .table-toolbar {
-                flex-direction: column;
-                gap: 10px;
-                align-items: stretch;
-            }
-
+            .table-toolbar { flex-direction: column; gap: 10px; align-items: stretch; }
             .table-toolbar-left { flex-wrap: wrap; }
-
             .panel { width: 100vw; }
-
             .search-input { width: 100%; }
         }
     
@@ -826,10 +514,10 @@
         .date-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
         .date-nav button { padding: 8px 14px; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); font-family: inherit; font-size: 13px; font-weight: 600; color: var(--gray-600); cursor: pointer; }
         .date-nav button:hover { background: var(--gray-50); border-color: var(--gray-300); }
-        .date-nav button.today-btn { background: var(--forest); color: var(--lime); border-color: var(--forest); }
-        .date-nav button.today-btn:hover { background: var(--forest-dark); }
+        .date-nav button.today-btn { background: var(--primary); color: var(--white); border-color: var(--primary); }
+        .date-nav button.today-btn:hover { background: var(--primary-dark); }
         .date-nav input[type="date"] { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; outline: none; }
-        .date-nav input[type="date"]:focus { border-color: var(--lime); }
+        .date-nav input[type="date"]:focus { border-color: var(--primary); }
         .date-nav .day-label { font-size: 14px; color: var(--gray-500); font-weight: 500; }
 
         /* Enhanced Job Cards */
@@ -847,8 +535,8 @@
             margin-bottom: 8px;
             position: relative;
         }
-        .job-card:hover { 
-            border-color: var(--forest); 
+        .job-card:hover {
+            border-color: var(--primary);
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             transform: translateY(-1px);
         }
@@ -868,7 +556,7 @@
             background: var(--gray-300);
             border-radius: 50%;
         }
-        .job-card:hover .job-order { background: var(--forest); }
+        .job-card:hover .job-order { background: var(--primary); }
         
         .job-info { min-width: 0; }
         .job-info h4 { 
@@ -888,7 +576,7 @@
             gap: 6px;
         }
         .job-info .addr a {
-            color: var(--forest);
+            color: var(--primary);
             text-decoration: none;
         }
         .job-info .addr a:hover { text-decoration: underline; }
@@ -954,7 +642,7 @@
         .job-action-btn.action-edit { background: var(--blue-bg); color: var(--blue); }
         .job-action-btn.action-edit:hover { background: var(--blue); color: white; }
         .job-action-btn.action-map { background: var(--gray-100); color: var(--gray-600); }
-        .job-action-btn.action-map:hover { background: var(--forest); color: white; }
+        .job-action-btn.action-map:hover { background: var(--primary); color: white; }
         
         /* Route Summary Bar */
         .route-summary {
@@ -979,7 +667,7 @@
         .route-summary-stat .value {
             font-size: 20px;
             font-weight: 700;
-            color: var(--forest);
+            color: var(--primary);
         }
         .route-summary-stat .label {
             font-size: 11px;
@@ -1024,7 +712,7 @@
         }
         .view-btn svg { width: 16px; height: 16px; }
         .view-btn:hover { color: var(--gray-700); }
-        .view-btn.active { background: var(--white); color: var(--forest); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .view-btn.active { background: var(--white); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
         /* Toolbar Row */
         .toolbar-row {
@@ -1062,18 +750,18 @@
             width: 200px;
             outline: none;
         }
-        .search-box input:focus { border-color: var(--forest); }
+        .search-box input:focus { border-color: var(--primary); }
         
         .bulk-actions {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 8px 16px;
-            background: var(--forest);
+            background: var(--primary);
             border-radius: 8px;
         }
         .bulk-actions .selected-count {
-            color: var(--lime);
+            color: var(--white);
             font-size: 13px;
             font-weight: 600;
         }
@@ -1093,7 +781,7 @@
             min-height: 200px;
             overflow: hidden;
         }
-        .week-day.today { border-color: var(--forest); border-width: 2px; }
+        .week-day.today { border-color: var(--primary); border-width: 2px; }
         .week-day-header {
             padding: 12px;
             background: var(--gray-50);
@@ -1103,10 +791,10 @@
         .week-day-header .day-name { font-size: 11px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
         .week-day-header .day-num { font-size: 20px; font-weight: 700; color: var(--gray-700); }
         .week-day-header .job-count { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
-        .week-day.today .week-day-header { background: var(--forest); }
+        .week-day.today .week-day-header { background: var(--primary); }
         .week-day.today .week-day-header .day-name,
         .week-day.today .week-day-header .day-num,
-        .week-day.today .week-day-header .job-count { color: var(--lime); }
+        .week-day.today .week-day-header .job-count { color: var(--white); }
         .week-day-jobs { padding: 8px; max-height: 300px; overflow-y: auto; }
         .week-job {
             padding: 8px 10px;
@@ -1121,7 +809,7 @@
         .week-job.completed { border-left-color: var(--green); opacity: 0.6; }
         .week-job-name { font-size: 12px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .week-job-service { font-size: 10px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .week-job-price { font-size: 11px; font-weight: 600; color: var(--forest); margin-top: 2px; }
+        .week-job-price { font-size: 11px; font-weight: 600; color: var(--primary); margin-top: 2px; }
 
         @keyframes spin {
             from { transform: rotate(0deg); }
@@ -1189,16 +877,16 @@
             transition: all 0.15s; margin: 0 auto;
         }
         .mini-cal-day:hover { background: var(--gray-100); }
-        .mini-cal-day.today { background: var(--forest); color: var(--lime); font-weight: 700; }
-        .mini-cal-day.selected { background: var(--lime); color: var(--forest); font-weight: 700; }
+        .mini-cal-day.today { background: var(--primary); color: var(--white); font-weight: 700; }
+        .mini-cal-day.selected { background: var(--green-bg); color: var(--primary); font-weight: 700; }
         .mini-cal-day.other-month { color: var(--gray-300); }
         .mini-cal-day.has-jobs { position: relative; }
         .mini-cal-day.has-jobs::after {
             content: ''; position: absolute; bottom: 2px; left: 50%;
             transform: translateX(-50%); width: 4px; height: 4px;
-            border-radius: 50%; background: var(--forest);
+            border-radius: 50%; background: var(--primary);
         }
-        .mini-cal-day.today.has-jobs::after { background: var(--lime); }
+        .mini-cal-day.today.has-jobs::after { background: var(--white); }
 
         .month-grid-area { flex: 1; min-width: 0; }
 
@@ -1230,7 +918,7 @@
         }
         .month-day-num .day-number { display: flex; align-items: center; justify-content: center; }
         .month-day.today .day-number {
-            background: var(--forest); color: var(--lime); width: 26px; height: 26px;
+            background: var(--primary); color: var(--white); width: 26px; height: 26px;
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
         }
         .month-day-revenue {
@@ -1247,7 +935,7 @@
             font-size: 10px; color: var(--gray-500); font-weight: 600;
             text-align: center; margin-top: 2px; cursor: pointer;
         }
-        .month-day-more:hover { color: var(--forest); }
+        .month-day-more:hover { color: var(--primary); }
 
         /* Crew colors for month view pills */
         .crew-color-0 { background: #dbeafe; color: #1e40af; }
@@ -1279,15 +967,15 @@
             transform: scale(0.95);
         }
         .week-day.drag-over, .month-day.drag-over {
-            background: var(--lime-soft) !important;
-            box-shadow: inset 0 0 0 2px var(--forest);
+            background: var(--green-bg) !important;
+            box-shadow: inset 0 0 0 2px var(--primary);
         }
         .job-card.dragging { opacity: 0.4; }
 
         /* ─── Undo Toast ───────────────────────────────────────── */
         .toast-undo {
             position: fixed; bottom: 24px; right: 24px;
-            background: var(--forest); color: var(--lime);
+            background: var(--primary); color: var(--white);
             padding: 12px 20px; border-radius: 10px;
             font-size: 13px; font-weight: 600;
             box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300;
@@ -1297,7 +985,7 @@
         }
         .toast-undo.show { transform: translateY(0); opacity: 1; }
         .toast-undo .undo-btn {
-            background: var(--lime); color: var(--forest);
+            background: var(--white); color: var(--primary);
             border: none; padding: 4px 12px; border-radius: 6px;
             font-size: 12px; font-weight: 700; cursor: pointer;
             font-family: inherit; transition: all 0.15s;
@@ -1305,7 +993,7 @@
         .toast-undo .undo-btn:hover { background: var(--white); }
         .toast-undo .undo-timer {
             width: 20px; height: 20px; border-radius: 50%;
-            border: 2px solid var(--lime); display: flex;
+            border: 2px solid var(--white); display: flex;
             align-items: center; justify-content: center;
             font-size: 10px; font-weight: 700;
         }
@@ -1330,11 +1018,11 @@
         }
         .time-slot-cell:hover { background: var(--gray-50); }
         .time-slot-job {
-            background: var(--forest); color: var(--white); padding: 4px 8px;
+            background: var(--primary); color: var(--white); padding: 4px 8px;
             border-radius: 6px; font-size: 11px; font-weight: 600;
             margin-bottom: 2px; cursor: pointer; transition: all 0.15s;
         }
-        .time-slot-job:hover { background: var(--forest-dark); }
+        .time-slot-job:hover { background: var(--primary-dark); }
         .time-slot-job .ts-name { font-weight: 600; }
         .time-slot-job .ts-service { opacity: 0.8; font-size: 10px; }
 
@@ -1401,9 +1089,9 @@
             gap: 4px;
         }
         .lasso-btn.active {
-            background: var(--forest);
+            background: var(--primary);
             color: white;
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
         .bulk-actions-bar {
             display: flex;
@@ -1459,12 +1147,12 @@
             transition: all 0.15s;
         }
         .map-job-item:hover {
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         .map-job-item.selected {
-            border-color: var(--forest);
-            background: var(--lime-soft);
+            border-color: var(--primary);
+            background: var(--green-bg);
         }
         .map-job-item.highlighted {
             border-color: var(--amber);
@@ -1482,7 +1170,7 @@
             width: 24px;
             height: 24px;
             border-radius: 50%;
-            background: var(--forest);
+            background: var(--primary);
             color: var(--white);
             font-size: 11px;
             font-weight: 700;
@@ -1534,7 +1222,7 @@
         .map-job-price {
             font-size: 12px;
             font-weight: 600;
-            color: var(--forest);
+            color: var(--primary);
             margin-left: auto;
         }
         .map-area {
@@ -1581,8 +1269,8 @@
         .form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
         .form-row input, .form-row select, .form-row textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; transition: all 0.15s ease; }
         .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
-            border-color: var(--forest);
-            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(22,163,74,0.1);
         }
         .form-row textarea { resize: vertical; min-height: 60px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1595,232 +1283,30 @@
             .route-summary-stats { width: 100%; justify-content: space-around; }
         }
 
-    
-/* Universal Search */
-.universal-search-wrapper{position:relative;flex:1;max-width:380px;margin:0 24px}
-.search-input-group{position:relative;display:flex;align-items:center}
-.search-icon{position:absolute;left:12px;width:18px;height:18px;color:#9ca09c;pointer-events:none}
-.search-input{width:100%;padding:8px 36px 8px 40px;border:1px solid #e2e5e2;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;transition:all .2s}
-.search-input:focus{outline:none;border-color:#2e403d;box-shadow:0 0 0 3px rgba(46,64,61,.1)}
-.search-input::placeholder{color:#9ca09c}
-.search-clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:#9ca09c;display:flex}
-.search-clear-btn:hover{color:#4a4e4a}
-.search-clear-btn svg{width:16px;height:16px}
-.search-results-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e5e2;border-top:none;border-radius:0 0 8px 8px;max-height:400px;overflow-y:auto;box-shadow:0 8px 16px rgba(0,0,0,.1);z-index:200}
-.search-results-group{padding:8px 0;border-bottom:1px solid #f0f2f0}
-.search-results-group:last-child{border-bottom:none}
-.search-group-label{padding:6px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca09c}
-.search-result-item{display:flex;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;cursor:pointer;transition:background .1s;color:#333633}
-.search-result-item:hover{background:#f8faf8}
-.search-result-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
-.search-result-icon.customer{background:#eff6ff;color:#3b82f6}
-.search-result-icon.quote{background:#f5f3ff;color:#7c3aed}
-.search-result-icon.property{background:#ecfdf5;color:#059669}
-.search-result-content{flex:1;min-width:0}
-.search-result-title{font-size:13px;font-weight:600;color:#333633;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.search-result-subtitle{font-size:12px;color:#6e726e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.search-result-badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
-.search-empty{text-align:center;padding:24px 16px;color:#9ca09c;font-size:13px}
-.search-loading{text-align:center;padding:16px;color:#6e726e}
-@media(max-width:768px){.universal-search-wrapper{display:none}}
-
 </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
-    <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item active">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-            <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</aside>
-
+<script src="shell.js"></script>
 
 <div class="main">
     <div class="topbar">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </button>
-            <div class="topbar-left"><h2>Scheduling</h2><p>Manage daily job routes</p></div>
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <h1>Schedule</h1>
         </div>
         <div class="topbar-actions">
+            <div class="topbar-search-wrap" id="search-container"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off"><div class="search-dropdown" id="search-dropdown"></div></div>
             <a href="import-scheduling.html" class="btn btn-secondary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Import
             </a>
-            <button class="btn btn-primary" onclick="openAddModal()">
+            <a href="new-job.html" class="btn btn-primary">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Job
-            </button>
+            </a>
+            <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+            <div class="topbar-avatar" title="Account">TP</div>
         </div>
-        <div class="universal-search-wrapper">
-    <div class="search-input-group">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="universalSearch" class="search-input" placeholder="Search customers, quotes, properties... (⌘K)" autocomplete="off">
-        <button id="searchClear" class="search-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-    </div>
-    <div id="searchResults" class="search-results-dropdown" style="display:none"></div>
-</div>
-        
     </div>
     <div class="page-content">
         <!-- Date Navigation with Week View Toggle -->
@@ -2320,7 +1806,20 @@ async function loadJobs() {
         const cs = document.getElementById('crewFilter');
         const cv = cs.value;
         cs.innerHTML = '<option value="">All Crews</option>';
-        if (s.byCrew) Object.keys(s.byCrew).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c + ' (' + s.byCrew[c] + ')'; cs.appendChild(o); });
+        // Build crew options from allCrews (fetched from /api/crews) with job counts from stats
+        const crewCounts = s.byCrew || {};
+        if (allCrews && allCrews.length > 0) {
+            allCrews.forEach(c => {
+                const o = document.createElement('option');
+                o.value = c.name;
+                const count = crewCounts[c.name] || 0;
+                o.textContent = c.name + ' (' + count + ')';
+                cs.appendChild(o);
+            });
+        } else if (s.byCrew) {
+            // Fallback: use stats data if allCrews not loaded yet
+            Object.keys(s.byCrew).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c + ' (' + s.byCrew[c] + ')'; cs.appendChild(o); });
+        }
         cs.value = cv;
         renderJobs();
     } catch (e) { console.error(e); document.getElementById('jobsList').innerHTML = '<div class="empty-state"><p>Failed to load jobs</p></div>'; }
@@ -2597,7 +2096,7 @@ function openCompleteModal(id) {
     document.getElementById('completeJobInfo').innerHTML = `
         <div style="font-weight:600;margin-bottom:4px;">${esc(job.customer_name)}</div>
         <div style="font-size:13px;color:var(--gray-500);">${esc(job.address)}</div>
-        <div style="margin-top:8px;"><span style="background:var(--lime);padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;">${esc(job.service_type)}</span></div>
+        <div style="margin-top:8px;"><span style="background:var(--primary);padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;">${esc(job.service_type)}</span></div>
     `;
     document.getElementById('completeNotes').value = '';
     document.getElementById('completePhotoPreview').innerHTML = '';
@@ -2734,19 +2233,26 @@ function esc(s) { return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 async function optimizeRoute() {
     const optimizeBtn = document.querySelector('.route-actions button');
     const originalText = optimizeBtn.innerHTML;
-    
+    const crewFilterValue = document.getElementById('crewFilter').value;
+
     try {
         // Show loading state
         optimizeBtn.innerHTML = '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg> Optimizing...';
         optimizeBtn.disabled = true;
-        
+
+        const payload = {
+            date: selectedDate,
+            startAddress: null // Uses default office address
+        };
+        // If a specific crew is selected, only optimize that crew's jobs
+        if (crewFilterValue) {
+            payload.crew = crewFilterValue;
+        }
+
         const response = await fetch('/api/jobs/optimize-route', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                date: selectedDate,
-                startAddress: null // Uses default office address
-            })
+            body: JSON.stringify(payload)
         });
         
         const data = await response.json();
@@ -3948,7 +3454,7 @@ function searchQuotes(query) {
                                 <div style="font-size:11px;color:var(--gray-400);">Quote #${esc(q.quote_number || String(q.id))} - ${esc(q.customer_address || '')}</div>
                             </div>
                             <div style="text-align:right;">
-                                <div style="font-weight:700;font-size:14px;color:var(--forest);">$${parseFloat(q.total || 0).toFixed(0)}</div>
+                                <div style="font-weight:700;font-size:14px;color:var(--primary);">$${parseFloat(q.total || 0).toFixed(0)}</div>
                                 <div style="font-size:10px;font-weight:600;color:${statusColor};text-transform:uppercase;">${esc(q.status || 'draft')}</div>
                             </div>
                         </div>
@@ -4011,15 +3517,30 @@ document.addEventListener('DOMContentLoaded', init);
         }
     };
 
-// Universal Search
-let searchDebounceTimer=null;
-function initUniversalSearch(){const i=document.getElementById('universalSearch'),r=document.getElementById('searchResults'),c=document.getElementById('searchClear');if(!i)return;document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();i.focus()}});i.addEventListener('input',()=>{clearTimeout(searchDebounceTimer);const q=i.value.trim();if(!q){r.style.display='none';c.style.display='none';return}c.style.display='flex';searchDebounceTimer=setTimeout(()=>uniSearch(q),300)});c.addEventListener('click',()=>{i.value='';r.style.display='none';c.style.display='none';i.focus()});i.addEventListener('blur',()=>setTimeout(()=>r.style.display='none',200));i.addEventListener('keydown',e=>{if(e.key==='Escape'){r.style.display='none';i.blur()}})}
-function searchEsc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
-async function uniSearch(query){const el=document.getElementById('searchResults');el.innerHTML='<div class="search-loading">Searching...</div>';el.style.display='block';try{const[cRes,qRes,pRes]=await Promise.all([fetch('/api/customers?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/sent-quotes?search='+encodeURIComponent(query)+'&limit=5'),fetch('/api/properties?search='+encodeURIComponent(query)+'&limit=5')]);const customers=((await cRes.json()).customers||[]).slice(0,4),quotes=((await qRes.json()).quotes||[]).slice(0,4),properties=((await pRes.json()).properties||[]).slice(0,4);let html='';if(customers.length){html+='<div class="search-results-group"><div class="search-group-label">Customers</div>';customers.forEach(c=>{html+='<a href="customer-detail.html?id='+c.id+'" class="search-result-item"><div class="search-result-icon customer">👤</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(c.name||'Unknown')+'</div><div class="search-result-subtitle">'+searchEsc(c.email||c.phone||'')+'</div></div></a>'});html+='</div>'}if(quotes.length){html+='<div class="search-results-group"><div class="search-group-label">Quotes</div>';quotes.forEach(q=>{html+='<a href="sent-quotes.html?quote='+q.id+'" class="search-result-item"><div class="search-result-icon quote">📄</div><div class="search-result-content"><div class="search-result-title">Quote #'+searchEsc(q.quote_number||String(q.id))+'</div><div class="search-result-subtitle">'+searchEsc(q.customer_name||'Unknown')+'</div></div><span class="search-result-badge" style="background:#f5f3ff;color:#7c3aed;">'+searchEsc(q.status||'')+'</span></a>'});html+='</div>'}if(properties.length){html+='<div class="search-results-group"><div class="search-group-label">Properties</div>';properties.forEach(p=>{html+='<a href="properties.html?id='+p.id+'" class="search-result-item"><div class="search-result-icon property">🏠</div><div class="search-result-content"><div class="search-result-title">'+searchEsc(p.property_name||p.street||'Unnamed')+'</div><div class="search-result-subtitle">'+searchEsc([p.street,p.city,p.state].filter(Boolean).join(', '))+'</div></div></a>'});html+='</div>'}if(!html)html='<div class="search-empty">No results for "'+searchEsc(query)+'"</div>';el.innerHTML=html}catch(e){el.innerHTML='<div class="search-empty">Search failed.</div>'}}
-document.addEventListener('DOMContentLoaded',initUniversalSearch);
 
 </script>
 
-
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
+</script>
 </body>
 </html>

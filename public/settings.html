@@ -5,242 +5,111 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
+        .settings-layout {
+            display: flex; gap: 0; min-height: calc(100vh - 64px);
         }
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-            --white: #ffffff;
+        .settings-sidebar {
+            width: 260px; min-width: 260px; background: var(--white);
+            border-right: 1px solid var(--gray-200); padding: 24px 0;
         }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DM Sans', sans-serif; background: var(--gray-50); color: var(--gray-700); }
-
-        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; }
-        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
-        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
-        .sidebar-nav { flex: 1; overflow-y: auto; padding: 12px; }
-        .nav-section { margin-bottom: 8px; }
-        .nav-section-label { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; transition: all 0.15s; }
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-        .sidebar-footer { padding: 12px; border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 8px; }
-        .sidebar-user .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
-        .sidebar-user .name { font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { font-size: 11px; color: var(--gray-400); }
-
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
-        .topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); }
-        .topbar h1 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
-        .content { padding: 32px; max-width: 900px; }
-
-        /* Cards */
-        .integration-card {
-            background: var(--white);
-            border-radius: 12px;
-            border: 1px solid var(--gray-200);
-            padding: 28px;
-            margin-bottom: 24px;
+        .settings-sidebar a {
+            display: block; padding: 10px 24px; font-size: 14px; font-weight: 500;
+            color: var(--gray-600); text-decoration: none; cursor: pointer;
+            border-left: 3px solid transparent; transition: all 0.15s;
         }
-        .integration-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
+        .settings-sidebar a:hover { background: var(--gray-50); color: var(--gray-800); }
+        .settings-sidebar a.active {
+            background: var(--green-bg); color: var(--primary); border-left-color: var(--primary); font-weight: 600;
         }
-        .integration-title {
-            display: flex;
-            align-items: center;
-            gap: 14px;
+        .settings-body {
+            flex: 1; padding: 32px; max-width: 800px; overflow-y: auto;
         }
-        .integration-title h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--gray-700);
+        .settings-section { display: none; }
+        .settings-section.active { display: block; }
+        .settings-section h2 {
+            font-size: 20px; font-weight: 700; color: var(--gray-800); margin-bottom: 24px;
+            display: flex; align-items: center; gap: 10px;
         }
-        .integration-title .icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
+        .settings-section h2 .section-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
         }
-        .qb-icon { background: #2ca01c; color: white; font-weight: 800; font-size: 20px; }
-
+        .card {
+            background: var(--white); border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 24px; margin-bottom: 24px;
+        }
+        .card h3 {
+            font-size: 15px; font-weight: 700; color: var(--gray-700); margin-bottom: 16px;
+            padding-bottom: 10px; border-bottom: 1px solid var(--gray-100);
+        }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .form-group label { font-size: 13px; font-weight: 600; color: var(--gray-600); }
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="tel"],
+        .form-group input[type="number"],
+        .form-group input[type="url"],
+        .form-group textarea,
+        .form-group select {
+            padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: 8px;
+            font-size: 14px; font-family: inherit; color: var(--gray-700); background: var(--white);
+            width: 100%; box-sizing: border-box; transition: border-color 0.15s;
+        }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(46, 64, 61, 0.1);
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-group .hint { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+        .toggle-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 0; border-bottom: 1px solid var(--gray-100);
+        }
+        .toggle-row:last-child { border-bottom: none; }
+        .toggle-row .toggle-label { font-size: 14px; font-weight: 500; color: var(--gray-700); }
+        .toggle-row .toggle-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+        .toggle-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--gray-300); border-radius: 24px; transition: 0.2s;
+        }
+        .toggle-slider:before {
+            content: ""; position: absolute; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: var(--green); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+        .radio-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+        .radio-option {
+            display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px;
+            border: 1px solid var(--gray-200); border-radius: 8px; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .radio-option:hover { border-color: var(--gray-400); }
+        .radio-option.selected { border-color: var(--primary); background: var(--green-bg); }
+        .radio-option input[type="radio"] { margin-top: 2px; accent-color: var(--primary); }
+        .radio-option .radio-text { flex: 1; }
+        .radio-option .radio-text .title { font-size: 14px; font-weight: 500; color: var(--gray-700); }
+        .radio-option .radio-text .desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
         .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
         }
         .badge-connected { background: var(--green-bg); color: var(--green); }
         .badge-disconnected { background: var(--gray-100); color: var(--gray-500); }
         .badge-active { background: var(--green-bg); color: var(--green); }
         .badge-inactive { background: var(--gray-100); color: var(--gray-500); }
-
-        /* Late Fees / Recurring Card */
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .form-group label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-600);
-        }
-        .form-group input[type="number"] {
-            padding: 8px 12px;
-            border: 1px solid var(--gray-300);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--gray-700);
-            background: var(--white);
-        }
-        .form-group input[type="number"]:focus {
-            outline: none;
-            border-color: var(--forest);
-            box-shadow: 0 0 0 2px rgba(46, 64, 61, 0.1);
-        }
-        .toggle-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--gray-100);
-        }
-        .toggle-row:last-child { border-bottom: none; }
-        .toggle-row .toggle-label {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--gray-700);
-        }
-        .toggle-row .toggle-desc {
-            font-size: 12px;
-            color: var(--gray-500);
-            margin-top: 2px;
-        }
-        .toggle-switch {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            flex-shrink: 0;
-        }
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--gray-300);
-            border-radius: 24px;
-            transition: 0.2s;
-        }
-        .toggle-slider:before {
-            content: "";
-            position: absolute;
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.2s;
-        }
-        .toggle-switch input:checked + .toggle-slider {
-            background: var(--green);
-        }
-        .toggle-switch input:checked + .toggle-slider:before {
-            transform: translateX(20px);
-        }
-        .section-divider {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--gray-600);
-            margin: 20px 0 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--gray-200);
-        }
-        .cron-results {
-            background: var(--gray-50);
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-top: 16px;
-            display: none;
-        }
-        .cron-results.show { display: block; }
-        .cron-results h4 {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: 12px;
-        }
-
-        .integration-body p {
-            font-size: 14px;
-            color: var(--gray-500);
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-
         .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px;
+            border-radius: 8px; font-size: 13px; font-weight: 600; border: none;
+            cursor: pointer; transition: all 0.15s; text-decoration: none;
         }
-        .btn-primary { background: var(--forest); color: white; }
-        .btn-primary:hover { background: var(--forest-dark); }
+        .btn-primary { background: var(--primary); color: var(--white); }
+        .btn-primary:hover { background: var(--primary-dark); }
         .btn-success { background: #2ca01c; color: white; }
         .btn-success:hover { background: #248a16; }
         .btn-outline { background: none; border: 1px solid var(--gray-300); color: var(--gray-600); }
@@ -248,220 +117,687 @@
         .btn-danger { background: none; border: 1px solid var(--red); color: var(--red); }
         .btn-danger:hover { background: var(--red-bg); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
         .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-
-        /* Sync Results */
         .sync-results {
-            background: var(--gray-50);
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-top: 16px;
-            display: none;
+            background: var(--gray-50); border-radius: 8px; padding: 16px 20px; margin-top: 16px; display: none;
         }
         .sync-results.show { display: block; }
-        .sync-results h4 {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: 12px;
-        }
-        .sync-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-        }
+        .sync-results h4 { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 12px; }
+        .sync-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
         .sync-stat {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
+            background: var(--white); box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-radius: 8px; padding: 12px; text-align: center;
         }
-        .sync-stat .number {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--forest);
-        }
+        .sync-stat .number { font-size: 24px; font-weight: 700; color: var(--primary); }
         .sync-stat .label {
-            font-size: 11px;
-            color: var(--gray-500);
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            margin-top: 4px;
+            font-size: 11px; color: var(--gray-500); text-transform: uppercase;
+            letter-spacing: 0.03em; margin-top: 4px;
         }
-
-        /* Sync Log */
-        .sync-log {
-            margin-top: 20px;
-            display: none;
-        }
+        .sync-log { margin-top: 20px; display: none; }
         .sync-log.show { display: block; }
-        .sync-log h4 {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-700);
-            margin-bottom: 12px;
-        }
+        .sync-log h4 { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 12px; }
         .log-entry {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--gray-100);
-            font-size: 13px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid var(--gray-100); font-size: 13px;
         }
         .log-entry .time { color: var(--gray-500); font-size: 12px; }
         .log-entry .summary { color: var(--gray-600); }
         .log-entry .error { color: var(--red); font-size: 12px; }
-
-        /* Setup Guide */
         .setup-guide {
-            background: var(--blue-bg);
-            border: 1px solid #bfdbfe;
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin-top: 16px;
+            background: var(--blue-bg); border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin-top: 16px;
         }
-        .setup-guide h4 {
-            font-size: 13px;
-            font-weight: 700;
-            color: #1e40af;
-            margin-bottom: 10px;
-        }
-        .setup-guide ol {
-            margin: 0;
-            padding-left: 20px;
-            font-size: 13px;
-            color: #1e40af;
-            line-height: 1.8;
-        }
+        .setup-guide h4 { font-size: 13px; font-weight: 700; color: #1e40af; margin-bottom: 10px; }
+        .setup-guide ol { margin: 0; padding-left: 20px; font-size: 13px; color: #1e40af; line-height: 1.8; }
         .setup-guide a { color: #2563eb; }
-
-        /* Spinner */
+        .cron-results {
+            background: var(--gray-50); border-radius: 8px; padding: 16px 20px; margin-top: 16px; display: none;
+        }
+        .cron-results.show { display: block; }
+        .cron-results h4 { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 12px; }
         .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+            border-radius: 50%; animation: spin 0.6s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Toast */
-        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: white; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+        .toast {
+            position: fixed; bottom: 24px; right: 24px; background: var(--primary); color: white;
+            padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; z-index: 999;
+            transform: translateY(80px); opacity: 0; transition: all 0.3s;
+        }
         .toast.show { transform: translateY(0); opacity: 1; }
+        .checkbox-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+        .checkbox-option {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 14px; color: var(--gray-700); cursor: pointer;
+        }
+        .checkbox-option input[type="checkbox"] { accent-color: var(--primary); width: 16px; height: 16px; }
+        .auto-send-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+        @media (max-width: 768px) {
+            .settings-layout { flex-direction: column; }
+            .settings-sidebar { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--gray-200); padding: 12px 0; display: flex; overflow-x: auto; }
+            .settings-sidebar a { white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; padding: 8px 16px; }
+            .settings-sidebar a.active { border-bottom-color: var(--primary); border-left-color: transparent; }
+            .settings-body { padding: 20px; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-    <aside class="sidebar">
-        <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
+<script src="shell.js"></script>
+
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <h1>Account Settings</h1>
         </div>
-        <nav class="sidebar-nav">
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a>
-            </div>
-            <div class="nav-section"><div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-                <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-                <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item"><span>👥</span><span>Customers</span></a>
-                <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-                <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-                <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-                <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
-                <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
-                <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
-                <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-                <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-                <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-                <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-                <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
-            <div class="nav-section"><div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item active"><span>⚙️</span><span>Settings</span></a></div>
+        <div class="topbar-actions">
+            <div class="topbar-search-wrap" id="search-container"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off"><div class="search-dropdown" id="search-dropdown"></div></div>
+            <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+            <div class="topbar-avatar" title="Account">TP</div>
+        </div>
+    </div>
+
+    <div class="settings-layout">
+        <!-- Settings Sidebar Navigation -->
+        <nav class="settings-sidebar" id="settingsSidebar">
+            <a data-tab="profile" class="active">Your Business Profile</a>
+            <a data-tab="preferences">Preferences</a>
+            <a data-tab="invoices">Invoices, Estimates & Receipts</a>
+            <a data-tab="payments">Setup & Manage Online Payments</a>
+            <a data-tab="services">Service Items Catalog</a>
+            <a data-tab="notifications">Notification Preferences</a>
+            <a data-tab="data">Data Tools</a>
+            <a data-tab="automation">Automation & Scheduling</a>
         </nav>
-        <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </aside>
 
-    <main class="main">
-        <div class="topbar">
-            <h1>Settings</h1>
-        </div>
+        <!-- Settings Body -->
+        <div class="settings-body">
 
-        <div class="content">
-            <!-- QuickBooks Integration Card -->
-            <div class="integration-card" id="qbCard">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon qb-icon">QB</div>
-                        <div>
-                            <h2>QuickBooks Online</h2>
-                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Sync customers, invoices, payments & expenses</div>
+            <!-- ═══════════ TAB: Your Business Profile ═══════════ -->
+            <div class="settings-section active" id="tab-profile">
+                <h2><span class="section-icon" style="background:var(--primary);color:var(--white);">CP</span> Company Info</h2>
+
+                <div class="card">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Company Name</label>
+                            <input type="text" id="companyName" placeholder="Pappas & Co. Landscaping">
+                        </div>
+                        <div class="form-group">
+                            <label>When Your Business Was Started</label>
+                            <input type="text" id="companyStarted" placeholder="e.g. 2022">
+                        </div>
+                        <div class="form-group">
+                            <label>Tax ID</label>
+                            <input type="text" id="companyTaxId" placeholder="XX-XXXXXXX">
+                        </div>
+                        <div class="form-group">
+                            <label>License Number</label>
+                            <input type="text" id="companyLicense" placeholder="Optional">
+                        </div>
+                        <div class="form-group">
+                            <label>Business Email</label>
+                            <input type="email" id="companyEmail" placeholder="hello@pappaslandscaping.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Website</label>
+                            <input type="url" id="companyWebsite" placeholder="www.pappaslandscaping.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" id="companyPhone" placeholder="440-886-7318">
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile</label>
+                            <input type="tel" id="companyMobile" placeholder="440-886-7318">
                         </div>
                     </div>
-                    <span class="badge badge-disconnected" id="qbBadge">
-                        <span id="qbBadgeDot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
-                        <span id="qbBadgeText">Not Connected</span>
-                    </span>
+
+                    <h3 style="margin-top:8px;">Address</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Street</label>
+                            <input type="text" id="companyStreet" placeholder="PO Box 770057">
+                        </div>
+                        <div class="form-group">
+                            <label>Street 2</label>
+                            <input type="text" id="companyStreet2" placeholder="">
+                        </div>
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="companyCity" placeholder="Lakewood">
+                        </div>
+                        <div class="form-group">
+                            <label>State</label>
+                            <input type="text" id="companyState" placeholder="Ohio">
+                        </div>
+                        <div class="form-group">
+                            <label>Postal Code / ZIP</label>
+                            <input type="text" id="companyZip" placeholder="44107">
+                        </div>
+                        <div class="form-group">
+                            <label>Country</label>
+                            <input type="text" id="companyCountry" placeholder="United States">
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top:8px;">Social</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Facebook</label>
+                            <input type="text" id="companyFacebook" placeholder="facebook.com/pappaslandscaping">
+                        </div>
+                        <div class="form-group">
+                            <label>Fax</label>
+                            <input type="text" id="companyFax" placeholder="">
+                        </div>
+                    </div>
+
+                    <div class="actions" style="margin-top:16px;">
+                        <button class="btn btn-primary" onclick="saveCompanyProfile()">Save Profile</button>
+                    </div>
                 </div>
 
-                <div class="integration-body">
+                <!-- Business Location / Home Base -->
+                <div class="card" id="homeBaseCard">
+                    <h3>Business Location (Home Base)</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Set your home base address so route optimization starts and ends at your business location.
+                    </p>
+                    <div class="form-group" style="max-width:500px;">
+                        <label>Home Base Address</label>
+                        <input type="text" id="homeBaseAddress" placeholder="e.g. 9523 Clinton Rd, Cleveland, OH 44144">
+                    </div>
+                    <div id="homeBaseCoords" style="font-size:12px;color:var(--gray-400);margin-bottom:16px;display:none;">
+                        Coordinates: <span id="homeBaseLat"></span>, <span id="homeBaseLng"></span>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="saveHomeBase()">Save Home Base</button>
+                        <span class="badge badge-inactive" id="homeBaseBadge" style="margin-left:8px;">Not Set</span>
+                    </div>
+                    <div id="homeBaseStatus" style="margin-top:12px;font-size:13px;display:none;"></div>
+                </div>
+
+                <!-- Tax Rate -->
+                <div class="card">
+                    <h3>Tax Rate</h3>
+                    <div class="form-group" style="max-width:200px;">
+                        <label>Default Tax Rate (%)</label>
+                        <input type="number" id="taxRate" min="0" max="100" step="0.01" value="0">
+                        <div class="hint">Applied to quotes and invoices</div>
+                    </div>
+                    <div class="actions" style="margin-top:8px;">
+                        <button class="btn btn-primary" onclick="saveTaxRate()">Save Tax Rate</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════ TAB: Preferences ═══════════ -->
+            <div class="settings-section" id="tab-preferences">
+                <h2><span class="section-icon" style="background:var(--amber-bg);color:var(--amber);">PF</span> Preferences</h2>
+
+                <!-- When Creating Invoices -->
+                <div class="card">
+                    <h3>When Creating Invoices</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        When the system generates an invoice automatically (e.g., when closing a visit), choose how invoices are created.
+                    </p>
+                    <div class="radio-group" id="invoiceCreationMode">
+                        <label class="radio-option selected" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceCreation" value="per_visit" checked>
+                            <div class="radio-text">
+                                <div class="title">Create an Invoice for Each Visit</div>
+                                <div class="desc">A separate invoice is generated each time a visit is completed.</div>
+                            </div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceCreation" value="combine_customer">
+                            <div class="radio-text">
+                                <div class="title">Create an Invoice That Combines All Visits for That Customer</div>
+                                <div class="desc">All visits for the same customer are grouped into a single invoice.</div>
+                            </div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceCreation" value="per_property">
+                            <div class="radio-text">
+                                <div class="title">Create an Invoice for Each Property</div>
+                                <div class="desc">Invoices are grouped by property address rather than by customer.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- When Closing & Invoicing Visits -->
+                <div class="card">
+                    <h3>When Closing & Invoicing Visits</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Controls how invoices are automatically generated when a visit is completed and closed.
+                    </p>
+                    <div class="radio-group" id="invoiceClosingMode">
+                        <label class="radio-option selected" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceClosing" value="per_visit" checked>
+                            <div class="radio-text">
+                                <div class="title">Create an Invoice for Each Visit</div>
+                                <div class="desc">A new invoice will be created every time a visit is completed.</div>
+                            </div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceClosing" value="add_to_existing">
+                            <div class="radio-text">
+                                <div class="title">Add Visit Info to an Existing Invoice for Customer (if it's Not Sent)</div>
+                                <div class="desc">Line items are added to an existing unsent, unpaid invoice. If already sent/paid, a new invoice is created.</div>
+                            </div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceClosing" value="add_to_monthly">
+                            <div class="radio-text">
+                                <div class="title">Add Visit Info to a Pending Invoice for Customer for the Month of Visit</div>
+                                <div class="desc">Line items are grouped into a monthly invoice. New month = new invoice.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Invoice Start # -->
+                <div class="card">
+                    <h3>Invoice Start #</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        The starting number for new invoices. If a number is already in use, the next available number is used.
+                    </p>
+                    <div class="form-group" style="max-width:200px;">
+                        <label>Starting Number</label>
+                        <input type="number" id="invoiceStartNumber" min="1" value="1001">
+                    </div>
+                </div>
+
+                <!-- Show Property Name in Invoice -->
+                <div class="card">
+                    <h3>Show Property Name in Invoice</h3>
+                    <div class="radio-group" id="propertyNameMode">
+                        <label class="radio-option selected" onclick="selectRadio(this)">
+                            <input type="radio" name="propertyName" value="address_only" checked>
+                            <div class="radio-text"><div class="title">Show Address Only</div></div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="propertyName" value="name_and_address">
+                            <div class="radio-text"><div class="title">Show Property Name and Address</div></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Show Custom Fields -->
+                <div class="card">
+                    <h3>Custom Fields</h3>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Show Custom Fields in Customer Portal and PDF</div>
+                            <div class="toggle-desc">Display custom invoice fields in the customer's portal view and on invoice PDFs</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="showCustomFields">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="actions" style="margin-top:8px;">
+                    <button class="btn btn-primary" onclick="savePreferences()">Save Preferences</button>
+                </div>
+            </div>
+
+            <!-- ═══════════ TAB: Invoices, Estimates & Receipts ═══════════ -->
+            <div class="settings-section" id="tab-invoices">
+                <h2><span class="section-icon" style="background:var(--amber-bg);color:var(--amber);">IE</span> Invoices, Estimates & Receipts</h2>
+
+                <!-- Visible to Customer -->
+                <div class="card">
+                    <h3>Visible to Customer</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Control which columns customers see when viewing their invoices.
+                    </p>
+                    <div class="checkbox-grid">
+                        <label class="checkbox-option">
+                            <input type="checkbox" id="visibleQty" checked> Qty/Hr
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" id="visibleRate" checked> Cost/Rate
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" id="visibleBudgetedHours"> Budgeted Hours
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Default Invoice Date -->
+                <div class="card">
+                    <h3>Default Invoice Date</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Determines which date appears on invoices.
+                    </p>
+                    <div class="radio-group" id="invoiceDateMode">
+                        <label class="radio-option selected" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceDate" value="date_sent" checked>
+                            <div class="radio-text"><div class="title">The date the invoice is sent</div></div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceDate" value="last_service_date">
+                            <div class="radio-text"><div class="title">The date of the last service added to the invoice before it is sent</div></div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="invoiceDate" value="do_not_change">
+                            <div class="radio-text"><div class="title">Do not change the invoice date</div></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Set Default Service Date -->
+                <div class="card">
+                    <h3>Set Default Service Date</h3>
+                    <div class="toggle-row" style="border-bottom:none;">
+                        <div>
+                            <div class="toggle-label">Auto-set today's date as the service date</div>
+                            <div class="toggle-desc">When manually creating an invoice, automatically applies today's date</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setServiceDateToday" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Show Invoice Event Date -->
+                <div class="card">
+                    <h3>Show Invoice Event Date</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Choose which date appears on invoice line items.
+                    </p>
+                    <div class="radio-group" id="eventDateMode">
+                        <label class="radio-option selected" onclick="selectRadio(this)">
+                            <input type="radio" name="eventDate" value="scheduled" checked>
+                            <div class="radio-text"><div class="title">The scheduled date of the event</div></div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="eventDate" value="completed">
+                            <div class="radio-text"><div class="title">The completed/closed date of the event</div></div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="eventDate" value="manual">
+                            <div class="radio-text"><div class="title">Choose the visit date manually when closing the event</div></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Invoice Due Date Visibility -->
+                <div class="card">
+                    <h3>Invoice Due Date Visibility</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Control whether the invoice due date appears to customers. Due dates are determined by your Late Fee rules.
+                    </p>
+                    <div class="radio-group" id="dueDateVisibility">
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="dueDate" value="hide_all">
+                            <div class="radio-text"><div class="title">Hide for All Customers</div></div>
+                        </label>
+                        <label class="radio-option selected" onclick="selectRadio(this)">
+                            <input type="radio" name="dueDate" value="show_all" checked>
+                            <div class="radio-text"><div class="title">Show for All Customers</div></div>
+                        </label>
+                        <label class="radio-option" onclick="selectRadio(this)">
+                            <input type="radio" name="dueDate" value="use_customer_setting">
+                            <div class="radio-text"><div class="title">Use Customer Setting</div></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Status Stamp -->
+                <div class="card">
+                    <h3>Invoice Status Stamps</h3>
+                    <div class="toggle-row" style="border-bottom:none;">
+                        <div>
+                            <div class="toggle-label">Show Pending, Draft, Paid in Full, and Past Due Stamp on Invoices</div>
+                            <div class="toggle-desc">Display a colored status stamp so customers can see invoice status</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="showStatusStamp" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Default Invoice Messages -->
+                <div class="card">
+                    <h3>Default Invoice Messages</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Set default text that appears on every invoice you send.
+                    </p>
+                    <div class="form-group">
+                        <label>Notes Visible to Customer</label>
+                        <textarea id="invoiceNotes" rows="3" placeholder="Add notes to appear on all invoices..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Terms</label>
+                        <textarea id="invoiceTerms" rows="2" placeholder="e.g. Please pay all invoices within 15 days of receipt.">Due upon receipt.</textarea>
+                    </div>
+                </div>
+
+                <!-- Default Invoice Email Settings -->
+                <div class="card">
+                    <h3>Default Invoice Email Settings</h3>
+                    <div class="form-group" style="max-width:400px;">
+                        <label>Default Invoice Email Template</label>
+                        <select id="invoiceEmailTemplate">
+                            <option value="default">Default Template</option>
+                            <option value="professional">Professional</option>
+                            <option value="friendly">Friendly</option>
+                            <option value="minimal">Minimal</option>
+                        </select>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Attach PDF of Invoice to Email</div>
+                            <div class="toggle-desc">Automatically attach a PDF of the invoice to each email</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="attachPdf" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Default Invoice SMS Settings -->
+                <div class="card">
+                    <h3>Default Invoice SMS Settings</h3>
+                    <div class="form-group" style="max-width:400px;">
+                        <label>Default Invoice SMS Message</label>
+                        <select id="invoiceSmsTemplate">
+                            <option value="default">Default Template</option>
+                            <option value="short">Short (Link only)</option>
+                            <option value="detailed">Detailed (Amount + Link)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Preferred Invoice Send Method -->
+                <div class="card">
+                    <h3>Preferred Invoice Send Method</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Default send method for new customers when sending invoices in bulk.
+                    </p>
+                    <div class="form-group" style="max-width:300px;">
+                        <select id="preferredSendMethod">
+                            <option value="none">None</option>
+                            <option value="email" selected>Email</option>
+                            <option value="mail">Regular Mail</option>
+                            <option value="sms">Text Message</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Auto-Send -->
+                <div class="card">
+                    <h3>Auto-Send Invoices</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Automatically deliver invoices on a set schedule &mdash; daily, weekly, or monthly &mdash; based on your preferences.
+                    </p>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Enable Auto-Send</div>
+                            <div class="toggle-desc">Automatically send unsent invoices on the schedule below</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="autoSendEnabled" onchange="toggleAutoSendOptions()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div id="autoSendOptions" style="display:none;margin-top:16px;">
+                        <div class="auto-send-grid">
+                            <div class="form-group">
+                                <label>Frequency</label>
+                                <select id="autoSendFrequency">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly" selected>Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Day</label>
+                                <select id="autoSendDay">
+                                    <option value="monday">Monday</option>
+                                    <option value="tuesday">Tuesday</option>
+                                    <option value="wednesday">Wednesday</option>
+                                    <option value="thursday">Thursday</option>
+                                    <option value="friday" selected>Friday</option>
+                                    <option value="saturday">Saturday</option>
+                                    <option value="sunday">Sunday</option>
+                                    <option value="1st">1st of Month</option>
+                                    <option value="15th">15th of Month</option>
+                                    <option value="last">Last Day of Month</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Late Fees -->
+                <div class="card" id="lateFeeCard">
+                    <h3>Late Fees</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Automatically adds fees to invoices that remain unpaid after a certain period. Late fees also determine invoice due dates &mdash; if no late fee is set, no due date will appear.
+                    </p>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Enable Late Fees</div>
+                            <div class="toggle-desc">Automatically apply late fees to overdue invoices</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="lfEnabled" onchange="toggleLateFeeOptions()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div id="lateFeeOptions" style="display:none;margin-top:16px;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Grace Period (days)</label>
+                                <input type="number" id="lfGracePeriod" value="30" min="0">
+                                <div class="hint">Days after due date before first fee</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Initial Late Fee (%)</label>
+                                <input type="number" id="lfInitialFee" value="10" min="0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>Recurring Late Fee (%)</label>
+                                <input type="number" id="lfRecurringFee" value="5" min="0" step="0.1">
+                            </div>
+                            <div class="form-group">
+                                <label>Recurring Interval (days)</label>
+                                <input type="number" id="lfRecurringInterval" value="30" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Max Fees Per Invoice</label>
+                                <input type="number" id="lfMaxFees" value="3" min="1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Processing Fees -->
+                <div class="card">
+                    <h3>Pass Processing Fees to Customers</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        When enabled, customers will see a service fee as a separate line item at checkout. The fee is added on top of the invoice total.
+                    </p>
+                    <div class="toggle-row">
+                        <div>
+                            <div class="toggle-label">Enable Service Fee Pass-Through</div>
+                            <div class="toggle-desc">Add service fees to customer payments (Credit Card: 2.9% + $0.30, ACH: 1%)</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="pfEnabled" onchange="toggleProcessingFeeOptions()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div id="processingFeeOptions" style="display:none;margin-top:16px;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Card Fee (%)</label>
+                                <input type="number" id="pfCardPercent" value="2.9" min="0" step="0.1">
+                                <div class="hint">Percentage charged on card payments</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Card Fixed Fee ($)</label>
+                                <input type="number" id="pfCardFixed" value="0.30" min="0" step="0.01">
+                                <div class="hint">Fixed amount added per card transaction</div>
+                            </div>
+                            <div class="form-group">
+                                <label>ACH Fee (%)</label>
+                                <input type="number" id="pfAchPercent" value="1.0" min="0" step="0.1">
+                                <div class="hint">Percentage charged on bank transfers</div>
+                            </div>
+                            <div class="form-group">
+                                <label>ACH Fixed Fee ($)</label>
+                                <input type="number" id="pfAchFixed" value="0" min="0" step="0.01">
+                                <div class="hint">Fixed amount added per ACH transaction</div>
+                            </div>
+                        </div>
+                        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-top:12px;">
+                            <div style="font-size:13px;color:#92400e;">
+                                <strong>Example:</strong> On a $500 invoice, card fee = $500 &times; 2.9% + $0.30 = <strong>$14.80</strong>. Customer pays <strong>$514.80</strong>.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="actions" style="margin-top:8px;">
+                    <button class="btn btn-primary" onclick="saveInvoiceSettings()">Save Invoice Settings</button>
+                </div>
+            </div>
+
+            <!-- ═══════════ TAB: Setup & Manage Online Payments ═══════════ -->
+            <div class="settings-section" id="tab-payments">
+                <h2><span class="section-icon" style="background:#006aff;color:white;">PY</span> Online Payments</h2>
+
+                <!-- QuickBooks -->
+                <div class="card" id="qbCard">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:40px;height:40px;border-radius:8px;background:#2ca01c;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;">QB</div>
+                            <div>
+                                <h3 style="margin:0;padding:0;border:none;">QuickBooks Online</h3>
+                                <div style="font-size:12px;color:var(--gray-400);">Sync customers, invoices, payments & expenses</div>
+                            </div>
+                        </div>
+                        <span class="badge badge-disconnected" id="qbBadge">
+                            <span id="qbBadgeDot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                            <span id="qbBadgeText">Not Connected</span>
+                        </span>
+                    </div>
+
                     <!-- Disconnected State -->
                     <div id="qbDisconnected">
-                        <p>Connect your QuickBooks Online account to automatically pull customers, invoices, payments, and expenses into your Pappas dashboard.</p>
+                        <p style="font-size:14px;color:var(--gray-500);line-height:1.6;margin-bottom:16px;">Connect your QuickBooks Online account to automatically pull customers, invoices, payments, and expenses into your dashboard.</p>
                         <div class="actions">
                             <a href="/api/quickbooks/auth" class="btn btn-success" id="qbConnectBtn">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -471,11 +807,11 @@
                         <div class="setup-guide" id="setupGuide">
                             <h4>Setup Guide</h4>
                             <ol>
-                                <li>Go to <a href="https://developer.intuit.com" target="_blank">developer.intuit.com</a> and sign in with your Intuit account</li>
+                                <li>Go to <a href="https://developer.intuit.com" target="_blank">developer.intuit.com</a> and sign in</li>
                                 <li>Click "Create an app" and select "QuickBooks Online and Payments"</li>
                                 <li>In your app settings, add the redirect URI shown below</li>
                                 <li>Copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
-                                <li>Add them to your server environment as <code>QB_CLIENT_ID</code> and <code>QB_CLIENT_SECRET</code></li>
+                                <li>Add them as <code>QB_CLIENT_ID</code> and <code>QB_CLIENT_SECRET</code></li>
                                 <li>Set <code>QB_REDIRECT_URI</code> to: <code id="redirectUri"></code></li>
                                 <li>Restart the server, then click "Connect to QuickBooks" above</li>
                             </ol>
@@ -484,96 +820,68 @@
 
                     <!-- Connected State -->
                     <div id="qbConnected" style="display:none;">
-                        <div style="font-size: 13px; color: var(--gray-500); margin-bottom: 16px;">
-                            <span>Connected to Company ID: <strong id="qbRealmId"></strong></span>
-                            <span style="margin-left: 16px;">Last synced: <strong id="qbLastSync">Never</strong></span>
+                        <div style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                            <span>Company ID: <strong id="qbRealmId"></strong></span>
+                            <span style="margin-left:16px;">Last synced: <strong id="qbLastSync">Never</strong></span>
                         </div>
                         <div class="actions">
                             <button class="btn btn-primary" id="syncBtn" onclick="runSync()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
                                 Sync Now
                             </button>
-                            <button class="btn btn-outline" onclick="toggleSyncLog()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                                Sync History
-                            </button>
+                            <button class="btn btn-outline" onclick="toggleSyncLog()">Sync History</button>
                             <button class="btn btn-danger" onclick="disconnectQB()">Disconnect</button>
                         </div>
-
-                        <!-- Sync Results (shown after sync) -->
                         <div class="sync-results" id="syncResults">
                             <h4>Sync Results</h4>
                             <div class="sync-stats">
-                                <div class="sync-stat">
-                                    <div class="number" id="syncCustomers">0</div>
-                                    <div class="label">Customers</div>
-                                </div>
-                                <div class="sync-stat">
-                                    <div class="number" id="syncInvoices">0</div>
-                                    <div class="label">Invoices</div>
-                                </div>
-                                <div class="sync-stat">
-                                    <div class="number" id="syncPayments">0</div>
-                                    <div class="label">Payments</div>
-                                </div>
-                                <div class="sync-stat">
-                                    <div class="number" id="syncExpenses">0</div>
-                                    <div class="label">Expenses</div>
-                                </div>
+                                <div class="sync-stat"><div class="number" id="syncCustomers">0</div><div class="label">Customers</div></div>
+                                <div class="sync-stat"><div class="number" id="syncInvoices">0</div><div class="label">Invoices</div></div>
+                                <div class="sync-stat"><div class="number" id="syncPayments">0</div><div class="label">Payments</div></div>
+                                <div class="sync-stat"><div class="number" id="syncExpenses">0</div><div class="label">Expenses</div></div>
                             </div>
-                            <div id="syncErrors" style="margin-top: 12px; display: none;">
-                                <p style="font-size: 12px; color: var(--red);"></p>
-                            </div>
+                            <div id="syncErrors" style="margin-top:12px;display:none;"><p style="font-size:12px;color:var(--red);"></p></div>
                         </div>
-
-                        <!-- Sync History Log -->
                         <div class="sync-log" id="syncLog">
                             <h4>Sync History</h4>
                             <div id="syncLogEntries"></div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Square Payments Integration Card -->
-            <div class="integration-card" id="squareCard">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background: #006aff; color: white; font-weight: 800; font-size: 18px;">◻</div>
-                        <div>
-                            <h2>Square Payments</h2>
-                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Accept card, ACH & Apple Pay payments on invoices</div>
+                <!-- Square Payments -->
+                <div class="card" id="squareCard">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:40px;height:40px;border-radius:8px;background:#006aff;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;">&#9633;</div>
+                            <div>
+                                <h3 style="margin:0;padding:0;border:none;">Square Payments</h3>
+                                <div style="font-size:12px;color:var(--gray-400);">Accept card, ACH & Apple Pay payments</div>
+                            </div>
                         </div>
+                        <span class="badge badge-disconnected" id="squareBadge">
+                            <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                            <span id="squareBadgeText">Checking...</span>
+                        </span>
                     </div>
-                    <span class="badge badge-disconnected" id="squareBadge">
-                        <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
-                        <span id="squareBadgeText">Checking...</span>
-                    </span>
-                </div>
-                <div class="integration-body">
                     <div id="squareStatus">
                         <p style="font-size:14px;color:var(--gray-500);line-height:1.6;">
                             Square enables your customers to pay invoices online with credit/debit cards, ACH bank transfers, and Apple Pay.
-                            When you send an invoice, customers receive a secure payment link.
                         </p>
                         <div id="squareConnected" style="display:none;margin-top:16px;">
                             <div style="font-size:13px;color:var(--gray-500);margin-bottom:12px;">
                                 Environment: <strong id="squareEnv"></strong>
                                 <span style="margin-left:16px;">Location: <strong id="squareLoc"></strong></span>
                             </div>
-                            <div class="actions">
-                                <button class="btn btn-outline" onclick="testSquare()">Test Connection</button>
-                            </div>
+                            <div class="actions"><button class="btn btn-outline" onclick="testSquare()">Test Connection</button></div>
                         </div>
                         <div id="squareDisconnected" style="display:none;margin-top:16px;">
                             <div class="setup-guide">
                                 <h4>Setup Required</h4>
                                 <ol>
                                     <li>Create a Square Developer account at <a href="https://developer.squareup.com" target="_blank">developer.squareup.com</a></li>
-                                    <li>Create an application and get your credentials</li>
-                                    <li>Add these environment variables to your server:
-                                        <br><code>SQUARE_ACCESS_TOKEN</code>, <code>SQUARE_APPLICATION_ID</code>, <code>SQUARE_LOCATION_ID</code>
-                                    </li>
+                                    <li>Create an application and get credentials</li>
+                                    <li>Set env vars: <code>SQUARE_ACCESS_TOKEN</code>, <code>SQUARE_APPLICATION_ID</code>, <code>SQUARE_LOCATION_ID</code></li>
                                     <li>Set <code>SQUARE_ENVIRONMENT</code> to <code>sandbox</code> or <code>production</code></li>
                                     <li>Restart the server</li>
                                 </ol>
@@ -583,101 +891,124 @@
                 </div>
             </div>
 
-            <!-- Data Tools -->
-            <div class="integration-card" style="margin-top: 24px;">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background: var(--gray-700); color: white; font-size: 18px;">🧹</div>
-                        <div>
-                            <h2>Data Tools</h2>
-                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Clean up and maintain your data</div>
-                        </div>
+            <!-- ═══════════ TAB: Service Items Catalog ═══════════ -->
+            <div class="settings-section" id="tab-services">
+                <h2><span class="section-icon" style="background:var(--green-bg);color:var(--green);">SI</span> Service Items Catalog</h2>
+
+                <div class="card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <p style="font-size:13px;color:var(--gray-500);margin:0;">Standard services with default rates, durations, and categories.</p>
+                        <button class="btn btn-primary" onclick="openServiceItemModal()">+ Add Service</button>
                     </div>
+                    <table style="width:100%;border-collapse:collapse;" id="serviceItemsTable">
+                        <thead>
+                            <tr>
+                                <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Name</th>
+                                <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Rate</th>
+                                <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Duration</th>
+                                <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Category</th>
+                                <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="serviceItemsBody"><tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Loading...</td></tr></tbody>
+                    </table>
                 </div>
-                <div style="padding: 0 20px 20px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-top: 1px solid var(--gray-100);">
-                        <div>
-                            <div style="font-weight: 500; font-size: 14px;">Deduplicate Customers</div>
-                            <div style="font-size: 12px; color: var(--gray-500); margin-top: 2px;">Merge customers with the same name, keeping QuickBooks records when available</div>
+
+                <!-- Service Item Modal -->
+                <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;" id="serviceItemModal">
+                    <div style="background:var(--white);border-radius:16px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+                        <div style="padding:20px 24px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">
+                            <h3 style="font-size:18px;color:var(--primary);" id="siModalTitle">Add Service Item</h3>
+                            <button onclick="closeServiceItemModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);">&times;</button>
                         </div>
-                        <button id="dedupBtn" onclick="deduplicateCustomers()"
-                            style="padding: 8px 16px; background: #1f2b29; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; margin-left: 24px;">
-                            Run Deduplication
-                        </button>
-                    </div>
-                    <div id="dedupResult" style="display:none; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px;"></div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-top: 1px solid var(--gray-100);">
-                        <div>
-                            <div style="font-weight: 500; font-size: 14px;">Clean Up Customer Names</div>
-                            <div style="font-size: 12px; color: var(--gray-500); margin-top: 2px;">Removes QuickBooks ID clutter from names (e.g. "John Smith #1053406 John Smith" → "John Smith")</div>
+                        <div style="padding:24px;">
+                            <input type="hidden" id="siEditId">
+                            <div class="form-group"><label>Name *</label><input type="text" id="siName" placeholder="e.g. Lawn Mowing"></div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
+                                <div class="form-group"><label>Default Rate ($)</label><input type="number" id="siRate" min="0" step="0.01" value="0"></div>
+                                <div class="form-group"><label>Duration (minutes)</label><input type="number" id="siDuration" min="0" value="60"></div>
+                            </div>
+                            <div class="form-group"><label>Category</label><input type="text" id="siCategory" placeholder="e.g. Mowing, Landscaping"></div>
+                            <div class="form-group"><label>Description</label><textarea id="siDescription" rows="3" placeholder="Service description shown on quotes..."></textarea></div>
+                            <div class="form-group"><label>Tax Rate (%)</label><input type="number" id="siTaxRate" min="0" step="0.01" value="0" style="max-width:120px;"></div>
+                            <div class="form-group" style="margin-top:8px;">
+                                <label class="checkbox-option"><input type="checkbox" id="siTaxable" checked> This item is taxable</label>
+                            </div>
                         </div>
-                        <button id="cleanNamesBtn" onclick="cleanCustomerNames()"
-                            style="padding: 8px 16px; background: #1f2b29; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; margin-left: 24px;">
-                            Clean Names
-                        </button>
+                        <div style="padding:16px 24px;border-top:1px solid var(--gray-200);display:flex;justify-content:flex-end;gap:12px;">
+                            <button class="btn btn-outline" onclick="closeServiceItemModal()">Cancel</button>
+                            <button class="btn btn-primary" onclick="saveServiceItem()">Save</button>
+                        </div>
                     </div>
-                    <div id="cleanNamesResult" style="display:none; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 8px;"></div>
                 </div>
             </div>
 
-            <!-- Recurring Invoices & Late Fees Card -->
-            <div class="integration-card" id="lateFeeCard">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background: var(--amber-bg); color: var(--amber); font-size: 24px;">🔄</div>
-                        <div>
-                            <h2>Recurring Invoices & Late Fees</h2>
-                            <div style="font-size: 12px; color: var(--gray-400); margin-top: 2px;">Automate invoice generation and late fee enforcement</div>
-                        </div>
+            <!-- ═══════════ TAB: Notification Preferences ═══════════ -->
+            <div class="settings-section" id="tab-notifications">
+                <h2><span class="section-icon" style="background:var(--blue-bg);color:var(--blue);">NP</span> Notification Preferences</h2>
+
+                <div class="card">
+                    <div class="toggle-row">
+                        <div><div class="toggle-label">New Quote Requests</div><div class="toggle-desc">Get notified when a new quote request arrives</div></div>
+                        <label class="toggle-switch"><input type="checkbox" id="notifQuoteRequest" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
                     </div>
-                    <span class="badge badge-inactive" id="lateFeeBadge">
-                        <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
-                        <span id="lateFeeBadgeText">Inactive</span>
-                    </span>
+                    <div class="toggle-row">
+                        <div><div class="toggle-label">Job Completions</div><div class="toggle-desc">Notify when a crew completes a job</div></div>
+                        <label class="toggle-switch"><input type="checkbox" id="notifJobComplete" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div class="toggle-row">
+                        <div><div class="toggle-label">Payment Received</div><div class="toggle-desc">Notify when a payment is received</div></div>
+                        <label class="toggle-switch"><input type="checkbox" id="notifPayment" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div class="toggle-row">
+                        <div><div class="toggle-label">Overdue Invoices</div><div class="toggle-desc">Daily summary of overdue invoices</div></div>
+                        <label class="toggle-switch"><input type="checkbox" id="notifOverdue" onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div class="toggle-row">
+                        <div><div class="toggle-label">Customer Messages</div><div class="toggle-desc">Notify on new customer messages</div></div>
+                        <label class="toggle-switch"><input type="checkbox" id="notifMessages" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════ TAB: Data Tools ═══════════ -->
+            <div class="settings-section" id="tab-data">
+                <h2><span class="section-icon" style="background:var(--gray-700);color:white;">DT</span> Data Tools</h2>
+
+                <div class="card">
+                    <h3>Deduplicate Customers</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Merge customers with the same name, keeping QuickBooks records when available.
+                    </p>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="dedupBtn" onclick="deduplicateCustomers()">Run Deduplication</button>
+                    </div>
+                    <div id="dedupResult" style="display:none;padding:12px 16px;border-radius:8px;font-size:13px;margin-top:12px;"></div>
                 </div>
 
-                <div class="integration-body">
-                    <!-- Late Fee Settings -->
-                    <div class="section-divider">Late Fee Settings</div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="lfGracePeriod">Grace Period (days)</label>
-                            <input type="number" id="lfGracePeriod" value="30" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label for="lfInitialFee">Initial Late Fee (%)</label>
-                            <input type="number" id="lfInitialFee" value="10" min="0" step="0.1">
-                        </div>
-                        <div class="form-group">
-                            <label for="lfRecurringFee">Recurring Late Fee (%)</label>
-                            <input type="number" id="lfRecurringFee" value="5" min="0" step="0.1">
-                        </div>
-                        <div class="form-group">
-                            <label for="lfRecurringInterval">Recurring Interval (days)</label>
-                            <input type="number" id="lfRecurringInterval" value="30" min="1">
-                        </div>
-                        <div class="form-group">
-                            <label for="lfMaxFees">Max Fees Per Invoice</label>
-                            <input type="number" id="lfMaxFees" value="3" min="1">
-                        </div>
+                <div class="card">
+                    <h3>Clean Up Customer Names</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Removes QuickBooks ID clutter from names (e.g. "John Smith #1053406 John Smith" &rarr; "John Smith").
+                    </p>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="cleanNamesBtn" onclick="cleanCustomerNames()">Clean Names</button>
                     </div>
-                    <div class="toggle-row">
-                        <div>
-                            <div class="toggle-label">Enable Late Fees</div>
-                            <div class="toggle-desc">Automatically apply late fees to overdue invoices</div>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="lfEnabled">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
+                    <div id="cleanNamesResult" style="display:none;padding:12px 16px;border-radius:8px;font-size:13px;margin-top:12px;"></div>
+                </div>
+            </div>
 
-                    <!-- Recurring Invoice Settings -->
-                    <div class="section-divider">Recurring Invoice Settings</div>
+            <!-- ═══════════ TAB: Automation & Scheduling ═══════════ -->
+            <div class="settings-section" id="tab-automation">
+                <h2><span class="section-icon" style="background:var(--amber-bg);color:var(--amber);">AU</span> Automation & Scheduling</h2>
+
+                <!-- Recurring Invoice Config -->
+                <div class="card">
+                    <h3>Recurring Invoice Settings</h3>
                     <div class="toggle-row">
                         <div>
-                            <div class="toggle-label">Auto-send Invoices</div>
-                            <div class="toggle-desc">Automatically send recurring invoices when generated</div>
+                            <div class="toggle-label">Auto-send Recurring Invoices</div>
+                            <div class="toggle-desc">Automatically send recurring invoices when generated by the daily automation</div>
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="riAutoSend" checked>
@@ -694,16 +1025,16 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
-
-                    <!-- Save Button -->
-                    <div class="actions" style="margin-top: 20px;">
-                        <button class="btn btn-primary" id="saveLateFeeBtn" onclick="saveLateFeeSettings()">Save Settings</button>
+                    <div class="actions" style="margin-top:16px;">
+                        <button class="btn btn-primary" onclick="saveAutomationSettings()">Save Automation Settings</button>
                     </div>
+                </div>
 
-                    <!-- Manual Cron Trigger -->
-                    <div class="section-divider" style="margin-top: 28px;">Manual Cron Trigger</div>
-                    <p style="font-size: 14px; color: var(--gray-500); line-height: 1.6; margin-bottom: 16px;">
-                        Run the daily automation manually to generate recurring invoices and apply late fees now.
+                <!-- Manual Cron Trigger -->
+                <div class="card">
+                    <h3>Manual Cron Trigger</h3>
+                    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">
+                        Run the daily automation manually to generate recurring jobs/invoices and apply late fees now.
                     </p>
                     <div class="actions">
                         <button class="btn btn-outline" id="cronBtn" onclick="runDailyAutomation()">
@@ -711,686 +1042,755 @@
                             Run Daily Automation
                         </button>
                     </div>
-
-                    <!-- Cron Results -->
                     <div class="cron-results" id="cronResults">
                         <h4>Automation Results</h4>
                         <div class="sync-stats">
-                            <div class="sync-stat">
-                                <div class="number" id="cronJobs">0</div>
-                                <div class="label">Jobs Generated</div>
-                            </div>
-                            <div class="sync-stat">
-                                <div class="number" id="cronInvoices">0</div>
-                                <div class="label">Invoices Generated</div>
-                            </div>
-                            <div class="sync-stat">
-                                <div class="number" id="cronLateFees">0</div>
-                                <div class="label">Late Fees Applied</div>
-                            </div>
+                            <div class="sync-stat"><div class="number" id="cronJobs">0</div><div class="label">Jobs Generated</div></div>
+                            <div class="sync-stat"><div class="number" id="cronInvoices">0</div><div class="label">Invoices Generated</div></div>
+                            <div class="sync-stat"><div class="number" id="cronLateFees">0</div><div class="label">Late Fees Applied</div></div>
                         </div>
                     </div>
                 </div>
             </div>
-            <!-- Company Profile -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background:var(--forest);color:var(--lime);font-size:20px;">🏢</div>
-                        <div><h2>Company Profile</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Your business information</div></div>
-                    </div>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group"><label>Company Name</label><input type="text" id="companyName" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="Pappas Landscaping"></div>
-                    <div class="form-group"><label>Phone</label><input type="tel" id="companyPhone" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="(555) 123-4567"></div>
-                    <div class="form-group"><label>Email</label><input type="email" id="companyEmail" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="info@pappas.com"></div>
-                    <div class="form-group"><label>Address</label><input type="text" id="companyAddress" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="123 Main St, City, ST 12345"></div>
-                </div>
-                <div class="actions"><button class="btn btn-primary" onclick="saveCompanyProfile()">Save Profile</button></div>
-            </div>
 
-            <!-- Tax Rate -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background:var(--amber-bg);color:var(--amber);font-size:20px;">💲</div>
-                        <div><h2>Tax Rate</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Configurable tax percentage for quotes and invoices</div></div>
-                    </div>
-                </div>
-                <div class="form-grid" style="grid-template-columns:1fr;">
-                    <div class="form-group">
-                        <label>Tax Rate (%)</label>
-                        <input type="number" id="taxRate" min="0" max="100" step="0.01" value="0" style="max-width:200px;">
-                    </div>
-                </div>
-                <div class="actions"><button class="btn btn-primary" onclick="saveTaxRate()">Save Tax Rate</button></div>
-            </div>
+        </div><!-- /settings-body -->
+    </div><!-- /settings-layout -->
+</div>
 
-            <!-- Service Items Catalog -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background:var(--green-bg);color:var(--green);font-size:20px;">🛠️</div>
-                        <div><h2>Service Items Catalog</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Standard services with default rates</div></div>
-                    </div>
-                    <button class="btn btn-primary" onclick="openServiceItemModal()">+ Add Service</button>
-                </div>
-                <table style="width:100%;border-collapse:collapse;" id="serviceItemsTable">
-                    <thead>
-                        <tr>
-                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Name</th>
-                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Rate</th>
-                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Duration</th>
-                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Category</th>
-                            <th style="padding:10px 12px;font-size:11px;font-weight:600;color:var(--gray-500);text-transform:uppercase;text-align:left;border-bottom:1px solid var(--gray-200);background:var(--gray-50);">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="serviceItemsBody"><tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">Loading...</td></tr></tbody>
-                </table>
-            </div>
+<div class="toast" id="toast"></div>
 
-            <!-- Notification Preferences -->
-            <div class="integration-card">
-                <div class="integration-header">
-                    <div class="integration-title">
-                        <div class="icon" style="background:var(--blue-bg);color:var(--blue);font-size:20px;">🔔</div>
-                        <div><h2>Notification Preferences</h2><div style="font-size:12px;color:var(--gray-400);margin-top:2px;">Control which notifications you receive</div></div>
-                    </div>
-                </div>
-                <div class="toggle-row">
-                    <div><div class="toggle-label">New Quote Requests</div><div class="toggle-desc">Get notified when a new quote request arrives</div></div>
-                    <label class="toggle-switch"><input type="checkbox" id="notifQuoteRequest" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                    <div><div class="toggle-label">Job Completions</div><div class="toggle-desc">Notify when a crew completes a job</div></div>
-                    <label class="toggle-switch"><input type="checkbox" id="notifJobComplete" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                    <div><div class="toggle-label">Payment Received</div><div class="toggle-desc">Notify when a payment is received</div></div>
-                    <label class="toggle-switch"><input type="checkbox" id="notifPayment" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                    <div><div class="toggle-label">Overdue Invoices</div><div class="toggle-desc">Daily summary of overdue invoices</div></div>
-                    <label class="toggle-switch"><input type="checkbox" id="notifOverdue" onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                    <div><div class="toggle-label">Customer Messages</div><div class="toggle-desc">Notify on new customer messages</div></div>
-                    <label class="toggle-switch"><input type="checkbox" id="notifMessages" checked onchange="saveNotifPrefs()"><span class="toggle-slider"></span></label>
-                </div>
-            </div>
+<script>
+const token = localStorage.getItem('token');
+const authHeaders = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
 
-            <!-- Service Item Modal -->
-            <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;" id="serviceItemModal">
-                <div style="background:var(--white);border-radius:16px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
-                    <div style="padding:20px 24px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">
-                        <h3 style="font-size:18px;color:var(--forest);" id="siModalTitle">Add Service Item</h3>
-                        <button onclick="closeServiceItemModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);">&times;</button>
-                    </div>
-                    <div style="padding:24px;">
-                        <input type="hidden" id="siEditId">
-                        <div class="form-group"><label>Name *</label><input type="text" id="siName" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="e.g. Lawn Mowing"></div>
-                        <div class="form-grid">
-                            <div class="form-group"><label>Default Rate ($)</label><input type="number" id="siRate" min="0" step="0.01" value="0"></div>
-                            <div class="form-group"><label>Duration (minutes)</label><input type="number" id="siDuration" min="0" value="60"></div>
-                        </div>
-                        <div class="form-group"><label>Category</label><input type="text" id="siCategory" style="padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:13px;font-family:inherit;width:100%;" placeholder="e.g. Mowing, Landscaping, Irrigation"></div>
-                    </div>
-                    <div style="padding:16px 24px;border-top:1px solid var(--gray-200);display:flex;justify-content:flex-end;gap:12px;">
-                        <button class="btn btn-outline" onclick="closeServiceItemModal()">Cancel</button>
-                        <button class="btn btn-primary" onclick="saveServiceItem()">Save</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
+// ── Tab Navigation ──
+document.querySelectorAll('.settings-sidebar a').forEach(link => {
+    link.addEventListener('click', () => {
+        document.querySelectorAll('.settings-sidebar a').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+        link.classList.add('active');
+        const tabId = 'tab-' + link.dataset.tab;
+        document.getElementById(tabId).classList.add('active');
+        // Save active tab
+        localStorage.setItem('settingsActiveTab', link.dataset.tab);
+    });
+});
 
-    <div class="toast" id="toast"></div>
+// Restore active tab
+const savedTab = localStorage.getItem('settingsActiveTab');
+if (savedTab) {
+    const tabLink = document.querySelector(`.settings-sidebar a[data-tab="${savedTab}"]`);
+    if (tabLink) tabLink.click();
+}
 
-    <script>
-        // Company Profile (localStorage)
-        function loadCompanyProfile() {
-            const p = JSON.parse(localStorage.getItem('companyProfile') || '{}');
-            document.getElementById('companyName').value = p.name || '';
-            document.getElementById('companyPhone').value = p.phone || '';
-            document.getElementById('companyEmail').value = p.email || '';
-            document.getElementById('companyAddress').value = p.address || '';
-        }
-        function saveCompanyProfile() {
-            const profile = {
-                name: document.getElementById('companyName').value,
-                phone: document.getElementById('companyPhone').value,
-                email: document.getElementById('companyEmail').value,
-                address: document.getElementById('companyAddress').value
-            };
-            localStorage.setItem('companyProfile', JSON.stringify(profile));
-            showToast('Company profile saved');
-        }
+// URL param tab support (e.g. settings.html?tab=invoices)
+const urlTab = new URLSearchParams(window.location.search).get('tab');
+if (urlTab) {
+    const tabLink = document.querySelector(`.settings-sidebar a[data-tab="${urlTab}"]`);
+    if (tabLink) tabLink.click();
+}
 
-        // Tax Rate (localStorage)
-        function loadTaxRate() {
-            const rate = localStorage.getItem('taxRate') || '0';
-            document.getElementById('taxRate').value = rate;
-        }
-        function saveTaxRate() {
-            localStorage.setItem('taxRate', document.getElementById('taxRate').value);
-            showToast('Tax rate saved');
-        }
+// ── Radio Group Helper ──
+function selectRadio(el) {
+    const group = el.closest('.radio-group');
+    group.querySelectorAll('.radio-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    el.querySelector('input[type="radio"]').checked = true;
+}
 
-        // Notification Preferences (localStorage)
-        function loadNotifPrefs() {
-            const prefs = JSON.parse(localStorage.getItem('notifPrefs') || '{"quoteRequest":true,"jobComplete":true,"payment":true,"overdue":false,"messages":true}');
-            document.getElementById('notifQuoteRequest').checked = prefs.quoteRequest !== false;
-            document.getElementById('notifJobComplete').checked = prefs.jobComplete !== false;
-            document.getElementById('notifPayment').checked = prefs.payment !== false;
-            document.getElementById('notifOverdue').checked = !!prefs.overdue;
-            document.getElementById('notifMessages').checked = prefs.messages !== false;
-        }
-        function saveNotifPrefs() {
-            const prefs = {
-                quoteRequest: document.getElementById('notifQuoteRequest').checked,
-                jobComplete: document.getElementById('notifJobComplete').checked,
-                payment: document.getElementById('notifPayment').checked,
-                overdue: document.getElementById('notifOverdue').checked,
-                messages: document.getElementById('notifMessages').checked
-            };
-            localStorage.setItem('notifPrefs', JSON.stringify(prefs));
-        }
+// ── Toggle Helpers ──
+function toggleAutoSendOptions() {
+    document.getElementById('autoSendOptions').style.display =
+        document.getElementById('autoSendEnabled').checked ? 'block' : 'none';
+}
+function toggleLateFeeOptions() {
+    document.getElementById('lateFeeOptions').style.display =
+        document.getElementById('lfEnabled').checked ? 'block' : 'none';
+}
 
-        // Service Items
-        let serviceItems = [];
-        async function loadServiceItems() {
-            try {
-                const res = await fetch('/api/service-items');
-                const data = await res.json();
-                serviceItems = data.items || [];
-                renderServiceItems();
-            } catch(e) { console.error('Failed to load service items:', e); }
-        }
-        function renderServiceItems() {
-            const tbody = document.getElementById('serviceItemsBody');
-            if (serviceItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">No service items yet. Click "Add Service" to get started.</td></tr>';
-                return;
-            }
-            tbody.innerHTML = serviceItems.map(s => `<tr>
-                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;"><strong>${esc(s.name)}</strong></td>
-                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">$${parseFloat(s.default_rate || 0).toFixed(2)}</td>
-                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">${s.duration_minutes || 60} min</td>
-                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">${esc(s.category || 'General')}</td>
-                <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">
-                    <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="editServiceItem(${s.id})">Edit</button>
-                    <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteServiceItem(${s.id})">Delete</button>
-                </td>
-            </tr>`).join('');
-        }
-        function openServiceItemModal(item) {
-            document.getElementById('siEditId').value = item ? item.id : '';
-            document.getElementById('siModalTitle').textContent = item ? 'Edit Service Item' : 'Add Service Item';
-            document.getElementById('siName').value = item ? item.name : '';
-            document.getElementById('siRate').value = item ? item.default_rate : 0;
-            document.getElementById('siDuration').value = item ? item.duration_minutes : 60;
-            document.getElementById('siCategory').value = item ? (item.category || '') : '';
-            document.getElementById('serviceItemModal').style.display = 'flex';
-        }
-        function closeServiceItemModal() { document.getElementById('serviceItemModal').style.display = 'none'; }
-        function editServiceItem(id) {
-            const item = serviceItems.find(s => s.id === id);
-            if (item) openServiceItemModal(item);
-        }
-        async function saveServiceItem() {
-            const id = document.getElementById('siEditId').value;
-            const body = {
-                name: document.getElementById('siName').value.trim(),
-                default_rate: parseFloat(document.getElementById('siRate').value) || 0,
-                duration_minutes: parseInt(document.getElementById('siDuration').value) || 60,
-                category: document.getElementById('siCategory').value.trim() || 'General'
-            };
-            if (!body.name) { showToast('Name is required'); return; }
-            try {
-                const url = id ? `/api/service-items/${id}` : '/api/service-items';
-                const method = id ? 'PATCH' : 'POST';
-                await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                showToast(id ? 'Service item updated' : 'Service item created');
-                closeServiceItemModal();
-                loadServiceItems();
-            } catch(e) { showToast('Error: ' + e.message); }
-        }
-        async function deleteServiceItem(id) {
-            if (!confirm('Delete this service item?')) return;
-            try { await fetch(`/api/service-items/${id}`, { method: 'DELETE' }); showToast('Deleted'); loadServiceItems(); }
-            catch(e) { showToast('Error: ' + e.message); }
-        }
-        function esc(s) { return s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : ''; }
+function toggleProcessingFeeOptions() {
+    document.getElementById('processingFeeOptions').style.display =
+        document.getElementById('pfEnabled').checked ? 'block' : 'none';
+}
 
-        // Init new sections
-        loadCompanyProfile();
-        loadTaxRate();
-        loadNotifPrefs();
+// ── Toast ──
+function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = isError ? 'var(--red)' : 'var(--primary)';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function esc(s) { return s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : ''; }
+
+// ══════════════════════════════════
+// COMPANY PROFILE (localStorage)
+// ══════════════════════════════════
+function loadCompanyProfile() {
+    const p = JSON.parse(localStorage.getItem('companyProfile') || '{}');
+    document.getElementById('companyName').value = p.name || 'Pappas & Co. Landscaping';
+    document.getElementById('companyStarted').value = p.started || '2022';
+    document.getElementById('companyTaxId').value = p.taxId || '';
+    document.getElementById('companyLicense').value = p.license || '';
+    document.getElementById('companyEmail').value = p.email || 'hello@pappaslandscaping.com';
+    document.getElementById('companyWebsite').value = p.website || 'www.pappaslandscaping.com';
+    document.getElementById('companyPhone').value = p.phone || '440-886-7318';
+    document.getElementById('companyMobile').value = p.mobile || '440-886-7318';
+    document.getElementById('companyStreet').value = p.street || 'PO Box 770057';
+    document.getElementById('companyStreet2').value = p.street2 || '';
+    document.getElementById('companyCity').value = p.city || 'Lakewood';
+    document.getElementById('companyState').value = p.state || 'Ohio';
+    document.getElementById('companyZip').value = p.zip || '44107';
+    document.getElementById('companyCountry').value = p.country || 'United States';
+    document.getElementById('companyFacebook').value = p.facebook || 'facebook.com/pappaslandscaping';
+    document.getElementById('companyFax').value = p.fax || '';
+}
+function saveCompanyProfile() {
+    const profile = {
+        name: document.getElementById('companyName').value,
+        started: document.getElementById('companyStarted').value,
+        taxId: document.getElementById('companyTaxId').value,
+        license: document.getElementById('companyLicense').value,
+        email: document.getElementById('companyEmail').value,
+        website: document.getElementById('companyWebsite').value,
+        phone: document.getElementById('companyPhone').value,
+        mobile: document.getElementById('companyMobile').value,
+        street: document.getElementById('companyStreet').value,
+        street2: document.getElementById('companyStreet2').value,
+        city: document.getElementById('companyCity').value,
+        state: document.getElementById('companyState').value,
+        zip: document.getElementById('companyZip').value,
+        country: document.getElementById('companyCountry').value,
+        facebook: document.getElementById('companyFacebook').value,
+        fax: document.getElementById('companyFax').value
+    };
+    localStorage.setItem('companyProfile', JSON.stringify(profile));
+    showToast('Company profile saved');
+}
+
+// ══════════════════════════════════
+// TAX RATE (database)
+// ══════════════════════════════════
+function loadTaxRate() {
+    // Tax rate loaded from allSettings in loadAllSettings/applySettingsToUI
+    const td = allSettings.tax_defaults || {};
+    document.getElementById('taxRate').value = td.default_rate || 0;
+}
+function saveTaxRate() {
+    saveSetting('tax_defaults', {
+        default_rate: parseFloat(document.getElementById('taxRate').value) || 0
+    }).then(() => {
+        allSettings.tax_defaults = { default_rate: parseFloat(document.getElementById('taxRate').value) || 0 };
+        showToast('Tax rate saved');
+    }).catch(() => showToast('Failed to save tax rate', true));
+}
+
+// ══════════════════════════════════
+// NOTIFICATION PREFERENCES (localStorage)
+// ══════════════════════════════════
+function loadNotifPrefs() {
+    const prefs = JSON.parse(localStorage.getItem('notifPrefs') || '{"quoteRequest":true,"jobComplete":true,"payment":true,"overdue":false,"messages":true}');
+    document.getElementById('notifQuoteRequest').checked = prefs.quoteRequest !== false;
+    document.getElementById('notifJobComplete').checked = prefs.jobComplete !== false;
+    document.getElementById('notifPayment').checked = prefs.payment !== false;
+    document.getElementById('notifOverdue').checked = !!prefs.overdue;
+    document.getElementById('notifMessages').checked = prefs.messages !== false;
+}
+function saveNotifPrefs() {
+    const prefs = {
+        quoteRequest: document.getElementById('notifQuoteRequest').checked,
+        jobComplete: document.getElementById('notifJobComplete').checked,
+        payment: document.getElementById('notifPayment').checked,
+        overdue: document.getElementById('notifOverdue').checked,
+        messages: document.getElementById('notifMessages').checked
+    };
+    localStorage.setItem('notifPrefs', JSON.stringify(prefs));
+}
+
+// ══════════════════════════════════
+// SERVICE ITEMS
+// ══════════════════════════════════
+let serviceItems = [];
+async function loadServiceItems() {
+    try {
+        const res = await fetch('/api/service-items');
+        const data = await res.json();
+        serviceItems = data.items || [];
+        renderServiceItems();
+    } catch(e) { console.error('Failed to load service items:', e); }
+}
+function renderServiceItems() {
+    const tbody = document.getElementById('serviceItemsBody');
+    if (serviceItems.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--gray-400);">No service items yet. Click "+ Add Service" to get started.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = serviceItems.map(s => `<tr>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;"><strong>${esc(s.name)}</strong></td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">$${parseFloat(s.default_rate || 0).toFixed(2)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">${s.duration_minutes || 60} min</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">${esc(s.category || 'General')}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);font-size:13px;">
+            <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="editServiceItem(${s.id})">Edit</button>
+            <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="deleteServiceItem(${s.id})">Delete</button>
+        </td>
+    </tr>`).join('');
+}
+function openServiceItemModal(item) {
+    document.getElementById('siEditId').value = item ? item.id : '';
+    document.getElementById('siModalTitle').textContent = item ? 'Edit Service Item' : 'Add Service Item';
+    document.getElementById('siName').value = item ? item.name : '';
+    document.getElementById('siRate').value = item ? item.default_rate : 0;
+    document.getElementById('siDuration').value = item ? item.duration_minutes : 60;
+    document.getElementById('siCategory').value = item ? (item.category || '') : '';
+    document.getElementById('siDescription').value = item ? (item.description || '') : '';
+    document.getElementById('siTaxRate').value = item ? (item.tax_rate || 0) : 0;
+    document.getElementById('siTaxable').checked = item ? (item.taxable !== false) : true;
+    document.getElementById('serviceItemModal').style.display = 'flex';
+}
+function closeServiceItemModal() { document.getElementById('serviceItemModal').style.display = 'none'; }
+function editServiceItem(id) {
+    const item = serviceItems.find(s => s.id === id);
+    if (item) openServiceItemModal(item);
+}
+async function saveServiceItem() {
+    const id = document.getElementById('siEditId').value;
+    const body = {
+        name: document.getElementById('siName').value.trim(),
+        default_rate: parseFloat(document.getElementById('siRate').value) || 0,
+        duration_minutes: parseInt(document.getElementById('siDuration').value) || 60,
+        category: document.getElementById('siCategory').value.trim() || 'General',
+        description: document.getElementById('siDescription').value.trim(),
+        tax_rate: parseFloat(document.getElementById('siTaxRate').value) || 0,
+        taxable: document.getElementById('siTaxable').checked
+    };
+    if (!body.name) { showToast('Name is required'); return; }
+    try {
+        const url = id ? `/api/service-items/${id}` : '/api/service-items';
+        const method = id ? 'PATCH' : 'POST';
+        await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        showToast(id ? 'Service item updated' : 'Service item created');
+        closeServiceItemModal();
         loadServiceItems();
+    } catch(e) { showToast('Error: ' + e.message); }
+}
+async function deleteServiceItem(id) {
+    if (!confirm('Delete this service item?')) return;
+    try { await fetch(`/api/service-items/${id}`, { method: 'DELETE' }); showToast('Deleted'); loadServiceItems(); }
+    catch(e) { showToast('Error: ' + e.message); }
+}
 
-        // Set redirect URI display
-        document.getElementById('redirectUri').textContent = window.location.origin + '/api/quickbooks/callback';
-
-        // Check URL params for connection result
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('qb') === 'connected') {
-            showToast('QuickBooks connected successfully!');
-            history.replaceState(null, '', 'settings.html');
-        } else if (params.get('qb') === 'error') {
-            showToast('Connection failed: ' + (params.get('msg') || 'Unknown error'), true);
-            history.replaceState(null, '', 'settings.html');
+// ══════════════════════════════════
+// HOME BASE
+// ══════════════════════════════════
+async function loadHomeBase() {
+    try {
+        const res = await fetch('/api/settings/home-base');
+        const data = await res.json();
+        if (data.success && data.address) {
+            document.getElementById('homeBaseAddress').value = data.address;
+            document.getElementById('homeBaseLat').textContent = data.lat;
+            document.getElementById('homeBaseLng').textContent = data.lng;
+            document.getElementById('homeBaseCoords').style.display = 'block';
+            document.getElementById('homeBaseBadge').className = 'badge badge-connected';
+            document.getElementById('homeBaseBadge').textContent = 'Set';
         }
-
-        // Load QB status on page load
-        loadQBStatus();
-
-        async function loadQBStatus() {
-            try {
-                const res = await fetch('/api/quickbooks/status');
-                const data = await res.json();
-
-                if (data.connected) {
-                    showConnected(data);
-                } else {
-                    showDisconnected();
-                }
-            } catch (e) {
-                showDisconnected();
-            }
+    } catch(e) {}
+}
+async function saveHomeBase() {
+    const address = document.getElementById('homeBaseAddress').value.trim();
+    if (!address) { showToast('Please enter an address'); return; }
+    const statusEl = document.getElementById('homeBaseStatus');
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--gray-500)';
+    statusEl.textContent = 'Geocoding and saving...';
+    try {
+        const res = await fetch('/api/settings/home-base', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('homeBaseLat').textContent = data.lat;
+            document.getElementById('homeBaseLng').textContent = data.lng;
+            document.getElementById('homeBaseCoords').style.display = 'block';
+            document.getElementById('homeBaseBadge').className = 'badge badge-connected';
+            document.getElementById('homeBaseBadge').textContent = 'Set';
+            statusEl.style.color = 'var(--green)';
+            statusEl.textContent = 'Home base saved!';
+            showToast('Home base address saved!');
+        } else {
+            statusEl.style.color = 'var(--red)';
+            statusEl.textContent = data.error || 'Failed to save';
         }
+    } catch(e) {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = 'Error: ' + e.message;
+    }
+    setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+}
 
-        function showConnected(data) {
-            document.getElementById('qbDisconnected').style.display = 'none';
-            document.getElementById('qbConnected').style.display = 'block';
-            document.getElementById('qbBadge').className = 'badge badge-connected';
-            document.getElementById('qbBadgeText').textContent = 'Connected';
-            document.getElementById('qbRealmId').textContent = data.realmId || '—';
+// ══════════════════════════════════
+// SETTINGS (from business_settings DB)
+// ══════════════════════════════════
+let allSettings = {};
 
-            if (data.lastSync && data.lastSync.completed_at) {
-                const d = new Date(data.lastSync.completed_at);
-                document.getElementById('qbLastSync').textContent = d.toLocaleString();
-            }
+async function loadAllSettings() {
+    try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        allSettings = data.settings || data || {};
+        applySettingsToUI();
+    } catch(e) { console.error('Failed to load settings:', e); }
+}
+
+function applySettingsToUI() {
+    // Late fee rules
+    const lf = allSettings.late_fee_rules || {};
+    if (lf.grace_period_days !== undefined) document.getElementById('lfGracePeriod').value = lf.grace_period_days;
+    if (lf.initial_fee_percent !== undefined) document.getElementById('lfInitialFee').value = lf.initial_fee_percent;
+    if (lf.recurring_fee_percent !== undefined) document.getElementById('lfRecurringFee').value = lf.recurring_fee_percent;
+    if (lf.recurring_interval_days !== undefined) document.getElementById('lfRecurringInterval').value = lf.recurring_interval_days;
+    if (lf.max_fees_per_invoice !== undefined) document.getElementById('lfMaxFees').value = lf.max_fees_per_invoice;
+    document.getElementById('lfEnabled').checked = !!lf.enabled;
+    toggleLateFeeOptions();
+
+    // Recurring invoice config
+    const ri = allSettings.recurring_invoice_config || {};
+    document.getElementById('riAutoSend').checked = ri.auto_send !== false;
+    document.getElementById('riPaymentLink').checked = ri.include_payment_link !== false;
+
+    // Invoice creation mode
+    const icm = allSettings.invoice_creation_mode || {};
+    if (icm.mode) setRadioValue('invoiceCreation', icm.mode);
+
+    // Invoice closing mode
+    const iclm = allSettings.invoice_closing_mode || {};
+    if (iclm.mode) setRadioValue('invoiceClosing', iclm.mode);
+
+    // Invoice start number
+    const isn = allSettings.invoice_start_number || {};
+    if (isn.number) document.getElementById('invoiceStartNumber').value = isn.number;
+
+    // Invoice date mode
+    const idm = allSettings.invoice_date_mode || {};
+    if (idm.mode) setRadioValue('invoiceDate', idm.mode);
+
+    // Invoice defaults
+    const id = allSettings.invoice_defaults || {};
+    document.getElementById('setServiceDateToday').checked = id.set_service_date_today !== false;
+    document.getElementById('invoiceNotes').value = id.notes || '';
+    document.getElementById('invoiceTerms').value = id.terms || 'Due upon receipt.';
+    document.getElementById('showStatusStamp').checked = id.show_status_stamp !== false;
+    if (id.show_property_name) setRadioValue('propertyName', id.show_property_name);
+    document.getElementById('showCustomFields').checked = !!id.show_custom_fields;
+    if (id.due_date_visibility) setRadioValue('dueDate', id.due_date_visibility);
+    if (id.event_date_mode) setRadioValue('eventDate', id.event_date_mode);
+    document.getElementById('visibleQty').checked = id.visible_qty !== false;
+    document.getElementById('visibleRate').checked = id.visible_rate !== false;
+    document.getElementById('visibleBudgetedHours').checked = !!id.visible_budgeted_hours;
+
+    // Invoice email settings
+    const ies = allSettings.invoice_email_settings || {};
+    document.getElementById('attachPdf').checked = ies.attach_pdf !== false;
+    if (ies.template) document.getElementById('invoiceEmailTemplate').value = ies.template;
+
+    // Invoice SMS settings
+    const iss = allSettings.invoice_sms_settings || {};
+    if (iss.template) document.getElementById('invoiceSmsTemplate').value = iss.template;
+
+    // Invoice send method
+    const ism = allSettings.invoice_send_method || {};
+    if (ism.preferred) document.getElementById('preferredSendMethod').value = ism.preferred;
+
+    // Auto-send
+    const ias = allSettings.invoice_auto_send || {};
+    document.getElementById('autoSendEnabled').checked = !!ias.enabled;
+    if (ias.frequency) document.getElementById('autoSendFrequency').value = ias.frequency;
+    if (ias.day) document.getElementById('autoSendDay').value = ias.day;
+    toggleAutoSendOptions();
+
+    // Tax defaults
+    const td = allSettings.tax_defaults || {};
+    document.getElementById('taxRate').value = td.default_rate || 0;
+
+    // Processing fee config
+    const pf = allSettings.processing_fee_config || {};
+    document.getElementById('pfEnabled').checked = !!pf.enabled;
+    if (pf.card_fee_percent !== undefined) document.getElementById('pfCardPercent').value = pf.card_fee_percent;
+    if (pf.card_fee_fixed !== undefined) document.getElementById('pfCardFixed').value = pf.card_fee_fixed;
+    if (pf.ach_fee_percent !== undefined) document.getElementById('pfAchPercent').value = pf.ach_fee_percent;
+    if (pf.ach_fee_fixed !== undefined) document.getElementById('pfAchFixed').value = pf.ach_fee_fixed;
+    toggleProcessingFeeOptions();
+}
+
+function setRadioValue(name, value) {
+    const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (radio) {
+        radio.checked = true;
+        const group = radio.closest('.radio-group');
+        if (group) {
+            group.querySelectorAll('.radio-option').forEach(o => o.classList.remove('selected'));
+            radio.closest('.radio-option').classList.add('selected');
         }
+    }
+}
 
-        function showDisconnected() {
-            document.getElementById('qbDisconnected').style.display = 'block';
-            document.getElementById('qbConnected').style.display = 'none';
-            document.getElementById('qbBadge').className = 'badge badge-disconnected';
-            document.getElementById('qbBadgeText').textContent = 'Not Connected';
+function getRadioValue(name) {
+    const checked = document.querySelector(`input[name="${name}"]:checked`);
+    return checked ? checked.value : null;
+}
+
+// ── Save Preferences Tab ──
+async function savePreferences() {
+    const saves = [
+        saveSetting('invoice_creation_mode', { mode: getRadioValue('invoiceCreation') }),
+        saveSetting('invoice_closing_mode', { mode: getRadioValue('invoiceClosing') }),
+        saveSetting('invoice_start_number', { number: parseInt(document.getElementById('invoiceStartNumber').value) || 1001 }),
+        saveSetting('invoice_defaults', Object.assign(allSettings.invoice_defaults || {}, {
+            show_property_name: getRadioValue('propertyName'),
+            show_custom_fields: document.getElementById('showCustomFields').checked
+        }))
+    ];
+    try {
+        await Promise.all(saves);
+        showToast('Preferences saved');
+    } catch(e) { showToast('Failed to save preferences', true); }
+}
+
+// ── Save Invoice Settings Tab ──
+async function saveInvoiceSettings() {
+    const invoiceDefaults = {
+        set_service_date_today: document.getElementById('setServiceDateToday').checked,
+        notes: document.getElementById('invoiceNotes').value,
+        terms: document.getElementById('invoiceTerms').value,
+        show_status_stamp: document.getElementById('showStatusStamp').checked,
+        show_property_name: getRadioValue('propertyName') || 'address_only',
+        show_custom_fields: document.getElementById('showCustomFields').checked,
+        due_date_visibility: getRadioValue('dueDate'),
+        event_date_mode: getRadioValue('eventDate'),
+        visible_qty: document.getElementById('visibleQty').checked,
+        visible_rate: document.getElementById('visibleRate').checked,
+        visible_budgeted_hours: document.getElementById('visibleBudgetedHours').checked
+    };
+
+    const saves = [
+        saveSetting('invoice_date_mode', { mode: getRadioValue('invoiceDate') }),
+        saveSetting('invoice_defaults', invoiceDefaults),
+        saveSetting('invoice_email_settings', {
+            attach_pdf: document.getElementById('attachPdf').checked,
+            template: document.getElementById('invoiceEmailTemplate').value
+        }),
+        saveSetting('invoice_sms_settings', {
+            template: document.getElementById('invoiceSmsTemplate').value
+        }),
+        saveSetting('invoice_send_method', {
+            preferred: document.getElementById('preferredSendMethod').value
+        }),
+        saveSetting('invoice_auto_send', {
+            enabled: document.getElementById('autoSendEnabled').checked,
+            frequency: document.getElementById('autoSendFrequency').value,
+            day: document.getElementById('autoSendDay').value
+        }),
+        saveSetting('late_fee_rules', {
+            grace_period_days: parseInt(document.getElementById('lfGracePeriod').value) || 30,
+            initial_fee_percent: parseFloat(document.getElementById('lfInitialFee').value) || 10,
+            recurring_fee_percent: parseFloat(document.getElementById('lfRecurringFee').value) || 5,
+            recurring_interval_days: parseInt(document.getElementById('lfRecurringInterval').value) || 30,
+            max_fees_per_invoice: parseInt(document.getElementById('lfMaxFees').value) || 3,
+            enabled: document.getElementById('lfEnabled').checked
+        }),
+        saveSetting('processing_fee_config', {
+            enabled: document.getElementById('pfEnabled').checked,
+            card_fee_percent: parseFloat(document.getElementById('pfCardPercent').value) || 2.9,
+            card_fee_fixed: parseFloat(document.getElementById('pfCardFixed').value) || 0.30,
+            ach_fee_percent: parseFloat(document.getElementById('pfAchPercent').value) || 1.0,
+            ach_fee_fixed: parseFloat(document.getElementById('pfAchFixed').value) || 0
+        })
+    ];
+
+    try {
+        await Promise.all(saves);
+        showToast('Invoice settings saved');
+    } catch(e) { showToast('Failed to save invoice settings', true); }
+}
+
+// ── Save Automation Tab ──
+async function saveAutomationSettings() {
+    try {
+        await saveSetting('recurring_invoice_config', {
+            auto_send: document.getElementById('riAutoSend').checked,
+            include_payment_link: document.getElementById('riPaymentLink').checked
+        });
+        showToast('Automation settings saved');
+    } catch(e) { showToast('Failed to save', true); }
+}
+
+// ── Generic setting saver ──
+async function saveSetting(key, value) {
+    return fetch(`/api/settings/${key}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ value })
+    });
+}
+
+// ══════════════════════════════════
+// QUICKBOOKS
+// ══════════════════════════════════
+document.getElementById('redirectUri').textContent = window.location.origin + '/api/quickbooks/callback';
+
+const params = new URLSearchParams(window.location.search);
+if (params.get('qb') === 'connected') {
+    showToast('QuickBooks connected successfully!');
+    history.replaceState(null, '', 'settings.html');
+} else if (params.get('qb') === 'error') {
+    showToast('Connection failed: ' + (params.get('msg') || 'Unknown error'), true);
+    history.replaceState(null, '', 'settings.html');
+}
+
+async function loadQBStatus() {
+    try {
+        const res = await fetch('/api/quickbooks/status');
+        const data = await res.json();
+        data.connected ? showConnected(data) : showDisconnected();
+    } catch (e) { showDisconnected(); }
+}
+
+function showConnected(data) {
+    document.getElementById('qbDisconnected').style.display = 'none';
+    document.getElementById('qbConnected').style.display = 'block';
+    document.getElementById('qbBadge').className = 'badge badge-connected';
+    document.getElementById('qbBadgeText').textContent = 'Connected';
+    document.getElementById('qbRealmId').textContent = data.realmId || '—';
+    if (data.lastSync && data.lastSync.completed_at) {
+        document.getElementById('qbLastSync').textContent = new Date(data.lastSync.completed_at).toLocaleString();
+    }
+}
+
+function showDisconnected() {
+    document.getElementById('qbDisconnected').style.display = 'block';
+    document.getElementById('qbConnected').style.display = 'none';
+    document.getElementById('qbBadge').className = 'badge badge-disconnected';
+    document.getElementById('qbBadgeText').textContent = 'Not Connected';
+}
+
+let syncPollInterval = null;
+
+function updateSyncDisplay(progress) {
+    document.getElementById('syncCustomers').textContent = progress.customers || 0;
+    document.getElementById('syncInvoices').textContent = progress.invoices || 0;
+    document.getElementById('syncPayments').textContent = progress.payments || 0;
+    document.getElementById('syncExpenses').textContent = progress.expenses || 0;
+    document.getElementById('syncResults').classList.add('show');
+
+    const btn = document.getElementById('syncBtn');
+    if (progress.stage === 'done' || !progress.stage) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
+        if (progress.errors && progress.errors.length > 0) {
+            const errEl = document.getElementById('syncErrors');
+            errEl.style.display = 'block';
+            errEl.querySelector('p').textContent = Array.isArray(progress.errors) ? progress.errors.join('; ') : progress.errors;
+        } else {
+            document.getElementById('syncErrors').style.display = 'none';
         }
+        document.getElementById('qbLastSync').textContent = new Date().toLocaleString();
+        showToast(`Sync complete: ${progress.customers||0} customers, ${progress.invoices||0} invoices`);
+        if (syncPollInterval) { clearInterval(syncPollInterval); syncPollInterval = null; }
+    } else {
+        const stageLabel = { customers: 'Syncing customers...', invoices: 'Syncing invoices...', payments: 'Syncing payments...', expenses: 'Syncing expenses...' };
+        btn.innerHTML = `<span class="spinner"></span> ${stageLabel[progress.stage] || 'Syncing...'}`;
+    }
+}
 
-        let syncPollInterval = null;
-
-        function updateSyncDisplay(progress) {
-            document.getElementById('syncCustomers').textContent = progress.customers || 0;
-            document.getElementById('syncInvoices').textContent = progress.invoices || 0;
-            document.getElementById('syncPayments').textContent = progress.payments || 0;
-            document.getElementById('syncExpenses').textContent = progress.expenses || 0;
+async function runSync() {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Starting sync...';
+    try {
+        const res = await fetch('/api/quickbooks/sync', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
             document.getElementById('syncResults').classList.add('show');
-
-            const btn = document.getElementById('syncBtn');
-            if (progress.stage === 'done' || !progress.stage) {
-                // Sync complete
-                btn.disabled = false;
-                btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
-
-                if (progress.errors && progress.errors.length > 0) {
-                    const errEl = document.getElementById('syncErrors');
-                    errEl.style.display = 'block';
-                    errEl.querySelector('p').textContent = (Array.isArray(progress.errors) ? progress.errors.join('; ') : progress.errors);
-                } else {
-                    document.getElementById('syncErrors').style.display = 'none';
-                }
-
-                document.getElementById('qbLastSync').textContent = new Date().toLocaleString();
-                showToast(`Sync complete: ${progress.customers||0} customers, ${progress.invoices||0} invoices, ${progress.payments||0} payments, ${progress.expenses||0} expenses`);
-
-                if (syncPollInterval) { clearInterval(syncPollInterval); syncPollInterval = null; }
-            } else {
-                const stageLabel = { customers: 'Syncing customers...', invoices: 'Syncing invoices...', payments: 'Syncing payments...', expenses: 'Syncing expenses...' };
-                btn.innerHTML = `<span class="spinner"></span> ${stageLabel[progress.stage] || 'Syncing...'}`;
-            }
-        }
-
-        async function runSync() {
-            const btn = document.getElementById('syncBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Starting sync...';
-
-            try {
-                const res = await fetch('/api/quickbooks/sync', { method: 'POST' });
-                const data = await res.json();
-
-                if (data.success) {
-                    // Show initial results panel
-                    document.getElementById('syncResults').classList.add('show');
-                    document.getElementById('syncCustomers').textContent = '…';
-                    document.getElementById('syncInvoices').textContent = '…';
-                    document.getElementById('syncPayments').textContent = '…';
-                    document.getElementById('syncExpenses').textContent = '…';
-                    btn.innerHTML = '<span class="spinner"></span> Syncing customers...';
-
-                    // Poll for progress every 2 seconds
-                    syncPollInterval = setInterval(async () => {
-                        try {
-                            const progRes = await fetch('/api/quickbooks/sync-progress');
-                            const progData = await progRes.json();
-
-                            if (progData.running && progData.progress) {
-                                updateSyncDisplay(progData.progress);
-                            } else if (!progData.running) {
-                                // Sync finished — show final result from DB
-                                const lastSync = progData.lastSync;
-                                if (lastSync) {
-                                    updateSyncDisplay({
-                                        stage: 'done',
-                                        customers: lastSync.customers_synced || 0,
-                                        invoices: lastSync.invoices_synced || 0,
-                                        payments: lastSync.payments_synced || 0,
-                                        expenses: lastSync.expenses_synced || 0,
-                                        errors: lastSync.errors ? [lastSync.errors] : []
-                                    });
-                                } else {
-                                    updateSyncDisplay({ stage: 'done', customers: 0, invoices: 0, payments: 0, expenses: 0, errors: [] });
-                                }
-                            }
-                        } catch (e) { /* keep polling */ }
-                    }, 2000);
-
-                } else {
-                    showToast(data.error || 'Sync failed', true);
-                    btn.disabled = false;
-                    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
-                }
-            } catch (e) {
-                showToast('Sync failed: ' + e.message, true);
-                btn.disabled = false;
-                btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Sync Now`;
-            }
-        }
-
-        async function deduplicateCustomers() {
-            const btn = document.getElementById('dedupBtn');
-            const result = document.getElementById('dedupResult');
-            btn.disabled = true;
-            btn.textContent = 'Running...';
-            try {
-                const res = await fetch('/api/customers/deduplicate', { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
-                    result.style.display = 'block';
-                    result.style.background = '#f0fdf4';
-                    result.style.border = '1px solid #bbf7d0';
-                    result.style.color = '#166534';
-                    const c = data.customers, inv = data.invoices, exp = data.expenses;
-                    const parts = [];
-                    if (c.duplicatesRemoved > 0) parts.push(`${c.duplicatesRemoved} duplicate customer${c.duplicatesRemoved !== 1 ? 's' : ''} (${c.groupsMerged} group${c.groupsMerged !== 1 ? 's' : ''} merged, tags preserved)`);
-                    if (inv.duplicatesRemoved > 0) parts.push(`${inv.duplicatesRemoved} duplicate invoice${inv.duplicatesRemoved !== 1 ? 's' : ''}`);
-                    if (exp.duplicatesRemoved > 0) parts.push(`${exp.duplicatesRemoved} duplicate expense${exp.duplicatesRemoved !== 1 ? 's' : ''}`);
-                    result.textContent = parts.length > 0 ? `✓ Removed ${parts.join(', ')}.` : '✓ No duplicates found — your data is clean!';
-                    const total = c.duplicatesRemoved + inv.duplicatesRemoved + exp.duplicatesRemoved;
-                    showToast(total > 0 ? `Removed ${total} duplicates` : 'No duplicates found');
-                } else {
-                    result.style.display = 'block';
-                    result.style.background = '#fef2f2';
-                    result.style.border = '1px solid #fecaca';
-                    result.style.color = '#991b1b';
-                    result.textContent = 'Error: ' + (data.error || 'Unknown error');
-                }
-            } catch (e) {
-                showToast('Deduplication failed: ' + e.message, true);
-            }
+            ['syncCustomers','syncInvoices','syncPayments','syncExpenses'].forEach(id => document.getElementById(id).textContent = '...');
+            btn.innerHTML = '<span class="spinner"></span> Syncing...';
+            syncPollInterval = setInterval(async () => {
+                try {
+                    const progRes = await fetch('/api/quickbooks/sync-progress');
+                    const progData = await progRes.json();
+                    if (progData.running && progData.progress) {
+                        updateSyncDisplay(progData.progress);
+                    } else if (!progData.running) {
+                        const lastSync = progData.lastSync;
+                        if (lastSync) {
+                            updateSyncDisplay({ stage: 'done', customers: lastSync.customers_synced || 0, invoices: lastSync.invoices_synced || 0, payments: lastSync.payments_synced || 0, expenses: lastSync.expenses_synced || 0, errors: lastSync.errors ? [lastSync.errors] : [] });
+                        } else {
+                            updateSyncDisplay({ stage: 'done', customers: 0, invoices: 0, payments: 0, expenses: 0 });
+                        }
+                    }
+                } catch (e) {}
+            }, 2000);
+        } else {
+            showToast(data.error || 'Sync failed', true);
             btn.disabled = false;
-            btn.textContent = 'Run Deduplication';
+            btn.innerHTML = 'Sync Now';
         }
+    } catch (e) {
+        showToast('Sync failed: ' + e.message, true);
+        btn.disabled = false;
+        btn.innerHTML = 'Sync Now';
+    }
+}
 
-        async function cleanCustomerNames() {
-            const btn = document.getElementById('cleanNamesBtn');
-            const result = document.getElementById('cleanNamesResult');
-            btn.disabled = true;
-            btn.textContent = 'Cleaning...';
-            result.style.display = 'none';
-            try {
-                const res = await fetch('/api/customers/clean-names', { method: 'POST' });
-                const data = await res.json();
-                result.style.display = 'block';
-                if (data.success) {
-                    result.style.background = '#f0fdf4';
-                    result.style.border = '1px solid #bbf7d0';
-                    result.style.color = '#166534';
-                    result.textContent = data.cleaned > 0 ? `✓ Cleaned ${data.cleaned} customer name${data.cleaned !== 1 ? 's' : ''}.` : '✓ No messy names found — all clean!';
-                    showToast(data.cleaned > 0 ? `Cleaned ${data.cleaned} names` : 'Names already clean');
-                } else {
-                    result.style.background = '#fef2f2';
-                    result.style.border = '1px solid #fecaca';
-                    result.style.color = '#991b1b';
-                    result.textContent = 'Error: ' + (data.error || 'Unknown error');
-                }
-            } catch (e) {
-                showToast('Name cleanup failed: ' + e.message, true);
-            }
-            btn.disabled = false;
-            btn.textContent = 'Clean Names';
+async function disconnectQB() {
+    if (!confirm('Disconnect QuickBooks? Your synced data will remain.')) return;
+    try {
+        const res = await fetch('/api/quickbooks/disconnect', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) { showDisconnected(); showToast('QuickBooks disconnected'); }
+    } catch (e) { showToast('Failed to disconnect', true); }
+}
+
+async function toggleSyncLog() {
+    const logEl = document.getElementById('syncLog');
+    if (logEl.classList.contains('show')) { logEl.classList.remove('show'); return; }
+    try {
+        const res = await fetch('/api/quickbooks/sync-log');
+        const data = await res.json();
+        const entries = data.logs || [];
+        const el = document.getElementById('syncLogEntries');
+        if (entries.length === 0) {
+            el.innerHTML = '<p style="font-size:13px;color:var(--gray-400);padding:8px 0;">No sync history yet.</p>';
+        } else {
+            el.innerHTML = entries.map(e => {
+                const time = e.completed_at ? new Date(e.completed_at).toLocaleString() : 'In progress...';
+                const summary = `${e.customers_synced||0} customers, ${e.invoices_synced||0} invoices, ${e.payments_synced||0} payments, ${e.expenses_synced||0} expenses`;
+                return `<div class="log-entry"><div><span class="summary">${summary}</span>${e.errors ? `<div class="error">${e.errors}</div>` : ''}</div><span class="time">${time}</span></div>`;
+            }).join('');
         }
+        logEl.classList.add('show');
+    } catch (e) { showToast('Failed to load sync log', true); }
+}
 
-        async function disconnectQB() {
-            if (!confirm('Disconnect QuickBooks? Your synced data will remain in the dashboard.')) return;
-
-            try {
-                const res = await fetch('/api/quickbooks/disconnect', { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
-                    showDisconnected();
-                    document.getElementById('syncResults').classList.remove('show');
-                    document.getElementById('syncLog').classList.remove('show');
-                    showToast('QuickBooks disconnected');
-                }
-            } catch (e) {
-                showToast('Failed to disconnect', true);
-            }
+// ══════════════════════════════════
+// SQUARE
+// ══════════════════════════════════
+async function loadSquareStatus() {
+    try {
+        const res = await fetch('/api/square/status');
+        const data = await res.json();
+        if (data.connected) {
+            document.getElementById('squareBadge').className = 'badge badge-connected';
+            document.getElementById('squareBadgeText').textContent = 'Connected';
+            document.getElementById('squareConnected').style.display = 'block';
+            document.getElementById('squareDisconnected').style.display = 'none';
+            document.getElementById('squareEnv').textContent = data.environment || 'sandbox';
+            document.getElementById('squareLoc').textContent = data.locationId || '—';
+        } else {
+            document.getElementById('squareBadge').className = 'badge badge-disconnected';
+            document.getElementById('squareBadgeText').textContent = 'Not Configured';
+            document.getElementById('squareConnected').style.display = 'none';
+            document.getElementById('squareDisconnected').style.display = 'block';
         }
+    } catch (e) {
+        document.getElementById('squareBadge').className = 'badge badge-disconnected';
+        document.getElementById('squareBadgeText').textContent = 'Not Configured';
+        document.getElementById('squareDisconnected').style.display = 'block';
+    }
+}
+async function testSquare() {
+    try {
+        const res = await fetch('/api/square/status');
+        const data = await res.json();
+        showToast(data.connected ? 'Square connection verified! Environment: ' + data.environment : 'Square not connected', !data.connected);
+    } catch (e) { showToast('Failed to test Square connection', true); }
+}
 
-        async function toggleSyncLog() {
-            const logEl = document.getElementById('syncLog');
-            if (logEl.classList.contains('show')) {
-                logEl.classList.remove('show');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/quickbooks/sync-log');
-                const data = await res.json();
-
-                const entries = data.logs || [];
-                const el = document.getElementById('syncLogEntries');
-
-                if (entries.length === 0) {
-                    el.innerHTML = '<p style="font-size:13px;color:var(--gray-400);padding:8px 0;">No sync history yet.</p>';
-                } else {
-                    el.innerHTML = entries.map(e => {
-                        const time = e.completed_at ? new Date(e.completed_at).toLocaleString() : 'In progress...';
-                        const summary = `${e.customers_synced || 0} customers, ${e.invoices_synced || 0} invoices, ${e.payments_synced || 0} payments, ${e.expenses_synced || 0} expenses`;
-                        return `<div class="log-entry">
-                            <div>
-                                <span class="summary">${summary}</span>
-                                ${e.errors ? `<div class="error">${e.errors}</div>` : ''}
-                            </div>
-                            <span class="time">${time}</span>
-                        </div>`;
-                    }).join('');
-                }
-
-                logEl.classList.add('show');
-            } catch (e) {
-                showToast('Failed to load sync log', true);
-            }
+// ══════════════════════════════════
+// DATA TOOLS
+// ══════════════════════════════════
+async function deduplicateCustomers() {
+    const btn = document.getElementById('dedupBtn');
+    const result = document.getElementById('dedupResult');
+    btn.disabled = true; btn.textContent = 'Running...';
+    try {
+        const res = await fetch('/api/customers/deduplicate', { method: 'POST' });
+        const data = await res.json();
+        result.style.display = 'block';
+        if (data.success) {
+            result.style.background = '#f0fdf4'; result.style.border = '1px solid #bbf7d0'; result.style.color = '#166534';
+            const c = data.customers, inv = data.invoices, exp = data.expenses;
+            const parts = [];
+            if (c.duplicatesRemoved > 0) parts.push(`${c.duplicatesRemoved} duplicate customer${c.duplicatesRemoved !== 1 ? 's' : ''}`);
+            if (inv.duplicatesRemoved > 0) parts.push(`${inv.duplicatesRemoved} duplicate invoice${inv.duplicatesRemoved !== 1 ? 's' : ''}`);
+            if (exp.duplicatesRemoved > 0) parts.push(`${exp.duplicatesRemoved} duplicate expense${exp.duplicatesRemoved !== 1 ? 's' : ''}`);
+            result.textContent = parts.length > 0 ? `Removed ${parts.join(', ')}.` : 'No duplicates found — your data is clean!';
+        } else {
+            result.style.background = '#fef2f2'; result.style.border = '1px solid #fecaca'; result.style.color = '#991b1b';
+            result.textContent = 'Error: ' + (data.error || 'Unknown error');
         }
+    } catch (e) { showToast('Deduplication failed: ' + e.message, true); }
+    btn.disabled = false; btn.textContent = 'Run Deduplication';
+}
 
-        function showToast(msg, isError) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.style.background = isError ? 'var(--red)' : 'var(--forest)';
-            t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 4000);
+async function cleanCustomerNames() {
+    const btn = document.getElementById('cleanNamesBtn');
+    const result = document.getElementById('cleanNamesResult');
+    btn.disabled = true; btn.textContent = 'Cleaning...';
+    result.style.display = 'none';
+    try {
+        const res = await fetch('/api/customers/clean-names', { method: 'POST' });
+        const data = await res.json();
+        result.style.display = 'block';
+        if (data.success) {
+            result.style.background = '#f0fdf4'; result.style.border = '1px solid #bbf7d0'; result.style.color = '#166534';
+            result.textContent = data.cleaned > 0 ? `Cleaned ${data.cleaned} customer name${data.cleaned !== 1 ? 's' : ''}.` : 'No messy names found — all clean!';
+        } else {
+            result.style.background = '#fef2f2'; result.style.border = '1px solid #fecaca'; result.style.color = '#991b1b';
+            result.textContent = 'Error: ' + (data.error || 'Unknown error');
         }
+    } catch (e) { showToast('Name cleanup failed: ' + e.message, true); }
+    btn.disabled = false; btn.textContent = 'Clean Names';
+}
 
-        // Square Payments Status
-        loadSquareStatus();
+// ══════════════════════════════════
+// DAILY AUTOMATION
+// ══════════════════════════════════
+async function runDailyAutomation() {
+    const btn = document.getElementById('cronBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="border-color:rgba(0,0,0,0.2);border-top-color:var(--gray-600);"></span> Running...';
+    try {
+        const res = await fetch('/api/cron/daily-automation', { method: 'POST' });
+        const data = await res.json();
+        document.getElementById('cronJobs').textContent = data.jobs_generated || data.jobsGenerated || 0;
+        document.getElementById('cronInvoices').textContent = data.invoices_generated || data.invoicesGenerated || 0;
+        document.getElementById('cronLateFees').textContent = data.late_fees_applied || data.lateFeesApplied || 0;
+        document.getElementById('cronResults').classList.add('show');
+        const total = (data.jobs_generated || data.jobsGenerated || 0) + (data.invoices_generated || data.invoicesGenerated || 0) + (data.late_fees_applied || data.lateFeesApplied || 0);
+        showToast(`Automation complete: ${total} action${total !== 1 ? 's' : ''} taken`);
+    } catch (e) {
+        showToast('Automation failed: ' + e.message, true);
+    }
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Run Daily Automation`;
+}
 
-        async function loadSquareStatus() {
-            try {
-                const res = await fetch('/api/square/status');
-                const data = await res.json();
-                if (data.connected) {
-                    document.getElementById('squareBadge').className = 'badge badge-connected';
-                    document.getElementById('squareBadgeText').textContent = 'Connected';
-                    document.getElementById('squareConnected').style.display = 'block';
-                    document.getElementById('squareDisconnected').style.display = 'none';
-                    document.getElementById('squareEnv').textContent = data.environment || 'sandbox';
-                    document.getElementById('squareLoc').textContent = data.locationId || '—';
-                } else {
-                    document.getElementById('squareBadge').className = 'badge badge-disconnected';
-                    document.getElementById('squareBadgeText').textContent = 'Not Configured';
-                    document.getElementById('squareConnected').style.display = 'none';
-                    document.getElementById('squareDisconnected').style.display = 'block';
-                }
-            } catch (e) {
-                document.getElementById('squareBadge').className = 'badge badge-disconnected';
-                document.getElementById('squareBadgeText').textContent = 'Not Configured';
-                document.getElementById('squareDisconnected').style.display = 'block';
-            }
-        }
+// ══════════════════════════════════
+// INIT
+// ══════════════════════════════════
+loadCompanyProfile();
+loadTaxRate();
+loadNotifPrefs();
+loadServiceItems();
+loadHomeBase();
+loadQBStatus();
+loadSquareStatus();
+loadAllSettings();
+</script>
 
-        async function testSquare() {
-            try {
-                const res = await fetch('/api/square/status');
-                const data = await res.json();
-                if (data.connected) {
-                    showToast('Square connection verified! Environment: ' + data.environment);
-                } else {
-                    showToast('Square not connected: ' + (data.error || 'Missing configuration'), true);
-                }
-            } catch (e) {
-                showToast('Failed to test Square connection', true);
-            }
-        }
-
-        // ── Recurring Invoices & Late Fees ──
-        loadLateFeeSettings();
-
-        async function loadLateFeeSettings() {
-            try {
-                const res = await fetch('/api/settings');
-                const data = await res.json();
-                const settings = data.settings || data;
-
-                // Late fee rules
-                const lf = settings.late_fee_rules || {};
-                if (lf.grace_period_days !== undefined) document.getElementById('lfGracePeriod').value = lf.grace_period_days;
-                if (lf.initial_fee_percent !== undefined) document.getElementById('lfInitialFee').value = lf.initial_fee_percent;
-                if (lf.recurring_fee_percent !== undefined) document.getElementById('lfRecurringFee').value = lf.recurring_fee_percent;
-                if (lf.recurring_interval_days !== undefined) document.getElementById('lfRecurringInterval').value = lf.recurring_interval_days;
-                if (lf.max_fees_per_invoice !== undefined) document.getElementById('lfMaxFees').value = lf.max_fees_per_invoice;
-                document.getElementById('lfEnabled').checked = !!lf.enabled;
-
-                // Recurring invoice config
-                const ri = settings.recurring_invoice_config || {};
-                document.getElementById('riAutoSend').checked = ri.auto_send !== false;
-                document.getElementById('riPaymentLink').checked = ri.include_payment_link !== false;
-
-                updateLateFeeBadge();
-            } catch (e) {
-                // Defaults are already set in the HTML
-            }
-        }
-
-        function updateLateFeeBadge() {
-            const enabled = document.getElementById('lfEnabled').checked;
-            const badge = document.getElementById('lateFeeBadge');
-            const badgeText = document.getElementById('lateFeeBadgeText');
-            if (enabled) {
-                badge.className = 'badge badge-active';
-                badgeText.textContent = 'Active';
-            } else {
-                badge.className = 'badge badge-inactive';
-                badgeText.textContent = 'Inactive';
-            }
-        }
-
-        document.getElementById('lfEnabled').addEventListener('change', updateLateFeeBadge);
-
-        async function saveLateFeeSettings() {
-            const btn = document.getElementById('saveLateFeeBtn');
-            btn.disabled = true;
-            btn.textContent = 'Saving...';
-
-            const lateFeeRules = {
-                grace_period_days: parseInt(document.getElementById('lfGracePeriod').value) || 30,
-                initial_fee_percent: parseFloat(document.getElementById('lfInitialFee').value) || 10,
-                recurring_fee_percent: parseFloat(document.getElementById('lfRecurringFee').value) || 5,
-                recurring_interval_days: parseInt(document.getElementById('lfRecurringInterval').value) || 30,
-                max_fees_per_invoice: parseInt(document.getElementById('lfMaxFees').value) || 3,
-                enabled: document.getElementById('lfEnabled').checked
-            };
-
-            const recurringConfig = {
-                auto_send: document.getElementById('riAutoSend').checked,
-                include_payment_link: document.getElementById('riPaymentLink').checked
-            };
-
-            try {
-                const [lfRes, riRes] = await Promise.all([
-                    fetch('/api/settings/late_fee_rules', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ value: lateFeeRules })
-                    }),
-                    fetch('/api/settings/recurring_invoice_config', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ value: recurringConfig })
-                    })
-                ]);
-
-                if (lfRes.ok && riRes.ok) {
-                    showToast('Settings saved successfully');
-                    updateLateFeeBadge();
-                } else {
-                    showToast('Failed to save some settings', true);
-                }
-            } catch (e) {
-                showToast('Failed to save settings: ' + e.message, true);
-            }
-
-            btn.disabled = false;
-            btn.textContent = 'Save Settings';
-        }
-
-        async function runDailyAutomation() {
-            const btn = document.getElementById('cronBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner" style="border-color:rgba(0,0,0,0.2);border-top-color:var(--gray-600);"></span> Running...';
-
-            try {
-                const res = await fetch('/api/cron/daily-automation', { method: 'POST' });
-                const data = await res.json();
-
-                document.getElementById('cronJobs').textContent = data.jobs_generated || data.jobsGenerated || 0;
-                document.getElementById('cronInvoices').textContent = data.invoices_generated || data.invoicesGenerated || 0;
-                document.getElementById('cronLateFees').textContent = data.late_fees_applied || data.lateFeesApplied || 0;
-                document.getElementById('cronResults').classList.add('show');
-
-                const total = (data.jobs_generated || data.jobsGenerated || 0)
-                    + (data.invoices_generated || data.invoicesGenerated || 0)
-                    + (data.late_fees_applied || data.lateFeesApplied || 0);
-                showToast(`Automation complete: ${total} action${total !== 1 ? 's' : ''} taken`);
-            } catch (e) {
-                showToast('Automation failed: ' + e.message, true);
-            }
-
-            btn.disabled = false;
-            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Run Daily Automation`;
-        }
-    </script>
 </body>
 </html>

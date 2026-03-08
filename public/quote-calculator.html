@@ -4,213 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quote Calculator — YardDesk</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <!-- PDF.js for BEAM PDF parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
     <style>
-        @font-face {
-            font-family: 'Qualy';
-            src: url('Qualy.otf') format('opentype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
-        .topbar h2, h2 { font-family: 'Qualy', serif !important; }
-        .section-header h3, h3 { font-family: 'Qualy', serif !important; }
-
-        :root {
-            --forest: #2e403d;
-            --forest-dark: #1f2b29;
-            --forest-light: #3a524e;
-            --lime: #c9dd80;
-            --lime-soft: #dce9a8;
-            --cream: #ffffff;
-            --white: #ffffff;
-            --gray-50: #f8faf8;
-            --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2;
-            --gray-300: #c8ccc8;
-            --gray-400: #9ca09c;
-            --gray-500: #6e726e;
-            --gray-600: #4a4e4a;
-            --gray-700: #333633;
-            --red: #dc4a4a;
-            --red-bg: #fef0f0;
-            --blue: #3b82f6;
-            --blue-bg: #eff6ff;
-            --amber: #d97706;
-            --amber-bg: #fffbeb;
-            --green: #059669;
-            --green-bg: #ecfdf5;
-            --purple: #7c3aed;
-            --purple-bg: #f5f3ff;
-            --sidebar-w: 240px;
-            --header-h: 64px;
-            --spacing-xs: 4px;
-            --spacing-sm: 8px;
-            --spacing-md: 16px;
-            --spacing-lg: 24px;
-            --spacing-xl: 32px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--gray-50);
-            color: var(--gray-700);
-            line-height: 1.5;
-            overflow-x: hidden;
-        }
-
-        /* ===== SIDEBAR ===== */
-        .sidebar {
-            position: fixed;
-            top: 0; left: 0;
-            width: var(--sidebar-w);
-            height: 100vh;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            z-index: 100;
-            transition: transform 0.3s;
-        }
-
-        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
-
-        .sidebar-brand img { max-height: 48px;
-            width: auto;
-            max-width: 180px; }
-
-        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
-        .nav-section { margin-bottom: 8px; }
-
-        .nav-section-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            color: var(--gray-500);
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-            margin-bottom: 2px;
-        }
-
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
-        
-
-        .nav-item .badge {
-            margin-left: auto;
-            background: var(--forest);
-            color: var(--lime);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-        .nav-item.disabled {
-            opacity: 0.35;
-            cursor: default;
-            pointer-events: none;
-        }
-
-        .nav-item.disabled::after {
-            content: 'Soon';
-            margin-left: auto;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            opacity: 0.6;
-        }
-
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; }
-
-        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px;
-            background: var(--forest);
-            color: var(--lime);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 13px;
-        }
-
-        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
-
-        /* ===== MAIN ===== */
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
-
-        .topbar {
-            position: sticky;
-            top: 0;
-            height: var(--header-h);
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 32px;
-            z-index: 50;
-        }
-
-        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
-        .topbar-left p { font-size: 13px; color: var(--gray-400); }
-        .topbar-actions { display: flex; align-items: center; gap: 12px; }
-
-        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
-
         .page-content { padding: 28px 32px; }
 
-        /* ===== BUTTONS ===== */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
-            text-decoration: none;
-        }
-
-        .btn svg { width: 16px; height: 16px; }
-        .btn-primary {
-            background: var(--forest);
-            color: var(--lime);
-        }
-        .btn-primary:hover {
-            background: var(--forest-dark, #1f2b29);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(46, 64, 61, 0.15);
-        }
-        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
-        .btn-secondary:hover { background: var(--gray-50); border-color: var(--gray-300); }
-        .btn-lime { background: var(--lime); color: var(--forest); }
-        .btn-lime:hover { background: var(--lime-soft); }
+        .btn-lime { background: var(--primary-light); color: var(--primary); }
+        .btn-lime:hover { background: #bbf7d0; }
 
         /* ===== AI BADGE ===== */
         .ai-badge {
@@ -218,8 +23,8 @@
             align-items: center;
             gap: 6px;
             padding: 6px 14px;
-            background: var(--lime);
-            color: var(--forest);
+            background: var(--primary-light);
+            color: var(--primary-dark);
             font-size: 12px;
             font-weight: 700;
             border-radius: 20px;
@@ -237,30 +42,10 @@
         /* ===== CARDS ===== */
         .card {
             background: var(--white);
-            border: 1px solid var(--gray-200);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border-radius: 12px;
             overflow: hidden;
         }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-100);
-        }
-
-        .card-header h3 {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--gray-700);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .card-header h3 svg { width: 18px; height: 18px; color: var(--gray-400); }
-        .card-body { padding: 20px; }
 
         /* ===== ADDRESS INPUT ===== */
         .address-section {
@@ -300,7 +85,7 @@
 
         .address-input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
         }
 
@@ -372,7 +157,7 @@
             width: 40px;
             height: 40px;
             border: 3px solid rgba(255,255,255,0.2);
-            border-top-color: var(--lime);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             margin-bottom: 16px;
@@ -466,7 +251,7 @@
 
         .area-input:focus {
             outline: none;
-            border-color: var(--forest);
+            border-color: var(--primary);
         }
 
         .area-unit { font-size: 12px; color: var(--gray-400); font-weight: 500; }
@@ -494,7 +279,7 @@
             color: var(--gray-600);
         }
 
-        .shrub-btn:hover { background: var(--gray-50); border-color: var(--forest); }
+        .shrub-btn:hover { background: var(--gray-50); border-color: var(--primary); }
 
         .shrub-count {
             font-size: 18px;
@@ -508,7 +293,7 @@
         .lot-size-row {
             margin-top: 16px;
             padding: 14px 16px;
-            background: var(--forest);
+            background: var(--primary);
             border-radius: 10px;
             display: flex;
             justify-content: space-between;
@@ -517,7 +302,7 @@
         }
 
         .lot-size-row label { font-size: 13px; font-weight: 500; opacity: 0.8; }
-        .lot-size-row span { font-size: 16px; font-weight: 700; color: var(--lime); }
+        .lot-size-row span { font-size: 16px; font-weight: 700; color: var(--primary); }
 
         /* ===== QUOTE CARD ===== */
         .quote-card { position: sticky; top: calc(var(--header-h) + 28px); }
@@ -550,14 +335,14 @@
         }
 
         .service-item.selected .service-checkbox {
-            background: var(--forest);
-            border-color: var(--forest);
+            background: var(--primary);
+            border-color: var(--primary);
         }
 
         .service-checkbox svg {
             width: 12px;
             height: 12px;
-            color: var(--lime);
+            color: var(--primary);
             opacity: 0;
         }
 
@@ -572,14 +357,14 @@
         .quote-total {
             margin-top: 20px;
             padding: 20px;
-            background: var(--forest);
+            background: var(--primary);
             border-radius: 10px;
             color: var(--white);
             text-align: center;
         }
 
         .quote-total-label { font-size: 13px; opacity: 0.7; margin-bottom: 4px; }
-        .quote-total-amount { font-size: 36px; font-weight: 700; color: var(--lime); }
+        .quote-total-amount { font-size: 36px; font-weight: 700; color: var(--primary); }
 
         /* Quote Actions */
         .quote-actions {
@@ -591,36 +376,6 @@
 
         .quote-actions .btn { justify-content: center; padding: 12px 16px; }
 
-        /* ===== EMPTY STATE ===== */
-        .empty-state {
-            text-align: center;
-            padding: 48px 20px;
-            color: var(--gray-400);
-        }
-
-        .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
-        .empty-state p { font-size: 14px; }
-
-        /* ===== TOAST ===== */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: var(--forest);
-            color: var(--white);
-            padding: 14px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.3s;
-            z-index: 1000;
-        }
-
-        .toast.show { transform: translateY(0); opacity: 1; }
-
         /* ===== RESPONSIVE ===== */
         @media (max-width: 1200px) {
             .calculator-grid { grid-template-columns: 1fr; }
@@ -628,202 +383,42 @@
         }
 
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; }
-            .mobile-menu-btn { display: block; }
             .page-content { padding: 20px 16px; }
-            .topbar { padding: 0 16px; }
             .areas-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
+<script src="shell.js"></script>
 
-<!-- SIDEBAR -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-            <img src="/logo.png" alt="YardDesk">
-        </div>
-    <nav class="sidebar-nav">
-            <!-- Overview -->
-            <div class="nav-section">
-                <div class="nav-section-label">Overview</div>
-                <a href="index.html" class="nav-item">
-                    <span>📊</span>
-                    <span>Dashboard</span>
-                </a>
-            </div>
-
-            <!-- Sales -->
-            <div class="nav-section">
-                <div class="nav-section-label">Sales</div>
-                <a href="quotes.html" class="nav-item">
-                    <span>📋</span>
-                    <span>Quote Requests</span>
-                </a>
-                <a href="quote-calculator.html" class="nav-item active">
-                    <span>🧮</span>
-                    <span>Quote Calculator</span>
-                </a>
-                <a href="quote-generator.html" class="nav-item">
-                    <span>✨</span>
-                    <span>Quote Generator</span>
-                </a>
-                <a href="sent-quotes.html" class="nav-item">
-                    <span>📤</span>
-                    <span>Sent Quotes</span>
-                </a>
-            </div>
-
-            <!-- Operations -->
-            <div class="nav-section">
-                <div class="nav-section-label">Operations</div>
-                <a href="customers.html" class="nav-item">
-                    <span>👥</span>
-                    <span>Customers</span>
-                </a>
-                <a href="properties.html" class="nav-item">
-                    <span>🏡</span>
-                    <span>Properties</span>
-                </a>
-                <a href="scheduling.html" class="nav-item">
-                    <span>📅</span>
-                    <span>Scheduling</span>
-                </a>
-                <a href="dispatch.html" class="nav-item">
-                    <span>🗓️</span>
-                    <span>Dispatch Board</span>
-                </a>
-            </div>
-
-            <!-- Communications -->
-            <div class="nav-section">
-                <div class="nav-section-label">Communications</div>
-                <a href="communications.html" class="nav-item">
-                    <span>💬</span>
-                    <span>Messages & Calls</span>
-                </a>
-                <a href="cancellations.html" class="nav-item">
-                    <span>❌</span>
-                    <span>Cancellations</span>
-                </a>
-            </div>
-
-            <!-- Marketing -->
-            <div class="nav-section">
-                <div class="nav-section-label">Marketing</div>
-                <a href="campaigns.html" class="nav-item">
-                    <span>📢</span>
-                    <span>Campaigns</span>
-                </a>
-                <a href="templates.html" class="nav-item">
-                    <span>📝</span>
-                    <span>Templates</span>
-                </a>
-            </div>
-
-            <!-- Finance -->
-            <div class="nav-section">
-                <div class="nav-section-label">Finance</div>
-                <a href="expenses.html" class="nav-item">
-                    <span>💸</span>
-                    <span>Expenses</span>
-                </a>
-                <a href="invoices.html" class="nav-item">
-                    <span>📄</span>
-                    <span>Invoices</span>
-                </a>
-                <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-                <a href="finance.html" class="nav-item">
-                    <span>💰</span>
-                    <span>Revenue</span>
-                </a>
-            </div>
-
-            <!-- Analytics -->
-            <div class="nav-section">
-                <div class="nav-section-label">Analytics</div>
-                <a href="kpi.html" class="nav-item">
-                    <span>🎯</span>
-                    <span>KPI Dashboard</span>
-                </a>
-                <a href="reports.html" class="nav-item">
-                    <span>📈</span>
-                    <span>Reports</span>
-                </a>
-            </div>
-            <!-- Team -->
-            <div class="nav-section">
-                <div class="nav-section-label">Team</div>
-                <a href="crew.html" class="nav-item">
-                    <span>👷</span>
-                    <span>Crew</span>
-                </a>
-            </div>
-                    <div class="nav-section">
-                <div class="nav-section-label">System</div>
-                <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a>
-            </div>
-</nav>
-            <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <div class="avatar">TP</div>
-                <div>
-                    <div class="name">Theresa Pappas</div>
-                    <div class="role">Admin</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</aside>
-
-<!-- MAIN -->
 <div class="main">
     <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div class="topbar-left">
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div class="topbar-left">
-                <h2>Quote Calculator</h2>
-                <p>AI-powered property measurement & instant pricing</p>
-            </div>
+            <h1>Quote Calculator</h1>
         </div>
         <div class="topbar-actions">
             <div class="ai-badge">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/><circle cx="7.5" cy="14.5" r="1.5"/><circle cx="16.5" cy="14.5" r="1.5"/></svg>
                 SAM 3 Vision AI
             </div>
+            <div class="topbar-search-wrap" id="search-container">
+                <div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
+                <input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off">
+                <div class="search-dropdown" id="search-dropdown"></div>
+            </div>
+            <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
+            <div class="topbar-avatar" title="Account">TP</div>
         </div>
+    </div>
+
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+        <a href="quotes.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Requests</a>
+        <a href="sent-quotes.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Sent Quotes</a>
+        <a href="quote-generator.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Quote Generator</a>
+        <a href="quote-calculator.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Calculator</a>
     </div>
 
     <div class="page-content">
@@ -923,7 +518,7 @@
                         <div class="lot-size-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <label>Total Lot Size <span style="font-size: 10px; opacity: 0.7;">(from tax records)</span></label>
-                                <a href="https://myplace.cuyahogacounty.gov" target="_blank" style="font-size: 11px; color: var(--lime); text-decoration: underline;">Look up →</a>
+                                <a href="https://myplace.cuyahogacounty.gov" target="_blank" style="font-size: 11px; color: var(--primary); text-decoration: underline;">Look up →</a>
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <input type="number" class="area-input" id="lotSizeInput" value="10000" onchange="applyLotSize()" style="background: rgba(255,255,255,0.1); color: white; border-color: rgba(255,255,255,0.2); flex: 1;">
@@ -2074,6 +1669,29 @@ ANNUAL TOTAL: ${total}
             }
         });
     });
+</script>
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
 </script>
 </body>
 </html>

@@ -4,69 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Detail — YardDesk</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
     <style>
-        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); }
-        h1, h2, h3.section-title { font-family: 'Qualy', serif !important; }
-
-        :root {
-            --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
-            --lime: #c9dd80; --lime-soft: #dce9a8;
-            --white: #ffffff; --gray-50: #f8faf8; --gray-100: #f0f2f0;
-            --gray-200: #e2e5e2; --gray-300: #c8ccc8; --gray-400: #9ca09c;
-            --gray-500: #6e726e; --gray-600: #4a4e4a; --gray-700: #333633;
-            --red: #dc4a4a; --red-bg: #fef0f0;
-            --blue: #3b82f6; --blue-bg: #eff6ff;
-            --amber: #d97706; --amber-bg: #fffbeb;
-            --green: #059669; --green-bg: #ecfdf5;
-            --purple: #7c3aed; --purple-bg: #f5f3ff;
-            --sidebar-w: 240px; --header-h: 64px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; overflow-x: hidden; }
-
-        /* Sidebar */
-        .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
-        .sidebar-brand { padding: 20px; text-align: center; border-bottom: 1px solid var(--gray-100); }
-        .sidebar-brand img { max-height: 48px; width: auto; max-width: 180px; }
-        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
-        .nav-section { margin-bottom: 8px; }
-        .nav-section-label { color: var(--gray-400); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px 4px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--gray-600); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-        .nav-item:hover { background: var(--gray-100); color: var(--gray-700); }
-        .nav-item.active { background: var(--forest); color: var(--lime); }
-        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
-        .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--gray-100); }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; }
-        .sidebar-user .avatar { width: 36px; height: 36px; border-radius: 10px; background: var(--forest); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-        .sidebar-user .name { color: var(--gray-700); font-size: 13px; font-weight: 600; }
-        .sidebar-user .role { color: var(--gray-400); font-size: 11px; }
-
-        /* Main */
-        .main { margin-left: var(--sidebar-w); min-height: 100vh; }
-        .topbar { position: sticky; top: 0; height: var(--header-h); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; z-index: 50; }
-        .topbar-left { display: flex; align-items: center; gap: 12px; }
-        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
-        .topbar-left p { font-size: 13px; color: var(--gray-400); }
-        .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
-        .mobile-menu-btn svg { width: 24px; height: 24px; color: var(--gray-600); }
-
-        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; text-decoration: none; }
-        .btn svg { width: 16px; height: 16px; }
-        .btn-primary { background: var(--forest); color: var(--lime); }
-        .btn-primary:hover { background: var(--forest-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(46,64,61,0.15); }
-        .btn-secondary { background: var(--white); color: var(--gray-600); border: 1px solid var(--gray-200); }
-        .btn-secondary:hover { background: var(--gray-50); }
-        .btn-danger { background: var(--red); color: white; }
-        .btn-danger:hover { background: #c43c3c; }
-        .btn-sm { padding: 5px 10px; font-size: 12px; }
-
-        .page-content { padding: 28px 32px; animation: fadeIn 0.4s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
         .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--gray-500); text-decoration: none; font-size: 13px; font-weight: 500; margin-bottom: 16px; }
-        .back-link:hover { color: var(--forest); }
+        .back-link:hover { color: var(--primary); }
         .back-link svg { width: 16px; height: 16px; }
 
         /* Jobber-style two-column layout */
@@ -82,7 +24,7 @@
         .dropdown-menu.show { display: block; }
         .dropdown-label { padding: 8px 16px 4px; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
         .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; font-size: 13px; color: var(--gray-600); cursor: pointer; transition: background 0.1s; text-decoration: none; }
-        .dropdown-item:hover { background: var(--gray-50); color: var(--forest); }
+        .dropdown-item:hover { background: var(--gray-50); color: var(--primary); }
         .dropdown-item svg { width: 16px; height: 16px; flex-shrink: 0; }
         .dropdown-divider { height: 1px; background: var(--gray-100); margin: 4px 0; }
         .dropdown-item.danger { color: var(--red); }
@@ -91,8 +33,8 @@
         /* Two-column body */
         .two-col { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
 
-        /* Left column — main content */
-        .main-col .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+        /* Left column */
+        .main-col .card { background: var(--white); border-radius: 12px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-100); }
         .card-header h3 { font-size: 16px; font-weight: 700; color: var(--gray-700); }
         .card-body { padding: 0; }
@@ -115,7 +57,7 @@
         .overview-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--gray-200); padding: 0 20px; }
         .ov-tab { padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--gray-400); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
         .ov-tab:hover { color: var(--gray-600); }
-        .ov-tab.active { color: var(--forest); border-bottom-color: var(--forest); }
+        .ov-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
         .ov-panel { display: none; }
         .ov-panel.active { display: block; }
 
@@ -145,7 +87,7 @@
         .tl-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .tl-icon svg { width: 16px; height: 16px; }
         .tl-icon.sms-in { background: var(--green-bg); color: var(--green); }
-        .tl-icon.sms-out { background: rgba(46,64,61,0.1); color: var(--forest); }
+        .tl-icon.sms-out { background: rgba(22,163,74,0.1); color: var(--primary); }
         .tl-icon.call-icon { background: var(--blue-bg); color: var(--blue); }
         .tl-icon.vm-icon { background: var(--amber-bg); color: var(--amber); }
         .tl-icon.email-icon { background: var(--purple-bg); color: var(--purple); }
@@ -161,19 +103,19 @@
         /* Send text box */
         .send-text-box { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); }
         .send-text-box textarea { flex: 1; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; outline: none; resize: none; min-height: 38px; max-height: 100px; }
-        .send-text-box textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
-        .send-btn { background: var(--forest); color: var(--lime); border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; white-space: nowrap; }
-        .send-btn:hover { background: var(--forest-dark); }
+        .send-text-box textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
+        .send-btn { background: var(--primary); color: var(--white); border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; white-space: nowrap; }
+        .send-btn:hover { background: var(--primary-dark); }
 
         /* Right sidebar */
-        .right-col .sidebar-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+        .right-col .sidebar-card { background: var(--white); border-radius: 12px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .sc-header { padding: 16px 20px 12px; font-size: 14px; font-weight: 700; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
         .sc-body { padding: 0; }
         .sc-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--gray-100); }
         .sc-row:last-child { border-bottom: none; }
         .sc-label { font-size: 13px; color: var(--gray-500); }
         .sc-value { font-size: 13px; font-weight: 600; color: var(--gray-700); text-align: right; }
-        .sc-value a { color: var(--forest); text-decoration: none; }
+        .sc-value a { color: var(--primary); text-decoration: none; }
         .sc-value a:hover { text-decoration: underline; }
 
         .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
@@ -186,16 +128,16 @@
         /* Tags */
         .tag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--gray-100); color: var(--gray-600); margin: 2px; }
         .tags-area { padding: 12px 20px; }
-        .add-tag-link { font-size: 12px; color: var(--forest); cursor: pointer; font-weight: 600; }
+        .add-tag-link { font-size: 12px; color: var(--primary); cursor: pointer; font-weight: 600; }
         .add-tag-link:hover { text-decoration: underline; }
 
         /* Billing */
         .billing-footer { display: flex; justify-content: space-between; padding: 12px 20px; background: var(--gray-50); border-top: 1px solid var(--gray-100); font-size: 13px; font-weight: 700; }
-        .billing-footer .amount { color: var(--forest); }
+        .billing-footer .amount { color: var(--primary); }
 
         /* Internal Notes */
         .note-input { width: 100%; padding: 10px 14px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 70px; outline: none; margin-bottom: 8px; }
-        .note-input:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .note-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
         .note-item { padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
         .note-item:last-child { border-bottom: none; }
         .note-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -205,7 +147,7 @@
         .note-pinned { color: var(--amber); font-size: 10px; font-weight: 700; text-transform: uppercase; }
         .note-actions { margin-top: 4px; }
         .note-actions button { background: none; border: none; font-size: 11px; color: var(--gray-400); cursor: pointer; font-family: inherit; margin-right: 8px; }
-        .note-actions button:hover { color: var(--forest); }
+        .note-actions button:hover { color: var(--primary); }
         .note-actions button.del:hover { color: var(--red); }
         .notes-hint { font-size: 12px; color: var(--gray-400); margin-bottom: 10px; }
 
@@ -223,110 +165,39 @@
             width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
             font-size: 13px; font-family: inherit; outline: none;
         }
-        .edit-field input:focus, .edit-field textarea:focus, .edit-field select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .edit-field input:focus, .edit-field textarea:focus, .edit-field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.1); }
         .edit-field textarea { resize: vertical; min-height: 60px; }
         .edit-field label { display: block; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
         .edit-field { margin-bottom: 12px; }
 
-        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
-        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .toast { position: fixed; bottom: 24px; right: 24px; background: var(--forest); color: var(--lime); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
-        .toast.show { transform: translateY(0); opacity: 1; }
+        /* Tax Exempt Toggle */
+        .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+        .toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: var(--gray-200); border-radius: 22px; transition: 0.2s; }
+        .toggle-slider:before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+        .toggle-switch input:checked + .toggle-slider { background: var(--primary); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+        .tax-exempt-badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; background: #fef3c7; color: #92400e; margin-left: 8px; }
 
-        /* Modal */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.2s; }
-        .modal-overlay.show { opacity: 1; visibility: visible; }
-        .modal { background: var(--white); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: scale(0.9); transition: transform 0.2s; }
-        .modal-overlay.show .modal { transform: scale(1); }
-        .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
-        .modal p { font-size: 14px; color: var(--gray-500); margin-bottom: 24px; }
-        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+        .loading-state { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; }
+        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+
+        .btn-danger { background: var(--red); color: white; }
+        .btn-danger:hover { background: #c43c3c; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
 
         @media (max-width: 900px) {
             .two-col { grid-template-columns: 1fr; }
             .right-col { order: -1; }
         }
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; }
-            .mobile-menu-btn { display: block; }
-            .page-content { padding: 20px 16px; }
-            .topbar { padding: 0 16px; }
             .profile-header { flex-direction: column; align-items: flex-start; }
         }
     </style>
 </head>
 <body>
-<script>
-(function() {
-  var t = localStorage.getItem('adminToken');
-  if (!t) { window.location.href = '/login.html'; return; }
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    opts = opts || {};
-    if (typeof url === 'string' && url.startsWith('/api/')) {
-      opts.headers = opts.headers || {};
-      if (opts.headers instanceof Headers) { opts.headers.set('Authorization', 'Bearer ' + t); }
-      else { opts.headers['Authorization'] = 'Bearer ' + t; }
-    }
-    return _fetch.call(this, url, opts).then(function(r) {
-      if (r.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminName');
-        window.location.href = '/login.html';
-      }
-      return r;
-    });
-  };
-  document.addEventListener('DOMContentLoaded', function() {
-    var name = localStorage.getItem('adminName') || 'Admin';
-    var nameEl = document.querySelector('.sidebar-user .name');
-    if (nameEl) nameEl.textContent = name;
-  });
-})();
-</script>
-
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><img src="logo.png" alt="YardDesk" onerror="this.outerHTML='<span style=\'font-family:Qualy,serif;font-size:22px;color:var(--forest)\'>YardDesk</span>'"></div>
-    <nav class="sidebar-nav">
-        <div class="nav-section"><div class="nav-section-label">Overview</div>
-            <a href="index.html" class="nav-item"><span>📊</span><span>Dashboard</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Sales</div>
-            <a href="quotes.html" class="nav-item"><span>📋</span><span>Quote Requests</span></a>
-            <a href="sent-quotes.html" class="nav-item"><span>📤</span><span>Sent Quotes</span></a>
-            <a href="pipeline.html" class="nav-item"><span>📊</span><span>Pipeline</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Operations</div>
-            <a href="customers.html" class="nav-item active"><span>👥</span><span>Customers</span></a>
-            <a href="properties.html" class="nav-item"><span>🏡</span><span>Properties</span></a>
-            <a href="scheduling.html" class="nav-item"><span>📅</span><span>Scheduling</span></a>
-            <a href="dispatch.html" class="nav-item"><span>🗓️</span><span>Dispatch Board</span></a>
-            <a href="work-requests.html" class="nav-item"><span>📝</span><span>Work Requests</span></a>
-            <a href="programs.html" class="nav-item"><span>🔄</span><span>Programs</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Communications</div>
-            <a href="communications.html" class="nav-item"><span>💬</span><span>Messages & Calls</span></a>
-            <a href="email-log.html" class="nav-item"><span>📧</span><span>Email Log</span></a>
-            <a href="cancellations.html" class="nav-item"><span>❌</span><span>Cancellations</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Marketing</div>
-            <a href="campaigns.html" class="nav-item"><span>📢</span><span>Campaigns</span></a>
-            <a href="templates.html" class="nav-item"><span>📝</span><span>Templates</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Finance</div>
-            <a href="expenses.html" class="nav-item"><span>💸</span><span>Expenses</span></a>
-            <a href="invoices.html" class="nav-item"><span>📄</span><span>Invoices</span></a>
-            <a href="payments.html" class="nav-item"><span>💳</span><span>Payments</span></a>
-            <a href="finance.html" class="nav-item"><span>💰</span><span>Revenue</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Analytics</div>
-            <a href="kpi.html" class="nav-item"><span>🎯</span><span>KPI Dashboard</span></a>
-            <a href="reports.html" class="nav-item"><span>📈</span><span>Reports</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">Team</div>
-            <a href="crew.html" class="nav-item"><span>👷</span><span>Crew</span></a>
-            <a href="time-tracking.html" class="nav-item"><span>⏱️</span><span>Time Tracking</span></a></div>
-        <div class="nav-section"><div class="nav-section-label">System</div>
-            <a href="settings.html" class="nav-item"><span>⚙️</span><span>Settings</span></a></div>
-    </nav>
-    <div class="sidebar-footer"><div class="sidebar-user"><div class="avatar">TP</div><div><div class="name">Theresa Pappas</div><div class="role">Admin</div></div></div></div>
-</aside>
+<script src="shell.js"></script>
 
 <div class="main">
     <div class="topbar">
@@ -334,7 +205,20 @@
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <div><h2 id="pageTitle">Customer Detail</h2><p id="pageSub">Loading...</p></div>
+            <h1>Client Details</h1>
+        </div>
+        <div class="topbar-actions">
+            <div class="topbar-search-wrap" id="search-container">
+                <div class="topbar-search-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </div>
+                <input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off">
+                <div class="search-dropdown" id="search-dropdown"></div>
+            </div>
+            <button class="topbar-icon-btn" title="Notifications">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            </button>
+            <div class="topbar-avatar" title="Account">TP</div>
         </div>
     </div>
 
@@ -375,7 +259,6 @@ async function loadCustomer() {
         const data = await res.json();
         if (!data.success) throw new Error();
         customer = data.customer;
-        document.getElementById('pageSub').textContent = '#' + (customer.customer_number || customer.id);
         render();
         loadProperties();
         loadQuotes();
@@ -408,6 +291,7 @@ function render() {
                 <div>
                     <div class="profile-name">${esc(name)}</div>
                     <span class="status-pill status-${isActive?'active':'inactive'}" style="margin-top:4px">${esc(c.status||'—')}</span>
+                    ${c.tax_exempt ? '<span class="tax-exempt-badge">Tax Exempt</span>' : ''}
                     ${c.customer_company_name ? ' <span style="color:var(--gray-400);font-size:13px;margin-left:8px">' + esc(c.customer_company_name) + '</span>' : ''}
                 </div>
             </div>
@@ -418,8 +302,8 @@ function render() {
                     <div class="dropdown-menu" id="actionsMenu">
                         <div class="dropdown-label">Create new...</div>
                         <a class="dropdown-item" href="quotes.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quote</a>
-                        <a class="dropdown-item" href="scheduling.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Job</a>
-                        <a class="dropdown-item" href="invoices.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>Invoice</a>
+                        <a class="dropdown-item" href="new-job.html?customer_id=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Job</a>
+                        <a class="dropdown-item" href="new-invoice.html?customer_id=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>Invoice</a>
                         <div class="dropdown-divider"></div>
                         <div class="dropdown-item danger" onclick="showDeleteModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete Customer</div>
                     </div>
@@ -431,7 +315,7 @@ function render() {
             <div class="main-col">
                 <!-- Properties -->
                 <div class="card" id="propertiesCard" style="display:none">
-                    <div class="card-header"><h3>Properties</h3><a href="properties.html" style="font-size:12px;color:var(--forest);text-decoration:none;font-weight:600">+ New Property</a></div>
+                    <div class="card-header"><h3>Properties</h3><a href="properties.html" style="font-size:12px;color:var(--primary);text-decoration:none;font-weight:600">+ New Property</a></div>
                     <div class="card-body" id="propertiesList"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
                 </div>
 
@@ -455,7 +339,7 @@ function render() {
 
                 <!-- Communications -->
                 <div class="card">
-                    <div class="card-header"><h3>Communications</h3><a href="communications.html" style="font-size:12px;color:var(--forest);text-decoration:none;font-weight:600">View All</a></div>
+                    <div class="card-header"><h3>Communications</h3><a href="communications.html" style="font-size:12px;color:var(--primary);text-decoration:none;font-weight:600">View All</a></div>
                     <div class="card-body">
                         <div id="sendTextArea"></div>
                         <div id="commsTimeline"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
@@ -481,6 +365,7 @@ function render() {
                         ${c.mobile ? `<div class="sc-row"><div class="sc-label">Mobile</div><div class="sc-value"><a href="tel:${esc(c.mobile)}">${esc(c.mobile)}</a></div></div>` : ''}
                         ${c.street ? `<div class="sc-row"><div class="sc-label">Address</div><div class="sc-value">${esc(c.street)}${c.city ? ', ' + esc(c.city) : ''}${c.state ? ' ' + esc(c.state) : ''} ${esc(c.postal_code||'')}</div></div>` : ''}
                         <div class="sc-row"><div class="sc-label">Type</div><div class="sc-value">${esc(c.type || '—')}</div></div>
+                        ${c.tax_exempt ? '<div class="sc-row"><div class="sc-label">Tax Status</div><div class="sc-value"><span class="tax-exempt-badge">Tax Exempt</span></div></div>' : ''}
                         ${c.since ? `<div class="sc-row"><div class="sc-label">Since</div><div class="sc-value">${esc(c.since)}</div></div>` : ''}
                     </div>
                 </div>
@@ -532,7 +417,7 @@ function renderEditMode(c, name) {
             <button class="btn btn-secondary" onclick="editMode=false;render()">Cancel</button>
         </div>
     </div>
-    <div style="max-width:600px;background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:24px;">
+    <div style="max-width:600px;background:var(--white);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
         <div class="edit-field"><label>Name</label><input id="f_name" value="${esc(name)}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div class="edit-field"><label>Email</label><input id="f_email" value="${esc(c.email||'')}"></div>
@@ -557,6 +442,13 @@ function renderEditMode(c, name) {
             </select></div>
         </div>
         <div class="edit-field"><label>Tags (comma separated)</label><input id="f_tags" value="${esc(c.tags||'')}"></div>
+        <div class="edit-field">
+            <label>Tax Exempt</label>
+            <div class="toggle-wrap">
+                <label class="toggle-switch"><input type="checkbox" id="f_tax_exempt" ${c.tax_exempt ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                <span style="font-size:13px;color:var(--gray-600);">This customer is exempt from sales tax</span>
+            </div>
+        </div>
         <div class="edit-field"><label>Notes</label><textarea id="f_notes">${esc(c.notes||'')}</textarea></div>
     </div>`;
 }
@@ -872,7 +764,8 @@ async function saveCustomer() {
         type: document.getElementById('f_type').value,
         status: document.getElementById('f_status').value,
         tags: document.getElementById('f_tags').value,
-        notes: document.getElementById('f_notes').value
+        notes: document.getElementById('f_notes').value,
+        tax_exempt: document.getElementById('f_tax_exempt').checked
     };
     try {
         const res = await fetch('/api/customers/' + customerId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) });
@@ -884,9 +777,9 @@ async function saveCustomer() {
 
 function showDeleteModal() {
     document.getElementById('deleteCustomerName').textContent = customer.name || 'this customer';
-    document.getElementById('deleteModal').classList.add('show');
+    document.getElementById('deleteModal').classList.add('visible');
 }
-function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('show'); }
+function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('visible'); }
 
 async function confirmDelete() {
     try {
@@ -915,6 +808,29 @@ function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
 
 document.addEventListener('DOMContentLoaded', loadCustomer);
+</script>
+
+<script>
+(function(){
+  var btn = document.getElementById('quick-create-btn');
+  var menu = document.getElementById('quick-create-menu');
+  var overlay = document.getElementById('qc-overlay');
+  if (!btn || !menu || !overlay) return;
+  btn.addEventListener('click', function() {
+    menu.classList.toggle('visible');
+    overlay.classList.toggle('visible');
+  });
+  document.addEventListener('click', function(e) {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.remove('visible');
+      overlay.classList.remove('visible');
+    }
+  });
+  overlay.addEventListener('click', function() {
+    menu.classList.remove('visible');
+    overlay.classList.remove('visible');
+  });
+})();
 </script>
 </body>
 </html>

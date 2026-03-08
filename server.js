@@ -7193,13 +7193,17 @@ app.get('/api/dispatch/board', async (req, res) => {
       monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      dateCondition = `job_date::date BETWEEN $1::date AND $2::date`;
+      dateCondition = `sj.job_date::date BETWEEN $1::date AND $2::date`;
       params = [monday.toISOString().split('T')[0], sunday.toISOString().split('T')[0]];
     } else {
-      dateCondition = `job_date::date = $1::date`;
+      dateCondition = `sj.job_date::date = $1::date`;
       params = [targetDate];
     }
-    const jobs = await pool.query(`SELECT *, lat::float as lat, lng::float as lng FROM scheduled_jobs WHERE ${dateCondition} ORDER BY route_order ASC NULLS LAST, customer_name`, params);
+    const jobs = await pool.query(`SELECT sj.*, sj.lat::float as lat, sj.lng::float as lng,
+       c.street AS cust_street, c.city AS cust_city, c.state AS cust_state, c.postal_code AS cust_zip
+       FROM scheduled_jobs sj
+       LEFT JOIN customers c ON sj.customer_id = c.id
+       WHERE ${dateCondition} ORDER BY sj.route_order ASC NULLS LAST, sj.customer_name`, params);
     const crews = await pool.query('SELECT * FROM crews ORDER BY name');
 
     // Group jobs by crew
@@ -7260,30 +7264,96 @@ app.get('/api/dispatch/crew-availability', async (req, res) => {
 // POST /api/dispatch/geocode - Geocode all jobs for a date and store lat/lng
 app.post('/api/dispatch/geocode', async (req, res) => {
   try {
-    const { date } = req.body;
+    const { date, force } = req.body;
     const targetDate = date || new Date().toISOString().split('T')[0];
+    // If force=true, re-geocode all jobs (even those with coords) to fix city-center duplicates
+    // Otherwise only geocode jobs missing lat/lng
+    let whereClause = 'sj.job_date::date = $1::date AND sj.address IS NOT NULL';
+    if (!force) {
+      whereClause += ' AND (sj.lat IS NULL OR sj.lng IS NULL)';
+    }
     const jobs = await pool.query(
-      'SELECT id, address FROM scheduled_jobs WHERE job_date::date = $1::date AND address IS NOT NULL AND (lat IS NULL OR lng IS NULL)',
+      `SELECT sj.id, sj.address, sj.customer_name, sj.service_type, sj.customer_id,
+              c.street AS cust_street, c.city AS cust_city, c.state AS cust_state, c.postal_code AS cust_zip
+       FROM scheduled_jobs sj
+       LEFT JOIN customers c ON sj.customer_id = c.id
+       WHERE ${whereClause}`,
       [targetDate]
     );
     let geocoded = 0;
+    const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
     for (const job of jobs.rows) {
       try {
-        const q = encodeURIComponent(job.address);
-        const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
-        const gData = await gRes.json();
-        if (gData && gData.length > 0) {
-          await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2 WHERE id = $3',
-            [parseFloat(gData[0].lat), parseFloat(gData[0].lon), job.id]);
-          geocoded++;
+        // Priority chain for building geocode address:
+        // 1. Best: customer.street with house number → "street, city, state zip"
+        // 2. Fallback: extract street from customer_name → combine with job.address
+        // 3. Last resort: job.address as-is
+        let fullAddress = job.address;
+        let addressSource = 'city'; // track quality
+
+        if (job.cust_street && /^\d+/.test(job.cust_street.trim())) {
+          // Customer has a proper street address with house number
+          const city = job.cust_city || '';
+          const state = job.cust_state || 'OH';
+          const zip = job.cust_zip || '';
+          fullAddress = `${job.cust_street.trim()}, ${city} ${state} ${zip}`.trim();
+          addressSource = 'street';
+        } else {
+          const streetFromName = extractStreetAddress(job.customer_name, job.address);
+          const streetFromService = extractStreetAddress(job.service_type, job.address);
+          if (streetFromName) {
+            fullAddress = streetFromName + ', ' + job.address;
+            addressSource = 'street';
+          } else if (streetFromService) {
+            fullAddress = streetFromService + ', ' + job.address;
+            addressSource = 'street';
+          }
         }
-        // Nominatim rate limit: 1 req/sec
-        await new Promise(r => setTimeout(r, 1100));
+
+        const q = encodeURIComponent(fullAddress);
+        if (GMAPS_KEY) {
+          const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${GMAPS_KEY}`);
+          const gData = await gRes.json();
+          if (gData.status === 'OK' && gData.results && gData.results.length > 0) {
+            const loc = gData.results[0].geometry.location;
+            const types = gData.results[0].types || [];
+            const isStreetLevel = types.some(t => ['street_address', 'premise', 'subpremise', 'route', 'intersection'].includes(t));
+            const quality = isStreetLevel ? 'street' : 'city';
+            await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2, geocode_quality = $3 WHERE id = $4',
+              [loc.lat, loc.lng, quality, job.id]);
+            geocoded++;
+          } else {
+            await pool.query('UPDATE scheduled_jobs SET geocode_quality = $1 WHERE id = $2',
+              ['failed', job.id]);
+          }
+        } else {
+          const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
+          const gData = await gRes.json();
+          if (gData && gData.length > 0) {
+            await pool.query('UPDATE scheduled_jobs SET lat = $1, lng = $2, geocode_quality = $3 WHERE id = $4',
+              [parseFloat(gData[0].lat), parseFloat(gData[0].lon), addressSource, job.id]);
+            geocoded++;
+          } else {
+            await pool.query('UPDATE scheduled_jobs SET geocode_quality = $1 WHERE id = $2',
+              ['failed', job.id]);
+          }
+          await new Promise(r => setTimeout(r, 1100));
+        }
       } catch (e) { /* skip individual failures */ }
     }
     res.json({ success: true, geocoded, total: jobs.rows.length });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
+
+// Helper: extract street address from a string like "John Smith 123 Main St" or "SPRING CLEANUP 123 MAIN ST MOWING"
+function extractStreetAddress(text, cityAddress) {
+  if (!text) return null;
+  // Look for a street number followed by a street name
+  const match = text.match(/(\d+\s+[A-Za-z][A-Za-z\s]*(?:Street|St|Drive|Dr|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Court|Ct|Circle|Cir|Place|Pl|Way|Pike|Trail|Tr|Parkway|Pkwy))/i);
+  if (match) return match[1].trim();
+  return null;
+}
 
 // POST /api/dispatch/optimize-route - Optimize route order for a crew
 app.post('/api/dispatch/optimize-route', async (req, res) => {
@@ -10808,7 +10878,16 @@ const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
 
 app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
   try {
-    const response = await fetch(`${WEBHOOK_BASE}/api/calls?status=voicemail&limit=100`);
+    const filter = req.query.filter || 'active';
+    let url;
+    if (filter === 'handled') {
+      url = `${WEBHOOK_BASE}/api/calls?status=handled&limit=100`;
+    } else if (filter === 'archived') {
+      url = `${WEBHOOK_BASE}/api/calls?status=archived&limit=100`;
+    } else {
+      url = `${WEBHOOK_BASE}/api/calls?status=voicemail&limit=100`;
+    }
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Webhook fetch failed');
     const data = await response.json();
     const voicemails = (data.calls || []).map(c => ({
@@ -10820,6 +10899,7 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
       timestamp: c.created_at || '',
       audioUrl: c.recording_url || null,
       listened: c.read || false,
+      status: c.status || 'voicemail',
     }));
     res.json({ voicemails });
   } catch (err) {
@@ -11164,6 +11244,7 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS property_id INTEGER',
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS lat DECIMAL(10,7)',
     'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS lng DECIMAL(10,7)',
+    'ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS geocode_quality VARCHAR(20)',
   ];
   for (const sql of jobNewCols) {
     try { await pool.query(sql); } catch(e) { /* */ }

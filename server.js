@@ -1669,6 +1669,7 @@ async function generateInvoicePDF(invoice) {
     // Table header
     page.drawRectangle({ x: margin, y: y - 2, width: contentWidth, height: 22, color: darkGreen });
     page.drawText('Description', { x: margin + 8, y: y + 3, size: 9, font: helveticaBold, color: white });
+    page.drawText('Date', { x: pageWidth - margin - 190, y: y + 3, size: 9, font: helveticaBold, color: white });
     page.drawText('Qty', { x: pageWidth - margin - 140, y: y + 3, size: 9, font: helveticaBold, color: white });
     page.drawText('Rate', { x: pageWidth - margin - 100, y: y + 3, size: 9, font: helveticaBold, color: white });
     const amtHeader = 'Amount';
@@ -1694,7 +1695,7 @@ async function generateInvoicePDF(invoice) {
     }
 
     // Table rows
-    const descMaxWidth = pageWidth - margin - 170 - margin; // space for qty/rate/amount columns
+    const descMaxWidth = pageWidth - margin - 220 - margin; // space for date/qty/rate/amount columns
     for (let idx = 0; idx < lineItems.length; idx++) {
       const item = lineItems[idx];
       const name = pdfSafe(item.name || '');
@@ -1702,6 +1703,7 @@ async function generateInvoicePDF(invoice) {
       const qty = item.quantity || item.qty || 1;
       const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
       const amount = parseFloat(item.amount || (qty * rate) || 0);
+      const dateStr = item.service_date ? new Date(item.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
 
       // Calculate row height based on wrapped text
       const nameLines = name ? wrapText(name, helveticaBold, 9, descMaxWidth) : [];
@@ -1726,6 +1728,7 @@ async function generateInvoicePDF(invoice) {
         textY -= 11;
       }
 
+      if (dateStr) page.drawText(dateStr, { x: pageWidth - margin - 190, y, size: 8, font: helvetica, color: gray });
       page.drawText(String(qty), { x: pageWidth - margin - 140, y, size: 9, font: helvetica, color: gray });
       page.drawText('$' + rate.toFixed(2), { x: pageWidth - margin - 100, y, size: 9, font: helvetica, color: gray });
       const amtStr = '$' + amount.toFixed(2);
@@ -3365,7 +3368,8 @@ app.patch('/api/jobs/:id/complete', async (req, res) => {
           description: 'Job #' + completedJob.id + (completedJob.job_date ? ' - ' + new Date(completedJob.job_date).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : ''),
           quantity: 1,
           rate: parseFloat(completedJob.service_price) || 0,
-          amount: parseFloat(completedJob.service_price) || 0
+          amount: parseFloat(completedJob.service_price) || 0,
+          service_date: completedJob.completed_at ? new Date(completedJob.completed_at).toISOString().split('T')[0] : (completedJob.job_date ? new Date(completedJob.job_date).toISOString().split('T')[0] : null)
         };
 
         const propertyId = completedJob.property_id || null;
@@ -8495,11 +8499,13 @@ app.post('/api/invoices/:id/send', async (req, res) => {
       const qty = i.quantity || i.qty || 1;
       const rate = parseFloat(i.rate || i.unit_price || i.amount || 0);
       const amount = parseFloat(i.amount || (qty * rate) || 0);
+      const dateStr = i.service_date ? new Date(i.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
       return `<tr>
         <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;">
           <div style="font-weight:600;color:#1e293b;">${name}</div>
           ${qty > 1 ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">${qty} x $${rate.toFixed(2)}</div>` : ''}
         </td>
+        <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#64748b;font-size:13px;white-space:nowrap;vertical-align:top;">${dateStr}</td>
         <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#1e293b;white-space:nowrap;vertical-align:top;">$${amount.toFixed(2)}</td>
       </tr>`;
     }).join('');
@@ -8512,6 +8518,7 @@ app.post('/api/invoices/:id/send', async (req, res) => {
         <thead>
           <tr>
             <th style="text-align:left;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Service</th>
+            <th style="text-align:left;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Date</th>
             <th style="text-align:right;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Amount</th>
           </tr>
         </thead>

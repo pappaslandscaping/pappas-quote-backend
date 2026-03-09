@@ -532,16 +532,19 @@
             const balanceDue = parseFloat(invoice.balance_due || invoice.total || 0);
 
             // Build line items HTML
-            const lineItemsHtml = lineItems.map(item => `
+            const lineItemsHtml = lineItems.map(item => {
+                const dateStr = item.service_date ? new Date(item.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
+                return `
                 <tr>
                     <td>
                         <div class="service-name">${item.name || item.description || ''}</div>
                         ${item.description && item.name ? `<div class="service-description">${item.description}</div>` : ''}
                     </td>
+                    <td>${dateStr}</td>
                     <td>${item.quantity || 1}</td>
                     <td>${formatCurrency(item.amount || item.total || 0)}</td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
 
             const dueDateStr = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'Due upon receipt';
             const invoiceDateStr = invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : new Date().toLocaleDateString();
@@ -586,6 +589,7 @@
                         <thead>
                             <tr>
                                 <th>Description</th>
+                                <th>Date</th>
                                 <th>Qty</th>
                                 <th>Amount</th>
                             </tr>
@@ -594,18 +598,18 @@
                             ${lineItemsHtml}
                             ${invoice.subtotal != null ? `
                                 <tr class="totals-row">
-                                    <td colspan="2" style="text-align:right;color:#64748b;">Subtotal:</td>
+                                    <td colspan="3" style="text-align:right;color:#64748b;">Subtotal:</td>
                                     <td>${formatCurrency(invoice.subtotal)}</td>
                                 </tr>
                             ` : ''}
                             ${invoice.tax_amount != null && parseFloat(invoice.tax_amount) > 0 ? `
                                 <tr class="totals-row">
-                                    <td colspan="2" style="text-align:right;color:#64748b;">Tax${invoice.tax_rate ? ' (' + invoice.tax_rate + '%)' : ''}:</td>
+                                    <td colspan="3" style="text-align:right;color:#64748b;">Tax${invoice.tax_rate ? ' (' + invoice.tax_rate + '%)' : ''}:</td>
                                     <td>${formatCurrency(invoice.tax_amount)}</td>
                                 </tr>
                             ` : ''}
                             <tr class="totals-row final">
-                                <td colspan="2" style="text-align:right;">${isPaid ? 'Total:' : 'Balance Due:'}</td>
+                                <td colspan="3" style="text-align:right;">${isPaid ? 'Total:' : 'Balance Due:'}</td>
                                 <td>${isPaid ? formatCurrency(invoice.total) : formatCurrency(balanceDue)}</td>
                             </tr>
                         </tbody>

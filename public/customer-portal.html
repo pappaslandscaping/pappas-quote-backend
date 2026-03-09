@@ -123,34 +123,31 @@
         /* Tabs */
         .tabs {
             display: flex;
-            gap: 0;
-            border-bottom: 2px solid #e5e7eb;
+            flex-wrap: wrap;
+            gap: 4px;
             margin-bottom: 24px;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
         }
         .tab-btn {
-            flex: 0 0 auto;
-            padding: 12px 14px;
-            background: none;
+            padding: 8px 14px;
+            background: #f0f2f0;
             border: none;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
+            border-radius: 8px;
             font-size: 13px;
             font-weight: 600;
             font-family: inherit;
             color: #6b7280;
             cursor: pointer;
-            transition: color 0.2s, border-color 0.2s;
+            transition: all 0.2s;
             text-align: center;
             white-space: nowrap;
         }
         .tab-btn:hover {
+            background: #e2e5e2;
             color: var(--primary);
         }
         .tab-btn.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
+            background: var(--primary);
+            color: white;
         }
 
         /* Badges */
@@ -1094,10 +1091,10 @@
                 gap: 10px;
             }
             .tabs {
-                gap: 0;
+                gap: 4px;
             }
             .tab-btn {
-                padding: 10px 8px;
+                padding: 7px 10px;
                 font-size: 11px;
             }
             .contact-info .contact-divider {
@@ -1124,7 +1121,64 @@
                 justify-content: center;
             }
         }
+        /* Add Card Form */
+        .add-card-section {
+            margin-top: 16px;
+            padding: 20px;
+            background: #f8faf8;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        .add-card-section h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e2e2c;
+            margin-bottom: 12px;
+        }
+        #card-container {
+            min-height: 44px;
+        }
+        .add-card-btn {
+            margin-top: 12px;
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .add-card-btn:hover {
+            background: var(--primary-dark);
+        }
+        .add-card-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .show-card-form-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 9px 18px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .show-card-form-btn:hover {
+            background: var(--primary-dark);
+        }
     </style>
+    <script src="https://web.squarecdn.com/v1/square.js"></script>
 </head>
 <body>
     <div class="container">
@@ -1761,11 +1815,13 @@
                     });
                 }
 
-                html += `<div class="card-placeholder">To add a card on file, please pay an invoice using the &ldquo;Save card for future payments&rdquo; option.</div>`;
+                html += `<button class="show-card-form-btn" onclick="showAddCardForm()">+ Add a Card</button>`;
+                html += `<div id="addCardFormArea"></div>`;
                 container.innerHTML = html;
             } catch (err) {
                 container.innerHTML = `<p style="font-size:13px;color:#6b7280;">Could not load saved cards.</p>
-                    <div class="card-placeholder">To add a card on file, please pay an invoice using the &ldquo;Save card for future payments&rdquo; option.</div>`;
+                    <button class="show-card-form-btn" onclick="showAddCardForm()">+ Add a Card</button>
+                    <div id="addCardFormArea"></div>`;
             }
         }
 
@@ -1787,14 +1843,83 @@
                 if (remaining.length === 0) {
                     const container = document.getElementById('savedCardsList');
                     if (container) {
-                        const placeholder = container.querySelector('.card-placeholder');
-                        const placeholderHtml = placeholder ? placeholder.outerHTML : '';
-                        container.innerHTML = '<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">No saved cards on file.</p>' + placeholderHtml;
+                        container.innerHTML = '<p style="font-size:13px;color:#6b7280;margin-bottom:10px;">No saved cards on file.</p>' +
+                            '<button class="show-card-form-btn" onclick="showAddCardForm()">+ Add a Card</button><div id="addCardFormArea"></div>';
                     }
                 }
             } catch (err) {
                 alert(err.message);
                 if (btn) { btn.disabled = false; btn.textContent = 'Remove'; }
+            }
+        }
+
+        // ── Add Card on File (Square Web Payments SDK) ────────────────────
+        let squarePayments = null;
+        let squareCard = null;
+
+        async function showAddCardForm() {
+            const area = document.getElementById('addCardFormArea');
+            if (!area) return;
+
+            area.innerHTML = `
+                <div class="add-card-section">
+                    <h4>Add a Payment Method</h4>
+                    <div id="card-container"></div>
+                    <div style="display:flex;gap:8px;margin-top:12px;">
+                        <button class="add-card-btn" id="saveCardBtn" onclick="saveCardOnFile()">Save Card</button>
+                        <button class="add-card-btn" style="background:#f0f2f0;color:#6b7280;" onclick="document.getElementById('addCardFormArea').innerHTML=''">Cancel</button>
+                    </div>
+                    <div id="addCardMessage"></div>
+                </div>`;
+
+            // Initialize Square
+            try {
+                if (!squarePayments) {
+                    const configRes = await fetch('/api/pay/config');
+                    const config = await configRes.json();
+                    squarePayments = window.Square.payments(config.appId, config.locationId);
+                }
+                squareCard = await squarePayments.card();
+                await squareCard.attach('#card-container');
+            } catch (err) {
+                document.getElementById('addCardMessage').innerHTML =
+                    '<div class="message message-error" style="margin-top:12px;">Could not load payment form. Please try again.</div>';
+            }
+        }
+
+        async function saveCardOnFile() {
+            const btn = document.getElementById('saveCardBtn');
+            const msgEl = document.getElementById('addCardMessage');
+            if (!squareCard) return;
+
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            msgEl.innerHTML = '';
+
+            try {
+                const result = await squareCard.tokenize();
+                if (result.status !== 'OK') {
+                    throw new Error(result.errors?.[0]?.message || 'Card tokenization failed');
+                }
+
+                const res = await fetch(`/api/portal/${portalToken}/cards/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_id: result.token })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to save card');
+
+                // Destroy form and reload cards
+                squareCard.destroy();
+                squareCard = null;
+                document.getElementById('addCardFormArea').innerHTML = '';
+                loadSavedCards(portalToken);
+            } catch (err) {
+                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${escapeHtml(err.message)}</div>`;
+                btn.textContent = 'Save Card';
+                btn.disabled = false;
             }
         }
 

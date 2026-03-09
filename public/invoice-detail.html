@@ -510,7 +510,10 @@
                     const amount = parseFloat(item.amount || (qty * rate) || 0);
                     const dateStr = item.service_date ? new Date(item.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
                     return `<tr>
-                        <td>${esc(name)}</td>
+                        <td>
+                            <div>${esc(name)}</div>
+                            ${item.property_name ? `<div style="font-size:12px;color:var(--gray-400);margin-top:2px;">&#8627; ${esc(item.property_name)}</div>` : ''}
+                        </td>
                         <td>${dateStr}</td>
                         <td>${qty}</td>
                         <td>${formatCurrency(rate)}</td>
@@ -910,7 +913,7 @@
                     const qty = item.quantity || item.qty || 1;
                     const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
                     const sDate = item.service_date || '';
-                    addEditLineItem(desc, qty, rate, sDate);
+                    addEditLineItem(desc, qty, rate, sDate, item.property_name || '');
                 });
             }
             updateEditTotal();
@@ -921,16 +924,18 @@
             document.getElementById('editInvoiceModal').classList.remove('show');
         }
 
-        function addEditLineItem(desc, qty, rate, serviceDate) {
+        function addEditLineItem(desc, qty, rate, serviceDate, propertyName) {
             desc = desc || '';
             qty = qty || 1;
             rate = rate || 0;
             serviceDate = serviceDate || '';
+            propertyName = propertyName || '';
             const container = document.getElementById('editLineItems');
             const row = document.createElement('div');
             row.className = 'line-item-row';
             row.innerHTML = `
                 <input type="text" class="li-desc" value="${esc(desc)}" placeholder="Description">
+                <input type="text" class="li-property" value="${esc(propertyName)}" placeholder="Property name" style="flex:2;font-size:12px;color:#6b7280;">
                 <input type="date" class="li-date" value="${serviceDate}">
                 <input type="number" class="li-qty" value="${qty}" min="1" step="1" oninput="updateEditTotal()">
                 <input type="number" class="li-rate" value="${parseFloat(rate).toFixed(2)}" min="0" step="0.01" oninput="updateEditTotal()">
@@ -965,12 +970,15 @@
             let subtotal = 0;
             document.querySelectorAll('#editLineItems .line-item-row').forEach(row => {
                 const desc = row.querySelector('.li-desc').value.trim();
+                const propertyName = row.querySelector('.li-property') ? row.querySelector('.li-property').value.trim() : '';
                 const serviceDate = row.querySelector('.li-date').value || null;
                 const qty = parseFloat(row.querySelector('.li-qty').value) || 1;
                 const rate = parseFloat(row.querySelector('.li-rate').value) || 0;
                 const amount = qty * rate;
                 if (desc || rate > 0) {
-                    lineItems.push({ description: desc, name: desc, quantity: qty, qty: qty, rate: rate, unit_price: rate, amount: amount, service_date: serviceDate });
+                    const item = { description: desc, name: desc, quantity: qty, qty: qty, rate: rate, unit_price: rate, amount: amount, service_date: serviceDate };
+                    if (propertyName) item.property_name = propertyName;
+                    lineItems.push(item);
                     subtotal += amount;
                 }
             });

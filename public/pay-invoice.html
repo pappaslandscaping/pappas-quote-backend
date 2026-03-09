@@ -539,6 +539,7 @@
                     <td>
                         <div class="service-name">${item.name || item.description || ''}</div>
                         ${item.description && item.name ? `<div class="service-description">${item.description}</div>` : ''}
+                        ${item.property_name ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">&#8627; ${item.property_name}</div>` : ''}
                     </td>
                     <td>${dateStr}</td>
                     <td>${item.quantity || 1}</td>

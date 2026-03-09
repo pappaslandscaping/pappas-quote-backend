@@ -3363,16 +3363,22 @@ app.patch('/api/jobs/:id/complete', async (req, res) => {
           [custId, monthStart, monthEnd]
         );
 
+        const propertyId = completedJob.property_id || null;
+        let propertyName = null;
+        if (propertyId) {
+          const propRow = await pool.query('SELECT property_name, street FROM properties WHERE id = $1', [propertyId]);
+          if (propRow.rows[0]) propertyName = propRow.rows[0].property_name || propRow.rows[0].street || null;
+        }
+
         const newItem = {
           name: completedJob.service_type || 'Service',
           description: 'Job #' + completedJob.id + (completedJob.job_date ? ' - ' + new Date(completedJob.job_date).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : ''),
           quantity: 1,
           rate: parseFloat(completedJob.service_price) || 0,
           amount: parseFloat(completedJob.service_price) || 0,
-          service_date: completedJob.completed_at ? new Date(completedJob.completed_at).toISOString().split('T')[0] : (completedJob.job_date ? new Date(completedJob.job_date).toISOString().split('T')[0] : null)
+          service_date: completedJob.completed_at ? new Date(completedJob.completed_at).toISOString().split('T')[0] : (completedJob.job_date ? new Date(completedJob.job_date).toISOString().split('T')[0] : null),
+          property_name: propertyName
         };
-
-        const propertyId = completedJob.property_id || null;
 
         if (existingInv.rows.length > 0) {
           // Add line item to existing draft invoice
@@ -8503,6 +8509,7 @@ app.post('/api/invoices/:id/send', async (req, res) => {
       return `<tr>
         <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;">
           <div style="font-weight:600;color:#1e293b;">${name}</div>
+          ${i.property_name ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">&#8627; ${i.property_name}</div>` : ''}
           ${qty > 1 ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">${qty} x $${rate.toFixed(2)}</div>` : ''}
         </td>
         <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#64748b;font-size:13px;white-space:nowrap;vertical-align:top;">${dateStr}</td>

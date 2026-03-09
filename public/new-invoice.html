@@ -578,7 +578,7 @@
 
         async function loadClients() {
             try {
-                const res = await fetch('/api/customers');
+                const res = await fetch('/api/customers?limit=10000');
                 const data = await res.json();
                 allClients = data.customers || data || [];
                 if (preClientId) {

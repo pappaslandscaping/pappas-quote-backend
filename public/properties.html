@@ -845,6 +845,53 @@
                             <option value="">— No Customer —</option>
                         </select>
                     </div>
+                    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">
+                        <div style="font-size:13px;font-weight:600;color:var(--gray-600);margin-bottom:8px;">Property Details</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Stories</label>
+                                <select id="stories">
+                                    <option value="">—</option>
+                                    <option value="1">1 Story</option>
+                                    <option value="1.5">1.5 Stories</option>
+                                    <option value="2">2 Stories</option>
+                                    <option value="2.5">2.5 Stories</option>
+                                    <option value="3">3+ Stories</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Fence Type</label>
+                                <select id="fenceType">
+                                    <option value="">None</option>
+                                    <option value="chain-link">Chain Link</option>
+                                    <option value="wood">Wood</option>
+                                    <option value="vinyl">Vinyl</option>
+                                    <option value="wrought-iron">Wrought Iron</option>
+                                    <option value="aluminum">Aluminum</option>
+                                    <option value="split-rail">Split Rail</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned Crew</label>
+                            <select id="assignedCrew">
+                                <option value="">— No Default Crew —</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Default Services</label>
+                            <input type="text" id="defaultServices" placeholder="e.g., Mowing, Edging, Leaf Cleanup">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Access Instructions</label>
+                        <input type="text" id="accessInstructions" placeholder="Gate code, key location, pet info...">
+                    </div>
+                    <div class="form-group">
+                        <label>Equipment Notes</label>
+                        <input type="text" id="equipmentNotes" placeholder="Special equipment, terrain notes...">
+                    </div>
                     <div class="form-group">
                         <label>Tags</label>
                         <input type="text" id="tags" placeholder="Comma-separated tags">
@@ -852,6 +899,14 @@
                     <div class="form-group">
                         <label>Property Notes</label>
                         <textarea id="propertyNotes" placeholder="Additional notes about this property..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Photos</label>
+                        <div style="border:2px dashed var(--gray-300);border-radius:8px;padding:16px;text-align:center;cursor:pointer;" onclick="document.getElementById('propPhotoInput').click()">
+                            <div style="font-size:13px;color:var(--gray-500);">Click to upload photos</div>
+                        </div>
+                        <input type="file" id="propPhotoInput" accept="image/*" multiple style="display:none" onchange="handlePropPhotos(this.files)">
+                        <div id="propPhotoPreview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
                     </div>
                     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">
                         <div style="font-size:13px;font-weight:600;color:var(--gray-600);margin-bottom:8px;">Property Tax Rates (optional)</div>
@@ -924,6 +979,10 @@
             loadStats();
             loadProperties();
             loadCustomers();
+            // Auto-open add modal from quick-create
+            if (new URLSearchParams(window.location.search).get('action') === 'add') {
+                setTimeout(() => openAddModal(), 500);
+            }
         });
 
         // ─── Load Stats ───────────────────────────────────────────────────────
@@ -1133,6 +1192,8 @@
             document.getElementById('propertyId').value = '';
             document.getElementById('state').value = 'OH';
             populateCustomerDropdown();
+            populateCrewDropdown();
+            clearNewFields();
             document.getElementById('propertyModal').classList.add('active');
         }
 
@@ -1156,8 +1217,15 @@
             document.getElementById('propCountyTax').value = p.county_tax != null ? p.county_tax : '';
             document.getElementById('propCityTax').value = p.city_tax != null ? p.city_tax : '';
             document.getElementById('propStateTax').value = p.state_tax != null ? p.state_tax : '';
+            document.getElementById('stories').value = p.stories || '';
+            document.getElementById('fenceType').value = p.fence_type || '';
+            document.getElementById('defaultServices').value = p.default_services || '';
+            document.getElementById('accessInstructions').value = p.access_instructions || '';
+            document.getElementById('equipmentNotes').value = p.equipment_notes || '';
 
             populateCustomerDropdown(p.customer_id);
+            populateCrewDropdown(p.assigned_crew);
+            renderExistingPhotos(p.photos || []);
             document.getElementById('propertyModal').classList.add('active');
         }
 
@@ -1207,7 +1275,13 @@
                 customer_id: customerId ? parseInt(customerId) : null,
                 county_tax: document.getElementById('propCountyTax').value !== '' ? parseFloat(document.getElementById('propCountyTax').value) : null,
                 city_tax: document.getElementById('propCityTax').value !== '' ? parseFloat(document.getElementById('propCityTax').value) : null,
-                state_tax: document.getElementById('propStateTax').value !== '' ? parseFloat(document.getElementById('propStateTax').value) : null
+                state_tax: document.getElementById('propStateTax').value !== '' ? parseFloat(document.getElementById('propStateTax').value) : null,
+                stories: document.getElementById('stories').value || null,
+                fence_type: document.getElementById('fenceType').value || null,
+                assigned_crew: document.getElementById('assignedCrew').value || null,
+                default_services: document.getElementById('defaultServices').value || null,
+                access_instructions: document.getElementById('accessInstructions').value || null,
+                equipment_notes: document.getElementById('equipmentNotes').value || null
             };
 
             if (!data.address) {
@@ -1402,6 +1476,18 @@
                                         <div><span class="status-badge ${(p.status||'').toLowerCase()==='active' ? 'status-active' : 'status-inactive'}">${esc(p.status || 'active')}</span></div>
                                     </div>
                                 </div>
+                                ${p.stories || p.fence_type || p.assigned_crew || p.default_services ? `
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-100)">
+                                    ${p.stories ? `<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Stories</div><div style="font-size:14px">${esc(p.stories)}</div></div>` : ''}
+                                    ${p.fence_type ? `<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Fence Type</div><div style="font-size:14px">${esc(p.fence_type)}</div></div>` : ''}
+                                    ${p.assigned_crew ? `<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Assigned Crew</div><div style="font-size:14px">${esc(p.assigned_crew)}</div></div>` : ''}
+                                    ${p.default_services ? `<div><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Default Services</div><div style="font-size:14px">${esc(p.default_services)}</div></div>` : ''}
+                                </div>` : ''}
+                                ${p.photos && p.photos.length ? `
+                                <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-100)">
+                                    <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Photos</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:8px;">${p.photos.map(ph => `<img src="${ph.url}" style="width:80px;height:80px;border-radius:8px;object-fit:cover;border:1px solid var(--gray-200);cursor:pointer;" onclick="window.open('${ph.url}','_blank')" title="${esc(ph.name || '')}">`).join('')}</div>
+                                </div>` : ''}
                                 ${p.notes || p.property_notes ? `<div style="margin-top:16px"><div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Notes</div><div style="font-size:14px;color:var(--gray-600)">${esc(p.notes || p.property_notes)}</div></div>` : ''}
                                 ${p.tags ? `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">${p.tags.split(',').map(t => `<span style="background:var(--blue-bg);color:var(--blue);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500">${esc(t.trim())}</span>`).join('')}</div>` : ''}
                                 ${(p.county_tax != null || p.city_tax != null || p.state_tax != null) ? `
@@ -1422,11 +1508,11 @@
                                 <div style="display:grid;gap:12px;">
                                     <div>
                                         <label style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Gate Code / Access Instructions</label>
-                                        <textarea id="accessInstructions_${p.id}" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;min-height:60px;resize:vertical;" placeholder="Gate code, key location, pet info...">${esc(getPropertyMeta(p.id, 'access_instructions'))}</textarea>
+                                        <textarea id="accessInstructions_${p.id}" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;min-height:60px;resize:vertical;" placeholder="Gate code, key location, pet info...">${esc(p.access_instructions || getPropertyMeta(p.id, 'access_instructions'))}</textarea>
                                     </div>
                                     <div>
                                         <label style="font-size:12px;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Equipment Notes</label>
-                                        <textarea id="equipmentNotes_${p.id}" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;min-height:60px;resize:vertical;" placeholder="Special equipment needed, terrain notes...">${esc(getPropertyMeta(p.id, 'equipment_notes'))}</textarea>
+                                        <textarea id="equipmentNotes_${p.id}" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;min-height:60px;resize:vertical;" placeholder="Special equipment needed, terrain notes...">${esc(p.equipment_notes || getPropertyMeta(p.id, 'equipment_notes'))}</textarea>
                                     </div>
                                     <button class="btn btn-primary" style="width:fit-content;" onclick="savePropertyMeta(${p.id})">Save Access & Equipment Notes</button>
                                 </div>
@@ -1473,14 +1559,20 @@
             const meta = JSON.parse(localStorage.getItem('propertyMeta_' + propId) || '{}');
             return meta[key] || '';
         }
-        function savePropertyMeta(propId) {
-            const meta = JSON.parse(localStorage.getItem('propertyMeta_' + propId) || '{}');
+        async function savePropertyMeta(propId) {
             const accessEl = document.getElementById('accessInstructions_' + propId);
             const equipEl = document.getElementById('equipmentNotes_' + propId);
-            if (accessEl) meta.access_instructions = accessEl.value;
-            if (equipEl) meta.equipment_notes = equipEl.value;
-            localStorage.setItem('propertyMeta_' + propId, JSON.stringify(meta));
-            showToast('Access & equipment notes saved');
+            const body = {};
+            if (accessEl) body.access_instructions = accessEl.value;
+            if (equipEl) body.equipment_notes = equipEl.value;
+            try {
+                await fetch(`/api/properties/${propId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                // Also keep localStorage as fallback
+                const meta = JSON.parse(localStorage.getItem('propertyMeta_' + propId) || '{}');
+                Object.assign(meta, body);
+                localStorage.setItem('propertyMeta_' + propId, JSON.stringify(meta));
+                showToast('Access & equipment notes saved');
+            } catch(e) { showToast('Error saving notes', true); }
         }
 
         // Google Maps embed for property detail
@@ -1500,6 +1592,64 @@
                 const mapEl = document.getElementById('propertyMap_' + propId);
                 if (mapEl) mapEl.innerHTML = `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}" target="_blank" style="color:var(--blue);font-size:13px;">Open in Google Maps</a>`;
             }
+        }
+
+        // ─── Crew Dropdown ──────────────────────────────────────────────────
+        async function populateCrewDropdown(selectedCrew = null) {
+            const select = document.getElementById('assignedCrew');
+            try {
+                const res = await fetch('/api/crews?active_only=true');
+                const data = await res.json();
+                const crews = data.crews || [];
+                select.innerHTML = '<option value="">— No Default Crew —</option>' +
+                    crews.map(c => `<option value="${esc(c.name)}" ${c.name === selectedCrew ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+            } catch(e) { /* keep default */ }
+        }
+
+        // ─── Photo Handling ─────────────────────────────────────────────────
+        let pendingPhotos = [];
+
+        function handlePropPhotos(files) {
+            for (const file of files) {
+                if (pendingPhotos.length >= 10) break;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    pendingPhotos.push({ dataUrl: e.target.result, file, name: file.name });
+                    renderPhotoPreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function renderPhotoPreview() {
+            const el = document.getElementById('propPhotoPreview');
+            el.innerHTML = pendingPhotos.map((p, i) =>
+                `<div style="position:relative;display:inline-block;">
+                    <img src="${p.dataUrl || p.url}" style="width:72px;height:72px;border-radius:8px;object-fit:cover;border:1px solid var(--gray-200);">
+                    <button onclick="removePendingPhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:var(--red);color:white;border:none;border-radius:50%;font-size:12px;cursor:pointer;line-height:20px;text-align:center;">×</button>
+                </div>`
+            ).join('');
+        }
+
+        function removePendingPhoto(idx) {
+            pendingPhotos.splice(idx, 1);
+            renderPhotoPreview();
+        }
+
+        function renderExistingPhotos(photos) {
+            pendingPhotos = (photos || []).map(p => ({ dataUrl: p.url, url: p.url, name: p.name }));
+            renderPhotoPreview();
+        }
+
+        function clearNewFields() {
+            document.getElementById('stories').value = '';
+            document.getElementById('fenceType').value = '';
+            document.getElementById('assignedCrew').value = '';
+            document.getElementById('defaultServices').value = '';
+            document.getElementById('accessInstructions').value = '';
+            document.getElementById('equipmentNotes').value = '';
+            pendingPhotos = [];
+            document.getElementById('propPhotoPreview').innerHTML = '';
         }
 
         function showToast(message, isError = false) {

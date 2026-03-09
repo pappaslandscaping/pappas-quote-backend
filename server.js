@@ -319,46 +319,62 @@ function hashPassword(password) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
 }
 
-// Admin login
+// Admin + Employee login
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     console.log(`🔐 Login attempt for: ${email || '(no email)'}`);
     if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
-
-    await pool.query(ADMIN_USERS_TABLE);
-    const result = await pool.query('SELECT * FROM admin_users WHERE email = $1', [email.toLowerCase().trim()]);
-    if (result.rows.length === 0) {
-      console.log(`🔐 Login failed: no user found for ${email}`);
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
-    }
-
-    const user = result.rows[0];
+    const emailLower = email.toLowerCase().trim();
     const inputHash = hashPassword(password);
-    if (inputHash !== user.password_hash) {
-      console.log(`🔐 Login failed: password mismatch for ${email}`);
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+
+    // Try admin_users first
+    await pool.query(ADMIN_USERS_TABLE);
+    const adminResult = await pool.query('SELECT * FROM admin_users WHERE email = $1', [emailLower]);
+    if (adminResult.rows.length > 0) {
+      const user = adminResult.rows[0];
+      if (inputHash !== user.password_hash) {
+        console.log(`🔐 Login failed: password mismatch for ${email}`);
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+      await pool.query('UPDATE admin_users SET last_login = NOW() WHERE id = $1', [user.id]);
+      const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
+      console.log(`🔐 Admin login successful: ${user.email}`);
+      return res.json({ success: true, token, name: user.name, email: user.email, role: user.role, isAdmin: true });
     }
 
-    await pool.query('UPDATE admin_users SET last_login = NOW() WHERE id = $1', [user.id]);
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
-    console.log(`🔐 Login successful: ${user.email}`);
-    res.json({ success: true, token, name: user.name, email: user.email, role: user.role });
+    // Try employees table
+    const empResult = await pool.query('SELECT * FROM employees WHERE login_email = $1 AND is_active = true', [emailLower]);
+    if (empResult.rows.length > 0) {
+      const emp = empResult.rows[0];
+      if (!emp.password_hash || inputHash !== emp.password_hash) {
+        console.log(`🔐 Login failed: password mismatch for employee ${email}`);
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+      await pool.query('UPDATE employees SET updated_at = NOW() WHERE id = $1', [emp.id]);
+      const empName = emp.first_name + ' ' + emp.last_name;
+      const token = jwt.sign({ id: emp.id, email: emp.login_email, name: empName, role: emp.title || 'employee', isAdmin: true, isEmployee: true, employeeId: emp.id, permissions: emp.permissions }, JWT_SECRET, { expiresIn: '7d' });
+      console.log(`🔐 Employee login successful: ${emp.login_email} (${empName})`);
+      return res.json({ success: true, token, name: empName, email: emp.login_email, role: emp.title || 'Employee', isEmployee: true, permissions: emp.permissions });
+    }
+
+    console.log(`🔐 Login failed: no user found for ${email}`);
+    res.status(401).json({ success: false, error: 'Invalid email or password' });
   } catch (error) {
-    console.error('Admin login error:', error);
+    console.error('Login error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Verify admin token
+// Verify token (admin or employee)
 app.get('/api/auth/me', (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ success: false, error: 'No token' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not admin' });
-    res.json({ success: true, user: { email: decoded.email, name: decoded.name, role: decoded.role } });
+    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not authorized' });
+    res.json({ success: true, user: { email: decoded.email, name: decoded.name, role: decoded.role, isEmployee: !!decoded.isEmployee, permissions: decoded.permissions || null } });
   } catch (err) {
     return res.status(401).json({ success: false, error: 'Invalid token' });
   }
@@ -1998,21 +2014,22 @@ app.get('/api/properties/:id', async (req, res) => {
 // POST /api/properties
 app.post('/api/properties', async (req, res) => {
   try {
-    const { property_name, street, street2, city, state, country, zip, lot_size, tags, status, notes, customer_id } = req.body;
-    
+    const { property_name, street, street2, city, state, country, zip, lot_size, tags, status, notes, customer_id, stories, fence_type, assigned_crew, default_services, access_instructions, equipment_notes } = req.body;
+
     if (!street) {
       return res.status(400).json({ success: false, error: 'Street address is required' });
     }
-    
+
     const result = await pool.query(`
-      INSERT INTO properties (property_name, street, street2, city, state, country, zip, lot_size, tags, status, notes, customer_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO properties (property_name, street, street2, city, state, country, zip, lot_size, tags, status, notes, customer_id, stories, fence_type, assigned_crew, default_services, access_instructions, equipment_notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `, [
       property_name || street, street, street2 || '', city || '', state || 'OH', country || 'US',
-      zip || '', lot_size || '', tags || '', status || 'Active', notes || '', customer_id || null
+      zip || '', lot_size || '', tags || '', status || 'Active', notes || '', customer_id || null,
+      stories || null, fence_type || null, assigned_crew || null, default_services || null, access_instructions || null, equipment_notes || null
     ]);
-    
+
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
     console.error('Error creating property:', error);
@@ -2072,7 +2089,7 @@ app.patch('/api/properties/:id', async (req, res) => {
       'property_notes': 'notes', 'customer_name': 'property_name'
     };
     
-    const allowedFields = ['property_name', 'street', 'street2', 'city', 'state', 'country', 'zip', 'lot_size', 'tags', 'status', 'notes', 'customer_id', 'county_tax', 'city_tax', 'state_tax'];
+    const allowedFields = ['property_name', 'street', 'street2', 'city', 'state', 'country', 'zip', 'lot_size', 'tags', 'status', 'notes', 'customer_id', 'county_tax', 'city_tax', 'state_tax', 'stories', 'fence_type', 'assigned_crew', 'default_services', 'access_instructions', 'equipment_notes', 'photos'];
     
     const setClause = [];
     const values = [];
@@ -2119,6 +2136,42 @@ app.delete('/api/properties/:id', async (req, res) => {
     console.error('Error deleting property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// POST /api/properties/:id/photos - Upload photos (base64 in JSONB)
+app.post('/api/properties/:id/photos', upload.array('photos', 10), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const prop = await pool.query('SELECT photos FROM properties WHERE id = $1', [id]);
+    if (prop.rows.length === 0) return res.status(404).json({ success: false, error: 'Property not found' });
+
+    const existing = prop.rows[0].photos || [];
+    const newPhotos = [];
+    for (const file of (req.files || [])) {
+      const b64 = file.buffer.toString('base64');
+      const dataUrl = `data:${file.mimetype};base64,${b64}`;
+      newPhotos.push({ url: dataUrl, name: file.originalname, uploaded: new Date().toISOString() });
+    }
+    const allPhotos = [...existing, ...newPhotos];
+    await pool.query('UPDATE properties SET photos = $1 WHERE id = $2', [JSON.stringify(allPhotos), id]);
+    res.json({ success: true, photos: allPhotos });
+  } catch (error) {
+    console.error('Error uploading property photos:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/properties/:id/photos/:index - Remove a photo
+app.delete('/api/properties/:id/photos/:index', async (req, res) => {
+  try {
+    const { id, index } = req.params;
+    const prop = await pool.query('SELECT photos FROM properties WHERE id = $1', [id]);
+    if (prop.rows.length === 0) return res.status(404).json({ success: false, error: 'Property not found' });
+    const photos = prop.rows[0].photos || [];
+    photos.splice(parseInt(index), 1);
+    await pool.query('UPDATE properties SET photos = $1 WHERE id = $2', [JSON.stringify(photos), id]);
+    res.json({ success: true, photos });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
 // GET /api/properties/:id/service-history
@@ -3369,6 +3422,75 @@ app.patch('/api/crews/:id', async (req, res) => {
 app.delete('/api/crews/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM crews WHERE id = $1 RETURNING *', [req.params.id]);
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// EMPLOYEE ENDPOINTS
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/employees', async (req, res) => {
+  try {
+    const { active_only, search } = req.query;
+    let query = 'SELECT id, title, first_name, last_name, birth_date, hire_date, salary_amount, pay_type, chemical_license, email, phone, address, notes, login_email, permissions, is_active, created_at, updated_at FROM employees WHERE 1=1';
+    const params = [];
+    let p = 1;
+    if (active_only === 'true') { query += ' AND is_active = true'; }
+    if (search) { query += ` AND (first_name ILIKE $${p} OR last_name ILIKE $${p} OR email ILIKE $${p} OR title ILIKE $${p})`; params.push(`%${search}%`); p++; }
+    query += ' ORDER BY last_name ASC, first_name ASC';
+    const result = await pool.query(query, params);
+    res.json({ success: true, employees: result.rows });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/employees/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, title, first_name, last_name, birth_date, hire_date, salary_amount, pay_type, chemical_license, email, phone, address, notes, login_email, permissions, is_active, created_at, updated_at FROM employees WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Employee not found' });
+    res.json({ success: true, employee: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.post('/api/employees', async (req, res) => {
+  try {
+    const { title, first_name, last_name, birth_date, hire_date, salary_amount, pay_type, chemical_license, email, phone, address, notes, login_email, password, permissions } = req.body;
+    if (!first_name || !last_name) return res.status(400).json({ success: false, error: 'First and last name required' });
+    const pw_hash = password ? hashPassword(password) : null;
+    const result = await pool.query(
+      `INSERT INTO employees (title, first_name, last_name, birth_date, hire_date, salary_amount, pay_type, chemical_license, email, phone, address, notes, login_email, password_hash, permissions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id, title, first_name, last_name, email, is_active`,
+      [title, first_name, last_name, birth_date || null, hire_date || null, salary_amount || null, pay_type || 'hourly', chemical_license, email, phone, address, notes, login_email, pw_hash, JSON.stringify(permissions || [])]
+    );
+    res.json({ success: true, employee: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.patch('/api/employees/:id', async (req, res) => {
+  try {
+    const fields = ['title','first_name','last_name','birth_date','hire_date','salary_amount','pay_type','chemical_license','email','phone','address','notes','login_email','permissions','is_active'];
+    const sets = [], vals = [];
+    let p = 1;
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        sets.push(`${f} = $${p++}`);
+        vals.push(f === 'permissions' ? JSON.stringify(req.body[f]) : req.body[f]);
+      }
+    }
+    if (req.body.password) { sets.push(`password_hash = $${p++}`); vals.push(hashPassword(req.body.password)); }
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE employees SET ${sets.join(', ')} WHERE id = $${p} RETURNING id, title, first_name, last_name, email, is_active`, vals);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Employee not found' });
+    res.json({ success: true, employee: result.rows[0] });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.delete('/api/employees/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM employees WHERE id = $1 RETURNING id, first_name, last_name', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Employee not found' });
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -12817,6 +12939,44 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     }
     console.log('✅ Crews table ready');
   } catch(e) { console.error('Crews table error:', e.message); }
+
+  // Ensure employees table exists
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS employees (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(100),
+        first_name VARCHAR(255) NOT NULL,
+        last_name VARCHAR(255) NOT NULL,
+        birth_date DATE,
+        hire_date DATE,
+        salary_amount DECIMAL(10,2),
+        pay_type VARCHAR(20) DEFAULT 'hourly',
+        chemical_license VARCHAR(255),
+        email VARCHAR(255),
+        phone VARCHAR(50),
+        address TEXT,
+        notes TEXT,
+        login_email VARCHAR(255) UNIQUE,
+        password_hash VARCHAR(255),
+        permissions JSONB DEFAULT '[]',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Employees table ready');
+  } catch(e) { console.error('Employees table error:', e.message); }
+
+  // Add extra property detail columns if missing
+  try {
+    const propCols = ['stories VARCHAR(20)', 'fence_type VARCHAR(100)', 'assigned_crew VARCHAR(255)', 'default_services TEXT', 'photos JSONB DEFAULT \'[]\'', 'access_instructions TEXT', 'equipment_notes TEXT'];
+    for (const col of propCols) {
+      const colName = col.split(' ')[0];
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+    }
+    console.log('✅ Property detail columns ready');
+  } catch(e) { console.error('Property columns error:', e.message); }
 })();
 
 // ═══════════════════════════════════════════════════════════

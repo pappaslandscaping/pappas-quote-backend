@@ -113,6 +113,24 @@
         .spinner { width: 18px; height: 18px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Permissions UI */
+        .perm-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--gray-200); margin-bottom: 16px; }
+        .perm-tab { padding: 8px 16px; font-size: 12px; font-weight: 600; color: var(--gray-500); border-bottom: 2px solid transparent; cursor: pointer; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+        .perm-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .perm-panel { display: none; }
+        .perm-panel.active { display: block; }
+        .perm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .perm-table th { text-align: left; padding: 6px 8px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; border-bottom: 1px solid var(--gray-200); }
+        .perm-table td { padding: 6px 8px; border-bottom: 1px solid var(--gray-100); }
+        .perm-table tr:last-child td { border-bottom: none; }
+        .perm-table .page-name { font-weight: 500; color: var(--gray-700); white-space: nowrap; }
+        .perm-table select { font-size: 12px; padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 6px; background: var(--white); font-family: inherit; color: var(--gray-600); }
+        .perm-toggle { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+        .perm-toggle label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--gray-700); }
+        .perm-preset-row { display: flex; gap: 6px; margin-bottom: 12px; }
+        .perm-preset { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; font-family: inherit; color: var(--gray-600); }
+        .perm-preset:hover { border-color: var(--primary); color: var(--primary); }
+
         @media (max-width: 768px) {
             .perf-grid { grid-template-columns: 1fr; }
         }
@@ -134,19 +152,24 @@
         </div>
     </div>
 
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="crew.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Crew</a>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;" id="topTabs">
+        <a href="crew.html" id="tabCrew" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Crew</a>
+        <a href="crew.html?tab=employees" id="tabEmployees" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Employees</a>
         <a href="time-tracking.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Time Tracking</a>
     </div>
 
     <div class="page-content" style="padding:24px 32px;">
         <!-- View Tabs -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;" id="crewHeader">
             <div class="view-tabs" style="margin-bottom:0;">
                 <button class="view-tab active" onclick="switchView('admin')">Admin View</button>
                 <button class="view-tab" onclick="switchView('field')">Field Worker View</button>
             </div>
             <button class="btn btn-primary" onclick="openCrewModal()">+ Add Crew</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;display:none;" id="empHeader">
+            <h2 style="font-size:18px;font-weight:700;color:var(--gray-700);">All Employees</h2>
+            <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
         </div>
 
         <!-- Admin View -->
@@ -222,6 +245,40 @@
             </div>
         </div>
     </div>
+
+        <!-- Employees View -->
+        <div id="employeesView" style="display:none;">
+            <div class="stats-row" id="empStats">
+                <div class="stat-card"><div class="label">Total Employees</div><div class="number" id="statTotalEmp">0</div></div>
+                <div class="stat-card"><div class="label">Active</div><div class="number" id="statActiveEmp">0</div></div>
+                <div class="stat-card"><div class="label">Inactive</div><div class="number" id="statInactiveEmp">0</div></div>
+                <div class="stat-card"><div class="label">With Login</div><div class="number" id="statLoginEmp">0</div></div>
+            </div>
+            <div class="table-card">
+                <div class="table-header" style="display:flex;align-items:center;justify-content:space-between;">
+                    <h2>Employees</h2>
+                    <input type="text" class="form-input" id="empSearchInput" placeholder="Search by name, title, email..." style="max-width:300px;margin:0;" oninput="filterEmployees()">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Title</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Pay</th>
+                            <th>Hire Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="empTableBody">
+                        <tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:40px;">Loading employees...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Add/Edit Crew Modal -->
@@ -239,7 +296,10 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Members</label>
-                <input type="text" class="form-input" id="crewMembers" placeholder="e.g. John, Mike, Sarah">
+                <div id="crewMembersList" style="border:1px solid var(--gray-200);border-radius:8px;padding:8px 12px;max-height:160px;overflow-y:auto;background:var(--white);">
+                    <div style="color:var(--gray-400);font-size:13px;">Loading employees...</div>
+                </div>
+                <input type="hidden" id="crewMembers">
             </div>
             <div class="form-group">
                 <label class="form-label">Phone</label>
@@ -320,6 +380,151 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Directions
             </a>
             <button class="btn-success" id="submitComplete" onclick="submitCompletion()">Complete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Employee Modal -->
+<div class="modal-overlay" id="empModal">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+            <h3 id="empModalTitle">Add Employee</h3>
+            <button class="modal-close" onclick="closeEmployeeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="empEditId">
+            <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Title</label>
+                    <select class="form-select" id="empTitle">
+                        <option value="">None</option>
+                        <option value="Owner">Owner</option>
+                        <option value="Manager">Manager</option>
+                        <option value="Crew Leader">Crew Leader</option>
+                        <option value="Crew Member">Crew Member</option>
+                        <option value="Office Staff">Office Staff</option>
+                        <option value="Foreman">Foreman</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">First Name *</label>
+                    <input type="text" class="form-input" id="empFirstName" placeholder="First name">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Last Name *</label>
+                    <input type="text" class="form-input" id="empLastName" placeholder="Last name">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" id="empEmail" placeholder="email@example.com">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" class="form-input" id="empPhone" placeholder="(555) 123-4567">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Birth Date</label>
+                    <input type="date" class="form-input" id="empBirthDate">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Hire Date</label>
+                    <input type="date" class="form-input" id="empHireDate">
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Salary</label>
+                    <input type="number" class="form-input" id="empSalary" placeholder="0.00" step="0.01">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Pay Type</label>
+                    <select class="form-select" id="empPayType">
+                        <option value="hourly">Hourly</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top:12px;">
+                <label class="form-label">Chemical Applicator's License</label>
+                <input type="text" class="form-input" id="empChemLicense" placeholder="License number (if applicable)">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Address</label>
+                <input type="text" class="form-input" id="empAddress" placeholder="Full address">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-textarea" id="empNotes" placeholder="HR notes, certifications, preferences..."></textarea>
+            </div>
+            <div style="border-top:1px solid var(--gray-200);margin-top:8px;padding-top:16px;">
+                <div style="font-size:13px;font-weight:700;color:var(--gray-700);margin-bottom:12px;">Login &amp; Privileges</div>
+                <div class="perm-tabs">
+                    <button class="perm-tab active" onclick="switchPermTab('login')">Login</button>
+                    <button class="perm-tab" onclick="switchPermTab('pages')">Page Permissions</button>
+                    <button class="perm-tab" onclick="switchPermTab('advanced')">Advanced</button>
+                </div>
+
+                <!-- Login Tab -->
+                <div class="perm-panel active" id="permPanelLogin">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Login Email</label>
+                            <input type="email" class="form-input" id="empLoginEmail" placeholder="Login email">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-input" id="empPassword" placeholder="Set password">
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--gray-400);margin-top:6px;">Leave password blank to keep existing. Setting login credentials allows this employee to log in.</div>
+                </div>
+
+                <!-- Page Permissions Tab -->
+                <div class="perm-panel" id="permPanelPages">
+                    <div class="perm-preset-row">
+                        <button class="perm-preset" onclick="applyPermPreset('admin')">Full Admin</button>
+                        <button class="perm-preset" onclick="applyPermPreset('manager')">Manager</button>
+                        <button class="perm-preset" onclick="applyPermPreset('crew')">Crew Member</button>
+                        <button class="perm-preset" onclick="applyPermPreset('office')">Office Staff</button>
+                        <button class="perm-preset" onclick="applyPermPreset('none')">No Access</button>
+                    </div>
+                    <table class="perm-table">
+                        <thead><tr><th>Page</th><th>Access Level</th></tr></thead>
+                        <tbody id="permPageRows"></tbody>
+                    </table>
+                </div>
+
+                <!-- Advanced Permissions Tab -->
+                <div class="perm-panel" id="permPanelAdvanced">
+                    <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Time Tracking</div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permOwnTimeOnly"> Can only view/edit their own time entries</label></div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permAllTime"> Can view all employees' time</label></div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permEditOtherTime"> Can edit other employees' time</label></div>
+
+                    <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px;">Schedule &amp; Jobs</div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permAssignedOnly"> Can only see jobs assigned to them</label></div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permCompleteJobs"> Can complete jobs</label></div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permSeePrices"> Can see prices and financial info</label></div>
+
+                    <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px;">Invoicing</div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permInvoiceJobs"> Can create invoices from completed jobs</label></div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permSendInvoices"> Can send invoices to customers</label></div>
+
+                    <div style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.05em;margin:16px 0 8px;">Communication</div>
+                    <div class="perm-toggle"><label><input type="checkbox" id="permSendBroadcasts"> Can send email/SMS broadcasts</label></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeEmployeeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEmployee()">Save Employee</button>
         </div>
     </div>
 </div>
@@ -453,11 +658,10 @@
     }
 
     // Crew Modal
-    function openCrewModal(crew) {
+    async function openCrewModal(crew) {
         document.getElementById('crewEditId').value = crew ? crew.id : '';
         document.getElementById('crewModalTitle').textContent = crew ? 'Edit Crew' : 'Add Crew';
         document.getElementById('crewName').value = crew ? crew.name : '';
-        document.getElementById('crewMembers').value = crew ? (crew.members || '') : '';
         document.getElementById('crewPhone').value = crew ? (crew.phone || '') : '';
         document.getElementById('crewType').value = crew ? (crew.crew_type || 'general') : 'mowing';
         document.getElementById('crewStatus').value = crew ? (crew.is_active === false ? 'inactive' : 'active') : 'active';
@@ -466,6 +670,32 @@
         document.querySelectorAll('.color-swatch').forEach(s => {
             s.classList.toggle('selected', s.dataset.color === selectedColor);
         });
+
+        // Populate members checkbox list from employees
+        const listEl = document.getElementById('crewMembersList');
+        listEl.innerHTML = '<div style="color:var(--gray-400);font-size:13px;">Loading...</div>';
+        try {
+            const res = await fetch('/api/employees?active_only=true');
+            const data = await res.json();
+            const employees = data.employees || [];
+            const currentMembers = crew ? (crew.members || '').split(',').map(m => m.trim().toLowerCase()) : [];
+            if (employees.length === 0) {
+                listEl.innerHTML = '<div style="color:var(--gray-400);font-size:13px;">No employees yet. <a href="crew.html?tab=employees" style="color:var(--primary);">Add employees first.</a></div>';
+            } else {
+                listEl.innerHTML = employees.map(e => {
+                    const name = e.first_name + ' ' + e.last_name;
+                    const checked = currentMembers.includes(name.toLowerCase()) ? 'checked' : '';
+                    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:13px;">
+                        <input type="checkbox" class="crew-member-cb" value="${esc(name)}" ${checked}>
+                        <span>${esc(name)}</span>
+                        <span style="color:var(--gray-400);font-size:11px;">${esc(e.title || '')}</span>
+                    </label>`;
+                }).join('');
+            }
+        } catch (e) {
+            listEl.innerHTML = '<div style="color:var(--gray-400);font-size:13px;">Failed to load employees</div>';
+        }
+
         document.getElementById('crewModal').classList.add('open');
     }
 
@@ -480,9 +710,10 @@
 
     async function saveCrew() {
         const id = document.getElementById('crewEditId').value;
+        const selectedMembers = Array.from(document.querySelectorAll('.crew-member-cb:checked')).map(cb => cb.value);
         const body = {
             name: document.getElementById('crewName').value.trim(),
-            members: document.getElementById('crewMembers').value.trim(),
+            members: selectedMembers.join(', '),
             crew_type: document.getElementById('crewType').value,
             notes: document.getElementById('crewNotes').value.trim(),
             is_active: document.getElementById('crewStatus').value === 'active',
@@ -677,8 +908,294 @@
     }
     function esc(s) { return s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : ''; }
 
+    // ==================== PERMISSIONS ====================
+    const PERM_PAGES = [
+        { key: 'home', label: 'Home / Dashboard' },
+        { key: 'schedule', label: 'Schedule' },
+        { key: 'dispatch', label: 'Dispatch' },
+        { key: 'clients', label: 'Clients' },
+        { key: 'requests', label: 'Requests' },
+        { key: 'quotes', label: 'Quotes' },
+        { key: 'invoices', label: 'Invoices' },
+        { key: 'expenses', label: 'Expenses' },
+        { key: 'marketing', label: 'Marketing' },
+        { key: 'reports', label: 'Reports' },
+        { key: 'insights', label: 'Insights' },
+        { key: 'crew', label: 'Crew & Employees' },
+        { key: 'settings', label: 'Settings' }
+    ];
+
+    const PERM_LEVELS = [
+        { value: 'none', label: 'No Access' },
+        { value: 'view', label: 'View Only' },
+        { value: 'edit', label: 'View + Edit' },
+        { value: 'create', label: 'View + Edit + Create' },
+        { value: 'full', label: 'Full Access (incl. Delete)' }
+    ];
+
+    const PRESETS = {
+        admin: { pages: 'full', time: { own: false, all: true, editOther: true }, jobs: { assigned: false, complete: true, prices: true }, invoice: { create: true, send: true }, comms: { broadcast: true } },
+        manager: { pages: 'create', time: { own: false, all: true, editOther: true }, jobs: { assigned: false, complete: true, prices: true }, invoice: { create: true, send: true }, comms: { broadcast: true } },
+        crew: { pages: { home: 'view', schedule: 'view', dispatch: 'view', clients: 'view', requests: 'none', quotes: 'none', invoices: 'none', expenses: 'none', marketing: 'none', reports: 'none', insights: 'none', crew: 'none', settings: 'none' }, time: { own: true, all: false, editOther: false }, jobs: { assigned: true, complete: true, prices: false }, invoice: { create: false, send: false }, comms: { broadcast: false } },
+        office: { pages: { home: 'view', schedule: 'view', dispatch: 'view', clients: 'create', requests: 'create', quotes: 'create', invoices: 'create', expenses: 'edit', marketing: 'view', reports: 'view', insights: 'view', crew: 'view', settings: 'none' }, time: { own: true, all: true, editOther: false }, jobs: { assigned: false, complete: false, prices: true }, invoice: { create: true, send: true }, comms: { broadcast: true } },
+        none: { pages: 'none', time: { own: true, all: false, editOther: false }, jobs: { assigned: true, complete: false, prices: false }, invoice: { create: false, send: false }, comms: { broadcast: false } }
+    };
+
+    function buildPermPageRows() {
+        document.getElementById('permPageRows').innerHTML = PERM_PAGES.map(p =>
+            `<tr><td class="page-name">${p.label}</td><td><select id="perm_${p.key}" class="perm-page-select">${PERM_LEVELS.map(l => `<option value="${l.value}">${l.label}</option>`).join('')}</select></td></tr>`
+        ).join('');
+    }
+    buildPermPageRows();
+
+    function switchPermTab(tab) {
+        document.querySelectorAll('.perm-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.perm-panel').forEach(p => p.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('permPanel' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+    }
+
+    function applyPermPreset(preset) {
+        const p = PRESETS[preset];
+        PERM_PAGES.forEach(pg => {
+            const level = typeof p.pages === 'string' ? p.pages : (p.pages[pg.key] || 'none');
+            document.getElementById('perm_' + pg.key).value = level;
+        });
+        document.getElementById('permOwnTimeOnly').checked = p.time.own;
+        document.getElementById('permAllTime').checked = p.time.all;
+        document.getElementById('permEditOtherTime').checked = p.time.editOther;
+        document.getElementById('permAssignedOnly').checked = p.jobs.assigned;
+        document.getElementById('permCompleteJobs').checked = p.jobs.complete;
+        document.getElementById('permSeePrices').checked = p.jobs.prices;
+        document.getElementById('permInvoiceJobs').checked = p.invoice.create;
+        document.getElementById('permSendInvoices').checked = p.invoice.send;
+        document.getElementById('permSendBroadcasts').checked = p.comms.broadcast;
+    }
+
+    function getPermissions() {
+        const perms = { pages: {}, advanced: {} };
+        PERM_PAGES.forEach(pg => { perms.pages[pg.key] = document.getElementById('perm_' + pg.key).value; });
+        perms.advanced = {
+            own_time_only: document.getElementById('permOwnTimeOnly').checked,
+            view_all_time: document.getElementById('permAllTime').checked,
+            edit_other_time: document.getElementById('permEditOtherTime').checked,
+            assigned_jobs_only: document.getElementById('permAssignedOnly').checked,
+            complete_jobs: document.getElementById('permCompleteJobs').checked,
+            see_prices: document.getElementById('permSeePrices').checked,
+            invoice_jobs: document.getElementById('permInvoiceJobs').checked,
+            send_invoices: document.getElementById('permSendInvoices').checked,
+            send_broadcasts: document.getElementById('permSendBroadcasts').checked
+        };
+        return perms;
+    }
+
+    function setPermissions(perms) {
+        if (!perms || typeof perms !== 'object') { applyPermPreset('none'); return; }
+        if (perms.pages) {
+            PERM_PAGES.forEach(pg => {
+                const el = document.getElementById('perm_' + pg.key);
+                if (el) el.value = perms.pages[pg.key] || 'none';
+            });
+        }
+        const a = perms.advanced || {};
+        document.getElementById('permOwnTimeOnly').checked = !!a.own_time_only;
+        document.getElementById('permAllTime').checked = !!a.view_all_time;
+        document.getElementById('permEditOtherTime').checked = !!a.edit_other_time;
+        document.getElementById('permAssignedOnly').checked = !!a.assigned_jobs_only;
+        document.getElementById('permCompleteJobs').checked = !!a.complete_jobs;
+        document.getElementById('permSeePrices').checked = !!a.see_prices;
+        document.getElementById('permInvoiceJobs').checked = !!a.invoice_jobs;
+        document.getElementById('permSendInvoices').checked = !!a.send_invoices;
+        document.getElementById('permSendBroadcasts').checked = !!a.send_broadcasts;
+    }
+
+    // ==================== EMPLOYEES ====================
+    let allEmployees = [];
+
+    async function loadEmployees() {
+        try {
+            const res = await fetch('/api/employees');
+            const data = await res.json();
+            allEmployees = data.employees || [];
+            renderEmployeeTable();
+            updateEmpStats();
+        } catch (e) { console.error('Failed to load employees:', e); }
+    }
+
+    function updateEmpStats() {
+        const active = allEmployees.filter(e => e.is_active !== false);
+        const inactive = allEmployees.filter(e => e.is_active === false);
+        const withLogin = allEmployees.filter(e => e.login_email);
+        document.getElementById('statTotalEmp').textContent = allEmployees.length;
+        document.getElementById('statActiveEmp').textContent = active.length;
+        document.getElementById('statInactiveEmp').textContent = inactive.length;
+        document.getElementById('statLoginEmp').textContent = withLogin.length;
+    }
+
+    function filterEmployees() {
+        renderEmployeeTable();
+    }
+
+    function renderEmployeeTable() {
+        const tbody = document.getElementById('empTableBody');
+        const q = (document.getElementById('empSearchInput').value || '').toLowerCase();
+        const filtered = allEmployees.filter(e => {
+            if (!q) return true;
+            return (e.first_name + ' ' + e.last_name).toLowerCase().includes(q) ||
+                   (e.email || '').toLowerCase().includes(q) ||
+                   (e.title || '').toLowerCase().includes(q);
+        });
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:40px;">${allEmployees.length === 0 ? 'No employees yet. Click "+ Add Employee" to get started.' : 'No employees match your search.'}</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = filtered.map(e => {
+            const name = esc(e.first_name) + ' ' + esc(e.last_name);
+            const isActive = e.is_active !== false;
+            const pay = e.salary_amount ? '$' + parseFloat(e.salary_amount).toFixed(2) + '/' + (e.pay_type || 'hr') : '-';
+            const hire = e.hire_date ? new Date(e.hire_date).toLocaleDateString() : '-';
+            return `<tr style="cursor:pointer;" onclick="openEmployeeModal(allEmployees.find(x=>x.id===${e.id}))">
+                <td><strong>${name}</strong></td>
+                <td>${esc(e.title || '-')}</td>
+                <td>${esc(e.email || '-')}</td>
+                <td>${esc(e.phone || '-')}</td>
+                <td>${pay}</td>
+                <td>${hire}</td>
+                <td><span class="status-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span></td>
+                <td onclick="event.stopPropagation()">
+                    <button class="btn btn-secondary btn-sm" onclick="openEmployeeModal(allEmployees.find(x=>x.id===${e.id}))">Edit</button>
+                    ${isActive ?
+                        `<button class="btn btn-secondary btn-sm" style="color:var(--amber);" onclick="deactivateEmployee(${e.id})">Deactivate</button>` :
+                        `<button class="btn btn-secondary btn-sm" style="color:var(--green);" onclick="activateEmployee(${e.id})">Activate</button>`
+                    }
+                    <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Delete</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function openEmployeeModal(emp) {
+        document.getElementById('empEditId').value = emp ? emp.id : '';
+        document.getElementById('empModalTitle').textContent = emp ? 'Edit Employee' : 'Add Employee';
+        document.getElementById('empTitle').value = emp ? (emp.title || '') : '';
+        document.getElementById('empFirstName').value = emp ? emp.first_name : '';
+        document.getElementById('empLastName').value = emp ? emp.last_name : '';
+        document.getElementById('empEmail').value = emp ? (emp.email || '') : '';
+        document.getElementById('empPhone').value = emp ? (emp.phone || '') : '';
+        document.getElementById('empBirthDate').value = emp && emp.birth_date ? emp.birth_date.split('T')[0] : '';
+        document.getElementById('empHireDate').value = emp && emp.hire_date ? emp.hire_date.split('T')[0] : '';
+        document.getElementById('empSalary').value = emp ? (emp.salary_amount || '') : '';
+        document.getElementById('empPayType').value = emp ? (emp.pay_type || 'hourly') : 'hourly';
+        document.getElementById('empChemLicense').value = emp ? (emp.chemical_license || '') : '';
+        document.getElementById('empAddress').value = emp ? (emp.address || '') : '';
+        document.getElementById('empNotes').value = emp ? (emp.notes || '') : '';
+        document.getElementById('empLoginEmail').value = emp ? (emp.login_email || '') : '';
+        document.getElementById('empPassword').value = '';
+        // Reset perm tabs to Login
+        document.querySelectorAll('.perm-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+        document.querySelectorAll('.perm-panel').forEach((p, i) => p.classList.toggle('active', i === 0));
+        setPermissions(emp ? emp.permissions : null);
+        document.getElementById('empModal').classList.add('open');
+    }
+
+    function closeEmployeeModal() {
+        document.getElementById('empModal').classList.remove('open');
+    }
+
+    async function saveEmployee() {
+        const id = document.getElementById('empEditId').value;
+        const body = {
+            title: document.getElementById('empTitle').value,
+            first_name: document.getElementById('empFirstName').value.trim(),
+            last_name: document.getElementById('empLastName').value.trim(),
+            email: document.getElementById('empEmail').value.trim(),
+            phone: document.getElementById('empPhone').value.trim(),
+            birth_date: document.getElementById('empBirthDate').value || null,
+            hire_date: document.getElementById('empHireDate').value || null,
+            salary_amount: document.getElementById('empSalary').value || null,
+            pay_type: document.getElementById('empPayType').value,
+            chemical_license: document.getElementById('empChemLicense').value.trim(),
+            address: document.getElementById('empAddress').value.trim(),
+            notes: document.getElementById('empNotes').value.trim(),
+            login_email: document.getElementById('empLoginEmail').value.trim() || null,
+            permissions: getPermissions()
+        };
+        const pw = document.getElementById('empPassword').value;
+        if (pw) body.password = pw;
+        if (!body.first_name || !body.last_name) { showToast('First and last name are required'); return; }
+        try {
+            const url = id ? `/api/employees/${id}` : '/api/employees';
+            const method = id ? 'PATCH' : 'POST';
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Failed to save');
+            showToast(id ? 'Employee updated' : 'Employee added');
+            closeEmployeeModal();
+            loadEmployees();
+        } catch (e) { showToast('Error: ' + e.message); }
+    }
+
+    async function deactivateEmployee(id) {
+        if (!confirm('Deactivate this employee? They will lose login access but their record will be kept.')) return;
+        try {
+            await fetch(`/api/employees/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: false }) });
+            showToast('Employee deactivated');
+            loadEmployees();
+        } catch (e) { showToast('Error: ' + e.message); }
+    }
+
+    async function activateEmployee(id) {
+        try {
+            await fetch(`/api/employees/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: true }) });
+            showToast('Employee activated');
+            loadEmployees();
+        } catch (e) { showToast('Error: ' + e.message); }
+    }
+
+    async function deleteEmployee(id) {
+        if (!confirm('Permanently delete this employee? This cannot be undone. Consider deactivating instead.')) return;
+        try {
+            await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+            showToast('Employee deleted');
+            loadEmployees();
+        } catch (e) { showToast('Error: ' + e.message); }
+    }
+
+    // ==================== TAB ROUTING ====================
+    function activateTab(tab) {
+        const crewHeader = document.getElementById('crewHeader');
+        const empHeader = document.getElementById('empHeader');
+        const adminView = document.getElementById('adminView');
+        const fieldView = document.getElementById('fieldView');
+        const empView = document.getElementById('employeesView');
+        const tabCrew = document.getElementById('tabCrew');
+        const tabEmp = document.getElementById('tabEmployees');
+
+        if (tab === 'employees') {
+            crewHeader.style.display = 'none';
+            adminView.classList.remove('active');
+            fieldView.classList.remove('active');
+            empView.style.display = 'block';
+            empHeader.style.display = 'flex';
+            tabCrew.style.fontWeight = '500'; tabCrew.style.color = 'var(--gray-500)'; tabCrew.style.borderBottomColor = 'transparent';
+            tabEmp.style.fontWeight = '600'; tabEmp.style.color = 'var(--primary)'; tabEmp.style.borderBottomColor = 'var(--primary)';
+            loadEmployees();
+        } else {
+            crewHeader.style.display = 'flex';
+            adminView.classList.add('active');
+            empView.style.display = 'none';
+            empHeader.style.display = 'none';
+            tabCrew.style.fontWeight = '600'; tabCrew.style.color = 'var(--primary)'; tabCrew.style.borderBottomColor = 'var(--primary)';
+            tabEmp.style.fontWeight = '500'; tabEmp.style.color = 'var(--gray-500)'; tabEmp.style.borderBottomColor = 'transparent';
+        }
+    }
+
     // Init
-    document.addEventListener('DOMContentLoaded', () => { loadCrews(); });
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCrews();
+        const tab = new URLSearchParams(window.location.search).get('tab');
+        if (tab === 'employees') activateTab('employees');
+    });
 </script>
 
 </body>

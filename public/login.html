@@ -446,6 +446,15 @@
                         if (data.adminName || data.name) localStorage.setItem('adminName', data.adminName || data.name);
                         if (data.adminEmail || data.email) localStorage.setItem('adminEmail', data.adminEmail || data.email);
 
+                        // Store employee permissions if applicable
+                        if (data.isEmployee && data.permissions) {
+                            localStorage.setItem('isEmployee', 'true');
+                            localStorage.setItem('employeePermissions', JSON.stringify(data.permissions));
+                        } else {
+                            localStorage.removeItem('isEmployee');
+                            localStorage.removeItem('employeePermissions');
+                        }
+
                         // Redirect to dashboard
                         window.location.href = 'index.html';
                     } else {

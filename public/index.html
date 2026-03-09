@@ -370,11 +370,29 @@
             <button class="topbar-icon-btn" onclick="loadAll()" title="Refresh">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
             </button>
-            <button class="topbar-icon-btn" title="Notifications">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                <div class="notif-badge"></div>
-            </button>
-            <div class="topbar-avatar" title="Account">TP</div>
+            <div style="position:relative">
+                <button class="topbar-icon-btn" title="Notifications" id="notif-btn" onclick="toggleNotifications()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                    <span class="notif-badge" id="notif-badge" style="display:none"></span>
+                </button>
+                <div class="search-dropdown" id="notif-dropdown" style="display:none;right:0;left:auto;min-width:340px;max-height:400px;">
+                    <div style="padding:12px 14px;font-weight:600;font-size:14px;border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center;">
+                        Notifications
+                        <button onclick="markAllRead()" style="font-size:11px;color:var(--green);background:none;border:none;cursor:pointer;font-weight:600;">Mark all read</button>
+                    </div>
+                    <div id="notif-list"><div class="search-empty">Loading...</div></div>
+                </div>
+            </div>
+            <div style="position:relative">
+                <div class="topbar-avatar" title="Account" id="avatar-btn" style="cursor:pointer">TP</div>
+                <div class="search-dropdown" id="avatar-dropdown" style="display:none;right:0;left:auto;min-width:180px;z-index:9999;">
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--gray-100);">
+                        <div style="font-weight:600;font-size:13px;" id="avatar-name">Theresa Pappas</div>
+                    </div>
+                    <a href="settings.html" style="display:block;padding:10px 14px;font-size:13px;color:var(--gray-700);text-decoration:none;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='none'">Settings</a>
+                    <div onclick="doLogout()" style="padding:10px 14px;font-size:13px;color:#c0392b;cursor:pointer;border-top:1px solid var(--gray-100);" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='none'">Log Out</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -833,6 +851,25 @@
 </div>
 
 <script>
+// Avatar dropdown & logout
+(function() {
+    var btn = document.getElementById('avatar-btn');
+    var dd = document.getElementById('avatar-dropdown');
+    if (btn && dd) {
+        btn.addEventListener('click', function(e) { e.stopPropagation(); dd.style.display = dd.style.display === 'none' ? 'block' : 'none'; });
+        document.addEventListener('click', function() { dd.style.display = 'none'; });
+        dd.addEventListener('click', function(e) { e.stopPropagation(); });
+    }
+    var nameEl = document.getElementById('avatar-name');
+    if (nameEl) nameEl.textContent = localStorage.getItem('adminName') || 'Admin';
+})();
+function doLogout() {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminName');
+    localStorage.removeItem('adminEmail');
+    window.location.href = '/login.html';
+}
+
 let searchDebounceTimer = null;
 
 function esc(s) {
@@ -891,8 +928,10 @@ function showToast(msg, isError) {
 
 // Modal Handling
 function openModal(id) {
-    document.getElementById(id).classList.add('visible');
-    document.getElementById('quick-create-menu').classList.remove('visible');
+    var el = document.getElementById(id);
+    if (el) el.classList.add('visible');
+    var qcm = document.getElementById('quick-create-menu');
+    if (qcm) qcm.classList.remove('visible');
     if (id === 'job-modal') loadCrews();
 }
 
@@ -908,21 +947,26 @@ document.addEventListener('keydown', function(e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('search-input').focus(); }
 });
 
-// Quick-Create Dropdown
-document.getElementById('quick-create-btn').addEventListener('click', function() {
-    document.getElementById('quick-create-menu').classList.toggle('visible');
-    document.getElementById('qc-overlay').classList.toggle('visible');
-});
-document.addEventListener('click', function(e) {
-    if (!document.getElementById('quick-create-btn').contains(e.target) && !document.getElementById('quick-create-menu').contains(e.target)) {
-        document.getElementById('quick-create-menu').classList.remove('visible');
-        document.getElementById('qc-overlay').classList.remove('visible');
-    }
-});
-document.getElementById('qc-overlay').addEventListener('click', function() {
-    document.getElementById('quick-create-menu').classList.remove('visible');
-    document.getElementById('qc-overlay').classList.remove('visible');
-});
+// Quick-Create Dropdown (may be handled by shell.js)
+var _qcBtn = document.getElementById('quick-create-btn');
+var _qcMenu = document.getElementById('quick-create-menu');
+var _qcOverlay = document.getElementById('qc-overlay');
+if (_qcBtn && _qcMenu && _qcOverlay) {
+    _qcBtn.addEventListener('click', function() {
+        _qcMenu.classList.toggle('visible');
+        _qcOverlay.classList.toggle('visible');
+    });
+    document.addEventListener('click', function(e) {
+        if (!_qcBtn.contains(e.target) && !_qcMenu.contains(e.target)) {
+            _qcMenu.classList.remove('visible');
+            _qcOverlay.classList.remove('visible');
+        }
+    });
+    _qcOverlay.addEventListener('click', function() {
+        _qcMenu.classList.remove('visible');
+        _qcOverlay.classList.remove('visible');
+    });
+}
 
 // Customer Autocomplete (shared)
 var customerAutoTimer = null;
@@ -1524,10 +1568,112 @@ async function loadCustomers() {
     } catch (e) { showEmpty(list, 'Unable to load customers'); }
 }
 
+// ── Notifications ──────────────────────────────────────────
+function toggleNotifications() {
+    var dd = document.getElementById('notif-dropdown');
+    if (dd.style.display === 'none') {
+        dd.style.display = 'block';
+        loadNotifications();
+    } else {
+        dd.style.display = 'none';
+    }
+}
+
+document.addEventListener('click', function(e) {
+    var dd = document.getElementById('notif-dropdown');
+    var btn = document.getElementById('notif-btn');
+    if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
+
+async function loadNotifications() {
+    var list = document.getElementById('notif-list');
+    try {
+        // Fetch recent activity: overdue invoices, new requests, upcoming jobs
+        var [invRes, reqRes, jobRes] = await Promise.all([
+            fetch('/api/invoices?status=sent&limit=10').then(r => r.json()).catch(() => ({ invoices: [] })),
+            fetch('/api/work-requests?status=new&limit=5').then(r => r.json()).catch(() => ({ requests: [] })),
+            fetch('/api/jobs?date=' + new Date().toISOString().split('T')[0] + '&limit=5').then(r => r.json()).catch(() => ({ jobs: [] }))
+        ]);
+
+        var items = [];
+
+        // Overdue invoices
+        var now = new Date();
+        (invRes.invoices || []).forEach(function(inv) {
+            if (inv.due_date && new Date(inv.due_date) < now) {
+                items.push({
+                    icon: '💰',
+                    text: 'Overdue invoice for ' + esc(inv.customer_name || 'Unknown'),
+                    sub: '$' + (Number(inv.total)||0).toFixed(2) + ' due ' + new Date(inv.due_date).toLocaleDateString(),
+                    href: 'invoice-detail.html?id=' + inv.id,
+                    time: new Date(inv.due_date)
+                });
+            }
+        });
+
+        // New work requests
+        (reqRes.requests || []).forEach(function(r) {
+            items.push({
+                icon: '📋',
+                text: 'New request from ' + esc(r.customer_name || r.name || 'Unknown'),
+                sub: esc(r.service_type || r.description || '').slice(0, 60),
+                href: 'work-requests.html',
+                time: new Date(r.created_at || now)
+            });
+        });
+
+        // Today's jobs
+        (jobRes.jobs || []).forEach(function(j) {
+            if (j.status === 'scheduled') {
+                items.push({
+                    icon: '🗓️',
+                    text: esc(j.customer_name || 'Job') + ' — ' + esc(j.service_type || ''),
+                    sub: 'Scheduled for today',
+                    href: 'job-detail.html?id=' + j.id,
+                    time: new Date(j.job_date || now)
+                });
+            }
+        });
+
+        // Update badge
+        var badge = document.getElementById('notif-badge');
+        if (items.length > 0) {
+            badge.textContent = items.length > 9 ? '9+' : items.length;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        if (!items.length) {
+            list.innerHTML = '<div class="search-empty">You\'re all caught up!</div>';
+            return;
+        }
+
+        list.innerHTML = items.map(function(item) {
+            return '<a href="' + item.href + '" class="search-result-item" style="gap:10px;padding:10px 14px;">'
+                + '<div style="font-size:18px;flex-shrink:0;">' + item.icon + '</div>'
+                + '<div style="min-width:0;">'
+                + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.text + '</div>'
+                + '<div style="font-size:11px;color:var(--gray-400);">' + item.sub + '</div>'
+                + '</div></a>';
+        }).join('');
+    } catch (e) {
+        list.innerHTML = '<div class="search-empty">Unable to load notifications</div>';
+    }
+}
+
+function markAllRead() {
+    document.getElementById('notif-badge').style.display = 'none';
+    document.getElementById('notif-dropdown').style.display = 'none';
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', function() {
     updateDate();
     loadAll();
+    loadNotifications();
     setupCustomerAutocomplete('job-customer-search', 'job-customer-list', 'job-customer-id', null);
     setupCustomerAutocomplete('inv-customer-search', 'inv-customer-list', 'inv-customer-id', 'inv-customer-email');
     document.getElementById('job-date').value = new Date().toISOString().split('T')[0];

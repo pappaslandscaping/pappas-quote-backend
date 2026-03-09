@@ -41,21 +41,50 @@
   // ── Navigation Definition ───────────────────────────────────
   // Jobber-style navigation: focused, clean, workflow-driven
   var NAV = [
-    { href: 'index.html', icon: 'home', label: 'Home' },
-    { href: 'scheduling.html', icon: 'calendar', label: 'Schedule' },
-    { href: 'dispatch.html', icon: 'dispatch', label: 'Dispatch' },
-    { href: 'customers.html', icon: 'clients', label: 'Clients' },
-    { href: 'work-requests.html', icon: 'comms', label: 'Requests' },
-    { href: 'quotes.html', icon: 'quotes', label: 'Quotes' },
-    { href: 'invoices.html', icon: 'invoices', label: 'Invoices' },
-    { href: 'expenses.html', icon: 'expenses', label: 'Expenses' },
+    { href: 'index.html', icon: 'home', label: 'Home', perm: 'home' },
+    { href: 'scheduling.html', icon: 'calendar', label: 'Schedule', perm: 'schedule' },
+    { href: 'dispatch.html', icon: 'dispatch', label: 'Dispatch', perm: 'dispatch' },
+    { href: 'customers.html', icon: 'clients', label: 'Clients', perm: 'clients' },
+    { href: 'work-requests.html', icon: 'comms', label: 'Requests', perm: 'requests' },
+    { href: 'quotes.html', icon: 'quotes', label: 'Quotes', perm: 'quotes' },
+    { href: 'invoices.html', icon: 'invoices', label: 'Invoices', perm: 'invoices' },
+    { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' },
     'divider',
-    { href: 'communications.html', icon: 'comms', label: 'Marketing' },
-    { href: 'reports.html', icon: 'reports', label: 'Reports' },
-    { href: 'kpi.html', icon: 'kpi', label: 'Insights' },
-    { href: 'crew.html', icon: 'crew', label: 'Crew' },
-    { href: 'settings.html', icon: 'settings', label: 'Settings' }
+    { href: 'communications.html', icon: 'comms', label: 'Marketing', perm: 'marketing' },
+    { href: 'reports.html', icon: 'reports', label: 'Reports', perm: 'reports' },
+    { href: 'kpi.html', icon: 'kpi', label: 'Insights', perm: 'insights' },
+    { href: 'crew.html', icon: 'crew', label: 'Crew', perm: 'crew' },
+    { href: 'settings.html', icon: 'settings', label: 'Settings', perm: 'settings' }
   ];
+
+  // ── Employee Permissions ────────────────────────────────────
+  var isEmployee = localStorage.getItem('isEmployee') === 'true';
+  var empPerms = null;
+  try { empPerms = JSON.parse(localStorage.getItem('employeePermissions')); } catch(e) {}
+
+  function hasPageAccess(permKey) {
+    if (!isEmployee || !empPerms || !empPerms.pages) return true; // admins see everything
+    var level = empPerms.pages[permKey];
+    return level && level !== 'none';
+  }
+
+  function getPagePermLevel(permKey) {
+    if (!isEmployee || !empPerms || !empPerms.pages) return 'full';
+    return empPerms.pages[permKey] || 'none';
+  }
+
+  function getAdvancedPerm(key) {
+    if (!isEmployee || !empPerms || !empPerms.advanced) return true;
+    return !!empPerms.advanced[key];
+  }
+
+  // Expose for pages to check
+  window.YardDesk = window.YardDesk || {};
+  window.YardDesk.isEmployee = isEmployee;
+  window.YardDesk.permissions = empPerms;
+  window.YardDesk.hasPageAccess = hasPageAccess;
+  window.YardDesk.getPagePermLevel = getPagePermLevel;
+  window.YardDesk.getAdvancedPerm = getAdvancedPerm;
 
   // Pages accessible from parent pages (not in sidebar)
   // - sent-quotes.html, quote-generator.html, quote-calculator.html → from Quotes page
@@ -158,17 +187,32 @@
     html += '</div>';
 
     // Quick Create — Jobber-style: simple list, not a grid
-    html += '<div style="position:relative">';
-    html += '  <button class="sidebar-new-btn" id="quick-create-btn" type="button">';
-    html += '    ' + svg('plus') + '<span>Create</span>';
-    html += '  </button>';
-    html += '  <div class="qc-overlay" id="qc-overlay"></div>';
-    html += '  <div class="quick-create-menu" id="quick-create-menu">';
-    html += '    <a href="new-customer.html"><div class="qc-icon">' + svg('customer', 16) + '</div><span>Client</span></a>';
-    html += '    <a href="quote-generator.html"><div class="qc-icon">' + svg('quotes', 16) + '</div><span>Quote</span></a>';
-    html += '    <a href="new-job.html"><div class="qc-icon">' + svg('jobs', 16) + '</div><span>Job</span></a>';
-    html += '    <a href="new-invoice.html"><div class="qc-icon">' + svg('invoices', 16) + '</div><span>Invoice</span></a>';
-    html += '  </div>';
+    // Only show create items for pages the user has create/full access to
+    var qcItems = [
+      { href: 'new-customer.html', icon: 'customer', label: 'Client', perm: 'clients' },
+      { href: 'quote-generator.html', icon: 'quotes', label: 'Quote', perm: 'quotes' },
+      { href: 'new-job.html', icon: 'jobs', label: 'Job', perm: 'schedule' },
+      { href: 'new-invoice.html', icon: 'invoices', label: 'Invoice', perm: 'invoices' },
+      { href: 'properties.html?action=add', icon: 'property', label: 'Property', perm: 'clients' }
+    ];
+    var visibleQc = qcItems.filter(function(q) {
+      var level = getPagePermLevel(q.perm);
+      return level === 'create' || level === 'full';
+    });
+    if (visibleQc.length > 0) {
+      html += '<div style="position:relative">';
+      html += '  <button class="sidebar-new-btn" id="quick-create-btn" type="button">';
+      html += '    ' + svg('plus') + '<span>Create</span>';
+      html += '  </button>';
+      html += '  <div class="qc-overlay" id="qc-overlay"></div>';
+      html += '  <div class="quick-create-menu" id="quick-create-menu">';
+      visibleQc.forEach(function(q) {
+        html += '    <a href="' + q.href + '"><div class="qc-icon">' + svg(q.icon, 16) + '</div><span>' + q.label + '</span></a>';
+      });
+      html += '  </div>';
+    } else {
+      html += '<div style="position:relative">';
+    }
     html += '</div>';
 
     // Nav items
@@ -179,6 +223,8 @@
         html += '<div class="sidebar-nav-divider"></div>';
         continue;
       }
+      // Skip pages the employee has no access to
+      if (item.perm && !hasPageAccess(item.perm)) continue;
       var active = isParentActive(item);
       html += '<a href="' + item.href + '" class="nav-item' + (active ? ' active' : '') + '">';
       html += svg(item.icon);
@@ -189,13 +235,14 @@
 
     // Footer
     var userName = localStorage.getItem('adminName') || 'Admin';
+    var userRole = isEmployee ? 'Employee' : 'Admin';
     var initials = userName.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
     html += '<div class="sidebar-footer">';
     html += '  <div class="sidebar-user">';
     html += '    <div class="avatar">' + initials + '</div>';
     html += '    <div>';
     html += '      <div class="name">' + userName + '</div>';
-    html += '      <div class="role">Admin</div>';
+    html += '      <div class="role">' + userRole + '</div>';
     html += '    </div>';
     html += '  </div>';
     html += '</div>';
@@ -262,13 +309,32 @@
     html += '    <input type="text" class="topbar-search-input" id="shell-search-input" placeholder="Search customers, jobs, invoices..." autocomplete="off">';
     html += '    <div class="search-dropdown" id="shell-search-dropdown"></div>';
     html += '  </div>';
-    html += '  <button class="topbar-icon-btn" title="Notifications" id="shell-notif-btn">';
-    html += '    ' + svg('bell');
-    html += '    <span class="notif-badge" id="shell-notif-badge" style="display:none"></span>';
-    html += '  </button>';
+    html += '  <div style="position:relative">';
+    html += '    <button class="topbar-icon-btn" title="Notifications" id="shell-notif-btn">';
+    html += '      ' + svg('bell');
+    html += '      <span class="notif-badge" id="shell-notif-badge" style="display:none"></span>';
+    html += '    </button>';
+    html += '    <div class="search-dropdown" id="shell-notif-dropdown" style="display:none;right:0;left:auto;min-width:340px;max-height:400px;">';
+    html += '      <div style="padding:12px 14px;font-weight:600;font-size:14px;border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center;">';
+    html += '        Notifications';
+    html += '        <button id="shell-notif-mark-read" style="font-size:11px;color:var(--green);background:none;border:none;cursor:pointer;font-weight:600;">Mark all read</button>';
+    html += '      </div>';
+    html += '      <div id="shell-notif-list"><div class="search-empty">Loading...</div></div>';
+    html += '    </div>';
+    html += '  </div>';
     var userName = localStorage.getItem('adminName') || 'Admin';
     var initials = userName.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
-    html += '  <div class="topbar-avatar" title="Account">' + initials + '</div>';
+    html += '  <div style="position:relative">';
+    html += '    <div class="topbar-avatar" title="Account" id="shell-avatar-btn" style="cursor:pointer">' + initials + '</div>';
+    html += '    <div class="search-dropdown" id="shell-avatar-dropdown" style="display:none;right:0;left:auto;min-width:180px;">';
+    html += '      <div style="padding:12px 14px;border-bottom:1px solid var(--gray-100);">';
+    html += '        <div style="font-weight:600;font-size:13px;">' + userName + '</div>';
+    html += '        <div style="font-size:11px;color:var(--gray-500);margin-top:2px;">' + (localStorage.getItem('adminEmail') || '') + '</div>';
+    html += '      </div>';
+    html += '      <a href="settings.html" style="display:block;padding:10px 14px;font-size:13px;color:var(--gray-700);text-decoration:none;" onmouseover="this.style.background=\'var(--gray-50)\'" onmouseout="this.style.background=\'none\'">Settings</a>';
+    html += '      <div id="shell-logout-btn" style="padding:10px 14px;font-size:13px;color:#c0392b;cursor:pointer;border-top:1px solid var(--gray-100);" onmouseover="this.style.background=\'var(--gray-50)\'" onmouseout="this.style.background=\'none\'">Log Out</div>';
+    html += '    </div>';
+    html += '  </div>';
     html += '</div>';
     return html;
   }
@@ -357,8 +423,120 @@
       });
     }
 
+    // Avatar / Logout dropdown
+    var avatarBtn = document.getElementById('shell-avatar-btn');
+    var avatarDd = document.getElementById('shell-avatar-dropdown');
+    var logoutBtn = document.getElementById('shell-logout-btn');
+    if (avatarBtn && avatarDd) {
+      avatarBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        avatarDd.style.display = avatarDd.style.display === 'none' ? 'block' : 'none';
+      });
+      document.addEventListener('click', function() { avatarDd.style.display = 'none'; });
+      avatarDd.addEventListener('click', function(e) { e.stopPropagation(); });
+    }
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function() {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminName');
+        localStorage.removeItem('adminEmail');
+        window.location.href = '/login.html';
+      });
+    }
+
+    // Notifications
+    initShellNotifications();
+
     // Global search
     initGlobalSearch();
+  }
+
+  // ── Notifications ──────────────────────────────────────────
+  function initShellNotifications() {
+    var btn = document.getElementById('shell-notif-btn');
+    var dd = document.getElementById('shell-notif-dropdown');
+    var markBtn = document.getElementById('shell-notif-mark-read');
+    if (!btn || !dd) return;
+
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (dd.style.display === 'none') {
+        dd.style.display = 'block';
+        loadShellNotifications();
+      } else {
+        dd.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!dd.contains(e.target) && !btn.contains(e.target)) {
+        dd.style.display = 'none';
+      }
+    });
+
+    if (markBtn) {
+      markBtn.addEventListener('click', function() {
+        var badge = document.getElementById('shell-notif-badge');
+        if (badge) badge.style.display = 'none';
+        dd.style.display = 'none';
+      });
+    }
+
+    // Load badge count on init
+    loadShellNotifications(true);
+  }
+
+  function loadShellNotifications(badgeOnly) {
+    var list = document.getElementById('shell-notif-list');
+    var badge = document.getElementById('shell-notif-badge');
+    var today = new Date().toISOString().split('T')[0];
+
+    Promise.all([
+      fetch('/api/invoices?status=sent&limit=10').then(function(r) { return r.json(); }).catch(function() { return { invoices: [] }; }),
+      fetch('/api/work-requests?status=new&limit=5').then(function(r) { return r.json(); }).catch(function() { return { requests: [] }; }),
+      fetch('/api/jobs?date=' + today + '&limit=5').then(function(r) { return r.json(); }).catch(function() { return { jobs: [] }; })
+    ]).then(function(results) {
+      var items = [];
+      var now = new Date();
+
+      (results[0].invoices || []).forEach(function(inv) {
+        if (inv.due_date && new Date(inv.due_date) < now) {
+          items.push({ icon: '\uD83D\uDCB0', text: 'Overdue invoice for ' + escapeHtml(inv.customer_name || 'Unknown'),
+            sub: '$' + (Number(inv.total)||0).toFixed(2) + ' due ' + new Date(inv.due_date).toLocaleDateString(),
+            href: 'invoice-detail.html?id=' + inv.id });
+        }
+      });
+
+      (results[1].requests || []).forEach(function(r) {
+        items.push({ icon: '\uD83D\uDCCB', text: 'New request from ' + escapeHtml(r.customer_name || r.name || 'Unknown'),
+          sub: escapeHtml(r.service_type || r.description || '').slice(0, 60), href: 'work-requests.html' });
+      });
+
+      (results[2].jobs || []).forEach(function(j) {
+        if (j.status === 'scheduled') {
+          items.push({ icon: '\uD83D\uDDD3\uFE0F', text: escapeHtml(j.customer_name || 'Job') + ' \u2014 ' + escapeHtml(j.service_type || ''),
+            sub: 'Scheduled for today', href: 'job-detail.html?id=' + j.id });
+        }
+      });
+
+      if (badge) {
+        if (items.length > 0) { badge.textContent = items.length > 9 ? '9+' : items.length; badge.style.display = ''; }
+        else { badge.style.display = 'none'; }
+      }
+
+      if (badgeOnly || !list) return;
+
+      if (!items.length) { list.innerHTML = '<div class="search-empty">You\'re all caught up!</div>'; return; }
+
+      list.innerHTML = items.map(function(item) {
+        return '<a href="' + item.href + '" class="search-result-item" style="gap:10px;padding:10px 14px;">'
+          + '<div style="font-size:18px;flex-shrink:0;">' + item.icon + '</div>'
+          + '<div style="min-width:0;">'
+          + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.text + '</div>'
+          + '<div style="font-size:11px;color:var(--gray-400);">' + item.sub + '</div>'
+          + '</div></a>';
+      }).join('');
+    });
   }
 
   // ── Global Search ───────────────────────────────────────────

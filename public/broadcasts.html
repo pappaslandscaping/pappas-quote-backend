@@ -489,7 +489,12 @@
             padding: 12px 8px;
             background: var(--gray-50);
             border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: 2px solid transparent;
         }
+        .summary-stat:hover { background: var(--gray-100); }
+        .summary-stat.active-filter { border-color: var(--primary); background: var(--primary-light); }
 
         .summary-stat.total {
             grid-column: 1 / -1;
@@ -828,22 +833,26 @@
 <body>
 <script src="shell.js"></script>
 
-<!-- Topbar -->
-<header class="topbar">
-    <div class="topbar-left">
-        <h1 style="font-size:18px;font-weight:700;color:var(--gray-800);">Broadcasts</h1>
+<div class="main">
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <h1>Broadcasts</h1>
+        </div>
+        <div class="topbar-actions"></div>
     </div>
-</header>
 
-<div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-    <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
-    <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Templates</a>
-    <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
-    <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
-    <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Broadcasts</a>
-</div>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
+        <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
+        <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Templates</a>
+        <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
+        <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
+        <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Broadcasts</a>
+    </div>
 
-<div class="main-content">
+    <div class="page-content">
     <div class="broadcast-layout">
 
         <!-- ═══ LEFT: Broadcast Builder ═══ -->
@@ -1038,23 +1047,23 @@
                 </div>
                 <div class="bc-card-body">
                     <div class="summary-grid">
-                        <div class="summary-stat total">
+                        <div class="summary-stat total" onclick="filterAudienceBy('all')" title="Show all matching">
                             <div class="stat-num" id="totalMatching">0</div>
                             <div class="stat-desc">Total Matching</div>
                         </div>
-                        <div class="summary-stat">
+                        <div class="summary-stat" onclick="filterAudienceBy('has_email')" title="Show only customers with email">
                             <div class="stat-num" id="withEmail">0</div>
                             <div class="stat-desc">With Email</div>
                         </div>
-                        <div class="summary-stat">
+                        <div class="summary-stat" onclick="filterAudienceBy('has_mobile')" title="Show only customers with mobile">
                             <div class="stat-num" id="withMobile">0</div>
                             <div class="stat-desc">With Mobile</div>
                         </div>
-                        <div class="summary-stat">
+                        <div class="summary-stat" onclick="filterAudienceBy('email_opted')" title="Show only email opted-in">
                             <div class="stat-num" id="emailOptIn">0</div>
                             <div class="stat-desc">Email Opted-In</div>
                         </div>
-                        <div class="summary-stat">
+                        <div class="summary-stat" onclick="filterAudienceBy('sms_opted')" title="Show only SMS opted-in">
                             <div class="stat-num" id="smsOptIn">0</div>
                             <div class="stat-desc">SMS Opted-In</div>
                         </div>
@@ -1083,6 +1092,7 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <!-- Confirmation Modal -->
@@ -1381,12 +1391,50 @@ function renderAudienceSummary(summary) {
     document.getElementById('smsOptIn').textContent = summary.sms_opted_in || 0;
 }
 
+// ─── Audience Filter by Summary Stat ──────────────────────
+let currentAudienceFilter = 'all';
+
+function filterAudienceBy(type) {
+    currentAudienceFilter = (currentAudienceFilter === type) ? 'all' : type;
+    // Update active state on summary stats
+    document.querySelectorAll('.summary-stat').forEach(el => el.classList.remove('active-filter'));
+    if (currentAudienceFilter !== 'all') {
+        const map = { has_email: 1, has_mobile: 2, email_opted: 3, sms_opted: 4 };
+        const idx = map[currentAudienceFilter];
+        if (idx !== undefined) {
+            document.querySelectorAll('.summary-stat')[idx].classList.add('active-filter');
+        }
+    }
+    // Re-select only visible customers
+    renderAudiencePreview();
+    // Auto-select only the filtered customers
+    const visible = getFilteredCustomers();
+    selectedCustomerIds = new Set(visible.map(c => c.id));
+    renderAudiencePreview();
+    updateSendButton();
+}
+
+function getFilteredCustomers() {
+    let results = audienceResults;
+    if (currentAudienceFilter === 'has_email') {
+        results = results.filter(c => c.email && c.email.trim());
+    } else if (currentAudienceFilter === 'has_mobile') {
+        results = results.filter(c => c.mobile && c.mobile.trim());
+    } else if (currentAudienceFilter === 'email_opted') {
+        results = results.filter(c => c.email && c.email.trim()); // prefs checked server-side
+    } else if (currentAudienceFilter === 'sms_opted') {
+        results = results.filter(c => c.mobile && c.mobile.trim());
+    }
+    return results;
+}
+
 // ─── Render Audience List ──────────────────────────────────
 function renderAudiencePreview() {
     const list = document.getElementById('customerList');
     const search = document.getElementById('audienceSearch').value.toLowerCase();
+    const base = getFilteredCustomers();
 
-    const filtered = audienceResults.filter(c => {
+    const filtered = base.filter(c => {
         const name = c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim() || 'Unknown';
         return name.toLowerCase().includes(search)
             || (c.email || '').toLowerCase().includes(search)
@@ -1657,9 +1705,9 @@ function resetSendButton() {
 
 // ─── Results ───────────────────────────────────────────────
 function showResults(result) {
-    const sent = result.sent || 0;
-    const errors = result.errors || 0;
-    const skipped = result.skipped || 0;
+    const sent = (result.email_sent || 0) + (result.sms_sent || 0);
+    const errors = (result.email_errors || 0) + (result.sms_errors || 0);
+    const skipped = (result.email_skipped || 0) + (result.sms_skipped || 0);
 
     document.getElementById('resultsBody').innerHTML = `
         <div class="results-summary">

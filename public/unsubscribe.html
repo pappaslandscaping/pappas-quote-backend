@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsubscribe — Pappas & Co. Landscaping</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+            max-width: 480px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .card-header {
+            background: #2e403d;
+            padding: 32px;
+            text-align: center;
+        }
+        .card-header img {
+            max-height: 60px;
+            max-width: 280px;
+            width: auto;
+        }
+        .card-body {
+            padding: 40px 32px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 12px;
+        }
+        p {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .email-display {
+            font-size: 15px;
+            font-weight: 600;
+            color: #2e403d;
+            background: #f0f4f0;
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-bottom: 24px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+        }
+        .btn-primary {
+            background: #2e403d;
+            color: #c9dd80;
+        }
+        .btn-primary:hover { background: #3a524e; }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #64748b;
+            margin-left: 8px;
+        }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .success-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #f0fdf4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .success-icon svg { width: 32px; height: 32px; color: #22c55e; }
+        .hidden { display: none; }
+        .actions { margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <img src="https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png" alt="Pappas & Co. Landscaping">
+        </div>
+
+        <!-- Confirm View -->
+        <div class="card-body" id="confirmView">
+            <h1>Unsubscribe from Emails</h1>
+            <p>You are requesting to unsubscribe the following email from marketing communications:</p>
+            <div class="email-display" id="emailDisplay"></div>
+            <p>You will still receive transactional emails like invoices and appointment reminders.</p>
+            <div class="actions">
+                <button class="btn btn-primary" id="confirmBtn" onclick="doUnsubscribe()">Confirm Unsubscribe</button>
+            </div>
+        </div>
+
+        <!-- Success View -->
+        <div class="card-body hidden" id="successView">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h1>You've Been Unsubscribed</h1>
+            <p>Your email has been removed from our marketing list. You won't receive any more promotional emails from us.</p>
+            <p style="font-size:13px;">If this was a mistake, please contact us at <a href="tel:4408867318" style="color:#2e403d;font-weight:600;">(440) 886-7318</a> or reply to any previous email.</p>
+        </div>
+
+        <!-- No Email View -->
+        <div class="card-body hidden" id="noEmailView">
+            <h1>No Email Provided</h1>
+            <p>We couldn't determine which email to unsubscribe. Please click the unsubscribe link in the email you received, or contact us at <a href="tel:4408867318" style="color:#2e403d;font-weight:600;">(440) 886-7318</a>.</p>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const email = decodeURIComponent(params.get('email') || '');
+
+        if (!email) {
+            document.getElementById('confirmView').classList.add('hidden');
+            document.getElementById('noEmailView').classList.remove('hidden');
+        } else {
+            document.getElementById('emailDisplay').textContent = email;
+        }
+
+        async function doUnsubscribe() {
+            const btn = document.getElementById('confirmBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const res = await fetch('/api/unsubscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                if (res.ok) {
+                    document.getElementById('confirmView').classList.add('hidden');
+                    document.getElementById('successView').classList.remove('hidden');
+                } else {
+                    btn.textContent = 'Something went wrong. Try again.';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                btn.textContent = 'Something went wrong. Try again.';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

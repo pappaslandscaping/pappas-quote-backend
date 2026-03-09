@@ -419,7 +419,7 @@ app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
   try {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash('1513Lincoln!', 10);
-    await pool.query("UPDATE users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
+    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
     res.json({ success: true, message: 'Password reset. Now remove this endpoint.' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

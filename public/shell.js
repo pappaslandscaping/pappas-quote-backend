@@ -45,6 +45,7 @@
     { href: 'scheduling.html', icon: 'calendar', label: 'Schedule', perm: 'schedule' },
     { href: 'dispatch.html', icon: 'dispatch', label: 'Dispatch', perm: 'dispatch' },
     { href: 'customers.html', icon: 'clients', label: 'Clients', perm: 'clients' },
+    { href: 'properties.html', icon: 'property', label: 'Properties', perm: 'clients' },
     { href: 'work-requests.html', icon: 'comms', label: 'Requests', perm: 'requests' },
     { href: 'quotes.html', icon: 'quotes', label: 'Quotes', perm: 'quotes' },
     { href: 'invoices.html', icon: 'invoices', label: 'Invoices', perm: 'invoices' },

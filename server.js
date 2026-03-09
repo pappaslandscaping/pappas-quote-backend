@@ -101,7 +101,19 @@ const upload = multer({
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
+  credentials: true
+}));
+
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
 
 // Square webhook — needs raw body for signature verification, must be before express.json()
 app.post('/api/webhooks/square', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -194,7 +206,8 @@ const TWILIO_NUMBERS = {
   '2169413737': '+12169413737'   // Secondary (216) 941-3737
 };
 const TWILIO_PHONE_NUMBER = '+14408867318'; // Default for backward compatibility
-const JWT_SECRET = process.env.JWT_SECRET || 'pappas-twilioconnect-secret-2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) { console.error('❌ FATAL: JWT_SECRET environment variable is required'); process.exit(1); }
 let twilioClient = null;
 try {
   if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
@@ -314,9 +327,20 @@ const ADMIN_USERS_TABLE = `CREATE TABLE IF NOT EXISTS admin_users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
-function hashPassword(password) {
-  const salt = 'pappas-admin-salt-2026';
-  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+function hashPassword(password, existingSalt) {
+  const salt = existingSalt || crypto.randomBytes(32).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return salt + ':' + hash;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, hash] = stored.split(':');
+  if (!salt || !hash) {
+    // Legacy format (old hardcoded salt) — rehash on next login
+    const legacySalt = 'pappas-admin-salt-2026';
+    return crypto.pbkdf2Sync(password, legacySalt, 100000, 64, 'sha512').toString('hex') === stored;
+  }
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex') === hash;
 }
 
 // Admin + Employee login
@@ -326,16 +350,20 @@ app.post('/api/auth/login', async (req, res) => {
     console.log(`🔐 Login attempt for: ${email || '(no email)'}`);
     if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
     const emailLower = email.toLowerCase().trim();
-    const inputHash = hashPassword(password);
 
     // Try admin_users first
     await pool.query(ADMIN_USERS_TABLE);
     const adminResult = await pool.query('SELECT * FROM admin_users WHERE email = $1', [emailLower]);
     if (adminResult.rows.length > 0) {
       const user = adminResult.rows[0];
-      if (inputHash !== user.password_hash) {
+      if (!verifyPassword(password, user.password_hash)) {
         console.log(`🔐 Login failed: password mismatch for ${email}`);
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+      // Rehash with random salt if still using legacy format
+      if (!user.password_hash.includes(':')) {
+        const newHash = hashPassword(password);
+        await pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
       }
       await pool.query('UPDATE admin_users SET last_login = NOW() WHERE id = $1', [user.id]);
       const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
@@ -347,9 +375,14 @@ app.post('/api/auth/login', async (req, res) => {
     const empResult = await pool.query('SELECT * FROM employees WHERE login_email = $1 AND is_active = true', [emailLower]);
     if (empResult.rows.length > 0) {
       const emp = empResult.rows[0];
-      if (!emp.password_hash || inputHash !== emp.password_hash) {
+      if (!emp.password_hash || !verifyPassword(password, emp.password_hash)) {
         console.log(`🔐 Login failed: password mismatch for employee ${email}`);
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+      // Rehash with random salt if still using legacy format
+      if (!emp.password_hash.includes(':')) {
+        const newHash = hashPassword(password);
+        await pool.query('UPDATE employees SET password_hash = $1 WHERE id = $2', [newHash, emp.id]);
       }
       await pool.query('UPDATE employees SET updated_at = NOW() WHERE id = $1', [emp.id]);
       const empName = emp.first_name + ' ' + emp.last_name;
@@ -394,7 +427,7 @@ app.post('/api/auth/change-password', (req, res) => {
 
     pool.query('SELECT password_hash FROM admin_users WHERE id = $1', [decoded.id]).then(result => {
       if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
-      if (hashPassword(current_password) !== result.rows[0].password_hash) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+      if (!verifyPassword(current_password, result.rows[0].password_hash)) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
       const newHash = hashPassword(new_password);
       pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, decoded.id]);
       res.json({ success: true, message: 'Password changed' });
@@ -5638,12 +5671,16 @@ app.get('/api/sent-quotes/:id/download-contract', async (req, res) => {
 // Login for TwilioConnect app
 app.post('/api/app/login', async (req, res) => {
   const { email, password } = req.body;
+  const APP_PASSWORD = process.env.APP_PASSWORD;
+  if (!APP_PASSWORD) return res.status(503).json({ message: 'App login not configured' });
   const authorizedUsers = [
-    { email: 'hello@pappaslandscaping.com', password: 'PappasPhone2026!', name: 'Theresa Pappas', phone: '+12163150451' },
-    { email: 'montague.theresa@gmail.com', password: 'PappasPhone2026!', name: 'Theresa Pappas', phone: '+12163150451' },
-    { email: 'tim@pappaslandscaping.com', password: 'PappasPhone2026!', name: 'Tim Pappas', phone: '+12169057395' },
+    { email: 'hello@pappaslandscaping.com', name: 'Theresa Pappas', phone: '+12163150451' },
+    { email: 'montague.theresa@gmail.com', name: 'Theresa Pappas', phone: '+12163150451' },
+    { email: 'tim@pappaslandscaping.com', name: 'Tim Pappas', phone: '+12169057395' },
   ];
-  const user = authorizedUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+  const user = authorizedUsers.find(u => u.email.toLowerCase() === email.toLowerCase()) && password === APP_PASSWORD
+    ? authorizedUsers.find(u => u.email.toLowerCase() === email.toLowerCase())
+    : null;
   if (!user) return res.status(401).json({ message: 'Invalid email or password' });
   const token = jwt.sign({ email: user.email, name: user.name, phone: user.phone }, JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, name: user.name, email: user.email });
@@ -5761,11 +5798,7 @@ app.post('/api/app/voice/setup', authenticateToken, async (req, res) => {
     // Create API Key
     const apiKey = await twilioClient.newKeys.create({ friendlyName: 'TwilioConnect Voice' });
 
-    console.log('=== VOICE SDK SETUP — SAVE THESE AS ENV VARS ===');
-    console.log(`TWILIO_TWIML_APP_SID=${twimlApp.sid}`);
-    console.log(`TWILIO_API_KEY_SID=${apiKey.sid}`);
-    console.log(`TWILIO_API_KEY_SECRET=${apiKey.secret}`);
-    console.log('================================================');
+    console.log('=== VOICE SDK SETUP COMPLETE — check response for env vars ===');
 
     res.json({
       success: true,
@@ -12879,8 +12912,8 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   try {
     await pool.query(ADMIN_USERS_TABLE);
     const adminUsers = [
-      { email: 'hello@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'PappasAdmin2026!', name: 'Theresa Pappas', role: 'owner' },
-      { email: 'tim@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'PappasAdmin2026!', name: 'Tim Pappas', role: 'owner' },
+      { email: 'hello@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'changeme', name: 'Theresa Pappas', role: 'owner' },
+      { email: 'tim@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'changeme', name: 'Tim Pappas', role: 'owner' },
     ];
     for (const u of adminUsers) {
       const hash = hashPassword(u.password);

@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Details — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .detail-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            padding: 24px 32px;
+        }
+
+        @media (max-width: 1024px) {
+            .detail-layout { grid-template-columns: 1fr; }
+        }
+
+        .section-card {
+            background: var(--white);
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--gray-100);
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--gray-700);
+        }
+
+        .section-header svg {
+            width: 18px;
+            height: 18px;
+            color: var(--gray-400);
+        }
+
+        .section-body {
+            padding: 20px 24px;
+        }
+
+        /* Field rows */
+        .field-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px dashed var(--gray-200);
+            min-height: 44px;
+        }
+
+        .field-row:last-child { border-bottom: none; }
+
+        .field-label {
+            font-size: 13px;
+            color: var(--gray-500);
+            font-weight: 500;
+            min-width: 120px;
+            flex-shrink: 0;
+        }
+
+        .field-value {
+            font-size: 14px;
+            color: var(--gray-700);
+            text-align: right;
+            flex: 1;
+        }
+
+        .field-value a {
+            color: var(--blue, #3b82f6);
+            text-decoration: none;
+        }
+        .field-value a:hover { text-decoration: underline; }
+
+        .field-value.empty {
+            color: var(--gray-400);
+            font-style: italic;
+        }
+
+        /* Editable fields */
+        .editable {
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .editable:hover {
+            border-color: var(--gray-200);
+            background: var(--gray-50);
+        }
+
+        .field-input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid var(--primary, #2e403d);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            text-align: right;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        .field-input.left { text-align: left; }
+
+        .field-select {
+            padding: 6px 10px;
+            border: 1px solid var(--primary, #2e403d);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+            background: var(--white);
+        }
+
+        /* Tags */
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--primary, #2e403d);
+            color: var(--lime, #c9dd80);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .tag .tag-remove {
+            cursor: pointer;
+            opacity: 0.7;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .tag .tag-remove:hover { opacity: 1; }
+
+        .tag-input {
+            border: 1px dashed var(--gray-300);
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            outline: none;
+            min-width: 100px;
+        }
+
+        /* Taxes section */
+        .tax-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px dashed var(--gray-200);
+        }
+        .tax-row:last-child { border-bottom: none; }
+
+        .tax-value {
+            color: var(--blue, #3b82f6);
+            font-weight: 500;
+        }
+
+        /* Map section */
+        .map-container {
+            width: 100%;
+            height: 250px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--gray-200);
+            margin-top: 12px;
+            background: var(--gray-100);
+        }
+
+        .map-container iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        /* Service history sidebar */
+        .service-history {
+            position: sticky;
+            top: 24px;
+        }
+
+        .event-item {
+            padding: 16px 0;
+            border-bottom: 1px solid var(--gray-100);
+            position: relative;
+            padding-left: 24px;
+        }
+
+        .event-item:last-child { border-bottom: none; }
+
+        .event-dot {
+            position: absolute;
+            left: 0;
+            top: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid;
+        }
+
+        .event-dot.completed { border-color: var(--green, #059669); background: var(--green, #059669); }
+        .event-dot.pending { border-color: var(--amber, #d97706); background: transparent; }
+        .event-dot.scheduled { border-color: var(--blue, #3b82f6); background: transparent; }
+
+        .event-date {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-bottom: 4px;
+        }
+
+        .event-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary, #2e403d);
+            margin-bottom: 6px;
+        }
+
+        .event-title a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .event-title a:hover { text-decoration: underline; }
+
+        .event-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        .event-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .badge-completed { background: var(--green-bg, #ecfdf5); color: var(--green, #059669); }
+        .badge-pending { background: var(--amber-bg, #fffbeb); color: var(--amber, #d97706); }
+        .badge-scheduled { background: var(--blue-bg, #eff6ff); color: var(--blue, #3b82f6); }
+        .badge-invoiced { background: var(--purple-bg, #f5f3ff); color: var(--purple, #7c3aed); }
+        .badge-not-invoiced { background: var(--red-bg, #fef0f0); color: var(--red, #dc4a4a); }
+
+        .event-meta {
+            font-size: 12px;
+            color: var(--gray-400);
+        }
+
+        /* Notes textarea */
+        .notes-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.15s;
+        }
+
+        .notes-textarea:focus {
+            outline: none;
+            border-color: var(--primary, #2e403d);
+            box-shadow: 0 0 0 3px rgba(46,64,61,0.1);
+        }
+
+        .save-note-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--primary, #2e403d);
+            color: var(--lime, #c9dd80);
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            font-family: inherit;
+        }
+        .save-note-btn:hover { opacity: 0.9; }
+
+        /* Photos */
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .photo-thumb {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid var(--gray-200);
+            width: 100%;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--gray-300);
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--gray-400);
+            font-size: 13px;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary, #2e403d);
+            background: var(--gray-50);
+        }
+
+        /* Status badge */
+        .status-active { background: var(--green-bg, #ecfdf5); color: var(--green, #059669); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-inactive { background: var(--gray-100); color: var(--gray-500); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            padding: 12px 32px;
+            font-size: 13px;
+            color: var(--gray-400);
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .breadcrumb a {
+            color: var(--gray-500);
+            text-decoration: none;
+        }
+        .breadcrumb a:hover { color: var(--primary, #2e403d); }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 24px;
+            background: var(--primary, #2e403d); color: var(--lime, #c9dd80);
+            border-radius: 8px; font-size: 14px; font-weight: 500;
+            transform: translateY(100px); opacity: 0; transition: all 0.3s; z-index: 9999;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.error { background: var(--red, #dc4a4a); color: white; }
+
+        /* Empty state timeline */
+        .timeline-line {
+            position: absolute;
+            left: 5px;
+            top: 32px;
+            bottom: 0;
+            width: 2px;
+            background: var(--gray-200);
+        }
+
+        .event-item { position: relative; }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main">
+    <div class="breadcrumb">
+        <a href="customers.html">Clients</a> / <a href="properties.html">Properties</a> / <span id="breadcrumbName">Loading...</span>
+    </div>
+
+    <div class="detail-layout" id="mainContent" style="display:none;">
+        <!-- Left Column -->
+        <div class="left-col">
+            <!-- Main Info -->
+            <div class="section-card">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                    Main Info
+                    <span id="statusBadge" style="margin-left:auto"></span>
+                </div>
+                <div class="section-body">
+                    <div class="field-grid">
+                        <div style="padding-right:24px;">
+                            <div class="field-row">
+                                <span class="field-label">Customer</span>
+                                <span class="field-value" id="fieldCustomer"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Property Name</span>
+                                <span class="field-value editable" id="fieldPropertyName" onclick="editField('property_name')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Lot Size</span>
+                                <span class="field-value editable" id="fieldLotSize" onclick="editField('lot_size')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Stories</span>
+                                <span class="field-value editable" id="fieldStories" onclick="editField('stories')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Fence</span>
+                                <span class="field-value editable" id="fieldFence" onclick="editField('fence_type')"></span>
+                            </div>
+                        </div>
+                        <div style="padding-left:24px;border-left:1px solid var(--gray-100);">
+                            <div class="field-row">
+                                <span class="field-label">Status</span>
+                                <span class="field-value editable" id="fieldStatus" onclick="editField('status')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Default Crew</span>
+                                <span class="field-value editable" id="fieldCrew" onclick="editField('assigned_crew')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Default Services</span>
+                                <span class="field-value editable" id="fieldServices" onclick="editField('default_services')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Access</span>
+                                <span class="field-value editable" id="fieldAccess" onclick="editField('access_instructions')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Equipment</span>
+                                <span class="field-value editable" id="fieldEquipment" onclick="editField('equipment_notes')"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding-top:12px;">
+                        <div class="tags-container" id="tagsContainer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Taxes -->
+            <div class="section-card">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Taxes
+                </div>
+                <div class="section-body">
+                    <div class="tax-row">
+                        <span class="field-label">County Tax (%)</span>
+                        <span class="tax-value editable" id="fieldCountyTax" onclick="editField('county_tax')">0.000</span>
+                        <span style="color:var(--gray-400);font-size:12px;margin-left:4px">%</span>
+                    </div>
+                    <div class="tax-row">
+                        <span class="field-label">City Tax (%)</span>
+                        <span class="tax-value editable" id="fieldCityTax" onclick="editField('city_tax')">0.000</span>
+                        <span style="color:var(--gray-400);font-size:12px;margin-left:4px">%</span>
+                    </div>
+                    <div class="tax-row">
+                        <span class="field-label">State Tax (%)</span>
+                        <span class="tax-value editable" id="fieldStateTax" onclick="editField('state_tax')">0.000</span>
+                        <span style="color:var(--gray-400);font-size:12px;margin-left:4px">%</span>
+                    </div>
+                    <div class="tax-row" style="background:var(--gray-50);margin:0 -24px;padding:14px 24px;border-bottom:none;">
+                        <span class="field-label" style="font-weight:600;color:var(--gray-700)">Total Tax</span>
+                        <span class="tax-value" id="fieldTotalTax" style="font-weight:600">0.000</span>
+                        <span style="color:var(--gray-400);font-size:12px;margin-left:4px">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Address -->
+            <div class="section-card">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Property Address
+                </div>
+                <div class="section-body">
+                    <div class="field-grid">
+                        <div style="padding-right:24px;">
+                            <div class="field-row">
+                                <span class="field-label">Street</span>
+                                <span class="field-value editable" id="fieldStreet" onclick="editField('street')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Street 2</span>
+                                <span class="field-value editable" id="fieldStreet2" onclick="editField('street2')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">City</span>
+                                <span class="field-value editable" id="fieldCity" onclick="editField('city')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">State</span>
+                                <span class="field-value editable" id="fieldState" onclick="editField('state')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Postal Code / ZIP</span>
+                                <span class="field-value editable" id="fieldZip" onclick="editField('zip')"></span>
+                            </div>
+                            <div class="field-row">
+                                <span class="field-label">Country</span>
+                                <span class="field-value" id="fieldCountry"></span>
+                            </div>
+                        </div>
+                        <div style="padding-left:24px;border-left:1px solid var(--gray-100);">
+                            <div class="map-container" id="mapContainer">
+                                <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--gray-400);font-size:13px;">Loading map...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Notes -->
+            <div class="section-card">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Property Notes
+                    <span style="font-weight:400;font-size:12px;color:var(--gray-400);margin-left:4px">(For internal use. Not visible to customer.)</span>
+                </div>
+                <div class="section-body">
+                    <textarea class="notes-textarea" id="notesField" placeholder="Add notes about this property..."></textarea>
+                    <button class="save-note-btn" onclick="saveNotes()">Update</button>
+                </div>
+            </div>
+
+            <!-- Photos / Documents -->
+            <div class="section-card">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Photos / Documents
+                </div>
+                <div class="section-body">
+                    <div class="photo-grid" id="photoGrid"></div>
+                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('photoInput').click()">
+                        Drag your files here or <strong>Select a File</strong><br>
+                        <span style="font-size:11px;color:var(--gray-400)">JPEG, PNG, GIF, PDF formats. Max 50MB.</span>
+                    </div>
+                    <input type="file" id="photoInput" multiple accept="image/*,.pdf" style="display:none" onchange="handlePhotoUpload(this.files)">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Service History -->
+        <div class="right-col">
+            <div class="section-card service-history">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Events Assigned to This Property
+                </div>
+                <div class="section-body" id="serviceHistory" style="max-height:calc(100vh - 200px);overflow-y:auto;position:relative;">
+                    <div style="text-align:center;color:var(--gray-400);padding:24px;font-size:13px;">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loadingState" style="padding:48px;text-align:center;color:var(--gray-400);">Loading property...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const propertyId = params.get('id');
+    let property = null;
+    let crews = [];
+
+    if (!propertyId) {
+        window.location.href = 'properties.html';
+    }
+
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    function showToast(msg, isError) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast' + (isError ? ' error' : '');
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function formatDate(d) {
+        if (!d) return '';
+        const date = new Date(d);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // ── Load Property ──────────────────────────────────────
+    async function loadProperty() {
+        try {
+            const res = await fetch(`/api/properties/${propertyId}`);
+            const data = await res.json();
+            if (!data.success || !data.property) {
+                document.getElementById('loadingState').innerHTML = '<div style="color:var(--red)">Property not found.</div>';
+                return;
+            }
+            property = data.property;
+            renderProperty();
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'grid';
+        } catch (e) {
+            document.getElementById('loadingState').innerHTML = '<div style="color:var(--red)">Error loading property.</div>';
+        }
+    }
+
+    async function loadCrews() {
+        try {
+            const res = await fetch('/api/crews?active_only=true');
+            const data = await res.json();
+            crews = data.crews || [];
+        } catch (e) { /* ignore */ }
+    }
+
+    // ── Render Property ────────────────────────────────────
+    function renderProperty() {
+        const p = property;
+        const name = p.property_name || p.street || 'Unnamed Property';
+        document.getElementById('breadcrumbName').textContent = name;
+        document.title = `${name} — YardDesk`;
+
+        // Customer
+        if (p.customer_id && p.customer_display_name) {
+            document.getElementById('fieldCustomer').innerHTML = `<a href="customer-detail.html?id=${p.customer_id}">${esc(p.customer_display_name)}</a>`;
+        } else if (p.customer_id) {
+            document.getElementById('fieldCustomer').innerHTML = `<a href="customer-detail.html?id=${p.customer_id}">Customer #${p.customer_id}</a>`;
+        } else {
+            document.getElementById('fieldCustomer').innerHTML = '<span class="empty">Not linked</span>';
+        }
+
+        // Status
+        const statusClass = (p.status || 'Active').toLowerCase() === 'active' ? 'status-active' : 'status-inactive';
+        document.getElementById('statusBadge').innerHTML = `<span class="${statusClass}">${esc(p.status || 'Active')}</span>`;
+
+        // Main info fields
+        setFieldDisplay('fieldPropertyName', p.property_name, 'Empty');
+        setFieldDisplay('fieldLotSize', p.lot_size ? `${Number(p.lot_size).toLocaleString()} Sq. Feet` : null, 'Empty');
+        setFieldDisplay('fieldStories', p.stories, 'Empty');
+        setFieldDisplay('fieldFence', p.fence_type, 'Empty');
+        setFieldDisplay('fieldStatus', p.status || 'Active');
+        setFieldDisplay('fieldCrew', p.assigned_crew, 'No crew assigned');
+        setFieldDisplay('fieldServices', p.default_services, 'Empty');
+        setFieldDisplay('fieldAccess', p.access_instructions, 'Empty');
+        setFieldDisplay('fieldEquipment', p.equipment_notes, 'Empty');
+
+        // Tags
+        renderTags();
+
+        // Taxes
+        const ct = Number(p.county_tax || 0);
+        const cit = Number(p.city_tax || 0);
+        const st = Number(p.state_tax || 0);
+        document.getElementById('fieldCountyTax').textContent = ct.toFixed(3);
+        document.getElementById('fieldCityTax').textContent = cit.toFixed(3);
+        document.getElementById('fieldStateTax').textContent = st.toFixed(3);
+        document.getElementById('fieldTotalTax').textContent = (ct + cit + st).toFixed(3);
+
+        // Address
+        setFieldDisplay('fieldStreet', p.street, 'Empty');
+        setFieldDisplay('fieldStreet2', p.street2, 'Empty');
+        setFieldDisplay('fieldCity', p.city, 'Empty');
+        setFieldDisplay('fieldState', p.state, 'Empty');
+        setFieldDisplay('fieldZip', p.zip, 'Empty');
+        document.getElementById('fieldCountry').textContent = p.country === 'US' ? 'United States' : (p.country || 'United States');
+
+        // Map
+        renderMap();
+
+        // Notes
+        document.getElementById('notesField').value = p.notes || '';
+
+        // Photos
+        renderPhotos();
+    }
+
+    function setFieldDisplay(id, value, emptyText) {
+        const el = document.getElementById(id);
+        if (value && value !== '-' && value !== '0' && value !== '0.000') {
+            el.textContent = value;
+            el.classList.remove('empty');
+        } else {
+            el.textContent = emptyText || 'Empty';
+            el.classList.add('empty');
+        }
+    }
+
+    function renderTags() {
+        const container = document.getElementById('tagsContainer');
+        const tags = (property.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        let html = tags.map(t => `<span class="tag">${esc(t)} <span class="tag-remove" onclick="removeTag('${esc(t)}')">&times;</span></span>`).join('');
+        html += `<input type="text" class="tag-input" placeholder="Add a tag" onkeydown="if(event.key==='Enter'){addTag(this.value);this.value='';event.preventDefault()}">`;
+        container.innerHTML = html;
+    }
+
+    async function addTag(tag) {
+        if (!tag.trim()) return;
+        const tags = (property.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        if (tags.includes(tag.trim())) return;
+        tags.push(tag.trim());
+        await saveField('tags', tags.join(', '));
+    }
+
+    async function removeTag(tag) {
+        const tags = (property.tags || '').split(',').map(t => t.trim()).filter(t => t && t !== tag);
+        await saveField('tags', tags.join(', '));
+    }
+
+    function renderMap() {
+        const p = property;
+        const addr = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
+        if (addr && addr !== '-, -, -, -') {
+            const encoded = encodeURIComponent(addr);
+            document.getElementById('mapContainer').innerHTML = `<iframe src="https://www.google.com/maps/embed/v1/place?key=AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4&q=${encoded}" allowfullscreen></iframe>`;
+        } else {
+            document.getElementById('mapContainer').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--gray-400);font-size:13px;">No address to map</div>';
+        }
+    }
+
+    function renderPhotos() {
+        const photos = property.photos || [];
+        const grid = document.getElementById('photoGrid');
+        if (photos.length) {
+            grid.innerHTML = photos.map((ph, i) => `<img src="${esc(ph.url || ph)}" class="photo-thumb" alt="Property photo">`).join('');
+        } else {
+            grid.innerHTML = '';
+        }
+    }
+
+    // ── Inline Editing ─────────────────────────────────────
+    let activeEdit = null;
+
+    async function editField(field) {
+        if (activeEdit) return;
+        activeEdit = field;
+
+        const fieldMap = {
+            property_name: 'fieldPropertyName',
+            lot_size: 'fieldLotSize',
+            stories: 'fieldStories',
+            fence_type: 'fieldFence',
+            status: 'fieldStatus',
+            assigned_crew: 'fieldCrew',
+            default_services: 'fieldServices',
+            access_instructions: 'fieldAccess',
+            equipment_notes: 'fieldEquipment',
+            county_tax: 'fieldCountyTax',
+            city_tax: 'fieldCityTax',
+            state_tax: 'fieldStateTax',
+            street: 'fieldStreet',
+            street2: 'fieldStreet2',
+            city: 'fieldCity',
+            state: 'fieldState',
+            zip: 'fieldZip'
+        };
+
+        const elId = fieldMap[field];
+        if (!elId) return;
+        const el = document.getElementById(elId);
+        const currentValue = property[field] || '';
+
+        // Special cases: dropdowns
+        if (field === 'status') {
+            el.innerHTML = `<select class="field-select" id="editInput">
+                <option value="Active" ${currentValue === 'Active' ? 'selected' : ''}>Active</option>
+                <option value="Inactive" ${currentValue === 'Inactive' ? 'selected' : ''}>Inactive</option>
+            </select>`;
+            const input = document.getElementById('editInput');
+            input.focus();
+            input.onchange = () => commitEdit(field, input.value);
+            input.onblur = () => cancelEdit(field);
+            return;
+        }
+
+        if (field === 'assigned_crew') {
+            let opts = '<option value="">No crew assigned</option>';
+            crews.forEach(c => {
+                opts += `<option value="${esc(c.name)}" ${c.name === currentValue ? 'selected' : ''}>${esc(c.name)}</option>`;
+            });
+            el.innerHTML = `<select class="field-select" id="editInput">${opts}</select>`;
+            const input = document.getElementById('editInput');
+            input.focus();
+            input.onchange = () => commitEdit(field, input.value);
+            input.onblur = () => cancelEdit(field);
+            return;
+        }
+
+        if (field === 'fence_type') {
+            const fences = ['', 'None', 'Chain Link', 'Wood', 'Vinyl', 'Aluminum', 'Wrought Iron', 'Split Rail', 'Other'];
+            let opts = fences.map(f => `<option value="${f}" ${f === currentValue ? 'selected' : ''}>${f || 'Empty'}</option>`).join('');
+            el.innerHTML = `<select class="field-select" id="editInput">${opts}</select>`;
+            const input = document.getElementById('editInput');
+            input.focus();
+            input.onchange = () => commitEdit(field, input.value);
+            input.onblur = () => cancelEdit(field);
+            return;
+        }
+
+        // Numeric fields
+        const isNumeric = ['lot_size', 'county_tax', 'city_tax', 'state_tax'].includes(field);
+        const rawValue = isNumeric ? (Number(currentValue) || '') : currentValue;
+
+        el.innerHTML = `<input type="${isNumeric ? 'number' : 'text'}" class="field-input" id="editInput" value="${esc(String(rawValue))}" step="${isNumeric ? '0.001' : ''}">`;
+        const input = document.getElementById('editInput');
+        input.focus();
+        input.select();
+
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitEdit(field, input.value); }
+            if (e.key === 'Escape') { cancelEdit(field); }
+        };
+        input.onblur = () => setTimeout(() => { if (activeEdit === field) commitEdit(field, input.value); }, 150);
+    }
+
+    async function commitEdit(field, value) {
+        activeEdit = null;
+        const isNumeric = ['lot_size', 'county_tax', 'city_tax', 'state_tax'].includes(field);
+        const finalValue = isNumeric ? (parseFloat(value) || null) : (value || null);
+        await saveField(field, finalValue);
+    }
+
+    function cancelEdit(field) {
+        activeEdit = null;
+        renderProperty();
+    }
+
+    async function saveField(field, value) {
+        try {
+            const body = {};
+            body[field] = value;
+            const res = await fetch(`/api/properties/${propertyId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.success) {
+                property = { ...property, ...data.property };
+                renderProperty();
+                showToast('Saved');
+            } else {
+                showToast('Error saving', true);
+                renderProperty();
+            }
+        } catch (e) {
+            showToast('Error saving', true);
+            renderProperty();
+        }
+    }
+
+    async function saveNotes() {
+        const notes = document.getElementById('notesField').value;
+        await saveField('notes', notes);
+    }
+
+    // ── Photo Upload ───────────────────────────────────────
+    async function handlePhotoUpload(files) {
+        if (!files.length) return;
+        const formData = new FormData();
+        for (const f of files) {
+            formData.append('photos', f);
+        }
+        try {
+            const res = await fetch(`/api/properties/${propertyId}/photos`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                property.photos = data.property?.photos || property.photos;
+                renderPhotos();
+                showToast('Photos uploaded');
+            } else {
+                showToast(data.error || 'Upload failed', true);
+            }
+        } catch (e) {
+            showToast('Upload failed', true);
+        }
+    }
+
+    // ── Service History ────────────────────────────────────
+    async function loadServiceHistory() {
+        try {
+            const res = await fetch(`/api/properties/${propertyId}/service-history`);
+            const data = await res.json();
+            const jobs = data.jobs || [];
+            const container = document.getElementById('serviceHistory');
+
+            if (!jobs.length) {
+                container.innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:24px;font-size:13px;">No service history yet.</div>';
+                return;
+            }
+
+            container.innerHTML = jobs.map(j => {
+                const status = (j.status || 'pending').toLowerCase();
+                const dotClass = status === 'completed' || status === 'done' ? 'completed' : (status === 'scheduled' ? 'scheduled' : 'pending');
+                const isComplete = status === 'completed' || status === 'done';
+
+                let badges = '';
+                if (isComplete) {
+                    badges += '<span class="event-badge badge-completed">Completed</span>';
+                } else {
+                    badges += `<span class="event-badge badge-${dotClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+                }
+                if (j.invoice_id) {
+                    badges += '<span class="event-badge badge-invoiced">Invoiced</span>';
+                } else if (isComplete) {
+                    badges += '<span class="event-badge badge-not-invoiced">Not Invoiced</span>';
+                }
+
+                const customerName = j.customer_name || property.customer_display_name || '';
+
+                return `
+                    <div class="event-item">
+                        <div class="event-dot ${dotClass}"></div>
+                        <div class="event-date">${formatDate(j.job_date)}</div>
+                        <div class="event-title"><a href="job-detail.html?id=${j.id}">${esc(j.service_type || j.title || 'Service')}</a></div>
+                        <div class="event-badges">${badges}</div>
+                        <div class="event-meta">${esc(customerName)}${j.address ? ', ' + esc(j.address) : ''}</div>
+                    </div>`;
+            }).join('');
+        } catch (e) {
+            document.getElementById('serviceHistory').innerHTML = '<div style="text-align:center;color:var(--gray-400);padding:24px;font-size:13px;">Error loading history.</div>';
+        }
+    }
+
+    // ── Drag & Drop for Photos ─────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        const zone = document.getElementById('uploadZone');
+        if (zone) {
+            zone.ondragover = (e) => { e.preventDefault(); zone.style.borderColor = 'var(--primary)'; zone.style.background = 'var(--gray-50)'; };
+            zone.ondragleave = () => { zone.style.borderColor = ''; zone.style.background = ''; };
+            zone.ondrop = (e) => { e.preventDefault(); zone.style.borderColor = ''; zone.style.background = ''; handlePhotoUpload(e.dataTransfer.files); };
+        }
+    });
+
+    // ── Init ───────────────────────────────────────────────
+    Promise.all([loadProperty(), loadCrews(), loadServiceHistory()]);
+</script>
+</body>
+</html>

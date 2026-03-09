@@ -8509,54 +8509,30 @@ app.post('/api/invoices/:id/send', async (req, res) => {
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
 
-    const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
-    const itemsHtml = items.map(i => {
-      const name = i.name || i.description || 'Service';
-      const qty = i.quantity || i.qty || 1;
-      const rate = parseFloat(i.rate || i.unit_price || i.amount || 0);
-      const amount = parseFloat(i.amount || (qty * rate) || 0);
-      const dateStr = i.service_date ? new Date(i.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
-      return `<tr>
-        <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;">
-          <div style="font-weight:600;color:#1e293b;">${name}</div>
-          ${i.property_name ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">&#8627; ${i.property_name}</div>` : ''}
-          ${qty > 1 ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px;">${qty} x $${rate.toFixed(2)}</div>` : ''}
-        </td>
-        <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#64748b;font-size:13px;white-space:nowrap;vertical-align:top;">${dateStr}</td>
-        <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:600;color:#1e293b;white-space:nowrap;vertical-align:top;">$${amount.toFixed(2)}</td>
-      </tr>`;
-    }).join('');
-    const taxLabel = inv.tax_rate ? `Tax (${parseFloat(inv.tax_rate).toFixed(3)}%)` : 'Tax';
+    const firstName = (inv.customer_name || '').split(' ')[0] || 'there';
+    const totalFormatted = '$' + parseFloat(inv.total).toFixed(2);
     const content = `
-      <h2 style="font-family:'DM Sans',Georgia,serif;color:#2e403d;margin:0 0 8px;font-size:24px;">Invoice ${inv.invoice_number}</h2>
-      <p style="color:#64748b;margin:0 0 24px;font-size:14px;">Hi ${(inv.customer_name || '').split(' ')[0]}, here's your invoice from <strong style="color:#1e293b;">Pappas & Co. Landscaping</strong>.</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Hi ${firstName},</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Thank you for allowing <strong>Pappas & Co. Landscaping</strong> to care for your property!</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 24px;"><strong>Your latest invoice is ready for review and payment.</strong> You can access your invoice and make an online payment by clicking the secure button below:</p>
 
-      <table style="width:100%;border-collapse:collapse;margin:0 0 4px;">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Service</th>
-            <th style="text-align:left;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Date</th>
-            <th style="text-align:right;padding:10px 0;border-bottom:2px solid #2e403d;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>${itemsHtml}</tbody>
-      </table>
-
-      <table style="width:100%;border-collapse:collapse;margin:0 0 24px;">
-        ${inv.tax_amount > 0 ? `
-          <tr><td style="padding:6px 0;text-align:right;color:#64748b;font-size:14px;">Subtotal:</td><td style="padding:6px 0 6px 16px;text-align:right;width:100px;font-size:14px;color:#1e293b;">$${parseFloat(inv.subtotal).toFixed(2)}</td></tr>
-          <tr><td style="padding:6px 0;text-align:right;color:#64748b;font-size:14px;">${taxLabel}:</td><td style="padding:6px 0 6px 16px;text-align:right;width:100px;font-size:14px;color:#1e293b;">$${parseFloat(inv.tax_amount).toFixed(2)}</td></tr>
-        ` : ''}
-        <tr><td style="padding:12px 0 4px;text-align:right;font-size:18px;font-weight:700;color:#2e403d;">Total:</td><td style="padding:12px 0 4px 16px;text-align:right;width:100px;font-size:18px;font-weight:700;color:#2e403d;">$${parseFloat(inv.total).toFixed(2)}</td></tr>
-        ${inv.due_date ? `<tr><td colspan="2" style="text-align:right;font-size:12px;color:#94a3b8;padding-top:2px;">Due by ${new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}</td></tr>` : ''}
-      </table>
-
-      <div style="text-align:center;margin:28px 0 16px;">
+      <div style="text-align:center;margin:28px 0 32px;">
         <a href="${payUrl}" style="display:inline-block;padding:16px 48px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
-          Pay Now &mdash; $${parseFloat(inv.total).toFixed(2)}
+          View &amp; Pay Invoice &mdash; ${totalFormatted}
         </a>
       </div>
-      <p style="text-align:center;font-size:12px;color:#94a3b8;margin:0 0 20px;">Secure payment powered by Square</p>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 24px;">
+        <p style="font-weight:700;color:#1e293b;font-size:14px;margin:0 0 12px;">Payment Reminders:</p>
+        <ul style="margin:0;padding:0 0 0 20px;color:#475569;font-size:14px;line-height:1.8;">
+          <li><strong>Online Payment:</strong> The fastest and easiest way to pay is directly through the secure invoice link above. We accept <strong>credit/debit cards</strong>, <strong>Apple Pay</strong>, and <strong>bank transfers (ACH)</strong>.</li>
+          <li><strong>Mail a Check:</strong> Checks can be made payable to <strong>Pappas & Co. Landscaping</strong> and mailed to our secure payment box: <strong>PO Box 770057, Lakewood, OH 44107</strong>.</li>
+          <li><strong>Zelle Payments:</strong> If you prefer to pay via Zelle, please ensure you are sending funds to: <strong>hello@pappaslandscaping.com</strong>.</li>
+        </ul>
+      </div>
+
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">We truly appreciate your business and look forward to continuing to provide top-quality service.</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 4px;">If you have any questions or concerns about your service or the invoice, please don't hesitate to reach out.</p>
     `;
 
     let attachments = null;

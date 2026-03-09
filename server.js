@@ -2432,6 +2432,29 @@ app.post('/api/quotes', async (req, res) => {
   }
 });
 
+// Admin-created quote request (authenticated, no reCAPTCHA)
+app.post('/api/quotes/admin', authenticateToken, async (req, res) => {
+  try {
+    const { name, firstName, lastName, email, phone, address, package: pkg, services, questions, notes, source } = req.body;
+    const fullName = name || ((firstName || '') + ' ' + (lastName || '')).trim();
+    if (!fullName || !phone) {
+      return res.status(400).json({ success: false, error: 'Name and phone are required' });
+    }
+    let servicesArray = null;
+    if (services) {
+      if (Array.isArray(services)) servicesArray = services;
+      else if (typeof services === 'string' && services.length > 0) servicesArray = services.split(',').map(s => s.trim());
+    }
+    const result = await pool.query(
+      `INSERT INTO quotes (name, email, phone, address, package, services, questions, notes, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [fullName, email || null, phone, address || null, pkg || null, servicesArray, JSON.stringify(questions || {}), notes || null, source || 'phone_call']
+    );
+    res.json({ success: true, quote: result.rows[0] });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 app.get('/api/quotes', async (req, res) => {
   try {
     const { status } = req.query;
@@ -3001,10 +3024,12 @@ app.get('/api/customers/:id/invoices', async (req, res) => {
 
 app.post('/api/calls', async (req, res) => {
   try {
-    const { call_sid, from_number, to_number, call_type, status, duration, recording_url, transcription } = req.body;
+    const { call_sid, twilio_sid, from_number, to_number, call_type, option_selected, status, duration, recording_url, transcription } = req.body;
+    const sid = twilio_sid || call_sid;
+    const option = option_selected || call_type;
     const result = await pool.query(
-      `INSERT INTO calls (call_sid, from_number, to_number, call_type, status, duration, recording_url, transcription) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [call_sid, from_number, to_number, call_type || 'Unknown', status || 'new', duration, recording_url, transcription]
+      `INSERT INTO calls (twilio_sid, from_number, to_number, option_selected, status, duration, recording_url, transcription) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [sid, from_number, to_number, option || 'Unknown', status || 'new', duration, recording_url, transcription]
     );
     res.json({ success: true, call: result.rows[0] });
   } catch (error) { serverError(res, error); }
@@ -3012,7 +3037,8 @@ app.post('/api/calls', async (req, res) => {
 
 app.get('/api/calls', async (req, res) => {
   try {
-    const { status, call_type, limit = 100 } = req.query;
+    const { status, call_type, option_selected, limit = 100 } = req.query;
+    const optFilter = option_selected || call_type;
     // Join customers table so each call returns the matching customer name
     // Match on from_number (inbound) or to_number (outbound) against customer phone/mobile
     let query = `
@@ -3029,7 +3055,7 @@ app.get('/api/calls', async (req, res) => {
     const params = [];
     let p = 1;
     if (status) { query += ` AND calls.status = $${p++}`; params.push(status); }
-    if (call_type) { query += ` AND calls.call_type = $${p++}`; params.push(call_type); }
+    if (optFilter) { query += ` AND calls.option_selected = $${p++}`; params.push(optFilter); }
     query += ` ORDER BY calls.created_at DESC LIMIT $${p}`;
     params.push(limit);
     const result = await pool.query(query, params);
@@ -3042,9 +3068,9 @@ app.get('/api/calls/stats', async (req, res) => {
     const [total, byStatus, byType] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM calls'),
       pool.query('SELECT status, COUNT(*) FROM calls GROUP BY status'),
-      pool.query('SELECT call_type, COUNT(*) FROM calls GROUP BY call_type')
+      pool.query('SELECT option_selected, COUNT(*) FROM calls GROUP BY option_selected')
     ]);
-    res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), byType: Object.fromEntries(byType.rows.map(r => [r.call_type, parseInt(r.count)])) } });
+    res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), byType: Object.fromEntries(byType.rows.map(r => [r.option_selected, parseInt(r.count)])) } });
   } catch (error) { serverError(res, error); }
 });
 
@@ -6069,6 +6095,34 @@ async function createMessagesTable() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC)`);
 }
 createMessagesTable();
+
+async function createCallsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calls (
+        id SERIAL PRIMARY KEY,
+        twilio_sid VARCHAR(100) UNIQUE,
+        direction VARCHAR(10) DEFAULT 'inbound',
+        from_number VARCHAR(50) NOT NULL,
+        to_number VARCHAR(50) NOT NULL,
+        status VARCHAR(50) DEFAULT 'completed',
+        duration INTEGER,
+        option_selected VARCHAR(100),
+        recording_url TEXT,
+        transcription TEXT,
+        customer_id INTEGER,
+        read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_calls_from ON calls(from_number)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_calls_created ON calls(created_at DESC)`);
+    console.log('✅ Calls table ready');
+  } catch (err) {
+    console.log('ℹ️ Calls table setup:', err.message);
+  }
+}
+createCallsTable();
 
 // Send Expo Push Notification
 async function sendPushNotification(expoPushToken, title, body, data = {}) {

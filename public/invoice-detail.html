@@ -237,6 +237,36 @@
         .btn-add-line { background: none; border: 1px dashed var(--gray-300); color: var(--gray-500); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; width: 100%; margin-top: 4px; }
         .btn-add-line:hover { border-color: var(--forest); color: var(--forest); }
 
+        /* Invoice History Timeline */
+        .history-timeline { position: relative; padding-left: 24px; }
+        .history-timeline::before { content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; background: var(--gray-200); }
+        .history-event { position: relative; margin-bottom: 16px; }
+        .history-event:last-child { margin-bottom: 0; }
+        .history-event::before {
+            content: ''; position: absolute; left: -20px; top: 4px;
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--gray-300); border: 2px solid var(--white);
+        }
+        .history-event.created::before { background: var(--gray-400); }
+        .history-event.sent::before { background: var(--blue); }
+        .history-event.viewed::before { background: var(--amber); }
+        .history-event.paid::before { background: var(--green); }
+        .history-event.reminder::before { background: #8b5cf6; }
+        .history-event.overdue::before { background: var(--red); }
+        .history-event-badge {
+            display: inline-flex; padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .history-event-badge.created { background: var(--gray-100); color: var(--gray-500); }
+        .history-event-badge.sent { background: var(--blue-bg); color: var(--blue); }
+        .history-event-badge.viewed { background: var(--amber-bg); color: var(--amber); }
+        .history-event-badge.paid { background: var(--green-bg); color: var(--green); }
+        .history-event-badge.reminder { background: #f5f3ff; color: #8b5cf6; }
+        .history-event-badge.overdue { background: var(--red-bg); color: var(--red); }
+        .history-event-title { font-size: 13px; font-weight: 500; color: var(--gray-700); margin-top: 4px; }
+        .history-event-detail { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+        .history-event-date { font-size: 11px; color: var(--gray-400); margin-left: 8px; }
+
         /* Print Styles */
         @media print {
             .sidebar, .topbar, .actions, .pay-link-box, #breadcrumb,
@@ -629,6 +659,13 @@
                     <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(notes)}</p>
                 </div>` : ''}
 
+                <div class="detail-card full-width" style="margin-bottom:20px;">
+                    <h3>Invoice History</h3>
+                    <div class="history-timeline">
+                        ${buildInvoiceHistory(inv)}
+                    </div>
+                </div>
+
                 <div class="actions">
                     ${status === 'draft' ? `<button class="btn btn-primary" onclick="sendInvoice()">📤 Send Invoice</button>` : ''}
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
@@ -691,6 +728,109 @@
             const d = document.createElement('div');
             d.textContent = s;
             return d.innerHTML;
+        }
+
+        function formatDateTime(d) {
+            if (!d) return '';
+            return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        }
+
+        function buildInvoiceHistory(inv) {
+            const events = [];
+
+            // Created
+            if (inv.created_at) {
+                events.push({
+                    type: 'created',
+                    date: new Date(inv.created_at),
+                    badge: 'Created',
+                    title: 'Invoice created',
+                    detail: inv.invoice_number ? `#${inv.invoice_number}` : ''
+                });
+            }
+
+            // Sent
+            if (inv.sent_at) {
+                events.push({
+                    type: 'sent',
+                    date: new Date(inv.sent_at),
+                    badge: 'Sent by Email',
+                    title: `Invoice delivered to ${inv.customer_name || 'customer'}`,
+                    detail: inv.customer_email ? `Sent to: ${inv.customer_email}` : ''
+                });
+            }
+
+            // Viewed
+            if (inv.viewed_at) {
+                events.push({
+                    type: 'viewed',
+                    date: new Date(inv.viewed_at),
+                    badge: 'Viewed',
+                    title: `Viewed by customer`,
+                    detail: ''
+                });
+            }
+
+            // Reminders
+            if (inv.reminder_sent_at) {
+                events.push({
+                    type: 'reminder',
+                    date: new Date(inv.reminder_sent_at),
+                    badge: 'Reminder Sent',
+                    title: `Payment reminder sent${inv.reminder_count > 1 ? ` (${inv.reminder_count} total)` : ''}`,
+                    detail: inv.customer_email ? `Sent to: ${inv.customer_email}` : ''
+                });
+            }
+
+            // Overdue
+            if (inv.due_date && (inv.status === 'overdue' || inv.status === 'sent') && new Date(inv.due_date) < new Date() && parseFloat(inv.amount_paid || 0) < parseFloat(inv.total || 0)) {
+                events.push({
+                    type: 'overdue',
+                    date: new Date(inv.due_date),
+                    badge: 'Overdue',
+                    title: 'Invoice became overdue',
+                    detail: `Due date: ${formatDate(inv.due_date)}`
+                });
+            }
+
+            // Payments
+            if (inv.payment_history && inv.payment_history.length > 0) {
+                for (const p of inv.payment_history) {
+                    const methodMap = {card:'Credit Card',credit_card:'Credit Card',debit_card:'Debit Card',ach:'ACH Bank Transfer',apple_pay:'Apple Pay',cash:'Cash',check:'Check',venmo:'Venmo',zelle:'Zelle',money_order:'Money Order'};
+                    const methodLabel = methodMap[p.method] || p.method || 'Payment';
+                    events.push({
+                        type: 'paid',
+                        date: new Date(p.paid_at || p.created_at),
+                        badge: 'Payment Received',
+                        title: `${formatCurrency(p.amount)} via ${methodLabel}`,
+                        detail: p.card_last4 ? `Card ending in ${p.card_last4}` : (p.ach_bank_name ? `Bank: ${p.ach_bank_name}` : '')
+                    });
+                }
+            } else if (inv.paid_at && inv.status === 'paid') {
+                events.push({
+                    type: 'paid',
+                    date: new Date(inv.paid_at),
+                    badge: 'Paid',
+                    title: `Payment received — ${formatCurrency(inv.total)}`,
+                    detail: ''
+                });
+            }
+
+            // Sort newest first
+            events.sort((a, b) => b.date - a.date);
+
+            if (events.length === 0) {
+                return '<p style="font-size:13px;color:var(--gray-400);">No history yet.</p>';
+            }
+
+            return events.map(e => `
+                <div class="history-event ${e.type}">
+                    <span class="history-event-badge ${e.type}">${e.badge}</span>
+                    <span class="history-event-date">${formatDateTime(e.date)}</span>
+                    <div class="history-event-title">${esc(e.title)}</div>
+                    ${e.detail ? `<div class="history-event-detail">${esc(e.detail)}</div>` : ''}
+                </div>
+            `).join('');
         }
 
         function showToast(msg, isError) {

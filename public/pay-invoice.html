@@ -706,7 +706,6 @@
                                     <label for="achAccountHolder">Account Holder Name</label>
                                     <input type="text" id="achAccountHolder" placeholder="Full name on bank account" value="${invoice.customer_name || ''}">
                                 </div>
-                                <div id="ach-container"></div>
                                 <button class="pay-btn" id="achPayBtn" onclick="payWithACH()">
                                     <span class="spinner"></span>
                                     <span class="btn-text">Pay ${formatCurrency(balanceDue + calcProcessingFee(balanceDue, 'ach'))} via Bank Transfer</span>
@@ -807,16 +806,14 @@
                 squareCard = await squarePayments.card();
                 await squareCard.attach('#card-container');
 
-                // Initialize ACH
+                // Initialize ACH (no attach needed — Plaid modal opens on tokenize)
                 try {
-                    squareAch = await squarePayments.ach();
-                    await squareAch.attach('#ach-container');
+                    const redirectURI = window.location.href.split('?')[0];
+                    const transactionId = 'inv-' + (invoiceData.id || Date.now());
+                    squareAch = await squarePayments.ach({ redirectURI, transactionId });
                 } catch (achErr) {
                     console.warn('ACH initialization failed:', achErr);
-                    const achContainer = document.getElementById('ach-container');
-                    if (achContainer) {
-                        achContainer.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px;">Bank transfer is not available at this time.</p>';
-                    }
+                    squareAch = null;
                 }
 
                 // Initialize Apple Pay (only if available)
@@ -949,8 +946,11 @@
                     setButtonProcessing(btn, false);
                     return;
                 }
+                const achTotal = parseFloat(invoiceData.balance_due || invoiceData.total || 0);
                 const result = await squareAch.tokenize({
-                    accountHolderName: accountHolderName
+                    accountHolderName: accountHolderName,
+                    intent: 'CHARGE',
+                    total: { amount: Math.round(achTotal * 100), currencyCode: 'USD' }
                 });
                 if (result.status === 'OK') {
                     await processPayment('/ach', {

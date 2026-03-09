@@ -122,3 +122,26 @@ Build toward these concepts incrementally:
 - Maintain `.claude/memory/memory-mistakes.md` — log patterns where things went wrong (repeated instructions, incorrect outputs, misunderstandings)
 - Review this file at the start of every session to avoid repeating errors
 - Format: `- [date] What went wrong → What to do instead`
+
+## Backend Coding Standards
+
+### Security
+- **Never return `error.message` to clients** — use `serverError(res, error)` for all 500 responses
+- **Always `escapeHtml()` user input** before inserting into email templates
+- **Always use parameterized queries** — never interpolate variables into SQL strings
+- **Rate limiting** is applied to all public endpoints (login, quotes, sign, pay)
+
+### Error Handling
+- Use `async/await` consistently — never mix `.then()` chains with async functions
+- Never silently swallow errors with `catch(e) {}` — at minimum `console.error()`
+- Use `serverError(res, error, 'Context message')` for all catch blocks in routes
+
+### Database
+- Table creation (`CREATE TABLE IF NOT EXISTS`, `ensureTable()`) runs at startup, not per-request
+- Use `FOR UPDATE` when generating sequential IDs (invoice numbers) to prevent race conditions
+- Always use parameterized queries ($1, $2) — never string interpolation for values
+
+### API Responses
+- Success: `{ success: true, data... }`
+- Client errors (400/401/403/404): `{ success: false, error: 'Human-readable message' }`
+- Server errors (500): Always use `serverError()` — generic message to client, full error to logs

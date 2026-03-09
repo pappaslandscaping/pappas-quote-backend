@@ -1,4 +1,8 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "python3 .claude/scripts/context-monitor.py"
+  },
   "hooks": {
     "Stop": [
       {
@@ -7,6 +11,53 @@
           {
             "type": "command",
             "command": ".claude/hooks/reflect-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json, sys, os; agents_content = open('AGENTS.md', 'r').read() if os.path.exists('AGENTS.md') else ''; output = {'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': agents_content}}; print(json.dumps(output))\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ -n \"$CLAUDE_TOOL_FILE_PATH\" && -f \"$CLAUDE_TOOL_FILE_PATH\" ]]; then mkdir -p .backups && cp \"$CLAUDE_TOOL_FILE_PATH\" \".backups/$(basename \"$CLAUDE_TOOL_FILE_PATH\").$(date +%Y%m%d_%H%M%S).bak\"; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [[ -f package.json ]] && npm run test:quick --silent >/dev/null 2>&1; then echo '✅ Tests passed'; else echo '⚠️ Tests may need attention'; fi"
+          },
+          {
+            "type": "command",
+            "command": "git add \"$CLAUDE_TOOL_FILE_PATH\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git add \"$CLAUDE_TOOL_FILE_PATH\" 2>/dev/null || true"
           }
         ]
       }

@@ -10,6 +10,28 @@ const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
 const OAuthClient = require('intuit-oauth');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+
+// ═══════════════════════════════════════════════════════════
+// SECURITY HELPERS
+// ═══════════════════════════════════════════════════════════
+
+// HTML-escape user input before inserting into email templates
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Safe error response — never leak internal details to clients
+function serverError(res, error, context = 'Server error') {
+  console.error(`${context}:`, error);
+  res.status(500).json({ success: false, error: 'Something went wrong. Please try again.' });
+}
 
 // Square Payments Configuration (optional — server runs fine without it)
 let squareClient = null;
@@ -188,6 +210,42 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
+
+// Handle unexpected pool errors so the server doesn't crash
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err);
+});
+
+// ═══════════════════════════════════════════════════════════
+// RATE LIMITING — protect public endpoints from abuse
+// ═══════════════════════════════════════════════════════════
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { success: false, error: 'Too many login attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const publicApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { success: false, error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { success: false, error: 'Too many payment attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiters to public-facing routes
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/quotes', publicApiLimiter);
+app.use('/api/sign', publicApiLimiter);
+app.use('/api/pay', paymentLimiter);
 
 // Email via Resend API
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -395,7 +453,7 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(401).json({ success: false, error: 'Invalid email or password' });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -414,7 +472,7 @@ app.get('/api/auth/me', (req, res) => {
 });
 
 // Change password
-app.post('/api/auth/change-password', (req, res) => {
+app.post('/api/auth/change-password', async (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ success: false, error: 'No token' });
@@ -425,15 +483,17 @@ app.post('/api/auth/change-password', (req, res) => {
     if (!current_password || !new_password) return res.status(400).json({ success: false, error: 'Both passwords required' });
     if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
 
-    pool.query('SELECT password_hash FROM admin_users WHERE id = $1', [decoded.id]).then(result => {
-      if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
-      if (!verifyPassword(current_password, result.rows[0].password_hash)) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
-      const newHash = hashPassword(new_password);
-      pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, decoded.id]);
-      res.json({ success: true, message: 'Password changed' });
-    }).catch(err => res.status(500).json({ success: false, error: err.message }));
+    const result = await pool.query('SELECT password_hash FROM admin_users WHERE id = $1', [decoded.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
+    if (!verifyPassword(current_password, result.rows[0].password_hash)) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    const newHash = hashPassword(new_password);
+    await pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, decoded.id]);
+    res.json({ success: true, message: 'Password changed' });
   } catch (err) {
-    return res.status(401).json({ success: false, error: 'Invalid token' });
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, error: 'Invalid token' });
+    }
+    serverError(res, err, 'Change password error');
   }
 });
 
@@ -1977,7 +2037,7 @@ app.get('/api/properties', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching properties:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2018,7 +2078,7 @@ app.get('/api/properties/stats', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching property stats:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2040,7 +2100,7 @@ app.get('/api/properties/:id', async (req, res) => {
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
     console.error('Error fetching property:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2066,7 +2126,7 @@ app.post('/api/properties', async (req, res) => {
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
     console.error('Error creating property:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2106,7 +2166,7 @@ app.put('/api/properties/:id', async (req, res) => {
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
     console.error('Error updating property:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2153,7 +2213,7 @@ app.patch('/api/properties/:id', async (req, res) => {
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
     console.error('Error updating property:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2167,7 +2227,7 @@ app.delete('/api/properties/:id', async (req, res) => {
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
     console.error('Error deleting property:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2190,7 +2250,7 @@ app.post('/api/properties/:id/photos', upload.array('photos', 10), async (req, r
     res.json({ success: true, photos: allPhotos });
   } catch (error) {
     console.error('Error uploading property photos:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2204,7 +2264,7 @@ app.delete('/api/properties/:id/photos/:index', async (req, res) => {
     photos.splice(parseInt(index), 1);
     await pool.query('UPDATE properties SET photos = $1 WHERE id = $2', [JSON.stringify(photos), id]);
     res.json({ success: true, photos });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/properties/:id/service-history
@@ -2221,7 +2281,7 @@ app.get('/api/properties/:id/service-history', async (req, res) => {
     res.json({ success: true, jobs: result.rows });
   } catch (error) {
     console.error('Error fetching property service history:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2317,7 +2377,7 @@ app.post('/api/import-properties', upload.single('csvfile'), async (req, res) =>
     });
   } catch (error) {
     console.error('Import failed:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2364,20 +2424,20 @@ app.post('/api/quotes', async (req, res) => {
     
     const emailHtml = `
       <h2>New Quote Request</h2>
-      <p><strong>Name:</strong> ${fullName}</p>
-      <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
-      <p><strong>Phone:</strong> ${phone}</p>
-      <p><strong>Address:</strong> ${address}</p>
-      <p><strong>Package:</strong> ${pkg || 'None'}</p>
-      <p><strong>Services:</strong> ${servicesText}</p>
-      <p><strong>Notes:</strong> ${notes || 'No notes provided'}</p>
+      <p><strong>Name:</strong> ${escapeHtml(fullName)}</p>
+      <p><strong>Email:</strong> <a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p>
+      <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
+      <p><strong>Address:</strong> ${escapeHtml(address)}</p>
+      <p><strong>Package:</strong> ${escapeHtml(pkg || 'None')}</p>
+      <p><strong>Services:</strong> ${escapeHtml(servicesText)}</p>
+      <p><strong>Notes:</strong> ${escapeHtml(notes || 'No notes provided')}</p>
       <br>
       <p><a href="${dashboardUrl}">View Dashboard</a></p>
     `;
-    
-    sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${fullName}`, emailHtml);
+
+    sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${escapeHtml(fullName)}`, emailHtml);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2391,7 +2451,7 @@ app.get('/api/quotes', async (req, res) => {
     const result = await pool.query(query, params);
     res.json({ success: true, quotes: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2400,7 +2460,7 @@ app.get('/api/quotes/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM quotes WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({ success: true, quote: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/quotes/:id', async (req, res) => {
@@ -2409,7 +2469,7 @@ app.patch('/api/quotes/:id', async (req, res) => {
     const result = await pool.query('UPDATE quotes SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({ success: true, quote: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/quotes/:id', async (req, res) => {
@@ -2417,7 +2477,7 @@ app.delete('/api/quotes/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM quotes WHERE id = $1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/stats', async (req, res) => {
@@ -2427,7 +2487,7 @@ app.get('/api/stats', async (req, res) => {
     const byStatus = {};
     statusResult.rows.forEach(row => { byStatus[row.status] = parseInt(row.count); });
     res.json({ success: true, stats: { total: parseInt(totalResult.rows[0].count), byStatus } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -2442,7 +2502,7 @@ app.post('/api/cancellations', async (req, res) => {
       [customer_name, customer_email, customer_address, cancellation_reason, original_email_body]
     );
     res.json({ success: true, cancellation: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/cancellations', async (req, res) => {
@@ -2454,7 +2514,7 @@ app.get('/api/cancellations', async (req, res) => {
     query += ' ORDER BY created_at DESC';
     const result = await pool.query(query, params);
     res.json({ success: true, cancellations: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/cancellations/:id', async (req, res) => {
@@ -2462,7 +2522,7 @@ app.get('/api/cancellations/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM cancellations WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, cancellation: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/cancellations/:id', async (req, res) => {
@@ -2476,14 +2536,14 @@ app.patch('/api/cancellations/:id', async (req, res) => {
     values.push(req.params.id);
     const result = await pool.query(`UPDATE cancellations SET ${updates.join(', ')} WHERE id = $${p} RETURNING *`, values);
     res.json({ success: true, cancellation: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/cancellations/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM cancellations WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -2514,7 +2574,7 @@ app.get('/api/customers', async (req, res) => {
     const result = await pool.query(query, params);
     const countResult = await pool.query(countQuery, countParams);
     res.json({ success: true, customers: result.rows, total: parseInt(countResult.rows[0].count) });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/customers/stats', async (req, res) => {
@@ -2532,7 +2592,7 @@ app.get('/api/customers/stats', async (req, res) => {
     else if (recentCount > 0) trendPct = 100;
     const inactive = parseInt(total.rows[0].count) - parseInt(active.rows[0].count);
     res.json({ success: true, stats: { total: parseInt(total.rows[0].count), active: parseInt(active.rows[0].count), inactive, topCities: cities.rows, trend: { recent: recentCount, previous: prevCount, pct: trendPct } } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/customers/pipeline-stats - Lead vs Customer pipeline metrics
@@ -2551,7 +2611,7 @@ app.get('/api/customers/pipeline-stats', async (req, res) => {
       convertedThisMonth: parseInt(converted.rows[0].count),
       conversionRate
     }});
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/customers/search - Search customers by name for auto-fill
@@ -2575,7 +2635,7 @@ app.get('/api/customers/search', async (req, res) => {
     res.json({ success: true, customers: result.rows });
   } catch (error) {
     console.error('Error searching customers:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2584,7 +2644,7 @@ app.get('/api/customers/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM customers WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, customer: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/customers/deduplicate - Merge duplicate customers (same name)
@@ -2722,7 +2782,7 @@ app.post('/api/customers/deduplicate', async (req, res) => {
     });
   } catch (e) {
     console.error('Dedup error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -2757,7 +2817,7 @@ app.post('/api/customers/clean-names', async (req, res) => {
     res.json({ success: true, cleaned: totalCleaned });
   } catch (e) {
     console.error('Clean names error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -2818,7 +2878,7 @@ app.post('/api/customers', async (req, res) => {
     res.json({ success: true, customer: result.rows[0] });
   } catch (error) {
     console.error('Error creating customer:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2826,7 +2886,7 @@ app.get('/api/customers/:id/properties', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM properties WHERE customer_id = $1', [req.params.id]);
     res.json({ success: true, properties: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/customers/:id', async (req, res) => {
@@ -2851,14 +2911,14 @@ app.patch('/api/customers/:id', async (req, res) => {
     vals.push(id);
     const result = await pool.query(`UPDATE customers SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, customer: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/customers/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM customers WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/customers/:id/quotes - Get all quotes for a customer
@@ -2885,7 +2945,7 @@ app.get('/api/customers/:id/quotes', async (req, res) => {
     res.json({ success: true, quotes: quotesResult.rows });
   } catch (error) { 
     console.error('Error fetching customer quotes:', error);
-    res.status(500).json({ success: false, error: error.message }); 
+    serverError(res, error); 
   }
 });
 
@@ -2909,7 +2969,7 @@ app.get('/api/customers/:id/jobs', async (req, res) => {
     res.json({ success: true, jobs: jobsResult.rows });
   } catch (error) {
     console.error('Error fetching customer jobs:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2931,7 +2991,7 @@ app.get('/api/customers/:id/invoices', async (req, res) => {
     res.json({ success: true, invoices: invoicesResult.rows });
   } catch (error) {
     console.error('Error fetching customer invoices:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -2947,7 +3007,7 @@ app.post('/api/calls', async (req, res) => {
       [call_sid, from_number, to_number, call_type || 'Unknown', status || 'new', duration, recording_url, transcription]
     );
     res.json({ success: true, call: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/calls', async (req, res) => {
@@ -2974,7 +3034,7 @@ app.get('/api/calls', async (req, res) => {
     params.push(limit);
     const result = await pool.query(query, params);
     res.json({ success: true, calls: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/calls/stats', async (req, res) => {
@@ -2983,7 +3043,7 @@ app.get('/api/calls/stats', async (req, res) => {
     const byStatus = await pool.query('SELECT status, COUNT(*) FROM calls GROUP BY status');
     const byType = await pool.query('SELECT call_type, COUNT(*) FROM calls GROUP BY call_type');
     res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), byType: Object.fromEntries(byType.rows.map(r => [r.call_type, parseInt(r.count)])) } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/calls/:id', async (req, res) => {
@@ -2991,7 +3051,7 @@ app.get('/api/calls/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM calls WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, call: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/calls/:id', async (req, res) => {
@@ -3007,14 +3067,14 @@ app.patch('/api/calls/:id', async (req, res) => {
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE calls SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, call: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/calls/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM calls WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -3036,7 +3096,7 @@ app.get('/api/jobs', async (req, res) => {
     if (limit) { query += ` LIMIT $${p++}`; params.push(parseInt(limit)); }
     const result = await pool.query(query, params);
     res.json({ success: true, jobs: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/jobs/stats', async (req, res) => {
@@ -3049,7 +3109,7 @@ app.get('/api/jobs/stats', async (req, res) => {
     const byStatus = await pool.query(`SELECT status, COUNT(*) FROM scheduled_jobs${filter} GROUP BY status`, params);
     const revenue = await pool.query(`SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs${filter}`, params);
     res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), totalRevenue: parseFloat(revenue.rows[0].total) } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/jobs/dashboard', async (req, res) => {
@@ -3060,7 +3120,7 @@ app.get('/api/jobs/dashboard', async (req, res) => {
     const pending = await pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE status = $1 AND job_date::date >= $2::date', ['pending', today]);
     const upcoming = await pool.query(`SELECT id, job_date, customer_name, service_type, address, status, service_price FROM scheduled_jobs WHERE job_date::date >= $1::date ORDER BY job_date ASC LIMIT 5`, [today]);
     res.json({ success: true, stats: { today: parseInt(todayCount.rows[0].count), thisWeek: parseInt(weekCount.rows[0].count), pending: parseInt(pending.rows[0].count) }, upcoming: upcoming.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/jobs/calendar-summary?month=YYYY-MM - Day-by-day job counts with crew colors (Phase 5)
@@ -3112,7 +3172,7 @@ app.get('/api/jobs/calendar-summary', async (req, res) => {
 
     res.json({ success: true, month, days });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -3129,7 +3189,7 @@ app.get('/api/jobs/completed-uninvoiced', async (req, res) => {
     res.json({ success: true, jobs: result.rows });
   } catch (error) {
     console.error('Error fetching completed uninvoiced jobs:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -3160,7 +3220,7 @@ app.get('/api/jobs/pipeline', async (req, res) => {
     const counts = {};
     stages.forEach(s => counts[s] = grouped[s].length);
     res.json({ success: true, stages, pipeline: grouped, counts });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/jobs/:id', async (req, res) => {
@@ -3168,7 +3228,7 @@ app.get('/api/jobs/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, job: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/jobs', async (req, res) => {
@@ -3180,7 +3240,7 @@ app.post('/api/jobs', async (req, res) => {
       [job_date, customer_name, customer_id, service_type, service_frequency, service_price || 0, address, phone, special_notes, property_notes, status || 'pending', route_order, estimated_duration || 30, crew_assigned, latitude, longitude]
     );
     res.json({ success: true, job: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/jobs/bulk', async (req, res) => {
@@ -3198,7 +3258,7 @@ app.post('/api/jobs/bulk', async (req, res) => {
       } catch (err) { errors.push({ customer: job.customer_name, error: err.message }); }
     }
     res.json({ success: true, created: created.length, errors: errors.length, jobs: created, errorDetails: errors });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/jobs/:id', async (req, res) => {
@@ -3212,7 +3272,7 @@ app.patch('/api/jobs/:id', async (req, res) => {
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE scheduled_jobs SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, job: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/jobs/:id/complete', async (req, res) => {
@@ -3292,7 +3352,7 @@ app.patch('/api/jobs/:id/complete', async (req, res) => {
     }
 
     res.json({ success: true, job: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/jobs/reorder', async (req, res) => {
@@ -3300,7 +3360,7 @@ app.patch('/api/jobs/reorder', async (req, res) => {
     const { jobs } = req.body;
     for (const job of jobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
     res.json({ success: true, updated: jobs.length });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/jobs/optimize-route', async (req, res) => {
@@ -3400,14 +3460,14 @@ app.post('/api/jobs/optimize-route', async (req, res) => {
     const optimizedJobs = order.map((j, i) => ({ ...j, route_order: i + 1 }));
     for (const job of optimizedJobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
     res.json({ success: true, message: 'Route optimized (local algorithm)', jobs: optimizedJobs, stats: { totalStops: optimizedJobs.length } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/jobs/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM scheduled_jobs WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -3422,7 +3482,7 @@ app.get('/api/crews', async (req, res) => {
     query += ' ORDER BY name ASC';
     const result = await pool.query(query);
     res.json({ success: true, crews: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/crews', async (req, res) => {
@@ -3431,7 +3491,7 @@ app.post('/api/crews', async (req, res) => {
     if (!name) return res.status(400).json({ success: false, error: 'Crew name required' });
     const result = await pool.query('INSERT INTO crews (name, members, crew_type, notes) VALUES ($1, $2, $3, $4) RETURNING *', [name, members, crew_type, notes]);
     res.json({ success: true, crew: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/crews/:id', async (req, res) => {
@@ -3449,14 +3509,14 @@ app.patch('/api/crews/:id', async (req, res) => {
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE crews SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, crew: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/crews/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM crews WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -3474,7 +3534,7 @@ app.get('/api/employees', async (req, res) => {
     query += ' ORDER BY last_name ASC, first_name ASC';
     const result = await pool.query(query, params);
     res.json({ success: true, employees: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/employees/:id', async (req, res) => {
@@ -3482,7 +3542,7 @@ app.get('/api/employees/:id', async (req, res) => {
     const result = await pool.query('SELECT id, title, first_name, last_name, birth_date, hire_date, salary_amount, pay_type, chemical_license, email, phone, address, notes, login_email, permissions, is_active, created_at, updated_at FROM employees WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Employee not found' });
     res.json({ success: true, employee: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/employees', async (req, res) => {
@@ -3496,7 +3556,7 @@ app.post('/api/employees', async (req, res) => {
       [title, first_name, last_name, birth_date || null, hire_date || null, salary_amount || null, pay_type || 'hourly', chemical_license, email, phone, address, notes, login_email, pw_hash, JSON.stringify(permissions || [])]
     );
     res.json({ success: true, employee: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/employees/:id', async (req, res) => {
@@ -3517,7 +3577,7 @@ app.patch('/api/employees/:id', async (req, res) => {
     const result = await pool.query(`UPDATE employees SET ${sets.join(', ')} WHERE id = $${p} RETURNING id, title, first_name, last_name, email, is_active`, vals);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Employee not found' });
     res.json({ success: true, employee: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/employees/:id', async (req, res) => {
@@ -3525,7 +3585,7 @@ app.delete('/api/employees/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM employees WHERE id = $1 RETURNING id, first_name, last_name', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Employee not found' });
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -3572,7 +3632,7 @@ app.post('/api/import-customers', upload.single('csvfile'), async (req, res) => 
       } catch (e) { skipped++; }
     }
     res.json({ success: true, message: 'Import complete', stats: { total: customers.length, imported, updated, skipped } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) => {
@@ -3626,7 +3686,7 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
       } catch (e) { skipped++; }
     }
     res.json({ success: true, message: 'Import complete', stats: { total: jobs.length, imported, updated, skipped } });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -3860,7 +3920,7 @@ app.post('/api/analyze-property', async (req, res) => {
     
   } catch (error) {
     console.error('Property analysis error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -3953,7 +4013,7 @@ app.get('/api/expenses', async (req, res) => {
     res.json({ success: true, expenses: result.rows });
   } catch (error) {
     console.error('Error fetching expenses:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -3991,7 +4051,7 @@ app.get('/api/expenses/stats', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching expense stats:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4013,7 +4073,7 @@ app.post('/api/expenses', async (req, res) => {
     res.json({ success: true, expense: result.rows[0] });
   } catch (error) {
     console.error('Error creating expense:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4027,7 +4087,7 @@ app.get('/api/expenses/:id', async (req, res) => {
     res.json({ success: true, expense: result.rows[0] });
   } catch (error) {
     console.error('Error fetching expense:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4063,7 +4123,7 @@ app.patch('/api/expenses/:id', async (req, res) => {
     res.json({ success: true, expense: result.rows[0] });
   } catch (error) {
     console.error('Error updating expense:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4077,7 +4137,7 @@ app.delete('/api/expenses/:id', async (req, res) => {
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
     console.error('Error deleting expense:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4283,7 +4343,7 @@ app.get('/api/campaigns', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching campaigns:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4302,7 +4362,7 @@ app.post('/api/campaigns', async (req, res) => {
     res.json({ success: true, campaign: result.rows[0] });
   } catch (error) {
     console.error('Error creating campaign:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4317,7 +4377,7 @@ app.get('/api/campaigns/:id', async (req, res) => {
     res.json({ success: true, campaign: result.rows[0] });
   } catch (error) {
     console.error('Error fetching campaign:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4348,7 +4408,7 @@ app.patch('/api/campaigns/:id', async (req, res) => {
     res.json({ success: true, campaign: result.rows[0] });
   } catch (error) {
     console.error('Error updating campaign:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4362,7 +4422,7 @@ app.delete('/api/campaigns/:id', async (req, res) => {
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
     console.error('Error deleting campaign:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4391,7 +4451,7 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching submissions:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4437,7 +4497,7 @@ app.post('/api/campaigns/submissions', async (req, res) => {
     sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml);
   } catch (error) {
     console.error('Error creating submission:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4466,7 +4526,7 @@ app.patch('/api/campaigns/submissions/:id', async (req, res) => {
     res.json({ success: true, submission: result.rows[0] });
   } catch (error) {
     console.error('Error updating submission:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4483,7 +4543,7 @@ app.delete('/api/campaigns/submissions/:id', async (req, res) => {
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
     console.error('Error deleting submission:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4541,7 +4601,7 @@ app.get('/api/sent-quotes', async (req, res) => {
     res.json({ success: true, quotes: result.rows, counts });
   } catch (error) {
     console.error('Error fetching sent quotes:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4562,7 +4622,7 @@ app.get('/api/sent-quotes/view-counts', async (req, res) => {
     res.json({ success: true, viewCounts: map });
   } catch (error) {
     console.error('Error fetching view counts:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4604,7 +4664,7 @@ app.get('/api/sent-quotes/:id', async (req, res) => {
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) {
     console.error('Error fetching quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4715,7 +4775,7 @@ app.post('/api/sent-quotes', async (req, res) => {
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) {
     console.error('Error creating quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4769,7 +4829,7 @@ app.put('/api/sent-quotes/:id', async (req, res) => {
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) {
     console.error('Error updating quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4875,7 +4935,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     res.json({ success: true, message: 'Quote sent successfully', pdfAttached, pdfType, pdfError, pdfSize: pdfResult && pdfResult.bytes ? pdfResult.bytes.length : 0 });
   } catch (error) {
     console.error('Error sending quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4889,7 +4949,7 @@ app.delete('/api/sent-quotes/:id', async (req, res) => {
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
     console.error('Error deleting quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4946,7 +5006,7 @@ app.get('/api/sign/:token', async (req, res) => {
     res.json({ success: true, quote });
   } catch (error) {
     console.error('Error fetching quote for signing:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -4979,25 +5039,25 @@ app.post('/api/sign/:token', async (req, res) => {
       <h2 style="font-family:Georgia,serif;color:#1e293b;margin:0 0 24px;font-size:28px;font-weight:400;text-align:center;">✅ Quote Accepted</h2>
       <p style="color:#64748b;margin:0 0 20px;text-align:center;">Customer will now sign the service agreement.</p>
       <div style="background:#f8fafc;border-radius:8px;padding:24px;">
-        <p style="margin:0 0 12px;"><strong>Quote #:</strong> ${quoteNumber}</p>
-        <p style="margin:0 0 12px;"><strong>Customer:</strong> ${quote.customer_name}</p>
-        <p style="margin:0 0 12px;"><strong>Email:</strong> <a href="mailto:${quote.customer_email}" style="color:#2e403d;">${quote.customer_email}</a></p>
-        <p style="margin:0 0 12px;"><strong>Phone:</strong> ${quote.customer_phone}</p>
-        <p style="margin:0 0 12px;"><strong>Address:</strong> ${quote.customer_address}</p>
+        <p style="margin:0 0 12px;"><strong>Quote #:</strong> ${escapeHtml(quoteNumber)}</p>
+        <p style="margin:0 0 12px;"><strong>Customer:</strong> ${escapeHtml(quote.customer_name)}</p>
+        <p style="margin:0 0 12px;"><strong>Email:</strong> <a href="mailto:${escapeHtml(quote.customer_email)}" style="color:#2e403d;">${escapeHtml(quote.customer_email)}</a></p>
+        <p style="margin:0 0 12px;"><strong>Phone:</strong> ${escapeHtml(quote.customer_phone)}</p>
+        <p style="margin:0 0 12px;"><strong>Address:</strong> ${escapeHtml(quote.customer_address)}</p>
         <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">
         <p style="margin:0 0 12px;"><strong>Total:</strong> $${parseFloat(quote.total).toFixed(2)}</p>
         ${quote.monthly_payment ? `<p style="margin:0 0 12px;"><strong>Monthly:</strong> $${parseFloat(quote.monthly_payment).toFixed(2)}/mo</p>` : ''}
         <p style="margin:0;"><strong>Accepted:</strong> ${new Date().toLocaleString()}</p>
       </div>
     `;
-    await sendEmail(NOTIFICATION_EMAIL, `✅ Quote #${quoteNumber} Accepted: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
+    await sendEmail(NOTIFICATION_EMAIL, `✅ Quote #${escapeHtml(quoteNumber)} Accepted: ${escapeHtml(quote.customer_name)}`, emailTemplate(adminContent, { showSignature: false }));
 
     // Return success with contract URL for redirect
     const contractUrl = `/sign-contract.html?token=${req.params.token}`;
     res.json({ success: true, message: 'Quote accepted successfully', contractUrl });
   } catch (error) {
     console.error('Error signing quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5037,19 +5097,19 @@ app.post('/api/sign/:token/decline', async (req, res) => {
     const adminContent = `
       <h2 style="color:#dc2626;margin:0 0 16px;">❌ Quote Declined</h2>
       <div style="background:#fef2f2;border-radius:8px;padding:20px;margin-bottom:20px;">
-        <p style="margin:0 0 8px;"><strong>Reason:</strong> ${reasonLabels[decline_reason] || decline_reason}</p>
-        ${decline_comments ? `<p style="margin:0;"><strong>Comments:</strong> ${decline_comments}</p>` : ''}
+        <p style="margin:0 0 8px;"><strong>Reason:</strong> ${escapeHtml(reasonLabels[decline_reason] || decline_reason)}</p>
+        ${decline_comments ? `<p style="margin:0;"><strong>Comments:</strong> ${escapeHtml(decline_comments)}</p>` : ''}
       </div>
       <div style="background:#f8fafc;border-radius:8px;padding:20px;">
-        <p style="margin:0 0 8px;"><strong>Customer:</strong> ${quote.customer_name}</p>
-        <p style="margin:0 0 8px;"><strong>Email:</strong> ${quote.customer_email}</p>
-        <p style="margin:0 0 8px;"><strong>Phone:</strong> ${quote.customer_phone}</p>
-        <p style="margin:0 0 8px;"><strong>Address:</strong> ${quote.customer_address}</p>
+        <p style="margin:0 0 8px;"><strong>Customer:</strong> ${escapeHtml(quote.customer_name)}</p>
+        <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(quote.customer_email)}</p>
+        <p style="margin:0 0 8px;"><strong>Phone:</strong> ${escapeHtml(quote.customer_phone)}</p>
+        <p style="margin:0 0 8px;"><strong>Address:</strong> ${escapeHtml(quote.customer_address)}</p>
         <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">
         <p style="margin:0;"><strong>Quote Total:</strong> $${parseFloat(quote.total).toFixed(2)}</p>
       </div>
     `;
-    await sendEmail(NOTIFICATION_EMAIL, `❌ Quote Declined: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
+    await sendEmail(NOTIFICATION_EMAIL, `❌ Quote Declined: ${escapeHtml(quote.customer_name)}`, emailTemplate(adminContent, { showSignature: false }));
 
     // Log decline event
     await logQuoteEvent(quote.id, 'declined', 'Quote declined by customer', {
@@ -5060,7 +5120,7 @@ app.post('/api/sign/:token/decline', async (req, res) => {
     res.json({ success: true, message: 'Quote declined' });
   } catch (error) {
     console.error('Error declining quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5079,7 +5139,7 @@ app.get('/api/sent-quotes/:id/views', async (req, res) => {
     res.json({ success: true, views: views.rows, total: views.rows.length });
   } catch (error) {
     console.error('Error fetching quote views:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5136,19 +5196,19 @@ app.post('/api/sign/:token/request-changes', async (req, res) => {
     const adminContent = `
       <h2 style="color:#f59e0b;margin:0 0 16px;">📝 Change Request</h2>
       <div style="background:#fffbeb;border-radius:8px;padding:20px;margin-bottom:20px;">
-        <p style="margin:0 0 8px;"><strong>Type:</strong> ${typeLabels[type] || type}</p>
+        <p style="margin:0 0 8px;"><strong>Type:</strong> ${escapeHtml(typeLabels[type] || type)}</p>
         <p style="margin:0;"><strong>Details:</strong></p>
-        <p style="margin:8px 0 0;padding:12px;background:white;border-radius:6px;">${details.replace(/\n/g, '<br>')}</p>
+        <p style="margin:8px 0 0;padding:12px;background:white;border-radius:6px;">${escapeHtml(details).replace(/\n/g, '<br>')}</p>
       </div>
       <div style="background:#f8fafc;border-radius:8px;padding:20px;">
-        <p style="margin:0 0 8px;"><strong>Customer:</strong> ${quote.customer_name}</p>
-        <p style="margin:0 0 8px;"><strong>Email:</strong> <a href="mailto:${quote.customer_email}" style="color:#2e403d;">${quote.customer_email}</a></p>
-        <p style="margin:0 0 8px;"><strong>Phone:</strong> <a href="tel:${quote.customer_phone}" style="color:#2e403d;">${quote.customer_phone}</a></p>
+        <p style="margin:0 0 8px;"><strong>Customer:</strong> ${escapeHtml(quote.customer_name)}</p>
+        <p style="margin:0 0 8px;"><strong>Email:</strong> <a href="mailto:${escapeHtml(quote.customer_email)}" style="color:#2e403d;">${escapeHtml(quote.customer_email)}</a></p>
+        <p style="margin:0 0 8px;"><strong>Phone:</strong> <a href="tel:${escapeHtml(quote.customer_phone)}" style="color:#2e403d;">${escapeHtml(quote.customer_phone)}</a></p>
         <p style="margin:0;"><strong>Original Total:</strong> $${parseFloat(quote.total).toFixed(2)}</p>
       </div>
       <p style="margin-top:20px;"><a href="https://pappas-quote-backend-production.up.railway.app/sent-quotes.html" style="background:#f59e0b;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600;">Review Quote</a></p>
     `;
-    await sendEmail(NOTIFICATION_EMAIL, `📝 Change Request: ${quote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
+    await sendEmail(NOTIFICATION_EMAIL, `📝 Change Request: ${escapeHtml(quote.customer_name)}`, emailTemplate(adminContent, { showSignature: false }));
 
     // Log changes requested event
     await logQuoteEvent(quote.id, 'changes_requested', 'Customer requested changes', {
@@ -5159,7 +5219,7 @@ app.post('/api/sign/:token/request-changes', async (req, res) => {
     res.json({ success: true, message: 'Changes requested' });
   } catch (error) {
     console.error('Error requesting changes:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5547,7 +5607,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
   } catch (error) {
     console.error('Error signing contract:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5575,7 +5635,7 @@ app.get('/api/sent-quotes/:id/contract-status', async (req, res) => {
 
   } catch (error) {
     console.error('Error getting contract status:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5614,7 +5674,7 @@ app.get('/api/sent-quotes/:id/download-pdf', async (req, res) => {
     
   } catch (error) {
     console.error('Error downloading PDF:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5639,7 +5699,7 @@ app.get('/api/sent-quotes/:id/download-quote', async (req, res) => {
     res.send(Buffer.from(pdfResult.bytes));
   } catch (error) {
     console.error('Error downloading quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5660,7 +5720,7 @@ app.get('/api/sent-quotes/:id/download-contract', async (req, res) => {
     res.json({ success: true, quote, type: 'contract' });
   } catch (error) {
     console.error('Error downloading contract:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -5716,7 +5776,7 @@ app.post('/api/app/calls/outbound', authenticateToken, async (req, res) => {
     res.json({ success: true, callSid: call.sid, contactName });
   } catch (error) {
     console.error('Outbound call error:', error);
-    res.status(500).json({ message: 'Failed to initiate call', error: error.message });
+    serverError(res, error, 'Failed to initiate call');
   }
 });
 
@@ -5809,7 +5869,7 @@ app.post('/api/app/voice/setup', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Voice setup error:', error);
-    res.status(500).json({ message: 'Setup failed', error: error.message });
+    serverError(res, error, 'Setup failed');
   }
 });
 
@@ -6329,7 +6389,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Send SMS error:', error);
-    res.status(500).json({ message: 'Failed to send message', error: error.message });
+    serverError(res, error, 'Failed to send message');
   }
 });
 
@@ -6635,7 +6695,7 @@ app.post('/api/quote-followups', async (req, res) => {
     res.json({ success: true, followup: result.rows[0] });
   } catch (error) {
     console.error('Error creating follow-up:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6670,7 +6730,7 @@ app.get('/api/quote-followups', async (req, res) => {
     res.json({ success: true, followups: result.rows });
   } catch (error) {
     console.error('Error fetching follow-ups:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6698,7 +6758,7 @@ app.get('/api/quote-followups/stats', async (req, res) => {
     res.json({ success: true, stats: stats.rows[0] });
   } catch (error) {
     console.error('Error fetching stats:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6721,7 +6781,7 @@ app.patch('/api/quote-followups/:id/stop', async (req, res) => {
     res.json({ success: true, followup: result.rows[0] });
   } catch (error) {
     console.error('Error stopping follow-up:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6741,7 +6801,7 @@ app.patch('/api/quote-followups/:id/resume', async (req, res) => {
     res.json({ success: true, followup: result.rows[0] });
   } catch (error) {
     console.error('Error resuming follow-up:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6766,7 +6826,7 @@ app.post('/api/webhooks/quote-accepted', async (req, res) => {
     res.json({ success: true, stopped: result.rowCount });
   } catch (error) {
     console.error('Error processing quote-accepted webhook:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6789,7 +6849,7 @@ app.post('/api/webhooks/quote-declined', async (req, res) => {
     res.json({ success: true, stopped: result.rowCount });
   } catch (error) {
     console.error('Error processing quote-declined webhook:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6812,7 +6872,7 @@ app.post('/api/webhooks/customer-replied', async (req, res) => {
     res.json({ success: true, stopped: result.rowCount });
   } catch (error) {
     console.error('Error processing customer-replied webhook:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -6979,7 +7039,7 @@ app.get('/api/preview-followup-emails', async (req, res) => {
     res.json({ success: true, message: 'All 4 follow-up email previews sent to hello@pappaslandscaping.com' });
   } catch (error) {
     console.error('Error sending preview emails:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7071,7 +7131,7 @@ app.post('/api/cron/process-followups', async (req, res) => {
     
   } catch (error) {
     console.error('Error in cron job:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7081,7 +7141,7 @@ app.get('/api/setup-quote-followups', async (req, res) => {
     await createQuoteFollowupsTable();
     res.json({ success: true, message: 'Quote followups table ready!' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7174,7 +7234,7 @@ app.get('/api/cron/process-followups', async (req, res) => {
     
   } catch (error) {
     console.error('Error in cron job:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7189,7 +7249,7 @@ app.get('/api/settings', async (req, res) => {
     const settings = {};
     for (const row of result.rows) settings[row.key] = row.value;
     res.json({ success: true, settings });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // PATCH /api/settings/:key - Update a setting
@@ -7203,7 +7263,7 @@ app.patch('/api/settings/:key', async (req, res) => {
       [req.params.key, JSON.stringify(value)]
     );
     res.json({ success: true, setting: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/tax/calculate - Calculate tax for line items
@@ -7213,7 +7273,7 @@ app.post('/api/tax/calculate', async (req, res) => {
     const result = await calculateTax(customer_id || null, property_id || null, line_items || []);
     res.json({ success: true, ...result });
   } catch(e) {
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -7301,7 +7361,7 @@ app.post('/api/late-fees/bulk-waive-today', async (req, res) => {
     });
   } catch (error) {
     console.error('Bulk waive error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7321,7 +7381,7 @@ app.get('/api/late-fees', async (req, res) => {
     query += ' ORDER BY lf.created_at DESC';
     const result = await pool.query(query, params);
     res.json({ success: true, lateFees: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/late-fees/:id/waive - Waive a late fee
@@ -7333,7 +7393,7 @@ app.post('/api/late-fees/:id/waive', async (req, res) => {
     const totals = await pool.query('SELECT COALESCE(SUM(fee_amount), 0) as total FROM late_fees WHERE invoice_id = $1 AND waived = false', [fee.rows[0].invoice_id]);
     await pool.query('UPDATE invoices SET late_fee_total = $1, updated_at = NOW() WHERE id = $2', [totals.rows[0].total, fee.rows[0].invoice_id]);
     res.json({ success: true, fee: fee.rows[0], new_total: parseFloat(totals.rows[0].total) });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -7345,7 +7405,7 @@ app.get('/api/jobs/recurring', async (req, res) => {
   try {
     const result = await pool.query(`SELECT * FROM scheduled_jobs WHERE is_recurring = true ORDER BY customer_name ASC`);
     res.json({ success: true, jobs: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // PATCH /api/jobs/:id/recurring - Configure recurring pattern
@@ -7358,7 +7418,7 @@ app.patch('/api/jobs/:id/recurring', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Job not found' });
     res.json({ success: true, job: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -7540,7 +7600,7 @@ app.post('/api/cron/daily-automation', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Daily automation error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7559,7 +7619,7 @@ app.get('/api/cron/daily-automation', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Daily automation error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7663,7 +7723,7 @@ app.get('/api/kpi/dashboard', async (req, res) => {
     res.json({ success: true, metrics, coaching: generateCoachingSuggestions(metrics), period });
   } catch (error) {
     console.error('KPI dashboard error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -7720,7 +7780,7 @@ app.get('/api/dispatch/board', async (req, res) => {
       }
     }
     res.json({ success: true, date: targetDate, view, crews: Object.values(crewMap), unassigned });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // PATCH /api/dispatch/assign - Batch reassignment (supports crew, route_order, status, job_date)
@@ -7747,7 +7807,7 @@ app.patch('/api/dispatch/assign', async (req, res) => {
       if (result.rows.length > 0) updated.push(result.rows[0]);
     }
     res.json({ success: true, updated: updated.length, jobs: updated });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/dispatch/crew-availability - Crew workload summary
@@ -7760,7 +7820,7 @@ app.get('/api/dispatch/crew-availability', async (req, res) => {
       GROUP BY crew_assigned ORDER BY crew_assigned
     `, [date]);
     res.json({ success: true, date, crews: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/dispatch/geocode - Geocode all jobs for a date and store lat/lng
@@ -7850,7 +7910,7 @@ app.post('/api/dispatch/geocode', async (req, res) => {
       } catch (e) { /* skip individual failures */ }
     }
     res.json({ success: true, geocoded, total: jobs.rows.length });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // Helper: extract street address from a string like "John Smith 123 Main St" or "SPRING CLEANUP 123 MAIN ST MOWING"
@@ -7934,7 +7994,7 @@ app.post('/api/dispatch/optimize-route', async (req, res) => {
       await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, order[i]]);
     }
     res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })) });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/dispatch/apply-future-weeks - Apply route order to future recurring visits
@@ -7990,7 +8050,7 @@ app.post('/api/dispatch/apply-future-weeks', async (req, res) => {
     res.json({ success: true, updated: totalUpdated, message: `Applied route order to ${totalUpdated} future visits (${frequency})` });
   } catch (err) {
     console.error('Apply future weeks error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -8039,7 +8099,8 @@ async function ensureInvoicesTable() {
 }
 
 async function nextInvoiceNumber() {
-  const r = await pool.query("SELECT invoice_number FROM invoices ORDER BY id DESC LIMIT 1");
+  // Use FOR UPDATE to prevent race conditions with concurrent invoice creation
+  const r = await pool.query("SELECT invoice_number FROM invoices ORDER BY id DESC LIMIT 1 FOR UPDATE");
   if (r.rows.length === 0) return 'INV-1001';
   const last = r.rows[0].invoice_number || 'INV-1000';
   const num = parseInt(last.replace(/\D/g, '')) || 1000;
@@ -8104,7 +8165,7 @@ app.get('/api/payments', async (req, res) => {
     });
   } catch (e) {
     console.error('Payments API error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -8130,7 +8191,7 @@ app.get('/api/invoices', async (req, res) => {
     res.json({ success: true, invoices: result.rows });
   } catch (error) {
     console.error('Error fetching invoices:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8163,7 +8224,7 @@ app.get('/api/invoices/stats', async (req, res) => {
     res.json({ success: true, stats });
   } catch (error) {
     console.error('Error fetching invoice stats:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8201,7 +8262,7 @@ app.get('/api/invoices/aging', async (req, res) => {
     res.json({ success: true, buckets });
   } catch (error) {
     console.error('Error fetching aging data:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8242,7 +8303,7 @@ app.post('/api/invoices/batch', async (req, res) => {
     res.json({ success: true, invoices: created, count: created.length });
   } catch (error) {
     console.error('Error batch creating invoices:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8263,7 +8324,7 @@ app.get('/api/invoices/:id', async (req, res) => {
     } catch(e) { inv.payment_history = []; }
     res.json({ success: true, invoice: inv });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8284,7 +8345,7 @@ app.post('/api/invoices', async (req, res) => {
     res.json({ success: true, invoice: r.rows[0] });
   } catch (error) {
     console.error('Error creating invoice:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8310,7 +8371,7 @@ app.post('/api/invoices/from-quote/:quoteId', async (req, res) => {
     res.json({ success: true, invoice: r.rows[0] });
   } catch (error) {
     console.error('Error creating invoice from quote:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8334,7 +8395,7 @@ app.patch('/api/invoices/:id', async (req, res) => {
     res.json({ success: true, invoice: r.rows[0] });
   } catch (error) {
     console.error('Error updating invoice:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8419,7 +8480,7 @@ app.post('/api/invoices/:id/send', async (req, res) => {
     res.json({ success: true, message: 'Invoice sent' });
   } catch (error) {
     console.error('Error sending invoice:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8434,7 +8495,7 @@ app.post('/api/invoices/:id/mark-paid', async (req, res) => {
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, invoice: r.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8448,7 +8509,7 @@ app.delete('/api/invoices/:id', async (req, res) => {
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8524,7 +8585,7 @@ app.get('/api/pay/:token', async (req, res) => {
     res.json({ success: true, invoice: inv });
   } catch (error) {
     console.error('Pay token error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8784,7 +8845,7 @@ app.get('/api/pay/:token/pdf', async (req, res) => {
     res.send(Buffer.from(pdfResult.bytes));
   } catch (error) {
     console.error('Pay PDF error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8801,7 +8862,7 @@ app.get('/api/invoices/:id/pdf', async (req, res) => {
     res.send(Buffer.from(pdfResult.bytes));
   } catch (error) {
     console.error('Invoice PDF error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8834,7 +8895,7 @@ app.post('/api/invoices/:id/record-payment', async (req, res) => {
     res.json({ success: true, paymentId, newAmountPaid, newStatus });
   } catch (error) {
     console.error('Record payment error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8874,7 +8935,7 @@ app.post('/api/invoices/:id/send-reminder', async (req, res) => {
     res.json({ success: true, message: 'Reminder sent' });
   } catch (error) {
     console.error('Send reminder error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8928,7 +8989,7 @@ app.post('/api/portal/request-access', async (req, res) => {
     res.json({ success: true, message: 'Access link sent to your email.' });
   } catch (error) {
     console.error('Portal access error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8955,7 +9016,7 @@ app.get('/api/portal/:token', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -8979,7 +9040,7 @@ app.get('/api/portal/:token/invoices', async (req, res) => {
     );
     res.json({ success: true, invoices: invoices.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9003,7 +9064,7 @@ app.get('/api/portal/:token/payments', async (req, res) => {
     );
     res.json({ success: true, payments: payments.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9058,7 +9119,7 @@ app.post('/api/portal/:token/cards/save', async (req, res) => {
     res.json({ success: true, card: { id: card.id, brand: card.cardBrand, last4: card.last4, expMonth: card.expMonth, expYear: card.expYear } });
   } catch (error) {
     console.error('Save card error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9100,7 +9161,7 @@ app.post('/api/customers/:id/card-on-file', async (req, res) => {
     res.json({ success: true, card: { brand: card.cardBrand, last4: card.last4 } });
   } catch (error) {
     console.error('Card-on-file save error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9111,7 +9172,7 @@ app.get('/api/portal/:token/cards', async (req, res) => {
     if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
     const result = await pool.query('SELECT id, card_brand, last4, exp_month, exp_year, cardholder_name, is_default FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC', [tokenData.customer_id]);
     res.json({ success: true, cards: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // DELETE /api/portal/:token/cards/:cardId - Disable/remove saved card
@@ -9127,7 +9188,7 @@ app.delete('/api/portal/:token/cards/:cardId', async (req, res) => {
     }
     await pool.query('UPDATE customer_saved_cards SET enabled = false WHERE id = $1', [req.params.cardId]);
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/portal/:token/pay-with-saved-card - Charge saved card
@@ -9166,7 +9227,7 @@ app.post('/api/portal/:token/pay-with-saved-card', async (req, res) => {
     res.json({ success: true, paymentId, receiptUrl: payment.receiptUrl });
   } catch (error) {
     console.error('Pay with saved card error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9195,7 +9256,7 @@ app.post('/api/portal/:token/service-requests', async (req, res) => {
       </div>
     `));
     res.json({ success: true, request: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/portal/:token/service-requests - Customer's requests
@@ -9205,7 +9266,7 @@ app.get('/api/portal/:token/service-requests', async (req, res) => {
     if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
     const result = await pool.query('SELECT * FROM service_requests WHERE customer_id = $1 ORDER BY created_at DESC', [tokenData.customer_id]);
     res.json({ success: true, requests: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/portal/:token/quotes - Customer's pending quotes
@@ -9218,7 +9279,7 @@ app.get('/api/portal/:token/quotes', async (req, res) => {
       [tokenData.email]
     );
     res.json({ success: true, quotes: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/portal/:token/service-history - Completed jobs with photos
@@ -9231,7 +9292,7 @@ app.get('/api/portal/:token/service-history', async (req, res) => {
       [tokenData.customer_id]
     );
     res.json({ success: true, jobs: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/portal/:token/properties - Customer properties
@@ -9241,7 +9302,7 @@ app.get('/api/portal/:token/properties', async (req, res) => {
     if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
     const result = await pool.query('SELECT * FROM properties WHERE customer_id = $1 ORDER BY created_at DESC', [tokenData.customer_id]);
     res.json({ success: true, properties: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/portal/:token/preferences - Communication preferences
@@ -9252,7 +9313,7 @@ app.get('/api/portal/:token/preferences', async (req, res) => {
     const result = await pool.query('SELECT * FROM customer_communication_prefs WHERE customer_id = $1', [tokenData.customer_id]);
     const prefs = result.rows[0] || { email_invoices: true, email_reminders: true, email_marketing: false, sms_reminders: false, sms_marketing: false };
     res.json({ success: true, preferences: prefs });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/portal/:token/preferences - Update communication preferences
@@ -9269,7 +9330,7 @@ app.post('/api/portal/:token/preferences', async (req, res) => {
       [tokenData.customer_id, email_invoices !== false, email_reminders !== false, email_marketing === true, sms_reminders === true, sms_marketing === true]
     );
     res.json({ success: true, preferences: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // Admin: GET /api/service-requests - List service requests
@@ -9282,7 +9343,7 @@ app.get('/api/service-requests', async (req, res) => {
     query += ' ORDER BY sr.created_at DESC';
     const result = await pool.query(query, params);
     res.json({ success: true, requests: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // Admin: PATCH /api/service-requests/:id - Update status/notes
@@ -9299,7 +9360,7 @@ app.patch('/api/service-requests/:id', async (req, res) => {
     const result = await pool.query(`UPDATE service_requests SET ${updates.join(', ')} WHERE id = $${p} RETURNING *`, params);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, request: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -9392,7 +9453,7 @@ app.get('/api/finance/summary', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching finance summary:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9429,7 +9490,7 @@ app.get('/api/reports/business-summary', async (req, res) => {
     }});
   } catch (error) {
     console.error('Error fetching business summary:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9445,7 +9506,7 @@ app.get('/api/reports/crew-performance', async (req, res) => {
     `);
     res.json({ success: true, crews: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9460,7 +9521,7 @@ app.get('/api/reports/customer-acquisition', async (req, res) => {
     `);
     res.json({ success: true, months: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9560,7 +9621,7 @@ app.get('/api/reports/sales-tax', async (req, res) => {
     });
   } catch (error) {
     console.error('Sales tax report error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -9750,7 +9811,7 @@ app.get('/api/quickbooks/status', async (req, res) => {
       lastSync: lastSync.rows[0] || null
     });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -9760,7 +9821,7 @@ app.post('/api/quickbooks/disconnect', async (req, res) => {
     await pool.query('DELETE FROM qb_tokens');
     res.json({ success: true, message: 'QuickBooks disconnected' });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -10171,7 +10232,7 @@ app.post('/api/quickbooks/sync', async (req, res) => {
     activeSyncLogId = null;
     activeSyncProgress = null;
     console.error('QB sync error:', e);
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -10198,7 +10259,7 @@ app.get('/api/quickbooks/sync-log', async (req, res) => {
     const result = await pool.query('SELECT * FROM qb_sync_log ORDER BY id DESC LIMIT 20');
     res.json({ success: true, logs: result.rows });
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    serverError(res, e);
   }
 });
 
@@ -10304,7 +10365,7 @@ app.get('/api/templates', async (req, res) => {
     query += ' ORDER BY category, name';
     const result = await pool.query(query, params);
     res.json({ success: true, templates: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/templates', async (req, res) => {
@@ -10317,7 +10378,7 @@ app.post('/api/templates', async (req, res) => {
       [name, slug, category || 'system', subject, body, sms_body, JSON.stringify(variables || []), is_active !== false, JSON.stringify(options || {})]
     );
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/templates/:id', async (req, res) => {
@@ -10339,7 +10400,7 @@ app.patch('/api/templates/:id', async (req, res) => {
     const result = await pool.query(`UPDATE email_templates SET ${updates.join(', ')} WHERE id = $${p} RETURNING *`, params);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/templates/:id', async (req, res) => {
@@ -10347,7 +10408,7 @@ app.delete('/api/templates/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM email_templates WHERE id = $1 AND is_default = false RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(400).json({ success: false, error: 'Cannot delete default template or not found' });
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/templates/:id/duplicate', async (req, res) => {
@@ -10362,7 +10423,7 @@ app.post('/api/templates/:id/duplicate', async (req, res) => {
       [t.name + ' (Copy)', newSlug, t.category, t.subject, t.body, t.sms_body, JSON.stringify(t.variables), true, JSON.stringify(t.options)]
     );
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/templates/preview', async (req, res) => {
@@ -10373,7 +10434,7 @@ app.post('/api/templates/preview', async (req, res) => {
     const subject = replaceTemplateVars(template.subject, vars);
     const body = replaceTemplateVars(template.body, vars);
     res.json({ success: true, subject, html: emailTemplate(body) });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/templates/send-preview', async (req, res) => {
@@ -10412,7 +10473,7 @@ app.post('/api/templates/send-preview', async (req, res) => {
     const recipient = to || 'hello@pappaslandscaping.com';
     await sendEmail(recipient, `[TEST] ${finalSubject}`, emailTemplate(finalBody));
     res.json({ success: true, message: 'Test email sent to ' + recipient });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/templates/variables', (req, res) => {
@@ -10484,7 +10545,7 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
     res.json({ success: true, ...results });
   } catch (error) {
     console.error('Campaign send error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -10500,7 +10561,7 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
       [req.params.id]
     );
     res.json({ success: true, sends: sends.rows, stats: stats.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/unsubscribe - Public endpoint for email unsubscribe
@@ -10600,7 +10661,7 @@ app.get('/api/broadcasts/filter-options', async (req, res) => {
     });
   } catch (error) {
     console.error('Broadcast filter-options error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -10716,7 +10777,7 @@ app.post('/api/broadcasts/preview', async (req, res) => {
     res.json({ success: true, count: customers.length, customers, summary });
   } catch (error) {
     console.error('Broadcast preview error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -10852,7 +10913,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
     res.json({ success: true, ...results });
   } catch (error) {
     console.error('Broadcast send error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -10874,7 +10935,7 @@ app.patch('/api/jobs/:id/pipeline', async (req, res) => {
     );
     if (!result.rows.length) return res.status(404).json({ success: false, error: 'Job not found' });
     res.json({ success: true, job: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ─── Recurring Job Scheduling (Enhanced) ───────────────────────────────────
@@ -10922,7 +10983,7 @@ app.post('/api/jobs/:id/setup-recurring', async (req, res) => {
     }
 
     res.json({ success: true, job: result.rows[0], generated_jobs: generated.length, jobs: generated });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ─── Payment Schedule Splitting ────────────────────────────────────────────
@@ -10957,7 +11018,7 @@ app.post('/api/invoices/:id/payment-schedule', async (req, res) => {
     );
 
     res.json({ success: true, schedule, installment_count: installments.length });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // GET /api/invoices/:id/payment-schedule
@@ -10974,7 +11035,7 @@ app.get('/api/invoices/:id/payment-schedule', async (req, res) => {
       return { ...inst, status: 'pending' };
     });
     res.json({ success: true, schedule: updated, total: parseFloat(inv.rows[0].total), amount_paid: parseFloat(inv.rows[0].amount_paid) || 0 });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ─── Job Detail / Profitability ────────────────────────────────────────────
@@ -11022,7 +11083,7 @@ app.get('/api/jobs/:id/profitability', async (req, res) => {
       expenses,
       time_entries: timeEntries
     });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/jobs/:id/expenses - Add expense to job
@@ -11038,7 +11099,7 @@ app.post('/api/jobs/:id/expenses', async (req, res) => {
     const total = await pool.query('SELECT COALESCE(SUM(amount),0) as total FROM job_expenses WHERE job_id = $1', [req.params.id]);
     await pool.query('UPDATE scheduled_jobs SET expense_total = $1 WHERE id = $2', [total.rows[0].total, req.params.id]);
     res.json({ success: true, expense: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // DELETE /api/jobs/:id/expenses/:expenseId
@@ -11048,7 +11109,7 @@ app.delete('/api/jobs/:id/expenses/:expenseId', async (req, res) => {
     const total = await pool.query('SELECT COALESCE(SUM(amount),0) as total FROM job_expenses WHERE job_id = $1', [req.params.id]);
     await pool.query('UPDATE scheduled_jobs SET expense_total = $1 WHERE id = $2', [total.rows[0].total, req.params.id]);
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ─── Internal Notes ────────────────────────────────────────────────────────
@@ -11062,7 +11123,7 @@ app.get('/api/notes/:entityType/:entityId', async (req, res) => {
       [entityType, parseInt(entityId)]
     );
     res.json({ success: true, notes: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // POST /api/notes/:entityType/:entityId
@@ -11078,7 +11139,7 @@ app.post('/api/notes/:entityType/:entityId', async (req, res) => {
       [entityType, parseInt(entityId), authorName, authorId, content.trim(), pinned || false]
     );
     res.json({ success: true, note: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // PATCH /api/notes/:id - Update note
@@ -11093,7 +11154,7 @@ app.patch('/api/notes/:id', async (req, res) => {
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE internal_notes SET ${sets.join(',')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, note: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // DELETE /api/notes/:id
@@ -11101,7 +11162,7 @@ app.delete('/api/notes/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM internal_notes WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ─── Email Log API ─────────────────────────────────────────────────────────
@@ -11124,7 +11185,9 @@ app.get('/api/email-log', async (req, res) => {
       idx++;
     }
     if (days) {
-      where.push(`sent_at >= NOW() - INTERVAL '${parseInt(days)} days'`);
+      where.push(`sent_at >= NOW() - $${idx}::int * INTERVAL '1 day'`);
+      params.push(parseInt(days));
+      idx++;
     }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
@@ -11137,7 +11200,7 @@ app.get('/api/email-log', async (req, res) => {
     res.json({ success: true, emails: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) {
     console.error('Email log error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11161,7 +11224,7 @@ app.get('/api/email-log/stats', async (req, res) => {
     `);
     res.json({ success: true, stats: stats.rows[0], by_type: byType.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11184,7 +11247,7 @@ app.get('/api/customers/:id/emails', async (req, res) => {
     }
     res.json({ success: true, emails: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11351,7 +11414,7 @@ app.post('/api/jobs/from-quote/:quoteId', async (req, res) => {
 
     res.json({ success: true, job: result.rows[0], quote_id: quote.id });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11422,7 +11485,7 @@ app.get('/api/finance/cash-flow-forecast', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching cash flow forecast:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11461,7 +11524,7 @@ app.get('/api/crews/:id/performance', async (req, res) => {
     });
   } catch (error) {
     console.error('Crew performance error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11479,7 +11542,7 @@ app.get('/api/crews/:id/schedule', async (req, res) => {
     res.json({ success: true, jobs: jobs.rows });
   } catch (error) {
     console.error('Crew schedule error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11504,7 +11567,7 @@ app.get('/api/reports/job-costing', async (req, res) => {
     res.json(jobs);
   } catch (error) {
     console.error('Job costing error:', error);
-    res.status(500).json({ error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11533,7 +11596,7 @@ app.get('/api/reports/customer-value', async (req, res) => {
     })));
   } catch (error) {
     console.error('Customer value error:', error);
-    res.status(500).json({ error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11557,7 +11620,7 @@ app.get('/api/service-items', async (req, res) => {
     const result = await pool.query('SELECT * FROM service_items ORDER BY name ASC');
     res.json({ success: true, items: result.rows });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11572,7 +11635,7 @@ app.post('/api/service-items', async (req, res) => {
     );
     res.json({ success: true, item: result.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11595,7 +11658,7 @@ app.patch('/api/service-items/:id', async (req, res) => {
     const result = await pool.query(`UPDATE service_items SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, item: result.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11605,7 +11668,7 @@ app.delete('/api/service-items/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM service_items WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11628,7 +11691,7 @@ app.post('/api/service-items/import', async (req, res) => {
     }
     res.json({ success: true, imported, skipped, total: items.length });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11659,7 +11722,7 @@ app.get('/api/templates', async (req, res) => {
     q += ' ORDER BY name';
     const result = await pool.query(q, params);
     res.json({ success: true, templates: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/templates/:id', async (req, res) => {
@@ -11668,7 +11731,7 @@ app.get('/api/templates/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/templates', async (req, res) => {
@@ -11681,7 +11744,7 @@ app.post('/api/templates', async (req, res) => {
       [name, type || 'email', subject || '', html_content || '', text_content || '', category || 'General', tags || []]
     );
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/templates/:id', async (req, res) => {
@@ -11698,7 +11761,7 @@ app.patch('/api/templates/:id', async (req, res) => {
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE message_templates SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/templates/:id', async (req, res) => {
@@ -11706,7 +11769,7 @@ app.delete('/api/templates/:id', async (req, res) => {
     await ensureTemplatesTable();
     const result = await pool.query('DELETE FROM message_templates WHERE id = $1 RETURNING *', [req.params.id]);
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // Duplicate a template
@@ -11721,7 +11784,7 @@ app.post('/api/templates/:id/duplicate', async (req, res) => {
       [t.name + ' (Copy)', t.type, t.subject, t.html_content, t.text_content, t.category, t.tags]
     );
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ─── Automations / Sequences ────────────────────────────────────────
@@ -11757,7 +11820,7 @@ app.get('/api/automations', async (req, res) => {
     await ensureAutomationsTable();
     const result = await pool.query('SELECT * FROM automations ORDER BY created_at DESC');
     res.json({ success: true, automations: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/automations/:id', async (req, res) => {
@@ -11766,7 +11829,7 @@ app.get('/api/automations/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM automations WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, automation: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/automations', async (req, res) => {
@@ -11779,7 +11842,7 @@ app.post('/api/automations', async (req, res) => {
       [name, description || '', trigger_type, JSON.stringify(trigger_config || {}), JSON.stringify(conditions || []), JSON.stringify(actions || []), review_before_exec || false]
     );
     res.json({ success: true, automation: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.patch('/api/automations/:id', async (req, res) => {
@@ -11799,7 +11862,7 @@ app.patch('/api/automations/:id', async (req, res) => {
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE automations SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     res.json({ success: true, automation: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/automations/:id', async (req, res) => {
@@ -11807,7 +11870,7 @@ app.delete('/api/automations/:id', async (req, res) => {
     await ensureAutomationsTable();
     await pool.query('DELETE FROM automations WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/automations/:id/history', async (req, res) => {
@@ -11815,7 +11878,7 @@ app.get('/api/automations/:id/history', async (req, res) => {
     await ensureAutomationsTable();
     const result = await pool.query('SELECT * FROM automation_history WHERE automation_id = $1 ORDER BY created_at DESC LIMIT 50', [req.params.id]);
     res.json({ success: true, history: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // 8.5 Customer Activity Timeline
@@ -11900,7 +11963,7 @@ app.get('/api/customers/:id/timeline', async (req, res) => {
     res.json({ success: true, timeline: events.slice(0, 50) });
   } catch (error) {
     console.error('Customer timeline error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11919,7 +11982,7 @@ app.get('/api/ai/lead-scores', async (req, res) => {
     }
     res.json({ success: true, customers: results });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -11931,7 +11994,7 @@ app.get('/api/customers/:id/lead-score', async (req, res) => {
     const scoreData = await computeLeadScore(cust.rows[0]);
     res.json({ success: true, id: cust.rows[0].id, name: cust.rows[0].name, score: scoreData.score, grade: scoreData.grade, factors: scoreData.factors });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -12035,7 +12098,7 @@ app.get('/api/ai/schedule-suggestions', async (req, res) => {
     suggestions.sort((a, b) => b.score - a.score);
     res.json({ success: true, suggestions: suggestions.slice(0, 3) });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -12046,7 +12109,7 @@ app.post('/api/ai/review-request/:jobId', async (req, res) => {
     // Just return success — no email/SMS sent
     res.json({ success: true, message: 'Review request queued (sending disabled)' });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -12116,7 +12179,7 @@ app.get('/api/ai/churn-risk', async (req, res) => {
     results.sort((a, b) => b.risk_score - a.risk_score);
     res.json({ success: true, customers: results });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -12175,7 +12238,7 @@ app.get('/api/ai/revenue-forecast', async (req, res) => {
 
     res.json({ success: true, forecast });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -12224,7 +12287,7 @@ app.get('/api/ai/campaign-segments', async (req, res) => {
 
     res.json({ success: true, segments });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -12387,7 +12450,7 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
     res.send(Buffer.from(pdfResult.bytes));
   } catch (err) {
     console.error('Test PDF error:', err);
-    res.status(500).json({ error: err.message, stack: err.stack });
+    serverError(res, err);
   }
 });
 
@@ -13030,7 +13093,7 @@ app.get('/api/work-requests/stats', async (req, res) => {
     res.json({ success: true, stats: result.rows[0] });
   } catch (error) {
     console.error('Work requests stats error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13069,7 +13132,7 @@ app.get('/api/work-requests', async (req, res) => {
     res.json({ success: true, requests: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) {
     console.error('Work requests error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13083,7 +13146,7 @@ app.get('/api/work-requests/:id', async (req, res) => {
     `, [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, request: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.put('/api/work-requests/:id', async (req, res) => {
@@ -13098,7 +13161,7 @@ app.put('/api/work-requests/:id', async (req, res) => {
     const result = await pool.query(`UPDATE service_requests SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, request: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -13119,7 +13182,7 @@ app.get('/api/time-entries', async (req, res) => {
     const result = await pool.query(query, params);
     const countResult = await pool.query('SELECT COUNT(*) FROM time_entries');
     res.json({ success: true, entries: result.rows, total: parseInt(countResult.rows[0].count) });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/time-entries/stats', async (req, res) => {
@@ -13137,7 +13200,7 @@ app.get('/api/time-entries/stats', async (req, res) => {
       weekHours: parseFloat(weekHours.rows[0].hours).toFixed(1),
       activeEntries: activeEntries.rows
     }});
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/time-entries/clock-in', async (req, res) => {
@@ -13149,7 +13212,7 @@ app.post('/api/time-entries/clock-in', async (req, res) => {
       [crew_id, crew_name, job_id, customer_name, address, service_type, notes]
     );
     res.json({ success: true, entry: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/time-entries/:id/clock-out', async (req, res) => {
@@ -13164,7 +13227,7 @@ app.post('/api/time-entries/:id/clock-out', async (req, res) => {
     const result = await pool.query(`UPDATE time_entries SET ${sets.join(', ')} WHERE id = $${p} AND clock_out IS NULL RETURNING *`, params);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Entry not found or already clocked out' });
     res.json({ success: true, entry: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.put('/api/time-entries/:id', async (req, res) => {
@@ -13176,7 +13239,7 @@ app.put('/api/time-entries/:id', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, entry: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/time-entries/:id', async (req, res) => {
@@ -13184,7 +13247,7 @@ app.delete('/api/time-entries/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM time_entries WHERE id = $1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/time-entries/weekly-report', async (req, res) => {
@@ -13201,7 +13264,7 @@ app.get('/api/time-entries/weekly-report', async (req, res) => {
       GROUP BY crew_name ORDER BY crew_name
     `, [startDate]);
     res.json({ success: true, report: result.rows, weekStart: startDate });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -13212,7 +13275,7 @@ app.get('/api/dispatch-templates', async (req, res) => {
   try {
     const result = await pool.query('SELECT dt.*, c.name as crew_display_name FROM dispatch_templates dt LEFT JOIN crews c ON dt.crew_id = c.id ORDER BY dt.name');
     res.json({ success: true, templates: result.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/dispatch-templates', async (req, res) => {
@@ -13224,7 +13287,7 @@ app.post('/api/dispatch-templates', async (req, res) => {
       [name, zip_codes, crew_id, service_type, default_duration || 30, notes]
     );
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.put('/api/dispatch-templates/:id', async (req, res) => {
@@ -13236,7 +13299,7 @@ app.put('/api/dispatch-templates/:id', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, template: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/dispatch-templates/:id', async (req, res) => {
@@ -13244,7 +13307,7 @@ app.delete('/api/dispatch-templates/:id', async (req, res) => {
     const result = await pool.query('DELETE FROM dispatch_templates WHERE id = $1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, deleted: result.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // Quick dispatch: find template by zip code, create job
@@ -13261,7 +13324,7 @@ app.post('/api/dispatch-templates/quick-dispatch', async (req, res) => {
       [job_date, customer_name, customer_id, t.service_type, address, t.crew_id, t.default_duration]
     );
     res.json({ success: true, job: job.rows[0], template: t });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -13277,7 +13340,7 @@ app.get('/api/service-programs', async (req, res) => {
     steps.rows.forEach(s => stepMap[s.program_id] = parseInt(s.step_count));
     const result = programs.rows.map(p => ({ ...p, step_count: stepMap[p.id] || 0 }));
     res.json({ success: true, programs: result });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/service-programs/:id', async (req, res) => {
@@ -13287,7 +13350,7 @@ app.get('/api/service-programs/:id', async (req, res) => {
     const steps = await pool.query('SELECT * FROM program_steps WHERE program_id = $1 ORDER BY step_order', [req.params.id]);
     const enrollments = await pool.query('SELECT cp.*, c.name as customer_name FROM customer_programs cp LEFT JOIN customers c ON cp.customer_id = c.id WHERE cp.program_id = $1 ORDER BY cp.created_at DESC', [req.params.id]);
     res.json({ success: true, program: program.rows[0], steps: steps.rows, enrollments: enrollments.rows });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/service-programs', async (req, res) => {
@@ -13304,7 +13367,7 @@ app.post('/api/service-programs', async (req, res) => {
       }
     }
     res.json({ success: true, program: program.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.put('/api/service-programs/:id', async (req, res) => {
@@ -13321,7 +13384,7 @@ app.put('/api/service-programs/:id', async (req, res) => {
     }
     const updated = await pool.query('SELECT * FROM service_programs WHERE id = $1', [req.params.id]);
     res.json({ success: true, program: updated.rows[0] });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/service-programs/:id/enroll', async (req, res) => {
@@ -13344,7 +13407,7 @@ app.post('/api/service-programs/:id/enroll', async (req, res) => {
       );
     }
     res.json({ success: true, enrollment: enrollment.rows[0], jobsCreated: steps.rows.length });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { serverError(res, error); }
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -13425,7 +13488,7 @@ app.get('/api/kpi/detailed', async (req, res) => {
     }});
   } catch (error) {
     console.error('KPI detailed error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13497,7 +13560,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
     res.json({ success: true, quote });
   } catch (error) {
     console.error('AI generate-quote error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13558,7 +13621,7 @@ ${isSMS ? '{"body": "The SMS message text"}' : '{"subject": "Email subject line"
     res.json({ success: true, message: result });
   } catch (error) {
     console.error('AI generate-followup error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13618,7 +13681,7 @@ Keep responses concise, practical, and professional. If asked about specific cus
     res.json({ success: true, reply });
   } catch (error) {
     console.error('AI chat error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13709,7 +13772,7 @@ Keep the tone professional but warm and friendly. Use merge tags where appropria
     res.json({ success: true, result: parsed });
   } catch (error) {
     console.error('AI template generation error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13726,7 +13789,7 @@ app.get('/api/settings/home-base', async (req, res) => {
     }
     res.json({ success: true, address: '', lat: 41.4268, lng: -81.7356 });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13769,7 +13832,7 @@ app.post('/api/settings/home-base', async (req, res) => {
     );
     res.json({ success: true, address: address.trim(), lat, lng });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, error);
   }
 });
 
@@ -13783,6 +13846,24 @@ app.get('*', (req, res) => {
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// ═══════════════════════════════════════════════════════════
+// STARTUP TABLE INITIALIZATION — run once, not per-request
+// ═══════════════════════════════════════════════════════════
+(async () => {
+  try {
+    await ensureInvoicesTable();
+    await ensureQuoteEventsTable();
+    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
+      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
+      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ip_address VARCHAR(45), user_agent TEXT
+    )`);
+    console.log('✅ Startup table initialization complete');
+  } catch (err) {
+    console.error('⚠️ Startup table initialization error:', err.message);
+  }
+})();
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

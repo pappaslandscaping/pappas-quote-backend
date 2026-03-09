@@ -694,6 +694,10 @@
                             <!-- Card Tab -->
                             <div class="tab-content ${invoice.saved_cards && invoice.saved_cards.length > 0 ? '' : 'active'}" id="tab-card">
                                 <div id="card-container"></div>
+                                <label style="display:flex;align-items:center;gap:8px;margin:12px 0 16px;cursor:pointer;font-size:14px;color:#475569;">
+                                    <input type="checkbox" id="saveCardCheckbox" style="accent-color:#2e403d;width:16px;height:16px;">
+                                    Save this card for future payments
+                                </label>
                                 <button class="pay-btn" id="cardPayBtn" onclick="payWithCard()">
                                     <span class="spinner"></span>
                                     <span class="btn-text">Pay ${formatCurrency(balanceDue + calcProcessingFee(balanceDue, 'card'))}</span>
@@ -808,12 +812,18 @@
 
                 // Initialize ACH (no attach needed — Plaid modal opens on tokenize)
                 try {
-                    const redirectURI = window.location.href.split('?')[0];
+                    const currentUrl = window.location.origin + window.location.pathname;
                     const transactionId = 'inv-' + (invoiceData.id || Date.now());
-                    squareAch = await squarePayments.ach({ redirectURI, transactionId });
+                    squareAch = await squarePayments.ach({ redirectURI: currentUrl, transactionId });
+                    console.log('ACH initialized successfully');
                 } catch (achErr) {
-                    console.warn('ACH initialization failed:', achErr);
+                    console.error('ACH initialization failed:', achErr);
                     squareAch = null;
+                    // Show unavailable message in the ACH tab
+                    const achTab = document.getElementById('tab-ach');
+                    if (achTab) {
+                        achTab.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px;">Bank transfer is not currently available. Please use card payment instead.</p>';
+                    }
                 }
 
                 // Initialize Apple Pay (only if available)
@@ -909,9 +919,11 @@
                         console.warn('Buyer verification skipped:', verifyErr);
                     }
 
+                    const saveCard = document.getElementById('saveCardCheckbox')?.checked || false;
                     await processPayment('/card', {
                         sourceId: result.token,
-                        verificationToken: verificationToken
+                        verificationToken: verificationToken,
+                        save_card: saveCard
                     });
                 } else {
                     let errorText = 'Card validation failed.';
@@ -950,7 +962,8 @@
                 const result = await squareAch.tokenize({
                     accountHolderName: accountHolderName,
                     intent: 'CHARGE',
-                    total: { amount: Math.round(achTotal * 100), currencyCode: 'USD' }
+                    amount: achTotal.toFixed(2),
+                    currency: 'USD'
                 });
                 if (result.status === 'OK') {
                     await processPayment('/ach', {

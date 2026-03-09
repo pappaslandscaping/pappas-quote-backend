@@ -1882,18 +1882,18 @@ async function generateInvoicePDF(invoice) {
       page.drawText('Subtotal:', { x: totalsX, y, size: 10, font: helvetica, color: colors.gray });
       const subStr = '$' + subtotal.toFixed(2);
       page.drawText(subStr, { x: rightCol - helvetica.widthOfTextAtSize(subStr, 10) - 8, y, size: 10, font: helvetica, color: colors.black });
-      y -= 18;
+      y -= 20;
       const taxLabel = invoice.tax_rate ? `Tax (${parseFloat(invoice.tax_rate).toFixed(3)}%):` : 'Tax:';
       page.drawText(taxLabel, { x: totalsX, y, size: 10, font: helvetica, color: colors.gray });
       const taxStr = '$' + taxAmount.toFixed(2);
       page.drawText(taxStr, { x: rightCol - helvetica.widthOfTextAtSize(taxStr, 10) - 8, y, size: 10, font: helvetica, color: colors.black });
-      y -= 18;
+      y -= 24;
     }
 
     // Total bar (lime green with border, matching contract style)
-    page.drawRectangle({ x: margin, y: y - 5, width: contentWidth, height: 28, color: rgb(0.98, 0.98, 0.98), borderColor: colors.limeGreen, borderWidth: 1 });
-    page.drawText(`Total: $${total.toFixed(2)}`, { x: margin + 15, y: y + 2, size: 11, font: helveticaBold, color: colors.darkGreen });
-    y -= 40;
+    page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 28, color: rgb(0.98, 0.98, 0.98), borderColor: colors.limeGreen, borderWidth: 1 });
+    page.drawText(`Total: $${total.toFixed(2)}`, { x: margin + 15, y: y - 1, size: 11, font: helveticaBold, color: colors.darkGreen });
+    y -= 42;
 
     if (amountPaid > 0 && amountPaid < total) {
       page.drawText('Amount Paid:', { x: totalsX, y, size: 10, font: helvetica, color: colors.green });
@@ -14825,7 +14825,6 @@ app.get('/api/quotes/next-number', async (req, res) => {
     const maxNum = result.rows[0]?.max_num || 1500;
     res.json({ success: true, next_number: maxNum + 1 });
   } catch (error) {
->>>>>>> Stashed changes
     serverError(res, error);
   }
 });

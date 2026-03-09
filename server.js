@@ -1836,8 +1836,7 @@ async function generateInvoicePDF(invoice) {
       const dateStr = item.service_date ? new Date(item.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
 
       const nameLines = name ? pdfWrapText(name, helveticaBold, 9, descMaxWidth) : [];
-      const descLines = desc && desc !== name ? pdfWrapText(desc, helvetica, 8, descMaxWidth) : [];
-      const lineCount = nameLines.length + descLines.length;
+      const lineCount = nameLines.length;
       const rowHeight = Math.max(22, lineCount * 12 + 8);
 
       // Alternate row background
@@ -1845,15 +1844,11 @@ async function generateInvoicePDF(invoice) {
         page.drawRectangle({ x: margin, y: y - rowHeight + 15, width: contentWidth, height: rowHeight, color: colors.lightGray });
       }
 
-      // Draw name (bold) with wrapping
+      // Draw name only (no description on invoices)
       let textY = y;
       for (const line of nameLines) {
         page.drawText(line, { x: margin + 10, y: textY, size: 9, font: helveticaBold, color: colors.black });
         textY -= 12;
-      }
-      for (const line of descLines) {
-        page.drawText(line, { x: margin + 10, y: textY, size: 8, font: helvetica, color: colors.gray });
-        textY -= 11;
       }
 
       if (dateStr) page.drawText(dateStr, { x: pageWidth - margin - 195, y, size: 8, font: helvetica, color: colors.gray });

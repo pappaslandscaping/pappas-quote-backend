@@ -730,7 +730,14 @@
         const addr = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
         if (addr && addr !== '-, -, -, -') {
             const encoded = encodeURIComponent(addr);
-            document.getElementById('mapContainer').innerHTML = `<iframe src="https://www.google.com/maps/embed/v1/place?key=AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4&q=${encoded}" allowfullscreen></iframe>`;
+            const mapLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+            document.getElementById('mapContainer').innerHTML = `
+                <a href="${mapLink}" target="_blank" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-decoration:none;background:var(--gray-50);">
+                    <img src="https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=16&size=600x250&maptype=satellite&markers=color:red%7C${encoded}&key=AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4"
+                         style="width:100%;height:100%;object-fit:cover;"
+                         onerror="this.parentElement.innerHTML='<div style=\\'padding:24px;text-align:center;color:var(--gray-500);font-size:13px\\'>📍 <strong>${addr.replace(/'/g, '')}</strong><br><span style=\\'color:var(--blue)\\'>Open in Google Maps</span></div>'"
+                    >
+                </a>`;
         } else {
             document.getElementById('mapContainer').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--gray-400);font-size:13px;">No address to map</div>';
         }

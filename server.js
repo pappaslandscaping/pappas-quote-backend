@@ -2455,6 +2455,29 @@ app.post('/api/quotes/admin', authenticateToken, async (req, res) => {
   }
 });
 
+// Admin-created quote request (authenticated, no reCAPTCHA)
+app.post('/api/quotes/admin', authenticateToken, async (req, res) => {
+  try {
+    const { name, firstName, lastName, email, phone, address, package: pkg, services, questions, notes, source } = req.body;
+    const fullName = name || ((firstName || '') + ' ' + (lastName || '')).trim();
+    if (!fullName || !phone) {
+      return res.status(400).json({ success: false, error: 'Name and phone are required' });
+    }
+    let servicesArray = null;
+    if (services) {
+      if (Array.isArray(services)) servicesArray = services;
+      else if (typeof services === 'string' && services.length > 0) servicesArray = services.split(',').map(s => s.trim());
+    }
+    const result = await pool.query(
+      `INSERT INTO quotes (name, email, phone, address, package, services, questions, notes, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [fullName, email || null, phone, address || null, pkg || null, servicesArray, JSON.stringify(questions || {}), notes || null, source || 'phone_call']
+    );
+    res.json({ success: true, quote: result.rows[0] });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 app.get('/api/quotes', async (req, res) => {
   try {
     const { status } = req.query;

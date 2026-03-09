@@ -384,6 +384,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                 Refresh
             </button>
+            <button class="btn btn-primary" onclick="openNewRequestModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Request
+            </button>
         </div>
         <div class="universal-search-wrapper">
     <div class="search-input-group">
@@ -483,6 +487,69 @@
                 <tbody id="quotesBody"></tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<!-- New Request Modal -->
+<div id="newRequestModal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;">
+    <div style="background:var(--white);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);margin:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--gray-100);">
+            <h3 style="font-size:18px;font-weight:700;color:var(--forest);">New Quote Request</h3>
+            <button onclick="closeNewRequestModal()" style="background:none;border:none;cursor:pointer;padding:4px;color:var(--gray-400);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <form id="newRequestForm" style="padding:24px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div style="grid-column:1/-1;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Name *</label>
+                    <input type="text" name="name" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;" placeholder="Customer name">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Phone *</label>
+                    <input type="tel" name="phone" required style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;" placeholder="(216) 555-0000">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Email</label>
+                    <input type="email" name="email" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;" placeholder="email@example.com">
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Address</label>
+                    <input type="text" name="address" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;" placeholder="123 Main St, Cleveland, OH">
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Package</label>
+                    <select name="package" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;background:var(--white);">
+                        <option value="">None</option>
+                        <option value="essential">Essential</option>
+                        <option value="complete">Complete</option>
+                        <option value="premium">Premium</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Source</label>
+                    <select name="source" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;background:var(--white);">
+                        <option value="phone_call">Phone Call</option>
+                        <option value="walk_in">Walk-in</option>
+                        <option value="referral">Referral</option>
+                        <option value="email">Email</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Services Requested</label>
+                    <input type="text" name="services" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;" placeholder="Mowing, Leaf Cleanup, etc. (comma-separated)">
+                </div>
+                <div style="grid-column:1/-1;">
+                    <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Notes</label>
+                    <textarea name="notes" rows="3" style="width:100%;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;" placeholder="Any details from the call..."></textarea>
+                </div>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-100);">
+                <button type="button" class="btn btn-secondary" onclick="closeNewRequestModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="submitRequestBtn">Create Request</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -640,6 +707,61 @@
     function toggleSidebar() {
         document.getElementById('sidebar').classList.toggle('open');
     }
+
+    function openNewRequestModal() {
+        const modal = document.getElementById('newRequestModal');
+        modal.style.display = 'flex';
+        document.getElementById('newRequestForm').reset();
+    }
+
+    function closeNewRequestModal() {
+        document.getElementById('newRequestModal').style.display = 'none';
+    }
+
+    document.getElementById('newRequestModal').addEventListener('click', function(e) {
+        if (e.target === this) closeNewRequestModal();
+    });
+
+    document.getElementById('newRequestForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('submitRequestBtn');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+
+        const fd = new FormData(this);
+        const body = {
+            name: fd.get('name'),
+            phone: fd.get('phone'),
+            email: fd.get('email') || undefined,
+            address: fd.get('address') || undefined,
+            package: fd.get('package') || undefined,
+            source: fd.get('source'),
+            services: fd.get('services') || undefined,
+            notes: fd.get('notes') || undefined
+        };
+
+        try {
+            const res = await fetch('/api/quotes/admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeNewRequestModal();
+                showToast('Quote request created');
+                loadQuotes();
+                loadStats();
+            } else {
+                showToast(data.error || 'Failed to create request');
+            }
+        } catch (err) {
+            showToast('Failed to create request');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Create Request';
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();

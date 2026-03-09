@@ -8668,6 +8668,15 @@ app.get('/api/pay/:token', async (req, res) => {
       }
     } catch(e) { /* no fee config */ }
 
+    // Get saved cards for this customer
+    try {
+      const cards = await pool.query(
+        'SELECT id, card_brand, last4, exp_month, exp_year, cardholder_name FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC',
+        [inv.customer_id]
+      );
+      inv.saved_cards = cards.rows;
+    } catch(e) { inv.saved_cards = []; }
+
     res.json({ success: true, invoice: inv });
   } catch (error) {
     console.error('Pay token error:', error);
@@ -8797,6 +8806,111 @@ app.post('/api/pay/:token/card', async (req, res) => {
     });
   } catch (error) {
     console.error('Card payment error:', error);
+    const errorMessage = error instanceof ApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
+    res.status(500).json({ success: false, error: errorMessage });
+  }
+});
+
+// POST /api/pay/:token/saved-card - Pay invoice with saved card on file
+app.post('/api/pay/:token/saved-card', async (req, res) => {
+  try {
+    if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
+    const { card_id } = req.body;
+    if (!card_id) return res.status(400).json({ success: false, error: 'card_id required' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = invResult.rows[0];
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
+
+    // Look up saved card
+    const cardResult = await pool.query('SELECT square_card_id, card_brand, last4 FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true', [card_id, inv.customer_id]);
+    if (cardResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Saved card not found' });
+    const savedCard = cardResult.rows[0];
+
+    // Check processing fee config
+    let processingFee = 0;
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        const feeConfig = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+        if (feeConfig.enabled) {
+          const pct = parseFloat(feeConfig.card_fee_percent) || 2.9;
+          const fixed = parseFloat(feeConfig.card_fee_fixed) || 0.30;
+          processingFee = Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+        }
+      }
+    } catch(e) { /* no fee */ }
+
+    const totalCharge = balance + processingFee;
+    const amountCents = Math.round(totalCharge * 100);
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    const response = await squareClient.paymentsApi.createPayment({
+      sourceId: savedCard.square_card_id,
+      idempotencyKey: crypto.randomUUID(),
+      amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: inv.invoice_number,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name} (card on file)${processingFee > 0 ? ' (includes service fee)' : ''}`
+    });
+    const sqPayment = response.result.payment;
+
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, 'card', $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, totalCharge, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+       sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl, savedCard.card_brand, savedCard.last4]
+    );
+
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    if (processingFee > 0) {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id, processingFee]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id]
+      );
+    }
+
+    // Send confirmation emails
+    try {
+      if (inv.customer_email) {
+        const custContent = `
+          <h2 style="color:#2e403d;margin:0 0 16px;">Payment Confirmation</h2>
+          <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+          <p>We've received your payment. Thank you!</p>
+          <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice amount:</strong> $${balance.toFixed(2)}</p>
+            ${processingFee > 0 ? `<p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Service Fee:</strong> $${processingFee.toFixed(2)}</p>` : ''}
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Total charged:</strong> $${totalCharge.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Method:</strong> Card on file •••• ${savedCard.last4}</p>
+            ${sqPayment.receiptUrl ? `<p style="margin:0;"><a href="${sqPayment.receiptUrl}" style="color:#059669;font-weight:600;">View Receipt</a></p>` : ''}
+          </div>`;
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }), null, { type: 'payment_receipt', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
+      }
+      const adminContent = `
+        <h2 style="color:#2e403d;margin:0 0 16px;">Payment Received</h2>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${totalCharge.toFixed(2)}</strong> on invoice <strong>${inv.invoice_number}</strong>.</p>
+        ${processingFee > 0 ? `<p>Service Fee: $${processingFee.toFixed(2)}</p>` : ''}
+        <p>Method: Card on file •••• ${savedCard.last4}</p>
+        <p>Square ID: ${sqPayment.id}</p>`;
+      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${totalCharge.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }), null, { type: 'admin_notification', customer_name: inv.customer_name });
+    } catch (emailErr) { console.error('Saved card payment email error:', emailErr); }
+
+    res.json({
+      success: true,
+      payment: { id: paymentId, amount: totalCharge, invoiceAmount: balance, processingFee, status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending', receiptUrl: sqPayment.receiptUrl, cardBrand: savedCard.card_brand, cardLast4: savedCard.last4 }
+    });
+  } catch (error) {
+    console.error('Saved card payment error:', error);
     const errorMessage = error instanceof ApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
     res.status(500).json({ success: false, error: errorMessage });
   }

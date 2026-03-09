@@ -916,6 +916,16 @@
                         <div class="filter-chips" id="tagChips"></div>
                     </div>
 
+                    <!-- Exclude Tags -->
+                    <div class="filter-row">
+                        <div class="filter-label">Exclude Tags</div>
+                        <div class="filter-input-wrap">
+                            <input type="text" class="filter-input" id="excludeTagInput" placeholder="Exclude clients with tags..." onfocus="openDropdown('excludeTags')" oninput="filterDropdown('excludeTags')">
+                            <div class="filter-dropdown" id="excludeTagsDropdown"></div>
+                        </div>
+                        <div class="filter-chips" id="excludeTagChips"></div>
+                    </div>
+
                     <!-- Zip Code -->
                     <div class="filter-row">
                         <div class="filter-label">Zip Code</div>
@@ -1149,7 +1159,7 @@ let debounceTimer = null;
 let selectedTemplate = null;
 
 // Multi-select state for chip-based filters
-const chipSelections = { tags: [], zips: [], cities: [] };
+const chipSelections = { tags: [], excludeTags: [], zips: [], cities: [] };
 
 // ─── Init ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -1235,9 +1245,10 @@ function filterDropdown(type) {
 }
 
 function renderDropdown(type) {
-    const inputMap = { tags: 'tagInput', zips: 'zipInput', cities: 'cityInput' };
+    const inputMap = { tags: 'tagInput', excludeTags: 'excludeTagInput', zips: 'zipInput', cities: 'cityInput' };
     const query = document.getElementById(inputMap[type]).value.toLowerCase();
-    const options = filterOptions[type] || [];
+    const optionsKey = type === 'excludeTags' ? 'tags' : type;
+    const options = filterOptions[optionsKey] || [];
     const filtered = options.filter(o => o.toLowerCase().includes(query));
     const dd = document.getElementById(type + 'Dropdown');
     const selected = chipSelections[type];
@@ -1272,7 +1283,7 @@ function removeChip(type, value) {
 }
 
 function renderChips(type) {
-    const containerMap = { tags: 'tagChips', zips: 'zipChips', cities: 'cityChips' };
+    const containerMap = { tags: 'tagChips', excludeTags: 'excludeTagChips', zips: 'zipChips', cities: 'cityChips' };
     const container = document.getElementById(containerMap[type]);
     container.innerHTML = chipSelections[type].map(v => `
         <span class="filter-chip">
@@ -1299,6 +1310,7 @@ function toggleRecentMonths() {
 function updateFilterCount() {
     let count = 0;
     if (chipSelections.tags.length) count++;
+    if (chipSelections.excludeTags.length) count++;
     if (chipSelections.zips.length) count++;
     if (chipSelections.cities.length) count++;
     if (document.getElementById('statusFilter').value) count++;
@@ -1320,12 +1332,15 @@ function updateFilterCount() {
 
 function clearAllFilters() {
     chipSelections.tags = [];
+    chipSelections.excludeTags = [];
     chipSelections.zips = [];
     chipSelections.cities = [];
     renderChips('tags');
+    renderChips('excludeTags');
     renderChips('zips');
     renderChips('cities');
     document.getElementById('tagInput').value = '';
+    document.getElementById('excludeTagInput').value = '';
     document.getElementById('zipInput').value = '';
     document.getElementById('cityInput').value = '';
     document.getElementById('statusFilter').value = '';
@@ -1341,6 +1356,7 @@ function clearAllFilters() {
 function buildFilterPayload() {
     const payload = {};
     if (chipSelections.tags.length) payload.tags = chipSelections.tags;
+    if (chipSelections.excludeTags.length) payload.exclude_tags = chipSelections.excludeTags;
     if (chipSelections.zips.length) payload.postal_codes = chipSelections.zips;
     if (chipSelections.cities.length) payload.cities = chipSelections.cities;
     const status = document.getElementById('statusFilter').value;

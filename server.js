@@ -11644,6 +11644,15 @@ app.post('/api/broadcasts/preview', async (req, res) => {
       conditions.push(`(${tagConditions.join(' OR ')})`);
     }
 
+    // Exclude tags filter (exclude customers who have ANY of the specified tags)
+    if (filters.exclude_tags && filters.exclude_tags.length > 0) {
+      const excludeConditions = filters.exclude_tags.map(tag => {
+        params.push(`%${tag}%`);
+        return `c.tags NOT ILIKE $${paramIdx++}`;
+      });
+      conditions.push(`(c.tags IS NULL OR (${excludeConditions.join(' AND ')}))`);
+    }
+
     // Postal codes
     if (filters.postal_codes && filters.postal_codes.length > 0) {
       params.push(filters.postal_codes);

@@ -188,12 +188,13 @@
             color: var(--gray-700); outline: none;
         }
         .li-table input:focus { border-color: var(--primary); }
-        .li-table .col-name { width: 34%; }
+        .li-table .col-name { width: 28%; }
+        .li-table .col-date { width: 12%; }
         .li-table .col-qty { width: 8%; }
-        .li-table .col-price { width: 16%; }
-        .li-table .col-total { width: 16%; }
+        .li-table .col-price { width: 14%; }
+        .li-table .col-total { width: 14%; }
         .li-table .col-tax { width: 8%; text-align: center; }
-        .li-table .col-actions { width: 8%; text-align: center; }
+        .li-table .col-actions { width: 6%; text-align: center; }
         .li-table .col-tax input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); }
         .li-remove-btn {
             background: none; border: none; color: var(--gray-400);
@@ -411,9 +412,9 @@
                                         <span class="inv-detail-label">Payment due</span>
                                         <span class="inv-detail-value">
                                             <select id="paymentTerms" style="border:none;font-size:13px;font-weight:500;color:var(--primary);background:none;cursor:pointer;">
-                                                <option value="on_receipt">On Receipt</option>
+                                                <option value="on_receipt" selected>Due Upon Receipt</option>
                                                 <option value="net_15">Net 15</option>
-                                                <option value="net_30" selected>Net 30</option>
+                                                <option value="net_30">Net 30</option>
                                                 <option value="net_60">Net 60</option>
                                                 <option value="custom">Custom Date</option>
                                             </select>
@@ -422,12 +423,21 @@
                                 </div>
                             </div>
 
+                            <!-- Service Address -->
+                            <div class="editor-section" id="serviceAddressSection" style="display:none;">
+                                <h4>Service Address</h4>
+                                <select id="serviceAddress" style="padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;font-family:inherit;color:var(--gray-700);outline:none;min-width:300px;" onchange="onPropertyChange()">
+                                    <option value="">— Same as billing address —</option>
+                                </select>
+                            </div>
+
                             <!-- Line Items -->
                             <div class="product-header-row">Product / Service</div>
                             <table class="li-table" id="lineItemsTable">
                                 <thead>
                                     <tr>
                                         <th class="col-name">Name</th>
+                                        <th class="col-date">Date</th>
                                         <th class="col-qty">Qty.</th>
                                         <th class="col-price">Unit Price</th>
                                         <th class="col-total">Total</th>
@@ -477,6 +487,9 @@
         let currentTaxAmount = 0;
         let allServices = [];
         let activeAutocompleteIdx = null;
+        let clientProperties = [];
+        let selectedPropertyId = null;
+        let invoiceDefaults = {};
 
         function clientName(c) {
             return c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim() || c.customer_name || 'Unknown';
@@ -491,6 +504,52 @@
             } catch(e) { console.error('Could not load services'); }
         }
         loadServices();
+
+        // Load invoice defaults from settings
+        async function loadInvoiceDefaults() {
+            try {
+                const res = await fetch('/api/settings/invoice_defaults');
+                const data = await res.json();
+                if (data.success && data.value) {
+                    invoiceDefaults = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+                    // Set default payment terms
+                    const terms = (invoiceDefaults.terms || '').toLowerCase();
+                    const sel = document.getElementById('paymentTerms');
+                    if (terms.includes('receipt')) sel.value = 'on_receipt';
+                    else if (terms.includes('15')) sel.value = 'net_15';
+                    else if (terms.includes('30')) sel.value = 'net_30';
+                    else if (terms.includes('60')) sel.value = 'net_60';
+                }
+            } catch(e) { console.error('Could not load invoice defaults'); }
+        }
+        loadInvoiceDefaults();
+
+        // Load properties for a customer
+        async function loadClientProperties(customerId) {
+            clientProperties = [];
+            try {
+                const res = await fetch(`/api/properties?customer_id=${customerId}`);
+                const data = await res.json();
+                clientProperties = data.properties || data || [];
+                const section = document.getElementById('serviceAddressSection');
+                const sel = document.getElementById('serviceAddress');
+                if (clientProperties.length > 0) {
+                    sel.innerHTML = '<option value="">— Same as billing address —</option>' +
+                        clientProperties.map(p => {
+                            const label = p.property_name ? `${p.property_name} — ${p.street || ''}` : (p.street || 'Property #' + p.id);
+                            return `<option value="${p.id}">${esc(label.trim())}</option>`;
+                        }).join('');
+                    section.style.display = '';
+                } else {
+                    section.style.display = 'none';
+                }
+            } catch(e) { console.error('Could not load properties'); }
+        }
+
+        function onPropertyChange() {
+            const val = document.getElementById('serviceAddress').value;
+            selectedPropertyId = val ? parseInt(val) : null;
+        }
 
         async function recalculateTax() {
             const items = editorLineItems.map(li => ({
@@ -642,6 +701,7 @@
             document.getElementById('pageTitle').textContent = 'New Invoice for ' + name;
             goToStep(2);
             loadClientJobs(client.id);
+            loadClientProperties(client.id);
         }
 
         async function loadClientJobs(clientId) {
@@ -734,20 +794,22 @@
 
             if (selectedJobs.length > 0) {
                 selectedJobs.forEach(j => {
-                    const d = j.job_date ? new Date(j.job_date + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+                    const jobDate = j.completed_at ? j.completed_at.split('T')[0] : (j.job_date || '');
                     editorLineItems.push({
                         name: j.service_type || 'Service',
-                        description: 'Job #' + j.id + (d ? ' - ' + d : ''),
+                        description: j.address || '',
                         quantity: 1,
                         rate: parseFloat(j.service_price) || 0,
                         amount: parseFloat(j.service_price) || 0,
                         job_id: j.id,
-                        taxable: true
+                        taxable: true,
+                        service_date: jobDate,
+                        property_name: j.property_name || j.address || ''
                     });
                 });
             } else {
                 // Blank line item
-                editorLineItems.push({ name: '', description: '', quantity: 1, rate: 0, amount: 0, taxable: true });
+                editorLineItems.push({ name: '', description: '', quantity: 1, rate: 0, amount: 0, taxable: true, service_date: '' });
             }
 
             renderEditorLines();
@@ -756,6 +818,7 @@
 
         function renderEditorLines() {
             const tbody = document.getElementById('lineItemsBody');
+            const today = new Date().toISOString().split('T')[0];
             tbody.innerHTML = editorLineItems.map((item, i) => `
                 <tr>
                     <td class="col-name">
@@ -767,6 +830,11 @@
                         </div>
                         <input type="text" class="li-desc-input" value="${esc(item.description)}" placeholder="Description"
                                oninput="editorLineItems[${i}].description=this.value">
+                    </td>
+                    <td class="col-date">
+                        <input type="date" value="${item.service_date || ''}"
+                               onchange="editorLineItems[${i}].service_date=this.value"
+                               style="font-size:12px;padding:8px 4px;">
                     </td>
                     <td class="col-qty">
                         <input type="number" value="${item.quantity}" min="1" step="1"
@@ -799,7 +867,7 @@
         }
 
         function addEditorLine() {
-            editorLineItems.push({ name: '', description: '', quantity: 1, rate: 0, amount: 0, taxable: true });
+            editorLineItems.push({ name: '', description: '', quantity: 1, rate: 0, amount: 0, taxable: true, service_date: '' });
             renderEditorLines();
         }
 
@@ -844,10 +912,13 @@
                 customer_name: name,
                 customer_email: document.getElementById('editorEmail').value,
                 customer_address: document.getElementById('editorAddress').value,
+                property_id: selectedPropertyId || null,
                 line_items: editorLineItems.map(li => ({
                     name: li.name, description: li.description,
                     quantity: li.quantity, rate: li.rate, amount: li.amount,
-                    taxable: li.taxable !== false
+                    taxable: li.taxable !== false,
+                    service_date: li.service_date || null,
+                    property_name: li.property_name || null
                 })),
                 subtotal, tax_rate: currentTaxRate, tax_amount: currentTaxAmount, total,
                 due_date: dueDate ? dueDate.toISOString().split('T')[0] : null,

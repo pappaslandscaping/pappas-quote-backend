@@ -13680,7 +13680,14 @@ BRAND GUIDELINES:
 - Tagline: "Your Property, Our Priority."
 - Location: Northeast Ohio (Greater Cleveland)
 
-Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}
+Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {company_phone}, {company_email}, {company_website}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}, {portal_link}, {contract_link}, {quote_number}, {balance_due}, {amount_paid}, {invoice_due_date}
+
+BUTTON URL RULES — When creating buttons, ALWAYS use the appropriate merge tag as the URL:
+- "View Quote" / "Review Quote" / "Accept Quote" → url: "{quote_link}"
+- "Pay Now" / "Pay Invoice" / "Make Payment" / "View Invoice" → url: "{payment_link}"
+- "Visit Portal" / "Access Portal" / "My Account" → url: "{portal_link}"
+- "Sign Agreement" / "Sign Contract" → url: "{contract_link}"
+Never use "#" or placeholder URLs. Always use the matching merge tag so buttons work when the email is sent.
 
 RESPONSE FORMAT — Return ONLY valid JSON (no markdown, no backticks). Choose the appropriate format:
 
@@ -13689,7 +13696,7 @@ RESPONSE FORMAT — Return ONLY valid JSON (no markdown, no backticks). Choose t
 Block types:
 - title: {"type":"title","content":"heading text"}
 - paragraph: {"type":"paragraph","content":"text, can include <strong> tags"}
-- button: {"type":"button","content":"Button Text","url":"#"}
+- button: {"type":"button","content":"Button Text","url":"{merge_tag_link}"}
 - list: {"type":"list","content":["item 1","item 2"]}
 - divider: {"type":"divider"}
 
@@ -13701,6 +13708,12 @@ Block types:
 
 4. When just answering a question or chatting (no template output):
 {"message": "Your conversational response here"}
+
+5. When the user asks to CREATE A CAMPAIGN (e.g. "create a spring cleanup campaign", "set up a campaign for..."):
+{"message": "Description of the campaign", "campaign": {"name": "Campaign Name", "description": "Brief campaign description", "subject": "Email subject line", "blocks": [same block format as email templates], "sms": "Optional SMS version under 160 chars", "audience": "all|monthly_plan|active"}}
+- audience: "all" = all customers, "monthly_plan" = monthly plan customers, "active" = customers with jobs in last 6 months
+- Always include email blocks AND an SMS version for campaigns
+- Campaign names should be catchy but professional (e.g. "Spring Cleanup 2026", "Fall Leaf Removal Special")
 
 Keep the tone professional but warm and friendly. Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
 
@@ -13741,6 +13754,39 @@ Keep the tone professional but warm and friendly. Use merge tags where appropria
     res.json({ success: true, result: parsed });
   } catch (error) {
     console.error('AI template generation error:', error);
+    serverError(res, error);
+  }
+});
+
+// AI-powered campaign creation
+app.post('/api/ai/create-campaign', async (req, res) => {
+  try {
+    const { name, description, subject, body, sms_body, audience } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Campaign name is required' });
+
+    // 1. Create email template for this campaign
+    let templateId = null;
+    if (subject && body) {
+      const slug = 'ai_campaign_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 50) + '_' + Date.now();
+      const tmplResult = await pool.query(
+        `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, is_active, created_at, updated_at)
+         VALUES ($1, $2, 'marketing', $3, $4, $5, true, NOW(), NOW()) RETURNING id`,
+        [name, slug, subject, body, sms_body || '']
+      );
+      templateId = tmplResult.rows[0].id;
+    }
+
+    // 2. Create the campaign
+    const campResult = await pool.query(
+      `INSERT INTO campaigns (name, description, template_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'active', NOW(), NOW()) RETURNING *`,
+      [name, description || '', templateId]
+    );
+    const campaign = campResult.rows[0];
+
+    res.json({ success: true, campaign, template_id: templateId });
+  } catch (error) {
+    console.error('AI campaign creation error:', error);
     serverError(res, error);
   }
 });

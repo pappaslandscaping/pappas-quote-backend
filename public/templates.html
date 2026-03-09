@@ -1711,6 +1711,20 @@ async function aiSend(mode) {
                 replyHtml = '<strong>SMS:</strong> ' + escHtml(result.sms);
                 replyHtml += '<br><button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;margin-top:6px;" onclick="document.getElementById(\'editorSms\').value=' + JSON.stringify(result.sms).replace(/'/g, "\\'") + ';markDirty();updateSmsCounter();showToast(\'Applied!\',\'success\');">Apply to SMS</button>';
             }
+        } else if (result.campaign) {
+            // Campaign creation
+            const c = result.campaign;
+            window._pendingAiCampaign = c;
+            replyHtml = '<strong>' + escHtml(result.message || 'Campaign ready!') + '</strong><br>';
+            replyHtml += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:8px 0;font-size:12px;">';
+            replyHtml += '<div style="font-weight:700;color:#2e403d;margin-bottom:4px;">' + escHtml(c.name) + '</div>';
+            if (c.description) replyHtml += '<div style="color:#64748b;margin-bottom:6px;">' + escHtml(c.description) + '</div>';
+            replyHtml += '<div style="color:#64748b;">Subject: ' + escHtml(c.subject || '') + '</div>';
+            replyHtml += '<div style="color:#64748b;">Audience: ' + escHtml(c.audience === 'monthly_plan' ? 'Monthly Plan Customers' : c.audience === 'active' ? 'Active Customers' : 'All Customers') + '</div>';
+            if (c.sms) replyHtml += '<div style="color:#64748b;margin-top:4px;">SMS: ' + escHtml(c.sms) + '</div>';
+            replyHtml += '</div>';
+            replyHtml += '<button class="btn btn-primary" style="font-size:11px;padding:4px 12px;margin-top:6px;" onclick="createAiCampaign()">Create Campaign</button>';
+            replyHtml += ' <button class="btn btn-secondary" style="font-size:11px;padding:4px 12px;margin-top:6px;" onclick="createAndSendAiCampaign()">Create & Send</button>';
         } else if (result.message) {
             replyHtml = escHtml(result.message).replace(/\n/g, '<br>');
         } else if (typeof result === 'string') {
@@ -1774,6 +1788,83 @@ function applyAiBlocks() {
     showToast('Template applied!', 'success');
     window._pendingAiBlocks = null;
 }
+
+async function createAiCampaign(andSend) {
+    const c = window._pendingAiCampaign;
+    if (!c) { showToast('No pending campaign', 'error'); return; }
+    try {
+        // Build email HTML from blocks
+        let emailHtml = '';
+        if (c.blocks) {
+            c.blocks.forEach(block => {
+                switch (block.type) {
+                    case 'title':
+                        emailHtml += '<h1 style="color:#1e293b;font-family:-apple-system,Arial,sans-serif;font-size:28px;font-weight:700;text-align:center;margin:0 0 24px;">' + block.content + '</h1>\n';
+                        break;
+                    case 'paragraph':
+                        emailHtml += '<p style="color:#4a5568;font-size:15px;line-height:1.8;margin:0 0 18px;">' + block.content + '</p>\n';
+                        break;
+                    case 'button':
+                        emailHtml += '<div style="text-align:center;margin:28px 0 20px;"><a href="' + (block.url || '#') + '" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">' + block.content + ' &#x2192;</a></div>\n';
+                        break;
+                    case 'list':
+                        if (Array.isArray(block.content)) {
+                            emailHtml += '<ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">\n';
+                            block.content.forEach(item => { emailHtml += '  <li>' + item + '</li>\n'; });
+                            emailHtml += '</ul>\n';
+                        }
+                        break;
+                    case 'divider':
+                        emailHtml += '<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;">\n';
+                        break;
+                }
+            });
+        }
+
+        const resp = await fetch('/api/ai/create-campaign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+            body: JSON.stringify({
+                name: c.name,
+                description: c.description || '',
+                subject: c.subject || '',
+                body: emailHtml,
+                sms_body: c.sms || '',
+                audience: c.audience || 'all'
+            })
+        });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Failed to create campaign');
+
+        const campaignId = data.campaign.id;
+        const templateId = data.template_id;
+        window._pendingAiCampaign = null;
+
+        if (andSend && templateId) {
+            // Send immediately
+            const sendResp = await fetch('/api/campaigns/' + campaignId + '/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                body: JSON.stringify({ template_id: templateId, segment: c.audience || 'all' })
+            });
+            const sendData = await sendResp.json();
+            if (sendData.success) {
+                showToast('Campaign created and sent to ' + sendData.sent + ' customers!', 'success');
+                addChatBubble('assistant', '<span style="color:#16a34a;">Campaign "' + escHtml(c.name) + '" created and sent to ' + sendData.sent + ' customers!</span>' + (sendData.errors ? '<br><span style="color:#ef4444;">' + sendData.errors + ' errors</span>' : '') + '<br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
+            } else {
+                showToast('Campaign created but send failed: ' + (sendData.error || 'Unknown error'), 'error');
+                addChatBubble('assistant', '<span style="color:#16a34a;">Campaign created!</span> <span style="color:#ef4444;">But sending failed: ' + escHtml(sendData.error || 'Unknown error') + '</span><br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
+            }
+        } else {
+            showToast('Campaign "' + c.name + '" created!', 'success');
+            addChatBubble('assistant', '<span style="color:#16a34a;">Campaign "' + escHtml(c.name) + '" created!</span><br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
+        }
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+        addChatBubble('assistant', '<span style="color:#ef4444;">Error: ' + escHtml(err.message) + '</span>');
+    }
+}
+function createAndSendAiCampaign() { createAiCampaign(true); }
 
 function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 </script>

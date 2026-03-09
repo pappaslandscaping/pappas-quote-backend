@@ -9267,10 +9267,66 @@ app.delete('/api/portal/:token/cards/:cardId', async (req, res) => {
 app.get('/api/customers/:id/saved-cards', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, card_brand, card_last4, exp_month, exp_year FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC',
+      'SELECT id, card_brand, last4, exp_month, exp_year, created_at FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC',
       [req.params.id]
     );
     res.json({ success: true, cards: result.rows });
+  } catch (error) { serverError(res, error); }
+});
+
+// POST /api/customers/:id/cards/save - Admin: save card-on-file via Square
+app.post('/api/customers/:id/cards/save', authenticateToken, async (req, res) => {
+  try {
+    const { source_id } = req.body;
+    if (!source_id) return res.status(400).json({ success: false, error: 'source_id required' });
+    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
+
+    const customerId = req.params.id;
+    const custResult = await pool.query('SELECT square_customer_id, name, email FROM customers WHERE id = $1', [customerId]);
+    if (!custResult.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+    const cust = custResult.rows[0];
+
+    // Ensure Square customer exists
+    let squareCustomerId = cust.square_customer_id;
+    if (!squareCustomerId) {
+      const { result: sqResult } = await squareClient.customersApi.createCustomer({
+        givenName: (cust.name || '').split(' ')[0],
+        familyName: (cust.name || '').split(' ').slice(1).join(' '),
+        emailAddress: cust.email
+      });
+      squareCustomerId = sqResult.customer.id;
+      await pool.query('UPDATE customers SET square_customer_id = $1 WHERE id = $2', [squareCustomerId, customerId]);
+    }
+
+    // Create card-on-file
+    const { result: cardResult } = await squareClient.cardsApi.createCard({
+      idempotencyKey: crypto.randomUUID(),
+      sourceId: source_id,
+      card: { customerId: squareCustomerId, cardholderName: cust.name }
+    });
+    const card = cardResult.card;
+    await pool.query(
+      `INSERT INTO customer_saved_cards (customer_id, square_card_id, card_brand, last4, exp_month, exp_year, cardholder_name) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [customerId, card.id, card.cardBrand, card.last4, card.expMonth, card.expYear, cust.name]
+    );
+    res.json({ success: true, card: { id: card.id, brand: card.cardBrand, last4: card.last4, expMonth: card.expMonth, expYear: card.expYear } });
+  } catch (error) {
+    console.error('Admin save card error:', error);
+    serverError(res, error);
+  }
+});
+
+// DELETE /api/customers/:id/cards/:cardId - Admin: disable/remove saved card
+app.delete('/api/customers/:id/cards/:cardId', authenticateToken, async (req, res) => {
+  try {
+    const card = await pool.query('SELECT square_card_id FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true', [req.params.cardId, req.params.id]);
+    if (card.rows.length === 0) return res.status(404).json({ success: false, error: 'Card not found' });
+    // Disable in Square
+    if (squareClient && card.rows[0].square_card_id) {
+      try { await squareClient.cardsApi.disableCard(card.rows[0].square_card_id); } catch(e) { console.error('Square disable card:', e.message); }
+    }
+    await pool.query('UPDATE customer_saved_cards SET enabled = false WHERE id = $1', [req.params.cardId]);
+    res.json({ success: true });
   } catch (error) { serverError(res, error); }
 });
 

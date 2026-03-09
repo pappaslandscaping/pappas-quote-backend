@@ -187,6 +187,14 @@
         .btn-danger:hover { background: #c43c3c; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
 
+        /* Saved cards */
+        .saved-card-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; margin-bottom: 8px; }
+        .saved-card-row:last-child { margin-bottom: 0; }
+        .saved-card-brand { width: 40px; height: 26px; border-radius: 4px; background: var(--gray-100); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; flex-shrink: 0; }
+        .saved-card-number { font-size: 14px; font-weight: 500; color: var(--gray-700); font-family: 'DM Sans', monospace; flex: 1; }
+        .saved-card-exp { font-size: 12px; color: var(--gray-500); flex-shrink: 0; margin-right: 8px; }
+        .saved-card-added { font-size: 11px; color: var(--gray-400); flex-shrink: 0; margin-right: 8px; }
+
         @media (max-width: 900px) {
             .two-col { grid-template-columns: 1fr; }
             .right-col { order: -1; }
@@ -290,6 +298,7 @@ async function loadCustomer() {
         loadEmailHistory();
         loadNotes();
         loadAIIntel();
+        loadSavedCards();
     } catch (e) {
         document.getElementById('customerContent').innerHTML = '<p style="color:var(--red)">Customer not found.</p>';
     }
@@ -365,6 +374,43 @@ function render() {
                     <div class="card-body">
                         <div id="sendTextArea"></div>
                         <div id="commsTimeline"><div class="loading-state" style="padding:20px"><div class="loading-spinner"></div></div></div>
+                    </div>
+                </div>
+
+                <!-- Credit Cards / ACH -->
+                <div class="card" id="paymentMethodsCard">
+                    <div class="card-header">
+                        <h3 style="display:flex;align-items:center;gap:8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                            Credit Cards / ACH
+                        </h3>
+                    </div>
+                    <div class="card-body padded">
+                        <!-- Credit Cards sub-section -->
+                        <div style="margin-bottom:24px;">
+                            <h4 style="font-size:14px;font-weight:700;color:var(--gray-700);margin-bottom:12px;">Credit Cards</h4>
+                            <div id="savedCardsList"><div class="loading-state" style="padding:12px"><div class="loading-spinner"></div></div></div>
+                            <button class="btn btn-outline" id="addCardBtn" onclick="showAddCardForm()" style="margin-top:12px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Add a Credit Card
+                            </button>
+                            <div id="addCardFormWrap" style="display:none;margin-top:16px;padding:16px;background:var(--gray-50);border-radius:10px;border:1px solid var(--gray-200);">
+                                <div id="card-container" style="min-height:80px;"></div>
+                                <div style="display:flex;gap:8px;margin-top:12px;">
+                                    <button class="btn btn-primary" id="saveCardBtn" onclick="saveCard()">Save Card</button>
+                                    <button class="btn btn-secondary" onclick="hideAddCardForm()">Cancel</button>
+                                </div>
+                                <div id="cardFormError" style="display:none;margin-top:8px;color:var(--red);font-size:13px;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Bank Accounts sub-section -->
+                        <div>
+                            <h4 style="font-size:14px;font-weight:700;color:var(--gray-700);margin-bottom:12px;">Bank Accounts</h4>
+                            <div style="padding:16px;background:var(--gray-50);border-radius:8px;text-align:center;">
+                                <p style="font-size:13px;color:var(--gray-500);margin:0;">ACH bank transfers are available as a payment option on invoices.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -825,7 +871,7 @@ async function saveCustomer() {
     try {
         const res = await fetch('/api/customers/' + customerId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(u) });
         const data = await res.json();
-        if (data.success) { customer = data.customer; editMode = false; render(); showToast('Saved'); loadProperties(); loadJobs(); loadQuotes(); loadInvoices(); loadNotes(); }
+        if (data.success) { customer = data.customer; editMode = false; render(); showToast('Saved'); loadProperties(); loadJobs(); loadQuotes(); loadInvoices(); loadNotes(); loadSavedCards(); }
         else showToast('Save failed');
     } catch (e) { showToast('Save failed'); }
 }
@@ -861,6 +907,123 @@ function fmtTime(date) {
 
 function esc(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
 function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+
+// ─── Credit Cards / ACH ─────────────────────────────────────
+let squarePayments = null;
+let squareCard = null;
+
+async function loadSavedCards() {
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/saved-cards');
+        const data = await res.json();
+        const cards = data.cards || [];
+        const container = document.getElementById('savedCardsList');
+        if (!container) return;
+        if (cards.length === 0) {
+            container.innerHTML = '<div style="padding:12px 0;color:var(--gray-400);font-size:13px;">No credit cards on file.</div>';
+            return;
+        }
+        container.innerHTML = cards.map(c => {
+            const last4 = c.last4 || c.card_last4 || '????';
+            const brand = (c.card_brand || 'CARD').replace(/_/g, ' ');
+            const exp = c.exp_month && c.exp_year ? String(c.exp_month).padStart(2,'0') + '/' + String(c.exp_year).slice(-2) : '';
+            const added = c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
+            return `<div class="saved-card-row">
+                <div class="saved-card-brand">${esc(brand)}</div>
+                <div class="saved-card-number">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; ${esc(last4)}</div>
+                ${exp ? `<div class="saved-card-exp">Exp ${esc(exp)}</div>` : ''}
+                ${added ? `<div class="saved-card-added">Added ${esc(added)}</div>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="deleteCard(${c.id})">Delete</button>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        const container = document.getElementById('savedCardsList');
+        if (container) container.innerHTML = '<div style="padding:12px 0;color:var(--gray-400);font-size:13px;">Unable to load cards.</div>';
+    }
+}
+
+async function showAddCardForm() {
+    document.getElementById('addCardFormWrap').style.display = 'block';
+    document.getElementById('addCardBtn').style.display = 'none';
+    document.getElementById('cardFormError').style.display = 'none';
+
+    if (!squarePayments) {
+        // Load Square SDK if not already loaded
+        if (!window.Square) {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://web.squarecdn.com/v1/square.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+        const cfgRes = await fetch('/api/pay/config');
+        const cfg = await cfgRes.json();
+        squarePayments = window.Square.payments(cfg.appId, cfg.locationId);
+    }
+
+    if (squareCard) {
+        try { await squareCard.destroy(); } catch(e) {}
+    }
+    squareCard = await squarePayments.card();
+    await squareCard.attach('#card-container');
+}
+
+function hideAddCardForm() {
+    document.getElementById('addCardFormWrap').style.display = 'none';
+    document.getElementById('addCardBtn').style.display = '';
+    if (squareCard) {
+        try { squareCard.destroy(); } catch(e) {}
+        squareCard = null;
+    }
+}
+
+async function saveCard() {
+    const btn = document.getElementById('saveCardBtn');
+    const errDiv = document.getElementById('cardFormError');
+    errDiv.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+        const result = await squareCard.tokenize();
+        if (result.status !== 'OK') {
+            throw new Error(result.errors ? result.errors.map(e => e.message).join(', ') : 'Tokenization failed');
+        }
+        const res = await fetch('/api/customers/' + customerId + '/cards/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_id: result.token })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to save card');
+        hideAddCardForm();
+        showToast('Card saved successfully');
+        loadSavedCards();
+    } catch(e) {
+        errDiv.textContent = e.message || 'Failed to save card';
+        errDiv.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Card';
+    }
+}
+
+async function deleteCard(cardId) {
+    if (!confirm('Remove this card from file?')) return;
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/cards/' + cardId, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Card removed');
+            loadSavedCards();
+        } else {
+            showToast('Failed to remove card');
+        }
+    } catch(e) {
+        showToast('Failed to remove card');
+    }
+}
 
 document.addEventListener('DOMContentLoaded', loadCustomer);
 </script>

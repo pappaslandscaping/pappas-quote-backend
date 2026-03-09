@@ -1736,7 +1736,7 @@ async function generateInvoicePDF(invoice) {
     const ctx = await initPdfDoc();
     const { pdfDoc, helvetica, helveticaBold, qualyFont, pageWidth, pageHeight, margin, contentWidth, colors, rgb } = ctx;
 
-    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    let page = pdfDoc.addPage([pageWidth, pageHeight]);
     const invNum = invoice.invoice_number || 'INV-' + invoice.id;
     const invDate = new Date(invoice.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const dueDate = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
@@ -1774,15 +1774,18 @@ async function generateInvoicePDF(invoice) {
     page.drawText(dueLabel, { x: infoValueX - helveticaBold.widthOfTextAtSize(dueLabel, 9), y: infoY + 1, size: 9, font: helveticaBold, color: colors.black });
     infoY -= infoRowH;
 
-    // Outstanding Balance row
-    const balStr = '$' + balance.toFixed(2);
-    const balColor = balance > 0 ? rgb(0.8, 0.15, 0.15) : colors.green;
-    page.drawText('Outstanding Balance', { x: infoLabelX, y: infoY + 1, size: 9, font: helvetica, color: colors.gray });
-    page.drawText(balStr, { x: infoValueX - helveticaBold.widthOfTextAtSize(balStr, 10), y: infoY, size: 10, font: helveticaBold, color: balColor });
-    infoY -= infoRowH;
-
-    // Border around info table
-    page.drawRectangle({ x: infoTableX, y: infoY + 15, width: 200, height: infoRowH * 4, borderColor: rgb(0.85, 0.87, 0.85), borderWidth: 1, color: rgb(1, 1, 1), opacity: 0 });
+    // Outstanding Balance row — only show if past due (due date passed and balance > 0)
+    const isPastDue = balance > 0 && invoice.due_date && new Date(invoice.due_date) < new Date();
+    const hasPartialPayment = amountPaid > 0 && balance > 0;
+    let infoRows = 3;
+    if (isPastDue || hasPartialPayment) {
+      const balStr = '$' + balance.toFixed(2);
+      const balColor = isPastDue ? rgb(0.8, 0.15, 0.15) : colors.darkGreen;
+      page.drawText('Outstanding Balance', { x: infoLabelX, y: infoY + 1, size: 9, font: helvetica, color: colors.gray });
+      page.drawText(balStr, { x: infoValueX - helveticaBold.widthOfTextAtSize(balStr, 10), y: infoY, size: 10, font: helveticaBold, color: balColor });
+      infoY -= infoRowH;
+      infoRows = 4;
+    }
 
     // Company info (left side, same Y as info table)
     page.drawText('Pappas & Co. Landscaping', { x: margin, y, size: 10, font: helveticaBold, color: colors.black });
@@ -1834,8 +1837,8 @@ async function generateInvoicePDF(invoice) {
 
       const nameLines = name ? pdfWrapText(name, helveticaBold, 9, descMaxWidth) : [];
       const descLines = desc && desc !== name ? pdfWrapText(desc, helvetica, 8, descMaxWidth) : [];
-      const totalLines = nameLines.length + descLines.length;
-      const rowHeight = Math.max(22, totalLines * 12 + 8);
+      const lineCount = nameLines.length + descLines.length;
+      const rowHeight = Math.max(22, lineCount * 12 + 8);
 
       // Alternate row background
       if (idx % 2 === 0) {
@@ -1866,9 +1869,6 @@ async function generateInvoicePDF(invoice) {
     // Totals
     const subtotal = parseFloat(invoice.subtotal || invoice.total || 0);
     const taxAmount = parseFloat(invoice.tax_amount || 0);
-    const total = parseFloat(invoice.total || 0);
-    const amountPaid = parseFloat(invoice.amount_paid || 0);
-    const balance = total - amountPaid;
     const totalsX = pageWidth - margin - 180;
 
     if (taxAmount > 0) {
@@ -1922,8 +1922,36 @@ async function generateInvoicePDF(invoice) {
       }
     }
 
-    // Terms note (small, at bottom — main due info is in the banner)
-    page.drawText('Terms: Due upon receipt.', { x: margin, y: 58, size: 7, font: helvetica, color: colors.gray });
+    // Invoice Terms section (clean text, no bar)
+    if (y < 200) {
+      drawPdfFooter(page, ctx);
+      page = pdfDoc.addPage([pageWidth, pageHeight]);
+      y = pageHeight - margin;
+    }
+    y -= 10;
+    page.drawRectangle({ x: margin, y, width: contentWidth, height: 1, color: rgb(0.85, 0.87, 0.85) });
+    y -= 16;
+    page.drawText('Invoice Terms - Pappas & Co. Landscaping', { x: margin, y, size: 9, font: helveticaBold, color: colors.darkGreen });
+    y -= 16;
+
+    const termsLines = [
+      'Payments are due upon receipt.',
+      'A 10% late fee will be applied if payment is not received within 30 days of the invoice date.',
+      'An additional 5% late fee will be applied for each additional 30-day period past due (60 days, 90 days, etc.).',
+      'If payment is not received within 60 days, services will be suspended, and collection proceedings may be initiated.',
+      'Accepted payment methods: Major credit cards, Zelle, cash, checks, money orders, and bank transfers.',
+      'Returned checks will incur a $25 fee.',
+      'By making payment, the client acknowledges acceptance of the services provided and agrees to these terms.'
+    ];
+    for (const line of termsLines) {
+      const wrapped = pdfWrapText(pdfSafe(line), helvetica, 8, contentWidth);
+      for (const wl of wrapped) {
+        if (y < 65) { drawPdfFooter(page, ctx); page = pdfDoc.addPage([pageWidth, pageHeight]); y = pageHeight - margin; }
+        page.drawText(wl, { x: margin, y, size: 8, font: helvetica, color: colors.gray });
+        y -= 11;
+      }
+      y -= 3;
+    }
 
     // Footer
     drawPdfFooter(page, ctx);

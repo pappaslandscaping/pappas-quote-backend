@@ -2025,9 +2025,11 @@ app.get('/api/properties', async (req, res) => {
     query += ` ORDER BY ${orderBy} LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(limit, offset);
     
-    const result = await pool.query(query, params);
-    const countResult = await pool.query(countQuery, countParams);
-    
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
+
     res.json({
       success: true,
       properties: result.rows,
@@ -2044,23 +2046,12 @@ app.get('/api/properties', async (req, res) => {
 // GET /api/properties/stats
 app.get('/api/properties/stats', async (req, res) => {
   try {
-    const totalResult = await pool.query('SELECT COUNT(*) FROM properties');
-    const activeResult = await pool.query("SELECT COUNT(*) FROM properties WHERE LOWER(status) = 'active'");
-    
-    const citiesResult = await pool.query(`
-      SELECT city, COUNT(*) as count 
-      FROM properties 
-      WHERE city IS NOT NULL AND city != '' 
-      GROUP BY city 
-      ORDER BY count DESC 
-      LIMIT 20
-    `);
-    
-    // Count properties with lot_size > 0 as "priced"
-    const pricedResult = await pool.query(`
-      SELECT COUNT(*) FROM properties 
-      WHERE lot_size IS NOT NULL AND lot_size != '' AND lot_size != '0'
-    `);
+    const [totalResult, activeResult, citiesResult, pricedResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM properties'),
+      pool.query("SELECT COUNT(*) FROM properties WHERE LOWER(status) = 'active'"),
+      pool.query(`SELECT city, COUNT(*) as count FROM properties WHERE city IS NOT NULL AND city != '' GROUP BY city ORDER BY count DESC LIMIT 20`),
+      pool.query(`SELECT COUNT(*) FROM properties WHERE lot_size IS NOT NULL AND lot_size != '' AND lot_size != '0'`)
+    ]);
     
     res.json({
       success: true,
@@ -2482,8 +2473,10 @@ app.delete('/api/quotes/:id', async (req, res) => {
 
 app.get('/api/stats', async (req, res) => {
   try {
-    const totalResult = await pool.query('SELECT COUNT(*) FROM quotes');
-    const statusResult = await pool.query('SELECT status, COUNT(*) FROM quotes GROUP BY status');
+    const [totalResult, statusResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM quotes'),
+      pool.query('SELECT status, COUNT(*) FROM quotes GROUP BY status')
+    ]);
     const byStatus = {};
     statusResult.rows.forEach(row => { byStatus[row.status] = parseInt(row.count); });
     res.json({ success: true, stats: { total: parseInt(totalResult.rows[0].count), byStatus } });
@@ -2571,20 +2564,23 @@ app.get('/api/customers', async (req, res) => {
     query += ` ORDER BY ${orderBy} LIMIT $${p++} OFFSET $${p}`;
     params.push(limit, offset);
     
-    const result = await pool.query(query, params);
-    const countResult = await pool.query(countQuery, countParams);
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
     res.json({ success: true, customers: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/customers/stats', async (req, res) => {
   try {
-    const total = await pool.query('SELECT COUNT(*) FROM customers');
-    const active = await pool.query("SELECT COUNT(*) FROM customers WHERE LOWER(status) = 'active'");
-    const cities = await pool.query('SELECT city, COUNT(*) as count FROM customers WHERE city IS NOT NULL GROUP BY city ORDER BY count DESC LIMIT 10');
-    // Trend: new customers last 30d vs previous 30d
-    const recent = await pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= NOW() - INTERVAL '30 days'");
-    const previous = await pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= NOW() - INTERVAL '60 days' AND created_at < NOW() - INTERVAL '30 days'");
+    const [total, active, cities, recent, previous] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM customers'),
+      pool.query("SELECT COUNT(*) FROM customers WHERE LOWER(status) = 'active'"),
+      pool.query('SELECT city, COUNT(*) as count FROM customers WHERE city IS NOT NULL GROUP BY city ORDER BY count DESC LIMIT 10'),
+      pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= NOW() - INTERVAL '30 days'"),
+      pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= NOW() - INTERVAL '60 days' AND created_at < NOW() - INTERVAL '30 days'")
+    ]);
     const recentCount = parseInt(recent.rows[0].count);
     const prevCount = parseInt(previous.rows[0].count);
     let trendPct = 0;
@@ -2598,10 +2594,12 @@ app.get('/api/customers/stats', async (req, res) => {
 // GET /api/customers/pipeline-stats - Lead vs Customer pipeline metrics
 app.get('/api/customers/pipeline-stats', async (req, res) => {
   try {
-    const leads = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead'");
-    const customers = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'customer' OR customer_type IS NULL");
-    const newLeads = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead' AND created_at >= NOW() - INTERVAL '30 days'");
-    const converted = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'customer' AND created_at >= NOW() - INTERVAL '30 days'");
+    const [leads, customers, newLeads, converted] = await Promise.all([
+      pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead'"),
+      pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'customer' OR customer_type IS NULL"),
+      pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead' AND created_at >= NOW() - INTERVAL '30 days'"),
+      pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'customer' AND created_at >= NOW() - INTERVAL '30 days'")
+    ]);
     const totalLeads = parseInt(leads.rows[0].count);
     const totalCustomers = parseInt(customers.rows[0].count);
     const conversionRate = totalLeads + totalCustomers > 0 ? Math.round((totalCustomers / (totalLeads + totalCustomers)) * 100) : 0;
@@ -2713,10 +2711,12 @@ app.post('/api/customers/deduplicate', async (req, res) => {
         }
 
         // Re-point all FK references from dupId → keepId
-        await pool.query('UPDATE invoices SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
-        await pool.query('UPDATE properties SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
-        await pool.query('UPDATE scheduled_jobs SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
-        await pool.query('UPDATE messages SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]);
+        await Promise.all([
+          pool.query('UPDATE invoices SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]),
+          pool.query('UPDATE properties SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]),
+          pool.query('UPDATE scheduled_jobs SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId]),
+          pool.query('UPDATE messages SET customer_id=$1 WHERE customer_id=$2', [keepId, dupId])
+        ]);
 
         // Delete the duplicate
         await pool.query('DELETE FROM customers WHERE id=$1', [dupId]);
@@ -3039,9 +3039,11 @@ app.get('/api/calls', async (req, res) => {
 
 app.get('/api/calls/stats', async (req, res) => {
   try {
-    const total = await pool.query('SELECT COUNT(*) FROM calls');
-    const byStatus = await pool.query('SELECT status, COUNT(*) FROM calls GROUP BY status');
-    const byType = await pool.query('SELECT call_type, COUNT(*) FROM calls GROUP BY call_type');
+    const [total, byStatus, byType] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM calls'),
+      pool.query('SELECT status, COUNT(*) FROM calls GROUP BY status'),
+      pool.query('SELECT call_type, COUNT(*) FROM calls GROUP BY call_type')
+    ]);
     res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), byType: Object.fromEntries(byType.rows.map(r => [r.call_type, parseInt(r.count)])) } });
   } catch (error) { serverError(res, error); }
 });
@@ -3105,9 +3107,11 @@ app.get('/api/jobs/stats', async (req, res) => {
     let filter = '';
     const params = [];
     if (date) { filter = ' WHERE job_date::date = $1::date'; params.push(date); }
-    const total = await pool.query(`SELECT COUNT(*) FROM scheduled_jobs${filter}`, params);
-    const byStatus = await pool.query(`SELECT status, COUNT(*) FROM scheduled_jobs${filter} GROUP BY status`, params);
-    const revenue = await pool.query(`SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs${filter}`, params);
+    const [total, byStatus, revenue] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM scheduled_jobs${filter}`, params),
+      pool.query(`SELECT status, COUNT(*) FROM scheduled_jobs${filter} GROUP BY status`, params),
+      pool.query(`SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs${filter}`, params)
+    ]);
     res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), totalRevenue: parseFloat(revenue.rows[0].total) } });
   } catch (error) { serverError(res, error); }
 });
@@ -3115,10 +3119,12 @@ app.get('/api/jobs/stats', async (req, res) => {
 app.get('/api/jobs/dashboard', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const todayCount = await pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE job_date::date = $1::date', [today]);
-    const weekCount = await pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE job_date::date BETWEEN $1::date AND ($1::date + interval '7 days')", [today]);
-    const pending = await pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE status = $1 AND job_date::date >= $2::date', ['pending', today]);
-    const upcoming = await pool.query(`SELECT id, job_date, customer_name, service_type, address, status, service_price FROM scheduled_jobs WHERE job_date::date >= $1::date ORDER BY job_date ASC LIMIT 5`, [today]);
+    const [todayCount, weekCount, pending, upcoming] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE job_date::date = $1::date', [today]),
+      pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE job_date::date BETWEEN $1::date AND ($1::date + interval '7 days')", [today]),
+      pool.query('SELECT COUNT(*) FROM scheduled_jobs WHERE status = $1 AND job_date::date >= $2::date', ['pending', today]),
+      pool.query(`SELECT id, job_date, customer_name, service_type, address, status, service_price FROM scheduled_jobs WHERE job_date::date >= $1::date ORDER BY job_date ASC LIMIT 5`, [today])
+    ]);
     res.json({ success: true, stats: { today: parseInt(todayCount.rows[0].count), thisWeek: parseInt(weekCount.rows[0].count), pending: parseInt(pending.rows[0].count) }, upcoming: upcoming.rows });
   } catch (error) { serverError(res, error); }
 });
@@ -4024,20 +4030,11 @@ app.get('/api/expenses/stats', async (req, res) => {
     const currentYear = year || new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     
-    const yearTotal = await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM expenses WHERE EXTRACT(YEAR FROM expense_date) = $1',
-      [currentYear]
-    );
-    
-    const monthTotal = await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM expenses WHERE EXTRACT(YEAR FROM expense_date) = $1 AND EXTRACT(MONTH FROM expense_date) = $2',
-      [currentYear, currentMonth]
-    );
-    
-    const byCategory = await pool.query(
-      'SELECT category, COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM expenses WHERE EXTRACT(YEAR FROM expense_date) = $1 GROUP BY category',
-      [currentYear]
-    );
+    const [yearTotal, monthTotal, byCategory] = await Promise.all([
+      pool.query('SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM expenses WHERE EXTRACT(YEAR FROM expense_date) = $1', [currentYear]),
+      pool.query('SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM expenses WHERE EXTRACT(YEAR FROM expense_date) = $1 AND EXTRACT(MONTH FROM expense_date) = $2', [currentYear, currentMonth]),
+      pool.query('SELECT category, COALESCE(SUM(amount), 0) as total, COUNT(*) as count FROM expenses WHERE EXTRACT(YEAR FROM expense_date) = $1 GROUP BY category', [currentYear])
+    ]);
     
     res.json({
       success: true,
@@ -4439,11 +4436,10 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
     }
     query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
-    const result = await pool.query(query, params);
-    const countResult = await pool.query(
-      'SELECT COUNT(*) as total FROM campaign_submissions WHERE campaign_id = $1',
-      [id]
-    );
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query('SELECT COUNT(*) as total FROM campaign_submissions WHERE campaign_id = $1', [id])
+    ]);
     res.json({
       success: true,
       submissions: result.rows,
@@ -4586,12 +4582,10 @@ app.get('/api/sent-quotes', async (req, res) => {
     query += ` ORDER BY sq.created_at DESC LIMIT $${p++} OFFSET $${p++}`;
     values.push(parseInt(limit), parseInt(offset));
 
-    const result = await pool.query(query, values);
-    
-    // Get counts by status
-    const countsResult = await pool.query(`
-      SELECT status, COUNT(*) as count FROM sent_quotes GROUP BY status
-    `);
+    const [result, countsResult] = await Promise.all([
+      pool.query(query, values),
+      pool.query(`SELECT status, COUNT(*) as count FROM sent_quotes GROUP BY status`)
+    ]);
     const counts = { total: 0, draft: 0, sent: 0, viewed: 0, signed: 0, declined: 0 };
     countsResult.rows.forEach(row => {
       counts[row.status] = parseInt(row.count);
@@ -8133,28 +8127,28 @@ app.get('/api/payments', async (req, res) => {
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
     params.push(parseInt(limit)); params.push(parseInt(offset));
 
-    const result = await pool.query(
-      `SELECT id, invoice_number, customer_id, customer_name, customer_email,
-              total, amount_paid, status, paid_at, due_date, created_at, qb_invoice_id, payment_token
-       FROM invoices ${whereClause}
-       ORDER BY COALESCE(paid_at, updated_at) DESC
-       LIMIT $${p} OFFSET $${p+1}`,
-      params
-    );
-
-    const countResult = await pool.query(
-      `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_paid),0) as total_received
-       FROM invoices ${whereClause}`,
-      params.slice(0, -2)
-    );
-
-    const monthly = await pool.query(`
-      SELECT to_char(COALESCE(paid_at, updated_at),'YYYY-MM') as month,
-             COUNT(*) as count, SUM(amount_paid) as total
-      FROM invoices
-      WHERE amount_paid > 0 AND COALESCE(paid_at, updated_at) >= NOW() - INTERVAL '12 months'
-      GROUP BY month ORDER BY month
-    `);
+    const [result, countResult, monthly] = await Promise.all([
+      pool.query(
+        `SELECT id, invoice_number, customer_id, customer_name, customer_email,
+                total, amount_paid, status, paid_at, due_date, created_at, qb_invoice_id, payment_token
+         FROM invoices ${whereClause}
+         ORDER BY COALESCE(paid_at, updated_at) DESC
+         LIMIT $${p} OFFSET $${p+1}`,
+        params
+      ),
+      pool.query(
+        `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_paid),0) as total_received
+         FROM invoices ${whereClause}`,
+        params.slice(0, -2)
+      ),
+      pool.query(`
+        SELECT to_char(COALESCE(paid_at, updated_at),'YYYY-MM') as month,
+               COUNT(*) as count, SUM(amount_paid) as total
+        FROM invoices
+        WHERE amount_paid > 0 AND COALESCE(paid_at, updated_at) >= NOW() - INTERVAL '12 months'
+        GROUP BY month ORDER BY month
+      `)
+    ]);
 
     res.json({
       success: true,
@@ -9399,9 +9393,15 @@ app.get('/api/finance/summary', async (req, res) => {
         GROUP BY month ORDER BY month`)
     ]);
 
-    const expMonthly = await pool.query(`SELECT to_char(expense_date,'YYYY-MM') as month,
-      SUM(amount) as expenses FROM expenses WHERE expense_date >= NOW() - INTERVAL '12 months'
-      GROUP BY month ORDER BY month`);
+    const [expMonthly, allTimeRev, allTimeExp, totalInvoices, totalCustomers] = await Promise.all([
+      pool.query(`SELECT to_char(expense_date,'YYYY-MM') as month,
+        SUM(amount) as expenses FROM expenses WHERE expense_date >= NOW() - INTERVAL '12 months'
+        GROUP BY month ORDER BY month`),
+      pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid'"),
+      pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses"),
+      pool.query("SELECT COUNT(*) as cnt FROM invoices"),
+      pool.query("SELECT COUNT(*) as cnt FROM customers")
+    ]);
 
     // Build 12-month arrays (current month backwards)
     const monthlyRevenueArr = new Array(12).fill(0);
@@ -9423,12 +9423,6 @@ app.get('/api/finance/summary', async (req, res) => {
     const expensesMonth = parseFloat(expMonth.rows[0].amt);
     const revenueLastMonth = parseFloat(paidLastMonth.rows[0].amt);
     const expensesLastMonth = parseFloat(expLastMonth.rows[0].amt);
-
-    // All-time totals (useful when current period has no data, e.g. sandbox QB data)
-    const allTimeRev = await pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid'");
-    const allTimeExp = await pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses");
-    const totalInvoices = await pool.query("SELECT COUNT(*) as cnt FROM invoices");
-    const totalCustomers = await pool.query("SELECT COUNT(*) as cnt FROM customers");
 
     res.json({
       thisMonth: { revenue: revenueMonth, expenses: expensesMonth },
@@ -9792,8 +9786,10 @@ app.get('/api/quickbooks/callback', async (req, res) => {
 // GET /api/quickbooks/status - Check connection
 app.get('/api/quickbooks/status', async (req, res) => {
   try {
-    const tokenRow = await pool.query('SELECT realm_id, expires_at, updated_at FROM qb_tokens ORDER BY id DESC LIMIT 1');
-    const lastSync = await pool.query('SELECT * FROM qb_sync_log ORDER BY id DESC LIMIT 1');
+    const [tokenRow, lastSync] = await Promise.all([
+      pool.query('SELECT realm_id, expires_at, updated_at FROM qb_tokens ORDER BY id DESC LIMIT 1'),
+      pool.query('SELECT * FROM qb_sync_log ORDER BY id DESC LIMIT 1')
+    ]);
 
     if (tokenRow.rows.length === 0) {
       return res.json({ success: true, connected: false });
@@ -10552,14 +10548,10 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
 // GET /api/campaigns/:id/send-history - Send stats
 app.get('/api/campaigns/:id/send-history', async (req, res) => {
   try {
-    const sends = await pool.query(
-      `SELECT cs.*, c.name as customer_name FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`,
-      [req.params.id]
-    );
-    const stats = await pool.query(
-      `SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`,
-      [req.params.id]
-    );
+    const [sends, stats] = await Promise.all([
+      pool.query(`SELECT cs.*, c.name as customer_name FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
+      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
+    ]);
     res.json({ success: true, sends: sends.rows, stats: stats.rows[0] });
   } catch (error) { serverError(res, error); }
 });
@@ -10606,7 +10598,6 @@ app.post('/api/unsubscribe', async (req, res) => {
 app.get('/api/t/:trackingId/open.png', async (req, res) => {
   try {
     await pool.query('UPDATE campaign_sends SET opened_at = COALESCE(opened_at, NOW()) WHERE tracking_id = $1', [req.params.trackingId]);
-    // Update campaign open_count
     await pool.query(`UPDATE campaigns SET open_count = (SELECT COUNT(opened_at) FROM campaign_sends WHERE campaign_id = campaigns.id) WHERE id = (SELECT campaign_id FROM campaign_sends WHERE tracking_id = $1)`, [req.params.trackingId]);
   } catch(e) { /* silently fail */ }
   // Return 1x1 transparent PNG
@@ -10640,16 +10631,17 @@ app.get('/api/broadcasts/filter-options', async (req, res) => {
 
   try {
     // Get all unique tags (comma-separated field, need to split and deduplicate)
-    const tagsResult = await pool.query(`SELECT DISTINCT tags FROM customers WHERE tags IS NOT NULL AND tags != ''`);
+    const [tagsResult, cities, postalCodes, statuses, customerTypes] = await Promise.all([
+      pool.query(`SELECT DISTINCT tags FROM customers WHERE tags IS NOT NULL AND tags != ''`),
+      pool.query(`SELECT DISTINCT city FROM customers WHERE city IS NOT NULL AND city != '' ORDER BY city`),
+      pool.query(`SELECT DISTINCT postal_code FROM customers WHERE postal_code IS NOT NULL AND postal_code != '' ORDER BY postal_code`),
+      pool.query(`SELECT DISTINCT status FROM customers WHERE status IS NOT NULL AND status != '' ORDER BY status`),
+      pool.query(`SELECT DISTINCT customer_type FROM customers WHERE customer_type IS NOT NULL AND customer_type != '' ORDER BY customer_type`)
+    ]);
     const tagSet = new Set();
     for (const row of tagsResult.rows) {
       (row.tags || '').split(',').forEach(t => { const trimmed = t.trim(); if (trimmed) tagSet.add(trimmed); });
     }
-
-    const cities = await pool.query(`SELECT DISTINCT city FROM customers WHERE city IS NOT NULL AND city != '' ORDER BY city`);
-    const postalCodes = await pool.query(`SELECT DISTINCT postal_code FROM customers WHERE postal_code IS NOT NULL AND postal_code != '' ORDER BY postal_code`);
-    const statuses = await pool.query(`SELECT DISTINCT status FROM customers WHERE status IS NOT NULL AND status != '' ORDER BY status`);
-    const customerTypes = await pool.query(`SELECT DISTINCT customer_type FROM customers WHERE customer_type IS NOT NULL AND customer_type != '' ORDER BY customer_type`);
 
     res.json({
       success: true,
@@ -11191,11 +11183,10 @@ app.get('/api/email-log', async (req, res) => {
     }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-    const countResult = await pool.query(`SELECT COUNT(*) FROM email_log ${whereClause}`, params);
-    const result = await pool.query(
-      `SELECT * FROM email_log ${whereClause} ORDER BY sent_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
-      [...params, parseInt(limit), parseInt(offset)]
-    );
+    const [countResult, result] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM email_log ${whereClause}`, params),
+      pool.query(`SELECT * FROM email_log ${whereClause} ORDER BY sent_at DESC LIMIT $${idx} OFFSET $${idx + 1}`, [...params, parseInt(limit), parseInt(offset)])
+    ]);
 
     res.json({ success: true, emails: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) {
@@ -11441,20 +11432,15 @@ app.get('/api/expense-categories', async (req, res) => {
 app.get('/api/finance/cash-flow-forecast', async (req, res) => {
   try {
     await ensureInvoicesTable();
-    const inflows = await pool.query(`
-      SELECT due_date, SUM(total - COALESCE(amount_paid, 0)) as expected
-      FROM invoices
-      WHERE status IN ('sent', 'viewed', 'overdue')
-        AND due_date IS NOT NULL
-        AND due_date <= CURRENT_DATE + INTERVAL '90 days'
-      GROUP BY due_date ORDER BY due_date
-    `);
-    const recentExpenses = await pool.query(`
-      SELECT category, AVG(amount) as avg_amount, COUNT(*) as count
-      FROM expenses
-      WHERE expense_date >= CURRENT_DATE - INTERVAL '3 months'
-      GROUP BY category
-    `);
+    const [inflows, recentExpenses] = await Promise.all([
+      pool.query(`SELECT due_date, SUM(total - COALESCE(amount_paid, 0)) as expected
+        FROM invoices WHERE status IN ('sent', 'viewed', 'overdue')
+        AND due_date IS NOT NULL AND due_date <= CURRENT_DATE + INTERVAL '90 days'
+        GROUP BY due_date ORDER BY due_date`),
+      pool.query(`SELECT category, AVG(amount) as avg_amount, COUNT(*) as count
+        FROM expenses WHERE expense_date >= CURRENT_DATE - INTERVAL '3 months'
+        GROUP BY category`)
+    ]);
     const weeks = [];
     const weeklyExpenseEstimate = recentExpenses.rows.reduce((s, r) => s + parseFloat(r.avg_amount || 0), 0) / 13;
     for (let i = 0; i < 13; i++) {
@@ -12189,36 +12175,33 @@ app.get('/api/ai/revenue-forecast', async (req, res) => {
     const months = parseInt(req.query.months) || 3;
     const forecast = [];
 
-    for (let i = 1; i <= months; i++) {
-      // Scheduled jobs revenue (known)
-      const scheduled = await pool.query(
+    // Pipeline and historical don't change per iteration — query once
+    const [pipeline, historical] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(total), 0) as total FROM sent_quotes
+         WHERE status IN ('signed', 'contracted')
+         AND id NOT IN (SELECT sent_quote_id FROM invoices WHERE sent_quote_id IS NOT NULL)`),
+      pool.query(`SELECT COALESCE(AVG(monthly_total), 0) as avg_monthly FROM (
+           SELECT DATE_TRUNC('month', paid_at) as m, SUM(amount_paid) as monthly_total
+           FROM invoices WHERE paid_at >= NOW() - INTERVAL '6 months' AND status = 'paid'
+           GROUP BY DATE_TRUNC('month', paid_at)) sub`)
+    ]);
+    const pipelineRevPerMonth = ((parseFloat(pipeline.rows[0].total) || 0) * 0.8) / months;
+    const historicalRev = parseFloat(historical.rows[0].avg_monthly) || 0;
+
+    // Fetch all scheduled revenue in parallel
+    const scheduledResults = await Promise.all(
+      Array.from({ length: months }, (_, idx) => pool.query(
         `SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs
          WHERE job_date >= DATE_TRUNC('month', CURRENT_DATE + ($1::text || ' months')::INTERVAL)
          AND job_date < DATE_TRUNC('month', CURRENT_DATE + ($1::text || ' months')::INTERVAL) + INTERVAL '1 month'
          AND status != 'cancelled'`,
-        [i]
-      );
-      const scheduledRev = parseFloat(scheduled.rows[0].total) || 0;
+        [idx + 1]
+      ))
+    );
 
-      // Pipeline value: contracted quotes not yet invoiced, times 0.8
-      const pipeline = await pool.query(
-        `SELECT COALESCE(SUM(total), 0) as total FROM sent_quotes
-         WHERE status IN ('signed', 'contracted')
-         AND id NOT IN (SELECT sent_quote_id FROM invoices WHERE sent_quote_id IS NOT NULL)`
-      );
-      // Spread pipeline evenly across forecast months
-      const pipelineRev = ((parseFloat(pipeline.rows[0].total) || 0) * 0.8) / months;
-
-      // Historical monthly average (last 6 months)
-      const historical = await pool.query(
-        `SELECT COALESCE(AVG(monthly_total), 0) as avg_monthly FROM (
-           SELECT DATE_TRUNC('month', paid_at) as m, SUM(amount_paid) as monthly_total
-           FROM invoices
-           WHERE paid_at >= NOW() - INTERVAL '6 months' AND status = 'paid'
-           GROUP BY DATE_TRUNC('month', paid_at)
-         ) sub`
-      );
-      const historicalRev = parseFloat(historical.rows[0].avg_monthly) || 0;
+    for (let i = 1; i <= months; i++) {
+      const scheduledRev = parseFloat(scheduledResults[i - 1].rows[0].total) || 0;
+      const pipelineRev = pipelineRevPerMonth;
 
       const targetDate = new Date();
       targetDate.setMonth(targetDate.getMonth() + i);
@@ -13127,8 +13110,10 @@ app.get('/api/work-requests', async (req, res) => {
     query += ` ORDER BY sr.created_at DESC LIMIT $${p++} OFFSET $${p}`;
     params.push(limit, offset);
 
-    const result = await pool.query(query, params);
-    const countResult = await pool.query(countQuery, countParams);
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
     res.json({ success: true, requests: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) {
     console.error('Work requests error:', error);
@@ -13179,8 +13164,10 @@ app.get('/api/time-entries', async (req, res) => {
     if (status) { query += ` AND status = $${p++}`; params.push(status); }
     query += ` ORDER BY clock_in DESC LIMIT $${p++} OFFSET $${p}`;
     params.push(limit, offset);
-    const result = await pool.query(query, params);
-    const countResult = await pool.query('SELECT COUNT(*) FROM time_entries');
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query('SELECT COUNT(*) FROM time_entries')
+    ]);
     res.json({ success: true, entries: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) { serverError(res, error); }
 });
@@ -13188,11 +13175,13 @@ app.get('/api/time-entries', async (req, res) => {
 app.get('/api/time-entries/stats', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const active = await pool.query("SELECT COUNT(*) FROM time_entries WHERE status = 'active' AND clock_out IS NULL");
-    const todayEntries = await pool.query("SELECT COUNT(*) FROM time_entries WHERE clock_in::date = $1", [today]);
-    const todayHours = await pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in::date = $1", [today]);
-    const weekHours = await pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in >= date_trunc('week', CURRENT_DATE)");
-    const activeEntries = await pool.query("SELECT * FROM time_entries WHERE status = 'active' AND clock_out IS NULL ORDER BY clock_in DESC");
+    const [active, todayEntries, todayHours, weekHours, activeEntries] = await Promise.all([
+      pool.query("SELECT COUNT(*) FROM time_entries WHERE status = 'active' AND clock_out IS NULL"),
+      pool.query("SELECT COUNT(*) FROM time_entries WHERE clock_in::date = $1", [today]),
+      pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in::date = $1", [today]),
+      pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in >= date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT * FROM time_entries WHERE status = 'active' AND clock_out IS NULL ORDER BY clock_in DESC")
+    ]);
     res.json({ success: true, stats: {
       activeClockedIn: parseInt(active.rows[0].count),
       todayEntries: parseInt(todayEntries.rows[0].count),
@@ -13345,10 +13334,12 @@ app.get('/api/service-programs', async (req, res) => {
 
 app.get('/api/service-programs/:id', async (req, res) => {
   try {
-    const program = await pool.query('SELECT * FROM service_programs WHERE id = $1', [req.params.id]);
+    const [program, steps, enrollments] = await Promise.all([
+      pool.query('SELECT * FROM service_programs WHERE id = $1', [req.params.id]),
+      pool.query('SELECT * FROM program_steps WHERE program_id = $1 ORDER BY step_order', [req.params.id]),
+      pool.query('SELECT cp.*, c.name as customer_name FROM customer_programs cp LEFT JOIN customers c ON cp.customer_id = c.id WHERE cp.program_id = $1 ORDER BY cp.created_at DESC', [req.params.id])
+    ]);
     if (program.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const steps = await pool.query('SELECT * FROM program_steps WHERE program_id = $1 ORDER BY step_order', [req.params.id]);
-    const enrollments = await pool.query('SELECT cp.*, c.name as customer_name FROM customer_programs cp LEFT JOIN customers c ON cp.customer_id = c.id WHERE cp.program_id = $1 ORDER BY cp.created_at DESC', [req.params.id]);
     res.json({ success: true, program: program.rows[0], steps: steps.rows, enrollments: enrollments.rows });
   } catch (error) { serverError(res, error); }
 });
@@ -13420,56 +13411,34 @@ app.get('/api/kpi/detailed', async (req, res) => {
     const thisMonth = now.toISOString().slice(0, 7);
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
 
-    // Revenue
-    const monthlyRevenue = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments WHERE created_at >= date_trunc('month', CURRENT_DATE)");
-    const lastMonthRevenue = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND created_at < date_trunc('month', CURRENT_DATE)");
+    const [monthlyRevenue, lastMonthRevenue, totalQuotesSent, acceptedQuotes, avgClose, jobsThisWeek, jobsThisMonth, revenueByService, newCustomers, totalCustomerCount, totalRevenueAll, pendingQuotes, bookedOut, activeLeads, revenueTrend] = await Promise.all([
+      pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments WHERE created_at >= date_trunc('month', CURRENT_DATE)"),
+      pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND created_at < date_trunc('month', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM sent_quotes WHERE created_at >= date_trunc('month', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM sent_quotes WHERE status IN ('accepted','signed','contracted') AND created_at >= date_trunc('month', CURRENT_DATE)"),
+      pool.query("SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400)::numeric as avg_days FROM sent_quotes WHERE status IN ('accepted','signed','contracted') AND updated_at > created_at"),
+      pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('week', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('month', CURRENT_DATE)"),
+      pool.query("SELECT service_type, COUNT(*) as job_count, COALESCE(SUM(service_price), 0)::numeric as revenue FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('month', CURRENT_DATE) GROUP BY service_type ORDER BY revenue DESC LIMIT 10"),
+      pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= date_trunc('month', CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM customers"),
+      pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments"),
+      pool.query("SELECT COUNT(*) as count, COALESCE(SUM(total), 0)::numeric as value FROM sent_quotes WHERE status IN ('sent','viewed','pending')"),
+      pool.query("SELECT MAX(job_date) as furthest_date FROM scheduled_jobs WHERE status IN ('pending','scheduled') AND job_date >= CURRENT_DATE"),
+      pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead'"),
+      pool.query(`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+             COALESCE(SUM(amount), 0)::numeric as revenue
+      FROM payments WHERE created_at >= CURRENT_DATE - INTERVAL '6 months'
+      GROUP BY date_trunc('month', created_at) ORDER BY month ASC`)
+    ]);
 
-    // Close ratio
-    const totalQuotesSent = await pool.query("SELECT COUNT(*) FROM sent_quotes WHERE created_at >= date_trunc('month', CURRENT_DATE)");
-    const acceptedQuotes = await pool.query("SELECT COUNT(*) FROM sent_quotes WHERE status IN ('accepted','signed','contracted') AND created_at >= date_trunc('month', CURRENT_DATE)");
     const totalSent = parseInt(totalQuotesSent.rows[0].count);
     const totalAccepted = parseInt(acceptedQuotes.rows[0].count);
     const closeRatio = totalSent > 0 ? Math.round((totalAccepted / totalSent) * 100) : 0;
-
-    // Avg time to close
-    const avgClose = await pool.query("SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 86400)::numeric as avg_days FROM sent_quotes WHERE status IN ('accepted','signed','contracted') AND updated_at > created_at");
-
-    // Jobs completed
-    const jobsThisWeek = await pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('week', CURRENT_DATE)");
-    const jobsThisMonth = await pool.query("SELECT COUNT(*) FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('month', CURRENT_DATE)");
-
-    // Revenue by service type
-    const revenueByService = await pool.query("SELECT service_type, COUNT(*) as job_count, COALESCE(SUM(service_price), 0)::numeric as revenue FROM scheduled_jobs WHERE status IN ('completed','done') AND job_date >= date_trunc('month', CURRENT_DATE) GROUP BY service_type ORDER BY revenue DESC LIMIT 10");
-
-    // New customers
-    const newCustomers = await pool.query("SELECT COUNT(*) FROM customers WHERE created_at >= date_trunc('month', CURRENT_DATE)");
-
-    // Customer LTV
-    const totalCustomerCount = await pool.query("SELECT COUNT(*) FROM customers");
-    const totalRevenueAll = await pool.query("SELECT COALESCE(SUM(amount), 0)::numeric as total FROM payments");
     const custCount = parseInt(totalCustomerCount.rows[0].count);
     const ltv = custCount > 0 ? (parseFloat(totalRevenueAll.rows[0].total) / custCount).toFixed(2) : 0;
-
-    // Pending quotes value
-    const pendingQuotes = await pool.query("SELECT COUNT(*) as count, COALESCE(SUM(total), 0)::numeric as value FROM sent_quotes WHERE status IN ('sent','viewed','pending')");
-
-    // Booked out (how far ahead)
-    const bookedOut = await pool.query("SELECT MAX(job_date) as furthest_date FROM scheduled_jobs WHERE status IN ('pending','scheduled') AND job_date >= CURRENT_DATE");
     const furthestDate = bookedOut.rows[0].furthest_date;
     const bookedOutDays = furthestDate ? Math.ceil((new Date(furthestDate) - now) / 86400000) : 0;
-
-    // Active leads
-    const activeLeads = await pool.query("SELECT COUNT(*) FROM customers WHERE customer_type = 'lead'");
-
-    // Monthly revenue trend (last 6 months)
-    const revenueTrend = await pool.query(`
-      SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
-             COALESCE(SUM(amount), 0)::numeric as revenue
-      FROM payments
-      WHERE created_at >= CURRENT_DATE - INTERVAL '6 months'
-      GROUP BY date_trunc('month', created_at)
-      ORDER BY month ASC
-    `);
 
     res.json({ success: true, kpi: {
       monthlyRevenue: parseFloat(monthlyRevenue.rows[0].total),

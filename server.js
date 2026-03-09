@@ -147,7 +147,7 @@ app.post('/api/webhooks/square', express.raw({ type: 'application/json' }), asyn
     // Verify signature if key is configured
     if (sigKey && signature) {
       const hmac = crypto.createHmac('sha256', sigKey);
-      const notificationUrl = (process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app') + '/api/webhooks/square';
+      const notificationUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/api/webhooks/square';
       hmac.update(notificationUrl + body);
       const expectedSig = hmac.digest('base64');
       if (signature !== expectedSig) {
@@ -656,7 +656,7 @@ function emailTemplate(content, options = {}) {
     </td></tr>
   ` : '';
 
-  const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
   const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
   const SOCIAL_FB_WHITE = `${assetsUrl}/email-assets/fb-white.png`;
   const SOCIAL_IG_WHITE = `${assetsUrl}/email-assets/ig-white.png`;
@@ -2411,7 +2411,7 @@ app.post('/api/quotes', async (req, res) => {
     
     // Send detailed notification email
     const servicesText = servicesArray ? servicesArray.join(', ') : 'None specified';
-    const dashboardUrl = 'https://pappas-quote-backend-production.up.railway.app/quote-requests.html';
+    const dashboardUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/quote-requests.html';
     
     const emailHtml = `
       <h2>New Quote Request</h2>
@@ -4526,7 +4526,7 @@ app.post('/api/campaigns/submissions', async (req, res) => {
 
     // Send notification email
     const servicesText = servicesArray ? servicesArray.join(', ') : 'None specified';
-    const dashboardUrl = 'https://pappas-quote-backend-production.up.railway.app/campaigns.html';
+    const dashboardUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/campaigns.html';
     const emailHtml = `
       <h2>New Campaign Submission</h2>
       <p><strong>Campaign:</strong> ${campaign_id}</p>
@@ -4892,7 +4892,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No customer email address' });
     }
 
-    const signUrl = `${process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/sign-quote.html?token=${quote.sign_token}`;
+    const signUrl = `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sign-quote.html?token=${quote.sign_token}`;
     const quoteNumber = quote.quote_number || `Q-${quote.id}`;
 
     // Clean email - detailed but warm tone
@@ -4900,7 +4900,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     
     const emailContent = `
       <div style="text-align:center;margin:0 0 28px;">
-        <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-quote.png" alt="Your Quote is Ready" style="max-width:400px;width:auto;height:34px;" />
+        <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/email-assets/heading-quote.png" alt="Your Quote is Ready" style="max-width:400px;width:auto;height:34px;" />
       </div>
       <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
 
@@ -5249,7 +5249,7 @@ app.post('/api/sign/:token/request-changes', async (req, res) => {
         <p style="margin:0 0 8px;"><strong>Phone:</strong> <a href="tel:${escapeHtml(quote.customer_phone)}" style="color:#2e403d;">${escapeHtml(quote.customer_phone)}</a></p>
         <p style="margin:0;"><strong>Original Total:</strong> $${parseFloat(quote.total).toFixed(2)}</p>
       </div>
-      <p style="margin-top:20px;"><a href="https://pappas-quote-backend-production.up.railway.app/sent-quotes.html" style="background:#f59e0b;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600;">Review Quote</a></p>
+      <p style="margin-top:20px;"><a href="${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sent-quotes.html" style="background:#f59e0b;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600;">Review Quote</a></p>
     `;
     await sendEmail(NOTIFICATION_EMAIL, `📝 Change Request: ${escapeHtml(quote.customer_name)}`, emailTemplate(adminContent, { showSignature: false }));
 
@@ -5558,7 +5558,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       const firstName = updatedQuote.customer_name.split(' ')[0];
       const customerContent = `
         <div style="text-align:center;margin:0 0 28px;">
-          <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app'}/email-assets/heading-welcome.png" alt="Welcome to the Pappas Family" style="max-width:400px;width:auto;height:34px;" />
+          <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/email-assets/heading-welcome.png" alt="Welcome to the Pappas Family" style="max-width:400px;width:auto;height:34px;" />
         </div>
 
         <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
@@ -5809,10 +5809,10 @@ app.post('/api/app/calls/outbound', authenticateToken, async (req, res) => {
     }
     
     const call = await twilioClient.calls.create({
-      url: `https://pappas-quote-backend-production.up.railway.app/api/app/calls/connect?to=${encodeURIComponent(to)}&from=${encodeURIComponent(callFromNumber)}`,
+      url: `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/api/app/calls/connect?to=${encodeURIComponent(to)}&from=${encodeURIComponent(callFromNumber)}`,
       to: userPhone,
       from: callFromNumber,
-      statusCallback: `https://pappas-quote-backend-production.up.railway.app/api/app/calls/status-callback`,
+      statusCallback: `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/api/app/calls/status-callback`,
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
     });
     console.log(`📞 Outbound call initiated: ${call.sid} to ${to} via ${userPhone} from ${callFromNumber}`);
@@ -5862,7 +5862,7 @@ app.post('/api/app/calls/hold/:callSid', authenticateToken, async (req, res) => 
   try {
     if (req.body.hold) {
       await twilioClient.calls(req.params.callSid).update({
-        url: 'https://pappas-quote-backend-production.up.railway.app/api/app/calls/hold-music',
+        url: (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/api/app/calls/hold-music',
         method: 'POST',
       });
     }
@@ -5894,7 +5894,7 @@ app.post('/api/app/voice/setup', authenticateToken, async (req, res) => {
     // Create TwiML App
     const twimlApp = await twilioClient.applications.create({
       friendlyName: 'TwilioConnect Mobile',
-      voiceUrl: 'https://pappas-quote-backend-production.up.railway.app/api/app/voice/connect',
+      voiceUrl: (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/api/app/voice/connect',
       voiceMethod: 'POST',
     });
 
@@ -6949,7 +6949,7 @@ app.post('/api/webhooks/customer-replied', async (req, res) => {
 
 // Follow-up email templates - standalone design (not using shared emailTemplate)
 function getFollowupEmailContent(followup, stage) {
-  const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
   const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
 
   // Qualy heading images (pre-generated PNGs)
@@ -7574,7 +7574,7 @@ async function processMonthlyPlanInvoices() {
         // Auto-send with payment link (only if automated emails are enabled)
         const emailsOn = await areAutomatedEmailsEnabled();
         if (emailsOn && cust.email) {
-          const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+          const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
           const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
           const content = `
             <h2 style="color:#2e403d;margin:0 0 16px;">Monthly Invoice ${invNum}</h2>
@@ -7633,7 +7633,7 @@ async function processLateFees() {
         // Send late fee email (only if automated emails are enabled)
         const emailsOn = await areAutomatedEmailsEnabled();
         if (emailsOn && inv.customer_email) {
-          const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+          const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
           const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
           const content = `
             <h2 style="color:#dc4a4a;margin:0 0 16px;">Late Fee Applied</h2>
@@ -8485,7 +8485,7 @@ app.post('/api/invoices/:id/send', async (req, res) => {
       paymentToken = generateToken();
       await pool.query('UPDATE invoices SET payment_token = $1, payment_token_created_at = CURRENT_TIMESTAMP WHERE id = $2', [paymentToken, inv.id]);
     }
-    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
 
     const items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items || []);
@@ -8979,7 +8979,7 @@ app.post('/api/invoices/:id/send-reminder', async (req, res) => {
     if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
 
     const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
-    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
 
     const content = `
@@ -9041,7 +9041,7 @@ app.post('/api/portal/request-access', async (req, res) => {
       [token, customer.id, email.trim(), expiresAt]
     );
 
-    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const portalUrl = `${baseUrl}/customer-portal.html?token=${token}`;
 
     const content = `
@@ -10807,7 +10807,7 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
         const subject = replaceTemplateVars(tmpl.subject, vars);
         let body = replaceTemplateVars(tmpl.body, vars);
         // Add tracking pixel
-        const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+        const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
         const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
         await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
@@ -11096,7 +11096,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
     for (const p of prefsResult.rows) { prefsMap[p.customer_id] = p; }
 
     const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
-    const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
 
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';

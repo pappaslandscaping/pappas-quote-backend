@@ -194,6 +194,16 @@ app.post('/api/webhooks/square', express.raw({ type: 'application/json' }), asyn
   }
 });
 
+// Force HTTPS in production (Railway terminates SSL at proxy)
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+    next();
+  });
+}
+
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 app.use(express.static('public', {

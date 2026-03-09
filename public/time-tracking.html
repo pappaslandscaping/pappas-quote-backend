@@ -6,10 +6,9 @@
     <title>Time Tracking — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @font-face { font-family: 'Qualy'; src: url('Qualy.otf') format('opentype'); font-weight: normal; font-style: normal; }
-        .header h1, .topbar h1, h1 { font-family: 'Qualy', serif !important; }
-        .card-header h2, h2 { font-family: 'Qualy', serif !important; }
-        .stat-card .number, .stat-value { font-family: 'Qualy', serif !important; }
+        .header h1, .topbar h1, h1 { font-family: 'DM Sans', sans-serif; font-weight: 700; }
+        .card-header h2, h2 { font-family: 'DM Sans', sans-serif; font-weight: 700; }
+        .stat-card .number, .stat-value { font-family: 'DM Sans', sans-serif; font-weight: 700; }
 
         :root {
             --forest: #2e403d; --forest-dark: #1f2b29; --forest-light: #3a524e;
@@ -44,7 +43,7 @@
         /* Main */
         
         
-        .topbar-left h2 { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .topbar-left h2 { font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 700; color: var(--forest); }
         .topbar-actions { display: flex; align-items: center; gap: 12px; }
 
         .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; }
@@ -66,12 +65,12 @@
         .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; }
         .stat-card .label { font-size: 12px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-        .stat-card .number { font-family: 'Qualy', serif; font-size: 28px; font-weight: 700; color: var(--forest); }
+        .stat-card .number { font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 700; color: var(--forest); }
         .stat-card .sub { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
 
         /* Active Timers */
         .active-timers { margin-bottom: 24px; }
-        .section-title { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+        .section-title { font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 700; color: var(--forest); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
         .section-title .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
@@ -79,14 +78,14 @@
         .timer-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 20px; border-left: 4px solid var(--green); }
         .timer-card .timer-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
         .timer-card .crew-name { font-size: 15px; font-weight: 700; color: var(--forest); }
-        .timer-card .elapsed { font-family: 'Qualy', serif; font-size: 24px; font-weight: 700; color: var(--green); }
+        .timer-card .elapsed { font-family: 'DM Sans', sans-serif; font-size: 24px; font-weight: 700; color: var(--green); }
         .timer-card .timer-detail { font-size: 12px; color: var(--gray-400); margin-bottom: 4px; }
         .timer-card .timer-actions { display: flex; gap: 8px; margin-top: 12px; }
 
         /* Table */
         .table-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
         .table-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--gray-200); }
-        .table-header h3 { font-family: 'Qualy', serif; font-size: 18px; color: var(--forest); }
+        .table-header h3 { font-family: 'DM Sans', sans-serif; font-size: 18px; color: var(--forest); }
         .table-filters { display: flex; gap: 8px; }
         .filter-select { padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 13px; color: var(--gray-600); background: var(--white); }
 
@@ -107,7 +106,7 @@
         .report-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 24px; }
         .day-col { background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; padding: 12px; text-align: center; }
         .day-col .day-name { font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; margin-bottom: 4px; }
-        .day-col .day-hours { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .day-col .day-hours { font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 700; color: var(--forest); }
         .day-col .day-sub { font-size: 11px; color: var(--gray-400); }
         .day-col.today { border-color: var(--lime); background: var(--green-bg); }
 
@@ -116,7 +115,7 @@
         .modal-overlay.active { display: flex; }
         .modal { background: var(--white); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease; }
         .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--gray-200); }
-        .modal-header h3 { font-family: 'Qualy', serif; font-size: 20px; font-weight: 700; color: var(--forest); }
+        .modal-header h3 { font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 700; color: var(--forest); }
         .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-400); padding: 4px 8px; border-radius: 6px; }
         .modal-close:hover { background: var(--gray-100); }
         .modal-body { padding: 24px; }

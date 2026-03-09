@@ -9,7 +9,7 @@ Business management app for a landscaping company in Cleveland, OH.
 
 ## Brand
 - Colors: forest green `#2e403d`, lime `#c9dd80`
-- Font: DM Sans (Google Fonts)
+- Font: DM Sans (Google Fonts) — use DM Sans consistently everywhere. Do NOT use Qualy or any other font.
 - Company: Pappas & Co. Landscaping, Cleveland OH
 
 ## Tech Stack
@@ -19,8 +19,12 @@ Business management app for a landscaping company in Cleveland, OH.
 - **Auth:** JWT via `Authorization: Bearer` header
 - **Shared styles:** `/public/shared.css` (1300+ lines) — use existing classes first
 - **Shared shell:** `/public/shell.js` (492 lines) — auth, sidebar, nav
-- **Run:** `npm run dev` (nodemon) or `npm start`
+- **Run locally:** `npm run dev` (nodemon) or `npm start`
 - **Integrations:** Square (payments), Twilio (SMS), Intuit OAuth (QuickBooks), Anthropic Claude (AI), Nodemailer (email)
+- **Deployment:** Railway (production) — `git push origin main` auto-deploys
+- **Production URL:** `https://pappas-quote-backend-production.up.railway.app/`
+- **Railway DB:** PostgreSQL on Railway (same schema as local)
+- **Deploy process:** Commit → push to GitHub → Railway auto-deploys code. For DB changes, export local with `pg_dump` and import via Railway's public Postgres URL.
 
 ## Shell System (`public/shell.js`)
 All internal pages share a common shell. Every page just needs:

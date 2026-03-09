@@ -9263,6 +9263,60 @@ app.delete('/api/portal/:token/cards/:cardId', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
+// GET /api/customers/:id/saved-cards - Admin: get customer's saved cards
+app.get('/api/customers/:id/saved-cards', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, card_brand, card_last4, exp_month, exp_year FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC',
+      [req.params.id]
+    );
+    res.json({ success: true, cards: result.rows });
+  } catch (error) { serverError(res, error); }
+});
+
+// POST /api/invoices/:id/charge-card - Admin: charge a saved card for an invoice
+app.post('/api/invoices/:id/charge-card', authenticateToken, async (req, res) => {
+  try {
+    const { card_id } = req.body;
+    if (!card_id) return res.status(400).json({ success: false, error: 'card_id required' });
+    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
+
+    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (inv.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const invoice = inv.rows[0];
+
+    const cardResult = await pool.query(
+      'SELECT square_card_id FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true',
+      [card_id, invoice.customer_id]
+    );
+    if (cardResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Card not found' });
+
+    const balance = Math.round((parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0)) * 100);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice has no balance due' });
+
+    const { result: payResult } = await squareClient.paymentsApi.createPayment({
+      idempotencyKey: crypto.randomUUID(),
+      sourceId: cardResult.rows[0].square_card_id,
+      amountMoney: { amount: BigInt(balance), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: invoice.invoice_number,
+      note: `Invoice ${invoice.invoice_number} — admin charge card-on-file`
+    });
+    const payment = payResult.payment;
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, 'card', 'completed', $5, $6, $7, NOW())`,
+      [paymentId, req.params.id, invoice.customer_id, balance / 100, payment.id, payment.cardDetails?.card?.cardBrand, payment.cardDetails?.card?.last4]
+    );
+    await pool.query("UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = NOW(), updated_at = NOW() WHERE id = $1", [req.params.id]);
+    res.json({ success: true, paymentId, receiptUrl: payment.receiptUrl });
+  } catch (error) {
+    console.error('Admin charge card error:', error);
+    serverError(res, error);
+  }
+});
+
 // POST /api/portal/:token/pay-with-saved-card - Charge saved card
 app.post('/api/portal/:token/pay-with-saved-card', async (req, res) => {
   try {

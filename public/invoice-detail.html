@@ -329,6 +329,19 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="chargeCardModal">
+        <div class="modal" style="max-width:420px;">
+            <h3>Charge Card on File</h3>
+            <div id="chargeCardContent" style="min-height:60px;">
+                <p style="color:var(--gray-500);text-align:center;">Loading saved cards...</p>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="hideChargeCard()">Cancel</button>
+                <button class="btn btn-success" style="flex:1;" id="chargeCardBtn" onclick="chargeSelectedCard()" disabled>Charge Card</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay edit-modal" id="editInvoiceModal">
         <div class="modal">
             <h3>Edit Invoice</h3>
@@ -616,6 +629,7 @@
                     <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showRecordPayment()">💵 Record Payment</button>` : ''}
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showSplitPayment()">📅 Split Payments</button>` : ''}
+                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="showChargeCard()">💳 Charge Card on File</button>` : ''}
                     ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
                     <button class="btn btn-outline" onclick="downloadPDF()">📥 Download PDF</button>
                     <button class="btn btn-danger" onclick="deleteInvoice()">Delete</button>
@@ -684,6 +698,68 @@
             input.select();
             navigator.clipboard.writeText(input.value);
             showToast('Pay link copied!');
+        }
+
+        let selectedCardId = null;
+
+        async function showChargeCard() {
+            selectedCardId = null;
+            document.getElementById('chargeCardBtn').disabled = true;
+            document.getElementById('chargeCardContent').innerHTML = '<p style="color:var(--gray-500);text-align:center;">Loading saved cards...</p>';
+            document.getElementById('chargeCardModal').classList.add('show');
+            try {
+                const customerId = invoice.customer_id;
+                const res = await fetch(`/api/customers/${customerId}/saved-cards`, { headers: { 'Authorization': 'Bearer ' + token } });
+                const data = await res.json();
+                if (!data.success || !data.cards.length) {
+                    document.getElementById('chargeCardContent').innerHTML = '<p style="color:var(--gray-500);text-align:center;">No saved cards on file for this customer.</p>';
+                    return;
+                }
+                const balance = (parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0)).toFixed(2);
+                let html = `<p style="margin-bottom:12px;font-size:14px;color:var(--gray-600);">Charge <strong>$${balance}</strong> to:</p>`;
+                data.cards.forEach(card => {
+                    const exp = card.exp_month && card.exp_year ? ` (${String(card.exp_month).padStart(2,'0')}/${String(card.exp_year).slice(-2)})` : '';
+                    html += `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:8px;cursor:pointer;">
+                        <input type="radio" name="chargeCard" value="${card.id}" onchange="selectedCardId=${card.id};document.getElementById('chargeCardBtn').disabled=false;">
+                        <span style="font-size:14px;font-weight:500;">${card.card_brand || 'Card'} •••• ${card.card_last4 || '????'}${exp}</span>
+                    </label>`;
+                });
+                document.getElementById('chargeCardContent').innerHTML = html;
+            } catch (e) {
+                document.getElementById('chargeCardContent').innerHTML = '<p style="color:var(--red-500);text-align:center;">Failed to load cards.</p>';
+            }
+        }
+
+        function hideChargeCard() {
+            document.getElementById('chargeCardModal').classList.remove('show');
+        }
+
+        async function chargeSelectedCard() {
+            if (!selectedCardId) return;
+            const btn = document.getElementById('chargeCardBtn');
+            btn.disabled = true;
+            btn.textContent = 'Charging...';
+            try {
+                const res = await fetch(`/api/invoices/${invoiceId}/charge-card`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                    body: JSON.stringify({ card_id: selectedCardId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    hideChargeCard();
+                    showToast('Card charged successfully!');
+                    loadInvoice();
+                } else {
+                    showToast(data.error || 'Charge failed', true);
+                    btn.disabled = false;
+                    btn.textContent = 'Charge Card';
+                }
+            } catch (e) {
+                showToast('Charge failed', true);
+                btn.disabled = false;
+                btn.textContent = 'Charge Card';
+            }
         }
 
         function showRecordPayment() {

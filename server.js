@@ -442,13 +442,13 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
     if (!resp.ok) {
       console.error(`❌ Resend API error (${resp.status}):`, respBody);
       // Log failed email
-      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8)`,
-        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody]); } catch(e) {}
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8,$9)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody, html]); } catch(e) {}
     } else {
       console.log(`✅ Email sent to ${to}:`, respBody);
       // Log successful email
-      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent')`,
-        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null]); } catch(e) {}
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, html]); } catch(e) {}
     }
   } catch (err) { console.error('Email failed:', err); }
 }
@@ -2415,7 +2415,7 @@ app.get('/api/customers', async (req, res) => {
     if (type) { query += ` AND customer_type = $${p++}`; countQuery += ` AND customer_type = $${cp++}`; params.push(type); countParams.push(type); }
     if (status) { query += ` AND status = $${p++}`; countQuery += ` AND status = $${cp++}`; params.push(status); countParams.push(status); }
     if (city) { query += ` AND city ILIKE $${p++}`; countQuery += ` AND city ILIKE $${cp++}`; params.push(`%${city}%`); countParams.push(`%${city}%`); }
-    if (search) { query += ` AND (name ILIKE $${p} OR email ILIKE $${p} OR street ILIKE $${p})`; countQuery += ` AND (name ILIKE $${cp} OR email ILIKE $${cp})`; params.push(`%${search}%`); countParams.push(`%${search}%`); p++; cp++; }
+    if (search) { query += ` AND (name ILIKE $${p} OR first_name ILIKE $${p} OR last_name ILIKE $${p} OR email ILIKE $${p} OR street ILIKE $${p})`; countQuery += ` AND (name ILIKE $${cp} OR first_name ILIKE $${cp} OR last_name ILIKE $${cp} OR email ILIKE $${cp})`; params.push(`%${search}%`); countParams.push(`%${search}%`); p++; cp++; }
     
     let orderBy = 'name ASC';
     if (sort === 'name_desc') orderBy = 'name DESC';
@@ -2746,14 +2746,17 @@ app.get('/api/customers/:id/properties', async (req, res) => {
 app.patch('/api/customers/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const allowed = ['name', 'status', 'email', 'phone', 'mobile', 'street', 'city', 'state', 'postal_code', 'tags', 'notes', 'customer_type', 'tax_exempt'];
+    const allowed = ['name', 'first_name', 'last_name', 'status', 'email', 'phone', 'mobile', 'street', 'street2', 'city', 'state', 'postal_code', 'tags', 'notes', 'customer_type', 'customer_company_name', 'tax_exempt'];
     const sets = [], vals = [];
     let p = 1;
+    // Map frontend field names to DB column names
+    const fieldMap = { type: 'customer_type', company_name: 'customer_company_name' };
     Object.keys(req.body).forEach(k => {
-      if (allowed.includes(k)) {
+      const dbCol = fieldMap[k] || k;
+      if (allowed.includes(dbCol)) {
         let val = req.body[k];
-        if (k === 'tax_exempt') val = val === true || val === 'true';
-        sets.push(`${k} = $${p++}`);
+        if (dbCol === 'tax_exempt') val = val === true || val === 'true';
+        sets.push(`${dbCol} = $${p++}`);
         vals.push(val);
       }
     });
@@ -2811,7 +2814,9 @@ app.get('/api/customers/:id/jobs', async (req, res) => {
     const jobsResult = await pool.query(
       `SELECT id, job_date, customer_name, service_type, service_price, address, status, completed_at, crew_assigned
        FROM scheduled_jobs
-       WHERE customer_id = $1 OR LOWER(customer_name) = LOWER($2)
+       WHERE customer_id = $1
+         OR LOWER(customer_name) = LOWER($2)
+         OR LOWER(customer_name) LIKE LOWER($2) || ' %'
        ORDER BY job_date DESC LIMIT 50`,
       [req.params.id, customerName]
     );
@@ -2932,7 +2937,7 @@ app.delete('/api/calls/:id', async (req, res) => {
 
 app.get('/api/jobs', async (req, res) => {
   try {
-    const { date, status, crew, start_date, end_date } = req.query;
+    const { date, status, crew, start_date, end_date, search, limit } = req.query;
     let query = 'SELECT * FROM scheduled_jobs WHERE 1=1';
     const params = [];
     let p = 1;
@@ -2940,7 +2945,9 @@ app.get('/api/jobs', async (req, res) => {
     if (start_date && end_date) { query += ` AND job_date::date BETWEEN $${p++}::date AND $${p++}::date`; params.push(start_date, end_date); }
     if (status) { query += ` AND status = $${p++}`; params.push(status); }
     if (crew) { query += ` AND crew_assigned = $${p++}`; params.push(crew); }
+    if (search) { query += ` AND (customer_name ILIKE $${p} OR service_type ILIKE $${p} OR address ILIKE $${p})`; params.push(`%${search}%`); p++; }
     query += ' ORDER BY job_date ASC, route_order ASC NULLS LAST';
+    if (limit) { query += ` LIMIT $${p++}`; params.push(parseInt(limit)); }
     const result = await pool.query(query, params);
     res.json({ success: true, jobs: result.rows });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -6729,7 +6736,8 @@ function getFollowupEmailContent(followup, stage) {
     </table>
     <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
     <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-    <p style="margin:0;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
+    <p style="margin:0 0 10px;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
+    <p style="margin:0;font-size:10px;color:#5a7a57;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
   </td></tr>
 </table>
 </td></tr>
@@ -6846,7 +6854,8 @@ app.post('/api/cron/process-followups', async (req, res) => {
         const emailsOn = await areAutomatedEmailsEnabled();
         const emailContent = getFollowupEmailContent(followup, stage);
         if (emailsOn && emailContent && followup.customer_email) {
-          await sendEmail(followup.customer_email, emailContent.subject, emailContent.html, null, { type: 'followup', customer_name: followup.customer_name, quote_id: followup.quote_id });
+          const finalFollowupHtml = emailContent.html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(followup.customer_email));
+          await sendEmail(followup.customer_email, emailContent.subject, finalFollowupHtml, null, { type: 'followup', customer_name: followup.customer_name, quote_id: followup.quote_id });
           results.emails_sent++;
           console.log(`📧 Email sent to ${followup.customer_email} (Stage ${stage})`);
         } else if (!emailsOn) {
@@ -6948,7 +6957,8 @@ app.get('/api/cron/process-followups', async (req, res) => {
         const emailsOn = await areAutomatedEmailsEnabled();
         const emailContent = getFollowupEmailContent(followup, stage);
         if (emailsOn && emailContent && followup.customer_email) {
-          await sendEmail(followup.customer_email, emailContent.subject, emailContent.html, null, { type: 'followup', customer_name: followup.customer_name, quote_id: followup.quote_id });
+          const finalFollowupHtml = emailContent.html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(followup.customer_email));
+          await sendEmail(followup.customer_email, emailContent.subject, finalFollowupHtml, null, { type: 'followup', customer_name: followup.customer_name, quote_id: followup.quote_id });
           results.emails_sent++;
           console.log(`📧 Email sent to ${followup.customer_email} (Stage ${stage})`);
         } else if (!emailsOn) {
@@ -9630,19 +9640,30 @@ async function syncQBCustomers(changedSince = null) {
       const zip = addr.PostalCode || null;
       const company = c.CompanyName || null;
 
-      // Upsert: match on qb_id, or insert new
-      const existing = await pool.query('SELECT id FROM customers WHERE qb_id = $1', [qbId]);
+      // Upsert: match on qb_id first, then try name or email to prevent duplicates
+      let existing = await pool.query('SELECT id FROM customers WHERE qb_id = $1', [qbId]);
+      if (existing.rows.length === 0 && email) {
+        existing = await pool.query('SELECT id FROM customers WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND (qb_id IS NULL OR qb_id = $2)', [email, qbId]);
+      }
+      if (existing.rows.length === 0 && name) {
+        existing = await pool.query('SELECT id FROM customers WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) AND qb_id IS NULL', [name]);
+      }
       if (existing.rows.length > 0) {
         await pool.query(
-          `UPDATE customers SET name=$1, email=$2, phone=$3, mobile=$4, street=$5, street2=$6,
-           city=$7, state=$8, postal_code=$9, customer_company_name=$10, updated_at=NOW() WHERE qb_id=$11`,
-          [name, email, phone, mobile, street, street2, city, state, zip, company, qbId]
+          `UPDATE customers SET name=COALESCE(NULLIF($1,''), name), email=COALESCE($2, email),
+           phone=COALESCE($3, phone), mobile=COALESCE($4, mobile),
+           street=COALESCE(NULLIF($5,''), street), street2=COALESCE($6, street2),
+           city=COALESCE(NULLIF($7,''), city), state=COALESCE(NULLIF($8,''), state),
+           postal_code=COALESCE(NULLIF($9,''), postal_code),
+           customer_company_name=COALESCE($10, customer_company_name),
+           qb_id=$11, updated_at=NOW() WHERE id=$12`,
+          [name, email, phone, mobile, street, street2, city, state, zip, company, qbId, existing.rows[0].id]
         );
       } else {
         await pool.query(
           `INSERT INTO customers (name, email, phone, mobile, street, street2, city, state, postal_code,
-           customer_company_name, qb_id, status, type, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Active','Customer',NOW())`,
+           customer_company_name, qb_id, status, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Active',NOW())`,
           [name, email, phone, mobile, street, street2, city, state, zip, company, qbId]
         );
       }
@@ -9700,6 +9721,10 @@ async function syncQBInvoices(changedSince = null) {
       const status = balance <= 0 && total > 0 ? 'paid' : (inv.DueDate && new Date(inv.DueDate) < new Date() ? 'overdue' : 'sent');
       const invoiceNumber = inv.DocNumber || `QB-${qbId}`;
 
+      // Skip invoices before 6000
+      const numericInvNum = parseInt(invoiceNumber, 10);
+      if (!isNaN(numericInvNum) && numericInvNum < 6000) continue;
+
       // Upsert: match on qb_invoice_id first, then fall back to invoice_number
       // Use ON CONFLICT to handle the unique constraint on invoice_number
       const existing = await pool.query(
@@ -9746,6 +9771,10 @@ async function syncQBPayments(changedSince = null) {
   let startPos = 1;
   const pageSize = 100;
 
+  // Ensure qb_payment_id column exists
+  try { await pool.query('ALTER TABLE payments ALTER COLUMN invoice_id DROP NOT NULL'); } catch(e) {}
+  try { await pool.query('ALTER TABLE payments ADD COLUMN IF NOT EXISTS qb_payment_id VARCHAR(100)'); } catch(e) {}
+
   while (true) {
     const sinceFilter = changedSince ? ` WHERE Metadata.LastUpdatedTime >= '${changedSince}'` : '';
     const query = `SELECT * FROM Payment${sinceFilter} STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`;
@@ -9754,29 +9783,60 @@ async function syncQBPayments(changedSince = null) {
     if (payments.length === 0) break;
 
     for (const pmt of payments) {
+      const qbPaymentId = String(pmt.Id);
+      const paidAt = pmt.TxnDate || null;
+      const totalAmount = parseFloat(pmt.TotalAmt) || 0;
+      const customerName = pmt.CustomerRef?.name || 'Unknown';
+
+      // Determine payment method
+      let method = 'Other';
+      if (pmt.PaymentMethodRef?.name) {
+        method = pmt.PaymentMethodRef.name;
+      } else if (pmt.CreditCardPayment) {
+        method = 'Credit Card';
+      }
+
+      // Find customer
+      let customerId = null;
+      if (pmt.CustomerRef?.value) {
+        const localCust = await pool.query('SELECT id FROM customers WHERE qb_id = $1', [String(pmt.CustomerRef.value)]);
+        if (localCust.rows.length > 0) customerId = localCust.rows[0].id;
+      }
+
+      // Process each line to link to invoices
       const lines = pmt.Line || [];
+      let linkedInvoiceId = null;
       for (const line of lines) {
         const invoiceRef = line.LinkedTxn?.find(lt => lt.TxnType === 'Invoice');
-        if (!invoiceRef) continue;
-
-        const qbInvId = String(invoiceRef.TxnId);
-        const localInv = await pool.query('SELECT id, total FROM invoices WHERE qb_invoice_id = $1', [qbInvId]);
-        if (localInv.rows.length === 0) continue;
-
-        const invId = localInv.rows[0].id;
-        const invTotal = parseFloat(localInv.rows[0].total) || 0;
-
-        // Sum all payments for this invoice
-        const paidAmount = parseFloat(line.Amount) || 0;
-        await pool.query(
-          `UPDATE invoices SET amount_paid = LEAST(amount_paid + $1, total),
-           status = CASE WHEN amount_paid + $1 >= total THEN 'paid' ELSE status END,
-           paid_at = CASE WHEN amount_paid + $1 >= total THEN $2 ELSE paid_at END,
-           updated_at = NOW() WHERE id = $3 AND qb_invoice_id = $4`,
-          [paidAmount, pmt.TxnDate || new Date(), invId, qbInvId]
-        );
-        count++;
+        if (invoiceRef) {
+          const localInv = await pool.query('SELECT id FROM invoices WHERE qb_invoice_id = $1', [String(invoiceRef.TxnId)]);
+          if (localInv.rows.length > 0) {
+            linkedInvoiceId = localInv.rows[0].id;
+            break;
+          }
+        }
       }
+
+      // Upsert payment record
+      const existing = await pool.query('SELECT id FROM payments WHERE qb_payment_id = $1', [qbPaymentId]);
+      if (existing.rows.length > 0) {
+        await pool.query(
+          `UPDATE payments SET amount=$1, method=$2, status=$3, customer_id=$4, invoice_id=$5,
+           paid_at=$6, updated_at=NOW() WHERE qb_payment_id=$7`,
+          [totalAmount, method, 'completed', customerId, linkedInvoiceId, paidAt, qbPaymentId]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO payments (payment_id, qb_payment_id, amount, method, status, customer_id, invoice_id, paid_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+           ON CONFLICT (payment_id) DO UPDATE SET
+             amount=EXCLUDED.amount, method=EXCLUDED.method, status=EXCLUDED.status,
+             customer_id=EXCLUDED.customer_id, invoice_id=EXCLUDED.invoice_id,
+             paid_at=EXCLUDED.paid_at, updated_at=NOW()`,
+          ['QB-' + qbPaymentId, qbPaymentId, totalAmount, method, 'completed', customerId, linkedInvoiceId, paidAt]
+        );
+      }
+      count++;
     }
 
     if (payments.length < pageSize) break;
@@ -10014,7 +10074,13 @@ async function renderTemplate(slug, vars, fallbackSubject, fallbackHtml) {
     const subject = replaceTemplateVars(template.subject, vars);
     const body = replaceTemplateVars(template.body, vars);
     const wrapperOption = template.options?.wrapper || 'full';
-    const html = wrapperOption === 'none' ? body : emailTemplate(body);
+    let html = wrapperOption === 'none' ? body : emailTemplate(body);
+    // Replace unsubscribe_email in wrapper footer
+    if (vars.unsubscribe_email) {
+      html = html.replace(/\{unsubscribe_email\}/g, vars.unsubscribe_email);
+    } else if (vars.customer_email) {
+      html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(vars.customer_email));
+    }
     return { subject, html, fromTemplate: true };
   }
   return { subject: fallbackSubject, html: fallbackHtml, fromTemplate: false };
@@ -10241,14 +10307,16 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
         const vars = {
           customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
           customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
-          company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com'
+          company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com',
+          unsubscribe_email: encodeURIComponent(cust.email || '')
         };
         const subject = replaceTemplateVars(tmpl.subject, vars);
         let body = replaceTemplateVars(tmpl.body, vars);
         // Add tracking pixel
         const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-        await sendEmail(cust.email, subject, emailTemplate(body));
+        const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
+        await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
         await pool.query(
           'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
           [req.params.id, template_id, cust.id, cust.email, 'sent', trackingId]
@@ -10278,6 +10346,44 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
     );
     res.json({ success: true, sends: sends.rows, stats: stats.rows[0] });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+// POST /api/unsubscribe - Public endpoint for email unsubscribe
+app.post('/api/unsubscribe', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+
+    const cleanEmail = email.toLowerCase().trim();
+    // Find customer by email
+    const cust = await pool.query('SELECT id FROM customers WHERE LOWER(email) = $1', [cleanEmail]);
+    if (cust.rows.length === 0) {
+      return res.json({ success: true, message: 'Unsubscribed' }); // Don't reveal if email exists
+    }
+
+    const customerId = cust.rows[0].id;
+    // Update or insert communication prefs
+    await pool.query(`
+      INSERT INTO customer_communication_prefs (customer_id, email_marketing, sms_marketing, updated_at)
+      VALUES ($1, false, false, NOW())
+      ON CONFLICT (customer_id) DO UPDATE SET email_marketing = false, sms_marketing = false, updated_at = NOW()
+    `, [customerId]);
+
+    // Also add 'Unsubscribed' tag if not already present
+    await pool.query(`
+      UPDATE customers SET tags = CASE
+        WHEN tags IS NULL OR tags = '' THEN 'Unsubscribed'
+        WHEN tags ILIKE '%Unsubscribed%' THEN tags
+        ELSE tags || ', Unsubscribed'
+      END, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [customerId]);
+
+    res.json({ success: true, message: 'Unsubscribed' });
+  } catch (error) {
+    console.error('Unsubscribe error:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong' });
+  }
 });
 
 // Tracking pixel — records open
@@ -10514,7 +10620,8 @@ app.post('/api/broadcasts/send', async (req, res) => {
         company_phone: '(440) 886-7318',
         company_email: 'hello@pappaslandscaping.com',
         company_website: 'pappaslandscaping.com',
-        portal_link: `${baseUrl}/customer-portal.html`
+        portal_link: `${baseUrl}/customer-portal.html`,
+        unsubscribe_email: encodeURIComponent(cust.email || '')
       };
 
       const prefs = prefsMap[cust.id];
@@ -10531,7 +10638,8 @@ app.post('/api/broadcasts/send', async (req, res) => {
             const subject = replaceTemplateVars(tmpl.subject, vars);
             let body = replaceTemplateVars(tmpl.body, vars);
             body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-            await sendEmail(cust.email, subject, emailTemplate(body));
+            const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
+            await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
             // Track in campaign_sends if campaign_id provided
             if (campaign_id) {
               await pool.query(

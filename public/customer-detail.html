@@ -243,6 +243,28 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="emailModal" onclick="if(event.target===this)closeEmailModal()">
+    <div class="modal" style="max-width:700px;width:95%;max-height:90vh;display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--gray-200);">
+            <div>
+                <h3 style="font-size:15px;font-weight:700;margin:0;" id="emailModalSubject"></h3>
+                <div style="font-size:12px;color:var(--gray-500);margin-top:4px;" id="emailModalMeta"></div>
+            </div>
+            <button onclick="closeEmailModal()" style="background:none;border:none;cursor:pointer;padding:4px;color:var(--gray-400);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div style="flex:1;overflow:auto;padding:0;">
+            <iframe id="emailModalFrame" style="width:100%;min-height:500px;border:none;"></iframe>
+            <div id="emailModalNoBody" style="display:none;padding:40px;text-align:center;color:var(--gray-500);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:40px;height:40px;color:var(--gray-300);margin-bottom:12px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <div style="font-weight:600;margin-bottom:4px;">Email preview not available</div>
+                <div style="font-size:13px;">This email was sent before content storage was enabled.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -418,7 +440,12 @@ function renderEditMode(c, name) {
         </div>
     </div>
     <div style="max-width:600px;background:var(--white);border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <div class="edit-field"><label>Name</label><input id="f_name" value="${esc(name)}"></div>
+        <div class="edit-field"><label>Display Name</label><input id="f_name" value="${esc(name)}"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="edit-field"><label>First Name</label><input id="f_first_name" value="${esc(c.first_name||'')}"></div>
+            <div class="edit-field"><label>Last Name</label><input id="f_last_name" value="${esc(c.last_name||'')}"></div>
+        </div>
+        <div class="edit-field"><label>Company Name</label><input id="f_company_name" value="${esc(c.customer_company_name||'')}"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div class="edit-field"><label>Email</label><input id="f_email" value="${esc(c.email||'')}"></div>
             <div class="edit-field"><label>Phone</label><input id="f_phone" value="${esc(c.phone||'')}"></div>
@@ -592,13 +619,38 @@ async function loadEmailHistory() {
         const res = await fetch('/api/customers/' + customerId + '/emails');
         const data = await res.json();
         const emails = data.emails || [];
-        const typeLabels = { invoice:'Invoice', quote:'Quote', late_fee:'Late Fee', payment_receipt:'Payment', welcome:'Welcome', followup:'Follow-up', apology:'Apology', invoice_reminder:'Reminder', general:'General' };
-        document.getElementById('panel-emails').innerHTML = emails.length ? emails.map(e => `
-            <div class="list-item">
+        const typeLabels = { invoice:'Invoice', quote:'Quote', late_fee:'Late Fee', payment_receipt:'Payment', welcome:'Welcome', followup:'Follow-up', apology:'Apology', invoice_reminder:'Reminder', general:'General', broadcast:'Broadcast', campaign:'Campaign' };
+        window._customerEmails = emails;
+        document.getElementById('panel-emails').innerHTML = emails.length ? emails.map((e, i) => `
+            <div class="list-item" style="cursor:pointer;" onclick="viewEmail(${i})">
                 <div class="tl-icon email-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
-                <div class="li-info"><div class="li-title">${esc(e.subject||'(no subject)')}<span class="email-type-pill ${e.email_type||''}">${typeLabels[e.email_type]||e.email_type||'Email'}</span></div><div class="li-sub">To: ${esc(e.recipient_email)} &middot; ${fmtTime(new Date(e.sent_at))}</div></div>
+                <div class="li-info" style="flex:1;"><div class="li-title">${esc(e.subject||'(no subject)')}<span class="email-type-pill ${e.email_type||''}">${typeLabels[e.email_type]||e.email_type||'Email'}</span></div><div class="li-sub">To: ${esc(e.recipient_email)} &middot; ${fmtTime(new Date(e.sent_at))}</div></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--gray-400);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
             </div>`).join('') : '<div class="empty-list">No emails sent yet.</div>';
     } catch (e) { document.getElementById('panel-emails').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
+}
+
+function viewEmail(idx) {
+    const e = window._customerEmails[idx];
+    if (!e) return;
+    document.getElementById('emailModalSubject').textContent = e.subject || '(no subject)';
+    document.getElementById('emailModalMeta').textContent = 'To: ' + (e.recipient_email || '') + ' · ' + fmtTime(new Date(e.sent_at));
+    const frame = document.getElementById('emailModalFrame');
+    const noBody = document.getElementById('emailModalNoBody');
+    if (e.html_body) {
+        frame.style.display = '';
+        noBody.style.display = 'none';
+        frame.srcdoc = e.html_body;
+    } else {
+        frame.style.display = 'none';
+        noBody.style.display = '';
+    }
+    document.getElementById('emailModal').classList.add('visible');
+}
+
+function closeEmailModal() {
+    document.getElementById('emailModal').classList.remove('visible');
+    document.getElementById('emailModalFrame').srcdoc = '';
 }
 
 // ─── Communications ────────────────────────────────────────
@@ -753,6 +805,9 @@ async function loadAIIntel() {
 async function saveCustomer() {
     const u = {
         name: document.getElementById('f_name').value,
+        first_name: document.getElementById('f_first_name').value,
+        last_name: document.getElementById('f_last_name').value,
+        company_name: document.getElementById('f_company_name').value,
         email: document.getElementById('f_email').value,
         phone: document.getElementById('f_phone').value,
         mobile: document.getElementById('f_mobile').value,

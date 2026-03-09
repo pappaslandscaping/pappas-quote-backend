@@ -243,10 +243,10 @@
 <div class="modal-overlay" id="deleteModal">
     <div class="modal">
         <h3>Delete Customer?</h3>
-        <p>Are you sure you want to permanently delete <strong id="deleteCustomerName"></strong>? This action cannot be undone.</p>
+        <p>Are you sure you want to permanently delete <strong id="deleteCustomerName"></strong>? This action <strong>cannot be undone</strong> and all associated information — jobs, quotes, invoices, properties, and notes — will be permanently lost.</p>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
-            <button class="btn btn-danger" onclick="confirmDelete()">Delete Customer</button>
+            <button class="btn btn-danger" onclick="confirmDelete()">Yes, Delete Customer</button>
         </div>
     </div>
 </div>
@@ -332,7 +332,7 @@ function render() {
                     <button class="btn btn-secondary" onclick="toggleDropdown()">... More Actions</button>
                     <div class="dropdown-menu" id="actionsMenu">
                         <div class="dropdown-label">Create new...</div>
-                        <a class="dropdown-item" href="quotes.html?customer=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quote</a>
+                        <a class="dropdown-item" href="quote-generator.html?customer_id=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Quote</a>
                         <a class="dropdown-item" href="new-job.html?customer_id=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>Job</a>
                         <a class="dropdown-item" href="new-invoice.html?customer_id=${c.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>Invoice</a>
                         <div class="dropdown-divider"></div>

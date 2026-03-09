@@ -9404,6 +9404,211 @@ app.post('/api/portal/:token/preferences', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
+// ═══════════════════════════════════════════════════════════
+// CUSTOMER PORTAL — DASHBOARD, PHOTOS, REVIEWS
+// ═══════════════════════════════════════════════════════════
+
+// Ensure customer_reviews table exists
+async function ensureCustomerReviewsTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS customer_reviews (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`);
+}
+
+// GET /api/portal/:token/dashboard - Portal dashboard summary
+app.get('/api/portal/:token/dashboard', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+
+    const { customer_id, email } = tokenData;
+
+    const custResult = await pool.query('SELECT name, first_name, last_name, email FROM customers WHERE id = $1', [customer_id]);
+    const cust = custResult.rows[0] || {};
+    const customerName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
+
+    const balanceResult = await pool.query(
+      `SELECT COALESCE(SUM(total - COALESCE(amount_paid, 0)), 0) as outstanding_balance
+       FROM invoices WHERE (customer_id = $1 OR customer_email ILIKE $2) AND status != 'paid'`,
+      [customer_id, email]
+    );
+
+    const paidResult = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE customer_id = $1 AND status = 'completed'`,
+      [customer_id]
+    );
+
+    const quotesResult = await pool.query(
+      `SELECT COUNT(*) as pending_quotes_count FROM sent_quotes WHERE customer_email ILIKE $1 AND status IN ('pending', 'viewed')`,
+      [email]
+    );
+
+    const jobsResult = await pool.query(
+      `SELECT id, job_date, service_type, address, status, service_price
+       FROM scheduled_jobs WHERE customer_id = $1 AND status != 'completed'
+       ORDER BY job_date ASC LIMIT 5`,
+      [customer_id]
+    );
+
+    const invoicesResult = await pool.query(
+      `SELECT id, invoice_number, total, amount_paid, status, due_date, payment_token, created_at
+       FROM invoices WHERE customer_id = $1 OR customer_email ILIKE $2
+       ORDER BY created_at DESC LIMIT 3`,
+      [customer_id, email]
+    );
+
+    const requestsResult = await pool.query(
+      `SELECT COUNT(*) as pending_requests_count FROM service_requests WHERE customer_id = $1 AND status = 'pending'`,
+      [customer_id]
+    );
+
+    res.json({
+      success: true,
+      dashboard: {
+        customer_name: customerName,
+        customer_email: cust.email || email,
+        outstanding_balance: parseFloat(balanceResult.rows[0].outstanding_balance),
+        total_paid: parseFloat(paidResult.rows[0].total_paid),
+        pending_quotes_count: parseInt(quotesResult.rows[0].pending_quotes_count),
+        upcoming_jobs: jobsResult.rows,
+        recent_invoices: invoicesResult.rows,
+        pending_requests_count: parseInt(requestsResult.rows[0].pending_requests_count)
+      }
+    });
+  } catch (error) {
+    serverError(res, error, 'Portal dashboard error');
+  }
+});
+
+// GET /api/portal/:token/photos - All completion photos
+app.get('/api/portal/:token/photos', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+
+    const result = await pool.query(
+      `SELECT id, job_date, service_type, address, completion_photos
+       FROM scheduled_jobs
+       WHERE customer_id = $1 AND completion_photos IS NOT NULL
+       ORDER BY job_date DESC`,
+      [tokenData.customer_id]
+    );
+
+    const photos = result.rows.map(row => ({
+      job_id: row.id,
+      job_date: row.job_date,
+      service_type: row.service_type,
+      address: row.address,
+      photos: row.completion_photos || []
+    }));
+
+    res.json({ success: true, photos });
+  } catch (error) {
+    serverError(res, error, 'Portal photos error');
+  }
+});
+
+// POST /api/portal/:token/reviews - Submit a review
+app.post('/api/portal/:token/reviews', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+
+    const { rating, comment } = req.body;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, error: 'Rating must be between 1 and 5' });
+    }
+
+    await ensureCustomerReviewsTable();
+    const result = await pool.query(
+      `INSERT INTO customer_reviews (customer_id, rating, comment) VALUES ($1, $2, $3) RETURNING *`,
+      [tokenData.customer_id, rating, comment || null]
+    );
+
+    const cust = await pool.query('SELECT name, first_name, last_name, email FROM customers WHERE id = $1', [tokenData.customer_id]);
+    const c = cust.rows[0] || {};
+    const custName = c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim() || 'Customer';
+    const stars = '\u2605'.repeat(rating) + '\u2606'.repeat(5 - rating);
+
+    await sendEmail('hello@pappaslandscaping.com', `New ${rating}-Star Review from ${custName}`, emailTemplate(`
+      <h2 style="color:#2e403d;margin:0 0 16px;">New Customer Review</h2>
+      <p><strong>${escapeHtml(custName)}</strong> left a review:</p>
+      <div style="background:#f8fafc;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0;font-size:24px;">${stars}</p>
+        <p style="margin:8px 0 0;"><strong>Rating:</strong> ${rating}/5</p>
+        ${comment ? `<p style="margin:8px 0 0;"><strong>Comment:</strong> ${escapeHtml(comment)}</p>` : ''}
+      </div>
+    `));
+
+    res.json({ success: true, review: result.rows[0] });
+  } catch (error) {
+    serverError(res, error, 'Portal submit review error');
+  }
+});
+
+// GET /api/portal/:token/reviews - Customer's own reviews
+app.get('/api/portal/:token/reviews', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+
+    await ensureCustomerReviewsTable();
+    const result = await pool.query(
+      'SELECT * FROM customer_reviews WHERE customer_id = $1 ORDER BY created_at DESC',
+      [tokenData.customer_id]
+    );
+    res.json({ success: true, reviews: result.rows });
+  } catch (error) {
+    serverError(res, error, 'Portal get reviews error');
+  }
+});
+
+// GET /api/portal/:token/google-review-url - Get Google review URL from settings
+app.get('/api/portal/:token/google-review-url', async (req, res) => {
+  try {
+    const tokenData = await validatePortalToken(req.params.token);
+    if (!tokenData) return res.status(404).json({ success: false, error: 'Invalid token' });
+
+    const result = await pool.query("SELECT value FROM business_settings WHERE key = 'google_review_url'");
+    const url = result.rows[0]?.value || '';
+    res.json({ success: true, url });
+  } catch (error) {
+    serverError(res, error, 'Portal google review url error');
+  }
+});
+
+// Admin: GET /api/reviews - All reviews with customer names
+app.get('/api/reviews', authenticateToken, async (req, res) => {
+  try {
+    await ensureCustomerReviewsTable();
+    const result = await pool.query(
+      `SELECT cr.*, c.name as customer_name, c.email as customer_email
+       FROM customer_reviews cr
+       LEFT JOIN customers c ON cr.customer_id = c.id
+       ORDER BY cr.created_at DESC`
+    );
+    res.json({ success: true, reviews: result.rows });
+  } catch (error) {
+    serverError(res, error, 'Admin get reviews error');
+  }
+});
+
+// Admin: DELETE /api/reviews/:id - Delete a review
+app.delete('/api/reviews/:id', authenticateToken, async (req, res) => {
+  try {
+    await ensureCustomerReviewsTable();
+    const result = await pool.query('DELETE FROM customer_reviews WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Review not found' });
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error, 'Admin delete review error');
+  }
+});
+
 // Admin: GET /api/service-requests - List service requests
 app.get('/api/service-requests', async (req, res) => {
   try {
@@ -13133,6 +13338,13 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     }
     console.log('✅ Property detail columns ready');
   } catch(e) { console.error('Property columns error:', e.message); }
+
+  // Add completion columns to scheduled_jobs if missing
+  try {
+    await pool.query(`ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS completion_notes TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS completion_photos JSONB`).catch(() => {});
+    console.log('✅ Job completion columns ready');
+  } catch(e) { console.error('Job completion columns error:', e.message); }
 })();
 
 // ═══════════════════════════════════════════════════════════

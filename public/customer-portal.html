@@ -126,21 +126,24 @@
             gap: 0;
             border-bottom: 2px solid #e5e7eb;
             margin-bottom: 24px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .tab-btn {
-            flex: 1;
-            padding: 12px 16px;
+            flex: 0 0 auto;
+            padding: 12px 14px;
             background: none;
             border: none;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             font-family: inherit;
             color: #6b7280;
             cursor: pointer;
             transition: color 0.2s, border-color 0.2s;
             text-align: center;
+            white-space: nowrap;
         }
         .tab-btn:hover {
             color: var(--primary);
@@ -172,6 +175,130 @@
         .badge-declined { background: #fef0f0; color: #dc4a4a; }
         .badge-accepted { background: #ecfdf5; color: #059669; }
         .badge-expired { background: #f0f2f0; color: #6e726e; }
+
+        /* Dashboard Cards */
+        .dash-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+        .dash-card {
+            background: #f8faf8;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+        }
+        .dash-card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .dash-card-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+        .dash-card-icon.red { background: #fef0f0; }
+        .dash-card-icon.red svg { stroke: #dc4a4a; }
+        .dash-card-icon.green { background: #ecfdf5; }
+        .dash-card-icon.green svg { stroke: #059669; }
+        .dash-card-icon.blue { background: #eff6ff; }
+        .dash-card-icon.blue svg { stroke: #3b82f6; }
+        .dash-card-icon.amber { background: #fffbeb; }
+        .dash-card-icon.amber svg { stroke: #d97706; }
+        .dash-card-body h4 {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+        .dash-card-body .dash-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e2e2c;
+        }
+        .dash-section {
+            margin-bottom: 28px;
+        }
+        .dash-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .dash-section-header h3 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e2e2c;
+        }
+        .dash-section-header a {
+            font-size: 13px;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .dash-section-header a:hover {
+            text-decoration: underline;
+        }
+        .dash-job-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f8faf8;
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+        .dash-job-item .job-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e2e2c;
+        }
+        .dash-job-item .job-meta {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        .dash-job-item .job-date {
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            white-space: nowrap;
+        }
+        .dash-quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-action-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            background: #f0f2f0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        .quick-action-link:hover {
+            background: #e2e5e2;
+        }
 
         /* Invoice Cards */
         .invoice-card {
@@ -749,6 +876,188 @@
             cursor: not-allowed;
         }
 
+        /* Photos / Gallery */
+        .photo-group {
+            margin-bottom: 28px;
+        }
+        .photo-group-header {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e2e2c;
+            margin-bottom: 4px;
+        }
+        .photo-group-meta {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        .photo-thumb {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .photo-thumb:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: scale(1.03);
+        }
+        .photo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Lightbox */
+        .lightbox-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .lightbox-overlay img {
+            max-width: 90vw;
+            max-height: 85vh;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 16px;
+            right: 20px;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            font-size: 28px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .lightbox-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            font-size: 24px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .lightbox-nav:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .lightbox-prev { left: 16px; }
+        .lightbox-next { right: 16px; }
+
+        /* Star Rating */
+        .star-rating {
+            display: inline-flex;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+        .star-rating .star {
+            font-size: 32px;
+            cursor: pointer;
+            transition: transform 0.15s;
+            user-select: none;
+            line-height: 1;
+        }
+        .star-rating .star:hover {
+            transform: scale(1.15);
+        }
+        .star-rating .star.filled {
+            color: #f59e0b;
+        }
+        .star-rating .star.empty {
+            color: #d1d5db;
+        }
+        .review-form-section {
+            background: #f8faf8;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 28px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .review-form-section .form-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e2e2c;
+            margin-bottom: 16px;
+        }
+        .review-form-section p {
+            line-height: 1.5;
+        }
+        .review-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .review-card .review-stars {
+            display: inline-flex;
+            gap: 3px;
+            margin-bottom: 6px;
+            font-size: 16px;
+        }
+        .review-card .review-stars .star-filled {
+            color: #f59e0b;
+        }
+        .review-card .review-stars .star-empty {
+            color: #d1d5db;
+        }
+        .review-card .review-comment {
+            font-size: 14px;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        .review-card .review-date {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        .thank-you-msg {
+            text-align: center;
+            padding: 20px;
+            background: #ecfdf5;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .thank-you-msg h3 {
+            color: #059669;
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+        .thank-you-msg p {
+            color: #059669;
+            font-size: 14px;
+        }
+
         /* Responsive */
         @media (max-width: 600px) {
             .container {
@@ -788,7 +1097,7 @@
                 gap: 0;
             }
             .tab-btn {
-                padding: 10px 4px;
+                padding: 10px 8px;
                 font-size: 11px;
             }
             .contact-info .contact-divider {
@@ -797,6 +1106,22 @@
             .contact-info a {
                 display: block;
                 margin: 4px 0;
+            }
+            .dash-summary {
+                grid-template-columns: 1fr;
+            }
+            .photo-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            }
+            .star-rating .star {
+                font-size: 30px;
+            }
+            .dash-quick-actions {
+                flex-direction: column;
+            }
+            .quick-action-link {
+                width: 100%;
+                justify-content: center;
             }
         }
     </style>
@@ -827,12 +1152,14 @@
                 <div id="portalState" style="display: none;">
                     <div class="welcome" id="welcomeText">Welcome</div>
                     <div class="tabs">
-                        <button class="tab-btn active" data-tab="invoices" onclick="switchTab('invoices')">Invoices</button>
+                        <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+                        <button class="tab-btn" data-tab="estimates" onclick="switchTab('estimates')">Estimates</button>
+                        <button class="tab-btn" data-tab="invoices" onclick="switchTab('invoices')">Invoices</button>
                         <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">Payments</button>
-                        <button class="tab-btn" data-tab="services" onclick="switchTab('services')">Services</button>
-                        <button class="tab-btn" data-tab="quotes" onclick="switchTab('quotes')">Quotes</button>
-                        <button class="tab-btn" data-tab="history" onclick="switchTab('history')">History</button>
-                        <button class="tab-btn" data-tab="account" onclick="switchTab('account')">Account</button>
+                        <button class="tab-btn" data-tab="pictures" onclick="switchTab('pictures')">Pictures</button>
+                        <button class="tab-btn" data-tab="requests" onclick="switchTab('requests')">Work Requests</button>
+                        <button class="tab-btn" data-tab="rate-us" onclick="switchTab('rate-us')">Rate Us</button>
+                        <button class="tab-btn" data-tab="profile" onclick="switchTab('profile')">My Profile</button>
                     </div>
                     <div id="tabContent">
                         <div class="loading"><div class="spinner"></div></div>
@@ -863,13 +1190,34 @@
     <script>
         let portalToken = null;
         let customerData = null;
-        let currentTab = 'invoices';
+        let currentTab = 'dashboard';
+        let lightboxPhotos = [];
+        let lightboxIndex = 0;
+
+        // Tab name mapping for URL params (allows both kebab-case and shorthand)
+        const TAB_ALIASES = {
+            'dashboard': 'dashboard',
+            'estimates': 'estimates',
+            'invoices': 'invoices',
+            'payments': 'payments',
+            'pictures': 'pictures',
+            'requests': 'requests',
+            'work-requests': 'requests',
+            'rate-us': 'rate-us',
+            'rateus': 'rate-us',
+            'profile': 'profile',
+            'my-profile': 'profile',
+            'account': 'profile'
+        };
 
         // ── Initialization ──────────────────────────────────────────────
         async function init() {
-            const token = new URLSearchParams(window.location.search).get('token');
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+            const tabParam = params.get('tab');
+
             if (token) {
-                await loadPortal(token);
+                await loadPortal(token, tabParam);
             } else {
                 showEmailForm();
             }
@@ -917,7 +1265,7 @@
                 btn.textContent = 'Link Sent';
             } catch (err) {
                 document.getElementById('emailMessage').innerHTML =
-                    `<div class="message message-error">${err.message}</div>`;
+                    `<div class="message message-error">${escapeHtml(err.message)}</div>`;
                 btn.disabled = false;
                 btn.textContent = 'Send Access Link';
             }
@@ -946,14 +1294,14 @@
                 btn.textContent = 'Link Sent';
             } catch (err) {
                 document.getElementById('errorMessage').innerHTML =
-                    `<div class="message message-error">${err.message}</div>`;
+                    `<div class="message message-error">${escapeHtml(err.message)}</div>`;
                 btn.disabled = false;
                 btn.textContent = 'Send New Access Link';
             }
         }
 
         // ── Load Portal ─────────────────────────────────────────────────
-        async function loadPortal(token) {
+        async function loadPortal(token, initialTab) {
             try {
                 const res = await fetch(`/api/portal/${token}`);
                 if (!res.ok) {
@@ -969,7 +1317,10 @@
                 document.getElementById('welcomeText').textContent = `Welcome, ${name}`;
 
                 showPortal();
-                await loadInvoices(token);
+
+                // Resolve tab from URL param
+                const resolvedTab = initialTab ? (TAB_ALIASES[initialTab.toLowerCase()] || 'dashboard') : 'dashboard';
+                switchTab(resolvedTab);
             } catch (err) {
                 showError();
             }
@@ -986,12 +1337,259 @@
             const content = document.getElementById('tabContent');
             content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
-            if (tab === 'invoices') loadInvoices(portalToken);
+            if (tab === 'dashboard') loadDashboard(portalToken);
+            else if (tab === 'estimates') loadEstimates(portalToken);
+            else if (tab === 'invoices') loadInvoices(portalToken);
             else if (tab === 'payments') loadPayments(portalToken);
-            else if (tab === 'services') loadServices(portalToken);
-            else if (tab === 'quotes') loadQuotes(portalToken);
-            else if (tab === 'history') loadHistory(portalToken);
-            else if (tab === 'account') renderAccount();
+            else if (tab === 'pictures') loadPictures(portalToken);
+            else if (tab === 'requests') loadWorkRequests(portalToken);
+            else if (tab === 'rate-us') loadRateUs(portalToken);
+            else if (tab === 'profile') renderProfile();
+        }
+
+        // ── Dashboard Tab ─────────────────────────────────────────────
+        async function loadDashboard(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/dashboard`);
+                let dashData = {};
+                if (res.ok) {
+                    dashData = await res.json();
+                }
+
+                const outstanding = dashData.outstanding_balance || 0;
+                const totalPaid = dashData.total_paid || 0;
+                const pendingQuotes = dashData.pending_quotes || 0;
+                const pendingRequests = dashData.pending_requests || 0;
+                const upcomingJobs = dashData.upcoming_jobs || [];
+                const recentInvoices = dashData.recent_invoices || [];
+                const customerName = customerData.name || customerData.first_name || 'Customer';
+
+                let html = '';
+
+                // Summary cards
+                html += '<div class="dash-summary">';
+                html += `
+                    <div class="dash-card">
+                        <div class="dash-card-icon red">
+                            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div class="dash-card-body">
+                            <h4>Outstanding Balance</h4>
+                            <div class="dash-value">${formatCurrency(outstanding)}</div>
+                        </div>
+                    </div>`;
+                html += `
+                    <div class="dash-card">
+                        <div class="dash-card-icon green">
+                            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div class="dash-card-body">
+                            <h4>Total Paid</h4>
+                            <div class="dash-value">${formatCurrency(totalPaid)}</div>
+                        </div>
+                    </div>`;
+                html += `
+                    <div class="dash-card">
+                        <div class="dash-card-icon blue">
+                            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                        </div>
+                        <div class="dash-card-body">
+                            <h4>Pending Estimates</h4>
+                            <div class="dash-value">${pendingQuotes}</div>
+                        </div>
+                    </div>`;
+                html += `
+                    <div class="dash-card">
+                        <div class="dash-card-icon amber">
+                            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+                        </div>
+                        <div class="dash-card-body">
+                            <h4>Pending Requests</h4>
+                            <div class="dash-value">${pendingRequests}</div>
+                        </div>
+                    </div>`;
+                html += '</div>';
+
+                // Upcoming Jobs
+                html += '<div class="dash-section">';
+                html += '<div class="dash-section-header"><h3>Upcoming Jobs</h3></div>';
+                if (upcomingJobs.length === 0) {
+                    html += '<p style="font-size:13px;color:#9ca3af;text-align:center;padding:16px 0;">No upcoming jobs scheduled.</p>';
+                } else {
+                    upcomingJobs.slice(0, 5).forEach(job => {
+                        const serviceType = escapeHtml(job.service_type || job.type || 'Service');
+                        const jobDate = job.scheduled_date || job.date || '';
+                        const address = escapeHtml(job.address || '');
+                        html += `
+                            <div class="dash-job-item">
+                                <div>
+                                    <div class="job-title">${serviceType}</div>
+                                    <div class="job-meta">${address}</div>
+                                </div>
+                                <div class="job-date">${jobDate ? formatDate(jobDate) : ''}</div>
+                            </div>`;
+                    });
+                }
+                html += '</div>';
+
+                // Recent Invoices
+                html += '<div class="dash-section">';
+                html += '<div class="dash-section-header"><h3>Recent Invoices</h3><a onclick="switchTab(\'invoices\')">View All</a></div>';
+                if (recentInvoices.length === 0) {
+                    html += '<p style="font-size:13px;color:#9ca3af;text-align:center;padding:16px 0;">No invoices yet.</p>';
+                } else {
+                    recentInvoices.slice(0, 3).forEach(inv => {
+                        html += renderInvoiceCard(inv, inv.status === 'sent' || inv.status === 'overdue');
+                    });
+                }
+                html += '</div>';
+
+                // Quick Actions
+                html += '<div class="dash-section">';
+                html += '<div class="dash-section-header"><h3>Quick Actions</h3></div>';
+                html += '<div class="dash-quick-actions">';
+                html += '<button class="quick-action-link" onclick="switchTab(\'estimates\')"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>View Estimates</button>';
+                html += '<button class="quick-action-link" onclick="switchTab(\'requests\')"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>Request Service</button>';
+                html += '<button class="quick-action-link" onclick="switchTab(\'invoices\')"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></svg>Pay Invoices</button>';
+                html += '<button class="quick-action-link" onclick="switchTab(\'rate-us\')"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/></svg>Leave a Review</button>';
+                html += '</div>';
+                html += '</div>';
+
+                content.innerHTML = html;
+            } catch (err) {
+                // Fallback: render a basic dashboard without API data
+                content.innerHTML = `
+                    <div class="dash-summary">
+                        <div class="dash-card">
+                            <div class="dash-card-icon red">
+                                <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div class="dash-card-body">
+                                <h4>Outstanding Balance</h4>
+                                <div class="dash-value">$0.00</div>
+                            </div>
+                        </div>
+                        <div class="dash-card">
+                            <div class="dash-card-icon green">
+                                <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <div class="dash-card-body">
+                                <h4>Total Paid</h4>
+                                <div class="dash-value">$0.00</div>
+                            </div>
+                        </div>
+                        <div class="dash-card">
+                            <div class="dash-card-icon blue">
+                                <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                            </div>
+                            <div class="dash-card-body">
+                                <h4>Pending Estimates</h4>
+                                <div class="dash-value">0</div>
+                            </div>
+                        </div>
+                        <div class="dash-card">
+                            <div class="dash-card-icon amber">
+                                <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0118 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3l1.5 1.5 3-3.75"/></svg>
+                            </div>
+                            <div class="dash-card-body">
+                                <h4>Pending Requests</h4>
+                                <div class="dash-value">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dash-section">
+                        <div class="dash-section-header"><h3>Quick Actions</h3></div>
+                        <div class="dash-quick-actions">
+                            <button class="quick-action-link" onclick="switchTab('estimates')">View Estimates</button>
+                            <button class="quick-action-link" onclick="switchTab('requests')">Request Service</button>
+                            <button class="quick-action-link" onclick="switchTab('invoices')">Pay Invoices</button>
+                            <button class="quick-action-link" onclick="switchTab('rate-us')">Leave a Review</button>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        // ── Estimates Tab (renamed from Quotes) ──────────────────────────
+        async function loadEstimates(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/quotes`);
+                if (!res.ok) throw new Error('Failed to load estimates');
+
+                const data = await res.json();
+                const quotes = data.quotes || data || [];
+
+                if (quotes.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>
+                            <p>No pending estimates.</p>
+                        </div>`;
+                    return;
+                }
+
+                // Separate pending from others
+                const pending = quotes.filter(q => q.status === 'sent' || q.status === 'pending');
+                const others = quotes.filter(q => q.status !== 'sent' && q.status !== 'pending');
+
+                let html = '';
+                if (pending.length > 0) {
+                    html += '<div class="section-heading">Pending Estimates</div>';
+                    pending.forEach(quote => { html += renderEstimateCard(quote); });
+                }
+                if (others.length > 0) {
+                    if (pending.length > 0) {
+                        html += '<div class="section-heading" style="margin-top:24px;">All Estimates</div>';
+                    } else {
+                        html += '<div class="section-heading">Estimates</div>';
+                    }
+                    others.forEach(quote => { html += renderEstimateCard(quote); });
+                }
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = `<div class="message message-error">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function renderEstimateCard(quote) {
+            const quoteNumber = quote.quote_number || quote.number || `#${quote.id}`;
+            const total = formatCurrency(quote.total || quote.amount || 0);
+            const date = quote.date || quote.created_at || quote.quote_date;
+            const status = quote.status || 'sent';
+            const statusClass = getQuoteStatusClass(status);
+            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+            const signingToken = quote.signing_token || '';
+
+            let reviewButton = '';
+            if (signingToken && (status === 'sent' || status === 'pending')) {
+                reviewButton = `<a href="/sign-quote.html?token=${signingToken}" class="review-btn">Review &amp; Approve</a>`;
+            }
+
+            return `
+                <div class="quote-card">
+                    <div class="quote-info">
+                        <h4>Estimate ${escapeHtml(quoteNumber)}</h4>
+                        <div class="quote-meta">
+                            ${date ? `<span>${formatDate(date)}</span>` : ''}
+                            <span class="badge badge-${statusClass}" style="margin-left:4px;">${statusLabel}</span>
+                        </div>
+                    </div>
+                    <div class="quote-right">
+                        <span class="quote-amount">${total}</span>
+                        ${reviewButton}
+                    </div>
+                </div>`;
+        }
+
+        function getQuoteStatusClass(status) {
+            switch ((status || '').toLowerCase()) {
+                case 'sent': case 'pending': return 'sent';
+                case 'accepted': case 'approved': return 'accepted';
+                case 'declined': case 'rejected': return 'declined';
+                case 'expired': return 'expired';
+                default: return 'draft';
+            }
         }
 
         // ── Invoices Tab ────────────────────────────────────────────────
@@ -1033,7 +1631,7 @@
 
                 content.innerHTML = html;
             } catch (err) {
-                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+                content.innerHTML = `<div class="message message-error">${escapeHtml(err.message)}</div>`;
             }
         }
 
@@ -1125,7 +1723,7 @@
                 // Load saved cards
                 loadSavedCards(token);
             } catch (err) {
-                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+                content.innerHTML = `<div class="message message-error">${escapeHtml(err.message)}</div>`;
             }
         }
 
@@ -1254,8 +1852,114 @@
             }
         }
 
-        // ── Services Tab ──────────────────────────────────────────────────
-        async function loadServices(token) {
+        // ── Pictures Tab ──────────────────────────────────────────────────
+        async function loadPictures(token) {
+            const content = document.getElementById('tabContent');
+            try {
+                const res = await fetch(`/api/portal/${token}/photos`);
+                if (!res.ok) throw new Error('Failed to load photos');
+
+                const data = await res.json();
+                const photoGroups = data.photo_groups || data.photos || data || [];
+
+                if (!Array.isArray(photoGroups) || photoGroups.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+                            <p>No photos yet. Photos will appear here after jobs are completed.</p>
+                        </div>`;
+                    return;
+                }
+
+                // Collect all photo URLs for lightbox navigation
+                lightboxPhotos = [];
+                photoGroups.forEach(group => {
+                    const photos = group.photos || group.urls || [];
+                    photos.forEach(url => lightboxPhotos.push(url));
+                });
+
+                let html = '';
+                let globalIndex = 0;
+
+                photoGroups.forEach(group => {
+                    const serviceType = escapeHtml(group.service_type || group.type || 'Service');
+                    const date = group.date || group.completion_date || group.completed_at || '';
+                    const address = escapeHtml(group.address || '');
+                    const photos = group.photos || group.urls || [];
+
+                    if (photos.length === 0) return;
+
+                    html += '<div class="photo-group">';
+                    html += `<div class="photo-group-header">${serviceType}</div>`;
+                    html += `<div class="photo-group-meta">${date ? formatDate(date) : ''}${address ? (date ? ' &middot; ' : '') + address : ''}</div>`;
+                    html += '<div class="photo-grid">';
+
+                    photos.forEach(url => {
+                        html += `<div class="photo-thumb" onclick="openLightbox(${globalIndex})"><img src="${escapeHtml(url)}" alt="Job photo" loading="lazy"></div>`;
+                        globalIndex++;
+                    });
+
+                    html += '</div></div>';
+                });
+
+                content.innerHTML = html;
+            } catch (err) {
+                content.innerHTML = `<div class="message message-error">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function openLightbox(index) {
+            if (!lightboxPhotos.length) return;
+            lightboxIndex = index;
+            renderLightbox();
+        }
+
+        function renderLightbox() {
+            // Remove existing lightbox
+            closeLightbox();
+
+            const overlay = document.createElement('div');
+            overlay.className = 'lightbox-overlay';
+            overlay.id = 'lightboxOverlay';
+            overlay.onclick = function(e) { if (e.target === overlay) closeLightbox(); };
+
+            overlay.innerHTML = `
+                <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+                ${lightboxPhotos.length > 1 ? '<button class="lightbox-nav lightbox-prev" onclick="lightboxPrev()">&lsaquo;</button>' : ''}
+                <img src="${escapeHtml(lightboxPhotos[lightboxIndex])}" alt="Photo">
+                ${lightboxPhotos.length > 1 ? '<button class="lightbox-nav lightbox-next" onclick="lightboxNext()">&rsaquo;</button>' : ''}
+            `;
+
+            document.body.appendChild(overlay);
+
+            // Handle keyboard
+            document.addEventListener('keydown', lightboxKeyHandler);
+        }
+
+        function closeLightbox() {
+            const existing = document.getElementById('lightboxOverlay');
+            if (existing) existing.remove();
+            document.removeEventListener('keydown', lightboxKeyHandler);
+        }
+
+        function lightboxPrev() {
+            lightboxIndex = (lightboxIndex - 1 + lightboxPhotos.length) % lightboxPhotos.length;
+            renderLightbox();
+        }
+
+        function lightboxNext() {
+            lightboxIndex = (lightboxIndex + 1) % lightboxPhotos.length;
+            renderLightbox();
+        }
+
+        function lightboxKeyHandler(e) {
+            if (e.key === 'Escape') closeLightbox();
+            else if (e.key === 'ArrowLeft') lightboxPrev();
+            else if (e.key === 'ArrowRight') lightboxNext();
+        }
+
+        // ── Work Requests Tab (renamed from Services) ─────────────────────
+        async function loadWorkRequests(token) {
             const content = document.getElementById('tabContent');
 
             let html = '';
@@ -1359,7 +2063,7 @@
                 });
                 container.innerHTML = html;
             } catch (err) {
-                container.innerHTML = `<div class="message message-error">${err.message}</div>`;
+                container.innerHTML = `<div class="message message-error">${escapeHtml(err.message)}</div>`;
             }
         }
 
@@ -1419,151 +2123,177 @@
                 // Reload requests list
                 loadServiceRequests(portalToken);
             } catch (err) {
-                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${err.message}</div>`;
+                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${escapeHtml(err.message)}</div>`;
                 btn.textContent = 'Submit Request';
                 btn.disabled = false;
             }
         }
 
-        // ── Quotes Tab ───────────────────────────────────────────────────
-        async function loadQuotes(token) {
+        // ── Rate Us Tab ───────────────────────────────────────────────────
+        // Smart filter: high ratings (4-5) → Google Reviews, low ratings (1-3) → private feedback
+        let selectedRating = 0;
+        let rateUsPhase = 'stars'; // 'stars' | 'google' | 'feedback' | 'thanks'
+
+        // Google review URL — fetched from business_settings or fallback
+        let googleReviewUrl = '';
+
+        async function loadRateUs(token) {
             const content = document.getElementById('tabContent');
-            try {
-                const res = await fetch(`/api/portal/${token}/quotes`);
-                if (!res.ok) throw new Error('Failed to load quotes');
 
-                const data = await res.json();
-                const quotes = data.quotes || data || [];
-
-                if (quotes.length === 0) {
-                    content.innerHTML = `
-                        <div class="empty-state">
-                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>
-                            <p>No pending quotes.</p>
-                        </div>`;
-                    return;
-                }
-
-                let html = '<div class="section-heading">Pending Quotes</div>';
-                quotes.forEach(quote => {
-                    html += renderQuoteCard(quote);
-                });
-                content.innerHTML = html;
-            } catch (err) {
-                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
-            }
-        }
-
-        function renderQuoteCard(quote) {
-            const quoteNumber = quote.quote_number || quote.number || `#${quote.id}`;
-            const total = formatCurrency(quote.total || quote.amount || 0);
-            const date = quote.date || quote.created_at || quote.quote_date;
-            const status = quote.status || 'sent';
-            const statusClass = getQuoteStatusClass(status);
-            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
-            const signingToken = quote.signing_token || '';
-
-            let reviewButton = '';
-            if (signingToken && (status === 'sent' || status === 'pending')) {
-                reviewButton = `<a href="/sign-quote.html?token=${signingToken}" class="review-btn">Review &amp; Approve</a>`;
+            // Try to fetch Google review URL from settings
+            if (!googleReviewUrl) {
+                try {
+                    const res = await fetch(`/api/portal/${token}/google-review-url`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        googleReviewUrl = data.url || '';
+                    }
+                } catch (e) { /* ignore */ }
             }
 
-            return `
-                <div class="quote-card">
-                    <div class="quote-info">
-                        <h4>Quote ${escapeHtml(quoteNumber)}</h4>
-                        <div class="quote-meta">
-                            ${date ? `<span>${formatDate(date)}</span>` : ''}
-                            <span class="badge badge-${statusClass}" style="margin-left:4px;">${statusLabel}</span>
+            if (rateUsPhase === 'thanks') {
+                content.innerHTML = `
+                    <div class="thank-you-msg">
+                        <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="#059669" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <h3>Thank You!</h3>
+                        <p>We appreciate your feedback. It helps us improve our service.</p>
+                        <button class="submit-btn" style="margin-top:16px;" onclick="rateUsPhase='stars';selectedRating=0;loadRateUs(portalToken)">Rate Again</button>
+                    </div>`;
+                return;
+            }
+
+            if (rateUsPhase === 'google') {
+                content.innerHTML = `
+                    <div class="review-form-section" style="text-align:center;">
+                        <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="1.5" style="margin-bottom:12px;"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/></svg>
+                        <h3 style="font-size:20px;color:#1e2e2c;margin-bottom:8px;">We're glad you had a great experience!</h3>
+                        <p style="color:#6b7280;margin-bottom:24px;">Would you mind sharing your experience on Google? It really helps us out!</p>
+                        ${googleReviewUrl ? `
+                            <a href="${escapeHtml(googleReviewUrl)}" target="_blank" rel="noopener" class="submit-btn" style="display:inline-block;text-decoration:none;padding:14px 32px;font-size:16px;">
+                                Leave a Google Review
+                            </a>` : `
+                            <p style="color:#6b7280;font-size:13px;">Google review link is not configured yet. Please contact us to leave a review!</p>`}
+                        <div style="margin-top:20px;">
+                            <button style="background:none;border:none;color:#6b7280;font-size:13px;cursor:pointer;text-decoration:underline;font-family:inherit;" onclick="rateUsPhase='thanks';loadRateUs(portalToken)">No thanks, skip</button>
                         </div>
-                    </div>
-                    <div class="quote-right">
-                        <span class="quote-amount">${total}</span>
-                        ${reviewButton}
-                    </div>
-                </div>`;
-        }
-
-        function getQuoteStatusClass(status) {
-            switch ((status || '').toLowerCase()) {
-                case 'sent': case 'pending': return 'sent';
-                case 'accepted': case 'approved': return 'accepted';
-                case 'declined': case 'rejected': return 'declined';
-                case 'expired': return 'expired';
-                default: return 'draft';
+                    </div>`;
+                return;
             }
+
+            if (rateUsPhase === 'feedback') {
+                content.innerHTML = `
+                    <div class="review-form-section">
+                        <div class="form-title">We'd love to hear more</div>
+                        <p style="color:#6b7280;font-size:14px;margin-bottom:16px;">We're sorry your experience wasn't perfect. Your feedback helps us improve — it will only be seen by our team.</p>
+                        <div class="form-row">
+                            <label for="privateFeedback">What can we do better?</label>
+                            <textarea id="privateFeedback" placeholder="Tell us what happened..." style="min-height:120px;"></textarea>
+                        </div>
+                        <button class="submit-btn" id="submitFeedbackBtn" onclick="submitPrivateFeedback()">Send Feedback</button>
+                        <div id="feedbackMessage"></div>
+                    </div>`;
+                return;
+            }
+
+            // Default: star selection phase
+            content.innerHTML = `
+                <div class="review-form-section" style="text-align:center;">
+                    <div class="form-title" style="text-align:center;">How was your experience?</div>
+                    <p style="color:#6b7280;font-size:14px;margin-bottom:20px;">Tap a star to rate us</p>
+                    <div class="star-rating" id="starRating">
+                        ${[1,2,3,4,5].map(i => `<span class="star empty" data-value="${i}" onclick="selectRating(${i})" onmouseover="hoverRating(${i})" onmouseout="unhoverRating()">&#9734;</span>`).join('')}
+                    </div>
+                    <div id="ratingLabel" style="margin-top:12px;font-size:14px;color:#6b7280;min-height:20px;"></div>
+                </div>`;
+            selectedRating = 0;
         }
 
-        // ── History Tab ──────────────────────────────────────────────────
-        async function loadHistory(token) {
-            const content = document.getElementById('tabContent');
-            try {
-                const res = await fetch(`/api/portal/${token}/service-history`);
-                if (!res.ok) throw new Error('Failed to load service history');
+        const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 
-                const data = await res.json();
-                const jobs = data.jobs || data.history || data || [];
+        function selectRating(value) {
+            selectedRating = value;
+            updateStars(value);
+            // Show label briefly, then transition
+            const label = document.getElementById('ratingLabel');
+            if (label) label.textContent = ratingLabels[value] || '';
 
-                if (jobs.length === 0) {
-                    content.innerHTML = `
-                        <div class="empty-state">
-                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <p>No completed jobs yet.</p>
-                        </div>`;
-                    return;
+            setTimeout(() => {
+                if (value >= 4) {
+                    rateUsPhase = 'google';
+                } else {
+                    rateUsPhase = 'feedback';
                 }
+                // Also store the rating via API for tracking
+                fetch(`/api/portal/${portalToken}/reviews`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rating: value, comment: value >= 4 ? 'Redirected to Google Reviews' : null })
+                }).catch(() => {});
+                loadRateUs(portalToken);
+            }, 600);
+        }
 
-                let html = '<div class="section-heading">Completed Jobs</div>';
-                jobs.forEach(job => {
-                    html += renderHistoryCard(job);
+        function hoverRating(value) {
+            updateStars(value);
+            const label = document.getElementById('ratingLabel');
+            if (label) label.textContent = ratingLabels[value] || '';
+        }
+
+        function unhoverRating() {
+            updateStars(selectedRating);
+            const label = document.getElementById('ratingLabel');
+            if (label) label.textContent = selectedRating ? ratingLabels[selectedRating] : '';
+        }
+
+        function updateStars(value) {
+            const stars = document.querySelectorAll('#starRating .star');
+            stars.forEach(star => {
+                const v = parseInt(star.dataset.value);
+                if (v <= value) {
+                    star.classList.remove('empty');
+                    star.classList.add('filled');
+                    star.innerHTML = '\u2605';
+                } else {
+                    star.classList.remove('filled');
+                    star.classList.add('empty');
+                    star.innerHTML = '\u2606';
+                }
+            });
+        }
+
+        async function submitPrivateFeedback() {
+            const feedback = document.getElementById('privateFeedback').value.trim();
+            const msgEl = document.getElementById('feedbackMessage');
+            const btn = document.getElementById('submitFeedbackBtn');
+
+            if (!feedback) {
+                msgEl.innerHTML = '<div class="message message-error" style="margin-top:12px;">Please enter your feedback.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            msgEl.innerHTML = '';
+
+            try {
+                // Update the review with the feedback comment
+                await fetch(`/api/portal/${portalToken}/reviews`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rating: selectedRating || 3, comment: feedback })
                 });
-                content.innerHTML = html;
+
+                rateUsPhase = 'thanks';
+                loadRateUs(portalToken);
             } catch (err) {
-                content.innerHTML = `<div class="message message-error">${err.message}</div>`;
+                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">Something went wrong. Please try again.</div>`;
+                btn.textContent = 'Send Feedback';
+                btn.disabled = false;
             }
         }
 
-        function renderHistoryCard(job) {
-            const date = job.completion_date || job.date || job.completed_at || '';
-            const serviceType = escapeHtml(job.service_type || job.type || 'Service');
-            const address = escapeHtml(job.address || job.property_address || '');
-            const crew = escapeHtml(job.crew || job.crew_name || '');
-            const price = job.price || job.total || job.amount || 0;
-            const notes = job.completion_notes || job.notes || '';
-            const photos = job.completion_photos || job.photos || [];
-
-            let photosHtml = '';
-            if (Array.isArray(photos) && photos.length > 0) {
-                photosHtml = '<div class="history-photos">';
-                photos.forEach(url => {
-                    photosHtml += `<img src="${escapeHtml(url)}" alt="Completion photo" onclick="window.open('${escapeHtml(url)}','_blank')">`;
-                });
-                photosHtml += '</div>';
-            }
-
-            let notesHtml = '';
-            if (notes) {
-                notesHtml = `<div class="history-notes">${escapeHtml(notes)}</div>`;
-            }
-
-            return `
-                <div class="history-card">
-                    <div class="history-card-header">
-                        <h4>${serviceType}</h4>
-                        ${price ? `<span class="history-price">${formatCurrency(price)}</span>` : ''}
-                    </div>
-                    <div class="history-meta">
-                        ${date ? `<span>${formatDate(date)}</span>` : ''}
-                        ${address ? `<span>${address}</span>` : ''}
-                        ${crew ? `<span>Crew: ${crew}</span>` : ''}
-                    </div>
-                    ${notesHtml}
-                    ${photosHtml}
-                </div>`;
-        }
-
-        // ── Account Tab ─────────────────────────────────────────────────
-        function renderAccount() {
+        // ── My Profile Tab (renamed from Account) ─────────────────────────
+        function renderProfile() {
             const c = customerData || {};
             const name = c.name || [c.first_name, c.last_name].filter(Boolean).join(' ') || '-';
             const email = c.email || '-';
@@ -1593,6 +2323,11 @@
                         <button onclick="requestNewLink()">Request New Access Link</button>
                     </div>
 
+                    <div class="saved-cards-section">
+                        <div class="section-heading">Saved Cards</div>
+                        <div id="savedCardsList"><div class="loading"><div class="spinner"></div></div></div>
+                    </div>
+
                     <div class="prefs-section">
                         <div class="section-heading">Communication Preferences</div>
                         <div id="prefsContainer">
@@ -1601,7 +2336,8 @@
                     </div>
                 </div>`;
 
-            // Load communication preferences
+            // Load saved cards and communication preferences
+            loadSavedCards(portalToken);
             loadPreferences();
         }
 
@@ -1730,7 +2466,7 @@
                 btn.textContent = 'Save Preferences';
                 btn.disabled = false;
             } catch (err) {
-                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${err.message}</div>`;
+                msgEl.innerHTML = `<div class="message message-error" style="margin-top:12px;">${escapeHtml(err.message)}</div>`;
                 btn.textContent = 'Save Preferences';
                 btn.disabled = false;
             }

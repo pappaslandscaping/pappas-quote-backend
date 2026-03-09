@@ -2155,9 +2155,31 @@ Photo documentation before/after available upon request.`
         }
     })();
 
-    // ── Pre-fill from URL params (e.g., coming from quote-detail "Create Quote" button) ──
+    // ── Pre-fill from URL params (e.g., coming from customer-detail or quote-detail) ──
     (function() {
         const params = new URLSearchParams(window.location.search);
+
+        // If customer_id passed (e.g. from customer detail page), fetch and pre-fill
+        if (params.get('customer_id') && !params.get('name')) {
+            const custId = params.get('customer_id');
+            selectedCustomerId = parseInt(custId) || null;
+            fetch('/api/customers/' + custId)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.customer) {
+                        const c = data.customer;
+                        const name = c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim() || '';
+                        document.getElementById('custName').value = name;
+                        document.getElementById('custEmail').value = c.email || '';
+                        document.getElementById('custPhone').value = c.phone || c.mobile || '';
+                        const addr = c.street ? [c.street, c.city, c.state, c.postal_code].filter(Boolean).join(', ') : '';
+                        document.getElementById('custAddr').value = addr;
+                    }
+                })
+                .catch(() => {});
+            return;
+        }
+
         if (!params.get('from_request') && !params.get('name')) return;
 
         // Fill customer info

@@ -426,14 +426,21 @@
         // ─── Data Loading ─────────────────────────────────────
         async function loadClients() {
             try {
+                // If customer_id in URL, fetch that customer directly and skip to step 2
+                if (preCustomerId) {
+                    try {
+                        const cRes = await fetch('/api/customers/' + preCustomerId);
+                        const cData = await cRes.json();
+                        if (cData.success && cData.customer) {
+                            allClients = [cData.customer];
+                            selectClient(cData.customer);
+                            return;
+                        }
+                    } catch(e) {}
+                }
                 const res = await fetch('/api/customers');
                 const data = await res.json();
                 allClients = data.customers || data || [];
-                // Pre-select client if passed via URL
-                if (preCustomerId) {
-                    const c = allClients.find(c => String(c.id) === String(preCustomerId));
-                    if (c) { selectClient(c); return; }
-                }
                 renderClients(allClients);
             } catch (e) {
                 document.getElementById('clientListContainer').innerHTML =

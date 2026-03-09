@@ -197,6 +197,7 @@ app.post('/api/webhooks/square', express.raw({ type: 'application/json' }), asyn
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 app.use(express.static('public', {
+  dotfiles: 'allow',
   setHeaders: (res, path) => {
     if (path.endsWith('.html') || path.endsWith('.js')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

@@ -2914,7 +2914,7 @@ app.post('/api/customers', async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING *
     `, [
-      customer_number || null,
+      customer_number || await nextCustomerNumber(),
       finalName,
       email || null,
       finalStatus,
@@ -4786,10 +4786,11 @@ app.post('/api/sent-quotes', async (req, res) => {
         customer_id = existingCustomer.rows[0].id;
       } else {
         // Create new customer
+        const newCustNum = await nextCustomerNumber();
         const newCustomer = await pool.query(
-          `INSERT INTO customers (name, email, phone, street, created_at)
-           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING id`,
-          [customer_name, customer_email, customer_phone, customer_address]
+          `INSERT INTO customers (customer_number, name, email, phone, street, created_at)
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) RETURNING id`,
+          [newCustNum, customer_name, customer_email, customer_phone, customer_address]
         );
         customer_id = newCustomer.rows[0].id;
         console.log('Created new customer:', customer_id);
@@ -8190,6 +8191,12 @@ async function ensureInvoicesTable() {
   await pool.query(INVOICES_TABLE);
 }
 
+async function nextCustomerNumber() {
+  const r = await pool.query("SELECT MAX(customer_number::int) as max_num FROM customers WHERE customer_number ~ '^[0-9]+$'");
+  const maxNum = parseInt(r.rows[0]?.max_num) || 0;
+  return String(maxNum + 1);
+}
+
 async function nextInvoiceNumber() {
   // Use FOR UPDATE to prevent race conditions with concurrent invoice creation
   const r = await pool.query("SELECT invoice_number FROM invoices ORDER BY id DESC LIMIT 1 FOR UPDATE");
@@ -10379,11 +10386,12 @@ async function syncQBCustomers(changedSince = null) {
           [name, email, phone, mobile, street, street2, city, state, zip, company, qbId, existing.rows[0].id]
         );
       } else {
+        const newCustNum = await nextCustomerNumber();
         await pool.query(
-          `INSERT INTO customers (name, email, phone, mobile, street, street2, city, state, postal_code,
+          `INSERT INTO customers (customer_number, name, email, phone, mobile, street, street2, city, state, postal_code,
            customer_company_name, qb_id, status, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Active',NOW())`,
-          [name, email, phone, mobile, street, street2, city, state, zip, company, qbId]
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Active',NOW())`,
+          [newCustNum, name, email, phone, mobile, street, street2, city, state, zip, company, qbId]
         );
       }
       count++;

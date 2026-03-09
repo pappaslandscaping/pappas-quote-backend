@@ -14761,6 +14761,75 @@ app.post('/api/ai/create-campaign', async (req, res) => {
   }
 });
 
+// ─── AI Service Title & Description Suggestions ──────────────────
+app.post('/api/ai/suggest-service', async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured.' });
+    }
+    const { service_name, context } = req.body;
+    if (!service_name) return res.status(400).json({ success: false, error: 'service_name is required' });
+
+    const prompt = `You are the service description writer for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Greater Cleveland area).
+
+Given the service name or rough idea below, provide:
+1. A polished, professional service title
+2. A detailed service description (3-6 bullet points written as short paragraphs, each starting with a bold label like "Label: description text"). The description should explain what's included, how the work is done, and set customer expectations.
+
+Service name/idea: "${service_name}"
+${context ? `Additional context: ${context}` : ''}
+
+Respond in JSON format:
+{
+  "title": "Professional Service Title",
+  "description": "Label1: Description paragraph.\\nLabel2: Description paragraph.\\nLabel3: Description paragraph."
+}
+
+Guidelines:
+- Write in first-person plural ("We will...", "Our team...")
+- Be specific about equipment, methods, and cleanup
+- Keep descriptions professional but approachable
+- Each bullet point should be 1-2 sentences
+- Use landscaping industry terminology
+- DO NOT include pricing`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const text = response.content[0].text;
+    let parsed;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+    } catch (e) {
+      parsed = { title: service_name, description: text };
+    }
+    res.json({ success: true, suggestion: parsed });
+  } catch (error) {
+    console.error('AI service suggestion error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/quotes/next-number - Get next sequential quote number
+app.get('/api/quotes/next-number', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT MAX(CAST(quote_number AS INTEGER)) as max_num
+       FROM sent_quotes
+       WHERE quote_number ~ '^[0-9]+$'`
+    );
+    const maxNum = result.rows[0]?.max_num || 1500;
+    res.json({ success: true, next_number: maxNum + 1 });
+  } catch (error) {
+>>>>>>> Stashed changes
+    serverError(res, error);
+  }
+});
+
 // ═══════════════════════════════════════════════════════════
 // HOME BASE ADDRESS SETTINGS
 // ═══════════════════════════════════════════════════════════

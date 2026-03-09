@@ -592,6 +592,46 @@
         @media (max-width: 500px) {
             .ai-panel { width: 100%; right: -105%; }
         }
+
+        /* AI Suggest + Save Service buttons */
+        .svc-actions { display: flex; gap: 6px; margin-top: 6px; }
+        .btn-ai-suggest, .btn-save-svc {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+            cursor: pointer; border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-500); font-family: inherit; transition: all 0.15s;
+        }
+        .btn-ai-suggest:hover { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+        .btn-save-svc:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light, #f0f7f0); }
+        .btn-ai-suggest svg, .btn-save-svc svg { width: 13px; height: 13px; }
+        .btn-ai-suggest.loading { opacity: 0.6; pointer-events: none; }
+
+        /* Save Service Modal */
+        .save-svc-modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .save-svc-modal {
+            background: white; border-radius: 12px; padding: 28px; width: 440px; max-width: 90vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+        }
+        .save-svc-modal h3 { margin: 0 0 20px; font-size: 16px; color: var(--gray-800); }
+        .save-svc-modal .field { margin-bottom: 14px; }
+        .save-svc-modal .field label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+        .save-svc-modal .field input,
+        .save-svc-modal .field textarea,
+        .save-svc-modal .field select {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 13px; font-family: inherit;
+        }
+        .save-svc-modal .field textarea { min-height: 80px; resize: vertical; }
+        .save-svc-modal .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .save-svc-modal .modal-actions button {
+            padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .save-svc-modal .btn-cancel { background: var(--gray-100); color: var(--gray-600); border: none; }
+        .save-svc-modal .btn-save { background: var(--primary); color: white; border: none; }
     </style>
 </head>
 <body>
@@ -1366,6 +1406,18 @@ Photo documentation before/after available upon request.`
         calcTotals();
     }
 
+    const SVC_ACTIONS_HTML = `
+            <div class="svc-actions">
+                <button type="button" class="btn-ai-suggest" onclick="aiSuggestService(this)" title="AI suggest title & description">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/></svg>
+                    AI Suggest
+                </button>
+                <button type="button" class="btn-save-svc" onclick="saveAsService(this)" title="Save to your services library">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Save Service
+                </button>
+            </div>`;
+
     function addSvc() {
         const wrapper = document.createElement('div');
         wrapper.className = 'svc-wrapper';
@@ -1380,6 +1432,7 @@ Photo documentation before/after available upon request.`
             </div>
             <input type="text" class="custom-input svc-name" placeholder="Enter custom service name">
             <textarea class="svc-desc" placeholder="Service description (optional)" rows="3"></textarea>
+            ${SVC_ACTIONS_HTML}
         `;
         document.getElementById('svcList').appendChild(wrapper);
     }
@@ -1387,11 +1440,11 @@ Photo documentation before/after available upon request.`
     function addSvcWithValues(name, amt, description = '') {
         const wrapper = document.createElement('div');
         wrapper.className = 'svc-wrapper';
-        
+
         // Check if this service name is in our dropdown list
         const isInDropdown = SERVICES.includes(name) && name !== '— Custom —';
         const selectedValue = isInDropdown ? name : '— Custom —';
-        
+
         wrapper.innerHTML = `
             <div class="svc-row">
                 <select class="svc-select" onchange="handleServiceChange(this)">
@@ -1403,6 +1456,7 @@ Photo documentation before/after available upon request.`
             </div>
             <input type="text" class="custom-input svc-name ${!isInDropdown ? 'show' : ''}" placeholder="Enter custom service name" value="${!isInDropdown ? name : ''}">
             <textarea class="svc-desc" placeholder="Service description (optional)" rows="3">${description}</textarea>
+            ${SVC_ACTIONS_HTML}
         `;
         document.getElementById('svcList').appendChild(wrapper);
     }
@@ -2006,6 +2060,11 @@ Photo documentation before/after available upon request.`
                 if (!document.getElementById('custPhone').value && bestPhone) {
                     document.getElementById('custPhone').value = bestPhone;
                 }
+                // Fill address from parts
+                if (!document.getElementById('custAddr').value && (customer.street || customer.city)) {
+                    const fullAddr = (customer.street || '') + (customer.city ? ', ' + customer.city : '') + (customer.state ? ', ' + customer.state : '') + (customer.postal_code ? ' ' + customer.postal_code : '');
+                    document.getElementById('custAddr').value = fullAddr;
+                }
 
                 // Show hint if customer found but missing contact info
                 if (hint && !customer.email && !bestPhone) {
@@ -2065,8 +2124,13 @@ Photo documentation before/after available upon request.`
                                     const customer = JSON.parse(this.dataset.customer);
                                     document.getElementById('custName').value = customer.name || '';
                                     document.getElementById('custEmail').value = customer.email || '';
-                                    document.getElementById('custPhone').value = customer.phone || '';
-                                    document.getElementById('custAddr').value = customer.address || '';
+                                    document.getElementById('custPhone').value = customer.phone || customer.mobile || '';
+                                    // Build address from parts
+                                    const addrParts = [customer.street, customer.city, customer.state, customer.postal_code].filter(Boolean);
+                                    const fullAddr = addrParts.length > 0
+                                        ? (customer.street || '') + (customer.city ? ', ' + customer.city : '') + (customer.state ? ', ' + customer.state : '') + (customer.postal_code ? ' ' + customer.postal_code : '')
+                                        : customer.address || '';
+                                    document.getElementById('custAddr').value = fullAddr;
                                     selectedCustomerId = customer.id || null;
                                     dropdown.classList.remove('show');
                                     calcTotals();
@@ -2139,6 +2203,156 @@ Photo documentation before/after available upon request.`
         // Clean URL without reloading
         window.history.replaceState({}, '', window.location.pathname);
     })();
+
+    // ── Auto-load next sequential quote number ──
+    (async function() {
+        const quoteNumInput = document.getElementById('quoteNum');
+        if (quoteNumInput && !quoteNumInput.value) {
+            try {
+                const token = localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
+                const res = await fetch('/api/quotes/next-number', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await res.json();
+                if (data.success && data.next_number) {
+                    quoteNumInput.value = data.next_number;
+                }
+            } catch (e) { console.log('Could not fetch next quote number:', e); }
+        }
+    })();
+
+    // ── AI Suggest Service Title & Description ──
+    async function aiSuggestService(btn) {
+        const wrapper = btn.closest('.svc-wrapper');
+        const serviceName = getServiceName(wrapper);
+        if (!serviceName || serviceName === 'Custom Service') {
+            showToast('Enter a service name first', true);
+            return;
+        }
+
+        btn.classList.add('loading');
+        btn.textContent = 'Thinking...';
+
+        try {
+            const token = localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
+            const res = await fetch('/api/ai/suggest-service', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ service_name: serviceName })
+            });
+            const data = await res.json();
+            if (data.success && data.suggestion) {
+                const { title, description } = data.suggestion;
+                // Update the service name if it was custom
+                const select = wrapper.querySelector('.svc-select');
+                const customInput = wrapper.querySelector('.custom-input');
+                if (select.value === '— Custom —' || select.value === '') {
+                    select.value = '— Custom —';
+                    customInput.classList.add('show');
+                    customInput.value = title || serviceName;
+                }
+                // Fill description
+                if (description) {
+                    wrapper.querySelector('.svc-desc').value = description;
+                }
+                showToast('AI suggestion applied!');
+            } else {
+                showToast(data.error || 'AI suggestion failed', true);
+            }
+        } catch (e) {
+            console.error('AI suggest error:', e);
+            showToast('Error getting AI suggestion', true);
+        }
+
+        btn.classList.remove('loading');
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/></svg> AI Suggest`;
+    }
+
+    // ── Save as Service (to service_items DB) ──
+    function saveAsService(btn) {
+        const wrapper = btn.closest('.svc-wrapper');
+        const name = getServiceName(wrapper);
+        const rate = wrapper.querySelector('.svc-amt').value || '0';
+        const description = wrapper.querySelector('.svc-desc')?.value || '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'save-svc-modal-overlay';
+        overlay.innerHTML = `
+            <div class="save-svc-modal">
+                <h3>Save to Services Library</h3>
+                <div class="field">
+                    <label>Service Name *</label>
+                    <input type="text" id="saveSvcName" value="${name.replace(/"/g, '&quot;')}">
+                </div>
+                <div class="field">
+                    <label>Category</label>
+                    <select id="saveSvcCategory">
+                        <option value="">Select category...</option>
+                        <option value="Mowing">Mowing</option>
+                        <option value="Cleanups">Cleanups</option>
+                        <option value="Fertilizing">Fertilizing</option>
+                        <option value="Lawn Care">Lawn Care</option>
+                        <option value="Beds & Shrubs">Beds & Shrubs</option>
+                        <option value="Snow & Ice">Snow & Ice</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Default Rate ($)</label>
+                    <input type="number" id="saveSvcRate" step="0.01" value="${rate}">
+                </div>
+                <div class="field">
+                    <label>Description</label>
+                    <textarea id="saveSvcDesc">${description.replace(/</g, '&lt;')}</textarea>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="this.closest('.save-svc-modal-overlay').remove()">Cancel</button>
+                    <button class="btn-save" onclick="submitSaveService(this)">Save Service</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#saveSvcName').focus();
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) overlay.remove();
+        });
+    }
+
+    async function submitSaveService(btn) {
+        const overlay = btn.closest('.save-svc-modal-overlay');
+        const name = overlay.querySelector('#saveSvcName').value.trim();
+        const category = overlay.querySelector('#saveSvcCategory').value;
+        const rate = parseFloat(overlay.querySelector('#saveSvcRate').value) || 0;
+        const description = overlay.querySelector('#saveSvcDesc').value.trim();
+
+        if (!name) { showToast('Service name required', true); return; }
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const token = localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
+            const res = await fetch('/api/service-items', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ name, default_rate: rate, category, description, taxable: true })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Service saved to library!');
+                overlay.remove();
+            } else {
+                showToast(data.error || 'Error saving service', true);
+                btn.disabled = false;
+                btn.textContent = 'Save Service';
+            }
+        } catch (e) {
+            console.error('Save service error:', e);
+            showToast('Error saving service', true);
+            btn.disabled = false;
+            btn.textContent = 'Save Service';
+        }
+    }
 </script>
 
 <!-- AI Assistant FAB + Panel -->

@@ -1006,6 +1006,10 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
                         Send Campaign
                     </button>
+                    <button class="btn btn-secondary" style="color:#e53e3e;border-color:#e53e3e;" onclick="deleteCampaign()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        Delete
+                    </button>
                 </div>
             </div>
 
@@ -1468,9 +1472,28 @@ function showListView() {
 // Copy form link
 function copyFormLink() {
     if (!currentCampaign) return;
-    const url = `${window.location.origin}/${currentCampaign.form_url || 'monthly-plan-request.html'}`;
+    const formUrl = currentCampaign.form_url || 'monthly-plan-request.html';
+    const url = formUrl.startsWith('http') ? formUrl : `${window.location.origin}/${formUrl}`;
     navigator.clipboard.writeText(url);
     showToast('Form link copied!');
+}
+
+async function deleteCampaign() {
+    if (!currentCampaign) return;
+    if (!confirm('Are you sure you want to delete "' + currentCampaign.name + '"? This cannot be undone and all submissions will be lost.')) return;
+    try {
+        const res = await fetch('/api/campaigns/' + currentCampaign.id, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Campaign deleted');
+            currentCampaign = null;
+            document.getElementById('detailView').style.display = 'none';
+            document.getElementById('listView').style.display = '';
+            loadCampaigns();
+        } else {
+            showToast('Delete failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) { showToast('Delete failed'); }
 }
 
 // Modal functions

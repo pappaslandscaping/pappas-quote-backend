@@ -523,7 +523,7 @@ app.post('/api/auth/change-password', async (req, res) => {
 // Admin auth middleware — protects all admin API routes
 const ADMIN_PUBLIC_PATHS = [
   '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',
-  '/api/portal/', '/api/campaigns/submissions', '/api/app/',
+  '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
   '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
   '/api/config/', '/health', '/api/test-quote-pdf',
   '/api/quickbooks/auth', '/api/quickbooks/callback'
@@ -4742,16 +4742,20 @@ app.get('/api/campaigns', async (req, res) => {
 // POST /api/campaigns - Create a new campaign
 app.post('/api/campaigns', async (req, res) => {
   try {
-    const { name, description, form_url, status = 'active' } = req.body;
+    const { name, description, form_url, form_heading, form_description, form_fields, status = 'active' } = req.body;
     if (!name) {
       return res.status(400).json({ success: false, error: 'Campaign name is required' });
     }
+    // Auto-generate slug from name
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) + '-' + Date.now().toString(36);
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const campaignLink = baseUrl + '/campaign.html?c=' + slug;
     const result = await pool.query(`
-      INSERT INTO campaigns (name, description, form_url, status)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO campaigns (name, description, slug, form_heading, form_description, form_fields, form_url, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [name, description, form_url, status]);
-    res.json({ success: true, campaign: result.rows[0] });
+    `, [name, description, slug, form_heading || name, form_description || description, form_fields ? JSON.stringify(form_fields) : '["name","email","phone","address"]', form_url || campaignLink, status]);
+    res.json({ success: true, campaign: result.rows[0], campaign_link: campaignLink });
   } catch (error) {
     console.error('Error creating campaign:', error);
     serverError(res, error);
@@ -4888,6 +4892,23 @@ app.post('/api/campaigns/submissions', async (req, res) => {
     sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml);
   } catch (error) {
     console.error('Error creating submission:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/campaigns/public/:slug - Public endpoint to get campaign info for landing page
+app.get('/api/campaigns/public/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const result = await pool.query(
+      `SELECT id, name, description, slug, form_heading, form_description, form_fields, status FROM campaigns WHERE slug = $1 AND status = 'active'`,
+      [slug]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Campaign not found' });
+    }
+    res.json({ success: true, campaign: result.rows[0] });
+  } catch (error) {
     serverError(res, error);
   }
 });
@@ -11475,6 +11496,11 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
       return res.status(400).json({ success: false, error: 'customer_ids or segment required' });
     }
 
+    // Get campaign slug for campaign_link merge tag
+    const campResult = await pool.query('SELECT slug, form_url FROM campaigns WHERE id = $1', [req.params.id]);
+    const campSlug = campResult.rows[0]?.slug;
+    const campaignLink = campResult.rows[0]?.form_url || (campSlug ? `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/campaign.html?c=${campSlug}` : '#');
+
     const results = { sent: 0, errors: 0 };
     for (const cust of customers.rows) {
       try {
@@ -11483,6 +11509,7 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
           customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
           customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
           company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com',
+          campaign_link: campaignLink,
           unsubscribe_email: encodeURIComponent(cust.email || '')
         };
         const subject = replaceTemplateVars(tmpl.subject, vars);
@@ -11788,6 +11815,14 @@ app.post('/api/broadcasts/send', async (req, res) => {
     const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
 
+    // Get campaign slug for campaign_link merge tag
+    let campaignLink = baseUrl;
+    if (campaign_id) {
+      const campResult = await pool.query('SELECT slug, form_url FROM campaigns WHERE id = $1', [campaign_id]);
+      const campSlug = campResult.rows[0]?.slug;
+      campaignLink = campResult.rows[0]?.form_url || (campSlug ? `${baseUrl}/campaign.html?c=${campSlug}` : baseUrl);
+    }
+
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
       const vars = {
@@ -11801,6 +11836,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
         company_email: 'hello@pappaslandscaping.com',
         company_website: 'pappaslandscaping.com',
         portal_link: `${baseUrl}/customer-portal.html`,
+        campaign_link: campaignLink,
         unsubscribe_email: encodeURIComponent(cust.email || '')
       };
 
@@ -13733,6 +13769,10 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       description TEXT,
+      slug VARCHAR(100) UNIQUE,
+      form_heading TEXT,
+      form_description TEXT,
+      form_fields JSONB DEFAULT '["name","email","phone","address"]',
       form_url TEXT,
       status VARCHAR(30) DEFAULT 'active',
       template_id INTEGER,
@@ -13742,6 +13782,11 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Add slug column if missing (migration for existing tables)
+    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE`).catch(() => {});
+    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS form_heading TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS form_description TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS form_fields JSONB DEFAULT '["name","email","phone","address"]'`).catch(() => {});
     console.log('✅ Campaigns table ready');
   } catch(e) { console.error('Campaigns table error:', e.message); }
 
@@ -14659,13 +14704,15 @@ BRAND GUIDELINES:
 - Tagline: "Your Property, Our Priority."
 - Location: Northeast Ohio (Greater Cleveland)
 
-Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {company_phone}, {company_email}, {company_website}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}, {portal_link}, {contract_link}, {quote_number}, {balance_due}, {amount_paid}, {invoice_due_date}
+Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {company_phone}, {company_email}, {company_website}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}, {portal_link}, {contract_link}, {quote_number}, {balance_due}, {amount_paid}, {invoice_due_date}, {campaign_link}
 
 BUTTON URL RULES — When creating buttons, ALWAYS use the appropriate merge tag as the URL:
 - "View Quote" / "Review Quote" / "Accept Quote" → url: "{quote_link}"
 - "Pay Now" / "Pay Invoice" / "Make Payment" / "View Invoice" → url: "{payment_link}"
 - "Visit Portal" / "Access Portal" / "My Account" → url: "{portal_link}"
 - "Sign Agreement" / "Sign Contract" → url: "{contract_link}"
+- "Get a Quote" / "Request a Quote" / "Get My Free Quote" / "Book Now" / "Sign Up" / "Get Started" / "Learn More" / "Claim Offer" → url: "{campaign_link}"
+For marketing and promotional emails, ALWAYS use {campaign_link} for the main CTA button. This links to a branded landing page with a form where customers can respond to the campaign.
 Never use "#" or placeholder URLs. Always use the matching merge tag so buttons work when the email is sent.
 
 RESPONSE FORMAT — Return ONLY valid JSON (no markdown, no backticks). Choose the appropriate format:
@@ -14755,15 +14802,18 @@ app.post('/api/ai/create-campaign', async (req, res) => {
       templateId = tmplResult.rows[0].id;
     }
 
-    // 2. Create the campaign
+    // 2. Create the campaign with auto-generated slug and landing page
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) + '-' + Date.now().toString(36);
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const campaignLink = baseUrl + '/campaign.html?c=' + slug;
     const campResult = await pool.query(
-      `INSERT INTO campaigns (name, description, template_id, status, created_at, updated_at)
-       VALUES ($1, $2, $3, 'active', NOW(), NOW()) RETURNING *`,
-      [name, description || '', templateId]
+      `INSERT INTO campaigns (name, description, slug, form_heading, form_description, template_id, form_url, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), NOW()) RETURNING *`,
+      [name, description || '', slug, name, description || '', templateId, campaignLink]
     );
     const campaign = campResult.rows[0];
 
-    res.json({ success: true, campaign, template_id: templateId });
+    res.json({ success: true, campaign, template_id: templateId, campaign_link: campaignLink });
   } catch (error) {
     console.error('AI campaign creation error:', error);
     serverError(res, error);

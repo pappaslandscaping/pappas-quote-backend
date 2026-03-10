@@ -1830,7 +1830,8 @@ async function createAiCampaign(andSend) {
                 subject: c.subject || '',
                 body: emailHtml,
                 sms_body: c.sms || '',
-                audience: c.audience || 'all'
+                audience: c.audience || 'all',
+                form: c.form || null
             })
         });
         const data = await resp.json();

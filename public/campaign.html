@@ -171,15 +171,41 @@ async function init() {
         if (campaign.form_heading) document.getElementById('heroTitle').textContent = campaign.form_heading;
         if (campaign.form_description) document.getElementById('heroDesc').textContent = campaign.form_description;
 
-        // Show services checkboxes
+        // Parse form_fields for campaign-specific config
+        let formMeta = {};
+        if (campaign.form_fields) {
+            try { formMeta = typeof campaign.form_fields === 'string' ? JSON.parse(campaign.form_fields) : campaign.form_fields; } catch(e) {}
+        }
+
+        // Set custom button text
+        if (formMeta.button_text) {
+            document.getElementById('submitBtn').textContent = formMeta.button_text;
+        }
+
+        // Show services checkboxes — use campaign-specific services if available
+        const campaignServices = formMeta.services && formMeta.services.length > 0 ? formMeta.services : SERVICES;
+        const preChecked = formMeta.services || [];
         const grid = document.getElementById('servicesGrid');
-        SERVICES.forEach(svc => {
+
+        // If campaign has specific services, show them pre-checked plus "Other"
+        const servicesToShow = formMeta.services && formMeta.services.length > 0
+            ? [...formMeta.services, 'Other']
+            : SERVICES;
+
+        servicesToShow.forEach(svc => {
             const label = document.createElement('label');
-            label.className = 'svc-check';
-            label.innerHTML = '<input type="checkbox" value="' + svc + '" onchange="this.parentElement.classList.toggle(\'checked\', this.checked)"> ' + svc;
+            const isChecked = preChecked.includes(svc);
+            label.className = 'svc-check' + (isChecked ? ' checked' : '');
+            label.innerHTML = '<input type="checkbox" value="' + svc + '"' + (isChecked ? ' checked' : '') + ' onchange="this.parentElement.classList.toggle(\'checked\', this.checked)"> ' + svc;
             grid.appendChild(label);
         });
         document.getElementById('field-services').style.display = '';
+
+        // Customize form title based on campaign
+        if (formMeta.button_text) {
+            document.getElementById('formTitle').textContent = campaign.form_heading || campaign.name;
+            document.getElementById('formSubtitle').textContent = campaign.form_description || 'We\'ll put together a custom quote just for you.';
+        }
 
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('formContainer').style.display = '';

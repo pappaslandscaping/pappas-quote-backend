@@ -14736,10 +14736,11 @@ Block types:
 {"message": "Your conversational response here"}
 
 5. When the user asks to CREATE A CAMPAIGN (e.g. "create a spring cleanup campaign", "set up a campaign for..."):
-{"message": "Description of the campaign", "campaign": {"name": "Campaign Name", "description": "Brief campaign description", "subject": "Email subject line", "blocks": [same block format as email templates], "sms": "Optional SMS version under 160 chars", "audience": "all|monthly_plan|active"}}
+{"message": "Description of the campaign", "campaign": {"name": "Campaign Name", "description": "Brief campaign description", "subject": "Email subject line", "blocks": [same block format as email templates], "sms": "Optional SMS version under 160 chars", "audience": "all|monthly_plan|active", "form": {"heading": "Landing page headline", "description": "1-2 sentence description for the landing page", "button_text": "CTA button text like Book My Cleanup or Get My Quote", "services": ["Spring Cleanup", "Debris Removal"]}}}
 - audience: "all" = all customers, "monthly_plan" = monthly plan customers, "active" = customers with jobs in last 6 months
 - Always include email blocks AND an SMS version for campaigns
 - Campaign names should be catchy but professional (e.g. "Spring Cleanup 2026", "Fall Leaf Removal Special")
+- The "form" object customizes the public landing page that the {campaign_link} button leads to. "services" lists the specific services relevant to this campaign (used as pre-checked checkboxes on the form). "heading" and "description" appear at the top of the landing page. "button_text" is the form submit button text.
 
 Keep the tone professional but warm and friendly. Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
 
@@ -14787,7 +14788,7 @@ Keep the tone professional but warm and friendly. Use merge tags where appropria
 // AI-powered campaign creation
 app.post('/api/ai/create-campaign', async (req, res) => {
   try {
-    const { name, description, subject, body, sms_body, audience } = req.body;
+    const { name, description, subject, body, sms_body, audience, form } = req.body;
     if (!name) return res.status(400).json({ success: false, error: 'Campaign name is required' });
 
     // 1. Create email template for this campaign
@@ -14806,10 +14807,13 @@ app.post('/api/ai/create-campaign', async (req, res) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) + '-' + Date.now().toString(36);
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const campaignLink = baseUrl + '/campaign.html?c=' + slug;
+    const formHeading = (form && form.heading) || name;
+    const formDesc = (form && form.description) || description || '';
+    const formMeta = form ? JSON.stringify({ button_text: form.button_text, services: form.services }) : null;
     const campResult = await pool.query(
-      `INSERT INTO campaigns (name, description, slug, form_heading, form_description, template_id, form_url, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), NOW()) RETURNING *`,
-      [name, description || '', slug, name, description || '', templateId, campaignLink]
+      `INSERT INTO campaigns (name, description, slug, form_heading, form_description, form_fields, template_id, form_url, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', NOW(), NOW()) RETURNING *`,
+      [name, description || '', slug, formHeading, formDesc, formMeta, templateId, campaignLink]
     );
     const campaign = campResult.rows[0];
 

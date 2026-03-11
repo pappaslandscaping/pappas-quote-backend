@@ -576,7 +576,9 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
     const openToken = crypto.randomBytes(32).toString('hex');
     const trackingPixel = `<img src="${baseUrl}/api/email-track/${openToken}.png" width="1" height="1" style="display:none;" alt="">`;
     const trackedHtml = html.includes('</body>') ? html.replace('</body>', trackingPixel + '</body>') : html + trackingPixel;
-    const payload = { from: FROM_EMAIL, to: [to], subject, html: trackedHtml };
+    // Handle comma-separated emails: use first valid email only
+    const cleanTo = to.includes(',') ? to.split(',')[0].trim() : to.trim();
+    const payload = { from: FROM_EMAIL, to: [cleanTo], subject, html: trackedHtml };
     if (attachments) {
       payload.attachments = attachments;
       console.log(`📎 Email attachments: ${attachments.length} file(s), sizes: ${attachments.map(a => a.content ? Math.round(a.content.length * 0.75 / 1024) + 'KB' : 'unknown').join(', ')}`);
@@ -11598,7 +11600,8 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
         `SELECT MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1`, [req.params.id]
       );
       if (timeWindow.rows[0]?.earliest) {
-        // Find customers with a failed email_log entry who don't also have a later successful one
+        // Find customers with a failed email_log entry (rate limit only, not bounces/validation)
+        // who don't also have a later successful one
         const failedCount = await pool.query(`
           SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el
           INNER JOIN campaign_sends cs ON cs.customer_id = el.customer_id AND cs.campaign_id = $3
@@ -11606,6 +11609,7 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
           AND el.email_type IN ('campaign', 'broadcast')
           AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
           AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
+          AND (el.error_message IS NULL OR el.error_message NOT ILIKE '%validation_error%')
           AND NOT EXISTS (
             SELECT 1 FROM email_log el2
             WHERE el2.customer_id = el.customer_id

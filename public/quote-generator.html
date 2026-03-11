@@ -1277,10 +1277,12 @@ Photo documentation before/after available upon request.`
             if (!sn && /Top\s*Dressing/i.test(block))      sn = 'Top Dressing';
             if (!sn && /Mulching/i.test(block))            sn = 'Mulching';
             if (!sn && /Add.On.*Edging|Edging.*Add.On/i.test(block)) sn = 'Edging (Add-On)';
+            if (!sn && /Bed\s*Maintenance/i.test(block))    sn = 'Bed Maintenance';
             if (!sn && /Bed\s*Cleanup/i.test(block))       sn = 'Backyard Bed Cleanup';
             if (!sn && /Bed\s*Edging/i.test(block))        sn = 'Bed Edging';
             if (!sn && /Shrub.*Hedge.*Trim|Hedge.*Shrub.*Trim/i.test(block)) sn = 'Shrub & Hedge Trimming';
-            if (!sn && /Shrub.*Trim/i.test(block))         sn = 'Shrub Trimming (Per Occurrence)';
+            // Match "Shrub Trimming" only in service name (first line), not in description text
+            if (!sn && /^Shrub\s*Trim/im.test(block))     sn = 'Shrub Trimming (Per Occurrence)';
             if (!sn && /Weed\s*Control.*Monthly/i.test(block)) sn = 'Weed Control (Monthly)';
             if (!sn && /Weed\s*Control/i.test(block))      sn = 'Weed Control (Per Visit)';
             if (!sn && /Power\s*Wash/i.test(block))        sn = 'Power Washing';
@@ -1332,10 +1334,33 @@ Photo documentation before/after available upon request.`
                 const blockStart = i === 0 ? 0 : serviceAmounts[i - 1].endIndex;
                 const blockEnd = serviceAmounts[i].index;
                 const block = text.substring(blockStart, blockEnd);
-                const serviceName = detectSvcName(block, i);
+                // Extract the actual service title — look for it near the end of the block
+                const pLines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                let pRawTitle = null;
+                for (let j = pLines.length - 1; j >= 0; j--) {
+                    const line = pLines[j];
+                    if (/^\d+[\.\)]/.test(line)) continue;
+                    if (/^(PREPARED|QUOTE|Date:|Valid|Quote\s*#|SERVICE|AMOUNT|Services Included)/i.test(line)) continue;
+                    if (/^(Pappas|Quality Care|pappaslandscaping|hello@|^\(?\d{3}\)?)/i.test(line)) continue;
+                    if (line.length > 80) continue;
+                    pRawTitle = line;
+                    break;
+                }
+                const detectedName = detectSvcName(block, i);
+                // Prefer raw title when it exists and detected name isn't an exact SERVICES match
+                let serviceName;
+                if (pRawTitle && SERVICES.includes(pRawTitle)) {
+                    serviceName = pRawTitle;
+                } else if (pRawTitle && SERVICES.includes(detectedName)) {
+                    serviceName = detectedName;
+                } else if (pRawTitle) {
+                    serviceName = pRawTitle;
+                } else {
+                    serviceName = detectedName;
+                }
                 const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
                 services.push({ name: serviceName, rate: serviceAmounts[i].value, desc });
-                console.log(`[PappasQuote] "${serviceName}" = $${serviceAmounts[i].value}`);
+                console.log(`[PappasQuote] "${serviceName}" (raw: "${pRawTitle}") = $${serviceAmounts[i].value}`);
             }
         } else {
             // ── Format B: Jobber Estimate ──
@@ -1369,10 +1394,53 @@ Photo documentation before/after available upon request.`
             for (let i = 0; i < prices.length; i++) {
                 const blockStart = i === 0 ? 0 : prices[i - 1].endIndex;
                 const block = searchText.substring(blockStart, prices[i].index);
-                const serviceName = detectSvcName(block, i);
-                const desc = SERVICE_DESCRIPTIONS[serviceName] || '';
+                // Extract the actual service title from the block — it's typically the last
+                // non-empty, non-numeric, non-address line before the description starts
+                const blockLines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                let rawTitle = null;
+                for (let j = blockLines.length - 1; j >= 0; j--) {
+                    const line = blockLines[j];
+                    // Skip lines that are clearly not service titles
+                    if (/^\d+[\.\)]/.test(line)) continue; // numbered description items
+                    if (/^Property Address/i.test(line)) continue;
+                    if (/^(Pappas|PO Box|Lakewood|Customer|Estimate|Date|Description|Cost)/i.test(line)) continue;
+                    if (/^\d{3}[\-\.]/.test(line)) continue; // phone numbers
+                    if (/^[\d,]+\.\d{2}$/.test(line)) continue; // bare prices
+                    if (line.length > 80) continue; // too long for a title
+                    // This looks like a service title
+                    rawTitle = line;
+                    break;
+                }
+                // Try to match to a known service first, but use raw title as fallback
+                const detectedName = detectSvcName(block, i);
+                const isGenericFallback = detectedName.startsWith('Service ');
+                // Use raw title if detection gave generic fallback, or if raw title differs
+                // and is a real service name from the PDF (not just keyword guessing)
+                let serviceName;
+                if (rawTitle && isGenericFallback) {
+                    serviceName = rawTitle;
+                } else if (rawTitle && SERVICES.includes(rawTitle)) {
+                    serviceName = rawTitle;
+                } else if (rawTitle && !SERVICES.includes(detectedName) && rawTitle !== detectedName) {
+                    // Raw title exists but detected name isn't in SERVICES either — prefer raw
+                    serviceName = rawTitle;
+                } else {
+                    serviceName = detectedName;
+                }
+                let desc = SERVICE_DESCRIPTIONS[serviceName] || '';
+                // If no predefined description, extract from PDF block text
+                if (!desc && rawTitle) {
+                    const titleIdx = block.lastIndexOf(rawTitle);
+                    if (titleIdx >= 0) {
+                        const afterTitle = block.substring(0, titleIdx).trim();
+                        // Get description lines (everything before the title in the block, which is the description from previous formatting)
+                        // Actually in Jobber format, desc comes AFTER title, before the price. The block is title + desc.
+                        const descLines = blockLines.filter(l => l !== rawTitle && !/^Property Address/i.test(l) && !/^(Pappas|PO Box|Lakewood|Customer|Estimate|Date|Description|Cost)/i.test(l) && !/^\d{3}[\-\.]/.test(l));
+                        desc = descLines.join('\n');
+                    }
+                }
                 services.push({ name: serviceName, rate: prices[i].rate, desc });
-                console.log(`[Jobber] "${serviceName}" = $${prices[i].rate} (${prices[i].unitRate} × ${prices[i].qty})`);
+                console.log(`[Jobber] "${serviceName}" (raw: "${rawTitle}", detected: "${detectedName}") = $${prices[i].rate}`);
             }
 
             // Validate: compare parsed sum to subtotal in PDF for early warning

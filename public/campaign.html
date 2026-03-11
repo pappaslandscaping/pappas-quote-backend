@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pappas & Co. Landscaping</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4&libraries=places"></script>
+    <script>
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__aw",d="__gmp",b="__",e=b+"esm",n=b+"gmsm",r=document,u=window;u=u[c]||(u[c]={});var v=u.maps||(u.maps={}),w=new Set,x=new URLSearchParams,y=()=>h||(h=new Promise(async(f,z)=>{await (a=r.createElement("script"));x.set("libraries",[...w]+"");for(k in g)x.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);x.set("callback",c+".maps."+d+l);a.src=`https://maps.${c}apis.com/maps/api/js?`+x;v[d+l]=f;a.onerror=()=>h=z(Error(p+" could not load."));a.nonce=r.querySelector("script[nonce]")?.nonce||"";r.head.append(a)}));v[l]?console.warn(p+" only loads once."):v[l]=(f,...z)=>w.add(f)&&y().then(()=>v[l](f,...z))})({key:"AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4",v:"weekly"});
+    </script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; background: #f5f6f0; color: #2e403d; min-height: 100vh; }
@@ -101,6 +103,9 @@
         .footer a { color: #2e403d; text-decoration: none; font-weight: 600; }
 
         .error-msg { color: #e53e3e; font-size: 12px; margin-top: 6px; display: none; text-align: center; }
+        /* Hide Google Maps error dialog — we only use Places Autocomplete, no map needed */
+        .gm-err-container, .gm-style iframe + div, div[style*="background-color: white"][style*="position: absolute"] > div > div:has(> a[href*="developers.google.com"]) { display: none !important; }
+        .dismissButton, .gm-err-title, .gm-err-message { display: none !important; }
         .loading { text-align: center; padding: 80px 20px; color: #6b7c78; font-size: 14px; }
 
         @media (max-width: 768px) {
@@ -320,20 +325,24 @@ function toggleExtraServices() {
 }
 
 // ─── Google Places Autocomplete on address ────────────────
-function initAddressAutocomplete() {
+async function initAddressAutocomplete() {
     const input = document.getElementById('fAddress');
-    if (!window.google || !google.maps || !google.maps.places) return;
-    const autocomplete = new google.maps.places.Autocomplete(input, {
-        componentRestrictions: { country: 'us' },
-        types: ['address'],
-        fields: ['formatted_address']
-    });
-    autocomplete.addListener('place_changed', function() {
-        const place = autocomplete.getPlace();
-        if (place && place.formatted_address) {
-            input.value = place.formatted_address;
-        }
-    });
+    try {
+        const { Autocomplete } = await google.maps.importLibrary('places');
+        const autocomplete = new Autocomplete(input, {
+            componentRestrictions: { country: 'us' },
+            types: ['address'],
+            fields: ['formatted_address']
+        });
+        autocomplete.addListener('place_changed', function() {
+            const place = autocomplete.getPlace();
+            if (place && place.formatted_address) {
+                input.value = place.formatted_address;
+            }
+        });
+    } catch(e) {
+        // Places API unavailable — address field still works as plain text
+    }
 }
 
 async function init() {

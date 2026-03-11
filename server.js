@@ -11598,8 +11598,8 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
           SELECT COUNT(*) as failed FROM email_log el
           WHERE el.status = 'failed'
           AND el.email_type = 'campaign'
-          AND el.created_at >= $1::timestamptz - INTERVAL '1 hour'
-          AND el.created_at <= $2::timestamptz + INTERVAL '1 hour'
+          AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
+          AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
           AND NOT EXISTS (
             SELECT 1 FROM campaign_sends cs
             WHERE cs.campaign_id = $3 AND cs.customer_id = el.customer_id
@@ -11690,8 +11690,8 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
         FROM email_log el
         WHERE el.status = 'failed'
         AND el.email_type = 'campaign'
-        AND el.created_at >= $1::timestamptz - INTERVAL '1 hour'
-        AND el.created_at <= $2::timestamptz + INTERVAL '1 hour'
+        AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
+        AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
         AND NOT EXISTS (
           SELECT 1 FROM campaign_sends cs
           WHERE cs.campaign_id = $3 AND cs.customer_id = el.customer_id

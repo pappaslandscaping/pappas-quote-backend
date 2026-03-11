@@ -7,6 +7,11 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
     <style>
+        .engagement-stat:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+            transform: translateY(-2px);
+        }
+
         /* ─── Stats Row ─────────────────────────────────────── */
         .stats-row {
             display: grid;
@@ -1016,23 +1021,23 @@
             <!-- Email Engagement Stats -->
             <div id="engagementSection" style="display:none">
                 <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:20px;">
-                    <div class="table-card" style="padding:20px;text-align:center;">
+                    <div class="table-card engagement-stat" style="padding:20px;text-align:center;cursor:pointer;transition:box-shadow 0.15s,transform 0.15s;" onclick="clickStat('')" title="Show all recipients">
                         <div style="font-size:28px;font-weight:700;color:var(--gray-700);" id="statSent">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Sent</div>
                     </div>
-                    <div class="table-card" style="padding:20px;text-align:center;">
+                    <div class="table-card engagement-stat" style="padding:20px;text-align:center;cursor:pointer;transition:box-shadow 0.15s,transform 0.15s;" onclick="clickStat('opened')" title="Show opened">
                         <div style="font-size:28px;font-weight:700;color:#16a34a;" id="statOpens">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Opens (<span id="statOpenRate">0</span>%)</div>
                     </div>
-                    <div class="table-card" style="padding:20px;text-align:center;">
+                    <div class="table-card engagement-stat" style="padding:20px;text-align:center;cursor:pointer;transition:box-shadow 0.15s,transform 0.15s;" onclick="clickStat('clicked')" title="Show clicked">
                         <div style="font-size:28px;font-weight:700;color:#2563eb;" id="statClicks">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Clicks (<span id="statClickRate">0</span>%)</div>
                     </div>
-                    <div class="table-card" style="padding:20px;text-align:center;">
+                    <div class="table-card engagement-stat" style="padding:20px;text-align:center;cursor:pointer;transition:box-shadow 0.15s,transform 0.15s;" onclick="clickStat('not_opened')" title="Show not opened">
                         <div style="font-size:28px;font-weight:700;color:var(--gray-700);" id="statNotOpened">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Not Opened</div>
                     </div>
-                    <div class="table-card" style="padding:20px;text-align:center;" id="statUnsubCard">
+                    <div class="table-card engagement-stat" style="padding:20px;text-align:center;cursor:pointer;transition:box-shadow 0.15s,transform 0.15s;" id="statUnsubCard" onclick="clickStat('unsubscribed')" title="Show unsubscribed">
                         <div style="font-size:28px;font-weight:700;color:#e53e3e;" id="statUnsubs">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Unsubscribed</div>
                     </div>
@@ -1480,6 +1485,7 @@ function renderRecipients(filtered) {
 
 function filterRecipients() {
     const filter = document.getElementById('recipientFilter').value;
+    highlightStatCard(filter);
     if (!filter) return renderRecipients();
     const filtered = campaignSends.filter(s => {
         if (filter === 'opened') return s.opened_at;
@@ -1489,6 +1495,30 @@ function filterRecipients() {
         return true;
     });
     renderRecipients(filtered);
+}
+
+function clickStat(filter) {
+    const sel = document.getElementById('recipientFilter');
+    sel.value = filter;
+    filterRecipients();
+    // Scroll to recipients table
+    document.getElementById('recipientFilter').closest('.table-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function highlightStatCard(activeFilter) {
+    document.querySelectorAll('.engagement-stat').forEach(card => {
+        card.style.outline = 'none';
+        card.style.outlineOffset = '';
+    });
+    const filterMap = { '': 0, 'opened': 1, 'clicked': 2, 'not_opened': 3, 'unsubscribed': 4 };
+    const idx = filterMap[activeFilter];
+    if (idx !== undefined) {
+        const cards = document.querySelectorAll('.engagement-stat');
+        if (cards[idx]) {
+            cards[idx].style.outline = '2px solid var(--green)';
+            cards[idx].style.outlineOffset = '-2px';
+        }
+    }
 }
 
 // Load submissions for a campaign

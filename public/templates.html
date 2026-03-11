@@ -1858,7 +1858,16 @@ async function createAiCampaign(andSend) {
             }
         } else {
             showToast('Campaign "' + c.name + '" created!', 'success');
-            addChatBubble('assistant', '<span style="color:#16a34a;">Campaign "' + escHtml(c.name) + '" created!</span><br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
+            addChatBubble('assistant', '<span style="color:#16a34a;">Campaign "' + escHtml(c.name) + '" created!</span> The email template is loaded below — edit it however you like, then save when you\'re happy with it.<br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
+        }
+
+        // Reload templates and auto-select the new campaign template for editing
+        if (templateId) {
+            // Switch to Marketing category so the new template is visible in the sidebar
+            const marketingBtn = document.querySelector('.category-pill[data-cat="marketing"]');
+            if (marketingBtn) setCategory('marketing', marketingBtn);
+            await loadTemplates();
+            selectTemplate(templateId);
         }
     } catch (err) {
         showToast('Error: ' + err.message, 'error');

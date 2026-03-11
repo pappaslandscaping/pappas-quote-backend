@@ -11570,7 +11570,7 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
           results.sent++;
         }
         // Rate limit: ~2 emails/sec to avoid Resend 429 errors
-        await delay(600);
+        await delay(1200);
       } catch(e) { results.errors++; }
     }
     // Update campaign stats
@@ -11586,8 +11586,8 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
 app.get('/api/campaigns/:id/send-history', async (req, res) => {
   try {
     const [sends, stats] = await Promise.all([
-      pool.query(`SELECT cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
-      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
+      pool.query(`SELECT DISTINCT ON (cs.customer_id) cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.customer_id, cs.sent_at DESC`, [req.params.id]),
+      pool.query(`SELECT COUNT(DISTINCT customer_id) as total, COUNT(DISTINCT CASE WHEN opened_at IS NOT NULL THEN customer_id END) as opens, COUNT(DISTINCT CASE WHEN clicked_at IS NOT NULL THEN customer_id END) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
     ]);
     // Count failed sends: email_log entries with status='failed' and email_type='campaign'
     // that don't have a matching campaign_sends entry (failed emails never get a campaign_sends row)
@@ -11725,7 +11725,7 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
           results.resent++;
         }
         // Rate limit: ~2 emails/sec
-        await delay(600);
+        await delay(1200);
       } catch (e) {
         console.error(`Resend error for customer ${cust.id}:`, e.message);
         results.errors++;
@@ -12104,7 +12104,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
         }
       }
       // Rate limit: ~2 emails/sec to avoid Resend 429 errors
-      await delay(600);
+      await delay(1200);
     }
 
     // Update campaign stats if linked

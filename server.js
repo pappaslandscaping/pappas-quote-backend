@@ -14644,7 +14644,10 @@ app.post('/api/ai/chat', async (req, res) => {
 
     const availableServices = Object.keys(SERVICE_DESCRIPTIONS);
 
+    const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const systemPrompt = `You are the AI assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Greater Cleveland area).
+
+Today's date is ${todayStr}. Always use the current year (${new Date().getFullYear()}) when referencing dates, seasons, or campaigns.
 
 You help the business owner and staff with:
 - Answering questions about landscaping services, pricing, and scheduling
@@ -14699,7 +14702,10 @@ app.post('/api/ai/generate-template', async (req, res) => {
     const { prompt, type, action, history, apply } = req.body;
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
 
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const systemPrompt = `You are an interactive AI template assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Greater Cleveland).
+
+Today's date is ${today}. Always use the current year (${new Date().getFullYear()}) in campaign names, seasonal references, and content.
 
 You help create, edit, and improve email and SMS templates through conversation. You can:
 - Generate new email templates

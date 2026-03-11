@@ -11619,6 +11619,54 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
+// GET /api/campaigns/:id/debug-failed - Debug: check what failed email data exists
+app.get('/api/campaigns/:id/debug-failed', async (req, res) => {
+  try {
+    const campaignId = req.params.id;
+    const sends = await pool.query('SELECT COUNT(*) as cnt, MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1', [campaignId]);
+    const campaign = await pool.query('SELECT id, name, send_count FROM campaigns WHERE id = $1', [campaignId]);
+
+    // Check email_log for failed campaign emails around the time window
+    const timeInfo = sends.rows[0];
+    let failedLogs = { rows: [] };
+    let allCampaignLogs = { rows: [] };
+    if (timeInfo.earliest) {
+      failedLogs = await pool.query(`
+        SELECT COUNT(*) as cnt, email_type, status
+        FROM email_log
+        WHERE status = 'failed'
+        AND created_at >= $1::timestamptz - INTERVAL '2 hours'
+        AND created_at <= $2::timestamptz + INTERVAL '2 hours'
+        GROUP BY email_type, status
+      `, [timeInfo.earliest, timeInfo.latest]);
+
+      allCampaignLogs = await pool.query(`
+        SELECT COUNT(*) as cnt, email_type, status
+        FROM email_log
+        WHERE email_type = 'campaign'
+        AND created_at >= $1::timestamptz - INTERVAL '2 hours'
+        AND created_at <= $2::timestamptz + INTERVAL '2 hours'
+        GROUP BY email_type, status
+      `, [timeInfo.earliest, timeInfo.latest]);
+    }
+
+    // Check if there are ANY failed email_log entries at all
+    const allFailed = await pool.query(`SELECT COUNT(*) as cnt, email_type FROM email_log WHERE status = 'failed' GROUP BY email_type`);
+
+    // Check sample failed entries
+    const sampleFailed = await pool.query(`SELECT id, recipient_email, subject, email_type, status, customer_id, created_at FROM email_log WHERE status = 'failed' ORDER BY created_at DESC LIMIT 5`);
+
+    res.json({
+      campaign: campaign.rows[0],
+      campaign_sends: { count: timeInfo.cnt, earliest: timeInfo.earliest, latest: timeInfo.latest },
+      failed_in_window: failedLogs.rows,
+      campaign_logs_in_window: allCampaignLogs.rows,
+      all_failed_by_type: allFailed.rows,
+      sample_failed: sampleFailed.rows
+    });
+  } catch (error) { serverError(res, error); }
+});
+
 // POST /api/campaigns/:id/resend-failed - Resend to recipients whose emails failed (429 rate limit, etc.)
 app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
   const authHeader = req.headers['authorization'];

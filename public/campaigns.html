@@ -1013,6 +1013,57 @@
                 </div>
             </div>
 
+            <!-- Email Engagement Stats -->
+            <div id="engagementSection" style="display:none">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+                    <div class="table-card" style="padding:20px;text-align:center;">
+                        <div style="font-size:28px;font-weight:700;color:var(--gray-700);" id="statSent">0</div>
+                        <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Sent</div>
+                    </div>
+                    <div class="table-card" style="padding:20px;text-align:center;">
+                        <div style="font-size:28px;font-weight:700;color:#16a34a;" id="statOpens">0</div>
+                        <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Opens (<span id="statOpenRate">0</span>%)</div>
+                    </div>
+                    <div class="table-card" style="padding:20px;text-align:center;">
+                        <div style="font-size:28px;font-weight:700;color:#2563eb;" id="statClicks">0</div>
+                        <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Clicks (<span id="statClickRate">0</span>%)</div>
+                    </div>
+                    <div class="table-card" style="padding:20px;text-align:center;">
+                        <div style="font-size:28px;font-weight:700;color:var(--gray-700);" id="statNotOpened">0</div>
+                        <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Not Opened</div>
+                    </div>
+                </div>
+
+                <!-- Recipients Table -->
+                <div class="table-card">
+                    <div class="table-toolbar">
+                        <div class="table-toolbar-left">
+                            <h3>Recipients</h3>
+                            <select class="filter-select" id="recipientFilter" onchange="filterRecipients()">
+                                <option value="">All</option>
+                                <option value="opened">Opened</option>
+                                <option value="clicked">Clicked</option>
+                                <option value="not_opened">Not Opened</option>
+                            </select>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Opened</th>
+                                <th>Clicked</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recipientsTable">
+                            <tr><td colspan="5"><div class="loading-state"><div class="loading-spinner"></div>Loading...</div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Email Preview -->
             <div class="table-card" id="emailPreviewCard" style="display:none">
                 <div class="table-toolbar">
@@ -1348,8 +1399,85 @@ async function viewCampaign(campaignId) {
     // Load email template preview if campaign has a linked template
     loadEmailPreview(currentCampaign.template_id);
 
-    // Load submissions using campaign ID
-    await loadSubmissions(currentCampaign.id);
+    // Load submissions and engagement data
+    await Promise.all([
+        loadSubmissions(currentCampaign.id),
+        loadEngagement(currentCampaign.id)
+    ]);
+}
+
+// ─── Email Engagement ──────────────────────────────────────
+let campaignSends = [];
+
+async function loadEngagement(campaignId) {
+    const section = document.getElementById('engagementSection');
+    try {
+        const res = await fetch(`${API_BASE}/campaigns/${campaignId}/send-history`);
+        const data = await res.json();
+        if (!data.success) throw new Error();
+
+        campaignSends = data.sends || [];
+        const stats = data.stats || {};
+        const total = parseInt(stats.total) || 0;
+        const opens = parseInt(stats.opens) || 0;
+        const clicks = parseInt(stats.clicks) || 0;
+
+        if (total === 0) { section.style.display = 'none'; return; }
+
+        section.style.display = '';
+        document.getElementById('statSent').textContent = total;
+        document.getElementById('statOpens').textContent = opens;
+        document.getElementById('statClicks').textContent = clicks;
+        document.getElementById('statNotOpened').textContent = total - opens;
+        document.getElementById('statOpenRate').textContent = Math.round((opens / total) * 100);
+        document.getElementById('statClickRate').textContent = Math.round((clicks / total) * 100);
+
+        renderRecipients();
+    } catch (err) {
+        console.error('Error loading engagement:', err);
+        section.style.display = 'none';
+    }
+}
+
+function renderRecipients(filtered) {
+    const tbody = document.getElementById('recipientsTable');
+    const list = filtered || campaignSends;
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>No recipients</p></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map(s => {
+        const name = esc(s.customer_name || 'Unknown');
+        const email = esc(s.customer_email || '');
+        const openedHtml = s.opened_at
+            ? `<span style="color:#16a34a;font-weight:600;">&#10003; ${formatDateTime(s.opened_at)}</span>`
+            : `<span style="color:var(--gray-400);">--</span>`;
+        const clickedHtml = s.clicked_at
+            ? `<span style="color:#2563eb;font-weight:600;">&#10003; ${formatDateTime(s.clicked_at)}</span>`
+            : `<span style="color:var(--gray-400);">--</span>`;
+        const statusHtml = s.opened_at
+            ? `<span class="status-pill" style="background:#dcfce7;color:#16a34a;">Opened</span>`
+            : `<span class="status-pill" style="background:var(--gray-100);color:var(--gray-500);">Sent</span>`;
+        return `<tr>
+            <td>${name}</td>
+            <td>${email}</td>
+            <td>${statusHtml}</td>
+            <td>${openedHtml}</td>
+            <td>${clickedHtml}</td>
+        </tr>`;
+    }).join('');
+}
+
+function filterRecipients() {
+    const filter = document.getElementById('recipientFilter').value;
+    if (!filter) return renderRecipients();
+    const filtered = campaignSends.filter(s => {
+        if (filter === 'opened') return s.opened_at;
+        if (filter === 'clicked') return s.clicked_at;
+        if (filter === 'not_opened') return !s.opened_at;
+        return true;
+    });
+    renderRecipients(filtered);
 }
 
 // Load submissions for a campaign

@@ -297,7 +297,7 @@ function renderReviews() {
     REVIEWS.forEach((_, i) => {
         html += '<div class="review-dot' + (i === 0 ? ' active' : '') + '" onclick="showReview(' + i + ')"></div>';
     });
-    html += '</div><span class="review-count">' + REVIEWS.length + ' reviews</span></div>';
+    html += '</div></div>';
     container.innerHTML = html;
 
     // Auto-rotate every 6 seconds

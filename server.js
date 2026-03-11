@@ -4914,7 +4914,7 @@ app.post('/api/campaigns/submissions', async (req, res) => {
     sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
   } catch (error) {
     console.error('Error creating submission:', error.message, error.stack);
-    if (!res.headersSent) res.status(500).json({ success: false, error: 'Something went wrong. Please try again.', debug: error.message });
+    if (!res.headersSent) serverError(res, error);
   }
 });
 
@@ -11575,11 +11575,16 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
 // GET /api/campaigns/:id/send-history - Send stats
 app.get('/api/campaigns/:id/send-history', async (req, res) => {
   try {
-    const [sends, stats, failedCount] = await Promise.all([
+    const [sends, stats] = await Promise.all([
       pool.query(`SELECT cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
-      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id]),
-      pool.query(`SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el WHERE el.email_type = 'campaign' AND el.status = 'failed' AND el.customer_id IN (SELECT customer_id FROM campaign_sends WHERE campaign_id = $1) AND el.created_at >= (SELECT MIN(sent_at) FROM campaign_sends WHERE campaign_id = $1) - INTERVAL '1 hour'`, [req.params.id])
+      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
     ]);
+    // Count failed sends (separate query so it doesn't break stats if email_log schema differs)
+    let failed = 0;
+    try {
+      const failedCount = await pool.query(`SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el WHERE el.email_type = 'campaign' AND el.status = 'failed' AND el.customer_id IN (SELECT customer_id FROM campaign_sends WHERE campaign_id = $1) AND el.created_at >= (SELECT MIN(sent_at) FROM campaign_sends WHERE campaign_id = $1) - INTERVAL '1 hour'`, [req.params.id]);
+      failed = parseInt(failedCount.rows[0]?.failed) || 0;
+    } catch (e) { console.error('Failed count query error:', e.message); }
     // Mark unsubscribed recipients
     const enriched = sends.rows.map(s => ({
       ...s,
@@ -11587,7 +11592,6 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
       unsubscribed: s.tags ? s.tags.toLowerCase().includes('unsubscrib') : false
     }));
     const unsubCount = enriched.filter(s => s.unsubscribed).length;
-    const failed = parseInt(failedCount.rows[0]?.failed) || 0;
     res.json({ success: true, sends: enriched, stats: { ...stats.rows[0], unsubscribes: unsubCount, failed } });
   } catch (error) { serverError(res, error); }
 });
@@ -14003,6 +14007,7 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     // Ensure columns exist for older tables
+    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS name VARCHAR(255)`).catch(()=>{});
     await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS first_name VARCHAR(255)`).catch(()=>{});
     await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS last_name VARCHAR(255)`).catch(()=>{});
     await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS services TEXT[]`).catch(()=>{});

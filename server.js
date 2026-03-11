@@ -566,7 +566,7 @@ function requireAdmin(req, res, next) {
 app.use(requireAdmin);
 
 async function sendEmail(to, subject, html, attachments = null, meta = {}) {
-  if (!RESEND_API_KEY) return;
+  if (!RESEND_API_KEY) return { success: false, error: 'No API key' };
   try {
     // Generate open tracking token and inject tracking pixel
     const openToken = crypto.randomBytes(32).toString('hex');
@@ -577,6 +577,7 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
       payload.attachments = attachments;
       console.log(`📎 Email attachments: ${attachments.length} file(s), sizes: ${attachments.map(a => a.content ? Math.round(a.content.length * 0.75 / 1024) + 'KB' : 'unknown').join(', ')}`);
     }
+    console.log(`📧 Sending email to ${to}, subject: ${subject}`);
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -588,13 +589,18 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
       // Log failed email
       try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8,$9,$10)`,
         [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody, html, openToken]); } catch(e) {}
+      return { success: false, error: respBody };
     } else {
       console.log(`✅ Email sent to ${to}:`, respBody);
       // Log successful email with open tracking token
       try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8,$9)`,
         [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, trackedHtml, openToken]); } catch(e) {}
+      return { success: true };
     }
-  } catch (err) { console.error('Email failed:', err); }
+  } catch (err) {
+    console.error('Email failed:', err);
+    return { success: false, error: err.message };
+  }
 }
 
 // Helper: split address into street line + city/state/zip line
@@ -11881,15 +11887,20 @@ app.post('/api/broadcasts/send', async (req, res) => {
             let body = replaceTemplateVars(tmpl.body, vars);
             body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
             const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
-            await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
-            // Track in campaign_sends if campaign_id provided
-            if (campaign_id) {
-              await pool.query(
-                'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
-                [campaign_id, template_id, cust.id, cust.email, 'sent', trackingId]
-              );
+            const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
+            if (emailResult && !emailResult.success) {
+              console.error(`Broadcast email failed for ${cust.email}:`, emailResult.error);
+              results.email_errors++;
+            } else {
+              // Track in campaign_sends if campaign_id provided
+              if (campaign_id) {
+                await pool.query(
+                  'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
+                  [campaign_id, template_id, cust.id, cust.email, 'sent', trackingId]
+                );
+              }
+              results.email_sent++;
             }
-            results.email_sent++;
           } catch (e) {
             console.error(`Broadcast email error for customer ${cust.id}:`, e.message);
             results.email_errors++;

@@ -2787,7 +2787,7 @@ app.post('/api/quotes', async (req, res) => {
       <p><a href="${dashboardUrl}">View Dashboard</a></p>
     `;
 
-    sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${escapeHtml(fullName)}`, emailHtml);
+    sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${escapeHtml(fullName)}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
   } catch (error) {
     serverError(res, error);
   }
@@ -4911,7 +4911,7 @@ app.post('/api/campaigns/submissions', async (req, res) => {
       <br>
       <p><a href="${dashboardUrl}">View in Dashboard</a></p>
     `;
-    sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml);
+    sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
   } catch (error) {
     console.error('Error creating submission:', error);
     serverError(res, error);

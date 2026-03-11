@@ -29,6 +29,27 @@
         .testimonial p { font-size: 14px; color: #4a5c58; font-style: italic; line-height: 1.6; margin-bottom: 8px; }
         .testimonial .author { font-size: 13px; font-weight: 600; color: #2e403d; }
 
+        .reviews-carousel { margin-top: 8px; }
+        .reviews-carousel .review-card { background: white; border-radius: 12px; padding: 18px 20px; border-left: 4px solid #c9dd80; margin-bottom: 12px; display: none; animation: reviewFade 0.4s ease; }
+        .reviews-carousel .review-card.active { display: block; }
+        @keyframes reviewFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .review-stars { color: #f5b731; font-size: 14px; margin-bottom: 6px; letter-spacing: 1px; }
+        .review-text { font-size: 14px; color: #4a5c58; font-style: italic; line-height: 1.6; margin-bottom: 10px; }
+        .review-author { font-size: 13px; font-weight: 600; color: #2e403d; }
+        .review-source { font-size: 11px; color: #9aa8a4; font-weight: 400; }
+        .review-nav { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .review-dots { display: flex; gap: 6px; }
+        .review-dot { width: 8px; height: 8px; border-radius: 50%; background: #d1d9d7; cursor: pointer; transition: background 0.2s; }
+        .review-dot.active { background: #c9dd80; }
+        .review-count { font-size: 11px; color: #9aa8a4; margin-left: auto; }
+
+        .add-services-toggle { display: inline-flex; align-items: center; gap: 6px; color: #2e403d; font-size: 13px; font-weight: 600; cursor: pointer; padding: 8px 0; border: none; background: none; font-family: 'DM Sans', sans-serif; }
+        .add-services-toggle:hover { color: #5a7a1a; }
+        .add-services-toggle svg { width: 16px; height: 16px; transition: transform 0.2s; }
+        .add-services-toggle.open svg { transform: rotate(90deg); }
+        .add-services-extra { display: none; margin-top: 8px; }
+        .add-services-extra.open { display: block; }
+
         .form-card {
             background: white; border-radius: 16px; padding: 28px 24px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.08); border: 1px solid #e5e9e3;
@@ -125,7 +146,9 @@
             </div>
         </div>
 
-        <div id="reviewsSection"></div>
+        <div id="reviewsSection">
+            <div class="reviews-carousel" id="reviewsCarousel"></div>
+        </div>
     </div>
 
     <div class="form-card">
@@ -159,6 +182,16 @@
                 <div class="field" id="field-services" style="display:none">
                     <label>Services You're Interested In</label>
                     <div class="services-grid" id="servicesGrid"></div>
+                </div>
+
+                <div id="field-extra-services" style="display:none">
+                    <button type="button" class="add-services-toggle" id="extraServicesToggle" onclick="toggleExtraServices()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        Interested in other services too?
+                    </button>
+                    <div class="add-services-extra" id="extraServicesArea">
+                        <div class="services-grid" id="extraServicesGrid"></div>
+                    </div>
                 </div>
 
                 <div class="field" id="field-notes">
@@ -197,6 +230,15 @@ const SERVICES = [
 let campaign = null;
 const slug = new URLSearchParams(window.location.search).get('c');
 
+// ─── Real Google Reviews (first name + last initial) ──────
+const REVIEWS = [
+    { name: 'Ernie', text: 'Tim is a solid dude and always does a great job. Quick to respond when you need anything extra done or have any questions. 100% recommend, been with them for 3 years now.' },
+    { name: 'Marlene T.', text: 'This is a great company. I received awesome service. Did a great job on my lawn and my bushes at very reasonable prices. Would highly recommend them. The guys are very personable and friendly.' },
+    { name: 'Mary O.', text: 'Pappas Landscaping is reliable and they do a great job. We have been with them for a number of years and have always been pleased with their prompt responses to our requests and questions.' },
+];
+let currentReview = 0;
+let reviewTimer = null;
+
 // ─── Auto-capitalize name (title case each word) ─────────
 function autoCapitalizeName(el) {
     const pos = el.selectionStart;
@@ -217,6 +259,51 @@ function formatPhone(el) {
     el.value = formatted;
     const newLen = el.value.length;
     el.setSelectionRange(pos + (newLen - oldLen), pos + (newLen - oldLen));
+}
+
+// ─── Reviews carousel ─────────────────────────────────────
+function renderReviews() {
+    const container = document.getElementById('reviewsCarousel');
+    if (!container || REVIEWS.length === 0) return;
+
+    let html = '';
+    REVIEWS.forEach((r, i) => {
+        html += '<div class="review-card' + (i === 0 ? ' active' : '') + '" data-review="' + i + '">' +
+            '<div class="review-stars">\u2605\u2605\u2605\u2605\u2605</div>' +
+            '<div class="review-text">\u201c' + r.text + '\u201d</div>' +
+            '<div class="review-author">' + r.name + ' <span class="review-source">\u2014 Google Review</span></div>' +
+            '</div>';
+    });
+    html += '<div class="review-nav"><div class="review-dots">';
+    REVIEWS.forEach((_, i) => {
+        html += '<div class="review-dot' + (i === 0 ? ' active' : '') + '" onclick="showReview(' + i + ')"></div>';
+    });
+    html += '</div><span class="review-count">' + REVIEWS.length + ' reviews</span></div>';
+    container.innerHTML = html;
+
+    // Auto-rotate every 6 seconds
+    reviewTimer = setInterval(() => showReview((currentReview + 1) % REVIEWS.length), 6000);
+}
+
+function showReview(idx) {
+    currentReview = idx;
+    document.querySelectorAll('.review-card').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+    });
+    document.querySelectorAll('.review-dot').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+    });
+    // Reset timer
+    if (reviewTimer) clearInterval(reviewTimer);
+    reviewTimer = setInterval(() => showReview((currentReview + 1) % REVIEWS.length), 6000);
+}
+
+// ─── Extra services toggle ────────────────────────────────
+function toggleExtraServices() {
+    const toggle = document.getElementById('extraServicesToggle');
+    const area = document.getElementById('extraServicesArea');
+    toggle.classList.toggle('open');
+    area.classList.toggle('open');
 }
 
 // ─── Google Places Autocomplete on address ────────────────
@@ -259,11 +346,14 @@ async function init() {
         // Set custom button text
         if (formMeta.button_text) document.getElementById('submitBtn').textContent = formMeta.button_text;
 
-        // Services: only show checkboxes for general campaigns (no specific services)
-        // If campaign targets specific services, skip the selector entirely
-        if (!formMeta.services || formMeta.services.length === 0) {
-            const grid = document.getElementById('servicesGrid');
+        // Services: show checkboxes for general campaigns, or "add more" toggle for specific ones
+        const hasCampaignServices = formMeta.services && formMeta.services.length > 0;
+
+        function buildServiceChips(gridId, excludeServices) {
+            const grid = document.getElementById(gridId);
+            const exclude = (excludeServices || []).map(s => s.toLowerCase());
             SERVICES.forEach(svc => {
+                if (exclude.includes(svc.toLowerCase())) return;
                 const chip = document.createElement('label');
                 chip.className = 'svc-chip';
                 chip.innerHTML = '<input type="checkbox" value="' + svc + '"> ' + svc;
@@ -276,7 +366,16 @@ async function init() {
                 });
                 grid.appendChild(chip);
             });
+        }
+
+        if (!hasCampaignServices) {
+            // General campaign: show all service checkboxes
+            buildServiceChips('servicesGrid', []);
             document.getElementById('field-services').style.display = '';
+        } else {
+            // Campaign-specific: show "interested in other services?" toggle
+            buildServiceChips('extraServicesGrid', formMeta.services);
+            document.getElementById('field-extra-services').style.display = '';
         }
 
         document.getElementById('loadingState').style.display = 'none';
@@ -284,6 +383,7 @@ async function init() {
 
         // Init Google Places after content is visible
         initAddressAutocomplete();
+        renderReviews();
     } catch (e) {
         showError('Unable to load this page. Please try again later.');
     }
@@ -301,19 +401,26 @@ async function submitForm(e) {
     btn.disabled = true;
     btn.textContent = 'Submitting...';
 
-    // Get selected services from checkboxes, or use campaign's services if no checkboxes shown
+    // Get selected services from checkboxes + campaign's own services + any extra services
     let selectedServices = [];
-    const checkboxes = document.querySelectorAll('#servicesGrid input:checked');
-    if (checkboxes.length > 0) {
-        checkboxes.forEach(cb => selectedServices.push(cb.value));
-    } else {
-        // Campaign-specific services — auto-include them
-        let formMeta = {};
-        if (campaign.form_fields) {
-            try { formMeta = typeof campaign.form_fields === 'string' ? JSON.parse(campaign.form_fields) : campaign.form_fields; } catch(e) {}
-        }
-        if (formMeta.services) selectedServices = formMeta.services;
+    let formMeta = {};
+    if (campaign.form_fields) {
+        try { formMeta = typeof campaign.form_fields === 'string' ? JSON.parse(campaign.form_fields) : campaign.form_fields; } catch(e) {}
     }
+
+    // Main service checkboxes (general campaigns)
+    const mainChecked = document.querySelectorAll('#servicesGrid input:checked');
+    mainChecked.forEach(cb => selectedServices.push(cb.value));
+
+    // If campaign-specific, auto-include campaign services
+    if (formMeta.services && formMeta.services.length > 0 && mainChecked.length === 0) {
+        selectedServices = [...formMeta.services];
+    }
+
+    // Extra services (from "interested in other services?" toggle)
+    document.querySelectorAll('#extraServicesGrid input:checked').forEach(cb => {
+        if (!selectedServices.includes(cb.value)) selectedServices.push(cb.value);
+    });
 
     try {
         const res = await fetch('/api/campaigns/submissions', {

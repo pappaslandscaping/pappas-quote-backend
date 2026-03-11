@@ -1043,6 +1043,14 @@
                     </div>
                 </div>
 
+                <div id="resendFailedBar" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:none;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="width:18px;height:18px;flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <span style="font-size:13px;font-weight:600;color:#92400e;" id="resendFailedMsg">Some emails failed to deliver due to rate limiting.</span>
+                    </div>
+                    <button class="btn btn-sm" style="background:#f59e0b;color:white;border:none;font-size:12px;padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:600;" onclick="resendFailed()" id="resendFailedBtn">Resend Failed</button>
+                </div>
+
                 <!-- Recipients Table -->
                 <div class="table-card">
                     <div class="table-toolbar">
@@ -1445,6 +1453,16 @@ async function loadEngagement(campaignId) {
         document.getElementById('statUnsubs').textContent = unsubs;
         document.getElementById('statUnsubCard').style.display = unsubs > 0 ? '' : 'none';
 
+        // Show resend bar if there are failed emails
+        const failed = parseInt(stats.failed) || 0;
+        const resendBar = document.getElementById('resendFailedBar');
+        if (failed > 0) {
+            resendBar.style.display = 'flex';
+            document.getElementById('resendFailedMsg').textContent = `${failed} email${failed !== 1 ? 's' : ''} failed to deliver due to rate limiting.`;
+        } else {
+            resendBar.style.display = 'none';
+        }
+
         renderRecipients();
     } catch (err) {
         console.error('Error loading engagement:', err);
@@ -1518,6 +1536,38 @@ function highlightStatCard(activeFilter) {
             cards[idx].style.outline = '2px solid var(--green)';
             cards[idx].style.outlineOffset = '-2px';
         }
+    }
+}
+
+async function resendFailed() {
+    if (!currentCampaign) return;
+    const btn = document.getElementById('resendFailedBtn');
+    btn.disabled = true;
+    btn.textContent = 'Resending...';
+    try {
+        const res = await fetch(`${API_BASE}/campaigns/${currentCampaign.id}/resend-failed`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (data.success) {
+            const bar = document.getElementById('resendFailedBar');
+            bar.style.background = '#dcfce7';
+            bar.style.borderColor = '#16a34a';
+            document.getElementById('resendFailedMsg').style.color = '#166534';
+            document.getElementById('resendFailedMsg').textContent = `Done! ${data.resent} email${data.resent !== 1 ? 's' : ''} resent successfully.${data.errors > 0 ? ` ${data.errors} failed again.` : ''}`;
+            btn.style.display = 'none';
+            // Refresh engagement stats
+            setTimeout(() => loadEngagement(currentCampaign.id), 2000);
+        } else {
+            alert('Error: ' + (data.error || 'Failed to resend'));
+            btn.disabled = false;
+            btn.textContent = 'Resend Failed';
+        }
+    } catch (e) {
+        alert('Network error: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Resend Failed';
     }
 }
 

@@ -11571,9 +11571,10 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
 // GET /api/campaigns/:id/send-history - Send stats
 app.get('/api/campaigns/:id/send-history', async (req, res) => {
   try {
-    const [sends, stats] = await Promise.all([
+    const [sends, stats, failedCount] = await Promise.all([
       pool.query(`SELECT cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
-      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
+      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id]),
+      pool.query(`SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el WHERE el.email_type = 'campaign' AND el.status = 'failed' AND el.customer_id IN (SELECT customer_id FROM campaign_sends WHERE campaign_id = $1) AND el.created_at >= (SELECT MIN(sent_at) FROM campaign_sends WHERE campaign_id = $1) - INTERVAL '1 hour'`, [req.params.id])
     ]);
     // Mark unsubscribed recipients
     const enriched = sends.rows.map(s => ({
@@ -11582,7 +11583,120 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
       unsubscribed: s.tags ? s.tags.toLowerCase().includes('unsubscrib') : false
     }));
     const unsubCount = enriched.filter(s => s.unsubscribed).length;
-    res.json({ success: true, sends: enriched, stats: { ...stats.rows[0], unsubscribes: unsubCount } });
+    const failed = parseInt(failedCount.rows[0]?.failed) || 0;
+    res.json({ success: true, sends: enriched, stats: { ...stats.rows[0], unsubscribes: unsubCount, failed } });
+  } catch (error) { serverError(res, error); }
+});
+
+// POST /api/campaigns/:id/resend-failed - Resend to recipients whose emails failed (429 rate limit, etc.)
+app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ success: false, error: 'No token' });
+  try { jwt.verify(token, JWT_SECRET); } catch (err) { return res.status(401).json({ success: false, error: 'Invalid token' }); }
+
+  try {
+    const campaignId = req.params.id;
+
+    // Get campaign and template
+    const campaign = await pool.query('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
+    if (campaign.rows.length === 0) return res.status(404).json({ success: false, error: 'Campaign not found' });
+
+    const templateId = campaign.rows[0].template_id;
+    if (!templateId) return res.status(400).json({ success: false, error: 'No template associated with this campaign' });
+
+    const tmpl = await pool.query('SELECT * FROM email_templates WHERE id = $1', [templateId]);
+    if (tmpl.rows.length === 0) return res.status(400).json({ success: false, error: 'Template not found' });
+
+    // Get all campaign_sends for this campaign
+    const allSends = await pool.query('SELECT cs.customer_id, cs.customer_email FROM campaign_sends cs WHERE cs.campaign_id = $1', [campaignId]);
+
+    // Find which customer emails have a failed entry in email_log around the campaign send time
+    // Also find customers whose emails are in campaign_sends but have NO successful email_log entry
+    const failedEmails = await pool.query(`
+      SELECT DISTINCT el.recipient_email, el.customer_id
+      FROM email_log el
+      WHERE el.email_type = 'campaign' AND el.status = 'failed'
+      AND el.customer_id IN (SELECT customer_id FROM campaign_sends WHERE campaign_id = $1)
+      AND el.created_at >= (SELECT MIN(sent_at) FROM campaign_sends WHERE campaign_id = $1) - INTERVAL '1 hour'
+    `, [campaignId]);
+
+    // Also find campaign_sends that have no matching successful email_log entry at all
+    const noLogEntry = await pool.query(`
+      SELECT cs.customer_id, cs.customer_email
+      FROM campaign_sends cs
+      WHERE cs.campaign_id = $1
+      AND NOT EXISTS (
+        SELECT 1 FROM email_log el
+        WHERE el.customer_id = cs.customer_id
+        AND el.email_type = 'campaign'
+        AND el.status = 'sent'
+        AND el.created_at >= cs.sent_at - INTERVAL '1 hour'
+        AND el.subject = $2
+      )
+    `, [campaignId, tmpl.rows[0].subject]);
+
+    // Combine failed + missing into a unique set of customer_ids
+    const resendCustomerIds = new Set();
+    for (const row of failedEmails.rows) resendCustomerIds.add(row.customer_id);
+    for (const row of noLogEntry.rows) resendCustomerIds.add(row.customer_id);
+
+    if (resendCustomerIds.size === 0) {
+      return res.json({ success: true, message: 'No failed emails found', resent: 0, errors: 0 });
+    }
+
+    // Load customer data for resend (exclude unsubscribed)
+    const customers = await pool.query(
+      `SELECT * FROM customers WHERE id = ANY($1) AND (tags IS NULL OR LOWER(tags) NOT LIKE '%unsubscribe%')`,
+      [Array.from(resendCustomerIds)]
+    );
+
+    console.log(`📧 Resending campaign ${campaignId} to ${customers.rows.length} failed recipients`);
+
+    const campSlug = campaign.rows[0].slug;
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const campaignLink = campaign.rows[0].form_url || (campSlug ? `${baseUrl}/campaign.html?c=${campSlug}` : '#');
+    const template = tmpl.rows[0];
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+    const results = { resent: 0, errors: 0, skipped: 0 };
+
+    for (const cust of customers.rows) {
+      if (!cust.email) { results.skipped++; continue; }
+      try {
+        const vars = {
+          customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
+          customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
+          company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com',
+          campaign_link: campaignLink,
+          unsubscribe_email: encodeURIComponent(cust.email || '')
+        };
+        const subject = replaceTemplateVars(template.subject, vars);
+        let body = replaceTemplateVars(template.body, vars);
+        const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+        body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
+        const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
+        const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
+        if (emailResult && !emailResult.success) {
+          console.error(`Resend failed for ${cust.email}:`, emailResult.error);
+          results.errors++;
+        } else {
+          // Update tracking_id in campaign_sends for the new send
+          await pool.query(
+            'UPDATE campaign_sends SET tracking_id = $1, sent_at = NOW() WHERE campaign_id = $2 AND customer_id = $3',
+            [trackingId, campaignId, cust.id]
+          );
+          results.resent++;
+        }
+        // Rate limit: ~2 emails/sec
+        await delay(600);
+      } catch (e) {
+        console.error(`Resend error for customer ${cust.id}:`, e.message);
+        results.errors++;
+      }
+    }
+
+    console.log(`📧 Resend complete: ${results.resent} resent, ${results.errors} errors, ${results.skipped} skipped`);
+    res.json({ success: true, ...results, total_failed: resendCustomerIds.size });
   } catch (error) { serverError(res, error); }
 });
 

@@ -11598,7 +11598,7 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
         `SELECT MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1`, [req.params.id]
       );
       if (timeWindow.rows[0]?.earliest) {
-        // Find failed email_log entries whose customer_id matches a campaign_sends recipient
+        // Find customers with a failed email_log entry who don't also have a later successful one
         const failedCount = await pool.query(`
           SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el
           INNER JOIN campaign_sends cs ON cs.customer_id = el.customer_id AND cs.campaign_id = $3
@@ -11606,6 +11606,13 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
           AND el.email_type IN ('campaign', 'broadcast')
           AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
           AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
+          AND NOT EXISTS (
+            SELECT 1 FROM email_log el2
+            WHERE el2.customer_id = el.customer_id
+            AND el2.status = 'sent'
+            AND el2.email_type IN ('campaign', 'broadcast')
+            AND el2.sent_at > el.sent_at
+          )
         `, [timeWindow.rows[0].earliest, timeWindow.rows[0].latest, req.params.id]);
         failed = parseInt(failedCount.rows[0]?.failed) || 0;
       }
@@ -11657,6 +11664,13 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
         AND el.email_type IN ('campaign', 'broadcast')
         AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
         AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
+        AND NOT EXISTS (
+          SELECT 1 FROM email_log el2
+          WHERE el2.customer_id = el.customer_id
+          AND el2.status = 'sent'
+          AND el2.email_type IN ('campaign', 'broadcast')
+          AND el2.sent_at > el.sent_at
+        )
       `, [timeWindow.rows[0].earliest, timeWindow.rows[0].latest, campaignId]);
       for (const row of failedEmails.rows) resendCustomerIds.add(row.customer_id);
     }

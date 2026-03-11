@@ -1238,18 +1238,16 @@ Photo documentation before/after available upon request.`
         const services = [];
 
         // Also try to extract email and phone directly from PDF text
-        const emailMatch = text.match(/[\w._%+\-]+@[\w.\-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch && !document.getElementById('custEmail').value) {
-            // Skip Pappas's own email
-            if (!emailMatch[0].includes('pappas')) {
-                document.getElementById('custEmail').value = emailMatch[0];
-            }
+        const allEmails = text.match(/[\w._%+\-]+@[\w.\-]+\.[a-zA-Z]{2,}/g) || [];
+        const custEmail = allEmails.find(e => !e.includes('pappas'));
+        if (custEmail) {
+            document.getElementById('custEmail').value = custEmail;
         }
         const phoneMatch = text.match(/(\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4})/g);
         if (phoneMatch) {
             // Skip Pappas's own number (440-886-7318)
             const custPhone = phoneMatch.find(p => !p.includes('886-7318') && !p.includes('8867318'));
-            if (custPhone && !document.getElementById('custPhone').value) {
+            if (custPhone) {
                 document.getElementById('custPhone').value = custPhone;
             }
         }
@@ -1394,20 +1392,23 @@ Photo documentation before/after available upon request.`
             for (let i = 0; i < prices.length; i++) {
                 const blockStart = i === 0 ? 0 : prices[i - 1].endIndex;
                 const block = searchText.substring(blockStart, prices[i].index);
-                // Extract the actual service title from the block — it's typically the last
-                // non-empty, non-numeric, non-address line before the description starts
+                // Extract the actual service title — scan FORWARD from the end of the block
+                // In Jobber format: previous price → title line → description → next price
+                // The title is the first short, non-metadata line near the start of the block
                 const blockLines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let rawTitle = null;
-                for (let j = blockLines.length - 1; j >= 0; j--) {
+                // Scan forward, skipping header/metadata lines
+                for (let j = 0; j < blockLines.length; j++) {
                     const line = blockLines[j];
-                    // Skip lines that are clearly not service titles
                     if (/^\d+[\.\)]/.test(line)) continue; // numbered description items
                     if (/^Property Address/i.test(line)) continue;
-                    if (/^(Pappas|PO Box|Lakewood|Customer|Estimate|Date|Description|Cost)/i.test(line)) continue;
+                    if (/^(Pappas|PO Box|Lakewood|Customer|Estimate|Date|Description|Cost|www\.|http)/i.test(line)) continue;
                     if (/^\d{3}[\-\.]/.test(line)) continue; // phone numbers
                     if (/^[\d,]+\.\d{2}$/.test(line)) continue; // bare prices
-                    if (line.length > 80) continue; // too long for a title
-                    // This looks like a service title
+                    if (/[\w._%+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(line)) continue; // emails
+                    if (line.length > 60) continue; // too long for a title — likely description
+                    if (line.length < 3) continue; // too short
+                    // Looks like a service title (short, descriptive name)
                     rawTitle = line;
                     break;
                 }
@@ -2142,10 +2143,51 @@ Photo documentation before/after available upon request.`
 
                 console.log('Customer found:', customer.name, customer.email, customer.phone);
             } else if (data.success) {
-                // Customer not in database
-                if (hint) {
-                    hint.style.display = 'block';
-                    hint.textContent = 'Not in customer database — enter email/phone manually.';
+                // Customer not in database — auto-create if we have enough info
+                const email = document.getElementById('custEmail').value.trim();
+                const phone = document.getElementById('custPhone').value.trim();
+                const addr = document.getElementById('custAddr').value.trim();
+                if (email || phone) {
+                    try {
+                        const parts = name.split(' ');
+                        const firstName = parts[0] || '';
+                        const lastName = parts.slice(1).join(' ') || '';
+                        // Parse address into components
+                        let street = '', city = '', state = '', postal = '';
+                        if (addr) {
+                            const addrMatch = addr.match(/^(.+?)(?:,\s*(.+?))?(?:,?\s*([A-Z]{2}))?\s*(\d{5}(?:-\d{4})?)?$/i);
+                            if (addrMatch) {
+                                street = (addrMatch[1] || '').trim();
+                                city = (addrMatch[2] || '').trim();
+                                state = (addrMatch[3] || '').trim();
+                                postal = (addrMatch[4] || '').trim();
+                            } else {
+                                street = addr;
+                            }
+                        }
+                        const createRes = await fetch('/api/customers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                            body: JSON.stringify({ name, first_name: firstName, last_name: lastName, email, phone, street, city, state, postal_code: postal })
+                        });
+                        const createData = await createRes.json();
+                        if (createData.success || createData.id || createData.customer) {
+                            selectedCustomerId = createData.id || createData.customer?.id;
+                            if (hint) {
+                                hint.style.display = 'block';
+                                hint.style.color = '#166534';
+                                hint.textContent = 'Customer created automatically.';
+                            }
+                            console.log('Customer auto-created:', name, selectedCustomerId);
+                        }
+                    } catch (createErr) {
+                        console.error('Auto-create customer failed:', createErr);
+                    }
+                } else {
+                    if (hint) {
+                        hint.style.display = 'block';
+                        hint.textContent = 'Not in customer database — enter email/phone manually.';
+                    }
                 }
                 console.log('Customer not found in DB:', name);
             }

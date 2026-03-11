@@ -11597,7 +11597,7 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
         const failedCount = await pool.query(`
           SELECT COUNT(*) as failed FROM email_log el
           WHERE el.status = 'failed'
-          AND el.email_type = 'campaign'
+          AND el.email_type IN ('campaign', 'broadcast')
           AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
           AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
           AND NOT EXISTS (
@@ -11695,7 +11695,7 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
         SELECT DISTINCT el.customer_id
         FROM email_log el
         WHERE el.status = 'failed'
-        AND el.email_type = 'campaign'
+        AND el.email_type IN ('campaign', 'broadcast')
         AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
         AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
         AND NOT EXISTS (

@@ -532,7 +532,7 @@ app.post('/api/auth/change-password', async (req, res) => {
 const ADMIN_PUBLIC_PATHS = [
   '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',
   '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
-  '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
+  '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services', '/api/email-track/',
   '/api/config/', '/health', '/api/test-quote-pdf',
   '/api/quickbooks/auth', '/api/quickbooks/callback'
 ];
@@ -568,7 +568,11 @@ app.use(requireAdmin);
 async function sendEmail(to, subject, html, attachments = null, meta = {}) {
   if (!RESEND_API_KEY) return;
   try {
-    const payload = { from: FROM_EMAIL, to: [to], subject, html };
+    // Generate open tracking token and inject tracking pixel
+    const openToken = crypto.randomBytes(32).toString('hex');
+    const trackingPixel = `<img src="${baseUrl}/api/email-track/${openToken}.png" width="1" height="1" style="display:none;" alt="">`;
+    const trackedHtml = html.includes('</body>') ? html.replace('</body>', trackingPixel + '</body>') : html + trackingPixel;
+    const payload = { from: FROM_EMAIL, to: [to], subject, html: trackedHtml };
     if (attachments) {
       payload.attachments = attachments;
       console.log(`📎 Email attachments: ${attachments.length} file(s), sizes: ${attachments.map(a => a.content ? Math.round(a.content.length * 0.75 / 1024) + 'KB' : 'unknown').join(', ')}`);
@@ -582,13 +586,13 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
     if (!resp.ok) {
       console.error(`❌ Resend API error (${resp.status}):`, respBody);
       // Log failed email
-      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8,$9)`,
-        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody, html]); } catch(e) {}
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8,$9,$10)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody, html, openToken]); } catch(e) {}
     } else {
       console.log(`✅ Email sent to ${to}:`, respBody);
-      // Log successful email
-      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8)`,
-        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, html]); } catch(e) {}
+      // Log successful email with open tracking token
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8,$9)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, trackedHtml, openToken]); } catch(e) {}
     }
   } catch (err) { console.error('Email failed:', err); }
 }
@@ -12180,6 +12184,28 @@ app.delete('/api/notes/:id', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
+// ─── Email Open Tracking ──────────────────────────────────────────────────
+
+// 1x1 transparent PNG pixel
+const TRACKING_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+
+// Public endpoint — no auth needed. Called when email client loads the image.
+app.get('/api/email-track/:token.png', async (req, res) => {
+  try {
+    const { token } = req.params;
+    // Record the open (update first open timestamp + increment count)
+    await pool.query(
+      `UPDATE email_log SET opened_at = COALESCE(opened_at, NOW()), open_count = COALESCE(open_count, 0) + 1 WHERE open_token = $1`,
+      [token]
+    );
+  } catch (e) {
+    // Don't fail — tracking is best-effort
+  }
+  // Always return the pixel regardless of DB result
+  res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' });
+  res.send(TRACKING_PIXEL);
+});
+
 // ─── Email Log API ─────────────────────────────────────────────────────────
 
 // Global email log with filters
@@ -13611,6 +13637,9 @@ const EMAIL_LOG_TABLE = `CREATE TABLE IF NOT EXISTS email_log (
   quote_id INTEGER,
   status VARCHAR(20) DEFAULT 'sent',
   error_message TEXT,
+  open_token VARCHAR(64),
+  opened_at TIMESTAMP,
+  open_count INTEGER DEFAULT 0,
   sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
@@ -13961,6 +13990,10 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
 
   // Email log table
   try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
+  // Email open tracking columns
+  try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_token VARCHAR(64)`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_count INTEGER DEFAULT 0`); } catch(e) {}
 
   console.log('✅ Time tracking, dispatch templates, service programs, and email log tables ready');
   console.log('✅ All CopilotCRM column migrations ready');

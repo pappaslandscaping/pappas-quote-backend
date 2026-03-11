@@ -667,12 +667,17 @@ async function loadEmailHistory() {
         const emails = data.emails || [];
         const typeLabels = { invoice:'Invoice', quote:'Quote', late_fee:'Late Fee', payment_receipt:'Payment', welcome:'Welcome', followup:'Follow-up', apology:'Apology', invoice_reminder:'Reminder', general:'General', broadcast:'Broadcast', campaign:'Campaign' };
         window._customerEmails = emails;
-        document.getElementById('panel-emails').innerHTML = emails.length ? emails.map((e, i) => `
+        document.getElementById('panel-emails').innerHTML = emails.length ? emails.map((e, i) => {
+            const openInfo = e.opened_at
+                ? `<span style="color:#16a34a;font-size:11px;font-weight:600;margin-left:8px;" title="Opened ${fmtTime(new Date(e.opened_at))}${e.open_count > 1 ? ' (' + e.open_count + ' times)' : ''}">&#10003; Opened</span>`
+                : (e.status === 'sent' ? `<span style="color:var(--gray-400);font-size:11px;margin-left:8px;">Not opened</span>` : '');
+            return `
             <div class="list-item" style="cursor:pointer;" onclick="viewEmail(${i})">
                 <div class="tl-icon email-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
-                <div class="li-info" style="flex:1;"><div class="li-title">${esc(e.subject||'(no subject)')}<span class="email-type-pill ${e.email_type||''}">${typeLabels[e.email_type]||e.email_type||'Email'}</span></div><div class="li-sub">To: ${esc(e.recipient_email)} &middot; ${fmtTime(new Date(e.sent_at))}</div></div>
+                <div class="li-info" style="flex:1;"><div class="li-title">${esc(e.subject||'(no subject)')}<span class="email-type-pill ${e.email_type||''}">${typeLabels[e.email_type]||e.email_type||'Email'}</span>${openInfo}</div><div class="li-sub">To: ${esc(e.recipient_email)} &middot; ${fmtTime(new Date(e.sent_at))}</div></div>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--gray-400);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>`).join('') : '<div class="empty-list">No emails sent yet.</div>';
+            </div>`;
+        }).join('') : '<div class="empty-list">No emails sent yet.</div>';
     } catch (e) { document.getElementById('panel-emails').innerHTML = '<div class="empty-list">Unable to load.</div>'; }
 }
 
@@ -680,7 +685,8 @@ function viewEmail(idx) {
     const e = window._customerEmails[idx];
     if (!e) return;
     document.getElementById('emailModalSubject').textContent = e.subject || '(no subject)';
-    document.getElementById('emailModalMeta').textContent = 'To: ' + (e.recipient_email || '') + ' · ' + fmtTime(new Date(e.sent_at));
+    const openStatus = e.opened_at ? ' · Opened ' + fmtTime(new Date(e.opened_at)) + (e.open_count > 1 ? ' (' + e.open_count + 'x)' : '') : ' · Not opened yet';
+    document.getElementById('emailModalMeta').textContent = 'To: ' + (e.recipient_email || '') + ' · ' + fmtTime(new Date(e.sent_at)) + openStatus;
     const frame = document.getElementById('emailModalFrame');
     const noBody = document.getElementById('emailModalNoBody');
     if (e.html_body) {

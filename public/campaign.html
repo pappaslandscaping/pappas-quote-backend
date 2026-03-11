@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pappas & Co. Landscaping</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4&libraries=places"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; background: #f5f6f0; color: #2e403d; min-height: 100vh; }
 
-        .top-bar { background: #2e403d; padding: 14px 24px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .top-bar { background: #2e403d; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
         .top-bar img { height: 36px; }
-        .top-bar .brand { color: white; font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
-        .top-bar .phone { color: #c9dd80; font-size: 13px; font-weight: 600; text-decoration: none; margin-left: auto; }
+        .top-bar .phone { color: #c9dd80; font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; }
+        .top-bar .phone svg { width: 14px; height: 14px; }
 
         .page-layout { max-width: 1000px; margin: 0 auto; padding: 32px 20px 40px; display: grid; grid-template-columns: 1fr 400px; gap: 32px; align-items: start; }
 
@@ -84,7 +85,6 @@
         @media (max-width: 768px) {
             .page-layout { grid-template-columns: 1fr; padding: 20px 16px 32px; gap: 24px; }
             .info-side h1 { font-size: 28px; }
-            .top-bar .phone { display: none; }
             .two-col { grid-template-columns: 1fr; }
         }
     </style>
@@ -92,8 +92,11 @@
 <body>
 
 <div class="top-bar">
-    <div class="brand">pappas & company landscaping</div>
-    <a href="tel:4408867318" class="phone">(440) 886-7318</a>
+    <img src="https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png" alt="Pappas & Co. Landscaping" style="height:36px;">
+    <a href="tel:4408867318" class="phone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+        (440) 886-7318
+    </a>
 </div>
 
 <div class="loading" id="loadingState">Loading...</div>
@@ -118,14 +121,11 @@
             </div>
             <div class="badge-row">
                 <div class="badge-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
-                <span>Serving Greater Cleveland Since 2020</span>
+                <span>Locally Owned & Operated in Cleveland</span>
             </div>
         </div>
 
-        <div class="testimonial">
-            <p>"Pappas & Co. transformed our yard! Professional, on-time, and the results were incredible. Highly recommend."</p>
-            <div class="author">— Happy Customer, Lakewood OH</div>
-        </div>
+        <div id="reviewsSection"></div>
     </div>
 
     <div class="form-card">
@@ -138,22 +138,22 @@
                 <div class="two-col">
                     <div class="field" id="field-name">
                         <label for="fName">Full Name *</label>
-                        <input type="text" id="fName" placeholder="First and last name" required>
+                        <input type="text" id="fName" placeholder="First and last name" required autocomplete="name" oninput="autoCapitalizeName(this)">
                     </div>
                     <div class="field" id="field-phone">
                         <label for="fPhone">Phone *</label>
-                        <input type="tel" id="fPhone" placeholder="(440) 555-1234" required>
+                        <input type="tel" id="fPhone" placeholder="555-123-4567" required autocomplete="tel" oninput="formatPhone(this)">
                     </div>
                 </div>
 
                 <div class="field" id="field-email">
                     <label for="fEmail">Email *</label>
-                    <input type="email" id="fEmail" placeholder="your@email.com" required>
+                    <input type="email" id="fEmail" placeholder="your@email.com" required autocomplete="email">
                 </div>
 
                 <div class="field" id="field-address">
                     <label for="fAddress">Property Address *</label>
-                    <input type="text" id="fAddress" placeholder="123 Main St, Lakewood, OH 44107" required>
+                    <input type="text" id="fAddress" placeholder="Start typing your address..." required autocomplete="off">
                 </div>
 
                 <div class="field" id="field-services" style="display:none">
@@ -197,6 +197,45 @@ const SERVICES = [
 let campaign = null;
 const slug = new URLSearchParams(window.location.search).get('c');
 
+// ─── Auto-capitalize name (title case each word) ─────────
+function autoCapitalizeName(el) {
+    const pos = el.selectionStart;
+    const val = el.value;
+    el.value = val.replace(/\b\w/g, c => c.toUpperCase());
+    el.setSelectionRange(pos, pos);
+}
+
+// ─── Auto-format phone to XXX-XXX-XXXX ───────────────────
+function formatPhone(el) {
+    const pos = el.selectionStart;
+    const oldLen = el.value.length;
+    let digits = el.value.replace(/\D/g, '').slice(0, 10);
+    let formatted = '';
+    if (digits.length > 6) formatted = digits.slice(0, 3) + '-' + digits.slice(3, 6) + '-' + digits.slice(6);
+    else if (digits.length > 3) formatted = digits.slice(0, 3) + '-' + digits.slice(3);
+    else formatted = digits;
+    el.value = formatted;
+    const newLen = el.value.length;
+    el.setSelectionRange(pos + (newLen - oldLen), pos + (newLen - oldLen));
+}
+
+// ─── Google Places Autocomplete on address ────────────────
+function initAddressAutocomplete() {
+    const input = document.getElementById('fAddress');
+    if (!window.google || !google.maps || !google.maps.places) return;
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+        componentRestrictions: { country: 'us' },
+        types: ['address'],
+        fields: ['formatted_address']
+    });
+    autocomplete.addListener('place_changed', function() {
+        const place = autocomplete.getPlace();
+        if (place && place.formatted_address) {
+            input.value = place.formatted_address;
+        }
+    });
+}
+
 async function init() {
     if (!slug) { showError('Invalid campaign link.'); return; }
 
@@ -220,31 +259,31 @@ async function init() {
         // Set custom button text
         if (formMeta.button_text) document.getElementById('submitBtn').textContent = formMeta.button_text;
 
-        // Services chips — campaign-specific or full list
-        const servicesToShow = formMeta.services && formMeta.services.length > 0
-            ? [...formMeta.services, 'Other']
-            : SERVICES;
-        const preChecked = formMeta.services || [];
-        const grid = document.getElementById('servicesGrid');
-
-        servicesToShow.forEach(svc => {
-            const chip = document.createElement('label');
-            const isChecked = preChecked.includes(svc);
-            chip.className = 'svc-chip' + (isChecked ? ' checked' : '');
-            chip.innerHTML = '<input type="checkbox" value="' + svc + '"' + (isChecked ? ' checked' : '') + '> ' + svc;
-            chip.addEventListener('click', function(e) {
-                if (e.target.tagName === 'INPUT') return;
-                const cb = this.querySelector('input');
-                cb.checked = !cb.checked;
-                this.classList.toggle('checked', cb.checked);
-                e.preventDefault();
+        // Services: only show checkboxes for general campaigns (no specific services)
+        // If campaign targets specific services, skip the selector entirely
+        if (!formMeta.services || formMeta.services.length === 0) {
+            const grid = document.getElementById('servicesGrid');
+            SERVICES.forEach(svc => {
+                const chip = document.createElement('label');
+                chip.className = 'svc-chip';
+                chip.innerHTML = '<input type="checkbox" value="' + svc + '"> ' + svc;
+                chip.addEventListener('click', function(e) {
+                    if (e.target.tagName === 'INPUT') return;
+                    const cb = this.querySelector('input');
+                    cb.checked = !cb.checked;
+                    this.classList.toggle('checked', cb.checked);
+                    e.preventDefault();
+                });
+                grid.appendChild(chip);
             });
-            grid.appendChild(chip);
-        });
-        document.getElementById('field-services').style.display = '';
+            document.getElementById('field-services').style.display = '';
+        }
 
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('pageContent').style.display = '';
+
+        // Init Google Places after content is visible
+        initAddressAutocomplete();
     } catch (e) {
         showError('Unable to load this page. Please try again later.');
     }
@@ -262,8 +301,19 @@ async function submitForm(e) {
     btn.disabled = true;
     btn.textContent = 'Submitting...';
 
-    const selectedServices = [];
-    document.querySelectorAll('#servicesGrid input:checked').forEach(cb => selectedServices.push(cb.value));
+    // Get selected services from checkboxes, or use campaign's services if no checkboxes shown
+    let selectedServices = [];
+    const checkboxes = document.querySelectorAll('#servicesGrid input:checked');
+    if (checkboxes.length > 0) {
+        checkboxes.forEach(cb => selectedServices.push(cb.value));
+    } else {
+        // Campaign-specific services — auto-include them
+        let formMeta = {};
+        if (campaign.form_fields) {
+            try { formMeta = typeof campaign.form_fields === 'string' ? JSON.parse(campaign.form_fields) : campaign.form_fields; } catch(e) {}
+        }
+        if (formMeta.services) selectedServices = formMeta.services;
+    }
 
     try {
         const res = await fetch('/api/campaigns/submissions', {

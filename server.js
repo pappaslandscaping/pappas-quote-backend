@@ -4911,7 +4911,13 @@ app.post('/api/campaigns/submissions', async (req, res) => {
       <br>
       <p><a href="${dashboardUrl}">View in Dashboard</a></p>
     `;
-    sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
+    // Get campaign name for notification
+    let campaignName = campaign_id;
+    try {
+      const campRow = await pool.query('SELECT name FROM campaigns WHERE id = $1', [campaign_id]);
+      if (campRow.rows.length > 0) campaignName = campRow.rows[0].name;
+    } catch(e) {}
+    sendEmail(NOTIFICATION_EMAIL, `New ${campaignName} Request from ${fullName}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
   } catch (error) {
     console.error('Error creating submission:', error.message, error.stack);
     if (!res.headersSent) serverError(res, error);

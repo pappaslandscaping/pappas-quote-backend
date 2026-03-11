@@ -1430,7 +1430,7 @@ let campaignSends = [];
 async function loadEngagement(campaignId) {
     const section = document.getElementById('engagementSection');
     try {
-        const res = await fetch(`${API_BASE}/campaigns/${campaignId}/send-history`, { headers: getAuthHeaders() });
+        const res = await fetch(`${API_BASE}/campaigns/${campaignId}/send-history`);
         const data = await res.json();
         if (!data.success) throw new Error();
 
@@ -1547,7 +1547,7 @@ async function resendFailed() {
     try {
         const res = await fetch(`${API_BASE}/campaigns/${currentCampaign.id}/resend-failed`, {
             method: 'POST',
-            headers: getAuthHeaders()
+            headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
         if (data.success) {

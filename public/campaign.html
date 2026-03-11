@@ -463,7 +463,7 @@ async function submitForm(e) {
         if (!data.success) throw new Error(data.error || 'Submission failed');
 
         document.getElementById('formContent').style.display = 'none';
-        document.getElementById('successState').style.display = '';
+        document.getElementById('successState').style.display = 'block';
     } catch (err) {
         errEl.textContent = err.message || 'Something went wrong. Please try again.';
         errEl.style.display = '';

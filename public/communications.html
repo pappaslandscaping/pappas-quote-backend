@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="shared.css">
     <style>
         body { overflow: hidden; }
-        
+        .main { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
 
         /* Stats Bar */
         --stats-h: 89px;
@@ -39,6 +39,7 @@
             flex: 1;
             display: grid; grid-template-columns: 360px 1fr;
             overflow: hidden;
+            min-height: 0;
         }
 
         /* Feed Panel */

@@ -1162,10 +1162,19 @@ let selectedTemplate = null;
 const chipSelections = { tags: [], excludeTags: [], zips: [], cities: [] };
 
 // ─── Init ──────────────────────────────────────────────────
+// Track campaign context if redirected from campaigns page
+let broadcastCampaignId = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     loadFilterOptions();
     loadTemplates();
     refreshAudience();
+
+    // Check for campaign pre-fill from URL params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('campaign_id')) {
+        broadcastCampaignId = params.get('campaign_id');
+    }
 
     // Close dropdowns on outside click
     document.addEventListener('click', (e) => {
@@ -1211,6 +1220,15 @@ async function loadTemplates() {
                 opt.textContent = t.name || t.subject || 'Template #' + t.id;
                 sel.appendChild(opt);
             });
+
+            // Auto-select template if passed via URL (from campaign send)
+            const params = new URLSearchParams(window.location.search);
+            const preTemplateId = params.get('template_id');
+            if (preTemplateId) {
+                sel.value = preTemplateId;
+                // Trigger template change to load preview
+                sel.dispatchEvent(new Event('change'));
+            }
         }
     } catch (e) {
         console.warn('Could not load templates:', e);
@@ -1666,6 +1684,8 @@ async function sendBroadcast() {
             customer_ids: Array.from(selectedCustomerIds),
             filters: buildFilterPayload()
         };
+
+        if (broadcastCampaignId) payload.campaign_id = broadcastCampaignId;
 
         if (currentChannel === 'email' || currentChannel === 'both') {
             payload.template_id = document.getElementById('templateSelect').value || null;

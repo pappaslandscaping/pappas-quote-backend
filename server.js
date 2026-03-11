@@ -4913,8 +4913,8 @@ app.post('/api/campaigns/submissions', async (req, res) => {
     `;
     sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
   } catch (error) {
-    console.error('Error creating submission:', error);
-    serverError(res, error);
+    console.error('Error creating submission:', error.message, error.stack);
+    if (!res.headersSent) res.status(500).json({ success: false, error: 'Something went wrong. Please try again.', debug: error.message });
   }
 });
 

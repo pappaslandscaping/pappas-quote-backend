@@ -11642,11 +11642,17 @@ app.get('/api/campaigns/:id/debug-failed', async (req, res) => {
       result.email_log_by_status = stats.rows;
     } catch (e) { result.email_log_stats_error = e.message; }
 
-    // Step 4: sample recent email_log entries
+    // Step 4: sample FAILED email_log entries
     try {
-      const sample = await pool.query("SELECT * FROM email_log ORDER BY id DESC LIMIT 3");
-      result.sample_recent_logs = sample.rows.map(r => ({ id: r.id, email: r.recipient_email, type: r.email_type, status: r.status, customer_id: r.customer_id, created: r.created_at }));
+      const sample = await pool.query("SELECT id, recipient_email, subject, email_type, status, customer_id, sent_at FROM email_log WHERE status = 'failed' ORDER BY id DESC LIMIT 5");
+      result.sample_failed_logs = sample.rows;
     } catch (e) { result.sample_error = e.message; }
+
+    // Step 4b: failed entries grouped by email_type
+    try {
+      const byType = await pool.query("SELECT email_type, COUNT(*) as cnt FROM email_log WHERE status = 'failed' GROUP BY email_type");
+      result.failed_by_type = byType.rows;
+    } catch (e) { result.failed_by_type_error = e.message; }
 
     // Step 5: campaign info
     try {

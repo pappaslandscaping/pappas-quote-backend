@@ -14778,6 +14778,7 @@ TONE & WRITING STYLE — This is critical:
 - Think: a friendly text from someone you trust, not a marketing email from a startup
 - Good example: "Spring's here — let us handle the cleanup so your yard is ready for the season."
 - Bad example: "Winter's finally over and your yard probably looks like a disaster zone. Ours did too!"
+- For campaign/marketing emails, DO NOT put customer names in headlines or greetings. Some customers are businesses (e.g. "BMW Realty") and "Time for your spring cleanup, BMW Realty" sounds wrong. Just write the headline without a name. You can use "Hi {customer_first_name}," as a greeting line in the body if needed, but never in the title/heading.
 - Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
 
     // Build messages array with conversation history

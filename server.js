@@ -11594,16 +11594,14 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
         `SELECT MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1`, [req.params.id]
       );
       if (timeWindow.rows[0]?.earliest) {
+        // Find failed email_log entries whose customer_id matches a campaign_sends recipient
         const failedCount = await pool.query(`
-          SELECT COUNT(*) as failed FROM email_log el
+          SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el
+          INNER JOIN campaign_sends cs ON cs.customer_id = el.customer_id AND cs.campaign_id = $3
           WHERE el.status = 'failed'
           AND el.email_type IN ('campaign', 'broadcast')
           AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
           AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
-          AND NOT EXISTS (
-            SELECT 1 FROM campaign_sends cs
-            WHERE cs.campaign_id = $3 AND cs.customer_id = el.customer_id
-          )
         `, [timeWindow.rows[0].earliest, timeWindow.rows[0].latest, req.params.id]);
         failed = parseInt(failedCount.rows[0]?.failed) || 0;
       }
@@ -11694,14 +11692,11 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
       const failedEmails = await pool.query(`
         SELECT DISTINCT el.customer_id
         FROM email_log el
+        INNER JOIN campaign_sends cs ON cs.customer_id = el.customer_id AND cs.campaign_id = $3
         WHERE el.status = 'failed'
         AND el.email_type IN ('campaign', 'broadcast')
         AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
         AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
-        AND NOT EXISTS (
-          SELECT 1 FROM campaign_sends cs
-          WHERE cs.campaign_id = $3 AND cs.customer_id = el.customer_id
-        )
       `, [timeWindow.rows[0].earliest, timeWindow.rows[0].latest, campaignId]);
       for (const row of failedEmails.rows) resendCustomerIds.add(row.customer_id);
     }

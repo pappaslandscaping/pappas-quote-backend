@@ -9,109 +9,146 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', sans-serif; background: #f5f6f0; color: #2e403d; min-height: 100vh; }
 
-        .header {
-            background: #2e403d; padding: 20px 0; text-align: center;
-        }
-        .header img { height: 50px; }
-        .header-text { color: white; font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+        .top-bar { background: #2e403d; padding: 14px 24px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .top-bar img { height: 36px; }
+        .top-bar .brand { color: white; font-size: 16px; font-weight: 700; letter-spacing: 0.3px; }
+        .top-bar .phone { color: #c9dd80; font-size: 13px; font-weight: 600; text-decoration: none; margin-left: auto; }
 
-        .hero {
-            background: linear-gradient(135deg, #2e403d 0%, #3d5451 100%);
-            padding: 48px 24px 40px; text-align: center; color: white;
-        }
-        .hero h1 { font-size: 32px; font-weight: 700; margin-bottom: 12px; line-height: 1.2; }
-        .hero p { font-size: 16px; opacity: 0.85; max-width: 560px; margin: 0 auto; line-height: 1.6; }
+        .page-layout { max-width: 1000px; margin: 0 auto; padding: 32px 20px 40px; display: grid; grid-template-columns: 1fr 400px; gap: 32px; align-items: start; }
 
-        .form-container {
-            max-width: 520px; margin: -32px auto 40px; padding: 0 16px;
-        }
+        .info-side h1 { font-size: 36px; font-weight: 700; color: #2e403d; line-height: 1.2; margin-bottom: 16px; }
+        .info-side .desc { font-size: 16px; color: #4a5c58; line-height: 1.7; margin-bottom: 28px; }
+
+        .trust-badges { display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px; }
+        .badge-row { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #3d5451; }
+        .badge-icon { width: 36px; height: 36px; background: #e8f0d8; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .badge-icon svg { width: 18px; height: 18px; color: #2e403d; }
+
+        .testimonial { background: white; border-radius: 12px; padding: 20px; border-left: 4px solid #c9dd80; margin-top: 8px; }
+        .testimonial p { font-size: 14px; color: #4a5c58; font-style: italic; line-height: 1.6; margin-bottom: 8px; }
+        .testimonial .author { font-size: 13px; font-weight: 600; color: #2e403d; }
+
         .form-card {
-            background: white; border-radius: 16px; padding: 32px 28px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            background: white; border-radius: 16px; padding: 28px 24px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08); border: 1px solid #e5e9e3;
         }
-        .form-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #2e403d; }
-        .form-card .subtitle { font-size: 14px; color: #6b7c78; margin-bottom: 24px; }
+        .form-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; color: #2e403d; text-align: center; }
+        .form-card .subtitle { font-size: 13px; color: #6b7c78; margin-bottom: 20px; text-align: center; }
+        .form-card .free-tag { display: inline-block; background: #e8f0d8; color: #2e403d; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; margin-bottom: 12px; text-align: center; width: 100%; }
 
-        .field { margin-bottom: 18px; }
-        .field label { display: block; font-size: 13px; font-weight: 600; color: #2e403d; margin-bottom: 6px; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-size: 12px; font-weight: 600; color: #2e403d; margin-bottom: 5px; }
         .field input, .field textarea, .field select {
-            width: 100%; padding: 12px 14px; border: 1.5px solid #d1d9d7; border-radius: 10px;
-            font-family: 'DM Sans', sans-serif; font-size: 14px; color: #2e403d;
-            transition: border-color 0.2s; background: #fafbf9;
+            width: 100%; padding: 10px 12px; border: 1.5px solid #d1d9d7; border-radius: 8px;
+            font-family: 'DM Sans', sans-serif; font-size: 13px; color: #2e403d;
+            transition: border-color 0.2s; background: white;
         }
         .field input:focus, .field textarea:focus, .field select:focus {
-            outline: none; border-color: #c9dd80; background: white;
+            outline: none; border-color: #c9dd80; box-shadow: 0 0 0 3px rgba(201,221,128,0.15);
         }
-        .field textarea { resize: vertical; min-height: 80px; }
+        .field textarea { resize: vertical; min-height: 60px; }
 
-        .services-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
-        .svc-check { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1.5px solid #d1d9d7; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
-        .svc-check:hover { border-color: #c9dd80; background: #f9faf3; }
-        .svc-check input { accent-color: #2e403d; }
-        .svc-check.checked { border-color: #c9dd80; background: #f4f8e6; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        .services-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+        .svc-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border: 1.5px solid #d1d9d7; border-radius: 20px; cursor: pointer; font-size: 12px; transition: all 0.15s; user-select: none; }
+        .svc-chip:hover { border-color: #c9dd80; }
+        .svc-chip input { display: none; }
+        .svc-chip.checked { border-color: #96b33a; background: #f0f5dd; color: #2e403d; font-weight: 600; }
+        .svc-chip.checked::before { content: '\2713'; font-size: 11px; font-weight: 700; color: #5a7a1a; }
 
         .submit-btn {
-            width: 100%; padding: 14px; background: #c9dd80; color: #2e403d; border: none;
-            border-radius: 50px; font-family: 'DM Sans', sans-serif; font-size: 15px;
+            width: 100%; padding: 13px; background: #c9dd80; color: #2e403d; border: none;
+            border-radius: 50px; font-family: 'DM Sans', sans-serif; font-size: 14px;
             font-weight: 700; cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
-            margin-top: 8px;
+            margin-top: 12px;
         }
-        .submit-btn:hover { background: #b8cf6a; transform: translateY(-1px); }
-        .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .submit-btn:hover { background: #b8cf6a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(201,221,128,0.4); }
+        .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        .success-state { text-align: center; padding: 40px 20px; display: none; }
-        .success-state .check { width: 64px; height: 64px; background: #c9dd80; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
-        .success-state .check svg { width: 32px; height: 32px; color: #2e403d; }
-        .success-state h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; color: #2e403d; }
+        .form-footer { text-align: center; margin-top: 12px; font-size: 11px; color: #9aa8a4; }
+        .form-footer svg { width: 12px; height: 12px; vertical-align: -1px; margin-right: 3px; }
+
+        .success-state { text-align: center; padding: 32px 16px; display: none; }
+        .success-state .check { width: 56px; height: 56px; background: #c9dd80; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+        .success-state .check svg { width: 28px; height: 28px; color: #2e403d; }
+        .success-state h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #2e403d; }
         .success-state p { font-size: 14px; color: #6b7c78; line-height: 1.6; }
 
-        .footer { text-align: center; padding: 32px 24px; color: #6b7c78; font-size: 12px; }
+        .footer { text-align: center; padding: 24px; color: #9aa8a4; font-size: 11px; border-top: 1px solid #e5e9e3; }
         .footer a { color: #2e403d; text-decoration: none; font-weight: 600; }
 
-        .error-msg { color: #e53e3e; font-size: 13px; margin-top: 8px; display: none; }
-        .loading { display: none; text-align: center; padding: 60px; color: #6b7c78; }
+        .error-msg { color: #e53e3e; font-size: 12px; margin-top: 6px; display: none; text-align: center; }
+        .loading { text-align: center; padding: 80px 20px; color: #6b7c78; font-size: 14px; }
 
-        @media (max-width: 480px) {
-            .hero h1 { font-size: 24px; }
-            .hero { padding: 32px 20px 28px; }
-            .form-card { padding: 24px 20px; }
-            .services-grid { grid-template-columns: 1fr; }
+        @media (max-width: 768px) {
+            .page-layout { grid-template-columns: 1fr; padding: 20px 16px 32px; gap: 24px; }
+            .info-side h1 { font-size: 28px; }
+            .top-bar .phone { display: none; }
+            .two-col { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div class="header-text">Pappas & Co. Landscaping</div>
-</div>
-
-<div class="hero">
-    <h1 id="heroTitle">Get Your Free Quote</h1>
-    <p id="heroDesc">Fill out the form below and we'll get back to you within 24 hours with a custom quote for your property.</p>
+<div class="top-bar">
+    <div class="brand">pappas & company landscaping</div>
+    <a href="tel:4408867318" class="phone">(440) 886-7318</a>
 </div>
 
 <div class="loading" id="loadingState">Loading...</div>
 
-<div class="form-container" id="formContainer" style="display:none">
+<div class="page-layout" id="pageContent" style="display:none">
+    <div class="info-side">
+        <h1 id="heroTitle">Get Your Free Quote</h1>
+        <p class="desc" id="heroDesc">Fill out the form and we'll get back to you within 24 hours with a custom quote for your property.</p>
+
+        <div class="trust-badges">
+            <div class="badge-row">
+                <div class="badge-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                <span>Licensed & Insured</span>
+            </div>
+            <div class="badge-row">
+                <div class="badge-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+                <span>5-Star Rated on Google</span>
+            </div>
+            <div class="badge-row">
+                <div class="badge-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                <span>Fast Response — Usually Within 24 Hours</span>
+            </div>
+            <div class="badge-row">
+                <div class="badge-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+                <span>Serving Greater Cleveland Since 2020</span>
+            </div>
+        </div>
+
+        <div class="testimonial">
+            <p>"Pappas & Co. transformed our yard! Professional, on-time, and the results were incredible. Highly recommend."</p>
+            <div class="author">— Happy Customer, Lakewood OH</div>
+        </div>
+    </div>
+
     <div class="form-card">
         <div id="formContent">
-            <h2 id="formTitle">Tell Us About Your Project</h2>
-            <p class="subtitle" id="formSubtitle">We'll put together a custom quote just for you.</p>
+            <div class="free-tag">FREE ESTIMATE — NO OBLIGATION</div>
+            <h2 id="formTitle">Request Your Quote</h2>
+            <p class="subtitle" id="formSubtitle">Takes less than 2 minutes</p>
 
             <form id="campaignForm" onsubmit="submitForm(event)">
-                <div class="field" id="field-name">
-                    <label for="fName">Your Name *</label>
-                    <input type="text" id="fName" placeholder="First and last name" required>
+                <div class="two-col">
+                    <div class="field" id="field-name">
+                        <label for="fName">Full Name *</label>
+                        <input type="text" id="fName" placeholder="First and last name" required>
+                    </div>
+                    <div class="field" id="field-phone">
+                        <label for="fPhone">Phone *</label>
+                        <input type="tel" id="fPhone" placeholder="(440) 555-1234" required>
+                    </div>
                 </div>
 
                 <div class="field" id="field-email">
                     <label for="fEmail">Email *</label>
                     <input type="email" id="fEmail" placeholder="your@email.com" required>
-                </div>
-
-                <div class="field" id="field-phone">
-                    <label for="fPhone">Phone *</label>
-                    <input type="tel" id="fPhone" placeholder="(440) 555-1234" required>
                 </div>
 
                 <div class="field" id="field-address">
@@ -125,26 +162,29 @@
                 </div>
 
                 <div class="field" id="field-notes">
-                    <label for="fNotes">Additional Details</label>
-                    <textarea id="fNotes" placeholder="Tell us about your project, timeline, or any special requests..."></textarea>
+                    <label for="fNotes">Anything Else We Should Know?</label>
+                    <textarea id="fNotes" placeholder="Timeline, special requests, etc."></textarea>
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">Get My Free Quote</button>
                 <div class="error-msg" id="errorMsg"></div>
+                <div class="form-footer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    Your information is private and will never be shared.
+                </div>
             </form>
         </div>
 
         <div class="success-state" id="successState">
             <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
             <h3>You're All Set!</h3>
-            <p>Thanks for reaching out! We'll review your information and get back to you within 24 hours. Keep an eye on your email for your custom quote.</p>
+            <p>Thanks for reaching out! We'll review your request and get back to you within 24 hours.</p>
         </div>
     </div>
 </div>
 
 <div class="footer">
-    <p>&copy; 2026 Pappas & Co. Landscaping &middot; Cleveland, OH</p>
-    <p style="margin-top:4px"><a href="tel:4408867318">(440) 886-7318</a> &middot; <a href="mailto:hello@pappaslandscaping.com">hello@pappaslandscaping.com</a></p>
+    <p>&copy; 2026 Pappas & Co. Landscaping &middot; Cleveland, OH &middot; <a href="tel:4408867318">(440) 886-7318</a> &middot; <a href="mailto:hello@pappaslandscaping.com">hello@pappaslandscaping.com</a></p>
 </div>
 
 <script>
@@ -178,44 +218,40 @@ async function init() {
         }
 
         // Set custom button text
-        if (formMeta.button_text) {
-            document.getElementById('submitBtn').textContent = formMeta.button_text;
-        }
+        if (formMeta.button_text) document.getElementById('submitBtn').textContent = formMeta.button_text;
 
-        // Show services checkboxes — use campaign-specific services if available
-        const campaignServices = formMeta.services && formMeta.services.length > 0 ? formMeta.services : SERVICES;
-        const preChecked = formMeta.services || [];
-        const grid = document.getElementById('servicesGrid');
-
-        // If campaign has specific services, show them pre-checked plus "Other"
+        // Services chips — campaign-specific or full list
         const servicesToShow = formMeta.services && formMeta.services.length > 0
             ? [...formMeta.services, 'Other']
             : SERVICES;
+        const preChecked = formMeta.services || [];
+        const grid = document.getElementById('servicesGrid');
 
         servicesToShow.forEach(svc => {
-            const label = document.createElement('label');
+            const chip = document.createElement('label');
             const isChecked = preChecked.includes(svc);
-            label.className = 'svc-check' + (isChecked ? ' checked' : '');
-            label.innerHTML = '<input type="checkbox" value="' + svc + '"' + (isChecked ? ' checked' : '') + ' onchange="this.parentElement.classList.toggle(\'checked\', this.checked)"> ' + svc;
-            grid.appendChild(label);
+            chip.className = 'svc-chip' + (isChecked ? ' checked' : '');
+            chip.innerHTML = '<input type="checkbox" value="' + svc + '"' + (isChecked ? ' checked' : '') + '> ' + svc;
+            chip.addEventListener('click', function(e) {
+                if (e.target.tagName === 'INPUT') return;
+                const cb = this.querySelector('input');
+                cb.checked = !cb.checked;
+                this.classList.toggle('checked', cb.checked);
+                e.preventDefault();
+            });
+            grid.appendChild(chip);
         });
         document.getElementById('field-services').style.display = '';
 
-        // Customize form title based on campaign
-        if (formMeta.button_text) {
-            document.getElementById('formTitle').textContent = campaign.form_heading || campaign.name;
-            document.getElementById('formSubtitle').textContent = campaign.form_description || 'We\'ll put together a custom quote just for you.';
-        }
-
         document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('formContainer').style.display = '';
+        document.getElementById('pageContent').style.display = '';
     } catch (e) {
         showError('Unable to load this page. Please try again later.');
     }
 }
 
 function showError(msg) {
-    document.getElementById('loadingState').innerHTML = '<p style="color:#e53e3e">' + msg + '</p>';
+    document.getElementById('loadingState').innerHTML = '<p style="color:#e53e3e;font-size:15px;">' + msg + '</p>';
 }
 
 async function submitForm(e) {
@@ -234,7 +270,7 @@ async function submitForm(e) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                campaign_id: campaign.slug || campaign.name,
+                campaign_id: campaign.id,
                 name: document.getElementById('fName').value.trim(),
                 email: document.getElementById('fEmail').value.trim(),
                 phone: document.getElementById('fPhone').value.trim(),

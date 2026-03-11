@@ -524,7 +524,7 @@ app.post('/api/auth/change-password', async (req, res) => {
 const ADMIN_PUBLIC_PATHS = [
   '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',
   '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
-  '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
+  '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
   '/api/config/', '/health', '/api/test-quote-pdf',
   '/api/quickbooks/auth', '/api/quickbooks/callback'
 ];
@@ -4766,7 +4766,7 @@ app.post('/api/campaigns', async (req, res) => {
 app.get('/api/campaigns/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM campaigns WHERE id = $1 OR name = $1', [id]);
+    const result = await pool.query('SELECT * FROM campaigns WHERE id::text = $1 OR name = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Campaign not found' });
     }
@@ -4828,7 +4828,7 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
     const { id } = req.params;
     const { status, limit = 100, offset = 0 } = req.query;
     let query = 'SELECT * FROM campaign_submissions WHERE campaign_id = $1';
-    const params = [id];
+    const params = [String(id)];
     if (status) {
       query += ' AND status = $2';
       params.push(status);
@@ -4837,7 +4837,7 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
     params.push(limit, offset);
     const [result, countResult] = await Promise.all([
       pool.query(query, params),
-      pool.query('SELECT COUNT(*) as total FROM campaign_submissions WHERE campaign_id = $1', [id])
+      pool.query('SELECT COUNT(*) as total FROM campaign_submissions WHERE campaign_id = $1', [String(id)])
     ]);
     res.json({
       success: true,
@@ -11482,16 +11482,17 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
     if (template.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
     const tmpl = template.rows[0];
 
-    // Get target customers
+    // Get target customers (auto-exclude unsubscribed)
+    const unsubFilter = "AND (tags IS NULL OR LOWER(tags) NOT LIKE '%unsubscribe%')";
     let customers;
     if (customer_ids && customer_ids.length > 0) {
-      customers = await pool.query('SELECT * FROM customers WHERE id = ANY($1)', [customer_ids]);
+      customers = await pool.query(`SELECT * FROM customers WHERE id = ANY($1) ${unsubFilter}`, [customer_ids]);
     } else if (segment === 'all') {
-      customers = await pool.query('SELECT * FROM customers WHERE email IS NOT NULL AND email != \'\'');
+      customers = await pool.query(`SELECT * FROM customers WHERE email IS NOT NULL AND email != '' ${unsubFilter}`);
     } else if (segment === 'monthly_plan') {
-      customers = await pool.query('SELECT * FROM customers WHERE monthly_plan_amount > 0 AND email IS NOT NULL');
+      customers = await pool.query(`SELECT * FROM customers WHERE monthly_plan_amount > 0 AND email IS NOT NULL ${unsubFilter}`);
     } else if (segment === 'active') {
-      customers = await pool.query(`SELECT DISTINCT c.* FROM customers c JOIN scheduled_jobs j ON c.id = j.customer_id WHERE j.created_at >= NOW() - INTERVAL '6 months' AND c.email IS NOT NULL`);
+      customers = await pool.query(`SELECT DISTINCT c.* FROM customers c JOIN scheduled_jobs j ON c.id = j.customer_id WHERE j.created_at >= NOW() - INTERVAL '6 months' AND c.email IS NOT NULL ${unsubFilter.replace(/tags/g, 'c.tags')}`);
     } else {
       return res.status(400).json({ success: false, error: 'customer_ids or segment required' });
     }
@@ -11804,8 +11805,8 @@ app.post('/api/broadcasts/send', async (req, res) => {
       tmpl = templateResult.rows[0];
     }
 
-    // Load customers
-    const custResult = await pool.query('SELECT * FROM customers WHERE id = ANY($1)', [customer_ids]);
+    // Load customers (auto-exclude unsubscribed)
+    const custResult = await pool.query("SELECT * FROM customers WHERE id = ANY($1) AND (tags IS NULL OR LOWER(tags) NOT LIKE '%unsubscribe%')", [customer_ids]);
 
     // Load communication preferences for all target customers
     const prefsResult = await pool.query('SELECT * FROM customer_communication_prefs WHERE customer_id = ANY($1)', [customer_ids]);
@@ -12721,8 +12722,12 @@ app.get('/api/templates', async (req, res) => {
 
 app.get('/api/templates/:id', async (req, res) => {
   try {
-    await ensureTemplatesTable();
-    const result = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
+    // Check email_templates first (used by campaigns), then message_templates
+    let result = await pool.query('SELECT * FROM email_templates WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      await ensureTemplatesTable();
+      result = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
+    }
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, template: result.rows[0] });
   } catch (error) { serverError(res, error); }
@@ -13796,14 +13801,21 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       id SERIAL PRIMARY KEY,
       campaign_id VARCHAR(255),
       name VARCHAR(255),
+      first_name VARCHAR(255),
+      last_name VARCHAR(255),
       email VARCHAR(255),
       phone VARCHAR(50),
       address TEXT,
+      services TEXT[],
       status VARCHAR(30) DEFAULT 'new',
       notes TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Ensure columns exist for older tables
+    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS first_name VARCHAR(255)`).catch(()=>{});
+    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS last_name VARCHAR(255)`).catch(()=>{});
+    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS services TEXT[]`).catch(()=>{});
     console.log('✅ Campaign submissions table ready');
   } catch(e) { console.error('Campaign submissions table error:', e.message); }
 

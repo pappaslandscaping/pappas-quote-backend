@@ -11585,10 +11585,21 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
       pool.query(`SELECT cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
       pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
     ]);
-    // Count failed sends (separate query so it doesn't break stats if email_log schema differs)
+    // Count failed sends: campaign_sends with no matching successful email_log entry
     let failed = 0;
     try {
-      const failedCount = await pool.query(`SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el WHERE el.email_type = 'campaign' AND el.status = 'failed' AND el.customer_id IN (SELECT customer_id FROM campaign_sends WHERE campaign_id = $1) AND el.created_at >= (SELECT MIN(sent_at) FROM campaign_sends WHERE campaign_id = $1) - INTERVAL '1 hour'`, [req.params.id]);
+      const failedCount = await pool.query(`
+        SELECT COUNT(*) as failed FROM campaign_sends cs
+        WHERE cs.campaign_id = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM email_log el
+          WHERE el.customer_id = cs.customer_id
+          AND el.status = 'sent'
+          AND el.email_type IN ('campaign', 'broadcast')
+          AND el.created_at >= cs.sent_at - INTERVAL '1 hour'
+          AND el.created_at <= cs.sent_at + INTERVAL '1 hour'
+        )
+      `, [req.params.id]);
       failed = parseInt(failedCount.rows[0]?.failed) || 0;
     } catch (e) { console.error('Failed count query error:', e.message); }
     // Mark unsubscribed recipients
@@ -11622,20 +11633,7 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
     const tmpl = await pool.query('SELECT * FROM email_templates WHERE id = $1', [templateId]);
     if (tmpl.rows.length === 0) return res.status(400).json({ success: false, error: 'Template not found' });
 
-    // Get all campaign_sends for this campaign
-    const allSends = await pool.query('SELECT cs.customer_id, cs.customer_email FROM campaign_sends cs WHERE cs.campaign_id = $1', [campaignId]);
-
-    // Find which customer emails have a failed entry in email_log around the campaign send time
-    // Also find customers whose emails are in campaign_sends but have NO successful email_log entry
-    const failedEmails = await pool.query(`
-      SELECT DISTINCT el.recipient_email, el.customer_id
-      FROM email_log el
-      WHERE el.email_type = 'campaign' AND el.status = 'failed'
-      AND el.customer_id IN (SELECT customer_id FROM campaign_sends WHERE campaign_id = $1)
-      AND el.created_at >= (SELECT MIN(sent_at) FROM campaign_sends WHERE campaign_id = $1) - INTERVAL '1 hour'
-    `, [campaignId]);
-
-    // Also find campaign_sends that have no matching successful email_log entry at all
+    // Find campaign_sends that have no matching successful email_log entry
     const noLogEntry = await pool.query(`
       SELECT cs.customer_id, cs.customer_email
       FROM campaign_sends cs
@@ -11643,16 +11641,14 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
       AND NOT EXISTS (
         SELECT 1 FROM email_log el
         WHERE el.customer_id = cs.customer_id
-        AND el.email_type = 'campaign'
         AND el.status = 'sent'
+        AND el.email_type IN ('campaign', 'broadcast')
         AND el.created_at >= cs.sent_at - INTERVAL '1 hour'
-        AND el.subject = $2
+        AND el.created_at <= cs.sent_at + INTERVAL '1 hour'
       )
-    `, [campaignId, tmpl.rows[0].subject]);
+    `, [campaignId]);
 
-    // Combine failed + missing into a unique set of customer_ids
     const resendCustomerIds = new Set();
-    for (const row of failedEmails.rows) resendCustomerIds.add(row.customer_id);
     for (const row of noLogEntry.rows) resendCustomerIds.add(row.customer_id);
 
     if (resendCustomerIds.size === 0) {

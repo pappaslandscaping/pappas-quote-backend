@@ -11420,7 +11420,13 @@ app.post('/api/templates/preview', async (req, res) => {
 app.post('/api/templates/send-preview', async (req, res) => {
   try {
     const { template_id, slug, subject: directSubject, html_content: directHtml, to } = req.body;
-    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
+    // If this template belongs to a campaign, use its real campaign link
+    let campaignLink = '#preview';
+    if (template_id) {
+      const campRow = await pool.query('SELECT form_url FROM campaigns WHERE template_id = $1 LIMIT 1', [template_id]).catch(() => ({ rows: [] }));
+      if (campRow.rows.length > 0 && campRow.rows[0].form_url) campaignLink = campRow.rows[0].form_url;
+    }
+    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview', campaign_link: campaignLink, contract_link: '#preview' };
 
     let subject, body;
 

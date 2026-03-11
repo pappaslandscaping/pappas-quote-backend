@@ -11527,6 +11527,7 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
     const campaignLink = campResult.rows[0]?.form_url || (campSlug ? `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/campaign.html?c=${campSlug}` : '#');
 
     const results = { sent: 0, errors: 0 };
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
     for (const cust of customers.rows) {
       try {
         const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
@@ -11543,12 +11544,19 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
         const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
         const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
-        await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
-        await pool.query(
-          'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
-          [req.params.id, template_id, cust.id, cust.email, 'sent', trackingId]
-        );
-        results.sent++;
+        const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
+        if (emailResult && !emailResult.success) {
+          console.error(`Campaign email failed for ${cust.email}:`, emailResult.error);
+          results.errors++;
+        } else {
+          await pool.query(
+            'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
+            [req.params.id, template_id, cust.id, cust.email, 'sent', trackingId]
+          );
+          results.sent++;
+        }
+        // Rate limit: ~2 emails/sec to avoid Resend 429 errors
+        await delay(600);
       } catch(e) { results.errors++; }
     }
     // Update campaign stats
@@ -11845,6 +11853,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
     for (const p of prefsResult.rows) { prefsMap[p.customer_id] = p; }
 
     const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
 
     // Get campaign slug for campaign_link merge tag
@@ -11940,6 +11949,8 @@ app.post('/api/broadcasts/send', async (req, res) => {
           }
         }
       }
+      // Rate limit: ~2 emails/sec to avoid Resend 429 errors
+      await delay(600);
     }
 
     // Update campaign stats if linked

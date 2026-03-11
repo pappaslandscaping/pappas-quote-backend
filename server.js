@@ -123,6 +123,9 @@ const upload = multer({
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy (Railway runs behind a reverse proxy)
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
   credentials: true
@@ -569,6 +572,7 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
   if (!RESEND_API_KEY) return { success: false, error: 'No API key' };
   try {
     // Generate open tracking token and inject tracking pixel
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const openToken = crypto.randomBytes(32).toString('hex');
     const trackingPixel = `<img src="${baseUrl}/api/email-track/${openToken}.png" width="1" height="1" style="display:none;" alt="">`;
     const trackedHtml = html.includes('</body>') ? html.replace('</body>', trackingPixel + '</body>') : html + trackingPixel;

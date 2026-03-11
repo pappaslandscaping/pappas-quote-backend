@@ -14768,6 +14768,7 @@ Block types:
 
 TONE & WRITING STYLE — This is critical:
 - Write like a real small business owner, NOT like an AI trying to sound casual
+- DO NOT use em dashes (—). Use periods or commas instead.
 - DO NOT use forced humor, self-aware jokes ("weird, we know"), or try-hard casualness ("your yard probably looks like a disaster zone")
 - DO NOT use overly salesy language, excessive exclamation marks, or hype words
 - Keep it straightforward, sincere, and confident — like a professional who knows their craft

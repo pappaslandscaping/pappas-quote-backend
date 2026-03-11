@@ -14766,7 +14766,16 @@ Block types:
 - Campaign names should be catchy but professional (e.g. "Spring Cleanup 2026", "Fall Leaf Removal Special")
 - The "form" object customizes the public landing page that the {campaign_link} button leads to. "services" lists the specific services relevant to this campaign (used as pre-checked checkboxes on the form). "heading" and "description" appear at the top of the landing page. "button_text" is the form submit button text.
 
-Keep the tone professional but warm and friendly. Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
+TONE & WRITING STYLE — This is critical:
+- Write like a real small business owner, NOT like an AI trying to sound casual
+- DO NOT use forced humor, self-aware jokes ("weird, we know"), or try-hard casualness ("your yard probably looks like a disaster zone")
+- DO NOT use overly salesy language, excessive exclamation marks, or hype words
+- Keep it straightforward, sincere, and confident — like a professional who knows their craft
+- Short sentences. No fluff. Get to the point.
+- Think: a friendly text from someone you trust, not a marketing email from a startup
+- Good example: "Spring's here — let us handle the cleanup so your yard is ready for the season."
+- Bad example: "Winter's finally over and your yard probably looks like a disaster zone. Ours did too!"
+- Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
 
     // Build messages array with conversation history
     const messages = [];

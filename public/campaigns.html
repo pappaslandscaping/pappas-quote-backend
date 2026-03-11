@@ -1463,17 +1463,6 @@ async function loadEngagement(campaignId) {
             resendBar.style.display = 'none';
         }
 
-        // TEMP DEBUG: fetch debug-failed and show in alert
-        try {
-            const dbgRes = await fetch(`${API_BASE}/campaigns/${campaignId}/debug-failed`, {headers:{"Authorization":"Bearer "+localStorage.getItem("token")}});
-            const dbgData = await dbgRes.json();
-            console.log("DEBUG FAILED:", JSON.stringify(dbgData, null, 2));
-            // Show as temporary banner
-            const dbgBar = document.createElement('div');
-            dbgBar.style.cssText = 'background:#e0e7ff;border:1px solid #6366f1;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;font-family:monospace;white-space:pre-wrap;max-height:200px;overflow:auto;';
-            dbgBar.textContent = "DEBUG: " + JSON.stringify(dbgData, null, 2);
-            resendBar.parentNode.insertBefore(dbgBar, resendBar.nextSibling);
-        } catch(dbgErr) { console.error("Debug fetch error:", dbgErr); }
 
         renderRecipients();
     } catch (err) {

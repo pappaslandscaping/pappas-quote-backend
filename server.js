@@ -11550,8 +11550,12 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
         };
         const subject = replaceTemplateVars(tmpl.subject, vars);
         let body = replaceTemplateVars(tmpl.body, vars);
-        // Add tracking pixel
         const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+        // Wrap links for click tracking
+        body = body.replace(/href="(https?:\/\/[^"]+)"/g, (match, url) => {
+          return `href="${baseUrl}/api/t/${trackingId}/click?url=${encodeURIComponent(url)}"`;
+        });
+        // Add tracking pixel
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
         const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
         const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
@@ -11617,50 +11621,6 @@ app.get('/api/campaigns/:id/send-history', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
-// GET /api/campaigns/:id/debug-failed - Debug: check what failed email data exists
-app.get('/api/campaigns/:id/debug-failed', async (req, res) => {
-  const result = {};
-  const campaignId = req.params.id;
-  try {
-    // Step 1: campaign_sends info
-    try {
-      const sends = await pool.query('SELECT COUNT(*) as cnt, MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1', [campaignId]);
-      result.campaign_sends = sends.rows[0];
-    } catch (e) { result.campaign_sends_error = e.message; }
-
-    // Step 2: email_log table columns
-    try {
-      const cols = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'email_log' ORDER BY ordinal_position");
-      result.email_log_columns = cols.rows.map(r => r.column_name);
-    } catch (e) { result.email_log_columns_error = e.message; }
-
-    // Step 3: total email_log count and status breakdown
-    try {
-      const stats = await pool.query("SELECT status, COUNT(*) as cnt FROM email_log GROUP BY status");
-      result.email_log_by_status = stats.rows;
-    } catch (e) { result.email_log_stats_error = e.message; }
-
-    // Step 4: sample FAILED email_log entries
-    try {
-      const sample = await pool.query("SELECT id, recipient_email, subject, email_type, status, customer_id, sent_at FROM email_log WHERE status = 'failed' ORDER BY id DESC LIMIT 5");
-      result.sample_failed_logs = sample.rows;
-    } catch (e) { result.sample_error = e.message; }
-
-    // Step 4b: failed entries grouped by email_type
-    try {
-      const byType = await pool.query("SELECT email_type, COUNT(*) as cnt FROM email_log WHERE status = 'failed' GROUP BY email_type");
-      result.failed_by_type = byType.rows;
-    } catch (e) { result.failed_by_type_error = e.message; }
-
-    // Step 5: campaign info
-    try {
-      const camp = await pool.query('SELECT id, name, send_count FROM campaigns WHERE id = $1', [campaignId]);
-      result.campaign = camp.rows[0];
-    } catch (e) { result.campaign_error = e.message; }
-
-    res.json(result);
-  } catch (error) { res.json({ fatal_error: error.message }); }
-});
 
 // POST /api/campaigns/:id/resend-failed - Resend to recipients whose emails failed (429 rate limit, etc.)
 app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
@@ -11733,6 +11693,9 @@ app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
         const subject = replaceTemplateVars(template.subject, vars);
         let body = replaceTemplateVars(template.body, vars);
         const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+        body = body.replace(/href="(https?:\/\/[^"]+)"/g, (match, url) => {
+          return `href="${baseUrl}/api/t/${trackingId}/click?url=${encodeURIComponent(url)}"`;
+        });
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
         const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
         const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
@@ -12068,6 +12031,9 @@ app.post('/api/broadcasts/send', async (req, res) => {
             const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
             const subject = replaceTemplateVars(tmpl.subject, vars);
             let body = replaceTemplateVars(tmpl.body, vars);
+            body = body.replace(/href="(https?:\/\/[^"]+)"/g, (match, url) => {
+              return `href="${baseUrl}/api/t/${trackingId}/click?url=${encodeURIComponent(url)}"`;
+            });
             body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
             const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
             const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });

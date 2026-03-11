@@ -11558,10 +11558,17 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
 app.get('/api/campaigns/:id/send-history', async (req, res) => {
   try {
     const [sends, stats] = await Promise.all([
-      pool.query(`SELECT cs.*, c.name as customer_name FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
+      pool.query(`SELECT cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
       pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
     ]);
-    res.json({ success: true, sends: sends.rows, stats: stats.rows[0] });
+    // Mark unsubscribed recipients
+    const enriched = sends.rows.map(s => ({
+      ...s,
+      customer_name: s.customer_name || ((s.first_name || '') + (s.last_name ? ' ' + s.last_name : '')).trim() || 'Unknown',
+      unsubscribed: s.tags ? s.tags.toLowerCase().includes('unsubscrib') : false
+    }));
+    const unsubCount = enriched.filter(s => s.unsubscribed).length;
+    res.json({ success: true, sends: enriched, stats: { ...stats.rows[0], unsubscribes: unsubCount } });
   } catch (error) { serverError(res, error); }
 });
 

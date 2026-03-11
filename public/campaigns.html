@@ -1015,7 +1015,7 @@
 
             <!-- Email Engagement Stats -->
             <div id="engagementSection" style="display:none">
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:20px;">
                     <div class="table-card" style="padding:20px;text-align:center;">
                         <div style="font-size:28px;font-weight:700;color:var(--gray-700);" id="statSent">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Sent</div>
@@ -1032,6 +1032,10 @@
                         <div style="font-size:28px;font-weight:700;color:var(--gray-700);" id="statNotOpened">0</div>
                         <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Not Opened</div>
                     </div>
+                    <div class="table-card" style="padding:20px;text-align:center;" id="statUnsubCard">
+                        <div style="font-size:28px;font-weight:700;color:#e53e3e;" id="statUnsubs">0</div>
+                        <div style="font-size:12px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.3px;">Unsubscribed</div>
+                    </div>
                 </div>
 
                 <!-- Recipients Table -->
@@ -1044,6 +1048,7 @@
                                 <option value="opened">Opened</option>
                                 <option value="clicked">Clicked</option>
                                 <option value="not_opened">Not Opened</option>
+                                <option value="unsubscribed">Unsubscribed</option>
                             </select>
                         </div>
                     </div>
@@ -1428,9 +1433,12 @@ async function loadEngagement(campaignId) {
         document.getElementById('statSent').textContent = total;
         document.getElementById('statOpens').textContent = opens;
         document.getElementById('statClicks').textContent = clicks;
+        const unsubs = parseInt(stats.unsubscribes) || 0;
         document.getElementById('statNotOpened').textContent = total - opens;
         document.getElementById('statOpenRate').textContent = Math.round((opens / total) * 100);
         document.getElementById('statClickRate').textContent = Math.round((clicks / total) * 100);
+        document.getElementById('statUnsubs').textContent = unsubs;
+        document.getElementById('statUnsubCard').style.display = unsubs > 0 ? '' : 'none';
 
         renderRecipients();
     } catch (err) {
@@ -1455,7 +1463,9 @@ function renderRecipients(filtered) {
         const clickedHtml = s.clicked_at
             ? `<span style="color:#2563eb;font-weight:600;">&#10003; ${formatDateTime(s.clicked_at)}</span>`
             : `<span style="color:var(--gray-400);">--</span>`;
-        const statusHtml = s.opened_at
+        const statusHtml = s.unsubscribed
+            ? `<span class="status-pill" style="background:#fef2f2;color:#e53e3e;">Unsubscribed</span>`
+            : s.opened_at
             ? `<span class="status-pill" style="background:#dcfce7;color:#16a34a;">Opened</span>`
             : `<span class="status-pill" style="background:var(--gray-100);color:var(--gray-500);">Sent</span>`;
         return `<tr>
@@ -1475,6 +1485,7 @@ function filterRecipients() {
         if (filter === 'opened') return s.opened_at;
         if (filter === 'clicked') return s.clicked_at;
         if (filter === 'not_opened') return !s.opened_at;
+        if (filter === 'unsubscribed') return s.unsubscribed;
         return true;
     });
     renderRecipients(filtered);

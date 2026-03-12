@@ -545,6 +545,8 @@ function requireAdmin(req, res, next) {
   if (!req.path.startsWith('/api/') && req.path !== '/health') return next();
   // Allow customer-facing quote endpoints (sign-contract, accept, decline, view by token, card-on-file)
   if (/^\/api\/sent-quotes\/\d+\/(sign-contract|accept|decline|view|changes)$/.test(req.path)) return next();
+  // Allow public quote submission (POST only)
+  if (req.path === '/api/quotes' && req.method === 'POST') return next();
   if (/^\/api\/sent-quotes\/by-token\//.test(req.path)) return next();
   if (/^\/api\/customers\/\d+\/card-on-file$/.test(req.path)) return next();
   // Skip public API paths

@@ -7087,6 +7087,71 @@ app.post('/api/messages/send', async (req, res) => {
   }
 });
 
+// ─── Customer Communications (for customer-detail page) ───────────────────────
+
+// GET /api/customers/:id/communications — messages for a customer
+app.get('/api/customers/:id/communications', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cust = await pool.query('SELECT phone, mobile FROM customers WHERE id = $1', [id]);
+    if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+
+    const { phone, mobile } = cust.rows[0];
+    const phones = [phone, mobile].filter(Boolean).map(p => p.replace(/\D/g, '').slice(-10)).filter(p => p.length === 10);
+
+    if (!phones.length) return res.json({ communications: [] });
+
+    const conditions = phones.map((_, i) => `RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $${i + 1} OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $${i + 1}`).join(' OR ');
+    const msgs = await pool.query(
+      `SELECT id, direction, from_number, to_number, body, status, media_urls, created_at, 'message' as record_type
+       FROM messages WHERE ${conditions} ORDER BY created_at DESC LIMIT 50`, phones
+    );
+
+    res.json({ communications: msgs.rows });
+  } catch (error) {
+    console.error('Customer communications error:', error);
+    serverError(res, error, 'Failed to load communications');
+  }
+});
+
+// POST /api/customers/:id/send-message — send SMS to a customer
+app.post('/api/customers/:id/send-message', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { body } = req.body;
+    if (!body || !body.trim()) return res.status(400).json({ success: false, error: 'Message body required' });
+
+    const cust = await pool.query('SELECT phone, mobile FROM customers WHERE id = $1', [id]);
+    if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
+
+    const toNumber = cust.rows[0].mobile || cust.rows[0].phone;
+    if (!toNumber) return res.status(400).json({ success: false, error: 'Customer has no phone number' });
+
+    let formattedTo = toNumber.replace(/\D/g, '');
+    if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
+    else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
+
+    if (!twilioClient) return res.status(500).json({ success: false, error: 'SMS service not configured' });
+
+    const twilioMessage = await twilioClient.messages.create({
+      body: body.trim(),
+      from: TWILIO_PHONE_NUMBER,
+      to: formattedTo
+    });
+
+    await pool.query(
+      `INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+       VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)`,
+      [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body.trim(), twilioMessage.status, parseInt(id)]
+    );
+
+    res.json({ success: true, sid: twilioMessage.sid });
+  } catch (error) {
+    console.error('Send customer message error:', error);
+    serverError(res, error, 'Failed to send message');
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // QUOTE FOLLOW-UP SYSTEM - Automated email/SMS reminders for pending quotes
 // ═══════════════════════════════════════════════════════════════════════════════

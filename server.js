@@ -10543,7 +10543,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
     const result = await pool.query(`
       SELECT
         i.customer_id,
-        COALESCE(c.name, TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), i.customer_name) as customer_name,
+        COALESCE(NULLIF(c.name,''), NULLIF(TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), ''), i.customer_name, 'Unknown') as customer_name,
         COALESCE(c.email, i.customer_email) as email,
         c.phone,
         COALESCE(c.street, i.customer_address) as address,

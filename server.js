@@ -10537,6 +10537,62 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
+// GET /api/reports/2025-services - Customers who had services in 2025 with service details
+app.get('/api/reports/2025-services', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id as customer_id,
+        COALESCE(c.name, TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), 'Unknown') as customer_name,
+        c.email,
+        c.phone,
+        c.street,
+        c.city,
+        sj.service_type,
+        sj.service_price,
+        sj.service_frequency,
+        COUNT(*) as job_count,
+        MAX(sj.job_date) as last_service_date
+      FROM scheduled_jobs sj
+      JOIN customers c ON c.id = sj.customer_id
+      WHERE sj.job_date >= '2025-01-01' AND sj.job_date < '2026-01-01'
+        AND sj.status IN ('completed', 'done', 'invoiced')
+      GROUP BY c.id, c.name, c.first_name, c.last_name, c.email, c.phone, c.street, c.city,
+               sj.service_type, sj.service_price, sj.service_frequency
+      ORDER BY customer_name, sj.service_type
+    `);
+
+    // Group by customer
+    const customers = {};
+    for (const row of result.rows) {
+      if (!customers[row.customer_id]) {
+        customers[row.customer_id] = {
+          customer_id: row.customer_id,
+          name: row.customer_name,
+          email: row.email,
+          phone: row.phone,
+          street: row.street,
+          city: row.city,
+          services: []
+        };
+      }
+      customers[row.customer_id].services.push({
+        service_type: row.service_type,
+        price: parseFloat(row.service_price || 0),
+        frequency: row.service_frequency,
+        job_count: parseInt(row.job_count),
+        last_service: row.last_service_date
+      });
+    }
+
+    const list = Object.values(customers);
+    res.json({ success: true, count: list.length, customers: list });
+  } catch (error) {
+    console.error('Error fetching 2025 services:', error);
+    serverError(res, error);
+  }
+});
+
 // GET /api/reports/business-summary - KPIs for a period
 app.get('/api/reports/business-summary', async (req, res) => {
   try {

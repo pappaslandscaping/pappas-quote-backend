@@ -10540,6 +10540,13 @@ app.get('/api/finance/summary', async (req, res) => {
 // GET /api/reports/2025-services - Customers who had services in 2025 (from invoices)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {
+    // Debug: check what date ranges and statuses exist
+    const debug = await pool.query(`
+      SELECT MIN(created_at)::date as earliest, MAX(created_at)::date as latest, COUNT(*) as total,
+        array_agg(DISTINCT status) as statuses
+      FROM invoices
+    `);
+
     const result = await pool.query(`
       SELECT
         i.customer_id,
@@ -10555,7 +10562,6 @@ app.get('/api/reports/2025-services', async (req, res) => {
       FROM invoices i
       LEFT JOIN customers c ON c.id = i.customer_id
       WHERE i.created_at >= '2025-01-01' AND i.created_at < '2026-01-01'
-        AND i.status IN ('paid', 'sent', 'viewed')
       ORDER BY i.customer_id, i.created_at
     `);
 
@@ -10607,7 +10613,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
       total_invoiced: Math.round(c.total_invoiced * 100) / 100
     })).sort((a, b) => a.name.localeCompare(b.name));
 
-    res.json({ success: true, count: list.length, customers: list });
+    res.json({ success: true, count: list.length, debug: debug.rows[0], customers: list });
   } catch (error) {
     console.error('Error fetching 2025 services:', error);
     serverError(res, error);

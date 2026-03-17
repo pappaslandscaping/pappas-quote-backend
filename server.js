@@ -10537,55 +10537,76 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
-// GET /api/reports/2025-services - Customers who had services in 2025 with service details
+// GET /api/reports/2025-services - Customers who had services in 2025 (from invoices)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        c.id as customer_id,
-        COALESCE(c.name, TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), 'Unknown') as customer_name,
-        c.email,
+        i.customer_id,
+        COALESCE(c.name, TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), i.customer_name) as customer_name,
+        COALESCE(c.email, i.customer_email) as email,
         c.phone,
-        c.street,
+        COALESCE(c.street, i.customer_address) as address,
         c.city,
-        sj.service_type,
-        sj.service_price,
-        sj.service_frequency,
-        COUNT(*) as job_count,
-        MAX(sj.job_date) as last_service_date
-      FROM scheduled_jobs sj
-      JOIN customers c ON c.id = sj.customer_id
-      WHERE sj.job_date >= '2025-01-01' AND sj.job_date < '2026-01-01'
-        AND sj.status IN ('completed', 'done', 'invoiced')
-      GROUP BY c.id, c.name, c.first_name, c.last_name, c.email, c.phone, c.street, c.city,
-               sj.service_type, sj.service_price, sj.service_frequency
-      ORDER BY customer_name, sj.service_type
+        i.line_items,
+        i.total,
+        i.status,
+        i.created_at
+      FROM invoices i
+      LEFT JOIN customers c ON c.id = i.customer_id
+      WHERE i.created_at >= '2025-01-01' AND i.created_at < '2026-01-01'
+        AND i.status IN ('paid', 'sent', 'viewed')
+      ORDER BY i.customer_id, i.created_at
     `);
 
-    // Group by customer
+    // Group by customer, aggregate unique services
     const customers = {};
-    for (const row of result.rows) {
-      if (!customers[row.customer_id]) {
-        customers[row.customer_id] = {
-          customer_id: row.customer_id,
-          name: row.customer_name,
-          email: row.email,
-          phone: row.phone,
-          street: row.street,
-          city: row.city,
-          services: []
+    for (const inv of result.rows) {
+      const cid = inv.customer_id || inv.customer_name;
+      if (!customers[cid]) {
+        customers[cid] = {
+          customer_id: inv.customer_id,
+          name: inv.customer_name,
+          email: inv.email,
+          phone: inv.phone,
+          address: inv.address,
+          city: inv.city,
+          services: {},
+          total_invoiced: 0,
+          invoice_count: 0
         };
       }
-      customers[row.customer_id].services.push({
-        service_type: row.service_type,
-        price: parseFloat(row.service_price || 0),
-        frequency: row.service_frequency,
-        job_count: parseInt(row.job_count),
-        last_service: row.last_service_date
-      });
+      customers[cid].total_invoiced += parseFloat(inv.total || 0);
+      customers[cid].invoice_count++;
+
+      // Parse line_items to extract services
+      const items = inv.line_items || [];
+      for (const item of items) {
+        if (!item.name) continue;
+        // Skip processing fees and fuel surcharges
+        const lower = item.name.toLowerCase();
+        if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
+        // Extract service name (remove property address prefix if present)
+        let serviceName = item.name;
+        const dashIdx = serviceName.indexOf(' - ');
+        if (dashIdx > -1 && serviceName.toLowerCase().startsWith('property')) {
+          serviceName = serviceName.substring(dashIdx + 3);
+        }
+        if (!customers[cid].services[serviceName]) {
+          customers[cid].services[serviceName] = { name: serviceName, rate: parseFloat(item.rate || 0), count: 0, total: 0 };
+        }
+        customers[cid].services[serviceName].count++;
+        customers[cid].services[serviceName].total += parseFloat(item.amount || 0);
+      }
     }
 
-    const list = Object.values(customers);
+    // Convert to array
+    const list = Object.values(customers).map(c => ({
+      ...c,
+      services: Object.values(c.services).sort((a, b) => b.total - a.total),
+      total_invoiced: Math.round(c.total_invoiced * 100) / 100
+    })).sort((a, b) => a.name.localeCompare(b.name));
+
     res.json({ success: true, count: list.length, customers: list });
   } catch (error) {
     console.error('Error fetching 2025 services:', error);

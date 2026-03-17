@@ -6546,6 +6546,16 @@ async function createCallsTable() {
 }
 createCallsTable();
 
+// Ensure app_devices table exists at startup
+(async () => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS app_devices (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, push_token TEXT NOT NULL, platform VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(email, platform))`);
+    console.log('✅ App devices table ready');
+  } catch (err) {
+    console.log('ℹ️ App devices table setup:', err.message);
+  }
+})();
+
 // Send Expo Push Notification
 async function sendPushNotification(expoPushToken, title, body, data = {}) {
   try {

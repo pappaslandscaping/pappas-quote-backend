@@ -13910,8 +13910,25 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   error_message TEXT
 )`;
 
-// Database migrations — widen contract columns that are too narrow for signature data
+// Database migrations
 (async () => {
+  // Add missing columns for decline/request-changes functionality
+  const addCols = [
+    ['decline_reason', 'VARCHAR(100)'],
+    ['decline_comments', 'TEXT'],
+    ['declined_at', 'TIMESTAMPTZ'],
+    ['change_type', 'VARCHAR(100)'],
+    ['change_details', 'TEXT'],
+    ['changes_requested_at', 'TIMESTAMPTZ']
+  ];
+  for (const [col, type] of addCols) {
+    try {
+      await pool.query(`ALTER TABLE sent_quotes ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    } catch(e) { /* column exists */ }
+  }
+  console.log('✅ Ensured sent_quotes has decline/changes columns');
+
+  // Widen contract columns that are too narrow for signature data
   try {
     await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signature_data TYPE TEXT`);
     console.log('✅ Widened contract_signature_data to TEXT');

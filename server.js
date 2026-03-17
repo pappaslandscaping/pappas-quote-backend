@@ -428,16 +428,9 @@ function verifyPassword(password, stored) {
 // TEMPORARY: one-time password reset — REMOVE after use
 app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
   try {
-    // Widen column first in case it was truncating
-    await pool.query("ALTER TABLE admin_users ALTER COLUMN password_hash TYPE TEXT");
     const hash = hashPassword('1513Lincoln!');
-    const result = await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com' RETURNING id, email", [hash]);
-    // Read it back and verify
-    const readBack = await pool.query("SELECT password_hash FROM admin_users WHERE email = 'hello@pappaslandscaping.com'");
-    const stored = readBack.rows[0]?.password_hash;
-    const verify = verifyPassword('1513Lincoln!', stored);
-    const match = stored === hash;
-    res.json({ success: true, updated: result.rowCount, verify, match, hashLen: hash.length, storedLen: stored?.length });
+    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
+    res.json({ success: true, message: 'Password reset.' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Season Kickoff — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card { background: var(--white); box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: 12px; padding: 20px; }
+        .stat-card .stat-label { font-size: 13px; font-weight: 500; color: var(--gray-500); margin-bottom: 8px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--gray-800); }
+        .stat-card .stat-sub { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+        .stat-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 10px; }
+
+        .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .toolbar h2 { font-size: 16px; font-weight: 700; color: var(--gray-800); margin: 0; }
+        .search-box { padding: 8px 14px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; width: 260px; font-family: inherit; }
+        .search-box:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .filter-select { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--white); }
+
+        .table-card { background: var(--white); box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: 12px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { padding: 12px 16px; font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); text-align: left; }
+        td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
+        tbody tr:hover { background-color: var(--gray-50); cursor: pointer; }
+        tbody tr.selected { background-color: rgba(46,64,61,0.04); }
+
+        .customer-name { font-weight: 600; color: var(--gray-800); }
+        .customer-email { font-size: 12px; color: var(--gray-400); margin-top: 2px; }
+        .service-tag { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--green-bg); color: var(--green); margin: 2px 2px 2px 0; }
+        .service-price { font-weight: 600; color: var(--gray-700); white-space: nowrap; }
+        .no-email { color: var(--red); font-size: 11px; font-weight: 600; }
+
+        .btn-primary { padding: 10px 20px; background: var(--primary); color: var(--white); border: none; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { padding: 10px 20px; background: var(--white); color: var(--gray-700); border: 1px solid var(--gray-200); border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-secondary:hover { background: var(--gray-50); }
+
+        .select-all-wrap { display: flex; align-items: center; gap: 8px; }
+        .select-all-wrap label { font-size: 13px; color: var(--gray-600); cursor: pointer; }
+
+        /* Preview Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 20px; overflow-y: auto; }
+        .modal-overlay.active { display: flex; justify-content: center; align-items: flex-start; }
+        .modal { background: var(--white); border-radius: 12px; max-width: 700px; width: 100%; margin: 40px auto; overflow: hidden; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--gray-100); }
+        .modal-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--gray-800); }
+        .modal-close { width: 32px; height: 32px; border: none; background: var(--gray-100); border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--gray-500); }
+        .modal-close:hover { background: var(--gray-200); }
+        .modal-body { padding: 24px; }
+        .email-preview { border: 1px solid var(--gray-200); border-radius: 8px; overflow: hidden; max-height: 500px; overflow-y: auto; }
+        .email-preview iframe { width: 100%; height: 600px; border: none; }
+
+        .preview-meta { display: grid; grid-template-columns: 80px 1fr; gap: 8px; font-size: 13px; margin-bottom: 16px; padding: 16px; background: var(--gray-50); border-radius: 8px; }
+        .preview-meta dt { color: var(--gray-400); font-weight: 600; }
+        .preview-meta dd { color: var(--gray-700); margin: 0; }
+
+        .badge-count { background: var(--primary); color: var(--white); padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .search-box { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main-content" style="padding: 28px 32px;">
+    <!-- Header -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+        <div>
+            <h1 style="font-size: 22px; font-weight: 700; color: var(--gray-800); margin: 0;">2025 Season Kickoff</h1>
+            <p style="color: var(--gray-400); font-size: 13px; margin: 4px 0 0;">Personalized emails for returning customers with their 2025 service history</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" onclick="exportCSV()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+            </button>
+            <button class="btn-primary" id="sendBtn" disabled onclick="confirmSend()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Send Selected (<span id="selectedCount">0</span>)
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="statsRow">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--green-bg); color: var(--green);">👥</div>
+            <div class="stat-label">Total Customers</div>
+            <div class="stat-value" id="statTotal">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--blue-bg); color: var(--blue);">📧</div>
+            <div class="stat-label">With Email</div>
+            <div class="stat-value" id="statEmail">—</div>
+            <div class="stat-sub" id="statEmailPct"></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--amber-bg); color: var(--amber);">💰</div>
+            <div class="stat-label">2025 Revenue</div>
+            <div class="stat-value" id="statRevenue">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--purple-bg); color: var(--purple);">🛠</div>
+            <div class="stat-label">Unique Services</div>
+            <div class="stat-value" id="statServices">—</div>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="select-all-wrap">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+            <label for="selectAll">Select all with email</label>
+        </div>
+        <div style="flex:1;"></div>
+        <input type="text" class="search-box" id="searchBox" placeholder="Search customers..." oninput="filterTable()">
+        <select class="filter-select" id="filterSelect" onchange="filterTable()">
+            <option value="all">All Customers</option>
+            <option value="with-email">With Email</option>
+            <option value="no-email">Missing Email</option>
+        </select>
+    </div>
+
+    <!-- Customer Table -->
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:40px;"></th>
+                    <th>Customer</th>
+                    <th>2025 Services</th>
+                    <th style="text-align:right;">Total Invoiced</th>
+                    <th style="width:100px; text-align:center;">Preview</th>
+                </tr>
+            </thead>
+            <tbody id="customerTable">
+                <tr><td colspan="5" style="text-align:center; padding:40px; color: var(--gray-400);">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Email Preview Modal -->
+<div class="modal-overlay" id="previewModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="previewTitle">Email Preview</h3>
+            <button class="modal-close" onclick="closePreview()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <dl class="preview-meta">
+                <dt>To:</dt><dd id="previewTo">—</dd>
+                <dt>Subject:</dt><dd id="previewSubject">—</dd>
+            </dl>
+            <div class="email-preview">
+                <iframe id="previewFrame"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('token');
+const API = '';
+let allCustomers = [];
+let selectedIds = new Set();
+
+async function loadData() {
+    try {
+        const res = await fetch(`${API}/api/reports/2025-services`, {
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to load');
+
+        allCustomers = data.customers;
+        updateStats();
+        renderTable(allCustomers);
+    } catch (err) {
+        console.error(err);
+        document.getElementById('customerTable').innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red);">Error loading data: ${err.message}</td></tr>`;
+    }
+}
+
+function updateStats() {
+    const withEmail = allCustomers.filter(c => c.email).length;
+    const totalRev = allCustomers.reduce((s, c) => s + c.total_invoiced, 0);
+    const allSvcs = new Set();
+    allCustomers.forEach(c => c.services.forEach(s => allSvcs.add(s.name)));
+
+    document.getElementById('statTotal').textContent = allCustomers.length;
+    document.getElementById('statEmail').textContent = withEmail;
+    document.getElementById('statEmailPct').textContent = `${Math.round(withEmail / allCustomers.length * 100)}% of total`;
+    document.getElementById('statRevenue').textContent = '$' + totalRev.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    document.getElementById('statServices').textContent = allSvcs.size;
+}
+
+function renderTable(customers) {
+    const tbody = document.getElementById('customerTable');
+    if (customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray-400);">No customers found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = customers.map(c => {
+        const key = c.customer_id || c.name;
+        const checked = selectedIds.has(key) ? 'checked' : '';
+        const hasEmail = c.email ? '' : 'disabled';
+        const services = c.services.slice(0, 4).map(s =>
+            `<span class="service-tag">${esc(s.name)} — $${s.rate.toFixed(0)}</span>`
+        ).join('');
+        const moreCount = c.services.length > 4 ? `<span style="font-size:11px;color:var(--gray-400);">+${c.services.length - 4} more</span>` : '';
+
+        return `<tr class="${checked ? 'selected' : ''}" data-key="${esc(key)}">
+            <td><input type="checkbox" ${checked} ${hasEmail} onchange="toggleSelect('${esc(key)}', this.checked)"></td>
+            <td>
+                <div class="customer-name">${esc(c.name)}</div>
+                ${c.email ? `<div class="customer-email">${esc(c.email)}</div>` : '<div class="no-email">No email</div>'}
+                ${c.phone ? `<div style="font-size:11px;color:var(--gray-400);">${esc(c.phone)}</div>` : ''}
+            </td>
+            <td>${services}${moreCount}</td>
+            <td style="text-align:right;" class="service-price">$${c.total_invoiced.toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+            <td style="text-align:center;">
+                ${c.email ? `<button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="previewEmail('${esc(key)}');event.stopPropagation();">Preview</button>` : '—'}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function filterTable() {
+    const search = document.getElementById('searchBox').value.toLowerCase();
+    const filter = document.getElementById('filterSelect').value;
+
+    let filtered = allCustomers;
+    if (search) {
+        filtered = filtered.filter(c =>
+            c.name.toLowerCase().includes(search) ||
+            (c.email || '').toLowerCase().includes(search) ||
+            c.services.some(s => s.name.toLowerCase().includes(search))
+        );
+    }
+    if (filter === 'with-email') filtered = filtered.filter(c => c.email);
+    if (filter === 'no-email') filtered = filtered.filter(c => !c.email);
+
+    renderTable(filtered);
+}
+
+function toggleSelect(key, checked) {
+    if (checked) selectedIds.add(key); else selectedIds.delete(key);
+    updateSelectedCount();
+    const row = document.querySelector(`tr[data-key="${key}"]`);
+    if (row) row.classList.toggle('selected', checked);
+}
+
+function toggleSelectAll() {
+    const checked = document.getElementById('selectAll').checked;
+    selectedIds.clear();
+    if (checked) {
+        allCustomers.filter(c => c.email).forEach(c => {
+            selectedIds.add(c.customer_id || c.name);
+        });
+    }
+    updateSelectedCount();
+    filterTable();
+}
+
+function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = selectedIds.size;
+    document.getElementById('sendBtn').disabled = selectedIds.size === 0;
+}
+
+function buildEmailHtml(customer) {
+    const firstName = customer.name.split(' ')[0];
+    const serviceRows = customer.services.map(s => `
+        <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;">${s.name}</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;text-align:center;">${s.count}x</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${s.rate.toFixed(2)}</td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;text-align:right;">$${s.total.toFixed(2)}</td>
+        </tr>
+    `).join('');
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:600px;margin:0 auto;background:#ffffff;">
+    <!-- Header -->
+    <div style="background:#2e403d;padding:24px 32px;text-align:center;">
+        <img src="https://pappas-quote-backend-production.up.railway.app/images/logo-email.png" alt="Pappas & Co." style="height:60px;" onerror="this.style.display='none'">
+        <h1 style="color:#c9dd80;font-size:20px;margin:12px 0 0;font-weight:700;">Spring is Here!</h1>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:32px;">
+        <p style="font-size:16px;color:#334155;line-height:1.6;margin:0 0 16px;">
+            Hi ${firstName},
+        </p>
+        <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+            We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
+        </p>
+        <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+            Here's a summary of the services we provided for you last season:
+        </p>
+
+        <!-- Service Table -->
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+            <thead>
+                <tr style="background:#f8fafc;">
+                    <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Service</th>
+                    <th style="padding:10px 16px;text-align:center;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Visits</th>
+                    <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Rate</th>
+                    <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${serviceRows}
+            </tbody>
+            <tfoot>
+                <tr style="background:#f8fafc;">
+                    <td colspan="3" style="padding:12px 16px;font-size:14px;font-weight:700;color:#334155;">Total</td>
+                    <td style="padding:12px 16px;text-align:right;font-size:16px;font-weight:700;color:#2e403d;">$${customer.total_invoiced.toFixed(2)}</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+            We'd love to continue caring for your property this season. If you'd like to keep the same services, make changes, or add anything new — just reply to this email or give us a call.
+        </p>
+
+        <!-- CTA Button -->
+        <div style="text-align:center;margin:32px 0;">
+            <a href="mailto:hello@pappaslandscaping.com?subject=2026 Season - ${encodeURIComponent(customer.name)}" style="background:#2e403d;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">
+                Confirm My Services for 2026
+            </a>
+        </div>
+
+        <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:24px 0 0;">
+            Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
+        </p>
+        <p style="font-size:14px;color:#334155;margin:16px 0 0;font-weight:600;">
+            — The Pappas & Co. Team<br>
+            <span style="font-size:13px;color:#64748b;font-weight:400;">(440) 886-7318 &nbsp;|&nbsp; hello@pappaslandscaping.com</span>
+        </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#2e403d;padding:20px 32px;text-align:center;">
+        <p style="color:#a3b8a0;font-size:12px;margin:0;">
+            Pappas & Co. Landscaping &nbsp;|&nbsp; Cleveland, OH
+        </p>
+    </div>
+</div>
+</body></html>`;
+}
+
+function previewEmail(key) {
+    const customer = allCustomers.find(c => (c.customer_id || c.name) == key);
+    if (!customer) return;
+
+    document.getElementById('previewTitle').textContent = `Email Preview — ${customer.name}`;
+    document.getElementById('previewTo').textContent = customer.email || 'No email';
+    document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${customer.name.split(' ')[0]}!`;
+
+    const html = buildEmailHtml(customer);
+    const iframe = document.getElementById('previewFrame');
+    iframe.srcdoc = html;
+
+    document.getElementById('previewModal').classList.add('active');
+}
+
+function closePreview() {
+    document.getElementById('previewModal').classList.remove('active');
+}
+
+function confirmSend() {
+    alert('Sending is not enabled yet. This is preview only.');
+}
+
+function exportCSV() {
+    const rows = [['Name', 'Email', 'Phone', 'Address', 'Services', 'Total Invoiced']];
+    allCustomers.forEach(c => {
+        const svcs = c.services.map(s => `${s.name} ($${s.rate.toFixed(2)} x${s.count})`).join('; ');
+        rows.push([c.name, c.email || '', c.phone || '', c.address || '', svcs, c.total_invoiced.toFixed(2)]);
+    });
+    const csv = rows.map(r => r.map(v => `"${(v+'').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '2025-season-customers.csv'; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// Close modal on overlay click
+document.getElementById('previewModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closePreview();
+});
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closePreview();
+});
+
+loadData();
+</script>
+</body>
+</html>

@@ -10561,7 +10561,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
     // Group by customer, aggregate unique services
     const customers = {};
     for (const inv of result.rows) {
-      const cid = inv.customer_id || inv.customer_name;
+      const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown'));
       if (!customers[cid]) {
         customers[cid] = {
           customer_id: inv.customer_id,

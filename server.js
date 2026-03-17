@@ -10540,28 +10540,40 @@ app.get('/api/finance/summary', async (req, res) => {
 // GET /api/reports/2025-services - Customers who had services in 2025 (from invoices)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {
+    // Match invoices to customers by customer_id OR by name (for QB imports without customer_id)
     const result = await pool.query(`
       SELECT
-        i.customer_id,
-        COALESCE(NULLIF(c.name,''), NULLIF(TRIM(COALESCE(c.first_name,'') || ' ' || COALESCE(c.last_name,'')), ''), i.customer_name, 'Unknown') as customer_name,
-        COALESCE(c.email, i.customer_email) as email,
-        c.phone,
-        COALESCE(c.street, i.customer_address) as address,
-        c.city,
+        COALESCE(i.customer_id, c_name.id) as customer_id,
+        COALESCE(
+          NULLIF(COALESCE(c_id.name, c_name.name), ''),
+          NULLIF(TRIM(COALESCE(c_id.first_name, c_name.first_name, '') || ' ' || COALESCE(c_id.last_name, c_name.last_name, '')), ''),
+          i.customer_name,
+          'Unknown'
+        ) as customer_name,
+        COALESCE(c_id.email, c_name.email, i.customer_email) as email,
+        COALESCE(c_id.phone, c_name.phone) as phone,
+        COALESCE(c_id.street, c_name.street, i.customer_address) as address,
+        COALESCE(c_id.city, c_name.city) as city,
         i.line_items,
         i.total,
         i.status,
         i.due_date
       FROM invoices i
-      LEFT JOIN customers c ON c.id = i.customer_id
+      LEFT JOIN customers c_id ON c_id.id = i.customer_id
+      LEFT JOIN customers c_name ON i.customer_id IS NULL
+        AND c_name.id = (
+          SELECT c2.id FROM customers c2
+          WHERE LOWER(TRIM(COALESCE(c2.name, c2.first_name || ' ' || c2.last_name))) = LOWER(TRIM(SPLIT_PART(i.customer_name, '#', 1)))
+          LIMIT 1
+        )
       WHERE i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
-      ORDER BY i.customer_id, i.due_date
+      ORDER BY customer_name, i.due_date
     `);
 
     // Group by customer, aggregate unique services
     const customers = {};
     for (const inv of result.rows) {
-      const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown'));
+      const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown').toLowerCase().trim());
       if (!customers[cid]) {
         customers[cid] = {
           customer_id: inv.customer_id,

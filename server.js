@@ -428,8 +428,7 @@ function verifyPassword(password, stored) {
 // TEMPORARY: one-time password reset — REMOVE after use
 app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
   try {
-    const bcrypt = require('bcryptjs');
-    const hash = await bcrypt.hash('1513Lincoln!', 10);
+    const hash = hashPassword('1513Lincoln!');
     await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
     res.json({ success: true, message: 'Password reset. Now remove this endpoint.' });
   } catch(e) { res.status(500).json({ error: e.message }); }

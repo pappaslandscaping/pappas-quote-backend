@@ -6492,6 +6492,12 @@ app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
   }
 });
 
+// Debug: log push notification errors from app
+app.post('/api/app/devices/debug', authenticateToken, async (req, res) => {
+  console.log('⚠️ Push notification debug from app:', JSON.stringify(req.body));
+  res.json({ received: true });
+});
+
 // Debug: check registered devices
 app.get('/api/app/devices', authenticateToken, async (req, res) => {
   try {

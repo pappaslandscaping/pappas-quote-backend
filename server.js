@@ -429,8 +429,10 @@ function verifyPassword(password, stored) {
 app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
   try {
     const hash = hashPassword('1513Lincoln!');
-    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
-    res.json({ success: true, message: 'Password reset. Now remove this endpoint.' });
+    const result = await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com' RETURNING id, email", [hash]);
+    // Verify it works
+    const verify = verifyPassword('1513Lincoln!', hash);
+    res.json({ success: true, updated: result.rowCount, verify, hashPreview: hash.substring(0, 20) + '...' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

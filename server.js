@@ -6491,6 +6491,17 @@ app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Failed to register device' });
   }
 });
+
+// Debug: check registered devices
+app.get('/api/app/devices', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, email, platform, updated_at FROM app_devices');
+    res.json({ devices: result.rows });
+  } catch (error) {
+    res.json({ devices: [], error: error.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SMS MESSAGES - Add this to your server.js before the "GENERAL ROUTES" section
 // ═══════════════════════════════════════════════════════════════════════════════

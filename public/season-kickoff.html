@@ -456,14 +456,7 @@ function closePreview() {
     if (previewCustomer) {
         previewCustomer.services = previewServices.map(s => ({ ...s }));
         if (previewPropertyServices) previewCustomer.propertyServices = previewPropertyServices.map(ps => ({ address: ps.address, services: ps.services.map(s => ({ ...s })) }));
-        renderTable(allCustomers.filter(c => {
-            const search = document.getElementById('searchBox').value.toLowerCase();
-            const filter = document.getElementById('filterSelect').value;
-            if (search && !c.name.toLowerCase().includes(search) && !(c.email || '').toLowerCase().includes(search)) return false;
-            if (filter === 'with-email' && !c.email) return false;
-            if (filter === 'no-email' && c.email) return false;
-            return true;
-        }));
+        filterTable();
     }
     document.getElementById('previewModal').classList.remove('active');
 }

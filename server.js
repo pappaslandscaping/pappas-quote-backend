@@ -10658,6 +10658,59 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
   }
 });
 
+// POST /api/season-kickoff/send-sms - Send season kickoff text message
+app.post('/api/season-kickoff/send-sms', async (req, res) => {
+  try {
+    const { phone, customerName, services } = req.body;
+    if (!phone || !services || !services.length) return res.status(400).json({ success: false, error: 'Phone and services required' });
+    if (!twilioClient) return res.status(500).json({ success: false, error: 'SMS not configured' });
+
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const token = crypto.randomBytes(24).toString('hex');
+    const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
+
+    // Store token in DB
+    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
+      [token, customerName, phone, JSON.stringify(services)]);
+
+    const firstName = (customerName || 'Customer').split(' ')[0];
+    const nonSnow = services.filter(s => {
+      const l = s.name.toLowerCase();
+      return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+    });
+    const serviceLines = nonSnow.map(s => `• ${s.name} — $${parseFloat(s.rate).toFixed(0)}`).join('\n');
+    const body = `Hi ${firstName}! This is Pappas & Co. Landscaping. You're on our list for 2026!\n\nHere are your services from last season:\n${serviceLines}\n\nConfirm your services or request changes here:\n${confirmUrl}\n\nQuestions? Call us at (440) 886-7318`;
+
+    let formattedTo = phone.replace(/\D/g, '');
+    if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
+    else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
+
+    const twilioMessage = await twilioClient.messages.create({
+      body,
+      from: TWILIO_PHONE_NUMBER,
+      to: formattedTo
+    });
+
+    // Log in messages table
+    const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
+    const customerResult = await pool.query(`
+      SELECT id FROM customers
+      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+      LIMIT 1
+    `, [`%${cleanedPhone}`]);
+
+    await pool.query(`
+      INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+      VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
+    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, customerResult.rows[0]?.id || null]);
+
+    res.json({ success: true, sid: twilioMessage.sid });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // POST /api/season-kickoff/preview - Get email HTML for preview
 app.post('/api/season-kickoff/preview', async (req, res) => {
   try {
@@ -10783,6 +10836,9 @@ app.get('/api/reports/2025-services', async (req, res) => {
         if (dashIdx > -1 && serviceName.toLowerCase().startsWith('property')) {
           serviceName = serviceName.substring(dashIdx + 3);
         }
+        // Normalize service names
+        if (serviceName.toLowerCase().trim() === 'fertilizing') serviceName = 'Fertilizing (Per Application)';
+        if (serviceName.toLowerCase().trim() === 'spreading fertilizer') serviceName = 'Fertilizing (Per Application)';
         const amount = parseFloat(item.amount || 0);
         const rate = parseFloat(item.rate || 0);
         const effectiveDate = itemDate;

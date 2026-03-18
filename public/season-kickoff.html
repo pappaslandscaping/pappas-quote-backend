@@ -271,7 +271,9 @@ function renderTable(customers) {
             <td>${services}${moreCount}</td>
             <td style="text-align:right;" class="service-price">$${c.total_invoiced.toLocaleString('en-US', {minimumFractionDigits:2})}</td>
             <td style="text-align:center;">
-                ${c.email ? `<button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="previewEmail('${esc(key)}');event.stopPropagation();">Preview</button>` : '—'}
+                ${c.email ? `<button class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="previewEmail('${esc(key)}');event.stopPropagation();">Preview</button>` : ''}
+                ${!c.email && c.phone ? `<button class="btn-secondary" style="padding:6px 12px;font-size:12px;color:var(--green);" onclick="sendKickoffText('${esc(key)}');event.stopPropagation();">Send Text</button>` : ''}
+                ${!c.email && !c.phone ? '—' : ''}
             </td>
         </tr>`;
     }).join('');
@@ -397,6 +399,36 @@ async function sendTestEmail() {
         const data = await res.json();
         if (data.success) {
             alert('Test email sent to hello@pappaslandscaping.com — check your inbox!');
+        } else {
+            alert('Failed to send: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function sendKickoffText(key) {
+    const customer = allCustomers.find(c => (c.customer_id || c.name) == key);
+    if (!customer || !customer.phone) return;
+
+    const nonSnow = customer.services.filter(s => {
+        const l = s.name.toLowerCase();
+        return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+    });
+    if (nonSnow.length === 0) { alert('No eligible services for this customer.'); return; }
+
+    const serviceList = nonSnow.map(s => `• ${s.name} — $${s.rate.toFixed(0)}`).join('\n');
+    if (!window.confirm(`Send season kickoff text to ${customer.name} at ${customer.phone}?\n\nServices:\n${serviceList}`)) return;
+
+    try {
+        const res = await fetch('/api/season-kickoff/send-sms', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: customer.phone, customerName: customer.name, services: nonSnow })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`Text sent to ${customer.name} at ${customer.phone}!`);
         } else {
             alert('Failed to send: ' + (data.error || 'Unknown error'));
         }

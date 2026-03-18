@@ -269,7 +269,7 @@ function renderTable(customers) {
     }
 
     tbody.innerHTML = customers.map(c => {
-        const key = c.customer_id || c.name;
+        const key = String(c.customer_id || c.name);
         const checked = selectedIds.has(key) ? 'checked' : '';
         const hasEmail = c.email ? '' : 'disabled';
         const nonSnow = c.services.filter(s => {
@@ -333,7 +333,7 @@ function toggleSelectAll() {
     selectedIds.clear();
     if (checked) {
         allCustomers.filter(c => c.email && !sentIds.has(c.name.toLowerCase().trim())).forEach(c => {
-            selectedIds.add(c.customer_id || c.name);
+            selectedIds.add(String(c.customer_id || c.name));
         });
     }
     updateSelectedCount();
@@ -468,7 +468,7 @@ function closePreview() {
 }
 
 async function confirmSend() {
-    const selected = allCustomers.filter(c => selectedIds.has(c.customer_id || c.name) && c.email);
+    const selected = allCustomers.filter(c => selectedIds.has(String(c.customer_id || c.name)) && c.email);
     if (selected.length === 0) { alert('No customers selected.'); return; }
     if (!window.confirm(`Send season kickoff email to ${selected.length} customer${selected.length > 1 ? 's' : ''}?\n\nThis will send personalized emails with their 2025 services and a confirmation link.`)) return;
 

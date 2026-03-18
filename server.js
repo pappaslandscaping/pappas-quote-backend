@@ -11028,42 +11028,46 @@ app.get('/api/reports/2025-services', async (req, res) => {
       .map(c => {
         const props = propsMap[c.customer_id] || [];
         const propRates = propRateMap[c.customer_id];
-        if (props.length > 1 && propRates && Object.keys(propRates).length > 1) {
-          // Multi-property: assign services to properties
-          // Sort properties by their mowing rate (low to high)
-          const sortedProps = Object.entries(propRates).sort((a, b) => a[1] - b[1]);
-          // For each property, find the latest rate for each service
+        if (props.length > 1) {
+          // Multi-property customer
           const byProperty = {};
-          for (const [addr] of sortedProps) {
-            byProperty[addr] = [];
-          }
+          for (const addr of props) byProperty[addr] = [];
 
-          for (const svc of Object.values(c.services)) {
-            const rateEntries = Object.entries(svc.rates).map(([r, d]) => ({ rate: parseFloat(r), date: d }));
+          // Check if we can distinguish properties by rate (different zips = different rates)
+          const canDistinguish = propRates && Object.keys(propRates).length > 1;
 
-            if (rateEntries.length === 1) {
-              // Only one rate — check if it matches a property's mowing rate, else assign to first
-              const matchAddr = sortedProps.find(([, mowRate]) => mowRate === rateEntries[0].rate);
-              const addr = matchAddr ? matchAddr[0] : sortedProps[0][0];
-              byProperty[addr].push({ name: svc.name, rate: svc.rate });
-            } else {
-              // Multiple rates — get the latest rate per property
-              // Sort rates low to high, match to properties sorted low to high by mowing rate
-              // Only take the N most recent rates where N = number of properties
-              const latestPerRate = {};
-              for (const { rate, date } of rateEntries) {
-                if (!latestPerRate[rate] || date > latestPerRate[rate]) latestPerRate[rate] = date;
+          if (canDistinguish) {
+            // Different rates per property — sort properties by mowing rate (low to high)
+            const sortedProps = Object.entries(propRates).sort((a, b) => a[1] - b[1]);
+
+            for (const svc of Object.values(c.services)) {
+              const rateEntries = Object.entries(svc.rates).map(([r, d]) => ({ rate: parseFloat(r), date: d }));
+
+              if (rateEntries.length === 1) {
+                const matchAddr = sortedProps.find(([, mowRate]) => mowRate === rateEntries[0].rate);
+                const addr = matchAddr ? matchAddr[0] : sortedProps[0][0];
+                byProperty[addr].push({ name: svc.name, rate: svc.rate });
+              } else {
+                // Multiple rates — take the N most recent distinct rates
+                const latestPerRate = {};
+                for (const { rate, date } of rateEntries) {
+                  if (!latestPerRate[rate] || date > latestPerRate[rate]) latestPerRate[rate] = date;
+                }
+                const recentRates = Object.entries(latestPerRate)
+                  .map(([r, d]) => ({ rate: parseFloat(r), date: d }))
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .slice(0, sortedProps.length);
+                recentRates.sort((a, b) => a.rate - b.rate);
+                for (let i = 0; i < sortedProps.length && i < recentRates.length; i++) {
+                  byProperty[sortedProps[i][0]].push({ name: svc.name, rate: recentRates[i].rate });
+                }
               }
-              // Get the N most recent distinct rates (one per property)
-              const recentRates = Object.entries(latestPerRate)
-                .map(([r, d]) => ({ rate: parseFloat(r), date: d }))
-                .sort((a, b) => b.date.localeCompare(a.date))
-                .slice(0, sortedProps.length);
-              // Sort these rates low to high to match property ordering
-              recentRates.sort((a, b) => a.rate - b.rate);
-              for (let i = 0; i < sortedProps.length && i < recentRates.length; i++) {
-                byProperty[sortedProps[i][0]].push({ name: svc.name, rate: recentRates[i].rate });
-              }
+            }
+          } else {
+            // Same zip / can't distinguish by rate — show same services under each property
+            const svcs = Object.values(c.services).map(s => ({ name: s.name, rate: s.rate }));
+            for (const addr of props) {
+              byProperty[addr] = [...svcs];
             }
           }
 

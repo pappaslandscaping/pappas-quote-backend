@@ -566,6 +566,36 @@ function requireAdmin(req, res, next) {
   }
 }
 
+// PUBLIC: Season kickoff confirmation (no auth — customers click from email)
+app.get('/api/season-kickoff/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE token = $1', [token]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid or expired link' });
+    const row = result.rows[0];
+    res.json({ success: true, customerName: row.customer_name, services: row.services, status: row.status });
+  } catch (error) {
+    console.error('Error loading kickoff confirmation:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong' });
+  }
+});
+
+app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { response, notes } = req.body;
+    const result = await pool.query(
+      `UPDATE season_kickoff_responses SET status = $1, notes = $2, responded_at = NOW() WHERE token = $3 RETURNING *`,
+      [response, notes || '', token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid link' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error confirming kickoff:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong' });
+  }
+});
+
 // Apply admin auth middleware to all routes
 app.use(requireAdmin);
 
@@ -10637,49 +10667,6 @@ app.post('/api/season-kickoff/preview', async (req, res) => {
     if (!content) return res.json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     res.json({ success: true, html });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// GET /api/season-kickoff/confirm/:token - Customer confirms their services
-app.get('/api/season-kickoff/confirm/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE token = $1', [token]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid or expired link' });
-
-    const row = result.rows[0];
-    res.json({ success: true, customerName: row.customer_name, services: row.services, status: row.status });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// POST /api/season-kickoff/confirm/:token - Customer submits confirmation
-app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { response, notes } = req.body; // response: 'confirmed' or 'changes'
-
-    const result = await pool.query(
-      `UPDATE season_kickoff_responses SET status = $1, notes = $2, responded_at = NOW() WHERE token = $3 RETURNING *`,
-      [response, notes || '', token]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid link' });
-
-    const row = result.rows[0];
-
-    // Notify admin
-    const emoji = response === 'confirmed' ? '✅' : '📝';
-    const adminContent = `
-      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:22px;color:#1e293b;font-weight:400;margin:0 0 20px;">${emoji} Season Kickoff Response</h2>
-      <p style="font-size:15px;color:#475569;line-height:1.6;"><strong>${escapeHtml(row.customer_name)}</strong> has <strong>${response === 'confirmed' ? 'confirmed their services' : 'requested changes'}</strong> for 2026.</p>
-      ${notes ? `<p style="font-size:15px;color:#475569;line-height:1.6;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
-    `;
-    sendEmail(NOTIFICATION_EMAIL, `${emoji} Season Kickoff: ${row.customer_name} ${response === 'confirmed' ? 'Confirmed' : 'Wants Changes'}`, emailTemplate(adminContent, { showSignature: false })).catch(e => console.error('Notification error:', e));
-
-    res.json({ success: true });
   } catch (error) {
     serverError(res, error);
   }

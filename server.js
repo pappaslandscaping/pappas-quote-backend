@@ -10711,6 +10711,73 @@ app.post('/api/season-kickoff/send-sms', async (req, res) => {
   }
 });
 
+// POST /api/season-kickoff/send-bulk - Send kickoff emails to selected customers
+app.post('/api/season-kickoff/send-bulk', async (req, res) => {
+  try {
+    const { customers } = req.body;
+    if (!customers || !customers.length) return res.status(400).json({ success: false, error: 'No customers provided' });
+
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+    const results = { sent: 0, skipped: 0, errors: 0, details: [] };
+
+    for (const cust of customers) {
+      if (!cust.email || !cust.services || !cust.services.length) {
+        results.skipped++;
+        results.details.push({ name: cust.name, status: 'skipped', reason: 'No email or services' });
+        continue;
+      }
+
+      try {
+        const token = crypto.randomBytes(24).toString('hex');
+        const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
+
+        // Store token in DB
+        await pool.query(
+          `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
+          [token, cust.name, cust.email, JSON.stringify(cust.services)]
+        );
+
+        const content = buildKickoffContent(cust.name, cust.services, confirmUrl);
+        if (!content) {
+          results.skipped++;
+          results.details.push({ name: cust.name, status: 'skipped', reason: 'No eligible services' });
+          continue;
+        }
+
+        const html = emailTemplate(content);
+        const firstName = (cust.name || 'Customer').split(' ')[0];
+        const emailResult = await sendEmail(
+          cust.email,
+          `You're on our list for 2026, ${escapeHtml(firstName)}!`,
+          html,
+          null,
+          { type: 'season_kickoff', customer_name: cust.name }
+        );
+
+        if (emailResult && emailResult.success) {
+          results.sent++;
+          results.details.push({ name: cust.name, status: 'sent' });
+        } else {
+          results.errors++;
+          results.details.push({ name: cust.name, status: 'error' });
+        }
+      } catch (e) {
+        console.error(`Season kickoff email error for ${cust.name}:`, e.message);
+        results.errors++;
+        results.details.push({ name: cust.name, status: 'error' });
+      }
+
+      // Rate limit: ~2 emails/sec to avoid Resend 429 errors
+      await delay(1200);
+    }
+
+    res.json({ success: true, ...results });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // POST /api/season-kickoff/preview - Get email HTML for preview
 app.post('/api/season-kickoff/preview', async (req, res) => {
   try {

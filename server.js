@@ -639,6 +639,21 @@ app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
   }
 });
 
+// GET /api/season-kickoff/track/:token - Email open tracking pixel (public)
+app.get('/api/season-kickoff/track/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    await pool.query(
+      `UPDATE season_kickoff_responses SET email_opened_at = COALESCE(email_opened_at, NOW()), email_open_count = COALESCE(email_open_count, 0) + 1 WHERE token = $1`,
+      [token]
+    );
+  } catch (e) { /* silent */ }
+  // Return 1x1 transparent GIF
+  const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' });
+  res.send(pixel);
+});
+
 // Apply admin auth middleware to all routes
 app.use(requireAdmin);
 
@@ -10638,6 +10653,11 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
   };
 
+  // Email open tracking pixel
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+  const tokenMatch = confirmUrl && confirmUrl.match(/token=([a-f0-9]+)/);
+  const trackingPixel = tokenMatch ? `<img src="${baseUrl}/api/season-kickoff/track/${tokenMatch[1]}" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" alt="">` : '';
+
   const ctaButton = confirmUrl ? `
     <div style="text-align:center;margin:28px 0 24px;">
       <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm or Request Changes</a>
@@ -10693,7 +10713,8 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
       ${ctaButton}
       <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
         Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
-      </p>`;
+      </p>
+      ${trackingPixel}`;
   }
 
   // Single property
@@ -10723,6 +10744,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
       Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
     </p>
+    ${trackingPixel}
   `;
 }
 
@@ -10880,7 +10902,7 @@ app.post('/api/season-kickoff/preview', async (req, res) => {
 // GET /api/season-kickoff/responses - View all responses (admin)
 app.get('/api/season-kickoff/responses', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, viewed_at, view_count, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
+    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, viewed_at, view_count, email_opened_at, email_open_count, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
     res.json({ success: true, responses: result.rows });
   } catch (error) {
     serverError(res, error);
@@ -14975,6 +14997,8 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS properties JSONB`); } catch(e) {}
   try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMP`); } catch(e) {}
   try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS email_opened_at TIMESTAMP`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS email_open_count INTEGER DEFAULT 0`); } catch(e) {}
   // Email open tracking columns
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_token VARCHAR(64)`); } catch(e) {}
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP`); } catch(e) {}

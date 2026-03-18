@@ -10560,7 +10560,7 @@ app.get('/api/finance/summary', async (req, res) => {
 // GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {
-    // Get ALL invoices that have at least one line item with a 2025 service date
+    // Get invoices that have 2025 line items (by item date, or by due_date when item date is missing)
     const result = await pool.query(`
       SELECT
         COALESCE(i.customer_id, c_name.id) as customer_id,
@@ -10574,7 +10574,8 @@ app.get('/api/reports/2025-services', async (req, res) => {
         COALESCE(c_id.phone, c_name.phone) as phone,
         COALESCE(c_id.street, c_name.street, i.customer_address) as address,
         COALESCE(c_id.city, c_name.city) as city,
-        i.line_items
+        i.line_items,
+        i.due_date
       FROM invoices i
       LEFT JOIN customers c_id ON c_id.id = i.customer_id
       LEFT JOIN customers c_name ON i.customer_id IS NULL
@@ -10585,7 +10586,12 @@ app.get('/api/reports/2025-services', async (req, res) => {
         )
       WHERE EXISTS (
         SELECT 1 FROM jsonb_array_elements(i.line_items) item
-        WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
+        WHERE (item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01')
+           OR (
+             (item->>'date' IS NULL OR item->>'date' = '0000-00-00' OR item->>'date' = '')
+             AND i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
+             AND i.due_date NOT IN ('2025-03-12', '2025-04-01')
+           )
       )
       ORDER BY customer_name
     `);
@@ -10607,12 +10613,19 @@ app.get('/api/reports/2025-services', async (req, res) => {
         };
       }
 
-      // Only count line items with 2025 service dates
+      // Only count line items with 2025 service dates (or missing dates on 2025 invoices)
+      const dueDate = inv.due_date ? inv.due_date.toISOString().slice(0, 10) : '';
+      const dueDateIs2025 = dueDate >= '2025-01-01' && dueDate < '2026-01-01'
+        && dueDate !== '2025-03-12' && dueDate !== '2025-04-01';
       const items = inv.line_items || [];
       for (const item of items) {
-        if (!item.name || !item.date) continue;
-        // Skip if service date is not in 2025
-        if (item.date < '2025-01-01' || item.date >= '2026-01-01') continue;
+        if (!item.name) continue;
+        const itemDate = item.date || '';
+        const hasValidDate = itemDate >= '2000-01-01';
+        const isDateIn2025 = hasValidDate && itemDate >= '2025-01-01' && itemDate < '2026-01-01';
+        const isMissingDate = !hasValidDate;
+        // Include if: item date is in 2025, OR item has no date but invoice due_date is in 2025
+        if (!isDateIn2025 && !(isMissingDate && dueDateIs2025)) continue;
         // Skip processing fees and fuel surcharges
         const lower = item.name.toLowerCase();
         if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
@@ -10625,8 +10638,15 @@ app.get('/api/reports/2025-services', async (req, res) => {
           serviceName = serviceName.substring(dashIdx + 3);
         }
         const amount = parseFloat(item.amount || 0);
+        const rate = parseFloat(item.rate || 0);
+        const effectiveDate = hasValidDate ? itemDate : dueDate;
         if (!customers[cid].services[serviceName]) {
-          customers[cid].services[serviceName] = { name: serviceName, rate: parseFloat(item.rate || 0), count: 0, total: 0 };
+          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate };
+        }
+        // Always use the latest rate (closest to end of season)
+        if (effectiveDate >= customers[cid].services[serviceName].latestDate) {
+          customers[cid].services[serviceName].rate = rate;
+          customers[cid].services[serviceName].latestDate = effectiveDate;
         }
         customers[cid].services[serviceName].count++;
         customers[cid].services[serviceName].total += amount;

@@ -10613,7 +10613,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     <div style="text-align:center;margin:28px 0 24px;">
       <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm My Services for 2026</a>
     </div>
-    <p style="font-size:13px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or reply to this email if you'd like to make changes.</p>
+    <p style="font-size:13px;color:#475569;text-align:center;margin:0 0 24px;">Or reply to this email if you'd like to make changes.</p>
   ` : '';
 
   const buildTable = (svcs) => {
@@ -10687,8 +10687,8 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     </p>
     ${buildTable(filtered)}
     ${ctaButton}
-    <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0;">
-      Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
+      Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
     </p>
   `;
 }
@@ -10967,7 +10967,11 @@ app.get('/api/reports/2025-services', async (req, res) => {
         const rate = parseFloat(item.rate || 0);
         const effectiveDate = itemDate;
         if (!customers[cid].services[serviceName]) {
-          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate, rates: {} };
+          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate, earliestRate: rate, earliestDate: effectiveDate, rates: {} };
+        }
+        if (effectiveDate <= customers[cid].services[serviceName].earliestDate) {
+          customers[cid].services[serviceName].earliestRate = rate;
+          customers[cid].services[serviceName].earliestDate = effectiveDate;
         }
         // Track all distinct rates with their latest date
         if (!customers[cid].services[serviceName].rates[rate] || effectiveDate >= customers[cid].services[serviceName].rates[rate]) {
@@ -11077,15 +11081,22 @@ app.get('/api/reports/2025-services', async (req, res) => {
             propertyServices: Object.entries(byProperty)
               .filter(([, svcs]) => svcs.length > 0)
               .map(([addr, svcs]) => ({ address: addr, services: svcs })),
-            services: Object.values(c.services).map(s => ({ name: s.name, rate: s.rate, count: s.count, total: s.total })).sort((a, b) => b.total - a.total),
+            services: Object.values(c.services).map(s => ({
+              name: s.name, rate: s.rate, count: s.count, total: s.total,
+              noIncrease: s.name.toLowerCase().includes('mowing') && s.rate <= s.earliestRate
+            })).sort((a, b) => b.total - a.total),
             total_invoiced: Math.round(c.total_invoiced * 100) / 100
           };
         }
         // Single property: use latest rate only
+        const isMowing = n => n.toLowerCase().includes('mowing');
         return {
           ...c,
           properties: props,
-          services: Object.values(c.services).map(s => ({ name: s.name, rate: s.rate, count: s.count, total: s.total })).sort((a, b) => b.total - a.total),
+          services: Object.values(c.services).map(s => ({
+            name: s.name, rate: s.rate, count: s.count, total: s.total,
+            noIncrease: isMowing(s.name) && s.rate <= s.earliestRate
+          })).sort((a, b) => b.total - a.total),
           total_invoiced: Math.round(c.total_invoiced * 100) / 100
         };
       }).sort((a, b) => a.name.localeCompare(b.name));

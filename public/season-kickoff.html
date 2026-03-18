@@ -256,9 +256,11 @@ function renderTable(customers) {
             const l = s.name.toLowerCase();
             return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
         });
-        const services = nonSnow.slice(0, 4).map(s =>
-            `<span class="service-tag">${esc(s.name)} — $${s.rate.toFixed(0)}</span>`
-        ).join('');
+        const services = nonSnow.slice(0, 4).map(s => {
+            const flag = s.noIncrease ? ' style="background:#fff3cd;color:#856404;border:1px solid #ffc107;"' : '';
+            const tip = s.noIncrease ? ' title="No rate increase in 2025"' : '';
+            return `<span class="service-tag"${flag}${tip}>${esc(s.name)} — $${s.rate.toFixed(0)}${s.noIncrease ? ' ⚠' : ''}</span>`;
+        }).join('');
         const moreCount = nonSnow.length > 4 ? `<span style="font-size:11px;color:var(--gray-400);">+${nonSnow.length - 4} more</span>` : '';
 
         return `<tr class="${checked ? 'selected' : ''}" data-key="${esc(key)}">

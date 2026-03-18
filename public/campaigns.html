@@ -1355,7 +1355,21 @@ function renderCampaigns() {
         return;
     }
 
-    grid.innerHTML = campaigns.map(c => `
+    // Pinned Season Kickoff campaign card
+    const seasonKickoffCard = `
+        <div class="campaign-card" onclick="window.location.href='season-kickoff.html'" style="border-left:4px solid var(--forest);">
+            <div class="campaign-header">
+                <span class="campaign-status status-active">Active</span>
+                <div class="campaign-name">Season Kickoff 2026</div>
+                <div class="campaign-desc">Confirm returning customers and services for the 2026 season</div>
+            </div>
+            <div class="campaign-footer">
+                <span class="campaign-date">Season Campaign</span>
+                <span class="campaign-link">Open &#8594;</span>
+            </div>
+        </div>`;
+
+    grid.innerHTML = seasonKickoffCard + campaigns.map(c => `
         <div class="campaign-card" onclick="viewCampaign('${c.id}')">
             <div class="campaign-header">
                 <span class="campaign-status status-${c.status || 'active'}">${c.status || 'Active'}</span>

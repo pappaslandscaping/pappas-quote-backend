@@ -51,7 +51,6 @@
     { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' },
     'divider',
     { href: 'communications.html', icon: 'comms', label: 'Marketing', perm: 'marketing' },
-    { href: 'season-kickoff.html', icon: 'calendar', label: 'Season Kickoff', perm: 'marketing' },
     { href: 'reports.html', icon: 'reports', label: 'Reports', perm: 'reports' },
     { href: 'kpi.html', icon: 'kpi', label: 'Insights', perm: 'insights' },
     { href: 'crew.html', icon: 'crew', label: 'Crew', perm: 'crew' },

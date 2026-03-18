@@ -10636,8 +10636,8 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     </table>`;
   };
 
-  // Multi-property: show services grouped by property
-  if (propertyServices && propertyServices.length > 0) {
+  // Multi-property: show services grouped by property (only if 2+ properties have services)
+  if (propertyServices && propertyServices.length > 1) {
     const sections = propertyServices.map(ps => {
       const table = buildTable(ps.services);
       if (!table) return '';
@@ -10660,8 +10660,8 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
       </p>
       ${sections}
       ${ctaButton}
-      <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0;">
-        Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
+      <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
+        Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
       </p>`;
   }
 
@@ -10886,6 +10886,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
         COALESCE(c_id.phone, c_name.phone) as phone,
         COALESCE(c_id.street, c_name.street, i.customer_address) as address,
         COALESCE(c_id.city, c_name.city) as city,
+        COALESCE(c_id.status, c_name.status) as customer_status,
         i.line_items,
         i.due_date,
         i.created_at
@@ -10917,6 +10918,9 @@ app.get('/api/reports/2025-services', async (req, res) => {
     // Group by customer, only counting line items with 2025 service dates
     const customers = {};
     for (const inv of result.rows) {
+      // Skip inactive customers
+      if (inv.customer_status && inv.customer_status.toLowerCase() === 'inactive') continue;
+
       const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown').toLowerCase().trim());
       if (!customers[cid]) {
         customers[cid] = {
@@ -10985,6 +10989,15 @@ app.get('/api/reports/2025-services', async (req, res) => {
         customers[cid].services[serviceName].count++;
         customers[cid].services[serviceName].total += amount;
         customers[cid].total_invoiced += amount;
+      }
+    }
+
+    // Apply minimum rates: Spring Cleanup = $100 minimum
+    for (const cid of Object.keys(customers)) {
+      for (const svcName of Object.keys(customers[cid].services)) {
+        if (svcName.toLowerCase().includes('spring cleanup') && customers[cid].services[svcName].rate < 100) {
+          customers[cid].services[svcName].rate = 100;
+        }
       }
     }
 

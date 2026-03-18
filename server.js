@@ -10773,6 +10773,8 @@ app.get('/api/reports/2025-services', async (req, res) => {
         // Skip processing fees and fuel surcharges
         const lower = item.name.toLowerCase();
         if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
+        // Skip one-time project services that don't repeat
+        if (lower.includes('landscaping') || lower.includes('river rock')) continue;
         // Skip generic "." entries
         if (item.name.trim() === '.') continue;
 

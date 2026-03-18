@@ -10710,7 +10710,8 @@ app.get('/api/reports/2025-services', async (req, res) => {
         COALESCE(c_id.street, c_name.street, i.customer_address) as address,
         COALESCE(c_id.city, c_name.city) as city,
         i.line_items,
-        i.due_date
+        i.due_date,
+        i.created_at
       FROM invoices i
       LEFT JOIN customers c_id ON c_id.id = i.customer_id
       LEFT JOIN customers c_name ON i.customer_id IS NULL
@@ -10719,9 +10720,19 @@ app.get('/api/reports/2025-services', async (req, res) => {
           WHERE LOWER(TRIM(COALESCE(c2.name, c2.first_name || ' ' || c2.last_name))) = LOWER(TRIM(SPLIT_PART(i.customer_name, '#', 1)))
           LIMIT 1
         )
-      WHERE EXISTS (
-        SELECT 1 FROM jsonb_array_elements(i.line_items) item
-        WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
+      WHERE (
+        EXISTS (
+          SELECT 1 FROM jsonb_array_elements(i.line_items) item
+          WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
+        )
+        OR (
+          i.created_at >= '2025-01-01'
+          AND i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(i.line_items) item
+            WHERE item->>'date' = '0000-00-00' OR item->>'date' IS NULL OR item->>'date' = ''
+          )
+        )
       )
       ORDER BY customer_name
     `);
@@ -10747,8 +10758,17 @@ app.get('/api/reports/2025-services', async (req, res) => {
       const items = inv.line_items || [];
       for (const item of items) {
         if (!item.name) continue;
-        const itemDate = item.date || '';
-        // Only include items with a valid 2025 date — skip 0000-00-00 (unreliable)
+        let itemDate = item.date || '';
+        // For 0000-00-00 dates, fall back to invoice due_date if the invoice was created in 2025
+        const createdAt = inv.created_at ? inv.created_at.toISOString().slice(0, 10) : '';
+        if ((itemDate === '0000-00-00' || itemDate === '' || !itemDate) && createdAt >= '2025-01-01') {
+          const dd = inv.due_date ? inv.due_date.toISOString().slice(0, 10) : '';
+          if (dd >= '2025-01-01' && dd < '2026-01-01') {
+            itemDate = dd;
+          } else {
+            continue;
+          }
+        }
         if (itemDate < '2025-01-01' || itemDate >= '2026-01-01') continue;
         // Skip processing fees and fuel surcharges
         const lower = item.name.toLowerCase();

@@ -11077,7 +11077,8 @@ app.get('/api/reports/2025-services', async (req, res) => {
           for (const addr of props) byProperty[addr] = [];
 
           // Check if we can distinguish properties by rate (different zips = different rates)
-          const canDistinguish = propRates && Object.keys(propRates).length > 1;
+          // Only distinguish if ALL properties have a matched rate, otherwise fall back to showing same services under each
+          const canDistinguish = propRates && Object.keys(propRates).length > 1 && Object.keys(propRates).length >= props.length;
 
           if (canDistinguish) {
             // Different rates per property — sort properties by mowing rate (low to high)

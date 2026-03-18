@@ -139,9 +139,11 @@
         <div style="flex:1;"></div>
         <input type="text" class="search-box" id="searchBox" placeholder="Search customers..." oninput="filterTable()">
         <select class="filter-select" id="filterSelect" onchange="filterTable()">
+            <option value="not-sent">Not Yet Sent</option>
             <option value="all">All Customers</option>
             <option value="with-email">With Email</option>
             <option value="no-email">Missing Email</option>
+            <option value="sent">Already Sent</option>
         </select>
     </div>
 
@@ -217,12 +219,20 @@ const TOKEN = localStorage.getItem('token');
 const API = '';
 let allCustomers = [];
 let selectedIds = new Set();
+let sentIds = new Set();
 let previewCustomer = null;
 let previewServices = [];
 let previewPropertyServices = null;
 
 async function loadData() {
     try {
+        // Load responses first to know who's already been sent
+        const respRes = await fetch('/api/season-kickoff/responses', { headers: { 'Authorization': `Bearer ${TOKEN}` } });
+        const respData = await respRes.json();
+        if (respData.success) {
+            sentIds = new Set(respData.responses.map(r => r.customer_name.toLowerCase().trim()));
+        }
+
         const res = await fetch(`${API}/api/reports/2025-services`, {
             headers: { 'Authorization': `Bearer ${TOKEN}` }
         });
@@ -303,6 +313,8 @@ function filterTable() {
             c.services.some(s => s.name.toLowerCase().includes(search))
         );
     }
+    if (filter === 'not-sent') filtered = filtered.filter(c => !sentIds.has(c.name.toLowerCase().trim()));
+    if (filter === 'sent') filtered = filtered.filter(c => sentIds.has(c.name.toLowerCase().trim()));
     if (filter === 'with-email') filtered = filtered.filter(c => c.email);
     if (filter === 'no-email') filtered = filtered.filter(c => !c.email);
 
@@ -320,7 +332,7 @@ function toggleSelectAll() {
     const checked = document.getElementById('selectAll').checked;
     selectedIds.clear();
     if (checked) {
-        allCustomers.filter(c => c.email).forEach(c => {
+        allCustomers.filter(c => c.email && !sentIds.has(c.name.toLowerCase().trim())).forEach(c => {
             selectedIds.add(c.customer_id || c.name);
         });
     }
@@ -492,6 +504,8 @@ async function confirmSend() {
         clearInterval(progressInterval);
 
         if (data.success) {
+            // Mark sent customers so they move off the list
+            selected.forEach(c => sentIds.add(c.name.toLowerCase().trim()));
             alert(`Done!\n\nSent: ${data.sent}\nSkipped: ${data.skipped}\nErrors: ${data.errors}`);
             selectedIds.clear();
             updateSelectedCount();
@@ -582,7 +596,9 @@ async function sendKickoffText(key) {
         });
         const data = await res.json();
         if (data.success) {
+            sentIds.add(customer.name.toLowerCase().trim());
             alert(`Text sent to ${customer.name} at ${customer.phone}!`);
+            filterTable();
         } else {
             alert('Failed to send: ' + (data.error || 'Unknown error'));
         }

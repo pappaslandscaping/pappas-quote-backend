@@ -10659,6 +10659,9 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
         Here's a summary of the services we provided at each property last season:
       </p>
       ${sections}
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+        <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Please confirm your services below so we can get you on the schedule!
+      </p>
       ${ctaButton}
       <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
         Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
@@ -10686,6 +10689,9 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
       Here's a summary of the services we provided for you last season:
     </p>
     ${buildTable(filtered)}
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+      <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Please confirm your services below so we can get you on the schedule!
+    </p>
     ${ctaButton}
     <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
       Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
@@ -10736,7 +10742,7 @@ app.post('/api/season-kickoff/send-sms', async (req, res) => {
       return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
     });
     const serviceLines = nonSnow.map(s => `• ${s.name} — $${parseFloat(s.rate).toFixed(0)}`).join('\n');
-    const body = `Hi ${firstName}! This is Pappas & Co. Landscaping. You're on our list for 2026!\n\nHere are your services from last season:\n${serviceLines}\n\nConfirm your services or request changes here:\n${confirmUrl}\n\nQuestions? Call us at (440) 886-7318`;
+    const body = `Hi ${firstName}! This is Pappas & Co. Landscaping. You're on our list for 2026!\n\nHere are your services from last season:\n${serviceLines}\n\nSpring cleanups have already started and mowing will begin in April. Please confirm your services so we can get you on the schedule!\n\n${confirmUrl}\n\nQuestions? Call us at (440) 886-7318`;
 
     let formattedTo = phone.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;

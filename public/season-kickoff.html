@@ -285,106 +285,30 @@ function updateSelectedCount() {
     document.getElementById('sendBtn').disabled = selectedIds.size === 0;
 }
 
-function buildEmailHtml(customer) {
-    const firstName = customer.name.split(' ')[0];
-    const filteredServices = customer.services.filter(s => {
-        const lower = s.name.toLowerCase();
-        return !lower.includes('snow') && !lower.includes('salt') && !lower.includes('deic');
-    });
-    const serviceRows = filteredServices.map(s => `
-        <tr>
-            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;">${s.name}</td>
-            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${s.rate.toFixed(2)}</td>
-        </tr>
-    `).join('');
-
-    if (filteredServices.length === 0) {
-        return null; // Skip customers who only had snow services
-    }
-
-    return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<div style="max-width:600px;margin:0 auto;background:#ffffff;">
-    <!-- Header -->
-    <div style="background:#2e403d;padding:24px 32px;text-align:center;">
-        <img src="https://pappas-quote-backend-production.up.railway.app/images/logo-email.png" alt="Pappas & Co." style="height:60px;" onerror="this.style.display='none'">
-        <h1 style="color:#c9dd80;font-size:20px;margin:12px 0 0;font-weight:700;">Spring is Here!</h1>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:32px;">
-        <p style="font-size:16px;color:#334155;line-height:1.6;margin:0 0 16px;">
-            Hi ${firstName},
-        </p>
-        <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-            We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
-        </p>
-        <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-            Here's a summary of the services we provided for you last season:
-        </p>
-
-        <!-- Service Table -->
-        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
-            <thead>
-                <tr style="background:#f8fafc;">
-                    <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Service</th>
-                    <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e2e8f0;">Rate</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${serviceRows}
-            </tbody>
-        </table>
-
-        <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-            We'd love to continue caring for your property this season. If you'd like to keep the same services, make changes, or add anything new — just reply to this email or give us a call.
-        </p>
-
-        <!-- CTA Button -->
-        <div style="text-align:center;margin:32px 0;">
-            <a href="mailto:hello@pappaslandscaping.com?subject=2026 Season - ${encodeURIComponent(customer.name)}" style="background:#2e403d;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">
-                Confirm My Services for 2026
-            </a>
-        </div>
-
-        <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:24px 0 0;">
-            Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
-        </p>
-        <p style="font-size:14px;color:#334155;margin:16px 0 0;font-weight:600;">
-            — The Pappas & Co. Team<br>
-            <span style="font-size:13px;color:#64748b;font-weight:400;">(440) 886-7318 &nbsp;|&nbsp; hello@pappaslandscaping.com</span>
-        </p>
-    </div>
-
-    <!-- Footer -->
-    <div style="background:#2e403d;padding:20px 32px;text-align:center;">
-        <p style="color:#a3b8a0;font-size:12px;margin:0;">
-            Pappas & Co. Landscaping &nbsp;|&nbsp; Cleveland, OH
-        </p>
-    </div>
-</div>
-</body></html>`;
-}
-
-function previewEmail(key) {
+async function previewEmail(key) {
     const customer = allCustomers.find(c => (c.customer_id || c.name) == key);
     if (!customer) return;
 
-    const html = buildEmailHtml(customer);
-    if (!html) {
-        alert('This customer only had snow/salt services — no email to preview.');
-        return;
+    try {
+        const res = await fetch('/api/season-kickoff/preview', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerName: customer.name, services: customer.services })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert(data.error || 'This customer only had snow/salt services — no email to preview.');
+            return;
+        }
+
+        document.getElementById('previewTitle').textContent = `Email Preview — ${customer.name}`;
+        document.getElementById('previewTo').textContent = customer.email || 'No email';
+        document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${customer.name.split(' ')[0]}!`;
+        document.getElementById('previewFrame').srcdoc = data.html;
+        document.getElementById('previewModal').classList.add('active');
+    } catch (err) {
+        alert('Error loading preview: ' + err.message);
     }
-
-    document.getElementById('previewTitle').textContent = `Email Preview — ${customer.name}`;
-    document.getElementById('previewTo').textContent = customer.email || 'No email';
-    document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${customer.name.split(' ')[0]}!`;
-
-    const iframe = document.getElementById('previewFrame');
-    iframe.srcdoc = html;
-
-    document.getElementById('previewModal').classList.add('active');
 }
 
 function closePreview() {
@@ -396,27 +320,18 @@ function confirmSend() {
 }
 
 async function sendTestEmail() {
-    // Build a sample email using Theresa Pappas with sample services
-    const testCustomer = {
-        name: 'Theresa Pappas',
-        email: 'hello@pappaslandscaping.com',
-        services: [
-            { name: 'Mowing (Weekly)', rate: 45, count: 24, total: 1080 },
-            { name: 'Spring Cleanup', rate: 250, count: 1, total: 250 },
-            { name: 'Fall Cleanup (One Time Charge)', rate: 300, count: 1, total: 300 },
-            { name: 'Mulching', rate: 200, count: 1, total: 200 },
-            { name: 'Aeration', rate: 120, count: 1, total: 120 }
-        ],
-        total_invoiced: 1950
-    };
-    const html = buildEmailHtml(testCustomer);
-    if (!html) { alert('Could not build email'); return; }
-
+    const testServices = [
+        { name: 'Mowing (Weekly)', rate: 45 },
+        { name: 'Spring Cleanup', rate: 250 },
+        { name: 'Fall Cleanup (One Time Charge)', rate: 300 },
+        { name: 'Mulching', rate: 200 },
+        { name: 'Aeration', rate: 120 }
+    ];
     try {
         const res = await fetch('/api/season-kickoff/send-test', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'hello@pappaslandscaping.com', html, customerName: testCustomer.name })
+            body: JSON.stringify({ email: 'hello@pappaslandscaping.com', customerName: 'Theresa Pappas', services: testServices })
         });
         const data = await res.json();
         if (data.success) {

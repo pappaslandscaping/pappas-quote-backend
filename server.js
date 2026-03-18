@@ -10557,14 +10557,74 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
+// Build season kickoff email content (inner HTML for emailTemplate)
+function buildKickoffContent(customerName, services) {
+  const firstName = escapeHtml((customerName || 'Customer').split(' ')[0]);
+  const serviceRows = services
+    .filter(s => {
+      const l = s.name.toLowerCase();
+      return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+    })
+    .map(s => `
+      <tr>
+        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td>
+        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+  if (!serviceRows) return null;
+
+  return `
+    <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:22px;color:#1e293b;font-weight:400;margin:0 0 20px;">You're on Our List for 2026!</h2>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+      We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
+    </p>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 20px;">
+      Here's a summary of the services we provided for you last season:
+    </p>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Service</th>
+          <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Rate</th>
+        </tr>
+      </thead>
+      <tbody>${serviceRows}</tbody>
+    </table>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+      We'd love to continue caring for your property this season. If you'd like to keep the same services, make changes, or add anything new — just reply to this email or give us a call.
+    </p>
+    <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0;">
+      Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
+    </p>
+  `;
+}
+
 // POST /api/season-kickoff/send-test - Send a test kickoff email
 app.post('/api/season-kickoff/send-test', async (req, res) => {
   try {
-    const { email, html, customerName } = req.body;
-    if (!email || !html) return res.status(400).json({ success: false, error: 'Email and html required' });
+    const { email, customerName, services } = req.body;
+    if (!email || !services) return res.status(400).json({ success: false, error: 'Email and services required' });
+    const content = buildKickoffContent(customerName, services);
+    if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
+    const html = emailTemplate(content);
     const firstName = (customerName || 'Customer').split(' ')[0];
-    const result = await sendEmail(email, `You're on our list for 2026, ${firstName}!`, html, null, { type: 'season_kickoff', customer_name: customerName });
+    const result = await sendEmail(email, `You're on our list for 2026, ${escapeHtml(firstName)}!`, html, null, { type: 'season_kickoff', customer_name: customerName });
     res.json(result);
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/season-kickoff/preview - Get email HTML for preview
+app.post('/api/season-kickoff/preview', async (req, res) => {
+  try {
+    const { customerName, services } = req.body;
+    const content = buildKickoffContent(customerName, services);
+    if (!content) return res.json({ success: false, error: 'No eligible services' });
+    const html = emailTemplate(content);
+    res.json({ success: true, html });
   } catch (error) {
     serverError(res, error);
   }

@@ -506,21 +506,25 @@ async function confirmSend() {
         if (data.success) {
             // Mark sent customers so they move off the list
             selected.forEach(c => sentIds.add(c.name.toLowerCase().trim()));
-            alert(`Done!\n\nSent: ${data.sent}\nSkipped: ${data.skipped}\nErrors: ${data.errors}`);
+            // Restore button before updating count (selectedCount span must exist)
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = origText;
             selectedIds.clear();
             updateSelectedCount();
             document.getElementById('selectAll').checked = false;
             filterTable();
+            alert(`Done!\n\nSent: ${data.sent}\nSkipped: ${data.skipped}\nErrors: ${data.errors}`);
         } else {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = origText;
             alert('Failed: ' + (data.error || 'Unknown error'));
         }
     } catch (err) {
         clearInterval(progressInterval);
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = origText;
         alert('Error: ' + err.message);
     }
-
-    sendBtn.disabled = false;
-    sendBtn.innerHTML = origText;
 }
 
 async function sendTestEmail() {

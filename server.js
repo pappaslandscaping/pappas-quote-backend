@@ -589,6 +589,20 @@ app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
       [response, notes || '', token]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid link' });
+
+    // Notify admin about the response
+    const row = result.rows[0];
+    const statusLabel = response === 'confirmed' ? 'Confirmed Services' : 'Requested Changes';
+    const notifyHtml = emailTemplate(`
+      <h2 style="font-size:20px;color:#1e293b;font-weight:700;margin:0 0 16px;">Season Kickoff Response</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">
+        <strong>${escapeHtml(row.customer_name)}</strong> has <strong>${statusLabel.toLowerCase()}</strong>.
+      </p>
+      ${row.customer_email ? `<p style="font-size:14px;color:#64748b;margin:0 0 8px;">Contact: ${escapeHtml(row.customer_email)}</p>` : ''}
+      ${notes ? `<p style="font-size:14px;color:#475569;margin:12px 0;padding:12px;background:#f8fafc;border-radius:8px;border-left:3px solid #2e403d;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
+    `);
+    sendEmail('hello@pappaslandscaping.com', `Season Kickoff: ${escapeHtml(row.customer_name)} — ${statusLabel}`, notifyHtml).catch(err => console.error('Notify email error:', err));
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error confirming kickoff:', error);

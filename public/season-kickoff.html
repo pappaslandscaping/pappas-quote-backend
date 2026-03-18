@@ -208,6 +208,7 @@
             <div id="serviceEditor" style="margin-bottom:16px;">
                 <div style="font-size:12px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Services (edit price or click X to remove)</div>
                 <div id="serviceList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                <button onclick="addPreviewService()" style="margin-top:8px;padding:4px 12px;border:1px dashed var(--gray-300);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--forest);font-weight:600;">+ Add Service</button>
             </div>
             <div class="email-preview">
                 <iframe id="previewFrame"></iframe>
@@ -426,6 +427,22 @@ async function updatePreviewRate(index, value) {
 
 async function removePreviewService(index) {
     previewServices.splice(index, 1);
+    renderServiceEditor();
+    await refreshPreview();
+}
+
+async function addPreviewService() {
+    const name = prompt('Service name (e.g., Shrub Trimming, Mulch, Aeration):');
+    if (!name || !name.trim()) return;
+    const rateStr = prompt(`Rate for ${name.trim()}:`);
+    if (!rateStr) return;
+    const rate = parseFloat(rateStr);
+    if (isNaN(rate) || rate < 0) { alert('Invalid rate'); return; }
+    previewServices.push({ name: name.trim(), rate, count: 1, total: rate, noIncrease: false });
+    // Also add to first property if multi-property
+    if (previewPropertyServices && previewPropertyServices.length > 0) {
+        previewPropertyServices[0].services.push({ name: name.trim(), rate });
+    }
     renderServiceEditor();
     await refreshPreview();
 }
@@ -653,9 +670,11 @@ async function loadResponses() {
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
+        // Store responses for resend access
+        window.kickoffResponses = data.responses;
         const tbody = document.getElementById('responsesTable');
         if (data.responses.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray-400);">No responses yet</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-400);">No responses yet</td></tr>';
             return;
         }
 
@@ -688,7 +707,11 @@ async function loadResponses() {
                 <td><span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;background:${statusColor}15;color:${statusColor};">${statusLabel}</span></td>
                 <td style="font-size:13px;color:var(--gray-600);max-width:300px;">${esc(r.notes || '—')}</td>
                 <td style="font-size:12px;color:var(--gray-400);white-space:nowrap;">${date}</td>
-                <td style="text-align:center;"><button onclick="deleteResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--red);" title="Delete">✕</button></td>
+                <td style="text-align:center;white-space:nowrap;">
+                    ${r.customer_email ? `<button onclick="resendFromResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--forest);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--forest);margin-right:4px;" title="Edit & Resend">Resend</button>` : ''}
+                    ${r.customer_email && r.notes && r.notes !== '—' ? `<button onclick="replyToResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--amber);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:#92400e;margin-right:4px;" title="Reply to customer">Reply</button>` : ''}
+                    <button onclick="deleteResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--red);" title="Delete">✕</button>
+                </td>
             </tr>`;
         }).join('');
     } catch (err) {
@@ -706,6 +729,53 @@ async function deleteResponse(id) {
         const data = await res.json();
         if (data.success) loadResponses();
         else alert('Failed to delete: ' + (data.error || 'Unknown error'));
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function resendFromResponse(id) {
+    const r = (window.kickoffResponses || []).find(x => x.id === id);
+    if (!r) return alert('Response not found');
+    let svcs = [];
+    try { svcs = typeof r.services === 'string' ? JSON.parse(r.services) : (r.services || []); } catch(e) {}
+    // Build a fake customer object for the preview modal
+    let props = [];
+    try { props = typeof r.properties === 'string' ? JSON.parse(r.properties) : (r.properties || []); } catch(e) {}
+    const fakeCustomer = {
+        customer_id: r.customer_id || r.id,
+        name: r.customer_name,
+        email: r.customer_email,
+        properties: props,
+        services: svcs,
+        propertyServices: props.length > 1 ? props.map(addr => ({ address: addr, services: svcs.map(s => ({...s})) })) : null
+    };
+    previewCustomer = fakeCustomer;
+    previewServices = svcs.map(s => ({ ...s }));
+    previewPropertyServices = fakeCustomer.propertyServices ? fakeCustomer.propertyServices.map(ps => ({ address: ps.address, services: ps.services.map(s => ({...s})) })) : null;
+    document.getElementById('previewModal').classList.add('active');
+    document.getElementById('previewTo').textContent = r.customer_email;
+    document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${(r.customer_name || '').split(' ')[0]}!`;
+    document.getElementById('previewName').textContent = r.customer_name;
+    renderServiceEditor();
+    renderPropertyEditor();
+    await refreshPreview();
+}
+
+async function replyToResponse(id) {
+    const r = (window.kickoffResponses || []).find(x => x.id === id);
+    if (!r || !r.customer_email) return alert('No email address');
+    const msg = prompt(`Reply to ${r.customer_name}:\n\nTheir note: "${r.notes || '(none)'}"\n\nType your reply:`);
+    if (!msg || !msg.trim()) return;
+    try {
+        const res = await fetch('/api/season-kickoff/reply', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ responseId: id, message: msg.trim() })
+        });
+        const data = await res.json();
+        if (data.success) { alert('Reply sent!'); loadResponses(); }
+        else alert('Failed: ' + (data.error || 'Unknown error'));
     } catch (err) {
         alert('Error: ' + err.message);
     }

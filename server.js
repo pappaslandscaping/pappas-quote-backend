@@ -10919,6 +10919,39 @@ app.delete('/api/season-kickoff/responses/:id', async (req, res) => {
   }
 });
 
+// POST /api/season-kickoff/reply - Reply to a customer's change request
+app.post('/api/season-kickoff/reply', async (req, res) => {
+  try {
+    const { responseId, message } = req.body;
+    if (!responseId || !message) return res.status(400).json({ success: false, error: 'Response ID and message required' });
+    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE id = $1', [responseId]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Response not found' });
+    const r = result.rows[0];
+    if (!r.customer_email) return res.status(400).json({ success: false, error: 'No email address' });
+
+    const html = emailTemplate(`
+      <h2 style="font-size:22px;color:#1e293b;font-weight:700;margin:0 0 20px;">Hi ${escapeHtml((r.customer_name || 'there').split(' ')[0])},</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">
+        Thanks for letting us know about the changes you'd like for the 2026 season. Here's our response:
+      </p>
+      <div style="background:#f8fafc;border-left:4px solid #2e403d;padding:16px 20px;margin:0 0 24px;border-radius:0 8px 8px 0;">
+        <p style="font-size:15px;color:#334155;line-height:1.6;margin:0;">${escapeHtml(message)}</p>
+      </div>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">
+        If you have any other questions, feel free to reply to this email or call us at <strong>440-886-7318</strong>.
+      </p>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
+        Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
+      </p>
+    `);
+
+    await sendEmail(r.customer_email, `Re: Your 2026 Service Changes — Pappas & Co. Landscaping`, html);
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {

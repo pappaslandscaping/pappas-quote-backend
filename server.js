@@ -10737,12 +10737,7 @@ app.post('/api/season-kickoff/send-sms', async (req, res) => {
       [token, customerName, phone, JSON.stringify(services)]);
 
     const firstName = (customerName || 'Customer').split(' ')[0];
-    const nonSnow = services.filter(s => {
-      const l = s.name.toLowerCase();
-      return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
-    });
-    const serviceLines = nonSnow.map(s => `• ${s.name} — $${parseFloat(s.rate).toFixed(0)}`).join('\n');
-    const body = `Hi ${firstName}! This is Pappas & Co. Landscaping. You're on our list for 2026!\n\nHere are your services from last season:\n${serviceLines}\n\nSpring cleanups have already started and mowing will begin in April. Please confirm your services so we can get you on the schedule!\n\n${confirmUrl}\n\nQuestions? Call us at (440) 886-7318`;
+    const body = `Hi ${firstName}! It's Pappas & Co. Landscaping 🌿 You're on our list for 2026!\n\nSpring cleanups have started and mowing begins in April. Tap the link below to review your services and confirm:\n\n${confirmUrl}\n\nQuestions? Call or text (440) 886-7318`;
 
     let formattedTo = phone.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;

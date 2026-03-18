@@ -361,7 +361,7 @@ async function refreshPreview() {
         const res = await fetch('/api/season-kickoff/preview', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ customerName: previewCustomer.name, services: previewServices })
+            body: JSON.stringify({ customerName: previewCustomer.name, services: previewServices, properties: previewCustomer.properties })
         });
         const data = await res.json();
         if (!data.success) {
@@ -398,6 +398,7 @@ async function confirmSend() {
         const payload = selected.map(c => ({
             name: c.name,
             email: c.email,
+            properties: c.properties,
             services: c.services.filter(s => {
                 const l = s.name.toLowerCase();
                 return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');

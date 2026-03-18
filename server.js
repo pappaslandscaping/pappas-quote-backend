@@ -10588,21 +10588,21 @@ app.get('/api/finance/summary', async (req, res) => {
 });
 
 // Build season kickoff email content (inner HTML for emailTemplate)
-function buildKickoffContent(customerName, services, confirmUrl) {
+function buildKickoffContent(customerName, services, confirmUrl, properties) {
   const firstName = escapeHtml((customerName || 'Customer').split(' ')[0]);
-  const serviceRows = services
-    .filter(s => {
-      const l = s.name.toLowerCase();
-      return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
-    })
-    .map(s => `
+  const filtered = services.filter(s => {
+    const l = s.name.toLowerCase();
+    return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+  });
+
+  if (!filtered.length) return null;
+
+  const serviceRows = filtered.map(s => `
       <tr>
         <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td>
         <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td>
       </tr>
     `).join('');
-
-  if (!serviceRows) return null;
 
   const ctaButton = confirmUrl ? `
     <div style="text-align:center;margin:28px 0 24px;">
@@ -10611,12 +10611,21 @@ function buildKickoffContent(customerName, services, confirmUrl) {
     <p style="font-size:13px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or reply to this email if you'd like to make changes.</p>
   ` : '';
 
+  // Show property addresses if available
+  const props = (properties || []).filter(Boolean);
+  const addressSection = props.length > 0 ? `
+    <p style="font-size:14px;color:#64748b;margin:0 0 4px;font-weight:600;">Service Address${props.length > 1 ? 'es' : ''}:</p>
+    ${props.map(a => `<p style="font-size:14px;color:#475569;margin:0 0 4px;">${escapeHtml(a)}</p>`).join('')}
+    <div style="margin-bottom:20px;"></div>
+  ` : '';
+
   return `
     <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
       We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
     </p>
+    ${addressSection}
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 20px;">
       Here's a summary of the services we provided for you last season:
     </p>
@@ -10639,7 +10648,7 @@ function buildKickoffContent(customerName, services, confirmUrl) {
 // POST /api/season-kickoff/send-test - Send a test kickoff email
 app.post('/api/season-kickoff/send-test', async (req, res) => {
   try {
-    const { email, customerName, services } = req.body;
+    const { email, customerName, services, properties } = req.body;
     if (!email || !services) return res.status(400).json({ success: false, error: 'Email and services required' });
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const token = crypto.randomBytes(24).toString('hex');
@@ -10647,7 +10656,7 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
     // Store token (for test, use a simple in-memory approach; real sends store in DB)
     await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
       [token, customerName, email, JSON.stringify(services)]);
-    const content = buildKickoffContent(customerName, services, confirmUrl);
+    const content = buildKickoffContent(customerName, services, confirmUrl, properties);
     if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     const firstName = (customerName || 'Customer').split(' ')[0];
@@ -10738,7 +10747,7 @@ app.post('/api/season-kickoff/send-bulk', async (req, res) => {
           [token, cust.name, cust.email, JSON.stringify(cust.services)]
         );
 
-        const content = buildKickoffContent(cust.name, cust.services, confirmUrl);
+        const content = buildKickoffContent(cust.name, cust.services, confirmUrl, cust.properties);
         if (!content) {
           results.skipped++;
           results.details.push({ name: cust.name, status: 'skipped', reason: 'No eligible services' });
@@ -10781,9 +10790,9 @@ app.post('/api/season-kickoff/send-bulk', async (req, res) => {
 // POST /api/season-kickoff/preview - Get email HTML for preview
 app.post('/api/season-kickoff/preview', async (req, res) => {
   try {
-    const { customerName, services } = req.body;
+    const { customerName, services, properties } = req.body;
     const confirmUrl = '#preview';
-    const content = buildKickoffContent(customerName, services, confirmUrl);
+    const content = buildKickoffContent(customerName, services, confirmUrl, properties);
     if (!content) return res.json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     res.json({ success: true, html });
@@ -10909,16 +10918,18 @@ app.get('/api/reports/2025-services', async (req, res) => {
         const amount = parseFloat(item.amount || 0);
         const rate = parseFloat(item.rate || 0);
         const effectiveDate = itemDate;
-        if (!customers[cid].services[serviceName]) {
-          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate };
+        // Key by name + rate so multi-property services stay separate
+        const serviceKey = `${serviceName}||${rate}`;
+        if (!customers[cid].services[serviceKey]) {
+          customers[cid].services[serviceKey] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate };
         }
         // Always use the latest rate (closest to end of season)
-        if (effectiveDate >= customers[cid].services[serviceName].latestDate) {
-          customers[cid].services[serviceName].rate = rate;
-          customers[cid].services[serviceName].latestDate = effectiveDate;
+        if (effectiveDate >= customers[cid].services[serviceKey].latestDate) {
+          customers[cid].services[serviceKey].rate = rate;
+          customers[cid].services[serviceKey].latestDate = effectiveDate;
         }
-        customers[cid].services[serviceName].count++;
-        customers[cid].services[serviceName].total += amount;
+        customers[cid].services[serviceKey].count++;
+        customers[cid].services[serviceKey].total += amount;
         customers[cid].total_invoiced += amount;
       }
     }
@@ -10927,12 +10938,25 @@ app.get('/api/reports/2025-services', async (req, res) => {
     const acpResult = await pool.query(`SELECT DISTINCT customer_id FROM sent_quotes WHERE quote_type = 'monthly_plan' AND customer_id IS NOT NULL`);
     const acpCustomerIds = new Set(acpResult.rows.map(r => r.customer_id));
 
+    // Fetch properties for all customers
+    const customerIds = Object.values(customers).map(c => c.customer_id).filter(Boolean);
+    const propsResult = customerIds.length > 0
+      ? await pool.query(`SELECT customer_id, street, city, state, zip FROM properties WHERE customer_id = ANY($1) ORDER BY customer_id, street`, [customerIds])
+      : { rows: [] };
+    const propsMap = {};
+    for (const p of propsResult.rows) {
+      if (!propsMap[p.customer_id]) propsMap[p.customer_id] = [];
+      const addr = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
+      if (addr) propsMap[p.customer_id].push(addr);
+    }
+
     // Convert to array, skip customers with no 2025 line items after filtering
     const list = Object.values(customers)
       .filter(c => Object.keys(c.services).length > 0)
       .filter(c => !acpCustomerIds.has(c.customer_id))
       .map(c => ({
         ...c,
+        properties: propsMap[c.customer_id] || [],
         services: Object.values(c.services).sort((a, b) => b.total - a.total),
         total_invoiced: Math.round(c.total_invoiced * 100) / 100
       })).sort((a, b) => a.name.localeCompare(b.name));

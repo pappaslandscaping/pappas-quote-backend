@@ -593,12 +593,22 @@ app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
     // Notify admin about the response
     const row = result.rows[0];
     const statusLabel = response === 'confirmed' ? 'Confirmed Services' : 'Requested Changes';
+    let svcList = [];
+    try { svcList = typeof row.services === 'string' ? JSON.parse(row.services) : (row.services || []); } catch(e) {}
+    const svcRows = svcList.filter(s => { const l = (s.name||'').toLowerCase(); return !l.includes('snow') && !l.includes('salt') && !l.includes('deic'); })
+      .map(s => `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td></tr>`).join('');
+    const svcTable = svcRows ? `<table style="width:100%;border-collapse:collapse;margin:12px 0 16px;"><thead><tr style="background:#f8fafc;"><th style="padding:6px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e5e5e5;">Service</th><th style="padding:6px 12px;text-align:right;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e5e5e5;">Rate</th></tr></thead><tbody>${svcRows}</tbody></table>` : '';
+    let propList = [];
+    try { propList = typeof row.properties === 'string' ? JSON.parse(row.properties) : (row.properties || []); } catch(e) {}
+    const addrHtml = propList.filter(Boolean).map(p => escapeHtml(p)).join('<br>');
     const notifyHtml = emailTemplate(`
       <h2 style="font-size:20px;color:#1e293b;font-weight:700;margin:0 0 16px;">Season Kickoff Response</h2>
       <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">
         <strong>${escapeHtml(row.customer_name)}</strong> has <strong>${statusLabel.toLowerCase()}</strong>.
       </p>
       ${row.customer_email ? `<p style="font-size:14px;color:#64748b;margin:0 0 8px;">Contact: ${escapeHtml(row.customer_email)}</p>` : ''}
+      ${addrHtml ? `<p style="font-size:14px;color:#64748b;margin:0 0 12px;">Address: ${addrHtml}</p>` : ''}
+      ${svcTable}
       ${notes ? `<p style="font-size:14px;color:#475569;margin:12px 0;padding:12px;background:#f8fafc;border-radius:8px;border-left:3px solid #2e403d;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
     `);
     sendEmail('hello@pappaslandscaping.com', `Season Kickoff: ${escapeHtml(row.customer_name)} — ${statusLabel}`, notifyHtml).catch(err => console.error('Notify email error:', err));
@@ -10708,8 +10718,8 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
     const token = crypto.randomBytes(24).toString('hex');
     const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
     // Store token (for test, use a simple in-memory approach; real sends store in DB)
-    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
-      [token, customerName, email, JSON.stringify(services)]);
+    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
+      [token, customerName, email, JSON.stringify(services), JSON.stringify(properties || [])]);
     const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
     if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
@@ -10733,8 +10743,8 @@ app.post('/api/season-kickoff/send-sms', async (req, res) => {
     const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
 
     // Store token in DB
-    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
-      [token, customerName, phone, JSON.stringify(services)]);
+    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
+      [token, customerName, phone, JSON.stringify(services), JSON.stringify([])]);
 
     const firstName = (customerName || 'Customer').split(' ')[0];
     const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime: (440) 886-7318`;
@@ -10792,8 +10802,8 @@ app.post('/api/season-kickoff/send-bulk', async (req, res) => {
 
         // Store token in DB
         await pool.query(
-          `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
-          [token, cust.name, cust.email, JSON.stringify(cust.services)]
+          `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
+          [token, cust.name, cust.email, JSON.stringify(cust.services), JSON.stringify(cust.properties || [])]
         );
 
         const content = buildKickoffContent(cust.name, cust.services, confirmUrl, cust.properties, cust.propertyServices);
@@ -10853,7 +10863,7 @@ app.post('/api/season-kickoff/preview', async (req, res) => {
 // GET /api/season-kickoff/responses - View all responses (admin)
 app.get('/api/season-kickoff/responses', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, customer_name, customer_email, status, notes, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
+    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
     res.json({ success: true, responses: result.rows });
   } catch (error) {
     serverError(res, error);
@@ -14478,6 +14488,7 @@ const SEASON_KICKOFF_TABLE = `CREATE TABLE IF NOT EXISTS season_kickoff_response
   customer_name VARCHAR(255),
   customer_email VARCHAR(255),
   services JSONB,
+  properties JSONB,
   status VARCHAR(20) DEFAULT 'pending',
   notes TEXT,
   responded_at TIMESTAMP,
@@ -14868,6 +14879,8 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
   // Season kickoff responses table
   try { await pool.query(SEASON_KICKOFF_TABLE); } catch(e) {}
+  // Season kickoff properties column (added later)
+  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS properties JSONB`); } catch(e) {}
   // Email open tracking columns
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_token VARCHAR(64)`); } catch(e) {}
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP`); } catch(e) {}

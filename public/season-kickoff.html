@@ -171,6 +171,7 @@
             <thead>
                 <tr>
                     <th>Customer</th>
+                    <th>Services</th>
                     <th>Status</th>
                     <th>Notes</th>
                     <th>Responded</th>
@@ -598,7 +599,7 @@ async function loadResponses() {
 
         const tbody = document.getElementById('responsesTable');
         if (data.responses.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray-400);">No responses yet</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gray-400);">No responses yet</td></tr>';
             return;
         }
 
@@ -610,11 +611,22 @@ async function loadResponses() {
             const statusColor = r.status === 'confirmed' ? 'var(--green)' : r.status === 'changes' ? 'var(--amber)' : 'var(--gray-400)';
             const statusLabel = r.status === 'confirmed' ? 'Confirmed' : r.status === 'changes' ? 'Wants Changes' : 'Pending';
             const date = r.responded_at ? new Date(r.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+            let svcs = [];
+            try { svcs = typeof r.services === 'string' ? JSON.parse(r.services) : (r.services || []); } catch(e) {}
+            const svcTags = svcs.filter(s => {
+                const l = (s.name||'').toLowerCase();
+                return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+            }).map(s => `<span class="service-tag">${esc(s.name)} — $${parseFloat(s.rate).toFixed(0)}</span>`).join('');
+            let props = [];
+            try { props = typeof r.properties === 'string' ? JSON.parse(r.properties) : (r.properties || []); } catch(e) {}
+            const addrText = props.filter(Boolean).map(p => esc(p)).join('<br>');
             return `<tr>
                 <td>
                     <div class="customer-name">${esc(r.customer_name)}</div>
                     <div class="customer-email">${esc(r.customer_email || '')}</div>
+                    ${addrText ? `<div style="font-size:11px;color:var(--gray-400);margin-top:2px;">${addrText}</div>` : ''}
                 </td>
+                <td>${svcTags || '—'}</td>
                 <td><span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;background:${statusColor}15;color:${statusColor};">${statusLabel}</span></td>
                 <td style="font-size:13px;color:var(--gray-600);max-width:300px;">${esc(r.notes || '—')}</td>
                 <td style="font-size:12px;color:var(--gray-400);white-space:nowrap;">${date}</td>
@@ -622,7 +634,7 @@ async function loadResponses() {
             </tr>`;
         }).join('');
     } catch (err) {
-        document.getElementById('responsesTable').innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red);">Error: ${err.message}</td></tr>`;
+        document.getElementById('responsesTable').innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--red);">Error: ${err.message}</td></tr>`;
     }
 }
 

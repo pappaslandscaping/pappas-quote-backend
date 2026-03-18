@@ -10883,7 +10883,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
           'Unknown'
         ) as customer_name,
         COALESCE(c_id.email, c_name.email, i.customer_email) as email,
-        COALESCE(c_id.phone, c_name.phone) as phone,
+        COALESCE(c_id.phone, c_id.mobile, c_name.phone, c_name.mobile) as phone,
         COALESCE(c_id.street, c_name.street, i.customer_address) as address,
         COALESCE(c_id.city, c_name.city) as city,
         COALESCE(c_id.status, c_name.status) as customer_status,

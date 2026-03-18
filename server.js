@@ -10558,7 +10558,7 @@ app.get('/api/finance/summary', async (req, res) => {
 });
 
 // Build season kickoff email content (inner HTML for emailTemplate)
-function buildKickoffContent(customerName, services) {
+function buildKickoffContent(customerName, services, confirmUrl) {
   const firstName = escapeHtml((customerName || 'Customer').split(' ')[0]);
   const serviceRows = services
     .filter(s => {
@@ -10574,8 +10574,15 @@ function buildKickoffContent(customerName, services) {
 
   if (!serviceRows) return null;
 
+  const ctaButton = confirmUrl ? `
+    <div style="text-align:center;margin:28px 0 24px;">
+      <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm My Services for 2026</a>
+    </div>
+    <p style="font-size:13px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or reply to this email if you'd like to make changes.</p>
+  ` : '';
+
   return `
-    <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:22px;color:#1e293b;font-weight:400;margin:0 0 20px;">You're on Our List for 2026!</h2>
+    <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
       We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
@@ -10592,9 +10599,7 @@ function buildKickoffContent(customerName, services) {
       </thead>
       <tbody>${serviceRows}</tbody>
     </table>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-      We'd love to continue caring for your property this season. If you'd like to keep the same services, make changes, or add anything new — just reply to this email or give us a call.
-    </p>
+    ${ctaButton}
     <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0;">
       Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
     </p>
@@ -10606,7 +10611,13 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
   try {
     const { email, customerName, services } = req.body;
     if (!email || !services) return res.status(400).json({ success: false, error: 'Email and services required' });
-    const content = buildKickoffContent(customerName, services);
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const token = crypto.randomBytes(24).toString('hex');
+    const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
+    // Store token (for test, use a simple in-memory approach; real sends store in DB)
+    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
+      [token, customerName, email, JSON.stringify(services)]);
+    const content = buildKickoffContent(customerName, services, confirmUrl);
     if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     const firstName = (customerName || 'Customer').split(' ')[0];
@@ -10621,10 +10632,54 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
 app.post('/api/season-kickoff/preview', async (req, res) => {
   try {
     const { customerName, services } = req.body;
-    const content = buildKickoffContent(customerName, services);
+    const confirmUrl = '#preview';
+    const content = buildKickoffContent(customerName, services, confirmUrl);
     if (!content) return res.json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     res.json({ success: true, html });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// GET /api/season-kickoff/confirm/:token - Customer confirms their services
+app.get('/api/season-kickoff/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE token = $1', [token]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid or expired link' });
+
+    const row = result.rows[0];
+    res.json({ success: true, customerName: row.customer_name, services: row.services, status: row.status });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/season-kickoff/confirm/:token - Customer submits confirmation
+app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { response, notes } = req.body; // response: 'confirmed' or 'changes'
+
+    const result = await pool.query(
+      `UPDATE season_kickoff_responses SET status = $1, notes = $2, responded_at = NOW() WHERE token = $3 RETURNING *`,
+      [response, notes || '', token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid link' });
+
+    const row = result.rows[0];
+
+    // Notify admin
+    const emoji = response === 'confirmed' ? '✅' : '📝';
+    const adminContent = `
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:22px;color:#1e293b;font-weight:400;margin:0 0 20px;">${emoji} Season Kickoff Response</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;"><strong>${escapeHtml(row.customer_name)}</strong> has <strong>${response === 'confirmed' ? 'confirmed their services' : 'requested changes'}</strong> for 2026.</p>
+      ${notes ? `<p style="font-size:15px;color:#475569;line-height:1.6;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
+    `;
+    sendEmail(NOTIFICATION_EMAIL, `${emoji} Season Kickoff: ${row.customer_name} ${response === 'confirmed' ? 'Confirmed' : 'Wants Changes'}`, emailTemplate(adminContent, { showSignature: false })).catch(e => console.error('Notification error:', e));
+
+    res.json({ success: true });
   } catch (error) {
     serverError(res, error);
   }
@@ -14092,6 +14147,19 @@ const EMAIL_TEMPLATES_TABLE = `CREATE TABLE IF NOT EXISTS email_templates (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
+const SEASON_KICKOFF_TABLE = `CREATE TABLE IF NOT EXISTS season_kickoff_responses (
+  id SERIAL PRIMARY KEY,
+  token VARCHAR(64) UNIQUE NOT NULL,
+  customer_id INTEGER,
+  customer_name VARCHAR(255),
+  customer_email VARCHAR(255),
+  services JSONB,
+  status VARCHAR(20) DEFAULT 'pending',
+  notes TEXT,
+  responded_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`;
+
 const EMAIL_LOG_TABLE = `CREATE TABLE IF NOT EXISTS email_log (
   id SERIAL PRIMARY KEY,
   recipient_email VARCHAR(255) NOT NULL,
@@ -14474,6 +14542,8 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
 
   // Email log table
   try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
+  // Season kickoff responses table
+  try { await pool.query(SEASON_KICKOFF_TABLE); } catch(e) {}
   // Email open tracking columns
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_token VARCHAR(64)`); } catch(e) {}
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP`); } catch(e) {}

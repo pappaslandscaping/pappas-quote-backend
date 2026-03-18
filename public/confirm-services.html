@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Your Services — Pappas & Co. Landscaping</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .card { background: #fff; border-radius: 16px; max-width: 560px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden; }
+        .header { background: #2e403d; padding: 32px; text-align: center; }
+        .header img { max-height: 80px; }
+        .body { padding: 36px 32px; }
+        h1 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+        .subtitle { font-size: 14px; color: #64748b; margin-bottom: 28px; }
+        .service-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+        .service-table th { text-align: left; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; border-bottom: 2px solid #e5e5e5; }
+        .service-table th:last-child { text-align: right; }
+        .service-table td { padding: 12px; font-size: 14px; color: #334155; border-bottom: 1px solid #f1f5f9; }
+        .service-table td:last-child { text-align: right; font-weight: 600; }
+        .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; text-align: center; transition: opacity 0.15s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-confirm { background: #2e403d; color: #fff; margin-bottom: 12px; }
+        .btn-changes { background: #fff; color: #2e403d; border: 2px solid #2e403d; }
+        .notes-area { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 10px; font-family: inherit; font-size: 14px; resize: vertical; min-height: 80px; margin-bottom: 16px; display: none; }
+        .notes-area:focus { outline: none; border-color: #2e403d; box-shadow: 0 0 0 3px rgba(46,64,61,0.1); }
+        .success { text-align: center; padding: 48px 32px; }
+        .success-icon { font-size: 48px; margin-bottom: 16px; }
+        .success h2 { font-size: 20px; color: #1e293b; margin-bottom: 8px; }
+        .success p { font-size: 14px; color: #64748b; line-height: 1.6; }
+        .loading { text-align: center; padding: 60px; color: #94a3b8; }
+        .error { text-align: center; padding: 60px; color: #ef4444; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <img src="/logo.png" alt="Pappas & Co. Landscaping">
+    </div>
+    <div class="body" id="content">
+        <div class="loading">Loading your services...</div>
+    </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+const API = '';
+
+async function load() {
+    if (!token) {
+        document.getElementById('content').innerHTML = '<div class="error">Invalid link. Please check the link from your email.</div>';
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API}/api/season-kickoff/confirm/${token}`);
+        const data = await res.json();
+        if (!data.success) {
+            document.getElementById('content').innerHTML = '<div class="error">This link is invalid or has expired.</div>';
+            return;
+        }
+
+        if (data.status === 'confirmed') {
+            showSuccess('confirmed');
+            return;
+        }
+        if (data.status === 'changes') {
+            showSuccess('changes');
+            return;
+        }
+
+        renderServices(data);
+    } catch (err) {
+        document.getElementById('content').innerHTML = `<div class="error">Something went wrong. Please try again.</div>`;
+    }
+}
+
+function renderServices(data) {
+    const services = (data.services || []).filter(s => {
+        const l = s.name.toLowerCase();
+        return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+    });
+
+    const rows = services.map(s => `
+        <tr>
+            <td>${s.name}</td>
+            <td>$${parseFloat(s.rate).toFixed(2)}</td>
+        </tr>
+    `).join('');
+
+    document.getElementById('content').innerHTML = `
+        <h1>Welcome back, ${data.customerName.split(' ')[0]}!</h1>
+        <p class="subtitle">Here are the services we have on file for you from last season.</p>
+        <table class="service-table">
+            <thead><tr><th>Service</th><th>Rate</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <button class="btn btn-confirm" onclick="confirm()">Yes, Keep My Services for 2026</button>
+        <button class="btn btn-changes" onclick="showChanges()">I'd Like to Make Changes</button>
+        <textarea class="notes-area" id="notes" placeholder="What changes would you like? (e.g., add mulching, change mowing frequency, update address...)"></textarea>
+        <button class="btn btn-confirm" id="submitChanges" style="display:none;" onclick="submitChanges()">Submit Changes</button>
+    `;
+}
+
+function showChanges() {
+    document.getElementById('notes').style.display = 'block';
+    document.getElementById('submitChanges').style.display = 'block';
+    document.getElementById('notes').focus();
+}
+
+async function confirm() {
+    try {
+        const res = await fetch(`${API}/api/season-kickoff/confirm/${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response: 'confirmed' })
+        });
+        const data = await res.json();
+        if (data.success) showSuccess('confirmed');
+    } catch (err) {
+        alert('Something went wrong. Please try again.');
+    }
+}
+
+async function submitChanges() {
+    const notes = document.getElementById('notes').value.trim();
+    if (!notes) { alert('Please describe the changes you would like.'); return; }
+    try {
+        const res = await fetch(`${API}/api/season-kickoff/confirm/${token}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ response: 'changes', notes })
+        });
+        const data = await res.json();
+        if (data.success) showSuccess('changes');
+    } catch (err) {
+        alert('Something went wrong. Please try again.');
+    }
+}
+
+function showSuccess(type) {
+    if (type === 'confirmed') {
+        document.getElementById('content').innerHTML = `
+            <div class="success">
+                <div class="success-icon">&#x2705;</div>
+                <h2>You're All Set!</h2>
+                <p>Thanks for confirming your services for 2026. We'll be in touch as the season begins. If you have any questions, call us at <strong>(440) 886-7318</strong> or email <strong>hello@pappaslandscaping.com</strong>.</p>
+            </div>
+        `;
+    } else {
+        document.getElementById('content').innerHTML = `
+            <div class="success">
+                <div class="success-icon">&#x1F4DD;</div>
+                <h2>We Got Your Request!</h2>
+                <p>Thanks for letting us know. We'll review your changes and get back to you shortly. Call us at <strong>(440) 886-7318</strong> if you need anything in the meantime.</p>
+            </div>
+        `;
+    }
+}
+
+load();
+</script>
+</body>
+</html>

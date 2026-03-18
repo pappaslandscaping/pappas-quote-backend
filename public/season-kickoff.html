@@ -80,7 +80,11 @@
         <div style="display: flex; gap: 10px;">
             <button class="btn-secondary" onclick="sendTestEmail()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                Send Test to Me
+                Test Email
+            </button>
+            <button class="btn-secondary" onclick="sendTestText()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Test Text
             </button>
             <button class="btn-secondary" onclick="exportCSV()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -480,6 +484,33 @@ async function sendTestEmail() {
         const data = await res.json();
         if (data.success) {
             alert('Test email sent to hello@pappaslandscaping.com — check your inbox!');
+        } else {
+            alert('Failed to send: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function sendTestText() {
+    const phone = prompt('Enter your phone number to send a test text:');
+    if (!phone) return;
+    const testServices = [
+        { name: 'Mowing (Weekly)', rate: 45 },
+        { name: 'Spring Cleanup', rate: 250 },
+        { name: 'Fall Cleanup (One Time Charge)', rate: 300 },
+        { name: 'Mulching', rate: 200 },
+        { name: 'Aeration', rate: 120 }
+    ];
+    try {
+        const res = await fetch('/api/season-kickoff/send-sms', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, customerName: 'Theresa Pappas', services: testServices })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Test text sent — check your phone!');
         } else {
             alert('Failed to send: ' + (data.error || 'Unknown error'));
         }

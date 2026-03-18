@@ -10688,7 +10688,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
       </p>
       ${sections}
       <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-        <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Please confirm your services below so we can get you on the schedule!
+        <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Let us know if everything looks right — just click below to confirm.
       </p>
       ${ctaButton}
       <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
@@ -10717,7 +10717,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     </p>
     ${buildTable(filtered)}
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-      <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Please confirm your services below so we can get you on the schedule!
+      <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Let us know if everything looks right — just click below to confirm.
     </p>
     ${ctaButton}
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">

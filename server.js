@@ -11029,6 +11029,65 @@ app.get('/api/reports/2025-services', async (req, res) => {
       }
     }
 
+    // Add manually-specified customers not captured by 2025 invoice query (scheduled in CRM for 2026)
+    const manualAdditions = [
+      { name: 'Beth Schaefer', services: [{ name: 'Mowing', rate: 40 }, { name: 'Spring Cleanup', rate: 450 }, { name: 'Mulch', rate: 1275 }, { name: 'Weed Control', rate: 150 }] },
+      { name: 'Brennan Investments LLC', services: [{ name: 'Mowing', rate: 44 }], propertyRates: { '17427 Lake Avenue, Lakewood, OH, 44107': 44, '13000 Triskett Road, Cleveland, OH, 44111': 45 } },
+      { name: 'CC Pkwy Owner LLC', services: [{ name: 'Mowing', rate: 0 }] },
+      { name: 'Daniel Corrigan', services: [{ name: 'Spring Cleanup', rate: 243 }] },
+      { name: 'David Fridrich', services: [{ name: 'Mowing', rate: 46 }] },
+      { name: 'Eva Kovach', services: [{ name: 'Mowing', rate: 37 }] },
+      { name: 'Frank Pezzano', services: [{ name: 'Mowing', rate: 36 }], propertyRates: { '3869 Silsby Road, Cleveland, OH, 44111': 36, '3587 West 146th Street, Cleveland, OH, 44111': 48 } },
+      { name: 'Greg Stokley', services: [{ name: 'Mulch', rate: 250 }] },
+      { name: 'John Noell', services: [{ name: 'Mowing', rate: 69 }] },
+      { name: 'Lareesa Rice', services: [{ name: 'Mowing', rate: 35 }], propertyRates: { '10509 Jasper Avenue, Cleveland, OH, 44111': 35, '11917 Saint John Avenue, Cleveland, OH, 44111': 40 } },
+      { name: 'Leo Oblak', services: [{ name: 'Mowing', rate: 0 }] },
+      { name: 'Matthew Ditlevson', services: [{ name: 'Mowing (Bi-Weekly)', rate: 45 }], propertyRates: { '3737 West 134th Street, Cleveland, OH, 44111': 45, '3828 West 157th Street, Cleveland, OH, 44111': 45, '3319 Warren Road, Cleveland, OH, 44111': 44, '3325 Warren Road, Cleveland, OH, 44111': 50 } },
+      { name: 'MLI Properties', services: [{ name: 'Mowing', rate: 39 }], propertyRates: { '13823 Clifton Boulevard, Lakewood, OH, 44107': 39, '13842 Clifton Boulevard, Lakewood, OH, 44107': 33, '1438 Owego Avenue, Lakewood, OH, 44107': 43, '1357 Riverside Drive, Lakewood, OH, 44107': 39 } },
+      { name: 'Monta Demchak', services: [{ name: 'Mowing', rate: 38 }, { name: 'Mulch', rate: 220 }] },
+      { name: 'The Cundiff Group', services: [{ name: 'Mowing (Bi-Weekly)', rate: 60 }], propertyRates: { '19133 Puritas Avenue, Cleveland, OH, 44135': 60, '3107 Warren Road, Cleveland, OH, 44111': 60 } },
+      { name: 'Theresa Pappas', services: [{ name: 'Mowing', rate: 0 }] },
+    ];
+    // Look up these customers from DB and add if not already in the list
+    const existingNames = new Set(Object.values(customers).map(c => (c.name || '').toLowerCase().trim()));
+    for (const manual of manualAdditions) {
+      if (existingNames.has(manual.name.toLowerCase().trim())) continue;
+      const cLookup = await pool.query(
+        `SELECT id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code, status
+         FROM customers WHERE LOWER(TRIM(name)) = $1 OR LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = $1
+         ORDER BY CASE WHEN LOWER(TRIM(name)) = $1 THEN 0 ELSE 1 END LIMIT 1`,
+        [manual.name.toLowerCase().trim()]
+      );
+      if (cLookup.rows.length === 0) continue;
+      const c = cLookup.rows[0];
+      // Don't skip inactive — these are explicitly scheduled for 2026 in CRM
+      const cid = c.id;
+      if (customers[cid]) continue;
+      customers[cid] = {
+        customer_id: c.id,
+        name: c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim(),
+        email: c.email,
+        phone: c.phone || c.mobile,
+        address: c.street,
+        city: c.city,
+        services: {},
+        total_invoiced: 0
+      };
+      for (const svc of manual.services) {
+        const rate = svc.name.toLowerCase().includes('spring cleanup') && svc.rate < 100 ? 100 : svc.rate;
+        // For multi-property, populate multiple rates from propertyRates so the grouping logic works
+        const svcRates = {};
+        if (manual.propertyRates && svc.name.toLowerCase().includes('mow')) {
+          for (const [, pRate] of Object.entries(manual.propertyRates)) {
+            svcRates[pRate] = '2025-10-01';
+          }
+        } else {
+          svcRates[rate] = '2025-10-01';
+        }
+        customers[cid].services[svc.name] = { name: svc.name, rate, count: 1, total: rate, latestDate: '2025-10-01', earliestRate: rate, earliestDate: '2025-04-01', rates: svcRates };
+      }
+    }
+
     // Get customers who were sent an annual care plan estimate — exclude them
     const acpResult = await pool.query(`SELECT DISTINCT customer_id FROM sent_quotes WHERE quote_type = 'monthly_plan' AND customer_id IS NOT NULL`);
     const acpCustomerIds = new Set(acpResult.rows.map(r => r.customer_id));
@@ -11063,6 +11122,18 @@ app.get('/api/reports/2025-services', async (req, res) => {
         if (!propRateMap[row.customer_id]) propRateMap[row.customer_id] = {};
         const addr = [row.street, row.city, row.state, row.zip].filter(Boolean).join(', ');
         propRateMap[row.customer_id][addr] = parseFloat(row.rate);
+      }
+    }
+
+    // Inject propertyRates from manual additions into propRateMap
+    for (const manual of manualAdditions) {
+      if (!manual.propertyRates) continue;
+      const cEntry = Object.values(customers).find(c => c.name && c.name.toLowerCase().trim() === manual.name.toLowerCase().trim());
+      if (cEntry && cEntry.customer_id) {
+        propRateMap[cEntry.customer_id] = {};
+        for (const [addr, pRate] of Object.entries(manual.propertyRates)) {
+          propRateMap[cEntry.customer_id][addr] = pRate;
+        }
       }
     }
 

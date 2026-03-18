@@ -613,6 +613,23 @@ app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
     `);
     sendEmail('hello@pappaslandscaping.com', `Season Kickoff: ${escapeHtml(row.customer_name)} — ${statusLabel}`, notifyHtml).catch(err => console.error('Notify email error:', err));
 
+    // Log to customer profile notes
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const noteText = response === 'confirmed'
+      ? `[${today}] Season Kickoff: Confirmed services for 2026.`
+      : `[${today}] Season Kickoff: Requested changes — ${notes || 'no details provided'}.`;
+    // Find customer_id by name match if not stored
+    const custLookup = row.customer_id
+      ? { rows: [{ id: row.customer_id }] }
+      : await pool.query(`SELECT id FROM customers WHERE LOWER(TRIM(COALESCE(name, first_name || ' ' || last_name))) = LOWER(TRIM($1)) LIMIT 1`, [row.customer_name]);
+    if (custLookup.rows.length > 0) {
+      const custId = custLookup.rows[0].id;
+      await pool.query(
+        `UPDATE customers SET notes = CASE WHEN notes IS NULL OR notes = '' THEN $1 ELSE notes || E'\n' || $1 END, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [noteText, custId]
+      );
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error confirming kickoff:', error);

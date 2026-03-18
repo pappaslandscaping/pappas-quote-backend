@@ -10640,7 +10640,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
 
   const ctaButton = confirmUrl ? `
     <div style="text-align:center;margin:28px 0 24px;">
-      <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Review & Confirm My Services</a>
+      <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm or Request Changes</a>
     </div>
   ` : '';
 

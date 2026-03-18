@@ -10623,7 +10623,6 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
     <div style="text-align:center;margin:28px 0 24px;">
       <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm My Services for 2026</a>
     </div>
-    <p style="font-size:13px;color:#475569;text-align:center;margin:0 0 24px;">Or reply to this email if you'd like to make changes.</p>
   ` : '';
 
   const buildTable = (svcs) => {

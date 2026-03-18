@@ -438,7 +438,7 @@ async function refreshPreview() {
         const res = await fetch('/api/season-kickoff/preview', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ customerName: previewCustomer.name, services: previewServices, properties: previewCustomer.properties, propertyServices: previewPropertyServices })
+            body: JSON.stringify({ customerName: previewCustomer.name, services: previewServices, properties: previewPropertyServices ? previewPropertyServices.map(ps => ps.address) : previewCustomer.properties, propertyServices: previewPropertyServices })
         });
         const data = await res.json();
         if (!data.success) {

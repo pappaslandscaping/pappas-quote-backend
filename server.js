@@ -10672,6 +10672,16 @@ app.post('/api/season-kickoff/preview', async (req, res) => {
   }
 });
 
+// GET /api/season-kickoff/responses - View all responses (admin)
+app.get('/api/season-kickoff/responses', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT customer_name, customer_email, status, notes, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
+    res.json({ success: true, responses: result.rows });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {

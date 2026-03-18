@@ -10588,21 +10588,12 @@ app.get('/api/finance/summary', async (req, res) => {
 });
 
 // Build season kickoff email content (inner HTML for emailTemplate)
-function buildKickoffContent(customerName, services, confirmUrl, properties) {
+function buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices) {
   const firstName = escapeHtml((customerName || 'Customer').split(' ')[0]);
-  const filtered = services.filter(s => {
+  const snowFilter = s => {
     const l = s.name.toLowerCase();
     return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
-  });
-
-  if (!filtered.length) return null;
-
-  const serviceRows = filtered.map(s => `
-      <tr>
-        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td>
-        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td>
-      </tr>
-    `).join('');
+  };
 
   const ctaButton = confirmUrl ? `
     <div style="text-align:center;margin:28px 0 24px;">
@@ -10611,12 +10602,63 @@ function buildKickoffContent(customerName, services, confirmUrl, properties) {
     <p style="font-size:13px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or reply to this email if you'd like to make changes.</p>
   ` : '';
 
-  // Show property addresses if available
+  const buildTable = (svcs) => {
+    const rows = svcs.filter(snowFilter).map(s => `
+      <tr>
+        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td>
+        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td>
+      </tr>
+    `).join('');
+    if (!rows) return '';
+    return `
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Service</th>
+          <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Rate</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  };
+
+  // Multi-property: show services grouped by property
+  if (propertyServices && propertyServices.length > 0) {
+    const sections = propertyServices.map(ps => {
+      const table = buildTable(ps.services);
+      if (!table) return '';
+      return `
+        <p style="font-size:15px;color:#2e403d;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #e5e5e5;padding-bottom:6px;">${escapeHtml(ps.address)}</p>
+        ${table}
+      `;
+    }).filter(Boolean).join('');
+
+    if (!sections) return null;
+
+    return `
+      <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+        We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
+      </p>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 8px;">
+        Here's a summary of the services we provided at each property last season:
+      </p>
+      ${sections}
+      ${ctaButton}
+      <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0;">
+        Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
+      </p>`;
+  }
+
+  // Single property
+  const filtered = services.filter(snowFilter);
+  if (!filtered.length) return null;
+
   const props = (properties || []).filter(Boolean);
   const addressSection = props.length > 0 ? `
-    <p style="font-size:14px;color:#64748b;margin:0 0 4px;font-weight:600;">Service Address${props.length > 1 ? 'es' : ''}:</p>
-    ${props.map(a => `<p style="font-size:14px;color:#475569;margin:0 0 4px;">${escapeHtml(a)}</p>`).join('')}
-    <div style="margin-bottom:20px;"></div>
+    <p style="font-size:14px;color:#64748b;margin:0 0 4px;font-weight:600;">Service Address:</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">${escapeHtml(props[0])}</p>
   ` : '';
 
   return `
@@ -10629,15 +10671,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties) {
     <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 20px;">
       Here's a summary of the services we provided for you last season:
     </p>
-    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:24px;">
-      <thead>
-        <tr style="background:#f8fafc;">
-          <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Service</th>
-          <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Rate</th>
-        </tr>
-      </thead>
-      <tbody>${serviceRows}</tbody>
-    </table>
+    ${buildTable(filtered)}
     ${ctaButton}
     <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0;">
       Thank you for being a valued Pappas & Co. customer. We look forward to another great season!
@@ -10648,7 +10682,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties) {
 // POST /api/season-kickoff/send-test - Send a test kickoff email
 app.post('/api/season-kickoff/send-test', async (req, res) => {
   try {
-    const { email, customerName, services, properties } = req.body;
+    const { email, customerName, services, properties, propertyServices } = req.body;
     if (!email || !services) return res.status(400).json({ success: false, error: 'Email and services required' });
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
     const token = crypto.randomBytes(24).toString('hex');
@@ -10656,7 +10690,7 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
     // Store token (for test, use a simple in-memory approach; real sends store in DB)
     await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status) VALUES ($1, $2, $3, $4, 'pending')`,
       [token, customerName, email, JSON.stringify(services)]);
-    const content = buildKickoffContent(customerName, services, confirmUrl, properties);
+    const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
     if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     const firstName = (customerName || 'Customer').split(' ')[0];
@@ -10747,7 +10781,7 @@ app.post('/api/season-kickoff/send-bulk', async (req, res) => {
           [token, cust.name, cust.email, JSON.stringify(cust.services)]
         );
 
-        const content = buildKickoffContent(cust.name, cust.services, confirmUrl, cust.properties);
+        const content = buildKickoffContent(cust.name, cust.services, confirmUrl, cust.properties, cust.propertyServices);
         if (!content) {
           results.skipped++;
           results.details.push({ name: cust.name, status: 'skipped', reason: 'No eligible services' });
@@ -10790,9 +10824,9 @@ app.post('/api/season-kickoff/send-bulk', async (req, res) => {
 // POST /api/season-kickoff/preview - Get email HTML for preview
 app.post('/api/season-kickoff/preview', async (req, res) => {
   try {
-    const { customerName, services, properties } = req.body;
+    const { customerName, services, properties, propertyServices } = req.body;
     const confirmUrl = '#preview';
-    const content = buildKickoffContent(customerName, services, confirmUrl, properties);
+    const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
     if (!content) return res.json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     res.json({ success: true, html });
@@ -10918,18 +10952,20 @@ app.get('/api/reports/2025-services', async (req, res) => {
         const amount = parseFloat(item.amount || 0);
         const rate = parseFloat(item.rate || 0);
         const effectiveDate = itemDate;
-        // Key by name + rate so multi-property services stay separate
-        const serviceKey = `${serviceName}||${rate}`;
-        if (!customers[cid].services[serviceKey]) {
-          customers[cid].services[serviceKey] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate };
+        if (!customers[cid].services[serviceName]) {
+          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate, rates: {} };
+        }
+        // Track all distinct rates with their latest date
+        if (!customers[cid].services[serviceName].rates[rate] || effectiveDate >= customers[cid].services[serviceName].rates[rate]) {
+          customers[cid].services[serviceName].rates[rate] = effectiveDate;
         }
         // Always use the latest rate (closest to end of season)
-        if (effectiveDate >= customers[cid].services[serviceKey].latestDate) {
-          customers[cid].services[serviceKey].rate = rate;
-          customers[cid].services[serviceKey].latestDate = effectiveDate;
+        if (effectiveDate >= customers[cid].services[serviceName].latestDate) {
+          customers[cid].services[serviceName].rate = rate;
+          customers[cid].services[serviceName].latestDate = effectiveDate;
         }
-        customers[cid].services[serviceKey].count++;
-        customers[cid].services[serviceKey].total += amount;
+        customers[cid].services[serviceName].count++;
+        customers[cid].services[serviceName].total += amount;
         customers[cid].total_invoiced += amount;
       }
     }
@@ -10950,16 +10986,70 @@ app.get('/api/reports/2025-services', async (req, res) => {
       if (addr) propsMap[p.customer_id].push(addr);
     }
 
+    // For multi-property customers, build rate→property mapping from scheduled_jobs
+    const multiPropIds = Object.values(customers)
+      .filter(c => c.customer_id && (propsMap[c.customer_id] || []).length > 1)
+      .map(c => c.customer_id);
+    const ratePropMap = {}; // { customerId: { rate: propertyAddr } }
+    if (multiPropIds.length > 0) {
+      const sjResult = await pool.query(`
+        SELECT DISTINCT sj.customer_id, sj.service_price::numeric as rate, p.street, p.city, p.state, p.zip
+        FROM scheduled_jobs sj
+        JOIN properties p ON p.customer_id = sj.customer_id AND sj.address LIKE '%' || p.zip || '%'
+        WHERE sj.customer_id = ANY($1) AND sj.service_price > 0
+      `, [multiPropIds]);
+      for (const row of sjResult.rows) {
+        if (!ratePropMap[row.customer_id]) ratePropMap[row.customer_id] = {};
+        const addr = [row.street, row.city, row.state, row.zip].filter(Boolean).join(', ');
+        ratePropMap[row.customer_id][row.rate] = addr;
+      }
+    }
+
     // Convert to array, skip customers with no 2025 line items after filtering
     const list = Object.values(customers)
       .filter(c => Object.keys(c.services).length > 0)
       .filter(c => !acpCustomerIds.has(c.customer_id))
-      .map(c => ({
-        ...c,
-        properties: propsMap[c.customer_id] || [],
-        services: Object.values(c.services).sort((a, b) => b.total - a.total),
-        total_invoiced: Math.round(c.total_invoiced * 100) / 100
-      })).sort((a, b) => a.name.localeCompare(b.name));
+      .map(c => {
+        const props = propsMap[c.customer_id] || [];
+        if (props.length > 1 && ratePropMap[c.customer_id]) {
+          // Multi-property: group services by property address
+          const rateMap = ratePropMap[c.customer_id];
+          const byProperty = {}; // { addr: [services] }
+          for (const svc of Object.values(c.services)) {
+            const distinctRates = Object.entries(svc.rates);
+            if (distinctRates.length > 1) {
+              // Multiple rates = multiple properties
+              for (const [rate, date] of distinctRates) {
+                const addr = rateMap[parseFloat(rate)] || 'Other';
+                if (!byProperty[addr]) byProperty[addr] = [];
+                byProperty[addr].push({ name: svc.name, rate: parseFloat(rate), count: svc.count, total: svc.total });
+              }
+            } else {
+              // Single rate — try to match to a property, else put under first property
+              const addr = rateMap[svc.rate] || props[0];
+              if (!byProperty[addr]) byProperty[addr] = [];
+              byProperty[addr].push({ name: svc.name, rate: svc.rate, count: svc.count, total: svc.total });
+            }
+          }
+          return {
+            ...c,
+            properties: props,
+            propertyServices: Object.entries(byProperty).map(([addr, svcs]) => ({
+              address: addr,
+              services: svcs.sort((a, b) => b.total - a.total)
+            })),
+            services: Object.values(c.services).map(s => ({ name: s.name, rate: s.rate, count: s.count, total: s.total })).sort((a, b) => b.total - a.total),
+            total_invoiced: Math.round(c.total_invoiced * 100) / 100
+          };
+        }
+        // Single property: use latest rate only
+        return {
+          ...c,
+          properties: props,
+          services: Object.values(c.services).map(s => ({ name: s.name, rate: s.rate, count: s.count, total: s.total })).sort((a, b) => b.total - a.total),
+          total_invoiced: Math.round(c.total_invoiced * 100) / 100
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name));
 
     res.json({ success: true, count: list.length, customers: list });
   } catch (error) {

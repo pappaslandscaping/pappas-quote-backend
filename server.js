@@ -10702,7 +10702,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
       <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Please confirm your services below so we can get you on the schedule!
     </p>
     ${ctaButton}
-    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0;">
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
       Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
     </p>
   `;

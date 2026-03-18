@@ -10557,10 +10557,10 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
-// GET /api/reports/2025-services - Customers who had services in 2025 (from invoices)
+// GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {
-    // Match invoices to customers by customer_id OR by name (for QB imports without customer_id)
+    // Get ALL invoices that have at least one line item with a 2025 service date
     const result = await pool.query(`
       SELECT
         COALESCE(i.customer_id, c_name.id) as customer_id,
@@ -10574,10 +10574,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
         COALESCE(c_id.phone, c_name.phone) as phone,
         COALESCE(c_id.street, c_name.street, i.customer_address) as address,
         COALESCE(c_id.city, c_name.city) as city,
-        i.line_items,
-        i.total,
-        i.status,
-        i.due_date
+        i.line_items
       FROM invoices i
       LEFT JOIN customers c_id ON c_id.id = i.customer_id
       LEFT JOIN customers c_name ON i.customer_id IS NULL
@@ -10586,11 +10583,14 @@ app.get('/api/reports/2025-services', async (req, res) => {
           WHERE LOWER(TRIM(COALESCE(c2.name, c2.first_name || ' ' || c2.last_name))) = LOWER(TRIM(SPLIT_PART(i.customer_name, '#', 1)))
           LIMIT 1
         )
-      WHERE i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
-      ORDER BY customer_name, i.due_date
+      WHERE EXISTS (
+        SELECT 1 FROM jsonb_array_elements(i.line_items) item
+        WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
+      )
+      ORDER BY customer_name
     `);
 
-    // Group by customer, aggregate unique services
+    // Group by customer, only counting line items with 2025 service dates
     const customers = {};
     for (const inv of result.rows) {
       const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown').toLowerCase().trim());
@@ -10603,40 +10603,45 @@ app.get('/api/reports/2025-services', async (req, res) => {
           address: inv.address,
           city: inv.city,
           services: {},
-          total_invoiced: 0,
-          invoice_count: 0
+          total_invoiced: 0
         };
       }
-      customers[cid].total_invoiced += parseFloat(inv.total || 0);
-      customers[cid].invoice_count++;
 
-      // Parse line_items to extract services
+      // Only count line items with 2025 service dates
       const items = inv.line_items || [];
       for (const item of items) {
-        if (!item.name) continue;
+        if (!item.name || !item.date) continue;
+        // Skip if service date is not in 2025
+        if (item.date < '2025-01-01' || item.date >= '2026-01-01') continue;
         // Skip processing fees and fuel surcharges
         const lower = item.name.toLowerCase();
         if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
-        // Extract service name (remove property address prefix if present)
+        // Skip generic "." entries
+        if (item.name.trim() === '.') continue;
+
         let serviceName = item.name;
         const dashIdx = serviceName.indexOf(' - ');
         if (dashIdx > -1 && serviceName.toLowerCase().startsWith('property')) {
           serviceName = serviceName.substring(dashIdx + 3);
         }
+        const amount = parseFloat(item.amount || 0);
         if (!customers[cid].services[serviceName]) {
           customers[cid].services[serviceName] = { name: serviceName, rate: parseFloat(item.rate || 0), count: 0, total: 0 };
         }
         customers[cid].services[serviceName].count++;
-        customers[cid].services[serviceName].total += parseFloat(item.amount || 0);
+        customers[cid].services[serviceName].total += amount;
+        customers[cid].total_invoiced += amount;
       }
     }
 
-    // Convert to array
-    const list = Object.values(customers).map(c => ({
-      ...c,
-      services: Object.values(c.services).sort((a, b) => b.total - a.total),
-      total_invoiced: Math.round(c.total_invoiced * 100) / 100
-    })).sort((a, b) => a.name.localeCompare(b.name));
+    // Convert to array, skip customers with no 2025 line items after filtering
+    const list = Object.values(customers)
+      .filter(c => Object.keys(c.services).length > 0)
+      .map(c => ({
+        ...c,
+        services: Object.values(c.services).sort((a, b) => b.total - a.total),
+        total_invoiced: Math.round(c.total_invoiced * 100) / 100
+      })).sort((a, b) => a.name.localeCompare(b.name));
 
     res.json({ success: true, count: list.length, customers: list });
   } catch (error) {

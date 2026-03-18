@@ -242,7 +242,7 @@ async function loadData() {
 
         allCustomers = data.customers;
         updateStats();
-        renderTable(allCustomers);
+        filterTable();
     } catch (err) {
         console.error(err);
         document.getElementById('customerTable').innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red);">Error loading data: ${err.message}</td></tr>`;

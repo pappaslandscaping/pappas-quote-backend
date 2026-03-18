@@ -10700,8 +10700,7 @@ function buildKickoffContent(customerName, services, confirmUrl, properties, pro
 
   const props = (properties || []).filter(Boolean);
   const addressSection = props.length > 0 ? `
-    <p style="font-size:14px;color:#64748b;margin:0 0 4px;font-weight:600;">Service Address:</p>
-    <p style="font-size:14px;color:#475569;margin:0 0 20px;">${escapeHtml(props[0])}</p>
+    <p style="font-size:15px;color:#2e403d;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #e5e5e5;padding-bottom:6px;">${escapeHtml(props[0])}</p>
   ` : '';
 
   return `

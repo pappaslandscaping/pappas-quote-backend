@@ -10778,9 +10778,14 @@ app.get('/api/reports/2025-services', async (req, res) => {
       }
     }
 
+    // Get customers who were sent an annual care plan estimate — exclude them
+    const acpResult = await pool.query(`SELECT DISTINCT customer_id FROM sent_quotes WHERE quote_type = 'monthly_plan' AND customer_id IS NOT NULL`);
+    const acpCustomerIds = new Set(acpResult.rows.map(r => r.customer_id));
+
     // Convert to array, skip customers with no 2025 line items after filtering
     const list = Object.values(customers)
       .filter(c => Object.keys(c.services).length > 0)
+      .filter(c => !acpCustomerIds.has(c.customer_id))
       .map(c => ({
         ...c,
         services: Object.values(c.services).sort((a, b) => b.total - a.total),

@@ -573,6 +573,8 @@ app.get('/api/season-kickoff/confirm/:token', async (req, res) => {
     const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE token = $1', [token]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid or expired link' });
     const row = result.rows[0];
+    // Track views: first view timestamp + total count
+    await pool.query('UPDATE season_kickoff_responses SET viewed_at = COALESCE(viewed_at, NOW()), view_count = COALESCE(view_count, 0) + 1 WHERE token = $1', [token]);
     res.json({ success: true, customerName: row.customer_name, services: row.services, status: row.status });
   } catch (error) {
     console.error('Error loading kickoff confirmation:', error);
@@ -10762,7 +10764,7 @@ app.post('/api/season-kickoff/send-sms', async (req, res) => {
       [token, customerName, phone, JSON.stringify(services), JSON.stringify([])]);
 
     const firstName = (customerName || 'Customer').split(' ')[0];
-    const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime: (440) 886-7318`;
+    const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime: 440-886-7318`;
 
     let formattedTo = phone.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
@@ -10878,7 +10880,7 @@ app.post('/api/season-kickoff/preview', async (req, res) => {
 // GET /api/season-kickoff/responses - View all responses (admin)
 app.get('/api/season-kickoff/responses', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
+    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, viewed_at, view_count, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
     res.json({ success: true, responses: result.rows });
   } catch (error) {
     serverError(res, error);
@@ -14508,6 +14510,8 @@ const SEASON_KICKOFF_TABLE = `CREATE TABLE IF NOT EXISTS season_kickoff_response
   properties JSONB,
   status VARCHAR(20) DEFAULT 'pending',
   notes TEXT,
+  viewed_at TIMESTAMP,
+  view_count INTEGER DEFAULT 0,
   responded_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
@@ -14896,8 +14900,10 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
   // Season kickoff responses table
   try { await pool.query(SEASON_KICKOFF_TABLE); } catch(e) {}
-  // Season kickoff properties column (added later)
+  // Season kickoff extra columns (added later)
   try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS properties JSONB`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMP`); } catch(e) {}
+  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0`); } catch(e) {}
   // Email open tracking columns
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_token VARCHAR(64)`); } catch(e) {}
   try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP`); } catch(e) {}

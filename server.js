@@ -11012,7 +11012,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
         FROM scheduled_jobs sj
         JOIN properties p ON p.customer_id = sj.customer_id AND sj.address LIKE '%' || p.zip || '%'
         WHERE sj.customer_id = ANY($1) AND sj.service_price > 0
-        ORDER BY sj.customer_id, sj.service_price
+        ORDER BY sj.customer_id, rate
       `, [multiPropIds]);
       for (const row of sjResult.rows) {
         if (!propRateMap[row.customer_id]) propRateMap[row.customer_id] = {};

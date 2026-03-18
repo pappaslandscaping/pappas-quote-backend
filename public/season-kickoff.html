@@ -78,6 +78,10 @@
             <p style="color: var(--gray-400); font-size: 13px; margin: 4px 0 0;">Personalized emails for returning customers with their 2025 service history</p>
         </div>
         <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" onclick="sendTestEmail()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Send Test to Me
+            </button>
             <button class="btn-secondary" onclick="exportCSV()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export CSV
@@ -389,6 +393,40 @@ function closePreview() {
 
 function confirmSend() {
     alert('Sending is not enabled yet. This is preview only.');
+}
+
+async function sendTestEmail() {
+    // Build a sample email using Theresa Pappas with sample services
+    const testCustomer = {
+        name: 'Theresa Pappas',
+        email: 'hello@pappaslandscaping.com',
+        services: [
+            { name: 'Mowing (Weekly)', rate: 45, count: 24, total: 1080 },
+            { name: 'Spring Cleanup', rate: 250, count: 1, total: 250 },
+            { name: 'Fall Cleanup (One Time Charge)', rate: 300, count: 1, total: 300 },
+            { name: 'Mulching', rate: 200, count: 1, total: 200 },
+            { name: 'Aeration', rate: 120, count: 1, total: 120 }
+        ],
+        total_invoiced: 1950
+    };
+    const html = buildEmailHtml(testCustomer);
+    if (!html) { alert('Could not build email'); return; }
+
+    try {
+        const res = await fetch('/api/season-kickoff/send-test', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'hello@pappaslandscaping.com', html, customerName: testCustomer.name })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Test email sent to hello@pappaslandscaping.com — check your inbox!');
+        } else {
+            alert('Failed to send: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
 }
 
 function exportCSV() {

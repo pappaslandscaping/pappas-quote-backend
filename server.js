@@ -10557,6 +10557,19 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
+// POST /api/season-kickoff/send-test - Send a test kickoff email
+app.post('/api/season-kickoff/send-test', async (req, res) => {
+  try {
+    const { email, html, customerName } = req.body;
+    if (!email || !html) return res.status(400).json({ success: false, error: 'Email and html required' });
+    const firstName = (customerName || 'Customer').split(' ')[0];
+    const result = await sendEmail(email, `You're on our list for 2026, ${firstName}!`, html, null, { type: 'season_kickoff', customer_name: customerName });
+    res.json(result);
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
 app.get('/api/reports/2025-services', async (req, res) => {
   try {

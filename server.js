@@ -10726,7 +10726,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
           WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
         )
         OR (
-          i.created_at >= '2025-01-01'
+          i.created_at >= '2025-05-01'
           AND i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
           AND EXISTS (
             SELECT 1 FROM jsonb_array_elements(i.line_items) item
@@ -10761,7 +10761,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
         let itemDate = item.date || '';
         // For 0000-00-00 dates, fall back to invoice due_date if the invoice was created in 2025
         const createdAt = inv.created_at ? inv.created_at.toISOString().slice(0, 10) : '';
-        if ((itemDate === '0000-00-00' || itemDate === '' || !itemDate) && createdAt >= '2025-01-01') {
+        if ((itemDate === '0000-00-00' || itemDate === '' || !itemDate) && createdAt >= '2025-05-01') {
           const dd = inv.due_date ? inv.due_date.toISOString().slice(0, 10) : '';
           if (dd >= '2025-01-01' && dd < '2026-01-01') {
             itemDate = dd;

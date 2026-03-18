@@ -170,6 +170,7 @@
                     <th>Status</th>
                     <th>Notes</th>
                     <th>Responded</th>
+                    <th style="width:60px;"></th>
                 </tr>
             </thead>
             <tbody id="responsesTable">
@@ -420,7 +421,7 @@ async function loadResponses() {
 
         const tbody = document.getElementById('responsesTable');
         if (data.responses.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--gray-400);">No responses yet</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray-400);">No responses yet</td></tr>';
             return;
         }
 
@@ -440,10 +441,26 @@ async function loadResponses() {
                 <td><span style="display:inline-block;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;background:${statusColor}15;color:${statusColor};">${statusLabel}</span></td>
                 <td style="font-size:13px;color:var(--gray-600);max-width:300px;">${esc(r.notes || '—')}</td>
                 <td style="font-size:12px;color:var(--gray-400);white-space:nowrap;">${date}</td>
+                <td style="text-align:center;"><button onclick="deleteResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--red);" title="Delete">✕</button></td>
             </tr>`;
         }).join('');
     } catch (err) {
-        document.getElementById('responsesTable').innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--red);">Error: ${err.message}</td></tr>`;
+        document.getElementById('responsesTable').innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red);">Error: ${err.message}</td></tr>`;
+    }
+}
+
+async function deleteResponse(id) {
+    if (!window.confirm('Delete this response?')) return;
+    try {
+        const res = await fetch(`/api/season-kickoff/responses/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        const data = await res.json();
+        if (data.success) loadResponses();
+        else alert('Failed to delete: ' + (data.error || 'Unknown error'));
+    } catch (err) {
+        alert('Error: ' + err.message);
     }
 }
 

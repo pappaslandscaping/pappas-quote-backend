@@ -10675,8 +10675,18 @@ app.post('/api/season-kickoff/preview', async (req, res) => {
 // GET /api/season-kickoff/responses - View all responses (admin)
 app.get('/api/season-kickoff/responses', async (req, res) => {
   try {
-    const result = await pool.query('SELECT customer_name, customer_email, status, notes, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
+    const result = await pool.query('SELECT id, customer_name, customer_email, status, notes, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
     res.json({ success: true, responses: result.rows });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// DELETE /api/season-kickoff/responses/:id - Delete a response (admin)
+app.delete('/api/season-kickoff/responses/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM season_kickoff_responses WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
   } catch (error) {
     serverError(res, error);
   }
@@ -10711,12 +10721,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
         )
       WHERE EXISTS (
         SELECT 1 FROM jsonb_array_elements(i.line_items) item
-        WHERE (item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01')
-           OR (
-             (item->>'date' IS NULL OR item->>'date' = '0000-00-00' OR item->>'date' = '')
-             AND i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
-             AND i.due_date NOT IN ('2025-03-12', '2025-04-01')
-           )
+        WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
       )
       ORDER BY customer_name
     `);
@@ -10738,19 +10743,13 @@ app.get('/api/reports/2025-services', async (req, res) => {
         };
       }
 
-      // Only count line items with 2025 service dates (or missing dates on 2025 invoices)
-      const dueDate = inv.due_date ? inv.due_date.toISOString().slice(0, 10) : '';
-      const dueDateIs2025 = dueDate >= '2025-01-01' && dueDate < '2026-01-01'
-        && dueDate !== '2025-03-12' && dueDate !== '2025-04-01';
+      // Only count line items with actual 2025 service dates
       const items = inv.line_items || [];
       for (const item of items) {
         if (!item.name) continue;
         const itemDate = item.date || '';
-        const hasValidDate = itemDate >= '2000-01-01';
-        const isDateIn2025 = hasValidDate && itemDate >= '2025-01-01' && itemDate < '2026-01-01';
-        const isMissingDate = !hasValidDate;
-        // Include if: item date is in 2025, OR item has no date but invoice due_date is in 2025
-        if (!isDateIn2025 && !(isMissingDate && dueDateIs2025)) continue;
+        // Only include items with a valid 2025 date — skip 0000-00-00 (unreliable)
+        if (itemDate < '2025-01-01' || itemDate >= '2026-01-01') continue;
         // Skip processing fees and fuel surcharges
         const lower = item.name.toLowerCase();
         if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
@@ -10764,7 +10763,7 @@ app.get('/api/reports/2025-services', async (req, res) => {
         }
         const amount = parseFloat(item.amount || 0);
         const rate = parseFloat(item.rate || 0);
-        const effectiveDate = hasValidDate ? itemDate : dueDate;
+        const effectiveDate = itemDate;
         if (!customers[cid].services[serviceName]) {
           customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate };
         }

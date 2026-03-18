@@ -11000,22 +11000,24 @@ app.get('/api/reports/2025-services', async (req, res) => {
       if (addr) propsMap[p.customer_id].push(addr);
     }
 
-    // For multi-property customers, build rate→property mapping from scheduled_jobs
+    // For multi-property customers, build property→rate mapping from scheduled_jobs
     const multiPropIds = Object.values(customers)
       .filter(c => c.customer_id && (propsMap[c.customer_id] || []).length > 1)
       .map(c => c.customer_id);
-    const ratePropMap = {}; // { customerId: { rate: propertyAddr } }
+    // propRateMap: { customerId: { propertyAddr: mowingRate } }
+    const propRateMap = {};
     if (multiPropIds.length > 0) {
       const sjResult = await pool.query(`
         SELECT DISTINCT sj.customer_id, sj.service_price::numeric as rate, p.street, p.city, p.state, p.zip
         FROM scheduled_jobs sj
         JOIN properties p ON p.customer_id = sj.customer_id AND sj.address LIKE '%' || p.zip || '%'
         WHERE sj.customer_id = ANY($1) AND sj.service_price > 0
+        ORDER BY sj.customer_id, sj.service_price
       `, [multiPropIds]);
       for (const row of sjResult.rows) {
-        if (!ratePropMap[row.customer_id]) ratePropMap[row.customer_id] = {};
+        if (!propRateMap[row.customer_id]) propRateMap[row.customer_id] = {};
         const addr = [row.street, row.city, row.state, row.zip].filter(Boolean).join(', ');
-        ratePropMap[row.customer_id][row.rate] = addr;
+        propRateMap[row.customer_id][addr] = parseFloat(row.rate);
       }
     }
 
@@ -11025,33 +11027,52 @@ app.get('/api/reports/2025-services', async (req, res) => {
       .filter(c => !acpCustomerIds.has(c.customer_id))
       .map(c => {
         const props = propsMap[c.customer_id] || [];
-        if (props.length > 1 && ratePropMap[c.customer_id]) {
-          // Multi-property: group services by property address
-          const rateMap = ratePropMap[c.customer_id];
-          const byProperty = {}; // { addr: [services] }
+        const propRates = propRateMap[c.customer_id];
+        if (props.length > 1 && propRates && Object.keys(propRates).length > 1) {
+          // Multi-property: assign services to properties
+          // Sort properties by their mowing rate (low to high)
+          const sortedProps = Object.entries(propRates).sort((a, b) => a[1] - b[1]);
+          // For each property, find the latest rate for each service
+          const byProperty = {};
+          for (const [addr] of sortedProps) {
+            byProperty[addr] = [];
+          }
+
           for (const svc of Object.values(c.services)) {
-            const distinctRates = Object.entries(svc.rates);
-            if (distinctRates.length > 1) {
-              // Multiple rates = multiple properties
-              for (const [rate, date] of distinctRates) {
-                const addr = rateMap[parseFloat(rate)] || 'Other';
-                if (!byProperty[addr]) byProperty[addr] = [];
-                byProperty[addr].push({ name: svc.name, rate: parseFloat(rate), count: svc.count, total: svc.total });
-              }
+            const rateEntries = Object.entries(svc.rates).map(([r, d]) => ({ rate: parseFloat(r), date: d }));
+
+            if (rateEntries.length === 1) {
+              // Only one rate — check if it matches a property's mowing rate, else assign to first
+              const matchAddr = sortedProps.find(([, mowRate]) => mowRate === rateEntries[0].rate);
+              const addr = matchAddr ? matchAddr[0] : sortedProps[0][0];
+              byProperty[addr].push({ name: svc.name, rate: svc.rate });
             } else {
-              // Single rate — try to match to a property, else put under first property
-              const addr = rateMap[svc.rate] || props[0];
-              if (!byProperty[addr]) byProperty[addr] = [];
-              byProperty[addr].push({ name: svc.name, rate: svc.rate, count: svc.count, total: svc.total });
+              // Multiple rates — get the latest rate per property
+              // Sort rates low to high, match to properties sorted low to high by mowing rate
+              // Only take the N most recent rates where N = number of properties
+              const latestPerRate = {};
+              for (const { rate, date } of rateEntries) {
+                if (!latestPerRate[rate] || date > latestPerRate[rate]) latestPerRate[rate] = date;
+              }
+              // Get the N most recent distinct rates (one per property)
+              const recentRates = Object.entries(latestPerRate)
+                .map(([r, d]) => ({ rate: parseFloat(r), date: d }))
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .slice(0, sortedProps.length);
+              // Sort these rates low to high to match property ordering
+              recentRates.sort((a, b) => a.rate - b.rate);
+              for (let i = 0; i < sortedProps.length && i < recentRates.length; i++) {
+                byProperty[sortedProps[i][0]].push({ name: svc.name, rate: recentRates[i].rate });
+              }
             }
           }
+
           return {
             ...c,
             properties: props,
-            propertyServices: Object.entries(byProperty).map(([addr, svcs]) => ({
-              address: addr,
-              services: svcs.sort((a, b) => b.total - a.total)
-            })),
+            propertyServices: Object.entries(byProperty)
+              .filter(([, svcs]) => svcs.length > 0)
+              .map(([addr, svcs]) => ({ address: addr, services: svcs })),
             services: Object.values(c.services).map(s => ({ name: s.name, rate: s.rate, count: s.count, total: s.total })).sort((a, b) => b.total - a.total),
             total_invoiced: Math.round(c.total_invoiced * 100) / 100
           };

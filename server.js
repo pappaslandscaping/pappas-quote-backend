@@ -10764,7 +10764,7 @@ app.post('/api/season-kickoff/send-sms', async (req, res) => {
       [token, customerName, phone, JSON.stringify(services), JSON.stringify([])]);
 
     const firstName = (customerName || 'Customer').split(' ')[0];
-    const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime: 440-886-7318`;
+    const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime:\n440-886-7318`;
 
     let formattedTo = phone.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;

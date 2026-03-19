@@ -1037,7 +1037,7 @@ async function syncToCopilotCRM(quote, pdfBytes) {
     'X-Requested-With': 'XMLHttpRequest'
   };
 
-  // Search for customer
+  // Search for customer — try full name first, then last name as fallback
   const customerName = quote.customer_name || '';
   const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
     method: 'POST',
@@ -1045,7 +1045,20 @@ async function syncToCopilotCRM(quote, pdfBytes) {
     body: `query=${encodeURIComponent(customerName)}`
   });
   const customers = await searchRes.json();
-  const match = customers.find(c => c.id && String(c.id) !== '0');
+  let match = customers.find(c => c.id && String(c.id) !== '0');
+  if (!match) {
+    // Fallback: search by last name only (handles double-spaces or name mismatches in CopilotCRM)
+    const lastName = customerName.trim().split(/\s+/).pop();
+    if (lastName && lastName !== customerName.trim()) {
+      const searchRes2 = await fetch('https://secure.copilotcrm.com/customers/filter', {
+        method: 'POST',
+        headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `query=${encodeURIComponent(lastName)}`
+      });
+      const customers2 = await searchRes2.json();
+      match = customers2.find(c => c.id && String(c.id) !== '0');
+    }
+  }
   if (!match) return { success: false, error: `No customer found for "${customerName}"` };
 
   const copilotCustomerId = match.id;

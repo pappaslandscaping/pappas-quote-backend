@@ -425,13 +425,136 @@ function verifyPassword(password, stored) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex') === hash;
 }
 
-// TEMPORARY: one-time password reset — REMOVE after use
-app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
+// TEMPORARY one-time password reset — REMOVE after use
+app.get('/api/auth/reset-once-Rk7Xp', async (req, res) => {
   try {
-    const hash = hashPassword('1513Lincoln!');
-    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
-    res.json({ success: true, message: 'Password reset.' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+    const crypto2 = require('crypto');
+    const salt = crypto2.randomBytes(32).toString('hex');
+    const hash = crypto2.pbkdf2Sync('PappasReset2026!', salt, 100000, 64, 'sha512').toString('hex');
+    const stored = salt + ':' + hash;
+    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [stored]);
+    res.send('<h2>Password has been reset!</h2><p>Email: hello@pappaslandscaping.com<br>Password: PappasReset2026!</p><p><a href="/login.html">Go to login</a></p><p style="color:red;margin-top:20px;"><strong>IMPORTANT:</strong> Tell Claude to remove this endpoint after you log in.</p>');
+  } catch(e) { serverError(res, e); }
+});
+
+// Forgot password — sends reset link via email
+app.post('/api/auth/forgot-password', loginLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
+    const emailLower = email.toLowerCase().trim();
+
+    // Check admin_users first, then employees
+    let userId = null, userName = null, table = null, emailCol = null;
+    const adminResult = await pool.query('SELECT id, name, email FROM admin_users WHERE email = $1', [emailLower]);
+    if (adminResult.rows.length > 0) {
+      userId = adminResult.rows[0].id;
+      userName = adminResult.rows[0].name || 'there';
+      table = 'admin_users';
+      emailCol = 'email';
+    } else {
+      const empResult = await pool.query('SELECT id, first_name, last_name, login_email FROM employees WHERE login_email = $1 AND is_active = true', [emailLower]);
+      if (empResult.rows.length > 0) {
+        userId = empResult.rows[0].id;
+        userName = empResult.rows[0].first_name || 'there';
+        table = 'employees';
+        emailCol = 'login_email';
+      }
+    }
+
+    // Always return success to prevent email enumeration
+    if (!userId) {
+      console.log(`Password reset requested for unknown email: ${emailLower}`);
+      return res.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' });
+    }
+
+    // Generate secure reset token (expires in 1 hour)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Ensure columns exist
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(255)`);
+    await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS password_reset_expires TIMESTAMP`);
+
+    // Store token
+    await pool.query(`UPDATE ${table} SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3`, [resetToken, resetExpires, userId]);
+
+    // Send reset email
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const resetUrl = `${baseUrl}/reset-password.html?token=${resetToken}`;
+    const html = `
+      <div style="font-family:'DM Sans',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 0;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <img src="${LOGO_URL}" alt="${COMPANY_NAME}" style="max-height:60px;">
+        </div>
+        <div style="background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb;">
+          <h2 style="margin:0 0 16px;font-size:20px;color:#1f2937;">Reset Your Password</h2>
+          <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
+            Hi ${userName},<br><br>
+            We received a request to reset your YardDesk password. Click the button below to choose a new password. This link expires in 1 hour.
+          </p>
+          <div style="text-align:center;margin-bottom:24px;">
+            <a href="${resetUrl}" style="display:inline-block;background:#2e403d;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Reset Password</a>
+          </div>
+          <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.5;">
+            If you didn't request this, you can safely ignore this email. Your password will not be changed.
+          </p>
+        </div>
+        <p style="text-align:center;margin-top:24px;color:#9ca3af;font-size:12px;">
+          ${COMPANY_NAME} &mdash; Cleveland, OH
+        </p>
+      </div>`;
+
+    await sendEmail(emailLower, 'Reset Your YardDesk Password', html, null, { type: 'password-reset' });
+    console.log(`Password reset email sent to ${emailLower}`);
+    res.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    serverError(res, error, 'Forgot password error');
+  }
+});
+
+// Reset password with token
+app.post('/api/auth/reset-password', loginLimiter, async (req, res) => {
+  try {
+    const { token, new_password } = req.body;
+    if (!token || !new_password) return res.status(400).json({ success: false, error: 'Token and new password are required' });
+    if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+
+    // Check admin_users first
+    let user = null, table = null;
+    try {
+      const adminResult = await pool.query('SELECT id, email FROM admin_users WHERE password_reset_token = $1 AND password_reset_expires > NOW()', [token]);
+      if (adminResult.rows.length > 0) {
+        user = adminResult.rows[0];
+        table = 'admin_users';
+      }
+    } catch (e) { /* columns may not exist yet */ }
+
+    if (!user) {
+      try {
+        const empResult = await pool.query('SELECT id, login_email as email FROM employees WHERE password_reset_token = $1 AND password_reset_expires > NOW()', [token]);
+        if (empResult.rows.length > 0) {
+          user = empResult.rows[0];
+          table = 'employees';
+        }
+      } catch (e) { /* columns may not exist yet */ }
+    }
+
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired reset link. Please request a new one.' });
+    }
+
+    // Update password and clear token
+    const newHash = hashPassword(new_password);
+    await pool.query(`UPDATE ${table} SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL WHERE id = $2`, [newHash, user.id]);
+
+    console.log(`Password reset successful for ${user.email}`);
+    res.json({ success: true, message: 'Password has been reset. You can now sign in.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    serverError(res, error, 'Reset password error');
+  }
 });
 
 // Admin + Employee login

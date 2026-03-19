@@ -818,6 +818,37 @@ app.post('/api/photos/crew-upload', photoUploadPublic.array('photos', 5), async 
       results.push(result.rows[0]);
     }
     res.json({ success: true, photos: results });
+
+    // Send email notification (fire-and-forget, don't block response)
+    try {
+      const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+      const photoCount = results.length;
+      const uploaderName = crew_name || 'Crew';
+      const tagList = tagArray.length ? tagArray.join(', ') : 'none';
+      const photoThumbs = results.map(p =>
+        `<img src="${baseUrl}/api/photos/${p.id}/image" style="width:120px;height:120px;object-fit:cover;border-radius:8px;margin:4px;" />`
+      ).join('');
+
+      const emailHtml = `
+        <div style="font-family:'DM Sans',sans-serif;max-width:500px;margin:0 auto;">
+          <div style="background:#2e403d;padding:20px;border-radius:12px 12px 0 0;text-align:center;">
+            <img src="${LOGO_URL}" style="max-height:50px;" />
+          </div>
+          <div style="background:#fff;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
+            <h2 style="margin:0 0 8px;color:#1e293b;font-size:18px;">📸 New Photos from ${uploaderName}</h2>
+            <p style="color:#64748b;font-size:14px;margin:0 0 16px;">
+              <strong>${photoCount}</strong> photo${photoCount > 1 ? 's' : ''} uploaded &bull; Tags: ${tagList}
+              ${notes ? '<br>Notes: ' + notes : ''}
+            </p>
+            <div style="margin-bottom:16px;">${photoThumbs}</div>
+            <a href="${baseUrl}/social-media.html" style="display:inline-block;padding:10px 20px;background:#2e403d;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">View in Photo Library</a>
+          </div>
+        </div>`;
+
+      sendEmail(NOTIFICATION_EMAIL, `📸 ${uploaderName} uploaded ${photoCount} photo${photoCount > 1 ? 's' : ''}`, emailHtml, null, { type: 'crew-photo-notification' });
+    } catch (emailErr) {
+      console.error('Photo notification email failed:', emailErr);
+    }
   } catch (error) {
     serverError(res, error, 'Crew upload failed');
   }
@@ -1227,19 +1258,19 @@ app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
 
     // Backfill emails (last 30 days, customer-facing only)
     const emails = await pool.query(`
-      SELECT recipient_email, subject, email_type, customer_name, created_at
+      SELECT recipient_email, subject, email_type, customer_name, sent_at
       FROM email_log
       WHERE status = 'sent' AND customer_name IS NOT NULL
-        AND created_at > NOW() - INTERVAL '30 days'
+        AND sent_at > NOW() - INTERVAL '30 days'
         AND recipient_email != $1
-      ORDER BY created_at ASC
+      ORDER BY sent_at ASC
     `, [process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com']);
 
     for (const e of emails.rows) {
       try {
         const custId = await findCopilotCustomerId(e.customer_name, auth.headers);
         if (!custId) { results.emails.push({ customer: e.customer_name, success: false, error: 'not found' }); continue; }
-        const noteHtml = `<p><strong>[Email Sent]</strong> ${new Date(e.created_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>`;
+        const noteHtml = `<p><strong>[Email Sent]</strong> ${new Date(e.sent_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>`;
         await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
           method: 'POST',
           headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },

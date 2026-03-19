@@ -6242,10 +6242,10 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       }
     }
 
-    // Trigger n8n webhook to sync accepted quote to CopilotCRM (HomeWorks)
-    if (process.env.N8N_QUOTE_ACCEPTED_WEBHOOK) {
+    // Sync accepted quote customer to CopilotCRM (HomeWorks)
+    if (process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
       try {
-        // Parse customer name into first/last for CopilotCRM
+        // Parse customer name into first/last
         const nameParts = (updatedQuote.customer_name || '').trim().split(/\s+/);
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
@@ -6258,45 +6258,54 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
         const state = stateZip[0] || 'OH';
         const zip = stateZip[1] || '';
 
-        // Parse services from JSON
-        let servicesList = [];
-        try {
-          const svc = typeof updatedQuote.services === 'string' ? JSON.parse(updatedQuote.services) : updatedQuote.services;
-          servicesList = (svc || []).map(s => ({ name: s.name, description: s.description, amount: s.amount }));
-        } catch (e) { /* services parsing failed, send empty */ }
-
-        await fetch(process.env.N8N_QUOTE_ACCEPTED_WEBHOOK, {
+        // Step 1: Login to CopilotCRM
+        const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'quote_accepted',
-            customer: {
-              full_name: updatedQuote.customer_name,
-              first_name: firstName,
-              last_name: lastName,
-              email: updatedQuote.customer_email,
-              phone: updatedQuote.customer_phone,
-              street: street,
-              city: city,
-              state: state,
-              zip: zip,
-              full_address: updatedQuote.customer_address
-            },
-            quote: {
-              quote_number: updatedQuote.quote_number || 'Q-' + updatedQuote.id,
-              quote_type: updatedQuote.quote_type,
-              total: updatedQuote.total,
-              monthly_payment: updatedQuote.monthly_payment,
-              services: servicesList,
-              services_text: servicesText
-            },
-            signed_by: printed_name,
-            signed_at: new Date().toISOString()
-          })
+          headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+          body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
         });
-        console.log('✅ n8n webhook sent for quote accepted');
+        const loginData = await loginRes.json();
+        if (!loginData.accessToken) throw new Error('CopilotCRM login failed');
+
+        // Step 2: Create customer in CopilotCRM
+        const formData = new URLSearchParams({
+          firstname: firstName,
+          lname: lastName,
+          company_name: updatedQuote.customer_name || '',
+          email: updatedQuote.customer_email || '',
+          mobile: updatedQuote.customer_phone || '',
+          phone: '',
+          type: '1',
+          title_mr: 'no',
+          street: street,
+          city: city,
+          state: state,
+          zip: zip,
+          country: 'US',
+          c_id: '0',
+          lat: '0',
+          lng: '0',
+          desc: `YardDesk Quote ${updatedQuote.quote_number || 'Q-' + updatedQuote.id} - ${servicesText}`
+        });
+
+        const createRes = await fetch('https://secure.copilotcrm.com/customers/doAdd', {
+          method: 'POST',
+          headers: {
+            'Cookie': `copilotApiAccessToken=${loginData.accessToken}`,
+            'Origin': 'https://secure.copilotcrm.com',
+            'Referer': 'https://secure.copilotcrm.com/customers',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: formData.toString()
+        });
+
+        if (createRes.ok) {
+          console.log(`✅ CopilotCRM customer created: ${updatedQuote.customer_name}`);
+        } else {
+          console.error(`CopilotCRM create failed: ${createRes.status}`);
+        }
       } catch (e) {
-        console.error('n8n quote accepted webhook failed:', e);
+        console.error('CopilotCRM sync failed:', e.message);
       }
     }
 

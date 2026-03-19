@@ -518,13 +518,33 @@ async function generateFromChat() {
         const lastAssistant = msgs.querySelectorAll('.chat-bubble.assistant');
         if (lastAssistant.length) lastAssistant[lastAssistant.length - 1].remove();
 
-        // Build a quick summary of platforms
+        // Build clickable platform buttons in chat
         const platformKeys = Object.keys(currentPosts);
-        const platformLabels = platformKeys.map(k => PLATFORMS[k]?.label || k).join(', ');
-        addBubble('Done! I wrote posts for ' + platformLabels + '. Check them out below — you can switch platforms, edit, copy, or regenerate any of them.\n\nType again anytime to create a new post.', 'assistant');
-
-        // Set currentPlatform to first available
         currentPlatform = platformKeys[0] || 'facebook';
+
+        const platformBtns = platformKeys.map(k => {
+            const info = PLATFORMS[k];
+            return { label: info?.label || k, value: k };
+        });
+
+        const msgDiv = addBubble('Done! Pick a platform to preview:', 'assistant');
+        // Add platform buttons manually for click handling
+        const optDiv = document.createElement('div');
+        optDiv.className = 'options';
+        platformKeys.forEach(k => {
+            const info = PLATFORMS[k];
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            btn.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${info.color};display:inline-block;"></span>${info.label}`;
+            btn.onclick = () => {
+                currentPlatform = k;
+                showPreviews();
+            };
+            optDiv.appendChild(btn);
+        });
+        msgDiv.appendChild(optDiv);
+
         showPreviews();
         loadHistory();
 

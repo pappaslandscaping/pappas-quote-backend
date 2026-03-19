@@ -659,8 +659,7 @@ const ADMIN_PUBLIC_PATHS = [
   '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
   '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services', '/api/email-track/',
   '/api/config/', '/health', '/api/test-quote-pdf',
-  '/api/quickbooks/auth', '/api/quickbooks/callback',
-  '/api/copilotcrm/'
+  '/api/quickbooks/auth', '/api/quickbooks/callback'
 ];
 
 function requireAdmin(req, res, next) {
@@ -905,7 +904,9 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
         [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, trackedHtml, openToken]); } catch(e) {}
       // Sync to CopilotCRM (fire-and-forget) — skip admin notifications
       if (meta.customer_name && to !== NOTIFICATION_EMAIL) {
-        logToCopilotCRM(meta.customer_name, `<p><strong>[Email Sent]</strong> To: ${to}<br>Subject: ${subject}</p>`);
+        // Strip HTML tags to get plain text snippet of email body
+        const plainBody = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 500);
+        logToCopilotCRM(meta.customer_name, `<p><strong>[Email Sent]</strong> To: ${to}<br>Subject: ${subject}</p><p>${plainBody}${plainBody.length >= 500 ? '...' : ''}</p>`);
       }
       return { success: true };
     }
@@ -1245,114 +1246,6 @@ function logToCopilotCRM(customerName, noteHtml) {
   })();
 }
 
-// One-time backfill: sync recent comms to CopilotCRM. Runs in background, returns immediately.
-let backfillStatus = { running: false, results: null };
-app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
-  if (req.headers['x-backfill-key'] !== 'pappas-backfill-2026-xK9m') {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (backfillStatus.running) return res.json({ status: 'already running' });
-
-  backfillStatus = { running: true, results: null };
-  res.json({ success: true, status: 'started', message: 'GET /api/copilotcrm/backfill-status to check progress' });
-
-  // Run in background
-  (async () => {
-    try {
-      const auth = await getCopilotAuth();
-      if (!auth) { backfillStatus = { running: false, results: { error: 'login failed' } }; return; }
-
-      const summary = { emails: { ok: 0, fail: 0 }, sms: { ok: 0, fail: 0 }, notes: { ok: 0, fail: 0 } };
-      const failed = [];
-
-      // Emails
-      const emails = (await pool.query(`
-        SELECT recipient_email, subject, customer_name, sent_at FROM email_log
-        WHERE status = 'sent' AND customer_name IS NOT NULL
-          AND sent_at > NOW() - INTERVAL '7 days' AND recipient_email != $1
-        ORDER BY sent_at ASC
-      `, [process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com'])).rows;
-
-      // SMS
-      const smsRows = (await pool.query(`
-        SELECT m.to_number, m.body, m.created_at, c.name as customer_name, c.first_name, c.last_name
-        FROM messages m LEFT JOIN customers c ON m.customer_id = c.id
-        WHERE m.direction = 'outbound' AND m.created_at > NOW() - INTERVAL '7 days'
-        ORDER BY m.created_at ASC
-      `)).rows;
-
-      // Notes
-      const noteRows = (await pool.query(`
-        SELECT n.content, n.author_name, n.created_at, c.name as customer_name, c.first_name, c.last_name
-        FROM internal_notes n LEFT JOIN customers c ON n.entity_id = c.id
-        WHERE n.entity_type = 'customer' AND n.created_at > NOW() - INTERVAL '7 days'
-        ORDER BY n.created_at ASC
-      `)).rows;
-
-      // Collect all customer names and pre-cache in parallel
-      const allNames = new Set();
-      emails.forEach(e => allNames.add(e.customer_name));
-      smsRows.forEach(s => { const n = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim(); if (n) allNames.add(n); });
-      noteRows.forEach(n => { const nm = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim(); if (nm) allNames.add(nm); });
-
-      const nameArr = [...allNames];
-      console.log(`CopilotCRM backfill: ${emails.length} emails, ${smsRows.length} sms, ${noteRows.length} notes, ${nameArr.length} unique customers`);
-      for (let i = 0; i < nameArr.length; i += 5) {
-        await Promise.all(nameArr.slice(i, i + 5).map(n => findCopilotCustomerId(n, auth.headers).catch(() => null)));
-      }
-      console.log(`CopilotCRM backfill: customer cache loaded`);
-
-      // Helper
-      async function logNote(custName, noteHtml, type) {
-        const custId = copilotCustomerCache.get(custName);
-        if (!custId) { summary[type].fail++; return; }
-        await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
-          method: 'POST',
-          headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
-        });
-        summary[type].ok++;
-      }
-
-      // Process emails
-      for (const e of emails) {
-        try {
-          await logNote(e.customer_name, `<p><strong>[Email Sent]</strong> ${new Date(e.sent_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>`, 'emails');
-        } catch (err) { summary.emails.fail++; }
-      }
-      console.log(`CopilotCRM backfill: emails done ${summary.emails.ok}/${emails.length}`);
-
-      // Process SMS
-      for (const s of smsRows) {
-        try {
-          const n = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim();
-          if (!n) { summary.sms.fail++; continue; }
-          await logNote(n, `<p><strong>[SMS Sent]</strong> ${new Date(s.created_at).toLocaleDateString()}<br>To: ${s.to_number}<br>${s.body}</p>`, 'sms');
-        } catch (err) { summary.sms.fail++; }
-      }
-      console.log(`CopilotCRM backfill: sms done ${summary.sms.ok}/${smsRows.length}`);
-
-      // Process Notes
-      for (const n of noteRows) {
-        try {
-          const nm = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim();
-          if (!nm) { summary.notes.fail++; continue; }
-          await logNote(nm, `<p><strong>[Note]</strong> ${new Date(n.created_at).toLocaleDateString()} by ${n.author_name}<br>${n.content}</p>`, 'notes');
-        } catch (err) { summary.notes.fail++; }
-      }
-      console.log(`CopilotCRM backfill: notes done ${summary.notes.ok}/${noteRows.length}`);
-      console.log(`CopilotCRM backfill COMPLETE:`, JSON.stringify(summary));
-      backfillStatus = { running: false, results: summary };
-    } catch (error) {
-      console.error('CopilotCRM backfill error:', error);
-      backfillStatus = { running: false, results: { error: error.message } };
-    }
-  })();
-});
-
-app.get('/api/copilotcrm/backfill-status', async (req, res) => {
-  res.json(backfillStatus);
-});
 
 // Generate filled PDF contract from scratch using pdf-lib
 async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
@@ -7253,6 +7146,11 @@ app.post('/api/sms/webhook', async (req, res) => {
     `, [MessageSid, From, To, Body, mediaUrls, customerId]);
 
     console.log(`📨 Incoming SMS from ${customerName} (${From}): ${Body?.substring(0, 50)}...`);
+
+    // Sync inbound SMS to CopilotCRM
+    if (customerName && customerName !== 'Unknown') {
+      logToCopilotCRM(customerName, `<p><strong>[SMS Received]</strong> From: ${From}<br>${Body || '(no text)'}</p>`);
+    }
 
     // Send push notification
     sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });

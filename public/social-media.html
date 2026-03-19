@@ -342,13 +342,27 @@
                 <h3 style="font-size:18px;font-weight:700;color:var(--gray-700);margin:0;">Photo Library</h3>
                 <div style="display:flex;gap:8px;">
                     <button class="btn-sm" onclick="document.getElementById('libUploadInput').click()">Upload Photos</button>
-                    <button class="btn-sm" onclick="sendCrewLink()">Text Upload Link to Tim</button>
+                    <button class="btn-sm" onclick="openCrewTextModal()">Text Upload Link</button>
                 </div>
             </div>
             <input type="file" accept="image/*" multiple id="libUploadInput" style="display:none" onchange="uploadLibPhotos(event)">
             <div class="photo-lib-grid" id="photoLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;"></div>
             <div id="photoLibEmpty" style="text-align:center;padding:30px;color:var(--gray-400);font-size:14px;background:#fff;border-radius:10px;border:1px solid var(--gray-200);">
-                No photos yet. Upload some or text Tim the upload link.
+                No photos yet. Upload some or text the crew the upload link.
+            </div>
+        </div>
+
+        <!-- Text Crew Modal -->
+        <div class="edit-overlay" id="crewTextOverlay" onclick="if(event.target===this)closeCrewTextModal()">
+            <div class="edit-modal" style="max-width:400px;">
+                <h3>Text Upload Link</h3>
+                <div id="crewList" style="margin-bottom:12px;"></div>
+                <label style="font-size:13px;font-weight:600;color:#475569;margin-bottom:6px;">Message</label>
+                <textarea id="crewTextMsg" style="width:100%;min-height:60px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;resize:vertical;"></textarea>
+                <div class="edit-modal-actions">
+                    <button class="btn-sm" onclick="closeCrewTextModal()">Cancel</button>
+                    <button class="btn-sm primary" id="sendCrewTextBtn" onclick="sendCrewText()" disabled>Send Text</button>
+                </div>
             </div>
         </div>
 
@@ -895,29 +909,94 @@ async function deletePhoto(id) {
     } catch (e) { console.error(e); }
 }
 
-async function sendCrewLink() {
+let crewMembers = [];
+let selectedCrewId = null;
+
+async function openCrewTextModal() {
     const link = window.location.origin + '/crew-photos.html';
+    document.getElementById('crewTextOverlay').classList.add('show');
+    selectedCrewId = null;
+    document.getElementById('sendCrewTextBtn').disabled = true;
+
+    // Load employees
     try {
-        // Try to send via Twilio SMS to Tim
+        const resp = await fetch(API + '/api/employees?active_only=true', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+        const data = await resp.json();
+        crewMembers = (data.employees || []).filter(e => e.phone);
+    } catch (e) { crewMembers = []; }
+
+    const listEl = document.getElementById('crewList');
+    if (!crewMembers.length) {
+        listEl.innerHTML = '<p style="color:#64748b;font-size:13px;">No employees with phone numbers found. <a href="/employees.html">Add employees</a> first, or copy the link below.</p>'
+            + '<div style="margin-top:8px;padding:10px;background:#f5f5f5;border-radius:8px;font-size:13px;word-break:break-all;cursor:pointer;" onclick="navigator.clipboard.writeText(\'' + link + '\');this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'' + link + '\',1500)">' + link + '</div>';
+        document.getElementById('crewTextMsg').style.display = 'none';
+        document.getElementById('sendCrewTextBtn').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('crewTextMsg').style.display = '';
+    document.getElementById('sendCrewTextBtn').style.display = '';
+
+    listEl.innerHTML = crewMembers.map(e => {
+        const name = ((e.first_name || '') + ' ' + (e.last_name || '')).trim();
+        return `<button class="crew-pick-btn" data-id="${e.id}" onclick="pickCrew(${e.id})" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:6px;transition:all .15s;">
+            <span style="width:32px;height:32px;border-radius:50%;background:#2e403d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0;">${(e.first_name || '?')[0].toUpperCase()}</span>
+            <span style="flex:1;text-align:left;"><strong>${escapeHtml(name)}</strong><br><span style="font-size:12px;color:#64748b;">${escapeHtml(e.phone)}</span></span>
+        </button>`;
+    }).join('');
+
+    // Default message
+    document.getElementById('crewTextMsg').value = 'Hey — use this link to snap pics when you finish a job. Just pick what type of work and hit upload. ' + link;
+}
+
+function pickCrew(id) {
+    selectedCrewId = id;
+    document.querySelectorAll('.crew-pick-btn').forEach(btn => {
+        btn.style.borderColor = btn.dataset.id == id ? '#2e403d' : '#e2e8f0';
+        btn.style.background = btn.dataset.id == id ? '#f0f5f4' : '#fff';
+    });
+    // Update message with their name
+    const emp = crewMembers.find(e => e.id === id);
+    const name = emp ? (emp.first_name || 'there') : 'there';
+    const link = window.location.origin + '/crew-photos.html';
+    document.getElementById('crewTextMsg').value = 'Hey ' + name + ' — use this link to snap pics when you finish a job. Just pick what type of work and hit upload. ' + link;
+    document.getElementById('sendCrewTextBtn').disabled = false;
+}
+
+function closeCrewTextModal() {
+    document.getElementById('crewTextOverlay').classList.remove('show');
+}
+
+async function sendCrewText() {
+    const emp = crewMembers.find(e => e.id === selectedCrewId);
+    if (!emp) return;
+    const msg = document.getElementById('crewTextMsg').value.trim();
+    if (!msg) return;
+
+    const btn = document.getElementById('sendCrewTextBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
         const resp = await fetch(API + '/api/sms/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-            body: JSON.stringify({
-                to: '+14408867318', // business phone — you can change this to Tim's number
-                message: 'Hey Tim - use this link to upload job photos: ' + link
-            })
+            body: JSON.stringify({ to: emp.phone, message: msg })
         });
         const data = await resp.json();
         if (data.success) {
-            alert('Link sent! You can also copy it: ' + link);
+            const name = ((emp.first_name || '') + ' ' + (emp.last_name || '')).trim();
+            btn.textContent = 'Sent!';
+            setTimeout(() => { closeCrewTextModal(); btn.textContent = 'Send Text'; btn.disabled = false; }, 1200);
         } else {
-            // Fallback: just copy the link
-            navigator.clipboard.writeText(link);
-            alert('Link copied to clipboard. Text it to Tim:\n\n' + link);
+            alert('Failed to send: ' + (data.error || 'Unknown error'));
+            btn.textContent = 'Send Text';
+            btn.disabled = false;
         }
     } catch (e) {
-        navigator.clipboard.writeText(link);
-        alert('Link copied to clipboard. Text it to Tim:\n\n' + link);
+        alert('Error sending text: ' + e.message);
+        btn.textContent = 'Send Text';
+        btn.disabled = false;
     }
 }
 

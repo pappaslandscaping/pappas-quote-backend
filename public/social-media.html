@@ -978,10 +978,10 @@ async function sendCrewText() {
     btn.textContent = 'Sending...';
 
     try {
-        const resp = await fetch(API + '/api/sms/send', {
+        const resp = await fetch(API + '/api/messages/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-            body: JSON.stringify({ to: emp.phone, message: msg })
+            body: JSON.stringify({ to: emp.phone, body: msg })
         });
         const data = await resp.json();
         if (data.success) {

@@ -11032,6 +11032,21 @@ app.get('/api/season-kickoff/responses', async (req, res) => {
   }
 });
 
+// PATCH /api/season-kickoff/responses/:id - Update a response's services (admin)
+app.patch('/api/season-kickoff/responses/:id', async (req, res) => {
+  try {
+    const { services, properties } = req.body;
+    if (!services) return res.status(400).json({ success: false, error: 'Services required' });
+    await pool.query(
+      `UPDATE season_kickoff_responses SET services = $1, properties = $2 WHERE id = $3`,
+      [JSON.stringify(services), JSON.stringify(properties || []), req.params.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // DELETE /api/season-kickoff/responses/:id - Delete a response (admin)
 app.delete('/api/season-kickoff/responses/:id', async (req, res) => {
   try {

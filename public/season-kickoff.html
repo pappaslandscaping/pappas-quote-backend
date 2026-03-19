@@ -210,6 +210,10 @@
                 <div id="serviceList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
                 <button onclick="addPreviewService()" style="margin-top:8px;padding:4px 12px;border:1px dashed var(--gray-300);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--forest);font-weight:600;">+ Add Service</button>
             </div>
+            <div id="responseEditBtns" style="display:none;margin-bottom:12px;gap:8px;">
+                <button onclick="saveResponseChanges(false)" style="padding:8px 16px;border:2px solid var(--forest);border-radius:8px;background:var(--white);cursor:pointer;font-size:13px;font-weight:600;color:var(--forest);font-family:inherit;">Save Changes</button>
+                <button onclick="saveResponseChanges(true)" style="padding:8px 16px;border:none;border-radius:8px;background:var(--forest);cursor:pointer;font-size:13px;font-weight:600;color:var(--white);font-family:inherit;">Save & Resend Email</button>
+            </div>
             <div class="email-preview">
                 <iframe id="previewFrame"></iframe>
             </div>
@@ -226,6 +230,7 @@ let sentIds = new Set();
 let previewCustomer = null;
 let previewServices = [];
 let previewPropertyServices = null;
+let editingResponseId = null;
 
 async function loadData() {
     try {
@@ -357,6 +362,8 @@ async function previewEmail(key) {
     // Deep copy propertyServices for editing
     previewPropertyServices = customer.propertyServices ? customer.propertyServices.map(ps => ({ address: ps.address, services: ps.services.map(s => ({ ...s })) })) : null;
 
+    editingResponseId = null;
+    document.getElementById('responseEditBtns').style.display = 'none';
     document.getElementById('previewTitle').textContent = `Email Preview — ${customer.name}`;
     document.getElementById('previewTo').textContent = customer.email || 'No email';
     document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${customer.name.split(' ')[0]}!`;
@@ -476,6 +483,8 @@ function closePreview() {
         if (previewPropertyServices) previewCustomer.propertyServices = previewPropertyServices.map(ps => ({ address: ps.address, services: ps.services.map(s => ({ ...s })) }));
         filterTable();
     }
+    editingResponseId = null;
+    document.getElementById('responseEditBtns').style.display = 'none';
     document.getElementById('previewModal').classList.remove('active');
 }
 
@@ -708,7 +717,7 @@ async function loadResponses() {
                 <td style="font-size:13px;color:var(--gray-600);max-width:300px;">${esc(r.notes || '—')}</td>
                 <td style="font-size:12px;color:var(--gray-400);white-space:nowrap;">${date}</td>
                 <td style="text-align:center;white-space:nowrap;">
-                    ${r.customer_email ? `<button onclick="resendFromResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--forest);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--forest);margin-right:4px;" title="Edit & Resend">Resend</button>` : ''}
+                    <button onclick="editResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--forest);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--forest);margin-right:4px;" title="Edit services">Edit</button>
                     ${r.customer_email && r.notes && r.notes !== '—' ? `<button onclick="replyToResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--amber);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:#92400e;margin-right:4px;" title="Reply to customer">Reply</button>` : ''}
                     <button onclick="deleteResponse(${r.id});event.stopPropagation();" style="padding:4px 8px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;font-size:12px;color:var(--red);" title="Delete">✕</button>
                 </td>
@@ -734,12 +743,12 @@ async function deleteResponse(id) {
     }
 }
 
-async function resendFromResponse(id) {
+async function editResponse(id) {
     const r = (window.kickoffResponses || []).find(x => x.id === id);
     if (!r) return alert('Response not found');
+    editingResponseId = id;
     let svcs = [];
     try { svcs = typeof r.services === 'string' ? JSON.parse(r.services) : (r.services || []); } catch(e) {}
-    // Build a fake customer object for the preview modal
     let props = [];
     try { props = typeof r.properties === 'string' ? JSON.parse(r.properties) : (r.properties || []); } catch(e) {}
     const fakeCustomer = {
@@ -748,18 +757,50 @@ async function resendFromResponse(id) {
         email: r.customer_email,
         properties: props,
         services: svcs,
-        propertyServices: props.length > 1 ? props.map(addr => ({ address: addr, services: svcs.map(s => ({...s})) })) : null
+        propertyServices: props.length > 1 ? props.map(addr => ({ address: addr, services: svcs.map(s => ({...s, rate: parseFloat(s.rate)||0})) })) : null
     };
     previewCustomer = fakeCustomer;
-    previewServices = svcs.map(s => ({ ...s }));
+    previewServices = svcs.map(s => ({ ...s, rate: parseFloat(s.rate) || 0 }));
     previewPropertyServices = fakeCustomer.propertyServices ? fakeCustomer.propertyServices.map(ps => ({ address: ps.address, services: ps.services.map(s => ({...s})) })) : null;
     document.getElementById('previewModal').classList.add('active');
-    document.getElementById('previewTo').textContent = r.customer_email;
+    document.getElementById('previewTitle').textContent = `Edit — ${r.customer_name}`;
+    document.getElementById('previewTo').textContent = r.customer_email || '';
     document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${(r.customer_name || '').split(' ')[0]}!`;
-    document.getElementById('previewName').textContent = r.customer_name;
+    // Show response edit buttons
+    document.getElementById('responseEditBtns').style.display = 'flex';
     renderServiceEditor();
     renderPropertyEditor();
     await refreshPreview();
+}
+
+async function saveResponseChanges(andResend) {
+    if (!editingResponseId) return;
+    try {
+        const props = previewPropertyServices ? previewPropertyServices.map(ps => ps.address) : previewCustomer.properties;
+        const res = await fetch(`/api/season-kickoff/responses/${editingResponseId}`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ services: previewServices, properties: props })
+        });
+        const data = await res.json();
+        if (!data.success) { alert('Failed to save: ' + (data.error || '')); return; }
+        if (andResend && previewCustomer.email) {
+            const sendRes = await fetch('/api/season-kickoff/send-test', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: previewCustomer.email, customerName: previewCustomer.name, services: previewServices, properties: props, propertyServices: previewPropertyServices })
+            });
+            const sendData = await sendRes.json();
+            if (sendData.success) alert('Changes saved and email resent!');
+            else alert('Changes saved but email failed: ' + (sendData.error || ''));
+        } else {
+            alert('Changes saved! The customer will see the updated services when they click their link.');
+        }
+        closePreview();
+        loadResponses();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
 }
 
 async function replyToResponse(id) {

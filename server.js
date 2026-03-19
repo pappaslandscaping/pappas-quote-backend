@@ -6343,9 +6343,9 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
                     method: 'POST',
                     headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      id: copilotEstimateId,
-                      key: signUrlData.data.key,
-                      name: `Service-Agreement-${quoteNumber}.pdf`
+                      estimateId: String(copilotEstimateId),
+                      tempFileName: signUrlData.data.key,
+                      contentType: 'application/pdf'
                     })
                   });
                   if (uploadRes.ok) {

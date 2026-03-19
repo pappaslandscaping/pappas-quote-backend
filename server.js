@@ -425,6 +425,18 @@ function verifyPassword(password, stored) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex') === hash;
 }
 
+// TEMPORARY one-time password reset — REMOVE after use
+app.get('/api/auth/reset-once-Rk7Xp', async (req, res) => {
+  try {
+    const crypto2 = require('crypto');
+    const salt = crypto2.randomBytes(32).toString('hex');
+    const hash = crypto2.pbkdf2Sync('PappasReset2026!', salt, 100000, 64, 'sha512').toString('hex');
+    const stored = salt + ':' + hash;
+    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [stored]);
+    res.send('<h2>Password has been reset!</h2><p>Email: hello@pappaslandscaping.com<br>Password: PappasReset2026!</p><p><a href="/login.html">Go to login</a></p><p style="color:red;margin-top:20px;"><strong>IMPORTANT:</strong> Tell Claude to remove this endpoint after you log in.</p>');
+  } catch(e) { serverError(res, e); }
+});
+
 // Forgot password — sends reset link via email
 app.post('/api/auth/forgot-password', loginLimiter, async (req, res) => {
   try {

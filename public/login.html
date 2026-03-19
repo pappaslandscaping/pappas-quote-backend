@@ -216,6 +216,49 @@
             color: var(--primary);
         }
 
+        .forgot-form {
+            display: none;
+            margin-top: 12px;
+        }
+
+        .forgot-form.visible {
+            display: block;
+        }
+
+        .forgot-form p {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .forgot-form .form-group {
+            margin-bottom: 12px;
+        }
+
+        .btn-reset {
+            width: 100%;
+            padding: 11px 20px;
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-reset:hover {
+            background: var(--gray-200);
+        }
+
+        .btn-reset:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
         .forgot-message {
             text-align: center;
             padding: 12px 16px;
@@ -326,9 +369,14 @@
                 <div class="error-message" id="errorMessage"></div>
 
                 <a class="forgot-link" id="forgotLink">Forgot password?</a>
-                <div class="forgot-message" id="forgotMessage">
-                    Please contact your system administrator to reset your password.
+                <div class="forgot-form" id="forgotForm">
+                    <p>Enter your email and we'll send you a reset link.</p>
+                    <div class="form-group">
+                        <input type="email" id="resetEmail" placeholder="you@pappaslandscaping.com" required>
+                    </div>
+                    <button type="button" class="btn-reset" id="resetBtn">Send Reset Link</button>
                 </div>
+                <div class="forgot-message" id="forgotMessage"></div>
             </div>
         </div>
 
@@ -468,11 +516,46 @@
             });
 
             // ------------------------------------------------------------------
-            // Forgot password link
+            // Forgot password
             // ------------------------------------------------------------------
+            const forgotForm = document.getElementById('forgotForm');
+            const resetEmail = document.getElementById('resetEmail');
+            const resetBtn = document.getElementById('resetBtn');
+
             forgotLink.addEventListener('click', function (e) {
                 e.preventDefault();
-                forgotMessage.classList.toggle('visible');
+                forgotForm.classList.toggle('visible');
+                forgotMessage.classList.remove('visible');
+                if (forgotForm.classList.contains('visible')) {
+                    resetEmail.value = emailInput.value;
+                    resetEmail.focus();
+                }
+            });
+
+            resetBtn.addEventListener('click', async function () {
+                const email = resetEmail.value.trim();
+                if (!email) return;
+                resetBtn.disabled = true;
+                resetBtn.textContent = 'Sending...';
+                try {
+                    const res = await fetch('/api/auth/forgot-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    const data = await res.json();
+                    forgotForm.classList.remove('visible');
+                    forgotMessage.textContent = 'If an account exists with that email, a reset link has been sent. Check your inbox.';
+                    forgotMessage.classList.add('visible');
+                } catch (err) {
+                    forgotMessage.textContent = 'Unable to send reset email. Please try again.';
+                    forgotMessage.style.background = 'var(--red-bg)';
+                    forgotMessage.style.color = 'var(--red)';
+                    forgotMessage.classList.add('visible');
+                } finally {
+                    resetBtn.disabled = false;
+                    resetBtn.textContent = 'Send Reset Link';
+                }
             });
         })();
     </script>

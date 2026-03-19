@@ -417,7 +417,7 @@ function hideTyping() {
 }
 
 function disableOptions() {
-    document.querySelectorAll('.chat-bubble .option-btn').forEach(btn => {
+    document.querySelectorAll('.chat-bubble .option-btn:not(.platform-btn)').forEach(btn => {
         btn.disabled = true;
         btn.style.opacity = '0.5';
         btn.style.cursor = 'default';
@@ -534,7 +534,7 @@ async function generateFromChat() {
         platformKeys.forEach(k => {
             const info = PLATFORMS[k];
             const btn = document.createElement('button');
-            btn.className = 'option-btn';
+            btn.className = 'option-btn platform-btn';
             btn.style.cssText = 'display:flex;align-items:center;gap:6px;';
             btn.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${info.color};display:inline-block;"></span>${info.label}`;
             btn.onclick = () => {
@@ -562,7 +562,7 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ─── Platform Preview System ─────────────────────────
 function showPreviews() {
     const section = document.getElementById('previewSection');
-    section.style.display = '';
+    section.style.display = 'block';
 
     // Build tabs
     const tabsEl = document.getElementById('platformTabs');

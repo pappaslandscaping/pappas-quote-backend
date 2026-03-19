@@ -1245,91 +1245,76 @@ function logToCopilotCRM(customerName, noteHtml) {
   })();
 }
 
-// One-time backfill: sync recent comms to CopilotCRM. Use ?type=emails|sms|notes to run one at a time.
+// One-time backfill: sync recent comms to CopilotCRM. Use ?type=emails|sms|notes
 app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
   if (req.headers['x-backfill-key'] !== 'pappas-backfill-2026-xK9m') {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const type = req.query.type || 'emails'; // emails, sms, or notes
+  const type = req.query.type || 'emails';
   try {
     const auth = await getCopilotAuth();
     if (!auth) return res.status(500).json({ error: 'CopilotCRM login failed' });
 
-    const results = [];
+    // Build list of {customerName, noteHtml} to sync
+    const items = [];
 
     if (type === 'emails') {
-      const emails = await pool.query(`
-        SELECT recipient_email, subject, customer_name, sent_at
-        FROM email_log
+      const rows = (await pool.query(`
+        SELECT recipient_email, subject, customer_name, sent_at FROM email_log
         WHERE status = 'sent' AND customer_name IS NOT NULL
-          AND sent_at > NOW() - INTERVAL '7 days'
-          AND recipient_email != $1
+          AND sent_at > NOW() - INTERVAL '7 days' AND recipient_email != $1
         ORDER BY sent_at ASC
-      `, [process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com']);
-
-      for (const e of emails.rows) {
-        try {
-          const custId = await findCopilotCustomerId(e.customer_name, auth.headers);
-          if (!custId) { results.push({ customer: e.customer_name, success: false, error: 'not found' }); continue; }
-          const noteHtml = `<p><strong>[Email Sent]</strong> ${new Date(e.sent_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>`;
-          await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
-            method: 'POST',
-            headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
-          });
-          results.push({ customer: e.customer_name, success: true });
-        } catch (err) { results.push({ customer: e.customer_name, success: false, error: err.message }); }
+      `, [process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com'])).rows;
+      for (const e of rows) {
+        items.push({ name: e.customer_name, html: `<p><strong>[Email Sent]</strong> ${new Date(e.sent_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>` });
       }
     } else if (type === 'sms') {
-      const sms = await pool.query(`
+      const rows = (await pool.query(`
         SELECT m.to_number, m.body, m.created_at, c.name as customer_name, c.first_name, c.last_name
         FROM messages m LEFT JOIN customers c ON m.customer_id = c.id
         WHERE m.direction = 'outbound' AND m.created_at > NOW() - INTERVAL '7 days'
         ORDER BY m.created_at ASC
-      `);
-
-      for (const s of sms.rows) {
-        try {
-          const custName = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim();
-          if (!custName) { results.push({ to: s.to_number, success: false, error: 'no name' }); continue; }
-          const custId = await findCopilotCustomerId(custName, auth.headers);
-          if (!custId) { results.push({ customer: custName, success: false, error: 'not found' }); continue; }
-          const noteHtml = `<p><strong>[SMS Sent]</strong> ${new Date(s.created_at).toLocaleDateString()}<br>To: ${s.to_number}<br>${s.body}</p>`;
-          await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
-            method: 'POST',
-            headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
-          });
-          results.push({ customer: custName, success: true });
-        } catch (err) { results.push({ to: s.to_number, success: false, error: err.message }); }
+      `)).rows;
+      for (const s of rows) {
+        const n = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim();
+        if (n) items.push({ name: n, html: `<p><strong>[SMS Sent]</strong> ${new Date(s.created_at).toLocaleDateString()}<br>To: ${s.to_number}<br>${s.body}</p>` });
       }
     } else if (type === 'notes') {
-      const notes = await pool.query(`
+      const rows = (await pool.query(`
         SELECT n.content, n.author_name, n.created_at, c.name as customer_name, c.first_name, c.last_name
         FROM internal_notes n LEFT JOIN customers c ON n.entity_id = c.id
         WHERE n.entity_type = 'customer' AND n.created_at > NOW() - INTERVAL '7 days'
         ORDER BY n.created_at ASC
-      `);
-
-      for (const n of notes.rows) {
-        try {
-          const custName = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim();
-          if (!custName) { results.push({ success: false, error: 'no name' }); continue; }
-          const custId = await findCopilotCustomerId(custName, auth.headers);
-          if (!custId) { results.push({ customer: custName, success: false, error: 'not found' }); continue; }
-          const noteHtml = `<p><strong>[Note]</strong> ${new Date(n.created_at).toLocaleDateString()} by ${n.author_name}<br>${n.content}</p>`;
-          await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
-            method: 'POST',
-            headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
-          });
-          results.push({ customer: custName, success: true });
-        } catch (err) { results.push({ customer: custName, success: false, error: err.message }); }
+      `)).rows;
+      for (const n of rows) {
+        const nm = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim();
+        if (nm) items.push({ name: nm, html: `<p><strong>[Note]</strong> ${new Date(n.created_at).toLocaleDateString()} by ${n.author_name}<br>${n.content}</p>` });
       }
     }
 
+    // Pre-cache all unique customer names (5 at a time)
+    const uniqueNames = [...new Set(items.map(i => i.name))];
+    for (let i = 0; i < uniqueNames.length; i += 5) {
+      await Promise.all(uniqueNames.slice(i, i + 5).map(n => findCopilotCustomerId(n, auth.headers).catch(() => null)));
+    }
+
+    // Now process all items (customer lookups are cached)
+    const results = [];
+    for (const item of items) {
+      try {
+        const custId = copilotCustomerCache.get(item.name);
+        if (!custId) { results.push({ customer: item.name, success: false, error: 'not found' }); continue; }
+        await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
+          method: 'POST',
+          headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `customer_id=${custId}&call_notes=${encodeURIComponent(item.html)}&follow_up_date=`
+        });
+        results.push({ customer: item.name, success: true });
+      } catch (err) { results.push({ customer: item.name, success: false, error: err.message }); }
+    }
+
     const ok = results.filter(r => r.success).length;
-    res.json({ success: true, type, summary: `${ok}/${results.length}`, results });
+    res.json({ success: true, type, total: items.length, customers: uniqueNames.length, summary: `${ok}/${results.length}`, results });
   } catch (error) {
     console.error('CopilotCRM comms backfill error:', error);
     res.status(500).json({ success: false, error: error.message });

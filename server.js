@@ -6242,7 +6242,126 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       }
     }
 
-    // TODO: Sync to CopilotCRM — update estimate status to accepted + upload signed contract
+    // Sync to CopilotCRM — update estimate status to accepted + upload signed contract
+    if (process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
+      try {
+        // Step 1: Login to CopilotCRM
+        const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+          body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
+        });
+        const copilotAuth = await copilotLogin.json();
+        if (!copilotAuth.accessToken) throw new Error('CopilotCRM login failed');
+        const copilotCookie = `copilotApiAccessToken=${copilotAuth.accessToken}`;
+        const copilotHeaders = {
+          'Cookie': copilotCookie,
+          'Origin': 'https://secure.copilotcrm.com',
+          'Referer': 'https://secure.copilotcrm.com/',
+          'X-Requested-With': 'XMLHttpRequest'
+        };
+
+        // Step 2: Search for customer by name
+        const customerName = updatedQuote.customer_name || '';
+        const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+          method: 'POST',
+          headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `query=${encodeURIComponent(customerName)}`
+        });
+        const customers = await searchRes.json();
+
+        // Find matching customer - search results are [{name, id}]
+        const match = customers.find(c => c.id && String(c.id) !== '0');
+        if (!match) {
+          console.log(`⚠️ CopilotCRM: No customer found for "${customerName}"`);
+        } else {
+          const copilotCustomerId = match.id;
+          console.log(`🔍 CopilotCRM: Found customer ${copilotCustomerId} for "${customerName}"`);
+
+          // Step 3: Get customer's estimates to find matching estimate number
+          const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+            method: 'POST',
+            headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `customer_id=${copilotCustomerId}`
+          });
+          const estData = await estRes.json();
+          const estHtml = estData.html || '';
+
+          // Parse estimate IDs and numbers from HTML: <tr id="457590"> ... <a href="/finances/estimates/view/457590">0001533</a>
+          const quoteNum = updatedQuote.quote_number || '';
+          // Pad quote number to 7 digits to match CopilotCRM format (e.g., "1533" → "0001533")
+          const paddedNum = quoteNum.replace(/^0+/, '').padStart(7, '0');
+
+          const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
+          let estMatch;
+          let copilotEstimateId = null;
+          while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
+            if (estMatch[2] === paddedNum || estMatch[2] === quoteNum) {
+              copilotEstimateId = estMatch[1];
+              break;
+            }
+          }
+
+          if (!copilotEstimateId) {
+            console.log(`⚠️ CopilotCRM: No estimate matching "${quoteNum}" (padded: ${paddedNum}) found for customer ${copilotCustomerId}`);
+          } else {
+            console.log(`🔍 CopilotCRM: Found estimate ${copilotEstimateId} for quote ${quoteNum}`);
+
+            // Step 4: Accept the estimate
+            const acceptRes = await fetch('https://secure.copilotcrm.com/finances/estimates/accept', {
+              method: 'POST',
+              headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `id=${copilotEstimateId}&key=`
+            });
+            if (acceptRes.ok) {
+              console.log(`✅ CopilotCRM: Estimate ${copilotEstimateId} marked as accepted`);
+            } else {
+              console.error(`CopilotCRM: Accept failed with status ${acceptRes.status}`);
+            }
+
+            // Step 5: Upload signed contract PDF if available
+            if (pdfBytes && pdfBytes.length > 0) {
+              try {
+                // Get signed upload URL from CopilotCRM (S3)
+                const signUrlRes = await fetch('https://secure.copilotcrm.com/getSignedUploadUrl', {
+                  method: 'POST',
+                  headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contentType: 'application/pdf', size: pdfBytes.length })
+                });
+                const signUrlData = await signUrlRes.json();
+
+                if (signUrlData.data && signUrlData.data.uploadUrl) {
+                  // Upload PDF to S3
+                  await fetch(signUrlData.data.uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/pdf' },
+                    body: Buffer.from(pdfBytes)
+                  });
+
+                  // Link uploaded file to the estimate
+                  const uploadRes = await fetch('https://secure.copilotcrm.com/finances/estimates/uploadImage', {
+                    method: 'POST',
+                    headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      id: copilotEstimateId,
+                      key: signUrlData.data.key,
+                      name: `Service-Agreement-${quoteNumber}.pdf`
+                    })
+                  });
+                  if (uploadRes.ok) {
+                    console.log(`✅ CopilotCRM: Signed contract uploaded to estimate ${copilotEstimateId}`);
+                  }
+                }
+              } catch (uploadErr) {
+                console.error('CopilotCRM: Contract upload failed:', uploadErr.message);
+              }
+            }
+          }
+        }
+      } catch (copilotErr) {
+        console.error('CopilotCRM sync failed:', copilotErr.message);
+      }
+    }
 
     // Stop quote follow-up sequence since quote was accepted
     try {
@@ -16448,16 +16567,9 @@ app.post('/api/google/post', requireAdmin, async (req, res) => {
 // PHOTO LIBRARY
 // ═══════════════════════════════════════════════════════════════
 
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, 'public', 'uploads')),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, 'photo-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
-  }
-});
 const photoUpload = multer({
-  storage: photoStorage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Only images allowed'), false);
@@ -16467,7 +16579,8 @@ const photoUpload = multer({
 async function ensurePhotoLibraryTable() {
   await pool.query(`CREATE TABLE IF NOT EXISTS photo_library (
     id SERIAL PRIMARY KEY,
-    filename VARCHAR(255) NOT NULL,
+    image_data TEXT NOT NULL,
+    mime_type VARCHAR(50) DEFAULT 'image/jpeg',
     original_name VARCHAR(255),
     tags TEXT[] DEFAULT '{}',
     category VARCHAR(100),
@@ -16476,6 +16589,20 @@ async function ensurePhotoLibraryTable() {
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )`);
 }
+
+// Serve photo from DB
+app.get('/api/photos/:id/image', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT image_data, mime_type FROM photo_library WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).send('Not found');
+    const row = result.rows[0];
+    const buffer = Buffer.from(row.image_data, 'base64');
+    res.set({ 'Content-Type': row.mime_type || 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).send('Error');
+  }
+});
 
 // Upload photos (admin)
 app.post('/api/photos/upload', requireAdmin, photoUpload.array('photos', 10), async (req, res) => {
@@ -16486,10 +16613,11 @@ app.post('/api/photos/upload', requireAdmin, photoUpload.array('photos', 10), as
 
     const results = [];
     for (const file of (req.files || [])) {
+      const base64 = file.buffer.toString('base64');
       const result = await pool.query(
-        `INSERT INTO photo_library (filename, original_name, tags, category, notes, uploaded_by)
-         VALUES ($1, $2, $3, $4, $5, 'admin') RETURNING *`,
-        [file.filename, file.originalname, tagArray, category || '', notes || '']
+        `INSERT INTO photo_library (image_data, mime_type, original_name, tags, category, notes, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, $6, 'admin') RETURNING id, original_name, tags, category, notes, uploaded_by, created_at`,
+        [base64, file.mimetype, file.originalname, tagArray, category || '', notes || '']
       );
       results.push(result.rows[0]);
     }
@@ -16499,18 +16627,20 @@ app.post('/api/photos/upload', requireAdmin, photoUpload.array('photos', 10), as
   }
 });
 
-// Crew upload (public — no auth, uses a simple token in URL)
+// Crew upload (public — no auth)
 app.post('/api/photos/crew-upload', photoUpload.array('photos', 5), async (req, res) => {
   try {
     await ensurePhotoLibraryTable();
-    const { crew_name, notes } = req.body;
+    const { crew_name, notes, tags } = req.body;
+    const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : ['crew-upload'];
 
     const results = [];
     for (const file of (req.files || [])) {
+      const base64 = file.buffer.toString('base64');
       const result = await pool.query(
-        `INSERT INTO photo_library (filename, original_name, tags, category, notes, uploaded_by)
-         VALUES ($1, $2, $3, 'crew', $4, $5) RETURNING *`,
-        [file.filename, file.originalname, ['crew-upload'], notes || '', crew_name || 'Crew']
+        `INSERT INTO photo_library (image_data, mime_type, original_name, tags, category, notes, uploaded_by)
+         VALUES ($1, $2, $3, $4, 'crew', $5, $6) RETURNING id, original_name, tags, category, notes, uploaded_by, created_at`,
+        [base64, file.mimetype, file.originalname, tagArray, notes || '', crew_name || 'Crew']
       );
       results.push(result.rows[0]);
     }
@@ -16520,18 +16650,18 @@ app.post('/api/photos/crew-upload', photoUpload.array('photos', 5), async (req, 
   }
 });
 
-// List photos
+// List photos (returns metadata only, not image data)
 app.get('/api/photos', requireAdmin, async (req, res) => {
   try {
     await ensurePhotoLibraryTable();
     const { category, tag } = req.query;
-    let query = 'SELECT * FROM photo_library ORDER BY created_at DESC';
+    let query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library ORDER BY created_at DESC';
     const params = [];
     if (category) {
-      query = 'SELECT * FROM photo_library WHERE category = $1 ORDER BY created_at DESC';
+      query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library WHERE category = $1 ORDER BY created_at DESC';
       params.push(category);
     } else if (tag) {
-      query = 'SELECT * FROM photo_library WHERE $1 = ANY(tags) ORDER BY created_at DESC';
+      query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library WHERE $1 = ANY(tags) ORDER BY created_at DESC';
       params.push(tag);
     }
     const result = await pool.query(query, params);
@@ -16563,11 +16693,6 @@ app.patch('/api/photos/:id', requireAdmin, async (req, res) => {
 // Delete photo
 app.delete('/api/photos/:id', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT filename FROM photo_library WHERE id = $1', [req.params.id]);
-    if (result.rows.length) {
-      const filepath = path.join(__dirname, 'public', 'uploads', result.rows[0].filename);
-      try { fs.unlinkSync(filepath); } catch (e) {}
-    }
     await pool.query('DELETE FROM photo_library WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) {

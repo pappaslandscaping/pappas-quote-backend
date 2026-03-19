@@ -814,7 +814,7 @@ function renderPhotoLibrary() {
         const tags = (photo.tags || []).join(', ');
         const crew = photo.uploaded_by !== 'admin' ? photo.uploaded_by : '';
         div.innerHTML = `
-            <img src="/uploads/${escapeHtml(photo.filename)}" alt="" loading="lazy">
+            <img src="/api/photos/${photo.id}/image" alt="" loading="lazy">
             ${crew ? `<span class="photo-crew">${escapeHtml(crew)}</span>` : ''}
             ${tags ? `<span class="photo-tag">${escapeHtml(tags)}</span>` : ''}
             <button class="photo-delete" onclick="event.stopPropagation();deletePhoto(${photo.id})">&times;</button>

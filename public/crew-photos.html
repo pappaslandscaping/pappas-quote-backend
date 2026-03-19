@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Job Photos — Pappas & Co.</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'DM Sans', -apple-system, sans-serif;
+            background: #f5f5f5; min-height: 100vh;
+            padding: 20px; padding-bottom: 100px;
+        }
+        .header {
+            text-align: center; margin-bottom: 24px;
+        }
+        .header img { max-height: 50px; margin-bottom: 12px; }
+        .header h1 { font-size: 20px; font-weight: 700; color: #1e293b; }
+        .header p { font-size: 14px; color: #64748b; margin-top: 4px; }
+
+        .card {
+            background: #fff; border-radius: 14px; padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 16px;
+        }
+        label {
+            font-size: 13px; font-weight: 600; color: #475569; display: block; margin-bottom: 6px;
+        }
+        input, select, textarea {
+            width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px;
+            font-family: 'DM Sans', sans-serif; font-size: 14px; margin-bottom: 14px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: #2e403d;
+        }
+        textarea { resize: vertical; min-height: 60px; }
+
+        .photo-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px;
+        }
+        .photo-thumb {
+            position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+        .photo-thumb img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .photo-thumb .remove {
+            position: absolute; top: 4px; right: 4px; width: 24px; height: 24px;
+            background: rgba(0,0,0,0.5); color: #fff; border: none; border-radius: 50%;
+            font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        .add-photo-btn {
+            width: 100%; padding: 16px; background: #fff; border: 2px dashed #cbd5e1;
+            border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px;
+            font-weight: 600; color: #64748b; cursor: pointer; text-align: center;
+            transition: border-color .15s;
+        }
+        .add-photo-btn:hover { border-color: #2e403d; }
+
+        .submit-btn {
+            width: 100%; padding: 16px; background: #2e403d; color: #fff; border: none;
+            border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 16px;
+            font-weight: 700; cursor: pointer; transition: background .15s;
+            position: fixed; bottom: 20px; left: 20px; right: 20px; width: calc(100% - 40px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .submit-btn:hover { background: #253331; }
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .success-msg {
+            display: none; text-align: center; padding: 40px 20px;
+        }
+        .success-msg .check { font-size: 48px; margin-bottom: 12px; }
+        .success-msg h2 { font-size: 20px; color: #1e293b; margin-bottom: 8px; }
+        .success-msg p { font-size: 14px; color: #64748b; }
+        .success-msg button {
+            margin-top: 20px; padding: 12px 24px; background: #2e403d; color: #fff;
+            border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+
+        .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+        .tag-chip {
+            padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;
+            border: 1px solid #e2e8f0; background: #fff; cursor: pointer; color: #475569;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .tag-chip.active { background: #2e403d; color: #fff; border-color: #2e403d; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png" alt="Pappas & Co.">
+        <h1>Upload Job Photos</h1>
+        <p>Snap a pic before you leave the property</p>
+    </div>
+
+    <div id="formArea">
+        <div class="card">
+            <label>Your Name</label>
+            <input type="text" id="crewName" placeholder="Tim" value="">
+        </div>
+
+        <div class="card">
+            <label>What type of work?</label>
+            <div class="tag-chips" id="tagChips">
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="mowing">Mowing</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="mulch">Mulch</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="cleanup">Cleanup</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="trimming">Trimming</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="aeration">Aeration</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="snow">Snow</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="before-after">Before/After</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="crew">Crew Shot</button>
+                <button class="tag-chip" onclick="toggleTag(this)" data-tag="other">Other</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <label>Photos</label>
+            <div class="photo-grid" id="photoGrid"></div>
+            <button class="add-photo-btn" onclick="document.getElementById('fileInput').click()">
+                + Add Photos
+            </button>
+            <input type="file" accept="image/*" multiple capture="environment" id="fileInput" style="display:none" onchange="handleFiles(event)">
+        </div>
+
+        <div class="card">
+            <label>Notes (optional)</label>
+            <textarea id="notes" placeholder="Address, what was done, anything to note..."></textarea>
+        </div>
+
+        <button class="submit-btn" id="submitBtn" onclick="submitPhotos()">Upload Photos</button>
+    </div>
+
+    <div class="success-msg" id="successMsg">
+        <div class="check">&#x2705;</div>
+        <h2>Photos Uploaded!</h2>
+        <p>Thanks — Theresa will see these in the office.</p>
+        <button onclick="resetForm()">Upload More</button>
+    </div>
+
+<script>
+let files = [];
+let selectedTags = [];
+
+function toggleTag(btn) {
+    btn.classList.toggle('active');
+    const tag = btn.dataset.tag;
+    if (selectedTags.includes(tag)) {
+        selectedTags = selectedTags.filter(t => t !== tag);
+    } else {
+        selectedTags.push(tag);
+    }
+}
+
+function handleFiles(e) {
+    const newFiles = Array.from(e.target.files);
+    files.push(...newFiles);
+    renderGrid();
+}
+
+function renderGrid() {
+    const grid = document.getElementById('photoGrid');
+    grid.innerHTML = '';
+    files.forEach((file, idx) => {
+        const div = document.createElement('div');
+        div.className = 'photo-thumb';
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        div.appendChild(img);
+        const btn = document.createElement('button');
+        btn.className = 'remove';
+        btn.innerHTML = '&times;';
+        btn.onclick = () => { files.splice(idx, 1); renderGrid(); };
+        div.appendChild(btn);
+        grid.appendChild(div);
+    });
+}
+
+async function submitPhotos() {
+    if (!files.length) { alert('Add at least one photo'); return; }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+
+    const formData = new FormData();
+    files.forEach(f => formData.append('photos', f));
+    formData.append('crew_name', document.getElementById('crewName').value || 'Crew');
+    formData.append('notes', document.getElementById('notes').value || '');
+    formData.append('tags', selectedTags.join(','));
+
+    try {
+        const resp = await fetch('/api/photos/crew-upload', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('formArea').style.display = 'none';
+            document.getElementById('successMsg').style.display = 'block';
+        } else {
+            alert(data.error || 'Upload failed');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Upload Photos';
+    }
+}
+
+function resetForm() {
+    files = [];
+    selectedTags = [];
+    document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('photoGrid').innerHTML = '';
+    document.getElementById('notes').value = '';
+    document.getElementById('fileInput').value = '';
+    document.getElementById('formArea').style.display = '';
+    document.getElementById('successMsg').style.display = 'none';
+}
+</script>
+</body>
+</html>

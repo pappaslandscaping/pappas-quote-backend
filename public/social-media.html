@@ -215,6 +215,29 @@
         .history-date { font-size: 12px; color: var(--gray-400); white-space: nowrap; }
         .empty-state { text-align: center; padding: 40px; color: var(--gray-400); font-size: 14px; }
 
+        /* ─── Photo Library ───────────────────────────── */
+        .photo-lib-item {
+            position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+            border: 2px solid transparent; cursor: pointer; transition: border-color .15s;
+        }
+        .photo-lib-item:hover { border-color: var(--primary); }
+        .photo-lib-item.selected { border-color: var(--primary); }
+        .photo-lib-item img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-lib-item .photo-tag {
+            position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.6);
+            color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px;
+        }
+        .photo-lib-item .photo-delete {
+            position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+            background: rgba(0,0,0,0.5); color: #fff; border: none; border-radius: 50%;
+            font-size: 12px; cursor: pointer; display: none; align-items: center; justify-content: center;
+        }
+        .photo-lib-item:hover .photo-delete { display: flex; }
+        .photo-lib-item .photo-crew {
+            position: absolute; top: 4px; left: 4px; background: rgba(46,64,61,0.8);
+            color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 600;
+        }
+
         @media (max-width: 768px) {
             .page-content { padding: 16px; }
             .phone-frame { max-width: 100%; }
@@ -310,6 +333,22 @@
                     <button class="btn-sm" onclick="closeEdit()">Cancel</button>
                     <button class="btn-sm primary" onclick="saveEdit()">Save</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Photo Library -->
+        <div class="photo-library" id="photoLibrary" style="max-width:800px;margin:32px auto 0;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                <h3 style="font-size:18px;font-weight:700;color:var(--gray-700);margin:0;">Photo Library</h3>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-sm" onclick="document.getElementById('libUploadInput').click()">Upload Photos</button>
+                    <button class="btn-sm" onclick="sendCrewLink()">Text Upload Link to Tim</button>
+                </div>
+            </div>
+            <input type="file" accept="image/*" multiple id="libUploadInput" style="display:none" onchange="uploadLibPhotos(event)">
+            <div class="photo-lib-grid" id="photoLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;"></div>
+            <div id="photoLibEmpty" style="text-align:center;padding:30px;color:var(--gray-400);font-size:14px;background:#fff;border-radius:10px;border:1px solid var(--gray-200);">
+                No photos yet. Upload some or text Tim the upload link.
             </div>
         </div>
 
@@ -743,9 +782,106 @@ async function loadHistory() {
     } catch (err) { console.error(err); }
 }
 
+// ─── Photo Library ───────────────────────────────
+let libraryPhotos = [];
+let selectedPhoto = null;
+
+async function loadPhotoLibrary() {
+    try {
+        const resp = await fetch(API + '/api/photos', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+        const data = await resp.json();
+        if (!data.success) return;
+        libraryPhotos = data.photos || [];
+        renderPhotoLibrary();
+    } catch (e) { console.error(e); }
+}
+
+function renderPhotoLibrary() {
+    const grid = document.getElementById('photoLibGrid');
+    const empty = document.getElementById('photoLibEmpty');
+    grid.innerHTML = '';
+    if (!libraryPhotos.length) { empty.style.display = ''; grid.style.display = 'none'; return; }
+    empty.style.display = 'none';
+    grid.style.display = '';
+
+    libraryPhotos.forEach(photo => {
+        const div = document.createElement('div');
+        div.className = 'photo-lib-item' + (selectedPhoto === photo.id ? ' selected' : '');
+        div.onclick = () => {
+            selectedPhoto = selectedPhoto === photo.id ? null : photo.id;
+            renderPhotoLibrary();
+        };
+        const tags = (photo.tags || []).join(', ');
+        const crew = photo.uploaded_by !== 'admin' ? photo.uploaded_by : '';
+        div.innerHTML = `
+            <img src="/uploads/${escapeHtml(photo.filename)}" alt="" loading="lazy">
+            ${crew ? `<span class="photo-crew">${escapeHtml(crew)}</span>` : ''}
+            ${tags ? `<span class="photo-tag">${escapeHtml(tags)}</span>` : ''}
+            <button class="photo-delete" onclick="event.stopPropagation();deletePhoto(${photo.id})">&times;</button>
+        `;
+        grid.appendChild(div);
+    });
+}
+
+async function uploadLibPhotos(e) {
+    const files = e.target.files;
+    if (!files.length) return;
+    const formData = new FormData();
+    for (const f of files) formData.append('photos', f);
+    try {
+        const resp = await fetch(API + '/api/photos/upload', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + TOKEN },
+            body: formData
+        });
+        const data = await resp.json();
+        if (data.success) loadPhotoLibrary();
+    } catch (err) { alert('Upload failed: ' + err.message); }
+    e.target.value = '';
+}
+
+async function deletePhoto(id) {
+    if (!confirm('Delete this photo?')) return;
+    try {
+        await fetch(API + '/api/photos/' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+        if (selectedPhoto === id) selectedPhoto = null;
+        loadPhotoLibrary();
+    } catch (e) { console.error(e); }
+}
+
+async function sendCrewLink() {
+    const link = window.location.origin + '/crew-photos.html';
+    try {
+        // Try to send via Twilio SMS to Tim
+        const resp = await fetch(API + '/api/sms/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify({
+                to: '+14408867318', // business phone — you can change this to Tim's number
+                message: 'Hey Tim - use this link to upload job photos: ' + link
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            alert('Link sent! You can also copy it: ' + link);
+        } else {
+            // Fallback: just copy the link
+            navigator.clipboard.writeText(link);
+            alert('Link copied to clipboard. Text it to Tim:\n\n' + link);
+        }
+    } catch (e) {
+        navigator.clipboard.writeText(link);
+        alert('Link copied to clipboard. Text it to Tim:\n\n' + link);
+    }
+}
+
 // ─── Init ────────────────────────────────────────────
 checkGoogleStatus();
 loadHistory();
+loadPhotoLibrary();
 document.getElementById('chatInput').focus();
 </script>
 </body>

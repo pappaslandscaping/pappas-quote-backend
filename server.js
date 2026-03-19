@@ -6242,72 +6242,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       }
     }
 
-    // Sync accepted quote customer to CopilotCRM (HomeWorks)
-    if (process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
-      try {
-        // Parse customer name into first/last
-        const nameParts = (updatedQuote.customer_name || '').trim().split(/\s+/);
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-
-        // Parse address into components
-        const addressParts = (updatedQuote.customer_address || '').split(',').map(s => s.trim());
-        const street = addressParts[0] || '';
-        const city = addressParts[1] || '';
-        const stateZip = (addressParts[2] || '').split(/\s+/);
-        const state = stateZip[0] || 'OH';
-        const zip = stateZip[1] || '';
-
-        // Step 1: Login to CopilotCRM
-        const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-          body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
-        });
-        const loginData = await loginRes.json();
-        if (!loginData.accessToken) throw new Error('CopilotCRM login failed');
-
-        // Step 2: Create customer in CopilotCRM
-        const formData = new URLSearchParams({
-          firstname: firstName,
-          lname: lastName,
-          company_name: updatedQuote.customer_name || '',
-          email: updatedQuote.customer_email || '',
-          mobile: updatedQuote.customer_phone || '',
-          phone: '',
-          type: '1',
-          title_mr: 'no',
-          street: street,
-          city: city,
-          state: state,
-          zip: zip,
-          country: 'US',
-          c_id: '0',
-          lat: '0',
-          lng: '0',
-          desc: `YardDesk Quote ${updatedQuote.quote_number || 'Q-' + updatedQuote.id} - ${servicesText}`
-        });
-
-        const createRes = await fetch('https://secure.copilotcrm.com/customers/doAdd', {
-          method: 'POST',
-          headers: {
-            'Cookie': `copilotApiAccessToken=${loginData.accessToken}`,
-            'Origin': 'https://secure.copilotcrm.com',
-            'Referer': 'https://secure.copilotcrm.com/customers',
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: formData.toString()
-        });
-
-        if (createRes.ok) {
-          console.log(`✅ CopilotCRM customer created: ${updatedQuote.customer_name}`);
-        } else {
-          console.error(`CopilotCRM create failed: ${createRes.status}`);
-        }
-      } catch (e) {
-        console.error('CopilotCRM sync failed:', e.message);
-      }
-    }
+    // TODO: Sync to CopilotCRM — update estimate status to accepted + upload signed contract
 
     // Stop quote follow-up sequence since quote was accepted
     try {
@@ -16506,6 +16441,137 @@ app.post('/api/google/post', requireAdmin, async (req, res) => {
     res.json({ success: true, post: postData });
   } catch (error) {
     serverError(res, error, 'Google post failed');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// PHOTO LIBRARY
+// ═══════════════════════════════════════════════════════════════
+
+const photoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, 'public', 'uploads')),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, 'photo-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
+  }
+});
+const photoUpload = multer({
+  storage: photoStorage,
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only images allowed'), false);
+  }
+});
+
+async function ensurePhotoLibraryTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS photo_library (
+    id SERIAL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255),
+    tags TEXT[] DEFAULT '{}',
+    category VARCHAR(100),
+    notes TEXT,
+    uploaded_by VARCHAR(100) DEFAULT 'admin',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+
+// Upload photos (admin)
+app.post('/api/photos/upload', requireAdmin, photoUpload.array('photos', 10), async (req, res) => {
+  try {
+    await ensurePhotoLibraryTable();
+    const { tags, category, notes } = req.body;
+    const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : [];
+
+    const results = [];
+    for (const file of (req.files || [])) {
+      const result = await pool.query(
+        `INSERT INTO photo_library (filename, original_name, tags, category, notes, uploaded_by)
+         VALUES ($1, $2, $3, $4, $5, 'admin') RETURNING *`,
+        [file.filename, file.originalname, tagArray, category || '', notes || '']
+      );
+      results.push(result.rows[0]);
+    }
+    res.json({ success: true, photos: results });
+  } catch (error) {
+    serverError(res, error, 'Photo upload failed');
+  }
+});
+
+// Crew upload (public — no auth, uses a simple token in URL)
+app.post('/api/photos/crew-upload', photoUpload.array('photos', 5), async (req, res) => {
+  try {
+    await ensurePhotoLibraryTable();
+    const { crew_name, notes } = req.body;
+
+    const results = [];
+    for (const file of (req.files || [])) {
+      const result = await pool.query(
+        `INSERT INTO photo_library (filename, original_name, tags, category, notes, uploaded_by)
+         VALUES ($1, $2, $3, 'crew', $4, $5) RETURNING *`,
+        [file.filename, file.originalname, ['crew-upload'], notes || '', crew_name || 'Crew']
+      );
+      results.push(result.rows[0]);
+    }
+    res.json({ success: true, photos: results });
+  } catch (error) {
+    serverError(res, error, 'Crew upload failed');
+  }
+});
+
+// List photos
+app.get('/api/photos', requireAdmin, async (req, res) => {
+  try {
+    await ensurePhotoLibraryTable();
+    const { category, tag } = req.query;
+    let query = 'SELECT * FROM photo_library ORDER BY created_at DESC';
+    const params = [];
+    if (category) {
+      query = 'SELECT * FROM photo_library WHERE category = $1 ORDER BY created_at DESC';
+      params.push(category);
+    } else if (tag) {
+      query = 'SELECT * FROM photo_library WHERE $1 = ANY(tags) ORDER BY created_at DESC';
+      params.push(tag);
+    }
+    const result = await pool.query(query, params);
+    res.json({ success: true, photos: result.rows });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// Update photo tags/category
+app.patch('/api/photos/:id', requireAdmin, async (req, res) => {
+  try {
+    const { tags, category, notes } = req.body;
+    const updates = [];
+    const params = [];
+    let idx = 1;
+    if (tags !== undefined) { updates.push(`tags = $${idx++}`); params.push(Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())); }
+    if (category !== undefined) { updates.push(`category = $${idx++}`); params.push(category); }
+    if (notes !== undefined) { updates.push(`notes = $${idx++}`); params.push(notes); }
+    if (!updates.length) return res.json({ success: true });
+    params.push(req.params.id);
+    await pool.query(`UPDATE photo_library SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// Delete photo
+app.delete('/api/photos/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT filename FROM photo_library WHERE id = $1', [req.params.id]);
+    if (result.rows.length) {
+      const filepath = path.join(__dirname, 'public', 'uploads', result.rows[0].filename);
+      try { fs.unlinkSync(filepath); } catch (e) {}
+    }
+    await pool.query('DELETE FROM photo_library WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
   }
 });
 

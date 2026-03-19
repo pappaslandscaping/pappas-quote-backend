@@ -7576,16 +7576,23 @@ app.post('/api/messages/send', async (req, res) => {
     // Find customer
     const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
     const customerResult = await pool.query(`
-      SELECT id FROM customers 
-      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 
-         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 
+      SELECT id, name, first_name, last_name FROM customers
+      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
       LIMIT 1
     `, [`%${cleanedPhone}`]);
 
+    const custRow = customerResult.rows[0];
     await pool.query(`
       INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
       VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
-    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, customerResult.rows[0]?.id || null]);
+    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, custRow?.id || null]);
+
+    // Sync to CopilotCRM
+    if (custRow) {
+      const custName = custRow.name || ((custRow.first_name||'')+(custRow.last_name?' '+custRow.last_name:'')).trim();
+      if (custName) logToCopilotCRM(custName, `<p><strong>[SMS Sent]</strong> To: ${formattedTo}<br>${body}</p>`);
+    }
 
     res.json({ success: true, sid: twilioMessage.sid });
   } catch (error) {
@@ -7628,7 +7635,7 @@ app.post('/api/customers/:id/send-message', async (req, res) => {
     const { body } = req.body;
     if (!body || !body.trim()) return res.status(400).json({ success: false, error: 'Message body required' });
 
-    const cust = await pool.query('SELECT phone, mobile FROM customers WHERE id = $1', [id]);
+    const cust = await pool.query('SELECT name, first_name, last_name, phone, mobile FROM customers WHERE id = $1', [id]);
     if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
 
     const toNumber = cust.rows[0].mobile || cust.rows[0].phone;
@@ -7651,6 +7658,11 @@ app.post('/api/customers/:id/send-message', async (req, res) => {
        VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)`,
       [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body.trim(), twilioMessage.status, parseInt(id)]
     );
+
+    // Sync to CopilotCRM
+    const c = cust.rows[0];
+    const custName = c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim();
+    if (custName) logToCopilotCRM(custName, `<p><strong>[SMS Sent]</strong> To: ${formattedTo}<br>${body.trim()}</p>`);
 
     res.json({ success: true, sid: twilioMessage.sid });
   } catch (error) {
@@ -13564,6 +13576,19 @@ app.post('/api/notes/:entityType/:entityId', async (req, res) => {
       `INSERT INTO internal_notes (entity_type, entity_id, author_name, author_id, content, pinned) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [entityType, parseInt(entityId), authorName, authorId, content.trim(), pinned || false]
     );
+
+    // Sync customer notes to CopilotCRM
+    if (entityType === 'customer') {
+      try {
+        const custResult = await pool.query('SELECT name, first_name, last_name FROM customers WHERE id = $1', [parseInt(entityId)]);
+        const c = custResult.rows[0];
+        if (c) {
+          const custName = c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim();
+          if (custName) logToCopilotCRM(custName, `<p><strong>[Note]</strong> by ${authorName}<br>${content.trim()}</p>`);
+        }
+      } catch (e) { /* don't block note creation */ }
+    }
+
     res.json({ success: true, note: result.rows[0] });
   } catch (error) { serverError(res, error); }
 });

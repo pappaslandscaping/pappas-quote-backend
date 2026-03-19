@@ -1314,7 +1314,8 @@ app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
       results
     });
   } catch (error) {
-    serverError(res, error, 'CopilotCRM comms backfill');
+    console.error('CopilotCRM comms backfill error:', error);
+    res.status(500).json({ success: false, error: error.message, stack: error.stack?.split('\n').slice(0,3) });
   }
 });
 

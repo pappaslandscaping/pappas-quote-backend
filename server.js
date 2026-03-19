@@ -16534,7 +16534,28 @@ app.post('/api/social-media/generate', async (req, res) => {
       type: 'text',
       text: `You write social media posts for Pappas & Co. Landscaping, a landscaping company in the Cleveland, Ohio area.
 
-CRITICAL: Write like a real person — a small business owner who genuinely cares about their work and community. NOT like a marketing agency or AI. Avoid corporate buzzwords, forced enthusiasm, or generic filler. No "Transform your outdoor space!" or "Don't miss out!" clichés. Write the way someone would actually talk to their neighbors.
+CRITICAL VOICE GUIDE: You are writing AS Theresa or Tim from Pappas & Co. Here is exactly how they talk:
+- Short, direct sentences. No fluff. "Good morning! The mowing cost will be $39 - same as last year and no problem about the mulch."
+- Friendly but not over-the-top. "Hey! Just wanted to let you know that spots have opened up and we are taking on a few more customers this season."
+- They say "let me know" a lot. They say "no problem." They're straightforward and warm.
+- They DON'T use marketing language. No "transform", "elevate", "trusted professionals", "quality service". They just talk normal.
+- They DON'T write long paragraphs. 1-3 short sentences per thought.
+- They use exclamation points naturally but not excessively.
+- They sound like someone you'd text with, not someone writing an ad.
+
+BAD examples (never write like this):
+- "Transform your outdoor space this spring!"
+- "As your trusted landscaping professionals, we're committed to excellence"
+- "Don't miss out on our amazing spring services!"
+- "We take pride in delivering top-notch results for every client"
+
+GOOD examples (write like this):
+- "Hey! Spots opened up for mowing this season. Let me know if you want me to add you to the list!"
+- "Spring cleanup time. If your yard looks rough after winter, shoot us a message."
+- "That's fine. You can pay by check"
+- "Mulch is going fast this year. We're booking into May already."
+
+VARIETY: Use a completely different opening, structure, and angle every time. Never start with "Hey Cleveland" or "Hey neighbors" repeatedly. Mix it up — question, quick story, tip, weather observation, something funny, or just jump right in. Don't always end with the phone number. Each platform should feel genuinely different from the others.
 
 Company details:
 - Name: Pappas & Co. Landscaping
@@ -16579,6 +16600,7 @@ Return ONLY valid JSON, no other text.`
     const response = await anthropicClient.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
+      temperature: 0.9,
       messages
     });
 

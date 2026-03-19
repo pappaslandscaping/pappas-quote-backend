@@ -7,450 +7,218 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
     <style>
-        .page-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 24px 32px;
-            background: var(--gray-50);
-        }
+        .page-content { flex:1; overflow-y:auto; padding:24px 32px; background:var(--gray-50); }
 
-        .page-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 24px;
+        /* ─── Chat Area ──────────────────────────────── */
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
         }
-
-        .page-header h2 {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--gray-700);
-            margin: 0;
-        }
-
-        /* ─── Post Type Grid ─────────────────────────── */
-        .type-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .type-card {
-            background: #fff;
-            border: 2px solid var(--gray-200);
-            border-radius: 10px;
-            padding: 16px 14px;
+        .chat-header {
             text-align: center;
-            cursor: pointer;
-            transition: all .15s;
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--gray-600);
+            margin-bottom: 28px;
+        }
+        .chat-header h2 {
+            font-size: 24px; font-weight: 700; color: var(--gray-700); margin: 0 0 6px 0;
+        }
+        .chat-header p {
+            font-size: 14px; color: var(--gray-400); margin: 0;
         }
 
-        .type-card:hover {
-            border-color: var(--primary);
-            background: #f8faf8;
+        /* ─── Quick Prompts ──────────────────────────── */
+        .quick-prompts {
+            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 24px;
+        }
+        .quick-prompt {
+            background: #fff; border: 1px solid var(--gray-200); border-radius: 20px;
+            padding: 8px 16px; font-size: 13px; font-weight: 500; color: var(--gray-600);
+            cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .15s;
+        }
+        .quick-prompt:hover { border-color: var(--primary); color: var(--primary); }
+
+        /* ─── Chat Messages ──────────────────────────── */
+        .chat-messages {
+            display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; min-height: 60px;
+        }
+        .chat-bubble {
+            max-width: 85%; padding: 14px 18px; border-radius: 16px; font-size: 14px; line-height: 1.6;
+            animation: fadeUp .25s ease-out;
+        }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .chat-bubble.assistant {
+            background: #fff; border: 1px solid var(--gray-200); color: var(--gray-700);
+            align-self: flex-start; border-bottom-left-radius: 4px;
+        }
+        .chat-bubble.user {
+            background: var(--primary); color: #fff;
+            align-self: flex-end; border-bottom-right-radius: 4px;
+        }
+        .chat-bubble .options {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+        }
+        .chat-bubble .option-btn {
+            background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px;
+            padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--gray-600);
+            cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .15s;
+        }
+        .chat-bubble .option-btn:hover { border-color: var(--primary); color: var(--primary); background: #f0f7f0; }
+        .typing-indicator {
+            display: flex; gap: 4px; padding: 14px 18px; align-self: flex-start;
+        }
+        .typing-indicator span {
+            width: 8px; height: 8px; background: var(--gray-300); border-radius: 50%;
+            animation: bounce .6s infinite alternate;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: .15s; }
+        .typing-indicator span:nth-child(3) { animation-delay: .3s; }
+        @keyframes bounce { to { transform: translateY(-6px); opacity: .4; } }
+
+        /* ─── Chat Input ─────────────────────────────── */
+        .chat-input-area {
+            background: #fff; border: 1px solid var(--gray-200); border-radius: 14px;
+            padding: 6px; display: flex; align-items: flex-end; gap: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+        .chat-input-area textarea {
+            flex: 1; border: none; outline: none; font-family: 'DM Sans', sans-serif;
+            font-size: 14px; padding: 10px 12px; resize: none; min-height: 24px; max-height: 120px;
+            line-height: 1.5; background: transparent;
+        }
+        .chat-input-actions {
+            display: flex; gap: 4px; padding: 4px 6px 4px 0; align-items: center;
+        }
+        .chat-btn {
+            width: 36px; height: 36px; border-radius: 10px; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+            transition: all .15s; background: transparent; color: var(--gray-400);
+        }
+        .chat-btn:hover { background: var(--gray-50); color: var(--gray-600); }
+        .chat-btn.send {
+            background: var(--primary); color: #fff; width: 38px; height: 38px;
+        }
+        .chat-btn.send:hover { background: #253331; }
+        .chat-btn.send:disabled { opacity: .4; cursor: not-allowed; }
+
+        .photo-badge {
+            display: none; align-items: center; gap: 6px; background: var(--gray-50);
+            border: 1px solid var(--gray-200); border-radius: 8px; padding: 4px 10px;
+            font-size: 12px; color: var(--gray-500); margin: 0 0 4px 6px;
+        }
+        .photo-badge img { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; }
+        .photo-badge .remove-badge { cursor: pointer; color: var(--gray-400); background: none; border: none; font-size: 14px; }
+
+        /* ─── Platform Previews (styled like real posts) */
+        .preview-section {
+            max-width: 800px; margin: 32px auto 0; display: none;
+        }
+        .preview-header {
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+        }
+        .preview-header h3 { font-size: 18px; font-weight: 700; color: var(--gray-700); margin: 0; }
+        .platform-tabs {
+            display: flex; gap: 4px; background: var(--gray-100); border-radius: 10px; padding: 3px;
+        }
+        .platform-tab {
+            padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+            cursor: pointer; border: none; font-family: 'DM Sans', sans-serif;
+            background: transparent; color: var(--gray-500); transition: all .15s;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .platform-tab:hover { color: var(--gray-700); }
+        .platform-tab.active { background: #fff; color: var(--gray-700); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .platform-tab .tab-dot {
+            width: 8px; height: 8px; border-radius: 50%;
         }
 
-        .type-card.active {
-            border-color: var(--primary);
-            background: var(--primary);
-            color: #fff;
+        /* ─── Phone Preview Frame ────────────────────── */
+        .phone-frame {
+            background: #fff; border-radius: 16px; border: 1px solid var(--gray-200);
+            max-width: 480px; margin: 0 auto; overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        .phone-header {
+            padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .phone-avatar {
+            width: 40px; height: 40px; border-radius: 50%; background: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; font-size: 14px;
+        }
+        .phone-name { font-weight: 600; font-size: 14px; color: var(--gray-700); }
+        .phone-handle { font-size: 12px; color: var(--gray-400); }
+        .phone-body {
+            padding: 16px; font-size: 14px; line-height: 1.7; color: var(--gray-700);
+            white-space: pre-wrap; min-height: 120px;
+        }
+        .phone-body .hashtags { color: #2563eb; }
+        .phone-actions {
+            padding: 12px 16px; border-top: 1px solid var(--gray-100);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .phone-action-btns { display: flex; gap: 16px; }
+        .phone-action-btn {
+            font-size: 12px; color: var(--gray-400); background: none; border: none;
+            cursor: default; font-family: 'DM Sans', sans-serif;
         }
 
-        .type-card .type-icon {
-            font-size: 28px;
-            margin-bottom: 6px;
-            display: block;
+        /* ─── Preview Footer Actions ─────────────────── */
+        .preview-actions {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-top: 14px; max-width: 480px; margin-left: auto; margin-right: auto;
         }
-
-        /* ─── Input Section ──────────────────────────── */
-        .input-section {
-            background: #fff;
-            border-radius: 10px;
-            border: 1px solid var(--gray-200);
-            padding: 24px;
-            margin-bottom: 24px;
+        .preview-actions .char-count { font-size: 12px; color: var(--gray-400); }
+        .preview-actions .char-count.over-limit { color: var(--danger); font-weight: 600; }
+        .preview-btns { display: flex; gap: 8px; }
+        .btn-sm {
+            padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+            font-family: 'DM Sans', sans-serif; cursor: pointer; border: 1px solid var(--gray-200);
+            background: #fff; color: var(--gray-600); transition: all .15s;
         }
+        .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-sm.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .btn-sm.primary:hover { background: #253331; }
+        .btn-sm:disabled { opacity: .4; cursor: not-allowed; }
 
-        .input-section label {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--gray-600);
-            display: block;
-            margin-bottom: 6px;
+        /* ─── Edit Modal ─────────────────────────────── */
+        .edit-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000;
+            align-items: center; justify-content: center;
         }
-
-        .input-section textarea {
-            width: 100%;
-            min-height: 100px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 12px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
-            resize: vertical;
-            box-sizing: border-box;
+        .edit-overlay.show { display: flex; }
+        .edit-modal {
+            background: #fff; border-radius: 14px; width: 520px; max-height: 80vh;
+            overflow-y: auto; padding: 24px;
         }
-
-        .input-section textarea:focus {
-            outline: none;
-            border-color: var(--primary);
+        .edit-modal h3 { font-size: 16px; font-weight: 700; color: var(--gray-700); margin: 0 0 12px 0; }
+        .edit-modal textarea {
+            width: 100%; min-height: 200px; border: 1px solid var(--gray-200); border-radius: 10px;
+            padding: 12px; font-family: 'DM Sans', sans-serif; font-size: 14px;
+            resize: vertical; box-sizing: border-box; line-height: 1.6;
         }
+        .edit-modal textarea:focus { outline: none; border-color: var(--primary); }
+        .edit-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
-        /* ─── Tone Chips ────────────────────────────── */
-        .tone-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 6px;
-        }
-
-        .tone-chip {
-            background: #fff;
-            border: 2px solid var(--gray-200);
-            border-radius: 20px;
-            padding: 7px 16px;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: 'DM Sans', sans-serif;
-            cursor: pointer;
-            color: var(--gray-600);
-            transition: all .15s;
-        }
-
-        .tone-chip:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-
-        .tone-chip.active {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: #fff;
-        }
-
-        .btn-regen {
-            background: none;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 500;
-            font-family: 'DM Sans', sans-serif;
-            cursor: pointer;
-            color: var(--gray-500);
-            transition: all .15s;
-        }
-
-        .btn-regen:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-
-        .btn-regen:disabled {
-            opacity: .4;
-            cursor: not-allowed;
-        }
-
-        .photo-upload-area {
-            margin-top: 16px;
-        }
-
-        .photo-drop {
-            border: 2px dashed var(--gray-300);
-            border-radius: 10px;
-            padding: 24px;
-            text-align: center;
-            cursor: pointer;
-            color: var(--gray-400);
-            transition: border-color .15s;
-            position: relative;
-        }
-
-        .photo-drop:hover {
-            border-color: var(--primary);
-        }
-
-        .photo-drop input[type="file"] {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .photo-preview {
-            margin-top: 12px;
-            display: none;
-        }
-
-        .photo-preview img {
-            max-width: 200px;
-            max-height: 150px;
-            border-radius: 8px;
-            border: 1px solid var(--gray-200);
-        }
-
-        .photo-preview .remove-photo {
-            margin-left: 12px;
-            color: var(--danger);
-            cursor: pointer;
-            font-size: 13px;
-            background: none;
-            border: none;
-            font-family: 'DM Sans', sans-serif;
-        }
-
-        .generate-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        .btn-generate {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 28px;
-            font-size: 15px;
-            font-weight: 600;
-            font-family: 'DM Sans', sans-serif;
-            cursor: pointer;
-            transition: background .15s;
-        }
-
-        .btn-generate:hover {
-            background: #253331;
-        }
-
-        .btn-generate:disabled {
-            opacity: .5;
-            cursor: not-allowed;
-        }
-
-        .spinner {
-            display: none;
-            width: 22px;
-            height: 22px;
-            border: 3px solid var(--gray-200);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin .8s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* ─── Output Section ─────────────────────────── */
-        .output-section {
-            margin-bottom: 32px;
-        }
-
-        .output-section h3 {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--gray-700);
-            margin: 0 0 16px 0;
-        }
-
-        .platform-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-            gap: 16px;
-        }
-
-        .platform-card {
-            background: #fff;
-            border-radius: 10px;
-            border: 1px solid var(--gray-200);
-            overflow: hidden;
-        }
-
-        .platform-card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--gray-100);
-            background: var(--gray-50);
-        }
-
-        .platform-name {
-            font-weight: 600;
-            font-size: 15px;
-            color: var(--gray-700);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .platform-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 700;
-        }
-
-        .icon-facebook { background: #1877F2; }
-        .icon-instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
-        .icon-nextdoor { background: #00B246; }
-        .icon-tiktok { background: #010101; }
-        .icon-google { background: #4285F4; }
-        .icon-twitter { background: #000; }
-
-        .platform-card-body {
-            padding: 16px;
-        }
-
-        .platform-card textarea {
-            width: 100%;
-            min-height: 140px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 10px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            line-height: 1.5;
-            resize: vertical;
-            box-sizing: border-box;
-        }
-
-        .platform-card textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .platform-card-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 16px;
-            border-top: 1px solid var(--gray-100);
-            background: var(--gray-50);
-        }
-
-        .char-count {
-            font-size: 12px;
-            color: var(--gray-400);
-        }
-
-        .char-count.over-limit {
-            color: var(--danger);
-            font-weight: 600;
-        }
-
-        .btn-copy {
-            background: #fff;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            padding: 6px 14px;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: 'DM Sans', sans-serif;
-            cursor: pointer;
-            color: var(--gray-600);
-            transition: all .15s;
-        }
-
-        .btn-copy:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-
-        .btn-copy.copied {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
-        }
-
-        .platform-tips {
-            margin-top: 10px;
-            font-size: 12px;
-            color: var(--gray-400);
-            line-height: 1.4;
-            font-style: italic;
-        }
-
-        /* ─── History Section ────────────────────────── */
-        .history-section {
-            margin-top: 40px;
-        }
-
-        .history-section h3 {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--gray-700);
-            margin: 0 0 16px 0;
-        }
-
-        .history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
+        /* ─── History ────────────────────────────────── */
+        .history-section { max-width: 800px; margin: 40px auto 0; }
+        .history-section h3 { font-size: 18px; font-weight: 700; color: var(--gray-700); margin: 0 0 16px 0; }
+        .history-list { display: flex; flex-direction: column; gap: 10px; }
         .history-item {
-            background: #fff;
-            border-radius: 10px;
-            border: 1px solid var(--gray-200);
-            padding: 16px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            transition: border-color .15s;
+            background: #fff; border-radius: 10px; border: 1px solid var(--gray-200);
+            padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; transition: border-color .15s;
         }
-
-        .history-item:hover {
-            border-color: var(--primary);
-        }
-
-        .history-meta {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .history-type {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--gray-700);
-        }
-
-        .history-context {
-            font-size: 13px;
-            color: var(--gray-400);
-            max-width: 500px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .history-date {
-            font-size: 12px;
-            color: var(--gray-400);
-            white-space: nowrap;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--gray-400);
-            font-size: 14px;
-        }
+        .history-item:hover { border-color: var(--primary); }
+        .history-meta { display: flex; flex-direction: column; gap: 2px; }
+        .history-type { font-weight: 600; font-size: 14px; color: var(--gray-700); }
+        .history-context { font-size: 13px; color: var(--gray-400); max-width: 500px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-date { font-size: 12px; color: var(--gray-400); white-space: nowrap; }
+        .empty-state { text-align: center; padding: 40px; color: var(--gray-400); font-size: 14px; }
 
         @media (max-width: 768px) {
             .page-content { padding: 16px; }
-            .type-grid { grid-template-columns: repeat(3, 1fr); }
-            .platform-grid { grid-template-columns: 1fr; }
+            .phone-frame { max-width: 100%; }
+            .platform-tabs { flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -459,91 +227,90 @@
 
 <div class="main">
     <div class="page-content">
-        <div class="page-header">
-            <h2>Social Media Post Generator</h2>
-        </div>
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2>Social Media</h2>
+                <p>Tell me what you want to post about and I'll write it for every platform.</p>
+            </div>
 
-        <div id="googleBanner" style="display:none;background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:14px 20px;margin-bottom:16px;font-size:13px;color:var(--gray-500);"></div>
+            <!-- Quick Prompts -->
+            <div class="quick-prompts" id="quickPrompts">
+                <button class="quick-prompt" onclick="usePrompt(this)">Spring cleanup season is here</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">Now booking new mowing customers</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">We just finished a big mulch job</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">Rain delay update for customers</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">Meet the crew behind the work</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">Before and after transformation</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">We're hiring for the season</button>
+                <button class="quick-prompt" onclick="usePrompt(this)">Spring aeration special this month</button>
+            </div>
 
-        <!-- Post Type Selector -->
-        <div class="type-grid">
-            <div class="type-card" data-type="Seasonal Tip" onclick="selectType(this)">
-                <span class="type-icon">&#127793;</span>
-                Seasonal Tip
+            <!-- Chat Messages -->
+            <div class="chat-messages" id="chatMessages"></div>
+
+            <!-- Photo Badge (shows when photo attached) -->
+            <div class="photo-badge" id="photoBadge">
+                <img id="badgeImg" src="" alt="">
+                <span>Photo attached</span>
+                <button class="remove-badge" onclick="removePhoto()">&#x2715;</button>
             </div>
-            <div class="type-card" data-type="Service Spotlight" onclick="selectType(this)">
-                <span class="type-icon">&#11088;</span>
-                Service Spotlight
-            </div>
-            <div class="type-card" data-type="Before & After" onclick="selectType(this)">
-                <span class="type-icon">&#128248;</span>
-                Before & After
-            </div>
-            <div class="type-card" data-type="Weather Update" onclick="selectType(this)">
-                <span class="type-icon">&#9925;</span>
-                Weather Update
-            </div>
-            <div class="type-card" data-type="Behind the Scenes" onclick="selectType(this)">
-                <span class="type-icon">&#127916;</span>
-                Behind the Scenes
-            </div>
-            <div class="type-card" data-type="Customer Appreciation" onclick="selectType(this)">
-                <span class="type-icon">&#128153;</span>
-                Customer Appreciation
-            </div>
-            <div class="type-card" data-type="Hiring / Team" onclick="selectType(this)">
-                <span class="type-icon">&#129309;</span>
-                Hiring / Team
-            </div>
-            <div class="type-card" data-type="Promotion / Special" onclick="selectType(this)">
-                <span class="type-icon">&#127873;</span>
-                Promotion / Special
-            </div>
-            <div class="type-card" data-type="Custom" onclick="selectType(this)">
-                <span class="type-icon">&#9998;</span>
-                Custom
+
+            <!-- Chat Input -->
+            <div class="chat-input-area">
+                <textarea id="chatInput" rows="1" placeholder="What do you want to post about?"
+                    oninput="autoGrow(this)" onkeydown="handleKey(event)"></textarea>
+                <input type="file" accept="image/*" id="photoInput" style="display:none" onchange="handlePhoto(event)">
+                <div class="chat-input-actions">
+                    <button class="chat-btn" onclick="document.getElementById('photoInput').click()" title="Attach photo">&#x1F4F7;</button>
+                    <button class="chat-btn send" id="sendBtn" onclick="sendMessage()" title="Send">&#x2191;</button>
+                </div>
             </div>
         </div>
 
-        <!-- Input Area -->
-        <div class="input-section">
-            <label for="contextInput">Context / Details</label>
-            <textarea id="contextInput" placeholder="E.g., &quot;We just finished a big mulch job in Lakewood&quot; or &quot;It's going to rain all week&quot; or &quot;Spring cleanup season is here!&quot;"></textarea>
-
-            <div class="tone-selector" style="margin-top:16px;">
-                <label>Tone</label>
-                <div class="tone-chips" id="toneChips">
-                    <button class="tone-chip active" data-tone="Casual" onclick="selectTone(this)">Casual</button>
-                    <button class="tone-chip" data-tone="Professional" onclick="selectTone(this)">Professional</button>
-                    <button class="tone-chip" data-tone="Funny" onclick="selectTone(this)">Funny</button>
-                    <button class="tone-chip" data-tone="Promotional" onclick="selectTone(this)">Promotional</button>
-                    <button class="tone-chip" data-tone="Inspiring" onclick="selectTone(this)">Inspiring</button>
-                    <button class="tone-chip" data-tone="Community" onclick="selectTone(this)">Community</button>
+        <!-- Platform Previews -->
+        <div class="preview-section" id="previewSection">
+            <div class="preview-header">
+                <h3>Your Posts</h3>
+                <div class="platform-tabs" id="platformTabs"></div>
+            </div>
+            <div class="phone-frame" id="phoneFrame">
+                <div class="phone-header">
+                    <div class="phone-avatar">P</div>
+                    <div>
+                        <div class="phone-name">Pappas & Co. Landscaping</div>
+                        <div class="phone-handle" id="phoneHandle">@pappaslandscaping</div>
+                    </div>
+                </div>
+                <div class="phone-body" id="phoneBody"></div>
+                <div class="phone-actions">
+                    <div class="phone-action-btns">
+                        <span class="phone-action-btn" id="actionLike">&#x2764; Like</span>
+                        <span class="phone-action-btn">&#x1F4AC; Comment</span>
+                        <span class="phone-action-btn">&#x21A9; Share</span>
+                    </div>
                 </div>
             </div>
-
-            <div class="photo-upload-area">
-                <label>Photo (optional)</label>
-                <div class="photo-drop" id="photoDrop">
-                    <input type="file" accept="image/*" id="photoInput" onchange="handlePhoto(event)">
-                    Click or drag a photo to include for AI context
+            <div class="preview-actions">
+                <span class="char-count" id="previewChars"></span>
+                <div class="preview-btns">
+                    <button class="btn-sm" onclick="editCurrentPost()">Edit</button>
+                    <button class="btn-sm" onclick="regenerateCurrentPost(this)">Regenerate</button>
+                    <button class="btn-sm primary" onclick="copyCurrentPost(this)">Copy</button>
+                    <button class="btn-sm primary" id="btnPostGoogle" style="display:none;" onclick="postToGoogle(this)">Post to Google</button>
                 </div>
-                <div class="photo-preview" id="photoPreview">
-                    <img id="previewImg" src="" alt="Preview">
-                    <button class="remove-photo" onclick="removePhoto()">Remove</button>
-                </div>
-            </div>
-
-            <div class="generate-row">
-                <button class="btn-generate" id="generateBtn" onclick="generatePosts()" disabled>Generate Posts</button>
-                <div class="spinner" id="spinner"></div>
             </div>
         </div>
 
-        <!-- Output Area -->
-        <div class="output-section" id="outputSection" style="display:none;">
-            <h3>Generated Posts</h3>
-            <div class="platform-grid" id="platformGrid"></div>
+        <!-- Edit Modal -->
+        <div class="edit-overlay" id="editOverlay" onclick="if(event.target===this)closeEdit()">
+            <div class="edit-modal">
+                <h3 id="editTitle">Edit Post</h3>
+                <textarea id="editTextarea"></textarea>
+                <div class="edit-modal-actions">
+                    <button class="btn-sm" onclick="closeEdit()">Cancel</button>
+                    <button class="btn-sm primary" onclick="saveEdit()">Save</button>
+                </div>
+            </div>
         </div>
 
         <!-- History -->
@@ -560,42 +327,50 @@
 const API = '';
 const TOKEN = localStorage.getItem('token');
 
-let selectedType = null;
-let selectedTone = 'Casual';
 let imageBase64 = null;
 let googleConnected = false;
+let currentPosts = {};
+let currentPlatform = 'facebook';
+let conversationState = 'idle'; // idle, awaiting_tone, awaiting_platforms, generating
+let pendingContext = '';
+let selectedTone = 'Casual';
+let selectedPlatforms = ['facebook','instagram','nextdoor','tiktok','google','twitter'];
 
 const PLATFORMS = {
-    facebook:  { label: 'Facebook',                iconClass: 'icon-facebook',  letter: 'f',  limit: null },
-    instagram: { label: 'Instagram',               iconClass: 'icon-instagram', letter: 'IG', limit: 2200 },
-    nextdoor:  { label: 'Nextdoor',                iconClass: 'icon-nextdoor',  letter: 'N',  limit: null },
-    tiktok:    { label: 'TikTok',                  iconClass: 'icon-tiktok',    letter: 'T',  limit: 2200 },
-    google:    { label: 'Google Business Profile',  iconClass: 'icon-google',    letter: 'G',  limit: 1500 },
-    twitter:   { label: 'X / Twitter',             iconClass: 'icon-twitter',   letter: 'X',  limit: 280 }
+    facebook:  { label: 'Facebook',    color: '#1877F2', handle: 'Pappas & Co. Landscaping', limit: null },
+    instagram: { label: 'Instagram',   color: '#E4405F', handle: '@pappaslandscaping', limit: 2200 },
+    nextdoor:  { label: 'Nextdoor',    color: '#00B246', handle: 'Downtown Lakewood', limit: null },
+    tiktok:    { label: 'TikTok',      color: '#010101', handle: '@pappaslandscaping', limit: 2200 },
+    google:    { label: 'Google',       color: '#4285F4', handle: 'Pappas & Co. Landscaping', limit: 1500 },
+    twitter:   { label: 'X',           color: '#000',    handle: '@pappaslandscaping', limit: 280 }
 };
 
-function selectType(el) {
-    document.querySelectorAll('.type-card').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    selectedType = el.dataset.type;
-    document.getElementById('generateBtn').disabled = false;
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
-function selectTone(el) {
-    document.querySelectorAll('.tone-chip').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    selectedTone = el.dataset.tone;
+function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
 
+// ─── Quick Prompts ───────────────────────────────────
+function usePrompt(btn) {
+    document.getElementById('chatInput').value = btn.textContent;
+    sendMessage();
+}
+
+// ─── Photo Handling ──────────────────────────────────
 function handlePhoto(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(ev) {
-        const dataUrl = ev.target.result;
-        imageBase64 = dataUrl.split(',')[1];
-        document.getElementById('previewImg').src = dataUrl;
-        document.getElementById('photoPreview').style.display = 'flex';
+        imageBase64 = ev.target.result.split(',')[1];
+        document.getElementById('badgeImg').src = ev.target.result;
+        document.getElementById('photoBadge').style.display = 'flex';
     };
     reader.readAsDataURL(file);
 }
@@ -603,157 +378,294 @@ function handlePhoto(e) {
 function removePhoto() {
     imageBase64 = null;
     document.getElementById('photoInput').value = '';
-    document.getElementById('photoPreview').style.display = 'none';
+    document.getElementById('photoBadge').style.display = 'none';
 }
 
-async function generatePosts() {
-    if (!selectedType) return;
+// ─── Chat System ─────────────────────────────────────
+function addBubble(text, role, options) {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-bubble ' + role;
 
-    const btn = document.getElementById('generateBtn');
-    const spinner = document.getElementById('spinner');
-    btn.disabled = true;
-    spinner.style.display = 'block';
+    let html = escapeHtml(text).replace(/\n/g, '<br>');
+    if (options && options.length) {
+        html += '<div class="options">';
+        options.forEach(opt => {
+            html += `<button class="option-btn" onclick="handleOption('${escapeHtml(opt.value || opt.label)}', this)">${escapeHtml(opt.label)}</button>`;
+        });
+        html += '</div>';
+    }
+    div.innerHTML = html;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+}
 
-    const context = document.getElementById('contextInput').value.trim();
+function showTyping() {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'typing-indicator';
+    div.id = 'typingIndicator';
+    div.innerHTML = '<span></span><span></span><span></span>';
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() {
+    const el = document.getElementById('typingIndicator');
+    if (el) el.remove();
+}
+
+function disableOptions() {
+    document.querySelectorAll('.chat-bubble .option-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'default';
+    });
+}
+
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+
+    // Hide quick prompts after first message
+    document.getElementById('quickPrompts').style.display = 'none';
+    disableOptions();
+
+    addBubble(text, 'user');
+
+    if (conversationState === 'idle') {
+        pendingContext = text;
+        conversationState = 'awaiting_tone';
+
+        await delay(400);
+        addBubble('Got it! What tone should this have?', 'assistant', [
+            { label: 'Casual', value: 'Casual' },
+            { label: 'Professional', value: 'Professional' },
+            { label: 'Funny', value: 'Funny' },
+            { label: 'Promotional', value: 'Promotional' },
+            { label: 'Inspiring', value: 'Inspiring' },
+            { label: 'Community', value: 'Community' }
+        ]);
+    } else if (conversationState === 'awaiting_tone') {
+        selectedTone = text;
+        conversationState = 'generating';
+        await generateFromChat();
+    } else if (conversationState === 'done') {
+        // Follow-up request — treat as new context
+        pendingContext = text;
+        conversationState = 'awaiting_tone';
+
+        await delay(400);
+        addBubble('New post! What tone?', 'assistant', [
+            { label: 'Casual', value: 'Casual' },
+            { label: 'Professional', value: 'Professional' },
+            { label: 'Funny', value: 'Funny' },
+            { label: 'Promotional', value: 'Promotional' },
+            { label: 'Inspiring', value: 'Inspiring' },
+            { label: 'Community', value: 'Community' }
+        ]);
+    }
+}
+
+function handleOption(value, btn) {
+    disableOptions();
+    // Highlight the chosen one
+    btn.style.background = 'var(--primary)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'var(--primary)';
+    btn.style.opacity = '1';
+
+    if (conversationState === 'awaiting_tone') {
+        selectedTone = value;
+        addBubble(value, 'user');
+        conversationState = 'generating';
+        generateFromChat();
+    }
+}
+
+async function generateFromChat() {
+    showTyping();
+    addBubble('Writing your posts...', 'assistant');
 
     try {
-        const body = { postType: selectedType, tone: selectedTone };
-        if (context) body.context = context;
+        const body = { postType: 'Custom', tone: selectedTone, context: pendingContext };
         if (imageBase64) body.imageBase64 = imageBase64;
 
         const resp = await fetch(API + '/api/social-media/generate', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + TOKEN
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
             body: JSON.stringify(body)
         });
-
         const data = await resp.json();
+        hideTyping();
 
         if (!data.success) {
-            alert(data.error || 'Failed to generate posts');
+            addBubble('Something went wrong: ' + (data.error || 'Unknown error'), 'assistant');
+            conversationState = 'done';
             return;
         }
 
-        renderPosts(data.posts);
+        currentPosts = data.posts;
+        conversationState = 'done';
+
+        // Remove the "Writing..." bubble
+        const msgs = document.getElementById('chatMessages');
+        const lastAssistant = msgs.querySelectorAll('.chat-bubble.assistant');
+        if (lastAssistant.length) lastAssistant[lastAssistant.length - 1].remove();
+
+        addBubble('Done! Here are your posts. You can edit, copy, or regenerate any of them. Type again if you want another post.', 'assistant');
+
+        showPreviews();
         loadHistory();
+
+        // Clear photo after generation
+        removePhoto();
     } catch (err) {
-        alert('Error generating posts: ' + err.message);
-    } finally {
-        btn.disabled = false;
-        spinner.style.display = 'none';
+        hideTyping();
+        addBubble('Error: ' + err.message, 'assistant');
+        conversationState = 'done';
     }
 }
 
-function renderPosts(posts) {
-    const grid = document.getElementById('platformGrid');
-    grid.innerHTML = '';
-    document.getElementById('outputSection').style.display = '';
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ─── Platform Preview System ─────────────────────────
+function showPreviews() {
+    const section = document.getElementById('previewSection');
+    section.style.display = '';
+
+    // Build tabs
+    const tabsEl = document.getElementById('platformTabs');
+    tabsEl.innerHTML = '';
     for (const [key, info] of Object.entries(PLATFORMS)) {
-        const post = posts[key];
-        if (!post) continue;
-
-        const text = post.text || '';
-        const tips = post.tips || '';
-
-        const card = document.createElement('div');
-        card.className = 'platform-card';
-
-        const charLimit = info.limit;
-        const charClass = charLimit && text.length > charLimit ? 'char-count over-limit' : 'char-count';
-        const charLabel = charLimit ? `${text.length} / ${charLimit}` : `${text.length} chars`;
-
-        card.innerHTML = `
-            <div class="platform-card-header">
-                <div class="platform-name">
-                    <span class="platform-icon ${info.iconClass}">${info.letter}</span>
-                    ${info.label}
-                </div>
-                <button class="btn-regen" onclick="regenerateSingle('${key}', this)">Regenerate</button>
-            </div>
-            <div class="platform-card-body">
-                <textarea id="text-${key}" oninput="updateCharCount('${key}')">${escapeHtml(text)}</textarea>
-                ${tips ? `<div class="platform-tips">${escapeHtml(tips)}</div>` : ''}
-            </div>
-            <div class="platform-card-footer">
-                <span class="${charClass}" id="chars-${key}">${charLabel}</span>
-                <div style="display:flex;gap:6px;">
-                    ${key === 'google' && googleConnected ? `<button class="btn-copy" style="background:var(--primary);color:#fff;border-color:var(--primary);" onclick="postToGoogle(this)">Post to Google</button>` : ''}
-                    <button class="btn-copy" onclick="copyText('${key}', this)">Copy</button>
-                </div>
-            </div>
-        `;
-        grid.appendChild(card);
+        if (!currentPosts[key]) continue;
+        const tab = document.createElement('button');
+        tab.className = 'platform-tab' + (key === currentPlatform ? ' active' : '');
+        tab.innerHTML = `<span class="tab-dot" style="background:${info.color}"></span>${info.label}`;
+        tab.onclick = () => switchPlatform(key);
+        tabsEl.appendChild(tab);
     }
 
-    document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    renderPhonePreview();
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function updateCharCount(key) {
-    const ta = document.getElementById('text-' + key);
-    const span = document.getElementById('chars-' + key);
-    const info = PLATFORMS[key];
-    const len = ta.value.length;
+function switchPlatform(key) {
+    currentPlatform = key;
+    document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.platform-tab').forEach(t => {
+        if (t.textContent.includes(PLATFORMS[key].label)) t.classList.add('active');
+    });
+    renderPhonePreview();
+}
+
+function renderPhonePreview() {
+    const info = PLATFORMS[currentPlatform];
+    const post = currentPosts[currentPlatform];
+    if (!post) return;
+
+    const text = post.text || '';
+    document.getElementById('phoneHandle').textContent = info.handle;
+    document.getElementById('phoneBody').innerHTML = formatPostText(text, currentPlatform);
+
+    // Char count
+    const charEl = document.getElementById('previewChars');
     if (info.limit) {
-        span.textContent = `${len} / ${info.limit}`;
-        span.className = len > info.limit ? 'char-count over-limit' : 'char-count';
+        charEl.textContent = `${text.length} / ${info.limit}`;
+        charEl.className = text.length > info.limit ? 'char-count over-limit' : 'char-count';
     } else {
-        span.textContent = `${len} chars`;
+        charEl.textContent = `${text.length} chars`;
+        charEl.className = 'char-count';
     }
+
+    // Google post button
+    document.getElementById('btnPostGoogle').style.display = (currentPlatform === 'google' && googleConnected) ? '' : 'none';
 }
 
-function copyText(key, btn) {
-    const ta = document.getElementById('text-' + key);
-    navigator.clipboard.writeText(ta.value).then(() => {
+function formatPostText(text, platform) {
+    let html = escapeHtml(text);
+    // Highlight hashtags
+    html = html.replace(/(#\w+)/g, '<span class="hashtags">$1</span>');
+    return html;
+}
+
+// ─── Preview Actions ─────────────────────────────────
+function editCurrentPost() {
+    const post = currentPosts[currentPlatform];
+    if (!post) return;
+    document.getElementById('editTitle').textContent = 'Edit ' + PLATFORMS[currentPlatform].label + ' Post';
+    document.getElementById('editTextarea').value = post.text || '';
+    document.getElementById('editOverlay').classList.add('show');
+}
+
+function closeEdit() {
+    document.getElementById('editOverlay').classList.remove('show');
+}
+
+function saveEdit() {
+    const newText = document.getElementById('editTextarea').value;
+    currentPosts[currentPlatform].text = newText;
+    renderPhonePreview();
+    closeEdit();
+}
+
+function copyCurrentPost(btn) {
+    const post = currentPosts[currentPlatform];
+    if (!post) return;
+    navigator.clipboard.writeText(post.text).then(() => {
         btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(() => {
-            btn.textContent = 'Copy';
-            btn.classList.remove('copied');
-        }, 2000);
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
     });
 }
 
-function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-}
-
-// ─── Google Business Profile ──────────────────────
-async function checkGoogleStatus() {
+async function regenerateCurrentPost(btn) {
+    btn.disabled = true;
+    btn.textContent = 'Regenerating...';
     try {
-        const resp = await fetch(API + '/api/google/status', {
-            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        const body = { postType: 'Custom', tone: selectedTone, context: pendingContext, platform: currentPlatform };
+        if (imageBase64) body.imageBase64 = imageBase64;
+        const resp = await fetch(API + '/api/social-media/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify(body)
         });
         const data = await resp.json();
-        googleConnected = data.connected || false;
-        const banner = document.getElementById('googleBanner');
-        if (googleConnected) {
-            banner.innerHTML = `<span style="color:var(--primary);font-weight:600;">Google Business Profile connected</span> — ${escapeHtml(data.locationName || 'Location found')} <button onclick="disconnectGoogle()" style="margin-left:12px;background:none;border:none;color:var(--danger);cursor:pointer;font-family:inherit;font-size:13px;">Disconnect</button>`;
-            banner.style.display = '';
-        } else {
-            banner.innerHTML = `<a href="/api/google/auth" style="color:var(--primary);font-weight:600;text-decoration:none;">Connect Google Business Profile</a> to post directly from here`;
-            banner.style.display = '';
+        if (data.success && data.posts[currentPlatform]) {
+            currentPosts[currentPlatform] = data.posts[currentPlatform];
+            renderPhonePreview();
         }
-    } catch (e) {
-        console.error('Google status check error:', e);
+    } catch (err) {
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate';
     }
 }
 
+// ─── Google ──────────────────────────────────────────
+async function checkGoogleStatus() {
+    try {
+        const resp = await fetch(API + '/api/google/status', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+        const data = await resp.json();
+        googleConnected = data.connected || false;
+    } catch (e) {}
+}
+
 async function postToGoogle(btn) {
-    const text = document.getElementById('text-google').value.trim();
-    if (!text) { alert('No text to post'); return; }
+    const post = currentPosts.google;
+    if (!post) return;
     btn.disabled = true;
     btn.textContent = 'Posting...';
     try {
         const resp = await fetch(API + '/api/google/post', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text: post.text })
         });
         const data = await resp.json();
         if (data.success) {
@@ -766,79 +678,31 @@ async function postToGoogle(btn) {
             btn.disabled = false;
         }
     } catch (err) {
-        alert('Error posting: ' + err.message);
+        alert('Error: ' + err.message);
         btn.textContent = 'Post to Google';
         btn.disabled = false;
     }
 }
 
-async function disconnectGoogle() {
-    if (!confirm('Disconnect Google Business Profile?')) return;
-    try {
-        await fetch(API + '/api/google/disconnect', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + TOKEN }
-        });
-        googleConnected = false;
-        checkGoogleStatus();
-    } catch (e) { console.error(e); }
-}
-
-checkGoogleStatus();
-
-// ─── Regenerate Single Platform ────────────────────
-async function regenerateSingle(platform, btn) {
-    if (!selectedType) return;
-    btn.disabled = true;
-    btn.textContent = '...';
-    const context = document.getElementById('contextInput').value.trim();
-    try {
-        const body = { postType: selectedType, tone: selectedTone, platform };
-        if (context) body.context = context;
-        if (imageBase64) body.imageBase64 = imageBase64;
-
-        const resp = await fetch(API + '/api/social-media/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
-            body: JSON.stringify(body)
-        });
-        const data = await resp.json();
-        if (data.success && data.posts && data.posts[platform]) {
-            const ta = document.getElementById('text-' + platform);
-            ta.value = data.posts[platform].text || '';
-            updateCharCount(platform);
-        }
-    } catch (err) {
-        console.error('Regenerate error:', err);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Regenerate';
-    }
-}
-
-// ─── History ───────────────────────────────────────
+// ─── History ─────────────────────────────────────────
 async function loadHistory() {
     try {
-        const resp = await fetch(API + '/api/social-media/history', {
-            headers: { 'Authorization': 'Bearer ' + TOKEN }
-        });
+        const resp = await fetch(API + '/api/social-media/history', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
         const data = await resp.json();
         if (!data.success || !data.posts.length) {
             document.getElementById('historyList').innerHTML = '<div class="empty-state">No posts generated yet.</div>';
             return;
         }
-
         const list = document.getElementById('historyList');
         list.innerHTML = '';
         data.posts.forEach(item => {
-            const date = new Date(item.created_at).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
-            });
+            const date = new Date(item.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
             const div = document.createElement('div');
             div.className = 'history-item';
             div.onclick = () => {
-                const posts = typeof item.posts === 'string' ? JSON.parse(item.posts) : item.posts;
-                renderPosts(posts);
+                currentPosts = typeof item.posts === 'string' ? JSON.parse(item.posts) : item.posts;
+                currentPlatform = 'facebook';
+                showPreviews();
             };
             div.innerHTML = `
                 <div class="history-meta">
@@ -849,13 +713,13 @@ async function loadHistory() {
             `;
             list.appendChild(div);
         });
-    } catch (err) {
-        console.error('Failed to load history:', err);
-    }
+    } catch (err) { console.error(err); }
 }
 
-// Load history on page load
+// ─── Init ────────────────────────────────────────────
+checkGoogleStatus();
 loadHistory();
+document.getElementById('chatInput').focus();
 </script>
 </body>
 </html>

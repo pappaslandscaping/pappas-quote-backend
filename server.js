@@ -1245,80 +1245,113 @@ function logToCopilotCRM(customerName, noteHtml) {
   })();
 }
 
-// One-time backfill: sync recent comms to CopilotCRM. Use ?type=emails|sms|notes
+// One-time backfill: sync recent comms to CopilotCRM. Runs in background, returns immediately.
+let backfillStatus = { running: false, results: null };
 app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
   if (req.headers['x-backfill-key'] !== 'pappas-backfill-2026-xK9m') {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const type = req.query.type || 'emails';
-  try {
-    const auth = await getCopilotAuth();
-    if (!auth) return res.status(500).json({ error: 'CopilotCRM login failed' });
+  if (backfillStatus.running) return res.json({ status: 'already running' });
 
-    // Build list of {customerName, noteHtml} to sync
-    const items = [];
+  backfillStatus = { running: true, results: null };
+  res.json({ success: true, status: 'started', message: 'GET /api/copilotcrm/backfill-status to check progress' });
 
-    if (type === 'emails') {
-      const rows = (await pool.query(`
+  // Run in background
+  (async () => {
+    try {
+      const auth = await getCopilotAuth();
+      if (!auth) { backfillStatus = { running: false, results: { error: 'login failed' } }; return; }
+
+      const summary = { emails: { ok: 0, fail: 0 }, sms: { ok: 0, fail: 0 }, notes: { ok: 0, fail: 0 } };
+      const failed = [];
+
+      // Emails
+      const emails = (await pool.query(`
         SELECT recipient_email, subject, customer_name, sent_at FROM email_log
         WHERE status = 'sent' AND customer_name IS NOT NULL
           AND sent_at > NOW() - INTERVAL '7 days' AND recipient_email != $1
         ORDER BY sent_at ASC
       `, [process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com'])).rows;
-      for (const e of rows) {
-        items.push({ name: e.customer_name, html: `<p><strong>[Email Sent]</strong> ${new Date(e.sent_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>` });
-      }
-    } else if (type === 'sms') {
-      const rows = (await pool.query(`
+
+      // SMS
+      const smsRows = (await pool.query(`
         SELECT m.to_number, m.body, m.created_at, c.name as customer_name, c.first_name, c.last_name
         FROM messages m LEFT JOIN customers c ON m.customer_id = c.id
         WHERE m.direction = 'outbound' AND m.created_at > NOW() - INTERVAL '7 days'
         ORDER BY m.created_at ASC
       `)).rows;
-      for (const s of rows) {
-        const n = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim();
-        if (n) items.push({ name: n, html: `<p><strong>[SMS Sent]</strong> ${new Date(s.created_at).toLocaleDateString()}<br>To: ${s.to_number}<br>${s.body}</p>` });
-      }
-    } else if (type === 'notes') {
-      const rows = (await pool.query(`
+
+      // Notes
+      const noteRows = (await pool.query(`
         SELECT n.content, n.author_name, n.created_at, c.name as customer_name, c.first_name, c.last_name
         FROM internal_notes n LEFT JOIN customers c ON n.entity_id = c.id
         WHERE n.entity_type = 'customer' AND n.created_at > NOW() - INTERVAL '7 days'
         ORDER BY n.created_at ASC
       `)).rows;
-      for (const n of rows) {
-        const nm = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim();
-        if (nm) items.push({ name: nm, html: `<p><strong>[Note]</strong> ${new Date(n.created_at).toLocaleDateString()} by ${n.author_name}<br>${n.content}</p>` });
+
+      // Collect all customer names and pre-cache in parallel
+      const allNames = new Set();
+      emails.forEach(e => allNames.add(e.customer_name));
+      smsRows.forEach(s => { const n = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim(); if (n) allNames.add(n); });
+      noteRows.forEach(n => { const nm = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim(); if (nm) allNames.add(nm); });
+
+      const nameArr = [...allNames];
+      console.log(`CopilotCRM backfill: ${emails.length} emails, ${smsRows.length} sms, ${noteRows.length} notes, ${nameArr.length} unique customers`);
+      for (let i = 0; i < nameArr.length; i += 5) {
+        await Promise.all(nameArr.slice(i, i + 5).map(n => findCopilotCustomerId(n, auth.headers).catch(() => null)));
       }
-    }
+      console.log(`CopilotCRM backfill: customer cache loaded`);
 
-    // Pre-cache all unique customer names (5 at a time)
-    const uniqueNames = [...new Set(items.map(i => i.name))];
-    for (let i = 0; i < uniqueNames.length; i += 5) {
-      await Promise.all(uniqueNames.slice(i, i + 5).map(n => findCopilotCustomerId(n, auth.headers).catch(() => null)));
-    }
-
-    // Now process all items (customer lookups are cached)
-    const results = [];
-    for (const item of items) {
-      try {
-        const custId = copilotCustomerCache.get(item.name);
-        if (!custId) { results.push({ customer: item.name, success: false, error: 'not found' }); continue; }
+      // Helper
+      async function logNote(custName, noteHtml, type) {
+        const custId = copilotCustomerCache.get(custName);
+        if (!custId) { summary[type].fail++; return; }
         await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
           method: 'POST',
           headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `customer_id=${custId}&call_notes=${encodeURIComponent(item.html)}&follow_up_date=`
+          body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
         });
-        results.push({ customer: item.name, success: true });
-      } catch (err) { results.push({ customer: item.name, success: false, error: err.message }); }
-    }
+        summary[type].ok++;
+      }
 
-    const ok = results.filter(r => r.success).length;
-    res.json({ success: true, type, total: items.length, customers: uniqueNames.length, summary: `${ok}/${results.length}`, results });
-  } catch (error) {
-    console.error('CopilotCRM comms backfill error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+      // Process emails
+      for (const e of emails) {
+        try {
+          await logNote(e.customer_name, `<p><strong>[Email Sent]</strong> ${new Date(e.sent_at).toLocaleDateString()}<br>To: ${e.recipient_email}<br>Subject: ${e.subject}</p>`, 'emails');
+        } catch (err) { summary.emails.fail++; }
+      }
+      console.log(`CopilotCRM backfill: emails done ${summary.emails.ok}/${emails.length}`);
+
+      // Process SMS
+      for (const s of smsRows) {
+        try {
+          const n = s.customer_name || ((s.first_name||'')+(s.last_name?' '+s.last_name:'')).trim();
+          if (!n) { summary.sms.fail++; continue; }
+          await logNote(n, `<p><strong>[SMS Sent]</strong> ${new Date(s.created_at).toLocaleDateString()}<br>To: ${s.to_number}<br>${s.body}</p>`, 'sms');
+        } catch (err) { summary.sms.fail++; }
+      }
+      console.log(`CopilotCRM backfill: sms done ${summary.sms.ok}/${smsRows.length}`);
+
+      // Process Notes
+      for (const n of noteRows) {
+        try {
+          const nm = n.customer_name || ((n.first_name||'')+(n.last_name?' '+n.last_name:'')).trim();
+          if (!nm) { summary.notes.fail++; continue; }
+          await logNote(nm, `<p><strong>[Note]</strong> ${new Date(n.created_at).toLocaleDateString()} by ${n.author_name}<br>${n.content}</p>`, 'notes');
+        } catch (err) { summary.notes.fail++; }
+      }
+      console.log(`CopilotCRM backfill: notes done ${summary.notes.ok}/${noteRows.length}`);
+      console.log(`CopilotCRM backfill COMPLETE:`, JSON.stringify(summary));
+      backfillStatus = { running: false, results: summary };
+    } catch (error) {
+      console.error('CopilotCRM backfill error:', error);
+      backfillStatus = { running: false, results: { error: error.message } };
+    }
+  })();
+});
+
+app.get('/api/copilotcrm/backfill-status', async (req, res) => {
+  res.json(backfillStatus);
 });
 
 // Generate filled PDF contract from scratch using pdf-lib

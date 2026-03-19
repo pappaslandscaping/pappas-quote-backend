@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media Posts — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .page-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 32px;
+            background: var(--gray-50);
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .page-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin: 0;
+        }
+
+        /* ─── Post Type Grid ─────────────────────────── */
+        .type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .type-card {
+            background: #fff;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 16px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: all .15s;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-600);
+        }
+
+        .type-card:hover {
+            border-color: var(--primary);
+            background: #f8faf8;
+        }
+
+        .type-card.active {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .type-card .type-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        /* ─── Input Section ──────────────────────────── */
+        .input-section {
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid var(--gray-200);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .input-section label {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--gray-600);
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .input-section textarea {
+            width: 100%;
+            min-height: 100px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .input-section textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* ─── Tone Chips ────────────────────────────── */
+        .tone-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .tone-chip {
+            background: #fff;
+            border: 2px solid var(--gray-200);
+            border-radius: 20px;
+            padding: 7px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+            color: var(--gray-600);
+            transition: all .15s;
+        }
+
+        .tone-chip:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .tone-chip.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .btn-regen {
+            background: none;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+            color: var(--gray-500);
+            transition: all .15s;
+        }
+
+        .btn-regen:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-regen:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        .photo-upload-area {
+            margin-top: 16px;
+        }
+
+        .photo-drop {
+            border: 2px dashed var(--gray-300);
+            border-radius: 10px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            color: var(--gray-400);
+            transition: border-color .15s;
+            position: relative;
+        }
+
+        .photo-drop:hover {
+            border-color: var(--primary);
+        }
+
+        .photo-drop input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .photo-preview {
+            margin-top: 12px;
+            display: none;
+        }
+
+        .photo-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+        }
+
+        .photo-preview .remove-photo {
+            margin-left: 12px;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 13px;
+            background: none;
+            border: none;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .generate-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .btn-generate {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+            transition: background .15s;
+        }
+
+        .btn-generate:hover {
+            background: #253331;
+        }
+
+        .btn-generate:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: none;
+            width: 22px;
+            height: 22px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── Output Section ─────────────────────────── */
+        .output-section {
+            margin-bottom: 32px;
+        }
+
+        .output-section h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin: 0 0 16px 0;
+        }
+
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 16px;
+        }
+
+        .platform-card {
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+        }
+
+        .platform-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            background: var(--gray-50);
+        }
+
+        .platform-name {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--gray-700);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .platform-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .icon-facebook { background: #1877F2; }
+        .icon-instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+        .icon-nextdoor { background: #00B246; }
+        .icon-tiktok { background: #010101; }
+        .icon-google { background: #4285F4; }
+        .icon-twitter { background: #000; }
+
+        .platform-card-body {
+            padding: 16px;
+        }
+
+        .platform-card textarea {
+            width: 100%;
+            min-height: 140px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .platform-card textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .platform-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-top: 1px solid var(--gray-100);
+            background: var(--gray-50);
+        }
+
+        .char-count {
+            font-size: 12px;
+            color: var(--gray-400);
+        }
+
+        .char-count.over-limit {
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        .btn-copy {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+            color: var(--gray-600);
+            transition: all .15s;
+        }
+
+        .btn-copy:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-copy.copied {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .platform-tips {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--gray-400);
+            line-height: 1.4;
+            font-style: italic;
+        }
+
+        /* ─── History Section ────────────────────────── */
+        .history-section {
+            margin-top: 40px;
+        }
+
+        .history-section h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin: 0 0 16px 0;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .history-item {
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid var(--gray-200);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: border-color .15s;
+        }
+
+        .history-item:hover {
+            border-color: var(--primary);
+        }
+
+        .history-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .history-type {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--gray-700);
+        }
+
+        .history-context {
+            font-size: 13px;
+            color: var(--gray-400);
+            max-width: 500px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-date {
+            font-size: 12px;
+            color: var(--gray-400);
+            white-space: nowrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-400);
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .page-content { padding: 16px; }
+            .type-grid { grid-template-columns: repeat(3, 1fr); }
+            .platform-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main">
+    <div class="page-content">
+        <div class="page-header">
+            <h2>Social Media Post Generator</h2>
+        </div>
+
+        <div id="googleBanner" style="display:none;background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:14px 20px;margin-bottom:16px;font-size:13px;color:var(--gray-500);"></div>
+
+        <!-- Post Type Selector -->
+        <div class="type-grid">
+            <div class="type-card" data-type="Seasonal Tip" onclick="selectType(this)">
+                <span class="type-icon">&#127793;</span>
+                Seasonal Tip
+            </div>
+            <div class="type-card" data-type="Service Spotlight" onclick="selectType(this)">
+                <span class="type-icon">&#11088;</span>
+                Service Spotlight
+            </div>
+            <div class="type-card" data-type="Before & After" onclick="selectType(this)">
+                <span class="type-icon">&#128248;</span>
+                Before & After
+            </div>
+            <div class="type-card" data-type="Weather Update" onclick="selectType(this)">
+                <span class="type-icon">&#9925;</span>
+                Weather Update
+            </div>
+            <div class="type-card" data-type="Behind the Scenes" onclick="selectType(this)">
+                <span class="type-icon">&#127916;</span>
+                Behind the Scenes
+            </div>
+            <div class="type-card" data-type="Customer Appreciation" onclick="selectType(this)">
+                <span class="type-icon">&#128153;</span>
+                Customer Appreciation
+            </div>
+            <div class="type-card" data-type="Hiring / Team" onclick="selectType(this)">
+                <span class="type-icon">&#129309;</span>
+                Hiring / Team
+            </div>
+            <div class="type-card" data-type="Promotion / Special" onclick="selectType(this)">
+                <span class="type-icon">&#127873;</span>
+                Promotion / Special
+            </div>
+            <div class="type-card" data-type="Custom" onclick="selectType(this)">
+                <span class="type-icon">&#9998;</span>
+                Custom
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-section">
+            <label for="contextInput">Context / Details</label>
+            <textarea id="contextInput" placeholder="E.g., &quot;We just finished a big mulch job in Lakewood&quot; or &quot;It's going to rain all week&quot; or &quot;Spring cleanup season is here!&quot;"></textarea>
+
+            <div class="tone-selector" style="margin-top:16px;">
+                <label>Tone</label>
+                <div class="tone-chips" id="toneChips">
+                    <button class="tone-chip active" data-tone="Casual" onclick="selectTone(this)">Casual</button>
+                    <button class="tone-chip" data-tone="Professional" onclick="selectTone(this)">Professional</button>
+                    <button class="tone-chip" data-tone="Funny" onclick="selectTone(this)">Funny</button>
+                    <button class="tone-chip" data-tone="Promotional" onclick="selectTone(this)">Promotional</button>
+                    <button class="tone-chip" data-tone="Inspiring" onclick="selectTone(this)">Inspiring</button>
+                    <button class="tone-chip" data-tone="Community" onclick="selectTone(this)">Community</button>
+                </div>
+            </div>
+
+            <div class="photo-upload-area">
+                <label>Photo (optional)</label>
+                <div class="photo-drop" id="photoDrop">
+                    <input type="file" accept="image/*" id="photoInput" onchange="handlePhoto(event)">
+                    Click or drag a photo to include for AI context
+                </div>
+                <div class="photo-preview" id="photoPreview">
+                    <img id="previewImg" src="" alt="Preview">
+                    <button class="remove-photo" onclick="removePhoto()">Remove</button>
+                </div>
+            </div>
+
+            <div class="generate-row">
+                <button class="btn-generate" id="generateBtn" onclick="generatePosts()" disabled>Generate Posts</button>
+                <div class="spinner" id="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Output Area -->
+        <div class="output-section" id="outputSection" style="display:none;">
+            <h3>Generated Posts</h3>
+            <div class="platform-grid" id="platformGrid"></div>
+        </div>
+
+        <!-- History -->
+        <div class="history-section">
+            <h3>Recent History</h3>
+            <div class="history-list" id="historyList">
+                <div class="empty-state">No posts generated yet.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = '';
+const TOKEN = localStorage.getItem('token');
+
+let selectedType = null;
+let selectedTone = 'Casual';
+let imageBase64 = null;
+let googleConnected = false;
+
+const PLATFORMS = {
+    facebook:  { label: 'Facebook',                iconClass: 'icon-facebook',  letter: 'f',  limit: null },
+    instagram: { label: 'Instagram',               iconClass: 'icon-instagram', letter: 'IG', limit: 2200 },
+    nextdoor:  { label: 'Nextdoor',                iconClass: 'icon-nextdoor',  letter: 'N',  limit: null },
+    tiktok:    { label: 'TikTok',                  iconClass: 'icon-tiktok',    letter: 'T',  limit: 2200 },
+    google:    { label: 'Google Business Profile',  iconClass: 'icon-google',    letter: 'G',  limit: 1500 },
+    twitter:   { label: 'X / Twitter',             iconClass: 'icon-twitter',   letter: 'X',  limit: 280 }
+};
+
+function selectType(el) {
+    document.querySelectorAll('.type-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    selectedType = el.dataset.type;
+    document.getElementById('generateBtn').disabled = false;
+}
+
+function selectTone(el) {
+    document.querySelectorAll('.tone-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    selectedTone = el.dataset.tone;
+}
+
+function handlePhoto(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        const dataUrl = ev.target.result;
+        imageBase64 = dataUrl.split(',')[1];
+        document.getElementById('previewImg').src = dataUrl;
+        document.getElementById('photoPreview').style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+}
+
+function removePhoto() {
+    imageBase64 = null;
+    document.getElementById('photoInput').value = '';
+    document.getElementById('photoPreview').style.display = 'none';
+}
+
+async function generatePosts() {
+    if (!selectedType) return;
+
+    const btn = document.getElementById('generateBtn');
+    const spinner = document.getElementById('spinner');
+    btn.disabled = true;
+    spinner.style.display = 'block';
+
+    const context = document.getElementById('contextInput').value.trim();
+
+    try {
+        const body = { postType: selectedType, tone: selectedTone };
+        if (context) body.context = context;
+        if (imageBase64) body.imageBase64 = imageBase64;
+
+        const resp = await fetch(API + '/api/social-media/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + TOKEN
+            },
+            body: JSON.stringify(body)
+        });
+
+        const data = await resp.json();
+
+        if (!data.success) {
+            alert(data.error || 'Failed to generate posts');
+            return;
+        }
+
+        renderPosts(data.posts);
+        loadHistory();
+    } catch (err) {
+        alert('Error generating posts: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    }
+}
+
+function renderPosts(posts) {
+    const grid = document.getElementById('platformGrid');
+    grid.innerHTML = '';
+    document.getElementById('outputSection').style.display = '';
+
+    for (const [key, info] of Object.entries(PLATFORMS)) {
+        const post = posts[key];
+        if (!post) continue;
+
+        const text = post.text || '';
+        const tips = post.tips || '';
+
+        const card = document.createElement('div');
+        card.className = 'platform-card';
+
+        const charLimit = info.limit;
+        const charClass = charLimit && text.length > charLimit ? 'char-count over-limit' : 'char-count';
+        const charLabel = charLimit ? `${text.length} / ${charLimit}` : `${text.length} chars`;
+
+        card.innerHTML = `
+            <div class="platform-card-header">
+                <div class="platform-name">
+                    <span class="platform-icon ${info.iconClass}">${info.letter}</span>
+                    ${info.label}
+                </div>
+                <button class="btn-regen" onclick="regenerateSingle('${key}', this)">Regenerate</button>
+            </div>
+            <div class="platform-card-body">
+                <textarea id="text-${key}" oninput="updateCharCount('${key}')">${escapeHtml(text)}</textarea>
+                ${tips ? `<div class="platform-tips">${escapeHtml(tips)}</div>` : ''}
+            </div>
+            <div class="platform-card-footer">
+                <span class="${charClass}" id="chars-${key}">${charLabel}</span>
+                <div style="display:flex;gap:6px;">
+                    ${key === 'google' && googleConnected ? `<button class="btn-copy" style="background:var(--primary);color:#fff;border-color:var(--primary);" onclick="postToGoogle(this)">Post to Google</button>` : ''}
+                    <button class="btn-copy" onclick="copyText('${key}', this)">Copy</button>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    }
+
+    document.getElementById('outputSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateCharCount(key) {
+    const ta = document.getElementById('text-' + key);
+    const span = document.getElementById('chars-' + key);
+    const info = PLATFORMS[key];
+    const len = ta.value.length;
+    if (info.limit) {
+        span.textContent = `${len} / ${info.limit}`;
+        span.className = len > info.limit ? 'char-count over-limit' : 'char-count';
+    } else {
+        span.textContent = `${len} chars`;
+    }
+}
+
+function copyText(key, btn) {
+    const ta = document.getElementById('text-' + key);
+    navigator.clipboard.writeText(ta.value).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+        }, 2000);
+    });
+}
+
+function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// ─── Google Business Profile ──────────────────────
+async function checkGoogleStatus() {
+    try {
+        const resp = await fetch(API + '/api/google/status', {
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+        const data = await resp.json();
+        googleConnected = data.connected || false;
+        const banner = document.getElementById('googleBanner');
+        if (googleConnected) {
+            banner.innerHTML = `<span style="color:var(--primary);font-weight:600;">Google Business Profile connected</span> — ${escapeHtml(data.locationName || 'Location found')} <button onclick="disconnectGoogle()" style="margin-left:12px;background:none;border:none;color:var(--danger);cursor:pointer;font-family:inherit;font-size:13px;">Disconnect</button>`;
+            banner.style.display = '';
+        } else {
+            banner.innerHTML = `<a href="/api/google/auth" style="color:var(--primary);font-weight:600;text-decoration:none;">Connect Google Business Profile</a> to post directly from here`;
+            banner.style.display = '';
+        }
+    } catch (e) {
+        console.error('Google status check error:', e);
+    }
+}
+
+async function postToGoogle(btn) {
+    const text = document.getElementById('text-google').value.trim();
+    if (!text) { alert('No text to post'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Posting...';
+    try {
+        const resp = await fetch(API + '/api/google/post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify({ text })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            btn.textContent = 'Posted!';
+            btn.style.background = '#16a34a';
+            setTimeout(() => { btn.textContent = 'Post to Google'; btn.style.background = ''; btn.disabled = false; }, 3000);
+        } else {
+            alert(data.error || 'Failed to post');
+            btn.textContent = 'Post to Google';
+            btn.disabled = false;
+        }
+    } catch (err) {
+        alert('Error posting: ' + err.message);
+        btn.textContent = 'Post to Google';
+        btn.disabled = false;
+    }
+}
+
+async function disconnectGoogle() {
+    if (!confirm('Disconnect Google Business Profile?')) return;
+    try {
+        await fetch(API + '/api/google/disconnect', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+        googleConnected = false;
+        checkGoogleStatus();
+    } catch (e) { console.error(e); }
+}
+
+checkGoogleStatus();
+
+// ─── Regenerate Single Platform ────────────────────
+async function regenerateSingle(platform, btn) {
+    if (!selectedType) return;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const context = document.getElementById('contextInput').value.trim();
+    try {
+        const body = { postType: selectedType, tone: selectedTone, platform };
+        if (context) body.context = context;
+        if (imageBase64) body.imageBase64 = imageBase64;
+
+        const resp = await fetch(API + '/api/social-media/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.success && data.posts && data.posts[platform]) {
+            const ta = document.getElementById('text-' + platform);
+            ta.value = data.posts[platform].text || '';
+            updateCharCount(platform);
+        }
+    } catch (err) {
+        console.error('Regenerate error:', err);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate';
+    }
+}
+
+// ─── History ───────────────────────────────────────
+async function loadHistory() {
+    try {
+        const resp = await fetch(API + '/api/social-media/history', {
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+        const data = await resp.json();
+        if (!data.success || !data.posts.length) {
+            document.getElementById('historyList').innerHTML = '<div class="empty-state">No posts generated yet.</div>';
+            return;
+        }
+
+        const list = document.getElementById('historyList');
+        list.innerHTML = '';
+        data.posts.forEach(item => {
+            const date = new Date(item.created_at).toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+            });
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.onclick = () => {
+                const posts = typeof item.posts === 'string' ? JSON.parse(item.posts) : item.posts;
+                renderPosts(posts);
+            };
+            div.innerHTML = `
+                <div class="history-meta">
+                    <span class="history-type">${escapeHtml(item.post_type)}</span>
+                    <span class="history-context">${item.context ? escapeHtml(item.context) : '(no context)'}</span>
+                </div>
+                <span class="history-date">${date}</span>
+            `;
+            list.appendChild(div);
+        });
+    } catch (err) {
+        console.error('Failed to load history:', err);
+    }
+}
+
+// Load history on page load
+loadHistory();
+</script>
+</body>
+</html>

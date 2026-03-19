@@ -6237,8 +6237,66 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
           })
         });
         console.log('✅ Zapier webhook sent for contract signed');
-      } catch (e) { 
-        console.error('Zapier contract webhook failed:', e); 
+      } catch (e) {
+        console.error('Zapier contract webhook failed:', e);
+      }
+    }
+
+    // Trigger n8n webhook to sync accepted quote to CopilotCRM (HomeWorks)
+    if (process.env.N8N_QUOTE_ACCEPTED_WEBHOOK) {
+      try {
+        // Parse customer name into first/last for CopilotCRM
+        const nameParts = (updatedQuote.customer_name || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        // Parse address into components
+        const addressParts = (updatedQuote.customer_address || '').split(',').map(s => s.trim());
+        const street = addressParts[0] || '';
+        const city = addressParts[1] || '';
+        const stateZip = (addressParts[2] || '').split(/\s+/);
+        const state = stateZip[0] || 'OH';
+        const zip = stateZip[1] || '';
+
+        // Parse services from JSON
+        let servicesList = [];
+        try {
+          const svc = typeof updatedQuote.services === 'string' ? JSON.parse(updatedQuote.services) : updatedQuote.services;
+          servicesList = (svc || []).map(s => ({ name: s.name, description: s.description, amount: s.amount }));
+        } catch (e) { /* services parsing failed, send empty */ }
+
+        await fetch(process.env.N8N_QUOTE_ACCEPTED_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'quote_accepted',
+            customer: {
+              full_name: updatedQuote.customer_name,
+              first_name: firstName,
+              last_name: lastName,
+              email: updatedQuote.customer_email,
+              phone: updatedQuote.customer_phone,
+              street: street,
+              city: city,
+              state: state,
+              zip: zip,
+              full_address: updatedQuote.customer_address
+            },
+            quote: {
+              quote_number: updatedQuote.quote_number || 'Q-' + updatedQuote.id,
+              quote_type: updatedQuote.quote_type,
+              total: updatedQuote.total,
+              monthly_payment: updatedQuote.monthly_payment,
+              services: servicesList,
+              services_text: servicesText
+            },
+            signed_by: printed_name,
+            signed_at: new Date().toISOString()
+          })
+        });
+        console.log('✅ n8n webhook sent for quote accepted');
+      } catch (e) {
+        console.error('n8n quote accepted webhook failed:', e);
       }
     }
 
@@ -11615,6 +11673,7 @@ async function ensureQBTables() {
   try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
 }
 ensureQBTables().catch(e => console.error('QB tables init error:', e));
+ensureGoogleTables().catch(e => console.error('Google tables init error:', e));
 
 // --- QB OAuth Client Factory ---
 function createOAuthClient() {
@@ -16211,6 +16270,356 @@ app.post('/api/settings/home-base', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// GOOGLE BUSINESS PROFILE INTEGRATION
+// ═══════════════════════════════════════════════════════════════
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google/callback';
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/business.manage',
+  'https://www.googleapis.com/auth/userinfo.email'
+].join(' ');
+
+// --- Google Token Table ---
+async function ensureGoogleTables() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS google_tokens (
+    id SERIAL PRIMARY KEY,
+    account_id VARCHAR(200),
+    location_id VARCHAR(200),
+    location_name VARCHAR(500),
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+
+// Exchange refresh token for fresh access token
+async function getGoogleAccessToken() {
+  const row = (await pool.query('SELECT * FROM google_tokens ORDER BY id DESC LIMIT 1')).rows[0];
+  if (!row) return null;
+
+  // Check if token is expired or within 5 minutes of expiring
+  if (new Date(row.expires_at) < new Date(Date.now() + 5 * 60 * 1000)) {
+    // Refresh the token
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token: row.refresh_token,
+        grant_type: 'refresh_token'
+      })
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000);
+      await pool.query(
+        `UPDATE google_tokens SET access_token=$1, expires_at=$2, updated_at=NOW() WHERE id=$3`,
+        [data.access_token, expiresAt, row.id]
+      );
+      row.access_token = data.access_token;
+    } else {
+      console.error('Google token refresh failed:', data);
+      return null;
+    }
+  }
+  return row;
+}
+
+// Initiate Google OAuth
+app.get('/api/google/auth', requireAdmin, (req, res) => {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    return res.status(503).json({ success: false, error: 'Google credentials not configured' });
+  }
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: GOOGLE_SCOPES,
+    access_type: 'offline',
+    prompt: 'consent'
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+// Google OAuth callback
+app.get('/api/google/callback', async (req, res) => {
+  try {
+    const { code, error } = req.query;
+    if (error) {
+      console.error('Google OAuth error:', error);
+      return res.redirect('/settings.html?google=error&msg=' + encodeURIComponent(error));
+    }
+
+    // Exchange code for tokens
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code'
+      })
+    });
+    const tokens = await tokenResp.json();
+
+    if (!tokens.access_token) {
+      console.error('Google token exchange failed:', tokens);
+      return res.redirect('/settings.html?google=error&msg=token_exchange_failed');
+    }
+
+    const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000);
+
+    // Get the GBP account and location
+    let accountId = null;
+    let locationId = null;
+    let locationName = null;
+
+    try {
+      // List accounts
+      const acctResp = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
+        headers: { 'Authorization': 'Bearer ' + tokens.access_token }
+      });
+      const acctData = await acctResp.json();
+      const accounts = acctData.accounts || [];
+      if (accounts.length > 0) {
+        accountId = accounts[0].name; // e.g., "accounts/123456"
+
+        // List locations for this account
+        const locResp = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountId}/locations?readMask=name,title,storefrontAddress`, {
+          headers: { 'Authorization': 'Bearer ' + tokens.access_token }
+        });
+        const locData = await locResp.json();
+        const locations = locData.locations || [];
+        if (locations.length > 0) {
+          locationId = locations[0].name; // e.g., "locations/789"
+          locationName = locations[0].title || 'Business Location';
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching GBP account/location:', e.message);
+    }
+
+    // Store tokens (replace any existing)
+    await pool.query('DELETE FROM google_tokens');
+    await pool.query(
+      `INSERT INTO google_tokens (account_id, location_id, location_name, access_token, refresh_token, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [accountId, locationId, locationName, tokens.access_token, tokens.refresh_token, expiresAt]
+    );
+
+    res.redirect('/settings.html?google=connected');
+  } catch (error) {
+    console.error('Google callback error:', error);
+    res.redirect('/settings.html?google=error');
+  }
+});
+
+// Check Google connection status
+app.get('/api/google/status', requireAdmin, async (req, res) => {
+  try {
+    const row = (await pool.query('SELECT * FROM google_tokens ORDER BY id DESC LIMIT 1')).rows[0];
+    if (!row) return res.json({ success: true, connected: false });
+
+    res.json({
+      success: true,
+      connected: true,
+      accountId: row.account_id,
+      locationId: row.location_id,
+      locationName: row.location_name,
+      expiresAt: row.expires_at
+    });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// Disconnect Google
+app.post('/api/google/disconnect', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM google_tokens');
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// Post to Google Business Profile
+app.post('/api/google/post', requireAdmin, async (req, res) => {
+  try {
+    const tokenRow = await getGoogleAccessToken();
+    if (!tokenRow) return res.status(400).json({ success: false, error: 'Google Business Profile not connected' });
+    if (!tokenRow.location_id) return res.status(400).json({ success: false, error: 'No business location found. Reconnect Google.' });
+
+    const { text, callToAction } = req.body;
+    if (!text) return res.status(400).json({ success: false, error: 'Post text is required' });
+
+    // Build the local post body
+    const postBody = {
+      languageCode: 'en',
+      topicType: 'STANDARD',
+      summary: text
+    };
+
+    // Optional CTA (e.g., CALL, LEARN_MORE, BOOK, etc.)
+    if (callToAction) {
+      postBody.callToAction = {
+        actionType: callToAction.type || 'CALL',
+        url: callToAction.url || 'https://pappaslandscaping.com'
+      };
+    }
+
+    const postResp = await fetch(
+      `https://mybusiness.googleapis.com/v4/${tokenRow.account_id}/${tokenRow.location_id}/localPosts`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + tokenRow.access_token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(postBody)
+      }
+    );
+
+    const postData = await postResp.json();
+
+    if (postData.error) {
+      console.error('GBP post error:', postData.error);
+      return res.status(400).json({ success: false, error: postData.error.message || 'Failed to post to Google' });
+    }
+
+    res.json({ success: true, post: postData });
+  } catch (error) {
+    serverError(res, error, 'Google post failed');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SOCIAL MEDIA POST GENERATOR
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/social-media/generate', async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured. ANTHROPIC_API_KEY is not set.' });
+    }
+
+    const { postType, context, imageBase64, tone, platform } = req.body;
+    if (!postType) return res.status(400).json({ success: false, error: 'Post type required' });
+
+    const toneLabel = tone || 'Casual';
+    const singlePlatform = platform; // if set, only regenerate one platform
+
+    const platformList = singlePlatform
+      ? [singlePlatform]
+      : ['facebook', 'instagram', 'nextdoor', 'tiktok', 'google', 'twitter'];
+
+    const platformNames = {
+      facebook: 'Facebook', instagram: 'Instagram', nextdoor: 'Nextdoor',
+      tiktok: 'TikTok', google: 'Google Business Profile', twitter: 'X (Twitter)'
+    };
+
+    const jsonStructure = platformList.map(p => `  "${p}": { "text": "...", "tips": "..." }`).join(',\n');
+
+    const messages = [];
+    const userContent = [];
+
+    userContent.push({
+      type: 'text',
+      text: `You write social media posts for Pappas & Co. Landscaping, a landscaping company in the Cleveland, Ohio area.
+
+CRITICAL: Write like a real person — a small business owner who genuinely cares about their work and community. NOT like a marketing agency or AI. Avoid corporate buzzwords, forced enthusiasm, or generic filler. No "Transform your outdoor space!" or "Don't miss out!" clichés. Write the way someone would actually talk to their neighbors.
+
+Company details:
+- Name: Pappas & Co. Landscaping
+- Location: Cleveland OH west side — Lakewood, Bay Village, Rocky River, Westlake, North Olmsted, Fairview Park, Avon, Avon Lake, etc.
+- Services: Mowing, Spring/Fall Cleanup, Mulching, Shrub Trimming, Aeration, Fertilizing, Weed Control, Snow Plowing
+- Phone: 440-886-7318
+- Website: pappaslandscaping.com
+
+Tone: ${toneLabel}
+Post type: ${postType}
+${context ? `Additional context: ${context}` : ''}
+
+Generate a post for: ${platformList.map(p => platformNames[p]).join(', ')}
+
+Format as JSON:
+{
+${jsonStructure}
+}
+
+Platform guidelines:
+- Facebook: Conversational, like you're talking to a friend. Short paragraphs. Don't overdo emojis.
+- Instagram: Natural caption with line breaks. 10-15 relevant hashtags (not 30 generic ones). Use emojis sparingly.
+- Nextdoor: Neighbor-to-neighbor tone. Mention specific Cleveland west side suburbs. Be helpful, not salesy.
+- TikTok: Short punchy hook + caption. Trending but authentic. A few relevant hashtags.
+- Google Business Profile: Mention Cleveland/specific suburbs for local SEO. Professional but still warm. Include service keywords naturally.
+- X/Twitter: Under 280 characters. Conversational, not a slogan. 1-2 hashtags max.
+
+"tips" should be a brief posting suggestion (best time to post, what photo to pair it with, etc.)
+
+Return ONLY valid JSON, no other text.`
+    });
+
+    if (imageBase64) {
+      userContent.push({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 }
+      });
+    }
+
+    messages.push({ role: 'user', content: userContent });
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages
+    });
+
+    const text = response.content?.[0]?.text || '';
+
+    // Parse JSON from response
+    let posts;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      posts = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch (e) {
+      return res.json({ success: false, error: 'Failed to parse AI response' });
+    }
+
+    if (!posts) return res.json({ success: false, error: 'No posts generated' });
+
+    // Save to DB (skip for single-platform regenerations)
+    if (!singlePlatform) {
+      await pool.query(
+        `INSERT INTO social_media_posts (post_type, context, posts, created_at) VALUES ($1, $2, $3, NOW())`,
+        [postType, context || '', JSON.stringify(posts)]
+      );
+    }
+
+    res.json({ success: true, posts });
+  } catch (error) {
+    console.error('Social media generation error:', error);
+    serverError(res, error);
+  }
+});
+
+app.get('/api/social-media/history', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM social_media_posts ORDER BY created_at DESC LIMIT 50');
+    res.json({ success: true, posts: result.rows });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // CATCH-ALL: Must be LAST route — serves static files or falls back to index.html
 // ═══════════════════════════════════════════════════════════════
 app.get('*', (req, res) => {
@@ -16232,6 +16641,13 @@ app.get('*', (req, res) => {
       id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
       viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ip_address VARCHAR(45), user_agent TEXT
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS social_media_posts (
+      id SERIAL PRIMARY KEY,
+      post_type VARCHAR(50),
+      context TEXT,
+      posts JSONB,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     console.log('✅ Startup table initialization complete');
   } catch (err) {

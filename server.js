@@ -871,6 +871,10 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
       // Log successful email with open tracking token
       try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8,$9)`,
         [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, trackedHtml, openToken]); } catch(e) {}
+      // Sync to CopilotCRM (fire-and-forget) — skip admin notifications
+      if (meta.customer_name && to !== NOTIFICATION_EMAIL) {
+        logToCopilotCRM(meta.customer_name, `<p><strong>[Email Sent]</strong> To: ${to}<br>Subject: ${subject}</p>`);
+      }
       return { success: true };
     }
   } catch (err) {
@@ -1123,6 +1127,90 @@ async function syncToCopilotCRM(quote, pdfBytes) {
   }
 
   return { success: true, copilotCustomerId, copilotEstimateId, accepted, uploaded };
+}
+
+// CopilotCRM auth cache (reuse token for 30 min)
+let copilotAuthCache = { token: null, headers: null, expiresAt: 0 };
+async function getCopilotAuth() {
+  if (copilotAuthCache.token && Date.now() < copilotAuthCache.expiresAt) return copilotAuthCache;
+  if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) return null;
+  const res = await fetch('https://api.copilotcrm.com/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+    body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
+  });
+  const data = await res.json();
+  if (!data.accessToken) return null;
+  copilotAuthCache = {
+    token: data.accessToken,
+    headers: {
+      'Cookie': `copilotApiAccessToken=${data.accessToken}`,
+      'Origin': 'https://secure.copilotcrm.com',
+      'Referer': 'https://secure.copilotcrm.com/',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    expiresAt: Date.now() + 30 * 60 * 1000
+  };
+  return copilotAuthCache;
+}
+
+// CopilotCRM customer ID cache (in-memory, keyed by YardDesk customer name)
+const copilotCustomerCache = new Map();
+async function findCopilotCustomerId(customerName, headers) {
+  if (!customerName) return null;
+  const cached = copilotCustomerCache.get(customerName);
+  if (cached) return cached;
+
+  const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `query=${encodeURIComponent(customerName)}`
+  });
+  const customers = await searchRes.json();
+  let match = customers.find(c => c.id && String(c.id) !== '0');
+  if (!match) {
+    const lastName = customerName.trim().split(/\s+/).pop();
+    if (lastName && lastName !== customerName.trim()) {
+      const searchRes2 = await fetch('https://secure.copilotcrm.com/customers/filter', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `query=${encodeURIComponent(lastName)}`
+      });
+      const customers2 = await searchRes2.json();
+      match = customers2.find(c => c.id && String(c.id) !== '0');
+    }
+  }
+  if (match) {
+    copilotCustomerCache.set(customerName, String(match.id));
+    return String(match.id);
+  }
+  return null;
+}
+
+// Log a communication to CopilotCRM (fire-and-forget)
+function logToCopilotCRM(customerName, noteHtml) {
+  // Run async, don't block the caller
+  (async () => {
+    try {
+      const auth = await getCopilotAuth();
+      if (!auth) return;
+      const customerId = await findCopilotCustomerId(customerName, auth.headers);
+      if (!customerId) {
+        console.log(`⚠️ CopilotCRM log: no customer found for "${customerName}"`);
+        return;
+      }
+      const res = await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
+        method: 'POST',
+        headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `customer_id=${customerId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
+      });
+      if (res.ok) {
+        console.log(`✅ CopilotCRM: logged communication for ${customerName}`);
+      }
+    } catch (e) {
+      console.error('CopilotCRM log failed:', e.message);
+    }
+  })();
 }
 
 // Generate filled PDF contract from scratch using pdf-lib
@@ -16623,50 +16711,12 @@ app.post('/api/google/post', requireAdmin, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// PHOTO LIBRARY
+// PHOTO LIBRARY — Admin endpoints (public endpoints defined before requireAdmin)
 // ═══════════════════════════════════════════════════════════════
 
-const photoUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  }
-});
-
-async function ensurePhotoLibraryTable() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS photo_library (
-    id SERIAL PRIMARY KEY,
-    image_data TEXT NOT NULL,
-    mime_type VARCHAR(50) DEFAULT 'image/jpeg',
-    original_name VARCHAR(255),
-    tags TEXT[] DEFAULT '{}',
-    category VARCHAR(100),
-    notes TEXT,
-    uploaded_by VARCHAR(100) DEFAULT 'admin',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )`);
-}
-
-// Serve photo from DB
-app.get('/api/photos/:id/image', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT image_data, mime_type FROM photo_library WHERE id = $1', [req.params.id]);
-    if (!result.rows.length) return res.status(404).send('Not found');
-    const row = result.rows[0];
-    const buffer = Buffer.from(row.image_data, 'base64');
-    res.set({ 'Content-Type': row.mime_type || 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
-    res.send(buffer);
-  } catch (error) {
-    res.status(500).send('Error');
-  }
-});
-
 // Upload photos (admin)
-app.post('/api/photos/upload', requireAdmin, photoUpload.array('photos', 10), async (req, res) => {
+app.post('/api/photos/upload', requireAdmin, photoUploadPublic.array('photos', 10), async (req, res) => {
   try {
-    await ensurePhotoLibraryTable();
     const { tags, category, notes } = req.body;
     const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : [];
 
@@ -16686,33 +16736,9 @@ app.post('/api/photos/upload', requireAdmin, photoUpload.array('photos', 10), as
   }
 });
 
-// Crew upload (public — no auth)
-app.post('/api/photos/crew-upload', photoUpload.array('photos', 5), async (req, res) => {
-  try {
-    await ensurePhotoLibraryTable();
-    const { crew_name, notes, tags } = req.body;
-    const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : ['crew-upload'];
-
-    const results = [];
-    for (const file of (req.files || [])) {
-      const base64 = file.buffer.toString('base64');
-      const result = await pool.query(
-        `INSERT INTO photo_library (image_data, mime_type, original_name, tags, category, notes, uploaded_by)
-         VALUES ($1, $2, $3, $4, 'crew', $5, $6) RETURNING id, original_name, tags, category, notes, uploaded_by, created_at`,
-        [base64, file.mimetype, file.originalname, tagArray, notes || '', crew_name || 'Crew']
-      );
-      results.push(result.rows[0]);
-    }
-    res.json({ success: true, photos: results });
-  } catch (error) {
-    serverError(res, error, 'Crew upload failed');
-  }
-});
-
 // List photos (returns metadata only, not image data)
 app.get('/api/photos', requireAdmin, async (req, res) => {
   try {
-    await ensurePhotoLibraryTable();
     const { category, tag } = req.query;
     let query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library ORDER BY created_at DESC';
     const params = [];

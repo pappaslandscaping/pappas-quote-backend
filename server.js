@@ -659,8 +659,7 @@ const ADMIN_PUBLIC_PATHS = [
   '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
   '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services', '/api/email-track/',
   '/api/config/', '/health', '/api/test-quote-pdf',
-  '/api/quickbooks/auth', '/api/quickbooks/callback',
-  '/api/copilotcrm/backfill'
+  '/api/quickbooks/auth', '/api/quickbooks/callback'
 ];
 
 function requireAdmin(req, res, next) {
@@ -6432,51 +6431,6 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
 // GET /api/sent-quotes/:id/contract-status - Check contract status
 // One-time backfill: sync all signed quotes to CopilotCRM
-app.post('/api/copilotcrm/backfill', async (req, res) => {
-  // Temporary secret key auth for one-time backfill
-  if (req.headers['x-backfill-key'] !== 'pappas-backfill-2026-xK9m') {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  try {
-    const signed = await pool.query(`
-      SELECT id, quote_number, customer_name, customer_email, customer_phone, customer_address,
-             services, total, monthly_payment, contract_signed_at, contract_signer_name,
-             signature_data, quote_type, status
-      FROM sent_quotes WHERE contract_signed_at IS NOT NULL ORDER BY contract_signed_at DESC
-    `);
-
-    const results = [];
-    for (const quote of signed.rows) {
-      try {
-        // Regenerate the contract PDF for upload
-        let pdfBytes = null;
-        try {
-          pdfBytes = await generateContractPDF(
-            quote,
-            quote.signature_data,
-            quote.contract_signer_name,
-            new Date(quote.contract_signed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-          );
-        } catch (pdfErr) {
-          console.log(`PDF generation failed for quote ${quote.id}: ${pdfErr.message}`);
-        }
-
-        const syncResult = await syncToCopilotCRM(quote, pdfBytes);
-        results.push({ id: quote.id, quote_number: quote.quote_number, customer: quote.customer_name, ...syncResult });
-        console.log(`Backfill ${quote.quote_number} (${quote.customer_name}): ${JSON.stringify(syncResult)}`);
-
-        // Small delay to avoid rate limiting
-        await new Promise(r => setTimeout(r, 1000));
-      } catch (err) {
-        results.push({ id: quote.id, quote_number: quote.quote_number, customer: quote.customer_name, success: false, error: err.message });
-      }
-    }
-
-    res.json({ success: true, total: signed.rows.length, results });
-  } catch (error) {
-    serverError(res, error, 'CopilotCRM backfill');
-  }
-});
 
 app.get('/api/sent-quotes/:id/contract-status', async (req, res) => {
   try {

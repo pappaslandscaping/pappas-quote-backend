@@ -659,7 +659,8 @@ const ADMIN_PUBLIC_PATHS = [
   '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
   '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services', '/api/email-track/',
   '/api/config/', '/health', '/api/test-quote-pdf',
-  '/api/quickbooks/auth', '/api/quickbooks/callback'
+  '/api/quickbooks/auth', '/api/quickbooks/callback',
+  '/api/copilotcrm/backfill'
 ];
 
 function requireAdmin(req, res, next) {

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timeclock Calculator — YardDesk</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .main { padding: 32px; max-width: 1100px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; margin: 0; }
+
+    .upload-zone {
+      border: 2px dashed #d1d5db;
+      border-radius: 12px;
+      padding: 48px 32px;
+      text-align: center;
+      background: #fafafa;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 24px;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: #2e403d;
+      background: #f0f4f0;
+    }
+    .upload-zone svg { margin-bottom: 12px; color: #6b7280; }
+    .upload-zone p { color: #6b7280; margin: 4px 0; }
+    .upload-zone .browse { color: #2e403d; font-weight: 600; text-decoration: underline; cursor: pointer; }
+
+    .results { display: none; }
+    .results.visible { display: block; }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .summary-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .summary-card .label { font-size: .8rem; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .summary-card .value { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
+
+    .employee-section {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .employee-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .employee-header h3 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    .employee-header .hours-badge {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: .9rem;
+    }
+
+    .rate-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .rate-row label { font-weight: 500; color: #374151; white-space: nowrap; }
+    .rate-input {
+      width: 120px;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .rate-input:focus { outline: none; border-color: #2e403d; box-shadow: 0 0 0 3px rgba(46,64,61,.1); }
+    .pay-amount {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #2e403d;
+      margin-left: 8px;
+    }
+
+    .entries-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    .entries-table th {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 2px solid #e5e7eb;
+      color: #6b7280;
+      font-weight: 600;
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .entries-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #374151;
+    }
+    .entries-table tr:last-child td { border-bottom: none; }
+    .entries-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .totals-row {
+      background: #f0f4f0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .totals-row .total-label { font-weight: 600; color: #374151; font-size: 1rem; }
+    .totals-row .total-pay { font-size: 1.5rem; font-weight: 700; color: #2e403d; }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding: 12px 16px;
+      background: #f0f4f0;
+      border-radius: 8px;
+      font-size: .9rem;
+    }
+    .file-info .filename { font-weight: 600; color: #2e403d; }
+    .file-info .clear-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+    }
+  </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main">
+  <div class="page-header">
+    <h1>Timeclock Calculator</h1>
+  </div>
+
+  <div id="uploadZone" class="upload-zone">
+    <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
+    <p><strong>Upload Time Tracking PDF</strong></p>
+    <p>Drag & drop or <span class="browse">browse</span></p>
+    <p style="font-size:.8rem; color:#9ca3af; margin-top:8px;">Supports Jobber / YardDesk time tracking exports</p>
+    <input type="file" id="fileInput" accept=".pdf" hidden>
+  </div>
+
+  <div id="results" class="results">
+    <div id="fileInfo" class="file-info"></div>
+    <div id="summaryCards" class="summary-cards"></div>
+    <div id="employeeSections"></div>
+    <div id="grandTotal" class="totals-row" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const results = document.getElementById('results');
+let parsedData = null;
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+async function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    alert('Please upload a PDF file');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('pdf', file);
+
+  uploadZone.innerHTML = '<p style="color:#2e403d;font-weight:600;">Parsing PDF...</p>';
+
+  try {
+    const token = localStorage.getItem('token');
+    const resp = await fetch('/api/timeclock/parse-pdf', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Failed to parse PDF');
+
+    parsedData = data;
+    renderResults(file.name, data);
+  } catch (err) {
+    alert('Error parsing PDF: ' + err.message);
+    resetUpload();
+  }
+}
+
+function resetUpload() {
+  uploadZone.innerHTML = `
+    <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
+    <p><strong>Upload Time Tracking PDF</strong></p>
+    <p>Drag & drop or <span class="browse">browse</span></p>
+    <p style="font-size:.8rem; color:#9ca3af; margin-top:8px;">Supports Jobber / YardDesk time tracking exports</p>
+  `;
+  results.classList.remove('visible');
+  fileInput.value = '';
+  parsedData = null;
+}
+
+function renderResults(filename, data) {
+  uploadZone.style.display = 'none';
+  results.classList.add('visible');
+
+  const employees = Object.keys(data.byEmployee);
+  const totalDecimal = employees.reduce((s, e) => s + data.byEmployee[e].decimalHours, 0);
+
+  // File info bar
+  document.getElementById('fileInfo').innerHTML = `
+    <svg width="20" height="20" fill="none" stroke="#2e403d" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+    <span class="filename">${filename}</span>
+    <span style="color:#6b7280;">${data.entries.length} entries · ${employees.length} employee${employees.length !== 1 ? 's' : ''}</span>
+    <button class="clear-btn" onclick="resetUpload(); uploadZone.style.display='';">✕ Clear</button>
+  `;
+
+  // Summary cards
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="summary-card">
+      <div class="label">Total Entries</div>
+      <div class="value">${data.entries.length}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Employees</div>
+      <div class="value">${employees.length}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Total Hours (Decimal)</div>
+      <div class="value">${totalDecimal.toFixed(2)}</div>
+    </div>
+    ${data.reportTotal ? `
+    <div class="summary-card">
+      <div class="label">PDF Report Total</div>
+      <div class="value">${data.reportTotal.hours}h ${data.reportTotal.minutes}m</div>
+    </div>` : ''}
+  `;
+
+  // Employee sections
+  const container = document.getElementById('employeeSections');
+  container.innerHTML = '';
+
+  for (const emp of employees) {
+    const d = data.byEmployee[emp];
+    const section = document.createElement('div');
+    section.className = 'employee-section';
+    section.innerHTML = `
+      <div class="employee-header">
+        <h3>${emp}</h3>
+        <span class="hours-badge">${d.decimalHours.toFixed(2)} hrs</span>
+      </div>
+      <div class="rate-row">
+        <label>Hourly Rate: $</label>
+        <input type="number" class="rate-input" data-employee="${emp}" data-hours="${d.decimalHours}" placeholder="0.00" step="0.01" min="0">
+        <span>= </span>
+        <span class="pay-amount" data-pay-for="${emp}">$0.00</span>
+      </div>
+      <table class="entries-table">
+        <thead><tr>
+          <th>Date</th>
+          <th>Start</th>
+          <th>End</th>
+          <th class="num">Hours</th>
+          <th class="num">Decimal</th>
+        </tr></thead>
+        <tbody>
+          ${d.entries.map(e => `
+            <tr>
+              <td>${e.date}</td>
+              <td>${e.start}</td>
+              <td>${e.end}</td>
+              <td class="num">${e.hours}h ${e.minutes}m</td>
+              <td class="num">${e.totalHours}</td>
+            </tr>
+          `).join('')}
+          <tr style="font-weight:600; border-top:2px solid #e5e7eb;">
+            <td colspan="3">Total</td>
+            <td class="num">${d.totalHours}h ${d.totalMinutes}m</td>
+            <td class="num">${d.decimalHours.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    container.appendChild(section);
+  }
+
+  // Grand total
+  const grandTotal = document.getElementById('grandTotal');
+  grandTotal.style.display = 'flex';
+  grandTotal.innerHTML = `
+    <span class="total-label">Grand Total Pay</span>
+    <span class="total-pay" id="grandTotalPay">$0.00</span>
+  `;
+
+  // Rate change handlers
+  document.querySelectorAll('.rate-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const rate = parseFloat(input.value) || 0;
+      const hours = parseFloat(input.dataset.hours);
+      const emp = input.dataset.employee;
+      const pay = rate * hours;
+      document.querySelector(`[data-pay-for="${emp}"]`).textContent = '$' + pay.toFixed(2);
+      updateGrandTotal();
+    });
+  });
+}
+
+function updateGrandTotal() {
+  let total = 0;
+  document.querySelectorAll('.rate-input').forEach(input => {
+    const rate = parseFloat(input.value) || 0;
+    const hours = parseFloat(input.dataset.hours);
+    total += rate * hours;
+  });
+  document.getElementById('grandTotalPay').textContent = '$' + total.toFixed(2);
+}
+</script>
+</body>
+</html>

@@ -108,7 +108,7 @@ try {
   console.log('⚠️ Anthropic SDK not available:', err.message);
 }
 
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -116,6 +116,18 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only images and CSV files are allowed'));
+    }
+  }
+});
+
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf' || file.originalname.endsWith('.pdf')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
     }
   }
 });
@@ -17025,6 +17037,74 @@ app.get('*', (req, res) => {
     console.error('⚠️ Startup table initialization error:', err.message);
   }
 })();
+
+// ═══════════════════════════════════════════════════════════
+// TIMECLOCK CALCULATOR — Parse time tracking PDFs for payroll
+// ═══════════════════════════════════════════════════════════
+
+app.post('/api/timeclock/parse-pdf', authenticateToken, pdfUpload.single('pdf'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
+
+    const pdfParse = require('pdf-parse');
+    const data = await pdfParse(req.file.buffer);
+    const text = data.text;
+
+    // Parse entries from the PDF text
+    // Format: "Mar 09, 2026 Redarowicz, Christopher , 8:21 am 5:17 pm 8 hrs. 55 min."
+    const entries = [];
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    for (const line of lines) {
+      const match = line.match(
+        /^([A-Z][a-z]{2}\s+\d{1,2},\s*\d{4})\s+(.+?)\s+,\s*(.*?)\s*(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d+)\s*hrs?\.\s*(\d+)\s*min/i
+      );
+      if (match) {
+        const hours = parseInt(match[6]);
+        const minutes = parseInt(match[7]);
+        entries.push({
+          date: match[1].trim(),
+          employee: match[2].trim(),
+          customer: match[3].trim().replace(/^,\s*/, '').replace(/,\s*$/, '') || '',
+          start: match[4].trim(),
+          end: match[5].trim(),
+          hours,
+          minutes,
+          totalHours: +(hours + minutes / 60).toFixed(2)
+        });
+      }
+    }
+
+    // Group by employee
+    const byEmployee = {};
+    for (const e of entries) {
+      if (!byEmployee[e.employee]) {
+        byEmployee[e.employee] = { entries: [], totalHours: 0, totalMinutes: 0 };
+      }
+      byEmployee[e.employee].entries.push(e);
+      byEmployee[e.employee].totalHours += e.hours;
+      byEmployee[e.employee].totalMinutes += e.minutes;
+    }
+
+    // Normalize minutes to hours
+    for (const emp of Object.keys(byEmployee)) {
+      const d = byEmployee[emp];
+      d.totalHours += Math.floor(d.totalMinutes / 60);
+      d.totalMinutes = d.totalMinutes % 60;
+      d.decimalHours = +(d.totalHours + d.totalMinutes / 60).toFixed(2);
+    }
+
+    // Extract total from header if present
+    const totalMatch = text.match(/Total Working time:\s*(\d+)\s*hrs?\.\s*(\d+)\s*min/i);
+    const reportTotal = totalMatch
+      ? { hours: parseInt(totalMatch[1]), minutes: parseInt(totalMatch[2]) }
+      : null;
+
+    res.json({ success: true, entries, byEmployee, reportTotal });
+  } catch (error) {
+    serverError(res, error, 'Timeclock PDF parse error');
+  }
+});
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

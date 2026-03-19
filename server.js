@@ -777,6 +777,64 @@ app.get('/api/season-kickoff/track/:token', async (req, res) => {
   res.send(pixel);
 });
 
+// --- Public photo endpoints (before auth middleware) ---
+const photoUploadPublic = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only images allowed'), false);
+  }
+});
+
+async function ensurePhotoLibraryTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS photo_library (
+    id SERIAL PRIMARY KEY,
+    image_data TEXT NOT NULL,
+    mime_type VARCHAR(50) DEFAULT 'image/jpeg',
+    original_name VARCHAR(255),
+    tags TEXT[] DEFAULT '{}',
+    category VARCHAR(100),
+    notes TEXT,
+    uploaded_by VARCHAR(100) DEFAULT 'admin',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+ensurePhotoLibraryTable().catch(e => console.error('Photo library table error:', e));
+
+app.post('/api/photos/crew-upload', photoUploadPublic.array('photos', 5), async (req, res) => {
+  try {
+    const { crew_name, notes, tags } = req.body;
+    const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : ['crew-upload'];
+    const results = [];
+    for (const file of (req.files || [])) {
+      const base64 = file.buffer.toString('base64');
+      const result = await pool.query(
+        `INSERT INTO photo_library (image_data, mime_type, original_name, tags, category, notes, uploaded_by)
+         VALUES ($1, $2, $3, $4, 'crew', $5, $6) RETURNING id, original_name, tags, category, notes, uploaded_by, created_at`,
+        [base64, file.mimetype, file.originalname, tagArray, notes || '', crew_name || 'Crew']
+      );
+      results.push(result.rows[0]);
+    }
+    res.json({ success: true, photos: results });
+  } catch (error) {
+    serverError(res, error, 'Crew upload failed');
+  }
+});
+
+app.get('/api/photos/:id/image', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT image_data, mime_type FROM photo_library WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).send('Not found');
+    const row = result.rows[0];
+    const buffer = Buffer.from(row.image_data, 'base64');
+    res.set({ 'Content-Type': row.mime_type || 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).send('Error');
+  }
+});
+
 // Apply admin auth middleware to all routes
 app.use(requireAdmin);
 
@@ -6373,7 +6431,11 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
 // GET /api/sent-quotes/:id/contract-status - Check contract status
 // One-time backfill: sync all signed quotes to CopilotCRM
-app.post('/api/copilotcrm/backfill', authenticateToken, async (req, res) => {
+app.post('/api/copilotcrm/backfill', async (req, res) => {
+  // Temporary secret key auth for one-time backfill
+  if (req.headers['x-backfill-key'] !== 'pappas-backfill-2026-xK9m') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   try {
     const signed = await pool.query(`
       SELECT id, quote_number, customer_name, customer_email, customer_phone, customer_address,

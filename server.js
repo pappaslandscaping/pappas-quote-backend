@@ -1262,7 +1262,7 @@ app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
         SELECT recipient_email, subject, customer_name, sent_at
         FROM email_log
         WHERE status = 'sent' AND customer_name IS NOT NULL
-          AND sent_at > NOW() - INTERVAL '30 days'
+          AND sent_at > NOW() - INTERVAL '7 days'
           AND recipient_email != $1
         ORDER BY sent_at ASC
       `, [process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com']);
@@ -1278,14 +1278,13 @@ app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
             body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
           });
           results.push({ customer: e.customer_name, success: true });
-          await new Promise(r => setTimeout(r, 200));
         } catch (err) { results.push({ customer: e.customer_name, success: false, error: err.message }); }
       }
     } else if (type === 'sms') {
       const sms = await pool.query(`
         SELECT m.to_number, m.body, m.created_at, c.name as customer_name, c.first_name, c.last_name
         FROM messages m LEFT JOIN customers c ON m.customer_id = c.id
-        WHERE m.direction = 'outbound' AND m.created_at > NOW() - INTERVAL '30 days'
+        WHERE m.direction = 'outbound' AND m.created_at > NOW() - INTERVAL '7 days'
         ORDER BY m.created_at ASC
       `);
 
@@ -1302,14 +1301,13 @@ app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
             body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
           });
           results.push({ customer: custName, success: true });
-          await new Promise(r => setTimeout(r, 200));
         } catch (err) { results.push({ to: s.to_number, success: false, error: err.message }); }
       }
     } else if (type === 'notes') {
       const notes = await pool.query(`
         SELECT n.content, n.author_name, n.created_at, c.name as customer_name, c.first_name, c.last_name
         FROM internal_notes n LEFT JOIN customers c ON n.entity_id = c.id
-        WHERE n.entity_type = 'customer' AND n.created_at > NOW() - INTERVAL '30 days'
+        WHERE n.entity_type = 'customer' AND n.created_at > NOW() - INTERVAL '7 days'
         ORDER BY n.created_at ASC
       `);
 
@@ -1326,7 +1324,6 @@ app.post('/api/copilotcrm/backfill-comms', async (req, res) => {
             body: `customer_id=${custId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
           });
           results.push({ customer: custName, success: true });
-          await new Promise(r => setTimeout(r, 200));
         } catch (err) { results.push({ customer: custName, success: false, error: err.message }); }
       }
     }

@@ -367,6 +367,7 @@ const API = '';
 const TOKEN = localStorage.getItem('token');
 
 let imageBase64 = null;
+let attachedPhotoUrl = null;
 let googleConnected = false;
 let currentPosts = {};
 let currentPlatform = 'facebook';
@@ -408,6 +409,7 @@ function handlePhoto(e) {
     const reader = new FileReader();
     reader.onload = function(ev) {
         imageBase64 = ev.target.result.split(',')[1];
+        attachedPhotoUrl = ev.target.result;
         document.getElementById('badgeImg').src = ev.target.result;
         document.getElementById('photoBadge').style.display = 'flex';
     };
@@ -416,8 +418,11 @@ function handlePhoto(e) {
 
 function removePhoto() {
     imageBase64 = null;
+    attachedPhotoUrl = null;
+    selectedPhoto = null;
     document.getElementById('photoInput').value = '';
     document.getElementById('photoBadge').style.display = 'none';
+    renderPhotoLibrary();
 }
 
 // ─── Chat System ─────────────────────────────────────
@@ -587,8 +592,12 @@ async function generateFromChat() {
         showPreviews();
         loadHistory();
 
-        // Clear photo after generation
-        removePhoto();
+        // Clear the input badge but keep the photo URL for the preview
+        imageBase64 = null;
+        selectedPhoto = null;
+        document.getElementById('photoInput').value = '';
+        document.getElementById('photoBadge').style.display = 'none';
+        renderPhotoLibrary();
     } catch (err) {
         hideTyping();
         addBubble('Error: ' + err.message, 'assistant');
@@ -637,7 +646,10 @@ function renderPhonePreview() {
 
     const text = post.text || '';
     document.getElementById('phoneHandle').textContent = info.handle;
-    document.getElementById('phoneBody').innerHTML = formatPostText(text, currentPlatform);
+    const photoHtml = attachedPhotoUrl
+        ? `<img src="${attachedPhotoUrl}" style="width:100%;border-radius:8px;margin-bottom:10px;" />`
+        : '';
+    document.getElementById('phoneBody').innerHTML = photoHtml + formatPostText(text, currentPlatform);
 
     // Char count
     const charEl = document.getElementById('previewChars');
@@ -807,10 +819,7 @@ function renderPhotoLibrary() {
     libraryPhotos.forEach(photo => {
         const div = document.createElement('div');
         div.className = 'photo-lib-item' + (selectedPhoto === photo.id ? ' selected' : '');
-        div.onclick = () => {
-            selectedPhoto = selectedPhoto === photo.id ? null : photo.id;
-            renderPhotoLibrary();
-        };
+        div.onclick = () => attachLibraryPhoto(photo);
         const tags = (photo.tags || []).join(', ');
         const crew = photo.uploaded_by !== 'admin' ? photo.uploaded_by : '';
         div.innerHTML = `
@@ -821,6 +830,40 @@ function renderPhotoLibrary() {
         `;
         grid.appendChild(div);
     });
+}
+
+async function attachLibraryPhoto(photo) {
+    if (selectedPhoto === photo.id) {
+        // Deselect
+        selectedPhoto = null;
+        imageBase64 = null;
+        attachedPhotoUrl = null;
+        document.getElementById('photoBadge').style.display = 'none';
+        renderPhotoLibrary();
+        return;
+    }
+    selectedPhoto = photo.id;
+    attachedPhotoUrl = '/api/photos/' + photo.id + '/image';
+    renderPhotoLibrary();
+
+    // Fetch as base64 for the AI
+    try {
+        const resp = await fetch(attachedPhotoUrl);
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+            imageBase64 = reader.result.split(',')[1];
+            document.getElementById('badgeImg').src = reader.result;
+            document.getElementById('photoBadge').style.display = 'flex';
+        };
+        reader.readAsDataURL(blob);
+    } catch (e) {
+        console.error('Failed to attach photo:', e);
+    }
+
+    // Scroll up to chat input
+    document.getElementById('chatInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('chatInput').focus();
 }
 
 async function uploadLibPhotos(e) {

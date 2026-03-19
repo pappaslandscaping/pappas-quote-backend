@@ -518,8 +518,13 @@ async function generateFromChat() {
         const lastAssistant = msgs.querySelectorAll('.chat-bubble.assistant');
         if (lastAssistant.length) lastAssistant[lastAssistant.length - 1].remove();
 
-        addBubble('Done! Here are your posts. You can edit, copy, or regenerate any of them. Type again if you want another post.', 'assistant');
+        // Build a quick summary of platforms
+        const platformKeys = Object.keys(currentPosts);
+        const platformLabels = platformKeys.map(k => PLATFORMS[k]?.label || k).join(', ');
+        addBubble('Done! I wrote posts for ' + platformLabels + '. Check them out below — you can switch platforms, edit, copy, or regenerate any of them.\n\nType again anytime to create a new post.', 'assistant');
 
+        // Set currentPlatform to first available
+        currentPlatform = platformKeys[0] || 'facebook';
         showPreviews();
         loadHistory();
 
@@ -552,7 +557,9 @@ function showPreviews() {
     }
 
     renderPhonePreview();
-    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
 }
 
 function switchPlatform(key) {

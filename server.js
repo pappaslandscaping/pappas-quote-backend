@@ -4073,10 +4073,9 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
       // Split name from street: name ends before the first house number (digits)
       const match = nameAndStreet.match(/^(.*?)\s+(\d+\s+.*)$/);
       if (match) {
-        const street = cityStateZip ? match[2] + ', ' + cityStateZip : match[2];
-        return { name: match[1].trim(), address: street };
+        return { name: match[1].trim(), address: match[2].trim() };
       }
-      return { name: nameAndStreet.trim(), address: cityStateZip };
+      return { name: nameAndStreet.trim(), address: '' };
     }
     
     let imported = 0, updated = 0, skipped = 0;

@@ -1027,6 +1027,12 @@
                     </h3>
                 </div>
                 <div class="bc-card-body">
+                    <div class="filter-row" style="margin-bottom:12px;">
+                        <div class="filter-label">SMS Template</div>
+                        <select class="filter-input" id="smsTemplateSelect" onchange="applySmsTemplate()">
+                            <option value="">— Type your own message —</option>
+                        </select>
+                    </div>
                     <textarea class="sms-textarea" id="smsBody" placeholder="Type your SMS message..." oninput="updateCharCount()"></textarea>
                     <div class="sms-footer">
                         <span class="char-counter" id="charCounter">0 / 160 (1 segment)</span>
@@ -1241,6 +1247,15 @@ async function loadTemplates() {
                 sel.appendChild(opt);
             });
 
+            // Populate SMS template dropdown with templates that have sms_body
+            const smsSel = document.getElementById('smsTemplateSelect');
+            templates.filter(t => t.sms_body).forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.name || t.subject || 'Template #' + t.id;
+                smsSel.appendChild(opt);
+            });
+
             // Auto-select template if passed via URL (from campaign send)
             const params = new URLSearchParams(window.location.search);
             const preTemplateId = params.get('template_id');
@@ -1248,17 +1263,18 @@ async function loadTemplates() {
             if (preTemplateId) {
                 sel.value = preTemplateId;
                 sel.dispatchEvent(new Event('change'));
-            } else if (preTemplateName) {
+            }
+            if (preTemplateName) {
                 const match = templates.find(t => (t.name || '').toLowerCase().includes(preTemplateName.toLowerCase()));
                 if (match) {
-                    sel.value = match.id;
-                    sel.dispatchEvent(new Event('change'));
-                    // Auto-populate SMS body from template
+                    if (!preTemplateId) {
+                        sel.value = match.id;
+                        sel.dispatchEvent(new Event('change'));
+                    }
+                    // Auto-select in SMS dropdown and apply
                     if (match.sms_body) {
-                        setTimeout(() => {
-                            document.getElementById('smsBody').value = match.sms_body;
-                            if (typeof updateCharCount === 'function') updateCharCount();
-                        }, 100);
+                        smsSel.value = match.id;
+                        setTimeout(() => applySmsTemplate(), 100);
                     }
                 }
             }
@@ -1625,6 +1641,17 @@ function previewTemplate() {
         document.getElementById('useTemplateSmsBtn').style.display = '';
     } else {
         document.getElementById('useTemplateSmsBtn').style.display = 'none';
+    }
+}
+
+function applySmsTemplate() {
+    const smsSel = document.getElementById('smsTemplateSelect');
+    const id = smsSel.value;
+    if (!id) return;
+    const tmpl = templates.find(t => String(t.id) === id);
+    if (tmpl && tmpl.sms_body) {
+        document.getElementById('smsBody').value = tmpl.sms_body;
+        updateCharCount();
     }
 }
 

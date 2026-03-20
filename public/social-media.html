@@ -487,6 +487,9 @@ async function sendMessage() {
     const text = input.value.trim();
     if (!text) return;
 
+    // Don't allow sending while generating/refining
+    if (conversationState === 'generating' || conversationState === 'refining') return;
+
     input.value = '';
     input.style.height = 'auto';
 
@@ -572,12 +575,12 @@ async function generateFromChat() {
 
         if (!data.success) {
             addBubble('Something went wrong: ' + (data.error || 'Unknown error'), 'assistant');
-            conversationState = 'done';
+            setDone();
             return;
         }
 
         currentPosts = data.posts;
-        conversationState = 'done';
+        setDone();
 
         // Remove the "Writing..." bubble
         const msgs = document.getElementById('chatMessages');
@@ -623,7 +626,7 @@ async function generateFromChat() {
     } catch (err) {
         hideTyping();
         addBubble('Error: ' + err.message, 'assistant');
-        conversationState = 'done';
+        setDone();
     }
 }
 
@@ -653,7 +656,7 @@ async function refineFromChat(instruction) {
 
             // If it's a conversational reply (not post updates), show it as chat
             addBubble(data.error || 'Something went wrong', 'assistant');
-            conversationState = 'done';
+            setDone();
             return;
         }
 
@@ -693,12 +696,18 @@ async function refineFromChat(instruction) {
             showPreviews();
         }
 
-        conversationState = 'done';
+        setDone();
     } catch (err) {
         hideTyping();
         addBubble('Error: ' + err.message, 'assistant');
-        conversationState = 'done';
+        setDone();
     }
+}
+
+function setDone() {
+    conversationState = 'done';
+    document.getElementById('chatInput').placeholder = 'Ask me to edit, suggest ideas, or say "new post"...';
+    document.getElementById('chatInput').focus();
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }

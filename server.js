@@ -16080,6 +16080,120 @@ Guidelines:
   }
 });
 
+// ─── Social Media AI Generator ──────────────────────────
+app.post('/api/social-media/generate', authenticateToken, async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured.' });
+    }
+
+    const { postType, tone, context, platform } = req.body;
+    if (!context) {
+      return res.status(400).json({ success: false, error: 'Please provide content context' });
+    }
+
+    const platforms = platform
+      ? [platform]
+      : ['facebook', 'instagram', 'nextdoor', 'tiktok', 'google', 'twitter'];
+
+    const systemPrompt = `You are a social media manager for Pappas & Co. Landscaping, a professional landscaping company in Lakewood/Cleveland, Ohio.
+
+Company info:
+- Name: Pappas & Co. Landscaping
+- Owner: Tim Pappas
+- Areas served: Lakewood, Brook Park, Bay Village, Westpark, Rocky River, Greater Cleveland
+- Services: mowing, spring/fall cleanup, mulching, aeration, weed control, shrub trimming, landscaping
+- Phone: 440-886-7318
+- Instagram/TikTok: @pappaslandscaping
+- Voice: Friendly, community-focused, professional but approachable. Tim is the face of the company.
+
+Generate social media posts for the following platforms: ${platforms.join(', ')}
+
+Rules:
+- Each platform should have a tailored version (e.g., shorter for Twitter/X with 280 char limit, hashtag-heavy for Instagram, community-focused for Nextdoor, professional for Google Business)
+- Use relevant hashtags for Instagram and TikTok
+- Nextdoor posts should feel neighborly — mention specific neighborhoods when relevant
+- Facebook posts can be longer and more conversational
+- Google posts should be professional and include a call to action
+- Twitter/X must be under 280 characters
+- Include emojis where appropriate for the platform
+- Tone: ${tone || 'professional'}
+
+Respond ONLY with valid JSON in this exact format, no markdown or extra text:
+{
+  "facebook": { "text": "..." },
+  "instagram": { "text": "..." },
+  "nextdoor": { "text": "..." },
+  "tiktok": { "text": "..." },
+  "google": { "text": "..." },
+  "twitter": { "text": "..." }
+}
+
+${platform ? `Only generate for: ${platform}` : ''}`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: `Post topic: ${context}\nTone: ${tone || 'professional'}` }]
+    });
+
+    const text = response.content[0].text;
+    let posts;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      posts = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+    } catch (e) {
+      console.error('Social media AI parse error:', e.message, 'Raw:', text);
+      return res.status(500).json({ success: false, error: 'Failed to parse AI response' });
+    }
+
+    // Save to history
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS social_media_posts (
+        id SERIAL PRIMARY KEY,
+        post_type VARCHAR(100),
+        tone VARCHAR(50),
+        context TEXT,
+        posts JSONB,
+        created_by INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+      await pool.query(
+        'INSERT INTO social_media_posts (post_type, tone, context, posts, created_by) VALUES ($1, $2, $3, $4, $5)',
+        [postType || 'Custom', tone, context, JSON.stringify(posts), req.user?.id]
+      );
+    } catch (dbErr) {
+      console.error('Social media history save error:', dbErr.message);
+    }
+
+    res.json({ success: true, posts });
+  } catch (error) {
+    console.error('Social media generate error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/social-media/history
+app.get('/api/social-media/history', authenticateToken, async (req, res) => {
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS social_media_posts (
+      id SERIAL PRIMARY KEY,
+      post_type VARCHAR(100),
+      tone VARCHAR(50),
+      context TEXT,
+      posts JSONB,
+      created_by INTEGER,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    const result = await pool.query('SELECT * FROM social_media_posts ORDER BY created_at DESC LIMIT 20');
+    res.json({ success: true, posts: result.rows });
+  } catch (error) {
+    console.error('Social media history error:', error);
+    serverError(res, error);
+  }
+});
+
 // GET /api/quotes/next-number - Get next sequential quote number
 app.get('/api/quotes/next-number', async (req, res) => {
   try {

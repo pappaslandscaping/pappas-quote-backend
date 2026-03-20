@@ -11185,7 +11185,8 @@ app.post('/api/season-kickoff/recover-tokens', async (req, res) => {
 
     res.json({ success: true, recovered, alreadyExists, noToken, totalEmailsScanned: logs.rows.length, details });
   } catch (error) {
-    serverError(res, error, 'Error recovering kickoff tokens');
+    console.error('Token recovery error:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong. Please try again.', debug: error.message });
   }
 });
 

@@ -805,6 +805,11 @@
                             <option value="marketing">Marketing</option>
                             <option value="system">System</option>
                         </select>
+                        <select class="form-select" id="editorChannel" style="max-width:140px; font-size:12px;" onchange="setTemplateChannel(this.value); markDirty()">
+                            <option value="email">Email</option>
+                            <option value="sms">SMS Only</option>
+                            <option value="both">Email + SMS</option>
+                        </select>
                     </div>
                     <div class="editor-toolbar-right">
                         <div class="toggle-row">
@@ -827,13 +832,13 @@
                 <!-- Scrollable Editor Body -->
                 <div class="editor-content">
                     <!-- Subject -->
-                    <div class="editor-section">
+                    <div class="editor-section email-section">
                         <div class="editor-section-title">&#x2709;&#xFE0F; Email Subject</div>
                         <input type="text" class="form-input" id="editorSubject" placeholder="e.g. Your quote from {company_name} is ready" oninput="markDirty()">
                     </div>
 
                     <!-- HTML Body + Preview -->
-                    <div class="editor-section">
+                    <div class="editor-section email-section">
                         <div class="editor-section-title">&#x1F4E7; Email Body &amp; Preview</div>
                         <div class="split-pane">
                             <div class="split-pane-left">
@@ -855,7 +860,7 @@
                     </div>
 
                     <!-- Wrapper Selection -->
-                    <div class="editor-section">
+                    <div class="editor-section email-section">
                         <div class="editor-section-title">&#x1F3A8; Email Wrapper</div>
                         <div class="radio-group" id="wrapperOptions">
                             <label class="radio-option selected" onclick="selectWrapper('full', this)">
@@ -882,7 +887,7 @@
                     </div>
 
                     <!-- SMS Body -->
-                    <div class="editor-section">
+                    <div class="editor-section sms-section">
                         <div class="editor-section-title">&#x1F4F1; SMS Body</div>
                         <textarea class="form-textarea" id="editorSms" rows="3" placeholder="Hi {customer_first_name}, your quote is ready: {quote_link}" oninput="markDirty(); updateSmsCounter();"></textarea>
                         <div class="sms-counter" id="smsCounter">0 / 160</div>
@@ -1108,6 +1113,7 @@ function renderTemplateList() {
                 <div class="template-card-slug">${escapeHtml(t.slug)}</div>
                 <div class="template-card-meta">
                     <span class="category-badge ${catClass}">${escapeHtml(t.category)}</span>
+                    ${t.channel === 'sms' ? '<span style="font-size:10px;color:#2e403d;background:#c9dd80;padding:1px 5px;border-radius:4px;font-weight:600;">SMS</span>' : t.channel === 'both' ? '<span style="font-size:10px;color:#2e403d;background:#c9dd80;padding:1px 5px;border-radius:4px;font-weight:600;">Email+SMS</span>' : ''}
                     <span class="template-card-date">${updated}</span>
                 </div>
             </div>
@@ -1160,6 +1166,9 @@ function openTemplate(t) {
     document.getElementById('editorName').value = t.name || '';
     document.getElementById('editorSlug').value = t.slug || '';
     document.getElementById('editorCategory').value = t.category || 'system';
+    const channel = t.channel || 'email';
+    document.getElementById('editorChannel').value = channel;
+    setTemplateChannel(channel);
     document.getElementById('editorSubject').value = t.subject || '';
     document.getElementById('editorBody').value = t.body || '';
     document.getElementById('editorSms').value = t.sms_body || '';
@@ -1199,6 +1208,8 @@ function createNewTemplate() {
     document.getElementById('editorName').value = '';
     document.getElementById('editorSlug').value = '';
     document.getElementById('editorCategory').value = 'quotes';
+    document.getElementById('editorChannel').value = 'email';
+    setTemplateChannel('email');
     document.getElementById('editorSubject').value = '';
     document.getElementById('editorBody').value = defaultBodyTemplate();
     document.getElementById('editorSms').value = '';
@@ -1254,6 +1265,7 @@ async function saveTemplate() {
         name,
         slug,
         category: document.getElementById('editorCategory').value,
+        channel: document.getElementById('editorChannel').value,
         subject: document.getElementById('editorSubject').value,
         body: document.getElementById('editorBody').value,
         sms_body: document.getElementById('editorSms').value,
@@ -1498,6 +1510,16 @@ function selectWrapper(value, el) {
 /* ==============================================================
    SMS Counter
    ============================================================== */
+function setTemplateChannel(ch) {
+    const showEmail = ch === 'email' || ch === 'both';
+    const showSms = ch === 'sms' || ch === 'both';
+    document.querySelectorAll('.email-section').forEach(el => el.style.display = showEmail ? '' : 'none');
+    document.querySelectorAll('.sms-section').forEach(el => el.style.display = showSms ? '' : 'none');
+    // Update Send Test button text
+    const testBtn = document.querySelector('[onclick="sendTestEmail()"]');
+    if (testBtn) testBtn.style.display = showEmail ? '' : 'none';
+}
+
 function updateSmsCounter() {
     const sms = document.getElementById('editorSms').value;
     const len = sms.length;

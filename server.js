@@ -108,7 +108,7 @@ try {
   console.log('⚠️ Anthropic SDK not available:', err.message);
 }
 
-const upload = multer({
+const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -120,36 +120,13 @@ const upload = multer({
   }
 });
 
-const pdfUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf' || file.originalname.endsWith('.pdf')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed'));
-    }
-  }
-});
-
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Trust proxy (Railway runs behind a reverse proxy)
-app.set('trust proxy', 1);
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
   credentials: true
 }));
-
-// Force HTTPS in production
-app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
-    return res.redirect(301, 'https://' + req.headers.host + req.url);
-  }
-  next();
-});
 
 // Security headers
 app.use((req, res, next) => {
@@ -437,136 +414,14 @@ function verifyPassword(password, stored) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex') === hash;
 }
 
-// TEMPORARY one-time password reset — REMOVE after use
-app.get('/api/auth/reset-once-Rk7Xp', async (req, res) => {
+// TEMPORARY: one-time password reset — REMOVE after use
+app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
   try {
-    const crypto2 = require('crypto');
-    const salt = crypto2.randomBytes(32).toString('hex');
-    const hash = crypto2.pbkdf2Sync('PappasReset2026!', salt, 100000, 64, 'sha512').toString('hex');
-    const stored = salt + ':' + hash;
-    await pool.query("UPDATE admin_users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [stored]);
-    res.send('<h2>Password has been reset!</h2><p>Email: hello@pappaslandscaping.com<br>Password: PappasReset2026!</p><p><a href="/login.html">Go to login</a></p><p style="color:red;margin-top:20px;"><strong>IMPORTANT:</strong> Tell Claude to remove this endpoint after you log in.</p>');
-  } catch(e) { serverError(res, e); }
-});
-
-// Forgot password — sends reset link via email
-app.post('/api/auth/forgot-password', loginLimiter, async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
-    const emailLower = email.toLowerCase().trim();
-
-    // Check admin_users first, then employees
-    let userId = null, userName = null, table = null, emailCol = null;
-    const adminResult = await pool.query('SELECT id, name, email FROM admin_users WHERE email = $1', [emailLower]);
-    if (adminResult.rows.length > 0) {
-      userId = adminResult.rows[0].id;
-      userName = adminResult.rows[0].name || 'there';
-      table = 'admin_users';
-      emailCol = 'email';
-    } else {
-      const empResult = await pool.query('SELECT id, first_name, last_name, login_email FROM employees WHERE login_email = $1 AND is_active = true', [emailLower]);
-      if (empResult.rows.length > 0) {
-        userId = empResult.rows[0].id;
-        userName = empResult.rows[0].first_name || 'there';
-        table = 'employees';
-        emailCol = 'login_email';
-      }
-    }
-
-    // Always return success to prevent email enumeration
-    if (!userId) {
-      console.log(`Password reset requested for unknown email: ${emailLower}`);
-      return res.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' });
-    }
-
-    // Generate secure reset token (expires in 1 hour)
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    // Ensure columns exist
-    await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(255)`);
-    await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS password_reset_expires TIMESTAMP`);
-
-    // Store token
-    await pool.query(`UPDATE ${table} SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3`, [resetToken, resetExpires, userId]);
-
-    // Send reset email
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const resetUrl = `${baseUrl}/reset-password.html?token=${resetToken}`;
-    const html = `
-      <div style="font-family:'DM Sans',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 0;">
-        <div style="text-align:center;margin-bottom:24px;">
-          <img src="${LOGO_URL}" alt="${COMPANY_NAME}" style="max-height:60px;">
-        </div>
-        <div style="background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb;">
-          <h2 style="margin:0 0 16px;font-size:20px;color:#1f2937;">Reset Your Password</h2>
-          <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
-            Hi ${userName},<br><br>
-            We received a request to reset your YardDesk password. Click the button below to choose a new password. This link expires in 1 hour.
-          </p>
-          <div style="text-align:center;margin-bottom:24px;">
-            <a href="${resetUrl}" style="display:inline-block;background:#2e403d;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Reset Password</a>
-          </div>
-          <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.5;">
-            If you didn't request this, you can safely ignore this email. Your password will not be changed.
-          </p>
-        </div>
-        <p style="text-align:center;margin-top:24px;color:#9ca3af;font-size:12px;">
-          ${COMPANY_NAME} &mdash; Cleveland, OH
-        </p>
-      </div>`;
-
-    await sendEmail(emailLower, 'Reset Your YardDesk Password', html, null, { type: 'password-reset' });
-    console.log(`Password reset email sent to ${emailLower}`);
-    res.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' });
-  } catch (error) {
-    console.error('Forgot password error:', error);
-    serverError(res, error, 'Forgot password error');
-  }
-});
-
-// Reset password with token
-app.post('/api/auth/reset-password', loginLimiter, async (req, res) => {
-  try {
-    const { token, new_password } = req.body;
-    if (!token || !new_password) return res.status(400).json({ success: false, error: 'Token and new password are required' });
-    if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
-
-    // Check admin_users first
-    let user = null, table = null;
-    try {
-      const adminResult = await pool.query('SELECT id, email FROM admin_users WHERE password_reset_token = $1 AND password_reset_expires > NOW()', [token]);
-      if (adminResult.rows.length > 0) {
-        user = adminResult.rows[0];
-        table = 'admin_users';
-      }
-    } catch (e) { /* columns may not exist yet */ }
-
-    if (!user) {
-      try {
-        const empResult = await pool.query('SELECT id, login_email as email FROM employees WHERE password_reset_token = $1 AND password_reset_expires > NOW()', [token]);
-        if (empResult.rows.length > 0) {
-          user = empResult.rows[0];
-          table = 'employees';
-        }
-      } catch (e) { /* columns may not exist yet */ }
-    }
-
-    if (!user) {
-      return res.status(400).json({ success: false, error: 'Invalid or expired reset link. Please request a new one.' });
-    }
-
-    // Update password and clear token
-    const newHash = hashPassword(new_password);
-    await pool.query(`UPDATE ${table} SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL WHERE id = $2`, [newHash, user.id]);
-
-    console.log(`Password reset successful for ${user.email}`);
-    res.json({ success: true, message: 'Password has been reset. You can now sign in.' });
-  } catch (error) {
-    console.error('Reset password error:', error);
-    serverError(res, error, 'Reset password error');
-  }
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash('1513Lincoln!', 10);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
+    res.json({ success: true, message: 'Password reset. Now remove this endpoint.' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Admin + Employee login
@@ -668,8 +523,8 @@ app.post('/api/auth/change-password', async (req, res) => {
 // Admin auth middleware — protects all admin API routes
 const ADMIN_PUBLIC_PATHS = [
   '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',
-  '/api/portal/', '/api/campaigns/submissions', '/api/campaigns/public/', '/api/app/',
-  '/api/unsubscribe', '/api/cron/', '/api/t/', '/api/square/status', '/api/services', '/api/email-track/',
+  '/api/portal/', '/api/campaigns/submissions', '/api/app/',
+  '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
   '/api/config/', '/health', '/api/test-quote-pdf',
   '/api/quickbooks/auth', '/api/quickbooks/callback'
 ];
@@ -701,202 +556,17 @@ function requireAdmin(req, res, next) {
   }
 }
 
-// PUBLIC: Season kickoff confirmation (no auth — customers click from email)
-app.get('/api/season-kickoff/confirm/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE token = $1', [token]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid or expired link' });
-    const row = result.rows[0];
-    // Track views: first view timestamp + total count
-    await pool.query('UPDATE season_kickoff_responses SET viewed_at = COALESCE(viewed_at, NOW()), view_count = COALESCE(view_count, 0) + 1 WHERE token = $1', [token]);
-    res.json({ success: true, customerName: row.customer_name, services: row.services, status: row.status });
-  } catch (error) {
-    console.error('Error loading kickoff confirmation:', error);
-    res.status(500).json({ success: false, error: 'Something went wrong' });
-  }
-});
-
-app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { response, notes } = req.body;
-    const result = await pool.query(
-      `UPDATE season_kickoff_responses SET status = $1, notes = $2, responded_at = NOW() WHERE token = $3 RETURNING *`,
-      [response, notes || '', token]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid link' });
-
-    // Notify admin about the response
-    const row = result.rows[0];
-    const statusLabel = response === 'confirmed' ? 'Confirmed Services' : 'Requested Changes';
-    let svcList = [];
-    try { svcList = typeof row.services === 'string' ? JSON.parse(row.services) : (row.services || []); } catch(e) {}
-    const svcRows = svcList.filter(s => { const l = (s.name||'').toLowerCase(); return !l.includes('snow') && !l.includes('salt') && !l.includes('deic'); })
-      .map(s => `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td></tr>`).join('');
-    const svcTable = svcRows ? `<table style="width:100%;border-collapse:collapse;margin:12px 0 16px;"><thead><tr style="background:#f8fafc;"><th style="padding:6px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e5e5e5;">Service</th><th style="padding:6px 12px;text-align:right;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e5e5e5;">Rate</th></tr></thead><tbody>${svcRows}</tbody></table>` : '';
-    let propList = [];
-    try { propList = typeof row.properties === 'string' ? JSON.parse(row.properties) : (row.properties || []); } catch(e) {}
-    const addrHtml = propList.filter(Boolean).map(p => escapeHtml(p)).join('<br>');
-    const notifyHtml = emailTemplate(`
-      <h2 style="font-size:20px;color:#1e293b;font-weight:700;margin:0 0 16px;">Season Kickoff Response</h2>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">
-        <strong>${escapeHtml(row.customer_name)}</strong> has <strong>${statusLabel.toLowerCase()}</strong>.
-      </p>
-      ${row.customer_email ? `<p style="font-size:14px;color:#64748b;margin:0 0 8px;">Contact: ${escapeHtml(row.customer_email)}</p>` : ''}
-      ${addrHtml ? `<p style="font-size:14px;color:#64748b;margin:0 0 12px;">Address: ${addrHtml}</p>` : ''}
-      ${svcTable}
-      ${notes ? `<p style="font-size:14px;color:#475569;margin:12px 0;padding:12px;background:#f8fafc;border-radius:8px;border-left:3px solid #2e403d;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
-    `);
-    sendEmail('hello@pappaslandscaping.com', `Season Kickoff: ${escapeHtml(row.customer_name)} — ${statusLabel}`, notifyHtml).catch(err => console.error('Notify email error:', err));
-
-    // Log to customer profile notes
-    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const noteText = response === 'confirmed'
-      ? `[${today}] Season Kickoff: Confirmed services for 2026.`
-      : `[${today}] Season Kickoff: Requested changes — ${notes || 'no details provided'}.`;
-    // Find customer_id by name match if not stored
-    const custLookup = row.customer_id
-      ? { rows: [{ id: row.customer_id }] }
-      : await pool.query(`SELECT id FROM customers WHERE LOWER(TRIM(COALESCE(name, first_name || ' ' || last_name))) = LOWER(TRIM($1)) LIMIT 1`, [row.customer_name]);
-    if (custLookup.rows.length > 0) {
-      const custId = custLookup.rows[0].id;
-      await pool.query(
-        `UPDATE customers SET notes = CASE WHEN notes IS NULL OR notes = '' THEN $1 ELSE notes || E'\n' || $1 END, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-        [noteText, custId]
-      );
-    }
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error confirming kickoff:', error);
-    res.status(500).json({ success: false, error: 'Something went wrong' });
-  }
-});
-
-// GET /api/season-kickoff/track/:token - Email open tracking pixel (public)
-app.get('/api/season-kickoff/track/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    await pool.query(
-      `UPDATE season_kickoff_responses SET email_opened_at = COALESCE(email_opened_at, NOW()), email_open_count = COALESCE(email_open_count, 0) + 1 WHERE token = $1`,
-      [token]
-    );
-  } catch (e) { /* silent */ }
-  // Return 1x1 transparent GIF
-  const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-  res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' });
-  res.send(pixel);
-});
-
-// --- Public photo endpoints (before auth middleware) ---
-const photoUploadPublic = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  }
-});
-
-async function ensurePhotoLibraryTable() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS photo_library (
-    id SERIAL PRIMARY KEY,
-    image_data TEXT NOT NULL,
-    mime_type VARCHAR(50) DEFAULT 'image/jpeg',
-    original_name VARCHAR(255),
-    tags TEXT[] DEFAULT '{}',
-    category VARCHAR(100),
-    notes TEXT,
-    uploaded_by VARCHAR(100) DEFAULT 'admin',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )`);
-}
-ensurePhotoLibraryTable().catch(e => console.error('Photo library table error:', e));
-
-app.post('/api/photos/crew-upload', photoUploadPublic.array('photos', 5), async (req, res) => {
-  try {
-    const { crew_name, notes, tags } = req.body;
-    const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : ['crew-upload'];
-    const results = [];
-    for (const file of (req.files || [])) {
-      const base64 = file.buffer.toString('base64');
-      const result = await pool.query(
-        `INSERT INTO photo_library (image_data, mime_type, original_name, tags, category, notes, uploaded_by)
-         VALUES ($1, $2, $3, $4, 'crew', $5, $6) RETURNING id, original_name, tags, category, notes, uploaded_by, created_at`,
-        [base64, file.mimetype, file.originalname, tagArray, notes || '', crew_name || 'Crew']
-      );
-      results.push(result.rows[0]);
-    }
-    res.json({ success: true, photos: results });
-
-    // Send email notification (fire-and-forget, don't block response)
-    try {
-      const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-      const photoCount = results.length;
-      const uploaderName = crew_name || 'Crew';
-      const tagList = tagArray.length ? tagArray.join(', ') : 'none';
-      const photoThumbs = results.map(p =>
-        `<img src="${baseUrl}/api/photos/${p.id}/image" style="width:120px;height:120px;object-fit:cover;border-radius:8px;margin:4px;" />`
-      ).join('');
-
-      const emailHtml = `
-        <div style="font-family:'DM Sans',sans-serif;max-width:500px;margin:0 auto;">
-          <div style="background:#2e403d;padding:20px;border-radius:12px 12px 0 0;text-align:center;">
-            <img src="${LOGO_URL}" style="max-height:50px;" />
-          </div>
-          <div style="background:#fff;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
-            <h2 style="margin:0 0 8px;color:#1e293b;font-size:18px;">📸 New Photos from ${uploaderName}</h2>
-            <p style="color:#64748b;font-size:14px;margin:0 0 16px;">
-              <strong>${photoCount}</strong> photo${photoCount > 1 ? 's' : ''} uploaded &bull; Tags: ${tagList}
-              ${notes ? '<br>Notes: ' + notes : ''}
-            </p>
-            <div style="margin-bottom:16px;">${photoThumbs}</div>
-            <a href="${baseUrl}/social-media.html" style="display:inline-block;padding:10px 20px;background:#2e403d;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">View in Photo Library</a>
-          </div>
-        </div>`;
-
-      sendEmail(NOTIFICATION_EMAIL, `📸 ${uploaderName} uploaded ${photoCount} photo${photoCount > 1 ? 's' : ''}`, emailHtml, null, { type: 'crew-photo-notification' });
-    } catch (emailErr) {
-      console.error('Photo notification email failed:', emailErr);
-    }
-  } catch (error) {
-    serverError(res, error, 'Crew upload failed');
-  }
-});
-
-app.get('/api/photos/:id/image', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT image_data, mime_type FROM photo_library WHERE id = $1', [req.params.id]);
-    if (!result.rows.length) return res.status(404).send('Not found');
-    const row = result.rows[0];
-    const buffer = Buffer.from(row.image_data, 'base64');
-    res.set({ 'Content-Type': row.mime_type || 'image/jpeg', 'Cache-Control': 'public, max-age=86400' });
-    res.send(buffer);
-  } catch (error) {
-    res.status(500).send('Error');
-  }
-});
-
 // Apply admin auth middleware to all routes
 app.use(requireAdmin);
 
 async function sendEmail(to, subject, html, attachments = null, meta = {}) {
-  if (!RESEND_API_KEY) return { success: false, error: 'No API key' };
+  if (!RESEND_API_KEY) return;
   try {
-    // Generate open tracking token and inject tracking pixel
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const openToken = crypto.randomBytes(32).toString('hex');
-    const trackingPixel = `<img src="${baseUrl}/api/email-track/${openToken}.png" width="1" height="1" style="display:none;" alt="">`;
-    const trackedHtml = html.includes('</body>') ? html.replace('</body>', trackingPixel + '</body>') : html + trackingPixel;
-    // Handle comma-separated emails: use first valid email only
-    const cleanTo = to.includes(',') ? to.split(',')[0].trim() : to.trim();
-    const payload = { from: FROM_EMAIL, to: [cleanTo], subject, html: trackedHtml };
+    const payload = { from: FROM_EMAIL, to: [to], subject, html };
     if (attachments) {
       payload.attachments = attachments;
       console.log(`📎 Email attachments: ${attachments.length} file(s), sizes: ${attachments.map(a => a.content ? Math.round(a.content.length * 0.75 / 1024) + 'KB' : 'unknown').join(', ')}`);
     }
-    console.log(`📧 Sending email to ${to}, subject: ${subject}`);
     const resp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -906,26 +576,15 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
     if (!resp.ok) {
       console.error(`❌ Resend API error (${resp.status}):`, respBody);
       // Log failed email
-      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8,$9,$10)`,
-        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody, html, openToken]); } catch(e) {}
-      return { success: false, error: respBody };
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body) VALUES ($1,$2,$3,$4,$5,$6,$7,'failed',$8,$9)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, respBody, html]); } catch(e) {}
     } else {
       console.log(`✅ Email sent to ${to}:`, respBody);
-      // Log successful email with open tracking token
-      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body, open_token) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8,$9)`,
-        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, trackedHtml, openToken]); } catch(e) {}
-      // Sync to CopilotCRM (fire-and-forget) — skip admin notifications
-      if (meta.customer_name && to !== NOTIFICATION_EMAIL) {
-        // Strip HTML tags to get plain text snippet of email body
-        const plainBody = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 500);
-        logToCopilotCRM(meta.customer_name, `<p><strong>[Email Sent]</strong> To: ${to}<br>Subject: ${subject}</p><p>${plainBody}${plainBody.length >= 500 ? '...' : ''}</p>`);
-      }
-      return { success: true };
+      // Log successful email
+      try { await pool.query(`INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, html_body) VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8)`,
+        [to, subject, meta.type||'general', meta.customer_id||null, meta.customer_name||null, meta.invoice_id||null, meta.quote_id||null, html]); } catch(e) {}
     }
-  } catch (err) {
-    console.error('Email failed:', err);
-    return { success: false, error: err.message };
-  }
+  } catch (err) { console.error('Email failed:', err); }
 }
 
 // Helper: split address into street line + city/state/zip line
@@ -1066,198 +725,6 @@ function emailTemplate(content, options = {}) {
 </body>
 </html>`;
 }
-
-// Sync a quote to CopilotCRM: accept estimate + upload contract PDF
-async function syncToCopilotCRM(quote, pdfBytes) {
-  if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) return { success: false, error: 'No CopilotCRM credentials' };
-
-  // Login
-  const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-    body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
-  });
-  const copilotAuth = await copilotLogin.json();
-  if (!copilotAuth.accessToken) throw new Error('CopilotCRM login failed');
-  const copilotHeaders = {
-    'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
-    'Origin': 'https://secure.copilotcrm.com',
-    'Referer': 'https://secure.copilotcrm.com/',
-    'X-Requested-With': 'XMLHttpRequest'
-  };
-
-  // Search for customer — try full name first, then last name as fallback
-  const customerName = quote.customer_name || '';
-  const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `query=${encodeURIComponent(customerName)}`
-  });
-  const customers = await searchRes.json();
-  let match = customers.find(c => c.id && String(c.id) !== '0');
-  if (!match) {
-    // Fallback: search by last name only (handles double-spaces or name mismatches in CopilotCRM)
-    const lastName = customerName.trim().split(/\s+/).pop();
-    if (lastName && lastName !== customerName.trim()) {
-      const searchRes2 = await fetch('https://secure.copilotcrm.com/customers/filter', {
-        method: 'POST',
-        headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `query=${encodeURIComponent(lastName)}`
-      });
-      const customers2 = await searchRes2.json();
-      match = customers2.find(c => c.id && String(c.id) !== '0');
-    }
-  }
-  if (!match) return { success: false, error: `No customer found for "${customerName}"` };
-
-  const copilotCustomerId = match.id;
-
-  // Get customer's estimates
-  const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `customer_id=${copilotCustomerId}`
-  });
-  const estData = await estRes.json();
-  const estHtml = estData.html || '';
-
-  // Match estimate by number
-  const quoteNum = quote.quote_number || '';
-  const paddedNum = quoteNum.replace(/^0+/, '').padStart(7, '0');
-  const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
-  let estMatch;
-  let copilotEstimateId = null;
-  while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
-    if (estMatch[2] === paddedNum || estMatch[2] === quoteNum) {
-      copilotEstimateId = estMatch[1];
-      break;
-    }
-  }
-  if (!copilotEstimateId) return { success: false, error: `No estimate matching "${quoteNum}" for customer ${copilotCustomerId}` };
-
-  // Accept estimate
-  const acceptRes = await fetch('https://secure.copilotcrm.com/finances/estimates/accept', {
-    method: 'POST',
-    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `id=${copilotEstimateId}&key=`
-  });
-  const accepted = acceptRes.ok;
-
-  // Upload contract PDF if available
-  let uploaded = false;
-  if (pdfBytes && pdfBytes.length > 0) {
-    const signUrlRes = await fetch('https://secure.copilotcrm.com/getSignedUploadUrl', {
-      method: 'POST',
-      headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contentType: 'application/pdf', size: pdfBytes.length })
-    });
-    const signUrlData = await signUrlRes.json();
-    if (signUrlData.data && signUrlData.data.uploadUrl) {
-      await fetch(signUrlData.data.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/pdf' },
-        body: Buffer.from(pdfBytes)
-      });
-      const uploadRes = await fetch('https://secure.copilotcrm.com/finances/estimates/uploadImage', {
-        method: 'POST',
-        headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estimateId: String(copilotEstimateId),
-          tempFileName: signUrlData.data.key,
-          contentType: 'application/pdf'
-        })
-      });
-      uploaded = uploadRes.ok;
-    }
-  }
-
-  return { success: true, copilotCustomerId, copilotEstimateId, accepted, uploaded };
-}
-
-// CopilotCRM auth cache (reuse token for 30 min)
-let copilotAuthCache = { token: null, headers: null, expiresAt: 0 };
-async function getCopilotAuth() {
-  if (copilotAuthCache.token && Date.now() < copilotAuthCache.expiresAt) return copilotAuthCache;
-  if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) return null;
-  const res = await fetch('https://api.copilotcrm.com/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-    body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
-  });
-  const data = await res.json();
-  if (!data.accessToken) return null;
-  copilotAuthCache = {
-    token: data.accessToken,
-    headers: {
-      'Cookie': `copilotApiAccessToken=${data.accessToken}`,
-      'Origin': 'https://secure.copilotcrm.com',
-      'Referer': 'https://secure.copilotcrm.com/',
-      'X-Requested-With': 'XMLHttpRequest'
-    },
-    expiresAt: Date.now() + 30 * 60 * 1000
-  };
-  return copilotAuthCache;
-}
-
-// CopilotCRM customer ID cache (in-memory, keyed by YardDesk customer name)
-const copilotCustomerCache = new Map();
-async function findCopilotCustomerId(customerName, headers) {
-  if (!customerName) return null;
-  const cached = copilotCustomerCache.get(customerName);
-  if (cached) return cached;
-
-  const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
-    method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `query=${encodeURIComponent(customerName)}`
-  });
-  const customers = await searchRes.json();
-  let match = customers.find(c => c.id && String(c.id) !== '0');
-  if (!match) {
-    const lastName = customerName.trim().split(/\s+/).pop();
-    if (lastName && lastName !== customerName.trim()) {
-      const searchRes2 = await fetch('https://secure.copilotcrm.com/customers/filter', {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `query=${encodeURIComponent(lastName)}`
-      });
-      const customers2 = await searchRes2.json();
-      match = customers2.find(c => c.id && String(c.id) !== '0');
-    }
-  }
-  if (match) {
-    copilotCustomerCache.set(customerName, String(match.id));
-    return String(match.id);
-  }
-  return null;
-}
-
-// Log a communication to CopilotCRM (fire-and-forget)
-function logToCopilotCRM(customerName, noteHtml) {
-  // Run async, don't block the caller
-  (async () => {
-    try {
-      const auth = await getCopilotAuth();
-      if (!auth) return;
-      const customerId = await findCopilotCustomerId(customerName, auth.headers);
-      if (!customerId) {
-        console.log(`⚠️ CopilotCRM log: no customer found for "${customerName}"`);
-        return;
-      }
-      const res = await fetch('https://secure.copilotcrm.com/customers/details/communicationSaveCall', {
-        method: 'POST',
-        headers: { ...auth.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `customer_id=${customerId}&call_notes=${encodeURIComponent(noteHtml)}&follow_up_date=`
-      });
-      if (res.ok) {
-        console.log(`✅ CopilotCRM: logged communication for ${customerName}`);
-      }
-    } catch (e) {
-      console.error('CopilotCRM log failed:', e.message);
-    }
-  })();
-}
-
 
 // Generate filled PDF contract from scratch using pdf-lib
 async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
@@ -3300,7 +2767,7 @@ app.post('/api/quotes', async (req, res) => {
       <p><a href="${dashboardUrl}">View Dashboard</a></p>
     `;
 
-    sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${escapeHtml(fullName)}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
+    sendEmail(NOTIFICATION_EMAIL, `New Quote Request from ${escapeHtml(fullName)}`, emailHtml);
   } catch (error) {
     serverError(res, error);
   }
@@ -5277,20 +4744,16 @@ app.get('/api/campaigns', async (req, res) => {
 // POST /api/campaigns - Create a new campaign
 app.post('/api/campaigns', async (req, res) => {
   try {
-    const { name, description, form_url, form_heading, form_description, form_fields, status = 'active' } = req.body;
+    const { name, description, form_url, status = 'active' } = req.body;
     if (!name) {
       return res.status(400).json({ success: false, error: 'Campaign name is required' });
     }
-    // Auto-generate slug from name
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) + '-' + Date.now().toString(36);
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const campaignLink = baseUrl + '/campaign.html?c=' + slug;
     const result = await pool.query(`
-      INSERT INTO campaigns (name, description, slug, form_heading, form_description, form_fields, form_url, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO campaigns (name, description, form_url, status)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [name, description, slug, form_heading || name, form_description || description, form_fields ? JSON.stringify(form_fields) : '["name","email","phone","address"]', form_url || campaignLink, status]);
-    res.json({ success: true, campaign: result.rows[0], campaign_link: campaignLink });
+    `, [name, description, form_url, status]);
+    res.json({ success: true, campaign: result.rows[0] });
   } catch (error) {
     console.error('Error creating campaign:', error);
     serverError(res, error);
@@ -5301,7 +4764,7 @@ app.post('/api/campaigns', async (req, res) => {
 app.get('/api/campaigns/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM campaigns WHERE id::text = $1 OR name = $1', [id]);
+    const result = await pool.query('SELECT * FROM campaigns WHERE id = $1 OR name = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Campaign not found' });
     }
@@ -5363,7 +4826,7 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
     const { id } = req.params;
     const { status, limit = 100, offset = 0 } = req.query;
     let query = 'SELECT * FROM campaign_submissions WHERE campaign_id = $1';
-    const params = [String(id)];
+    const params = [id];
     if (status) {
       query += ' AND status = $2';
       params.push(status);
@@ -5372,7 +4835,7 @@ app.get('/api/campaigns/:id/submissions', async (req, res) => {
     params.push(limit, offset);
     const [result, countResult] = await Promise.all([
       pool.query(query, params),
-      pool.query('SELECT COUNT(*) as total FROM campaign_submissions WHERE campaign_id = $1', [String(id)])
+      pool.query('SELECT COUNT(*) as total FROM campaign_submissions WHERE campaign_id = $1', [id])
     ]);
     res.json({
       success: true,
@@ -5424,32 +4887,9 @@ app.post('/api/campaigns/submissions', async (req, res) => {
       <br>
       <p><a href="${dashboardUrl}">View in Dashboard</a></p>
     `;
-    // Get campaign name for notification
-    let campaignName = campaign_id;
-    try {
-      const campRow = await pool.query('SELECT name FROM campaigns WHERE id = $1', [campaign_id]);
-      if (campRow.rows.length > 0) campaignName = campRow.rows[0].name;
-    } catch(e) {}
-    sendEmail(NOTIFICATION_EMAIL, `New ${campaignName} Request from ${fullName}`, emailHtml).catch(e => console.error('Notification email error:', e.message));
+    sendEmail(NOTIFICATION_EMAIL, `New ${campaign_id} Request from ${fullName}`, emailHtml);
   } catch (error) {
-    console.error('Error creating submission:', error.message, error.stack);
-    if (!res.headersSent) serverError(res, error);
-  }
-});
-
-// GET /api/campaigns/public/:slug - Public endpoint to get campaign info for landing page
-app.get('/api/campaigns/public/:slug', async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const result = await pool.query(
-      `SELECT id, name, description, slug, form_heading, form_description, form_fields, status FROM campaigns WHERE slug = $1 AND status = 'active'`,
-      [slug]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Campaign not found' });
-    }
-    res.json({ success: true, campaign: result.rows[0] });
-  } catch (error) {
+    console.error('Error creating submission:', error);
     serverError(res, error);
   }
 });
@@ -6536,22 +5976,9 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
           })
         });
         console.log('✅ Zapier webhook sent for contract signed');
-      } catch (e) {
-        console.error('Zapier contract webhook failed:', e);
+      } catch (e) { 
+        console.error('Zapier contract webhook failed:', e); 
       }
-    }
-
-    // Sync to CopilotCRM — update estimate status to accepted + upload signed contract
-    try {
-      const quoteNumber2 = updatedQuote.quote_number || 'Q-' + updatedQuote.id;
-      const syncResult = await syncToCopilotCRM(updatedQuote, pdfBytes);
-      if (syncResult.success) {
-        console.log(`✅ CopilotCRM sync: estimate ${syncResult.copilotEstimateId} accepted=${syncResult.accepted} uploaded=${syncResult.uploaded}`);
-      } else {
-        console.log(`⚠️ CopilotCRM sync skipped: ${syncResult.error}`);
-      }
-    } catch (copilotErr) {
-      console.error('CopilotCRM sync failed:', copilotErr.message);
     }
 
     // Stop quote follow-up sequence since quote was accepted
@@ -6577,8 +6004,6 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 });
 
 // GET /api/sent-quotes/:id/contract-status - Check contract status
-// One-time backfill: sync all signed quotes to CopilotCRM
-
 app.get('/api/sent-quotes/:id/contract-status', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -7016,23 +6441,6 @@ app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Failed to register device' });
   }
 });
-
-// Debug: log push notification errors from app
-app.post('/api/app/devices/debug', authenticateToken, async (req, res) => {
-  console.log('⚠️ Push notification debug from app:', JSON.stringify(req.body));
-  res.json({ received: true });
-});
-
-// Debug: check registered devices
-app.get('/api/app/devices', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT id, email, platform, updated_at FROM app_devices');
-    res.json({ devices: result.rows });
-  } catch (error) {
-    res.json({ devices: [], error: error.message });
-  }
-});
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // SMS MESSAGES - Add this to your server.js before the "GENERAL ROUTES" section
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -7088,25 +6496,24 @@ async function createCallsTable() {
 }
 createCallsTable();
 
-// Ensure app_devices table exists at startup
-(async () => {
-  try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS app_devices (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, push_token TEXT NOT NULL, platform VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(email, platform))`);
-    console.log('✅ App devices table ready');
-  } catch (err) {
-    console.log('ℹ️ App devices table setup:', err.message);
-  }
-})();
-
 // Send Expo Push Notification
 async function sendPushNotification(expoPushToken, title, body, data = {}) {
   try {
+    const payload = { to: expoPushToken, sound: 'default', title, body, data };
+    console.log('📲 Sending push:', JSON.stringify({ to: expoPushToken.substring(0, 30) + '...', title, body }));
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: expoPushToken, sound: 'default', title, body, data }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
     });
-    console.log('📲 Push sent to', expoPushToken.substring(0, 20) + '...');
+    const result = await response.json();
+    console.log('📲 Push response:', JSON.stringify(result));
+    if (result.data?.status === 'error') {
+      console.error('📲 Push failed:', result.data.message, '| Details:', result.data.details);
+    }
   } catch (error) {
     console.error('Push error:', error.message);
   }
@@ -7115,14 +6522,31 @@ async function sendPushNotification(expoPushToken, title, body, data = {}) {
 // Send push to all registered devices
 async function sendPushToAllDevices(title, body, data = {}) {
   try {
-    const devices = await pool.query('SELECT push_token FROM app_devices WHERE push_token IS NOT NULL');
+    const devices = await pool.query('SELECT push_token, email, platform FROM app_devices WHERE push_token IS NOT NULL');
+    console.log(`📲 Sending push to ${devices.rows.length} device(s)`);
+    if (devices.rows.length === 0) {
+      console.log('📲 No devices registered for push notifications');
+    }
     for (const device of devices.rows) {
-      if (device.push_token) await sendPushNotification(device.push_token, title, body, data);
+      if (device.push_token) {
+        console.log(`📲 → ${device.email} (${device.platform})`);
+        await sendPushNotification(device.push_token, title, body, data);
+      }
     }
   } catch (error) {
     console.error('Push to all devices error:', error.message);
   }
 }
+
+// Debug: Check registered devices (admin only)
+app.get('/api/app/devices', authenticateToken, async (req, res) => {
+  try {
+    const devices = await pool.query('SELECT id, email, platform, push_token, updated_at FROM app_devices ORDER BY updated_at DESC');
+    res.json({ devices: devices.rows.map(d => ({ ...d, push_token: d.push_token ? d.push_token.substring(0, 30) + '...' : null })) });
+  } catch (error) {
+    res.json({ devices: [], error: error.message });
+  }
+});
 
 // Twilio SMS Webhook - Receives incoming texts
 app.post('/api/sms/webhook', async (req, res) => {
@@ -7158,11 +6582,6 @@ app.post('/api/sms/webhook', async (req, res) => {
     `, [MessageSid, From, To, Body, mediaUrls, customerId]);
 
     console.log(`📨 Incoming SMS from ${customerName} (${From}): ${Body?.substring(0, 50)}...`);
-
-    // Sync inbound SMS to CopilotCRM
-    if (customerName && customerName !== 'Unknown') {
-      logToCopilotCRM(customerName, `<p><strong>[SMS Received]</strong> From: ${From}<br>${Body || '(no text)'}</p>`);
-    }
 
     // Send push notification
     sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });
@@ -7627,98 +7046,21 @@ app.post('/api/messages/send', async (req, res) => {
     // Find customer
     const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
     const customerResult = await pool.query(`
-      SELECT id, name, first_name, last_name FROM customers
-      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
-         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+      SELECT id FROM customers 
+      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 
+         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 
       LIMIT 1
     `, [`%${cleanedPhone}`]);
 
-    const custRow = customerResult.rows[0];
     await pool.query(`
       INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
       VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
-    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, custRow?.id || null]);
-
-    // Sync to CopilotCRM
-    if (custRow) {
-      const custName = custRow.name || ((custRow.first_name||'')+(custRow.last_name?' '+custRow.last_name:'')).trim();
-      if (custName) logToCopilotCRM(custName, `<p><strong>[SMS Sent]</strong> To: ${formattedTo}<br>${body}</p>`);
-    }
+    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, customerResult.rows[0]?.id || null]);
 
     res.json({ success: true, sid: twilioMessage.sid });
   } catch (error) {
     console.error('Send SMS error:', error);
     res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// ─── Customer Communications (for customer-detail page) ───────────────────────
-
-// GET /api/customers/:id/communications — messages for a customer
-app.get('/api/customers/:id/communications', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const cust = await pool.query('SELECT phone, mobile FROM customers WHERE id = $1', [id]);
-    if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
-
-    const { phone, mobile } = cust.rows[0];
-    const phones = [phone, mobile].filter(Boolean).map(p => p.replace(/\D/g, '').slice(-10)).filter(p => p.length === 10);
-
-    if (!phones.length) return res.json({ communications: [] });
-
-    const conditions = phones.map((_, i) => `RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $${i + 1} OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $${i + 1}`).join(' OR ');
-    const msgs = await pool.query(
-      `SELECT id, direction, from_number, to_number, body, status, media_urls, created_at, 'message' as record_type
-       FROM messages WHERE ${conditions} ORDER BY created_at DESC LIMIT 50`, phones
-    );
-
-    res.json({ communications: msgs.rows });
-  } catch (error) {
-    console.error('Customer communications error:', error);
-    serverError(res, error, 'Failed to load communications');
-  }
-});
-
-// POST /api/customers/:id/send-message — send SMS to a customer
-app.post('/api/customers/:id/send-message', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { body } = req.body;
-    if (!body || !body.trim()) return res.status(400).json({ success: false, error: 'Message body required' });
-
-    const cust = await pool.query('SELECT name, first_name, last_name, phone, mobile FROM customers WHERE id = $1', [id]);
-    if (!cust.rows.length) return res.status(404).json({ success: false, error: 'Customer not found' });
-
-    const toNumber = cust.rows[0].mobile || cust.rows[0].phone;
-    if (!toNumber) return res.status(400).json({ success: false, error: 'Customer has no phone number' });
-
-    let formattedTo = toNumber.replace(/\D/g, '');
-    if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
-    else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
-
-    if (!twilioClient) return res.status(500).json({ success: false, error: 'SMS service not configured' });
-
-    const twilioMessage = await twilioClient.messages.create({
-      body: body.trim(),
-      from: TWILIO_PHONE_NUMBER,
-      to: formattedTo
-    });
-
-    await pool.query(
-      `INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
-       VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)`,
-      [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body.trim(), twilioMessage.status, parseInt(id)]
-    );
-
-    // Sync to CopilotCRM
-    const c = cust.rows[0];
-    const custName = c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim();
-    if (custName) logToCopilotCRM(custName, `<p><strong>[SMS Sent]</strong> To: ${formattedTo}<br>${body.trim()}</p>`);
-
-    res.json({ success: true, sid: twilioMessage.sid });
-  } catch (error) {
-    console.error('Send customer message error:', error);
-    serverError(res, error, 'Failed to send message');
   }
 });
 
@@ -11099,653 +10441,6 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
-// Build season kickoff email content (inner HTML for emailTemplate)
-function buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices) {
-  const firstName = escapeHtml((customerName || 'Customer').split(' ')[0]);
-  const snowFilter = s => {
-    const l = s.name.toLowerCase();
-    return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
-  };
-
-  // Email open tracking pixel
-  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-  const tokenMatch = confirmUrl && confirmUrl.match(/token=([a-f0-9]+)/);
-  const trackingPixel = tokenMatch ? `<img src="${baseUrl}/api/season-kickoff/track/${tokenMatch[1]}" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" alt="">` : '';
-
-  const ctaButton = confirmUrl ? `
-    <div style="text-align:center;margin:28px 0 24px;">
-      <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm or Request Changes</a>
-    </div>
-  ` : '';
-
-  const buildTable = (svcs) => {
-    const rows = svcs.filter(snowFilter).map(s => `
-      <tr>
-        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td>
-        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">$${parseFloat(s.rate).toFixed(2)}</td>
-      </tr>
-    `).join('');
-    if (!rows) return '';
-    return `
-    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:24px;">
-      <thead>
-        <tr style="background:#f8fafc;">
-          <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Service</th>
-          <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Rate</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-  };
-
-  // Multi-property: show services grouped by property (only if 2+ properties have services)
-  if (propertyServices && propertyServices.length > 1) {
-    const sections = propertyServices.map(ps => {
-      const table = buildTable(ps.services);
-      if (!table) return '';
-      return `
-        <p style="font-size:15px;color:#2e403d;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #e5e5e5;padding-bottom:6px;">${escapeHtml(ps.address)}</p>
-        ${table}
-      `;
-    }).filter(Boolean).join('');
-
-    if (!sections) return null;
-
-    return `
-      <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-        We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
-      </p>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 8px;">
-        Here's a summary of the services we provided at each property last season:
-      </p>
-      ${sections}
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-        <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Let us know if everything looks right — just click below to confirm.
-      </p>
-      ${ctaButton}
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
-        Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
-      </p>
-      ${trackingPixel}`;
-  }
-
-  // Single property
-  const filtered = services.filter(snowFilter);
-  if (!filtered.length) return null;
-
-  const props = (properties || []).filter(Boolean);
-  const addressSection = props.length > 0 ? `
-    <p style="font-size:15px;color:#2e403d;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #e5e5e5;padding-bottom:6px;">${escapeHtml(props[0])}</p>
-  ` : '';
-
-  return `
-    <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-      We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
-    </p>
-    ${addressSection}
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 20px;">
-      Here's a summary of the services we provided for you last season:
-    </p>
-    ${buildTable(filtered)}
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
-      <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Let us know if everything looks right — just click below to confirm.
-    </p>
-    ${ctaButton}
-    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
-      Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
-    </p>
-    ${trackingPixel}
-  `;
-}
-
-// POST /api/season-kickoff/send-test - Send a test kickoff email
-app.post('/api/season-kickoff/send-test', async (req, res) => {
-  try {
-    const { email, customerName, services, properties, propertyServices } = req.body;
-    if (!email || !services) return res.status(400).json({ success: false, error: 'Email and services required' });
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const token = crypto.randomBytes(24).toString('hex');
-    const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
-    // Store token (for test, use a simple in-memory approach; real sends store in DB)
-    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
-      [token, customerName, email, JSON.stringify(services), JSON.stringify(properties || [])]);
-    const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
-    if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
-    const html = emailTemplate(content);
-    const firstName = (customerName || 'Customer').split(' ')[0];
-    const result = await sendEmail(email, `You're on our list for 2026, ${escapeHtml(firstName)}!`, html, null, { type: 'season_kickoff', customer_name: customerName });
-    res.json(result);
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// POST /api/season-kickoff/send-sms - Send season kickoff text message
-app.post('/api/season-kickoff/send-sms', async (req, res) => {
-  try {
-    const { phone, customerName, services } = req.body;
-    if (!phone || !services || !services.length) return res.status(400).json({ success: false, error: 'Phone and services required' });
-    if (!twilioClient) return res.status(500).json({ success: false, error: 'SMS not configured' });
-
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const token = crypto.randomBytes(24).toString('hex');
-    const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
-
-    // Store token in DB
-    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
-      [token, customerName, phone, JSON.stringify(services), JSON.stringify([])]);
-
-    const firstName = (customerName || 'Customer').split(' ')[0];
-    const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime:\n440-886-7318`;
-
-    let formattedTo = phone.replace(/\D/g, '');
-    if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
-    else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
-
-    const twilioMessage = await twilioClient.messages.create({
-      body,
-      from: TWILIO_PHONE_NUMBER,
-      to: formattedTo
-    });
-
-    // Log in messages table
-    const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
-    const customerResult = await pool.query(`
-      SELECT id FROM customers
-      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
-         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
-      LIMIT 1
-    `, [`%${cleanedPhone}`]);
-
-    await pool.query(`
-      INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
-      VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
-    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, customerResult.rows[0]?.id || null]);
-
-    res.json({ success: true, sid: twilioMessage.sid });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// POST /api/season-kickoff/send-bulk - Send kickoff emails to selected customers
-app.post('/api/season-kickoff/send-bulk', async (req, res) => {
-  try {
-    const { customers } = req.body;
-    if (!customers || !customers.length) return res.status(400).json({ success: false, error: 'No customers provided' });
-
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const delay = (ms) => new Promise(r => setTimeout(r, ms));
-    const results = { sent: 0, skipped: 0, errors: 0, details: [] };
-
-    for (const cust of customers) {
-      if (!cust.email || !cust.services || !cust.services.length) {
-        results.skipped++;
-        results.details.push({ name: cust.name, status: 'skipped', reason: 'No email or services' });
-        continue;
-      }
-
-      try {
-        const token = crypto.randomBytes(24).toString('hex');
-        const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
-
-        // Store token in DB
-        await pool.query(
-          `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
-          [token, cust.name, cust.email, JSON.stringify(cust.services), JSON.stringify(cust.properties || [])]
-        );
-
-        const content = buildKickoffContent(cust.name, cust.services, confirmUrl, cust.properties, cust.propertyServices);
-        if (!content) {
-          results.skipped++;
-          results.details.push({ name: cust.name, status: 'skipped', reason: 'No eligible services' });
-          continue;
-        }
-
-        const html = emailTemplate(content);
-        const firstName = (cust.name || 'Customer').split(' ')[0];
-        const emailResult = await sendEmail(
-          cust.email,
-          `You're on our list for 2026, ${escapeHtml(firstName)}!`,
-          html,
-          null,
-          { type: 'season_kickoff', customer_name: cust.name }
-        );
-
-        if (emailResult && emailResult.success) {
-          results.sent++;
-          results.details.push({ name: cust.name, status: 'sent' });
-        } else {
-          results.errors++;
-          results.details.push({ name: cust.name, status: 'error' });
-        }
-      } catch (e) {
-        console.error(`Season kickoff email error for ${cust.name}:`, e.message);
-        results.errors++;
-        results.details.push({ name: cust.name, status: 'error' });
-      }
-
-      // Rate limit: ~2 emails/sec to avoid Resend 429 errors
-      await delay(1200);
-    }
-
-    res.json({ success: true, ...results });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// POST /api/season-kickoff/preview - Get email HTML for preview
-app.post('/api/season-kickoff/preview', async (req, res) => {
-  try {
-    const { customerName, services, properties, propertyServices } = req.body;
-    const confirmUrl = '#preview';
-    const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
-    if (!content) return res.json({ success: false, error: 'No eligible services' });
-    const html = emailTemplate(content);
-    res.json({ success: true, html });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// GET /api/season-kickoff/responses - View all responses (admin)
-app.get('/api/season-kickoff/responses', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, viewed_at, view_count, email_opened_at, email_open_count, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
-    res.json({ success: true, responses: result.rows });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// PATCH /api/season-kickoff/responses/:id - Update a response's services (admin)
-app.patch('/api/season-kickoff/responses/:id', async (req, res) => {
-  try {
-    const { services, properties } = req.body;
-    if (!services) return res.status(400).json({ success: false, error: 'Services required' });
-    await pool.query(
-      `UPDATE season_kickoff_responses SET services = $1, properties = $2 WHERE id = $3`,
-      [JSON.stringify(services), JSON.stringify(properties || []), req.params.id]
-    );
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// DELETE /api/season-kickoff/responses/:id - Delete a response (admin)
-app.delete('/api/season-kickoff/responses/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM season_kickoff_responses WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// POST /api/season-kickoff/reply - Reply to a customer's change request
-app.post('/api/season-kickoff/reply', async (req, res) => {
-  try {
-    const { responseId, message } = req.body;
-    if (!responseId || !message) return res.status(400).json({ success: false, error: 'Response ID and message required' });
-    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE id = $1', [responseId]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Response not found' });
-    const r = result.rows[0];
-    if (!r.customer_email) return res.status(400).json({ success: false, error: 'No email address' });
-
-    const html = emailTemplate(`
-      <h2 style="font-size:22px;color:#1e293b;font-weight:700;margin:0 0 20px;">Hi ${escapeHtml((r.customer_name || 'there').split(' ')[0])},</h2>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">
-        Thanks for letting us know about the changes you'd like for the 2026 season. Here's our response:
-      </p>
-      <div style="background:#f8fafc;border-left:4px solid #2e403d;padding:16px 20px;margin:0 0 24px;border-radius:0 8px 8px 0;">
-        <p style="font-size:15px;color:#334155;line-height:1.6;margin:0;">${escapeHtml(message)}</p>
-      </div>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">
-        If you have any other questions, feel free to reply to this email or call us at <strong>440-886-7318</strong>.
-      </p>
-      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
-        Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
-      </p>
-    `);
-
-    await sendEmail(r.customer_email, `Re: Your 2026 Service Changes — Pappas & Co. Landscaping`, html);
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
-app.get('/api/reports/2025-services', async (req, res) => {
-  try {
-    // Get invoices that have 2025 line items (by item date, or by due_date when item date is missing)
-    const result = await pool.query(`
-      SELECT
-        COALESCE(i.customer_id, c_name.id) as customer_id,
-        COALESCE(
-          NULLIF(COALESCE(c_id.name, c_name.name), ''),
-          NULLIF(TRIM(COALESCE(c_id.first_name, c_name.first_name, '') || ' ' || COALESCE(c_id.last_name, c_name.last_name, '')), ''),
-          i.customer_name,
-          'Unknown'
-        ) as customer_name,
-        COALESCE(c_id.email, c_name.email, i.customer_email) as email,
-        COALESCE(c_id.phone, c_id.mobile, c_name.phone, c_name.mobile) as phone,
-        COALESCE(c_id.street, c_name.street, i.customer_address) as address,
-        COALESCE(c_id.city, c_name.city) as city,
-        COALESCE(c_id.status, c_name.status) as customer_status,
-        i.line_items,
-        i.due_date,
-        i.created_at
-      FROM invoices i
-      LEFT JOIN customers c_id ON c_id.id = i.customer_id
-      LEFT JOIN customers c_name ON i.customer_id IS NULL
-        AND c_name.id = (
-          SELECT c2.id FROM customers c2
-          WHERE LOWER(TRIM(COALESCE(c2.name, c2.first_name || ' ' || c2.last_name))) = LOWER(TRIM(SPLIT_PART(i.customer_name, '#', 1)))
-          LIMIT 1
-        )
-      WHERE (
-        EXISTS (
-          SELECT 1 FROM jsonb_array_elements(i.line_items) item
-          WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
-        )
-        OR (
-          i.created_at >= '2025-05-01'
-          AND i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
-          AND EXISTS (
-            SELECT 1 FROM jsonb_array_elements(i.line_items) item
-            WHERE item->>'date' = '0000-00-00' OR item->>'date' IS NULL OR item->>'date' = ''
-          )
-        )
-      )
-      ORDER BY customer_name
-    `);
-
-    // Group by customer, only counting line items with 2025 service dates
-    const customers = {};
-    for (const inv of result.rows) {
-      // Skip inactive customers
-      if (inv.customer_status && inv.customer_status.toLowerCase() === 'inactive') continue;
-
-      const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown').toLowerCase().trim());
-      if (!customers[cid]) {
-        customers[cid] = {
-          customer_id: inv.customer_id,
-          name: inv.customer_name,
-          email: inv.email,
-          phone: inv.phone,
-          address: inv.address,
-          city: inv.city,
-          services: {},
-          total_invoiced: 0
-        };
-      }
-
-      // Only count line items with actual 2025 service dates
-      const items = inv.line_items || [];
-      for (const item of items) {
-        if (!item.name) continue;
-        let itemDate = item.date || '';
-        // For 0000-00-00 dates, fall back to invoice due_date if the invoice was created in 2025
-        const createdAt = inv.created_at ? inv.created_at.toISOString().slice(0, 10) : '';
-        if ((itemDate === '0000-00-00' || itemDate === '' || !itemDate) && createdAt >= '2025-05-01') {
-          const dd = inv.due_date ? inv.due_date.toISOString().slice(0, 10) : '';
-          if (dd >= '2025-01-01' && dd < '2026-01-01') {
-            itemDate = dd;
-          } else {
-            continue;
-          }
-        }
-        if (itemDate < '2025-01-01' || itemDate >= '2026-01-01') continue;
-        // Skip processing fees and fuel surcharges
-        const lower = item.name.toLowerCase();
-        if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
-        // Skip one-time project services that don't repeat
-        if (lower.includes('landscaping') || lower.includes('river rock') || lower.includes('garbage removal') || lower.includes('mowing first cut') || lower.includes('stump grinding')) continue;
-        // Skip generic "." entries
-        if (item.name.trim() === '.') continue;
-
-        let serviceName = item.name;
-        const dashIdx = serviceName.indexOf(' - ');
-        if (dashIdx > -1 && serviceName.toLowerCase().startsWith('property')) {
-          serviceName = serviceName.substring(dashIdx + 3);
-        }
-        // Normalize service names
-        if (serviceName.toLowerCase().trim() === 'fertilizing') serviceName = 'Fertilizing (Per Application)';
-        if (serviceName.toLowerCase().trim() === 'spreading fertilizer') serviceName = 'Fertilizing (Per Application)';
-        const amount = parseFloat(item.amount || 0);
-        const rate = parseFloat(item.rate || 0);
-        const effectiveDate = itemDate;
-        if (!customers[cid].services[serviceName]) {
-          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate, earliestRate: rate, earliestDate: effectiveDate, rates: {} };
-        }
-        if (effectiveDate <= customers[cid].services[serviceName].earliestDate) {
-          customers[cid].services[serviceName].earliestRate = rate;
-          customers[cid].services[serviceName].earliestDate = effectiveDate;
-        }
-        // Track all distinct rates with their latest date
-        if (!customers[cid].services[serviceName].rates[rate] || effectiveDate >= customers[cid].services[serviceName].rates[rate]) {
-          customers[cid].services[serviceName].rates[rate] = effectiveDate;
-        }
-        // Always use the latest rate (closest to end of season)
-        if (effectiveDate >= customers[cid].services[serviceName].latestDate) {
-          customers[cid].services[serviceName].rate = rate;
-          customers[cid].services[serviceName].latestDate = effectiveDate;
-        }
-        customers[cid].services[serviceName].count++;
-        customers[cid].services[serviceName].total += amount;
-        customers[cid].total_invoiced += amount;
-      }
-    }
-
-    // Apply minimum rates: Spring Cleanup = $100 minimum
-    for (const cid of Object.keys(customers)) {
-      for (const svcName of Object.keys(customers[cid].services)) {
-        if (svcName.toLowerCase().includes('spring cleanup') && customers[cid].services[svcName].rate < 100) {
-          customers[cid].services[svcName].rate = 100;
-        }
-      }
-    }
-
-    // Add manually-specified customers not captured by 2025 invoice query (scheduled in CRM for 2026)
-    const manualAdditions = [
-      { name: 'Beth Schaefer', services: [{ name: 'Mowing', rate: 40 }, { name: 'Spring Cleanup', rate: 450 }, { name: 'Mulch', rate: 1275 }, { name: 'Weed Control', rate: 150 }] },
-      { name: 'Brennan Investments LLC', services: [{ name: 'Mowing', rate: 44 }], propertyRates: { '17427 Lake Avenue, Lakewood, OH, 44107': 44, '13000 Triskett Road, Cleveland, OH, 44111': 45 } },
-      { name: 'CC Pkwy Owner LLC', services: [{ name: 'Mowing', rate: 0 }] },
-      { name: 'Daniel Corrigan', services: [{ name: 'Spring Cleanup', rate: 243 }] },
-      { name: 'David Fridrich', services: [{ name: 'Mowing', rate: 46 }] },
-      { name: 'Eva Kovach', services: [{ name: 'Mowing', rate: 37 }] },
-      { name: 'Frank Pezzano', services: [{ name: 'Mowing', rate: 36 }], propertyRates: { '3869 Silsby Road, Cleveland, OH, 44111': 36, '3587 West 146th Street, Cleveland, OH, 44111': 48 } },
-      { name: 'Greg Stokley', services: [{ name: 'Mulch', rate: 250 }] },
-      { name: 'John Noell', services: [{ name: 'Mowing', rate: 69 }] },
-      { name: 'Lareesa Rice', services: [{ name: 'Mowing', rate: 35 }], propertyRates: { '10509 Jasper Avenue, Cleveland, OH, 44111': 35, '11917 Saint John Avenue, Cleveland, OH, 44111': 40 } },
-      { name: 'Leo Oblak', services: [{ name: 'Mowing', rate: 0 }] },
-      { name: 'Matthew Ditlevson', services: [{ name: 'Mowing (Bi-Weekly)', rate: 45 }], propertyRates: { '3737 West 134th Street, Cleveland, OH, 44111': 45, '3828 West 157th Street, Cleveland, OH, 44111': 45, '3319 Warren Road, Cleveland, OH, 44111': 44, '3325 Warren Road, Cleveland, OH, 44111': 50 } },
-      { name: 'MLI Properties', services: [{ name: 'Mowing', rate: 39 }], propertyRates: { '13823 Clifton Boulevard, Lakewood, OH, 44107': 39, '13842 Clifton Boulevard, Lakewood, OH, 44107': 33, '1438 Owego Avenue, Lakewood, OH, 44107': 43, '1357 Riverside Drive, Lakewood, OH, 44107': 39 } },
-      { name: 'Monta Demchak', services: [{ name: 'Mowing', rate: 38 }, { name: 'Mulch', rate: 220 }] },
-      { name: 'The Cundiff Group', services: [{ name: 'Mowing (Bi-Weekly)', rate: 60 }], propertyRates: { '19133 Puritas Avenue, Cleveland, OH, 44135': 60, '3107 Warren Road, Cleveland, OH, 44111': 60 } },
-      { name: 'Theresa Pappas', services: [{ name: 'Mowing', rate: 0 }] },
-    ];
-    // Look up these customers from DB and add if not already in the list
-    const existingNames = new Set(Object.values(customers).map(c => (c.name || '').toLowerCase().trim()));
-    for (const manual of manualAdditions) {
-      if (existingNames.has(manual.name.toLowerCase().trim())) continue;
-      const cLookup = await pool.query(
-        `SELECT id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code, status
-         FROM customers WHERE LOWER(TRIM(name)) = $1 OR LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = $1
-         ORDER BY CASE WHEN LOWER(TRIM(name)) = $1 THEN 0 ELSE 1 END LIMIT 1`,
-        [manual.name.toLowerCase().trim()]
-      );
-      if (cLookup.rows.length === 0) continue;
-      const c = cLookup.rows[0];
-      // Don't skip inactive — these are explicitly scheduled for 2026 in CRM
-      const cid = c.id;
-      if (customers[cid]) continue;
-      customers[cid] = {
-        customer_id: c.id,
-        name: c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim(),
-        email: c.email,
-        phone: c.phone || c.mobile,
-        address: c.street,
-        city: c.city,
-        services: {},
-        total_invoiced: 0
-      };
-      for (const svc of manual.services) {
-        const rate = svc.name.toLowerCase().includes('spring cleanup') && svc.rate < 100 ? 100 : svc.rate;
-        // For multi-property, populate multiple rates from propertyRates so the grouping logic works
-        const svcRates = {};
-        if (manual.propertyRates && svc.name.toLowerCase().includes('mow')) {
-          for (const [, pRate] of Object.entries(manual.propertyRates)) {
-            svcRates[pRate] = '2025-10-01';
-          }
-        } else {
-          svcRates[rate] = '2025-10-01';
-        }
-        customers[cid].services[svc.name] = { name: svc.name, rate, count: 1, total: rate, latestDate: '2025-10-01', earliestRate: rate, earliestDate: '2025-04-01', rates: svcRates };
-      }
-    }
-
-    // Get customers who were sent an annual care plan estimate — exclude them
-    const acpResult = await pool.query(`SELECT DISTINCT customer_id FROM sent_quotes WHERE quote_type = 'monthly_plan' AND customer_id IS NOT NULL`);
-    const acpCustomerIds = new Set(acpResult.rows.map(r => r.customer_id));
-
-    // Fetch properties for all customers
-    const customerIds = Object.values(customers).map(c => c.customer_id).filter(Boolean);
-    const propsResult = customerIds.length > 0
-      ? await pool.query(`SELECT customer_id, street, city, state, zip FROM properties WHERE customer_id = ANY($1) ORDER BY customer_id, street`, [customerIds])
-      : { rows: [] };
-    const propsMap = {};
-    for (const p of propsResult.rows) {
-      if (!propsMap[p.customer_id]) propsMap[p.customer_id] = [];
-      const addr = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
-      if (addr) propsMap[p.customer_id].push(addr);
-    }
-
-    // For multi-property customers, build property→rate mapping from scheduled_jobs
-    const multiPropIds = Object.values(customers)
-      .filter(c => c.customer_id && (propsMap[c.customer_id] || []).length > 1)
-      .map(c => c.customer_id);
-    // propRateMap: { customerId: { propertyAddr: mowingRate } }
-    const propRateMap = {};
-    if (multiPropIds.length > 0) {
-      const sjResult = await pool.query(`
-        SELECT DISTINCT sj.customer_id, sj.service_price::numeric as rate, p.street, p.city, p.state, p.zip
-        FROM scheduled_jobs sj
-        JOIN properties p ON p.customer_id = sj.customer_id AND sj.address LIKE '%' || p.zip || '%'
-        WHERE sj.customer_id = ANY($1) AND sj.service_price > 0
-        ORDER BY sj.customer_id, rate
-      `, [multiPropIds]);
-      for (const row of sjResult.rows) {
-        if (!propRateMap[row.customer_id]) propRateMap[row.customer_id] = {};
-        const addr = [row.street, row.city, row.state, row.zip].filter(Boolean).join(', ');
-        propRateMap[row.customer_id][addr] = parseFloat(row.rate);
-      }
-    }
-
-    // Inject propertyRates from manual additions into propRateMap
-    for (const manual of manualAdditions) {
-      if (!manual.propertyRates) continue;
-      const cEntry = Object.values(customers).find(c => c.name && c.name.toLowerCase().trim() === manual.name.toLowerCase().trim());
-      if (cEntry && cEntry.customer_id) {
-        propRateMap[cEntry.customer_id] = {};
-        for (const [addr, pRate] of Object.entries(manual.propertyRates)) {
-          propRateMap[cEntry.customer_id][addr] = pRate;
-        }
-      }
-    }
-
-    // Convert to array, skip customers with no 2025 line items after filtering
-    const list = Object.values(customers)
-      .filter(c => Object.keys(c.services).length > 0)
-      .filter(c => !acpCustomerIds.has(c.customer_id))
-      .map(c => {
-        const props = propsMap[c.customer_id] || [];
-        const propRates = propRateMap[c.customer_id];
-        if (props.length > 1) {
-          // Multi-property customer
-          const byProperty = {};
-          for (const addr of props) byProperty[addr] = [];
-
-          // Check if we can distinguish properties by rate (different zips = different rates)
-          // Only distinguish if ALL properties have a matched rate AND the rates are actually different
-          const propRateValues = propRates ? [...new Set(Object.values(propRates))] : [];
-          const canDistinguish = propRates && propRateValues.length > 1 && Object.keys(propRates).length >= props.length;
-
-          if (canDistinguish) {
-            // Different rates per property — sort properties by mowing rate (low to high)
-            const sortedProps = Object.entries(propRates).sort((a, b) => a[1] - b[1]);
-
-            for (const svc of Object.values(c.services)) {
-              const rateEntries = Object.entries(svc.rates).map(([r, d]) => ({ rate: parseFloat(r), date: d }));
-
-              if (rateEntries.length === 1) {
-                const matchAddr = sortedProps.find(([, mowRate]) => mowRate === rateEntries[0].rate);
-                const addr = matchAddr ? matchAddr[0] : sortedProps[0][0];
-                byProperty[addr].push({ name: svc.name, rate: svc.rate });
-              } else {
-                // Multiple rates — take the N most recent distinct rates
-                const latestPerRate = {};
-                for (const { rate, date } of rateEntries) {
-                  if (!latestPerRate[rate] || date > latestPerRate[rate]) latestPerRate[rate] = date;
-                }
-                const recentRates = Object.entries(latestPerRate)
-                  .map(([r, d]) => ({ rate: parseFloat(r), date: d }))
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, sortedProps.length);
-                recentRates.sort((a, b) => a.rate - b.rate);
-                for (let i = 0; i < sortedProps.length && i < recentRates.length; i++) {
-                  byProperty[sortedProps[i][0]].push({ name: svc.name, rate: recentRates[i].rate });
-                }
-              }
-            }
-          } else {
-            // Same zip / can't distinguish by rate — show same services under each property
-            const svcs = Object.values(c.services).map(s => ({ name: s.name, rate: s.rate }));
-            for (const addr of props) {
-              byProperty[addr] = [...svcs];
-            }
-          }
-
-          return {
-            ...c,
-            properties: props,
-            propertyServices: Object.entries(byProperty)
-              .filter(([, svcs]) => svcs.length > 0)
-              .map(([addr, svcs]) => ({ address: addr, services: svcs })),
-            services: Object.values(c.services).map(s => ({
-              name: s.name, rate: s.rate, count: s.count, total: s.total,
-              noIncrease: s.name.toLowerCase().includes('mowing') && s.rate <= s.earliestRate
-            })).sort((a, b) => b.total - a.total),
-            total_invoiced: Math.round(c.total_invoiced * 100) / 100
-          };
-        }
-        // Single property: use latest rate only
-        const isMowing = n => n.toLowerCase().includes('mowing');
-        return {
-          ...c,
-          properties: props,
-          services: Object.values(c.services).map(s => ({
-            name: s.name, rate: s.rate, count: s.count, total: s.total,
-            noIncrease: isMowing(s.name) && s.rate <= s.earliestRate
-          })).sort((a, b) => b.total - a.total),
-          total_invoiced: Math.round(c.total_invoiced * 100) / 100
-        };
-      }).sort((a, b) => a.name.localeCompare(b.name));
-
-    res.json({ success: true, count: list.length, customers: list });
-  } catch (error) {
-    console.error('Error fetching 2025 services:', error);
-    serverError(res, error);
-  }
-});
-
 // GET /api/reports/business-summary - KPIs for a period
 app.get('/api/reports/business-summary', async (req, res) => {
   try {
@@ -11946,7 +10641,6 @@ async function ensureQBTables() {
   try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
 }
 ensureQBTables().catch(e => console.error('QB tables init error:', e));
-ensureGoogleTables().catch(e => console.error('Google tables init error:', e));
 
 // --- QB OAuth Client Factory ---
 function createOAuthClient() {
@@ -12663,12 +11357,12 @@ app.get('/api/templates', async (req, res) => {
 
 app.post('/api/templates', async (req, res) => {
   try {
-    const { name, slug, category, subject, body, sms_body, variables, is_active, options } = req.body;
+    const { name, slug, category, channel, subject, body, sms_body, variables, is_active, options } = req.body;
     if (!name || !slug) return res.status(400).json({ success: false, error: 'name and slug required' });
     const result = await pool.query(
-      `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, variables, is_active, options)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, slug, category || 'system', subject, body, sms_body, JSON.stringify(variables || []), is_active !== false, JSON.stringify(options || {})]
+      `INSERT INTO email_templates (name, slug, category, channel, subject, body, sms_body, variables, is_active, options)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [name, slug, category || 'system', channel || 'email', subject, body, sms_body, JSON.stringify(variables || []), is_active !== false, JSON.stringify(options || {})]
     );
     res.json({ success: true, template: result.rows[0] });
   } catch (error) { serverError(res, error); }
@@ -12676,7 +11370,7 @@ app.post('/api/templates', async (req, res) => {
 
 app.patch('/api/templates/:id', async (req, res) => {
   try {
-    const fields = ['name', 'slug', 'category', 'subject', 'body', 'sms_body', 'variables', 'is_active', 'is_default', 'options'];
+    const fields = ['name', 'slug', 'category', 'channel', 'subject', 'body', 'sms_body', 'variables', 'is_active', 'is_default', 'options'];
     const updates = [];
     const params = [];
     let p = 1;
@@ -12733,13 +11427,7 @@ app.post('/api/templates/preview', async (req, res) => {
 app.post('/api/templates/send-preview', async (req, res) => {
   try {
     const { template_id, slug, subject: directSubject, html_content: directHtml, to } = req.body;
-    // If this template belongs to a campaign, use its real campaign link
-    let campaignLink = '#preview';
-    if (template_id) {
-      const campRow = await pool.query('SELECT form_url FROM campaigns WHERE template_id = $1 LIMIT 1', [template_id]).catch(() => ({ rows: [] }));
-      if (campRow.rows.length > 0 && campRow.rows[0].form_url) campaignLink = campRow.rows[0].form_url;
-    }
-    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview', campaign_link: campaignLink, contract_link: '#preview' };
+    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
 
     let subject, body;
 
@@ -12801,28 +11489,21 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
     if (template.rows.length === 0) return res.status(404).json({ success: false, error: 'Template not found' });
     const tmpl = template.rows[0];
 
-    // Get target customers (auto-exclude unsubscribed)
-    const unsubFilter = "AND (tags IS NULL OR LOWER(tags) NOT LIKE '%unsubscribe%')";
+    // Get target customers
     let customers;
     if (customer_ids && customer_ids.length > 0) {
-      customers = await pool.query(`SELECT * FROM customers WHERE id = ANY($1) ${unsubFilter}`, [customer_ids]);
+      customers = await pool.query('SELECT * FROM customers WHERE id = ANY($1)', [customer_ids]);
     } else if (segment === 'all') {
-      customers = await pool.query(`SELECT * FROM customers WHERE email IS NOT NULL AND email != '' ${unsubFilter}`);
+      customers = await pool.query('SELECT * FROM customers WHERE email IS NOT NULL AND email != \'\'');
     } else if (segment === 'monthly_plan') {
-      customers = await pool.query(`SELECT * FROM customers WHERE monthly_plan_amount > 0 AND email IS NOT NULL ${unsubFilter}`);
+      customers = await pool.query('SELECT * FROM customers WHERE monthly_plan_amount > 0 AND email IS NOT NULL');
     } else if (segment === 'active') {
-      customers = await pool.query(`SELECT DISTINCT c.* FROM customers c JOIN scheduled_jobs j ON c.id = j.customer_id WHERE j.created_at >= NOW() - INTERVAL '6 months' AND c.email IS NOT NULL ${unsubFilter.replace(/tags/g, 'c.tags')}`);
+      customers = await pool.query(`SELECT DISTINCT c.* FROM customers c JOIN scheduled_jobs j ON c.id = j.customer_id WHERE j.created_at >= NOW() - INTERVAL '6 months' AND c.email IS NOT NULL`);
     } else {
       return res.status(400).json({ success: false, error: 'customer_ids or segment required' });
     }
 
-    // Get campaign slug for campaign_link merge tag
-    const campResult = await pool.query('SELECT slug, form_url FROM campaigns WHERE id = $1', [req.params.id]);
-    const campSlug = campResult.rows[0]?.slug;
-    const campaignLink = campResult.rows[0]?.form_url || (campSlug ? `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/campaign.html?c=${campSlug}` : '#');
-
     const results = { sent: 0, errors: 0 };
-    const delay = (ms) => new Promise(r => setTimeout(r, ms));
     for (const cust of customers.rows) {
       try {
         const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
@@ -12830,32 +11511,20 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
           customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
           customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
           company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com',
-          campaign_link: campaignLink,
           unsubscribe_email: encodeURIComponent(cust.email || '')
         };
         const subject = replaceTemplateVars(tmpl.subject, vars);
         let body = replaceTemplateVars(tmpl.body, vars);
-        const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-        // Wrap links for click tracking
-        body = body.replace(/href="(https?:\/\/[^"]+)"/g, (match, url) => {
-          return `href="${baseUrl}/api/t/${trackingId}/click?url=${encodeURIComponent(url)}"`;
-        });
         // Add tracking pixel
+        const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
         const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
-        const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
-        if (emailResult && !emailResult.success) {
-          console.error(`Campaign email failed for ${cust.email}:`, emailResult.error);
-          results.errors++;
-        } else {
-          await pool.query(
-            'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
-            [req.params.id, template_id, cust.id, cust.email, 'sent', trackingId]
-          );
-          results.sent++;
-        }
-        // Rate limit: ~2 emails/sec to avoid Resend 429 errors
-        await delay(1200);
+        await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
+        await pool.query(
+          'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
+          [req.params.id, template_id, cust.id, cust.email, 'sent', trackingId]
+        );
+        results.sent++;
       } catch(e) { results.errors++; }
     }
     // Update campaign stats
@@ -12871,156 +11540,10 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
 app.get('/api/campaigns/:id/send-history', async (req, res) => {
   try {
     const [sends, stats] = await Promise.all([
-      pool.query(`SELECT DISTINCT ON (cs.customer_id) cs.*, c.name as customer_name, c.first_name, c.last_name, c.tags FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.customer_id, cs.sent_at DESC`, [req.params.id]),
-      pool.query(`SELECT COUNT(DISTINCT customer_id) as total, COUNT(DISTINCT CASE WHEN opened_at IS NOT NULL THEN customer_id END) as opens, COUNT(DISTINCT CASE WHEN clicked_at IS NOT NULL THEN customer_id END) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
+      pool.query(`SELECT cs.*, c.name as customer_name FROM campaign_sends cs LEFT JOIN customers c ON cs.customer_id = c.id WHERE cs.campaign_id = $1 ORDER BY cs.sent_at DESC`, [req.params.id]),
+      pool.query(`SELECT COUNT(*) as total, COUNT(opened_at) as opens, COUNT(clicked_at) as clicks FROM campaign_sends WHERE campaign_id = $1`, [req.params.id])
     ]);
-    // Count failed sends: email_log entries with status='failed' and email_type='campaign'
-    // that don't have a matching campaign_sends entry (failed emails never get a campaign_sends row)
-    let failed = 0;
-    try {
-      // Get the time window of this campaign's sends
-      const timeWindow = await pool.query(
-        `SELECT MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1`, [req.params.id]
-      );
-      if (timeWindow.rows[0]?.earliest) {
-        // Find customers with a failed email_log entry (rate limit only, not bounces/validation)
-        // who don't also have a later successful one
-        const failedCount = await pool.query(`
-          SELECT COUNT(DISTINCT el.customer_id) as failed FROM email_log el
-          INNER JOIN campaign_sends cs ON cs.customer_id = el.customer_id AND cs.campaign_id = $3
-          WHERE el.status = 'failed'
-          AND el.email_type IN ('campaign', 'broadcast')
-          AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
-          AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
-          AND (el.error_message IS NULL OR el.error_message NOT ILIKE '%validation_error%')
-          AND NOT EXISTS (
-            SELECT 1 FROM email_log el2
-            WHERE el2.customer_id = el.customer_id
-            AND el2.status = 'sent'
-            AND el2.email_type IN ('campaign', 'broadcast')
-            AND el2.sent_at > el.sent_at
-          )
-        `, [timeWindow.rows[0].earliest, timeWindow.rows[0].latest, req.params.id]);
-        failed = parseInt(failedCount.rows[0]?.failed) || 0;
-      }
-    } catch (e) { console.error('Failed count query error:', e.message); }
-    // Mark unsubscribed recipients
-    const enriched = sends.rows.map(s => ({
-      ...s,
-      customer_name: s.customer_name || ((s.first_name || '') + (s.last_name ? ' ' + s.last_name : '')).trim() || 'Unknown',
-      unsubscribed: s.tags ? s.tags.toLowerCase().includes('unsubscrib') : false
-    }));
-    const unsubCount = enriched.filter(s => s.unsubscribed).length;
-    res.json({ success: true, sends: enriched, stats: { ...stats.rows[0], unsubscribes: unsubCount, failed } });
-  } catch (error) { serverError(res, error); }
-});
-
-
-// POST /api/campaigns/:id/resend-failed - Resend to recipients whose emails failed (429 rate limit, etc.)
-app.post('/api/campaigns/:id/resend-failed', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ success: false, error: 'No token' });
-  try { jwt.verify(token, JWT_SECRET); } catch (err) { return res.status(401).json({ success: false, error: 'Invalid token' }); }
-
-  try {
-    const campaignId = req.params.id;
-
-    // Get campaign and template
-    const campaign = await pool.query('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
-    if (campaign.rows.length === 0) return res.status(404).json({ success: false, error: 'Campaign not found' });
-
-    const templateId = campaign.rows[0].template_id;
-    if (!templateId) return res.status(400).json({ success: false, error: 'No template associated with this campaign' });
-
-    const tmpl = await pool.query('SELECT * FROM email_templates WHERE id = $1', [templateId]);
-    if (tmpl.rows.length === 0) return res.status(400).json({ success: false, error: 'Template not found' });
-
-    // Find customers whose emails failed: they have a 'failed' email_log entry
-    // but no campaign_sends row (failed emails never got inserted into campaign_sends)
-    const timeWindow = await pool.query(
-      `SELECT MIN(sent_at) as earliest, MAX(sent_at) as latest FROM campaign_sends WHERE campaign_id = $1`, [campaignId]
-    );
-    let resendCustomerIds = new Set();
-    if (timeWindow.rows[0]?.earliest) {
-      const failedEmails = await pool.query(`
-        SELECT DISTINCT el.customer_id
-        FROM email_log el
-        INNER JOIN campaign_sends cs ON cs.customer_id = el.customer_id AND cs.campaign_id = $3
-        WHERE el.status = 'failed'
-        AND el.email_type IN ('campaign', 'broadcast')
-        AND el.sent_at >= $1::timestamptz - INTERVAL '1 hour'
-        AND el.sent_at <= $2::timestamptz + INTERVAL '1 hour'
-        AND NOT EXISTS (
-          SELECT 1 FROM email_log el2
-          WHERE el2.customer_id = el.customer_id
-          AND el2.status = 'sent'
-          AND el2.email_type IN ('campaign', 'broadcast')
-          AND el2.sent_at > el.sent_at
-        )
-      `, [timeWindow.rows[0].earliest, timeWindow.rows[0].latest, campaignId]);
-      for (const row of failedEmails.rows) resendCustomerIds.add(row.customer_id);
-    }
-
-    if (resendCustomerIds.size === 0) {
-      return res.json({ success: true, message: 'No failed emails found', resent: 0, errors: 0 });
-    }
-
-    // Load customer data for resend (exclude unsubscribed)
-    const customers = await pool.query(
-      `SELECT * FROM customers WHERE id = ANY($1) AND (tags IS NULL OR LOWER(tags) NOT LIKE '%unsubscribe%')`,
-      [Array.from(resendCustomerIds)]
-    );
-
-    console.log(`📧 Resending campaign ${campaignId} to ${customers.rows.length} failed recipients`);
-
-    const campSlug = campaign.rows[0].slug;
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const campaignLink = campaign.rows[0].form_url || (campSlug ? `${baseUrl}/campaign.html?c=${campSlug}` : '#');
-    const template = tmpl.rows[0];
-    const delay = (ms) => new Promise(r => setTimeout(r, ms));
-    const results = { resent: 0, errors: 0, skipped: 0 };
-
-    for (const cust of customers.rows) {
-      if (!cust.email) { results.skipped++; continue; }
-      try {
-        const vars = {
-          customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
-          customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
-          company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com',
-          campaign_link: campaignLink,
-          unsubscribe_email: encodeURIComponent(cust.email || '')
-        };
-        const subject = replaceTemplateVars(template.subject, vars);
-        let body = replaceTemplateVars(template.body, vars);
-        const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
-        body = body.replace(/href="(https?:\/\/[^"]+)"/g, (match, url) => {
-          return `href="${baseUrl}/api/t/${trackingId}/click?url=${encodeURIComponent(url)}"`;
-        });
-        body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-        const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
-        const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
-        if (emailResult && !emailResult.success) {
-          console.error(`Resend failed for ${cust.email}:`, emailResult.error);
-          results.errors++;
-        } else {
-          // Insert into campaign_sends (failed emails never got a row originally)
-          await pool.query(
-            'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING',
-            [campaignId, templateId, cust.id, cust.email, 'sent', trackingId]
-          );
-          results.resent++;
-        }
-        // Rate limit: ~2 emails/sec
-        await delay(1200);
-      } catch (e) {
-        console.error(`Resend error for customer ${cust.id}:`, e.message);
-        results.errors++;
-      }
-    }
-
-    console.log(`📧 Resend complete: ${results.resent} resent, ${results.errors} errors, ${results.skipped} skipped`);
-    res.json({ success: true, ...results, total_failed: resendCustomerIds.size });
+    res.json({ success: true, sends: sends.rows, stats: stats.rows[0] });
   } catch (error) { serverError(res, error); }
 });
 
@@ -13149,15 +11672,6 @@ app.post('/api/broadcasts/preview', async (req, res) => {
       conditions.push(`(${tagConditions.join(' OR ')})`);
     }
 
-    // Exclude tags filter (exclude customers who have ANY of the specified tags)
-    if (filters.exclude_tags && filters.exclude_tags.length > 0) {
-      const excludeConditions = filters.exclude_tags.map(tag => {
-        params.push(`%${tag}%`);
-        return `c.tags NOT ILIKE $${paramIdx++}`;
-      });
-      conditions.push(`(c.tags IS NULL OR (${excludeConditions.join(' AND ')}))`);
-    }
-
     // Postal codes
     if (filters.postal_codes && filters.postal_codes.length > 0) {
       params.push(filters.postal_codes);
@@ -13282,8 +11796,8 @@ app.post('/api/broadcasts/send', async (req, res) => {
       tmpl = templateResult.rows[0];
     }
 
-    // Load customers (auto-exclude unsubscribed)
-    const custResult = await pool.query("SELECT * FROM customers WHERE id = ANY($1) AND (tags IS NULL OR LOWER(tags) NOT LIKE '%unsubscribe%')", [customer_ids]);
+    // Load customers
+    const custResult = await pool.query('SELECT * FROM customers WHERE id = ANY($1)', [customer_ids]);
 
     // Load communication preferences for all target customers
     const prefsResult = await pool.query('SELECT * FROM customer_communication_prefs WHERE customer_id = ANY($1)', [customer_ids]);
@@ -13291,16 +11805,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
     for (const p of prefsResult.rows) { prefsMap[p.customer_id] = p; }
 
     const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
-    const delay = (ms) => new Promise(r => setTimeout(r, ms));
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-
-    // Get campaign slug for campaign_link merge tag
-    let campaignLink = baseUrl;
-    if (campaign_id) {
-      const campResult = await pool.query('SELECT slug, form_url FROM campaigns WHERE id = $1', [campaign_id]);
-      const campSlug = campResult.rows[0]?.slug;
-      campaignLink = campResult.rows[0]?.form_url || (campSlug ? `${baseUrl}/campaign.html?c=${campSlug}` : baseUrl);
-    }
 
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
@@ -13315,7 +11820,6 @@ app.post('/api/broadcasts/send', async (req, res) => {
         company_email: 'hello@pappaslandscaping.com',
         company_website: 'pappaslandscaping.com',
         portal_link: `${baseUrl}/customer-portal.html`,
-        campaign_link: campaignLink,
         unsubscribe_email: encodeURIComponent(cust.email || '')
       };
 
@@ -13332,25 +11836,17 @@ app.post('/api/broadcasts/send', async (req, res) => {
             const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
             const subject = replaceTemplateVars(tmpl.subject, vars);
             let body = replaceTemplateVars(tmpl.body, vars);
-            body = body.replace(/href="(https?:\/\/[^"]+)"/g, (match, url) => {
-              return `href="${baseUrl}/api/t/${trackingId}/click?url=${encodeURIComponent(url)}"`;
-            });
             body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
             const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
-            const emailResult = await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
-            if (emailResult && !emailResult.success) {
-              console.error(`Broadcast email failed for ${cust.email}:`, emailResult.error);
-              results.email_errors++;
-            } else {
-              // Track in campaign_sends if campaign_id provided
-              if (campaign_id) {
-                await pool.query(
-                  'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
-                  [campaign_id, template_id, cust.id, cust.email, 'sent', trackingId]
-                );
-              }
-              results.email_sent++;
+            await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
+            // Track in campaign_sends if campaign_id provided
+            if (campaign_id) {
+              await pool.query(
+                'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',
+                [campaign_id, template_id, cust.id, cust.email, 'sent', trackingId]
+              );
             }
+            results.email_sent++;
           } catch (e) {
             console.error(`Broadcast email error for customer ${cust.id}:`, e.message);
             results.email_errors++;
@@ -13390,8 +11886,6 @@ app.post('/api/broadcasts/send', async (req, res) => {
           }
         }
       }
-      // Rate limit: ~2 emails/sec to avoid Resend 429 errors
-      await delay(1200);
     }
 
     // Update campaign stats if linked
@@ -13627,19 +12121,6 @@ app.post('/api/notes/:entityType/:entityId', async (req, res) => {
       `INSERT INTO internal_notes (entity_type, entity_id, author_name, author_id, content, pinned) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [entityType, parseInt(entityId), authorName, authorId, content.trim(), pinned || false]
     );
-
-    // Sync customer notes to CopilotCRM
-    if (entityType === 'customer') {
-      try {
-        const custResult = await pool.query('SELECT name, first_name, last_name FROM customers WHERE id = $1', [parseInt(entityId)]);
-        const c = custResult.rows[0];
-        if (c) {
-          const custName = c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim();
-          if (custName) logToCopilotCRM(custName, `<p><strong>[Note]</strong> by ${authorName}<br>${content.trim()}</p>`);
-        }
-      } catch (e) { /* don't block note creation */ }
-    }
-
     res.json({ success: true, note: result.rows[0] });
   } catch (error) { serverError(res, error); }
 });
@@ -13665,28 +12146,6 @@ app.delete('/api/notes/:id', async (req, res) => {
     await pool.query('DELETE FROM internal_notes WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) { serverError(res, error); }
-});
-
-// ─── Email Open Tracking ──────────────────────────────────────────────────
-
-// 1x1 transparent PNG pixel
-const TRACKING_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
-
-// Public endpoint — no auth needed. Called when email client loads the image.
-app.get('/api/email-track/:token.png', async (req, res) => {
-  try {
-    const { token } = req.params;
-    // Record the open (update first open timestamp + increment count)
-    await pool.query(
-      `UPDATE email_log SET opened_at = COALESCE(opened_at, NOW()), open_count = COALESCE(open_count, 0) + 1 WHERE open_token = $1`,
-      [token]
-    );
-  } catch (e) {
-    // Don't fail — tracking is best-effort
-  }
-  // Always return the pixel regardless of DB result
-  res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' });
-  res.send(TRACKING_PIXEL);
 });
 
 // ─── Email Log API ─────────────────────────────────────────────────────────
@@ -14245,12 +12704,8 @@ app.get('/api/templates', async (req, res) => {
 
 app.get('/api/templates/:id', async (req, res) => {
   try {
-    // Check email_templates first (used by campaigns), then message_templates
-    let result = await pool.query('SELECT * FROM email_templates WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) {
-      await ensureTemplatesTable();
-      result = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
-    }
+    await ensureTemplatesTable();
+    const result = await pool.query('SELECT * FROM message_templates WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, template: result.rows[0] });
   } catch (error) { serverError(res, error); }
@@ -15101,28 +13556,13 @@ const EMAIL_TEMPLATES_TABLE = `CREATE TABLE IF NOT EXISTS email_templates (
   subject TEXT,
   body TEXT,
   sms_body TEXT,
+  channel VARCHAR(10) DEFAULT 'email',
   variables JSONB DEFAULT '[]',
   is_default BOOLEAN DEFAULT false,
   is_active BOOLEAN DEFAULT true,
   options JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`;
-
-const SEASON_KICKOFF_TABLE = `CREATE TABLE IF NOT EXISTS season_kickoff_responses (
-  id SERIAL PRIMARY KEY,
-  token VARCHAR(64) UNIQUE NOT NULL,
-  customer_id INTEGER,
-  customer_name VARCHAR(255),
-  customer_email VARCHAR(255),
-  services JSONB,
-  properties JSONB,
-  status VARCHAR(20) DEFAULT 'pending',
-  notes TEXT,
-  viewed_at TIMESTAMP,
-  view_count INTEGER DEFAULT 0,
-  responded_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
 const EMAIL_LOG_TABLE = `CREATE TABLE IF NOT EXISTS email_log (
@@ -15136,9 +13576,6 @@ const EMAIL_LOG_TABLE = `CREATE TABLE IF NOT EXISTS email_log (
   quote_id INTEGER,
   status VARCHAR(20) DEFAULT 'sent',
   error_message TEXT,
-  open_token VARCHAR(64),
-  opened_at TIMESTAMP,
-  open_count INTEGER DEFAULT 0,
   sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
@@ -15156,25 +13593,8 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   error_message TEXT
 )`;
 
-// Database migrations
+// Database migrations — widen contract columns that are too narrow for signature data
 (async () => {
-  // Add missing columns for decline/request-changes functionality
-  const addCols = [
-    ['decline_reason', 'VARCHAR(100)'],
-    ['decline_comments', 'TEXT'],
-    ['declined_at', 'TIMESTAMPTZ'],
-    ['change_type', 'VARCHAR(100)'],
-    ['change_details', 'TEXT'],
-    ['changes_requested_at', 'TIMESTAMPTZ']
-  ];
-  for (const [col, type] of addCols) {
-    try {
-      await pool.query(`ALTER TABLE sent_quotes ADD COLUMN IF NOT EXISTS ${col} ${type}`);
-    } catch(e) { /* column exists */ }
-  }
-  console.log('✅ Ensured sent_quotes has decline/changes columns');
-
-  // Widen contract columns that are too narrow for signature data
   try {
     await pool.query(`ALTER TABLE sent_quotes ALTER COLUMN contract_signature_data TYPE TEXT`);
     console.log('✅ Widened contract_signature_data to TEXT');
@@ -15234,6 +13654,9 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
     try { await pool.query(sql); } catch(e) { console.error('Table create error:', e.message); }
   }
   console.log('✅ CopilotCRM feature tables ready');
+
+  // Add channel column to email_templates
+  try { await pool.query("ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS channel VARCHAR(10) DEFAULT 'email'"); } catch(e) {}
 
   // Add customer_type column for lead/customer pipeline
   try { await pool.query("ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20) DEFAULT 'customer'"); } catch(e) {}
@@ -15333,10 +13756,6 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       description TEXT,
-      slug VARCHAR(100) UNIQUE,
-      form_heading TEXT,
-      form_description TEXT,
-      form_fields JSONB DEFAULT '["name","email","phone","address"]',
       form_url TEXT,
       status VARCHAR(30) DEFAULT 'active',
       template_id INTEGER,
@@ -15346,11 +13765,6 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-    // Add slug column if missing (migration for existing tables)
-    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS slug VARCHAR(100) UNIQUE`).catch(() => {});
-    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS form_heading TEXT`).catch(() => {});
-    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS form_description TEXT`).catch(() => {});
-    await pool.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS form_fields JSONB DEFAULT '["name","email","phone","address"]'`).catch(() => {});
     console.log('✅ Campaigns table ready');
   } catch(e) { console.error('Campaigns table error:', e.message); }
 
@@ -15360,22 +13774,14 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       id SERIAL PRIMARY KEY,
       campaign_id VARCHAR(255),
       name VARCHAR(255),
-      first_name VARCHAR(255),
-      last_name VARCHAR(255),
       email VARCHAR(255),
       phone VARCHAR(50),
       address TEXT,
-      services TEXT[],
       status VARCHAR(30) DEFAULT 'new',
       notes TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
-    // Ensure columns exist for older tables
-    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS name VARCHAR(255)`).catch(()=>{});
-    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS first_name VARCHAR(255)`).catch(()=>{});
-    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS last_name VARCHAR(255)`).catch(()=>{});
-    await pool.query(`ALTER TABLE campaign_submissions ADD COLUMN IF NOT EXISTS services TEXT[]`).catch(()=>{});
     console.log('✅ Campaign submissions table ready');
   } catch(e) { console.error('Campaign submissions table error:', e.message); }
 
@@ -15507,18 +13913,6 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
 
   // Email log table
   try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
-  // Season kickoff responses table
-  try { await pool.query(SEASON_KICKOFF_TABLE); } catch(e) {}
-  // Season kickoff extra columns (added later)
-  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS properties JSONB`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMP`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS email_opened_at TIMESTAMP`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE season_kickoff_responses ADD COLUMN IF NOT EXISTS email_open_count INTEGER DEFAULT 0`); } catch(e) {}
-  // Email open tracking columns
-  try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_token VARCHAR(64)`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE email_log ADD COLUMN IF NOT EXISTS open_count INTEGER DEFAULT 0`); } catch(e) {}
 
   console.log('✅ Time tracking, dispatch templates, service programs, and email log tables ready');
   console.log('✅ All CopilotCRM column migrations ready');
@@ -16216,10 +14610,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
     const availableServices = Object.keys(SERVICE_DESCRIPTIONS);
 
-    const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const systemPrompt = `You are the AI assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Greater Cleveland area).
-
-Today's date is ${todayStr}. Always use the current year (${new Date().getFullYear()}) when referencing dates, seasons, or campaigns.
 
 You help the business owner and staff with:
 - Answering questions about landscaping services, pricing, and scheduling
@@ -16274,19 +14665,14 @@ app.post('/api/ai/generate-template', async (req, res) => {
     const { prompt, type, action, history, apply } = req.body;
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
 
-    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const systemPrompt = `You are the marketing manager for Pappas & Co. Landscaping, a local landscaping company in Northeast Ohio (Greater Cleveland). You know the business, the customers, and what drives residential homeowners to take action.
+    const systemPrompt = `You are an interactive AI template assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Greater Cleveland).
 
-Today's date is ${today}. Always use the current year (${new Date().getFullYear()}) in campaign names, seasonal references, and content.
-
-You understand Cleveland-area seasonality: when homeowners start thinking about spring cleanup, when fall leaves hit, when snow contracts need to go out. You know what motivates residential customers: convenience, curb appeal, reliability, and trust in a local company.
-
-You create campaign emails and SMS that are short, scannable, and get results. You can:
-- Create campaign emails that drive quote requests
+You help create, edit, and improve email and SMS templates through conversation. You can:
+- Generate new email templates
 - Rewrite or tweak existing templates
-- Suggest subject lines that get opened
+- Suggest subject lines
 - Write SMS versions
-- Advise on timing and audience for campaigns
+- Answer questions about email marketing best practices
 - Make specific changes the user asks for (tone, length, wording, etc.)
 
 BRAND GUIDELINES:
@@ -16296,15 +14682,13 @@ BRAND GUIDELINES:
 - Tagline: "Your Property, Our Priority."
 - Location: Northeast Ohio (Greater Cleveland)
 
-Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {company_phone}, {company_email}, {company_website}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}, {portal_link}, {contract_link}, {quote_number}, {balance_due}, {amount_paid}, {invoice_due_date}, {campaign_link}
+Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {company_phone}, {company_email}, {company_website}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}, {portal_link}, {contract_link}, {quote_number}, {balance_due}, {amount_paid}, {invoice_due_date}
 
 BUTTON URL RULES — When creating buttons, ALWAYS use the appropriate merge tag as the URL:
 - "View Quote" / "Review Quote" / "Accept Quote" → url: "{quote_link}"
 - "Pay Now" / "Pay Invoice" / "Make Payment" / "View Invoice" → url: "{payment_link}"
 - "Visit Portal" / "Access Portal" / "My Account" → url: "{portal_link}"
 - "Sign Agreement" / "Sign Contract" → url: "{contract_link}"
-- "Get a Quote" / "Request a Quote" / "Get My Free Quote" / "Book Now" / "Sign Up" / "Get Started" / "Learn More" / "Claim Offer" → url: "{campaign_link}"
-For marketing and promotional emails, ALWAYS use {campaign_link} for the main CTA button. This links to a branded landing page with a form where customers can respond to the campaign.
 Never use "#" or placeholder URLs. Always use the matching merge tag so buttons work when the email is sent.
 
 RESPONSE FORMAT — Return ONLY valid JSON (no markdown, no backticks). Choose the appropriate format:
@@ -16328,24 +14712,12 @@ Block types:
 {"message": "Your conversational response here"}
 
 5. When the user asks to CREATE A CAMPAIGN (e.g. "create a spring cleanup campaign", "set up a campaign for..."):
-{"message": "Description of the campaign", "campaign": {"name": "Campaign Name", "description": "Brief campaign description", "subject": "Email subject line", "blocks": [same block format as email templates], "sms": "Optional SMS version under 160 chars", "audience": "all|monthly_plan|active", "form": {"heading": "Landing page headline", "description": "1-2 sentence description for the landing page", "button_text": "CTA button text like Book My Cleanup or Get My Quote", "services": ["Spring Cleanup", "Debris Removal"]}}}
+{"message": "Description of the campaign", "campaign": {"name": "Campaign Name", "description": "Brief campaign description", "subject": "Email subject line", "blocks": [same block format as email templates], "sms": "Optional SMS version under 160 chars", "audience": "all|monthly_plan|active"}}
 - audience: "all" = all customers, "monthly_plan" = monthly plan customers, "active" = customers with jobs in last 6 months
 - Always include email blocks AND an SMS version for campaigns
 - Campaign names should be catchy but professional (e.g. "Spring Cleanup 2026", "Fall Leaf Removal Special")
-- The "form" object customizes the public landing page that the {campaign_link} button leads to. "services" lists the specific services relevant to this campaign (used as pre-checked checkboxes on the form). "heading" and "description" appear at the top of the landing page. "button_text" is the form submit button text.
 
-TONE & WRITING STYLE — This is critical:
-- Write like a real small business owner, NOT like an AI trying to sound casual
-- DO NOT use em dashes (—). Use periods or commas instead.
-- DO NOT use forced humor, self-aware jokes ("weird, we know"), or try-hard casualness ("your yard probably looks like a disaster zone")
-- DO NOT use overly salesy language, excessive exclamation marks, or hype words
-- Keep it straightforward, sincere, and confident — like a professional who knows their craft
-- Short sentences. No fluff. Get to the point.
-- Think: a friendly text from someone you trust, not a marketing email from a startup
-- Good example: "Spring's here — let us handle the cleanup so your yard is ready for the season."
-- Bad example: "Winter's finally over and your yard probably looks like a disaster zone. Ours did too!"
-- For campaign/marketing emails, DO NOT put customer names in headlines or greetings. Some customers are businesses (e.g. "BMW Realty") and "Time for your spring cleanup, BMW Realty" sounds wrong. Just write the headline without a name. You can use "Hi {customer_first_name}," as a greeting line in the body if needed, but never in the title/heading.
-- Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
+Keep the tone professional but warm and friendly. Use merge tags where appropriate. Sign off emails as "The Pappas & Co. Landscaping Team".`;
 
     // Build messages array with conversation history
     const messages = [];
@@ -16391,7 +14763,7 @@ TONE & WRITING STYLE — This is critical:
 // AI-powered campaign creation
 app.post('/api/ai/create-campaign', async (req, res) => {
   try {
-    const { name, description, subject, body, sms_body, audience, form } = req.body;
+    const { name, description, subject, body, sms_body, audience } = req.body;
     if (!name) return res.status(400).json({ success: false, error: 'Campaign name is required' });
 
     // 1. Create email template for this campaign
@@ -16406,21 +14778,15 @@ app.post('/api/ai/create-campaign', async (req, res) => {
       templateId = tmplResult.rows[0].id;
     }
 
-    // 2. Create the campaign with auto-generated slug and landing page
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) + '-' + Date.now().toString(36);
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const campaignLink = baseUrl + '/campaign.html?c=' + slug;
-    const formHeading = (form && form.heading) || name;
-    const formDesc = (form && form.description) || description || '';
-    const formMeta = form ? JSON.stringify({ button_text: form.button_text, services: form.services }) : null;
+    // 2. Create the campaign
     const campResult = await pool.query(
-      `INSERT INTO campaigns (name, description, slug, form_heading, form_description, form_fields, template_id, form_url, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', NOW(), NOW()) RETURNING *`,
-      [name, description || '', slug, formHeading, formDesc, formMeta, templateId, campaignLink]
+      `INSERT INTO campaigns (name, description, template_id, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'active', NOW(), NOW()) RETURNING *`,
+      [name, description || '', templateId]
     );
     const campaign = campResult.rows[0];
 
-    res.json({ success: true, campaign, template_id: templateId, campaign_link: campaignLink });
+    res.json({ success: true, campaign, template_id: templateId });
   } catch (error) {
     console.error('AI campaign creation error:', error);
     serverError(res, error);
@@ -16556,453 +14922,6 @@ app.post('/api/settings/home-base', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// GOOGLE BUSINESS PROFILE INTEGRATION
-// ═══════════════════════════════════════════════════════════════
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google/callback';
-const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/business.manage',
-  'https://www.googleapis.com/auth/userinfo.email'
-].join(' ');
-
-// --- Google Token Table ---
-async function ensureGoogleTables() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS google_tokens (
-    id SERIAL PRIMARY KEY,
-    account_id VARCHAR(200),
-    location_id VARCHAR(200),
-    location_name VARCHAR(500),
-    access_token TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )`);
-}
-
-// Exchange refresh token for fresh access token
-async function getGoogleAccessToken() {
-  const row = (await pool.query('SELECT * FROM google_tokens ORDER BY id DESC LIMIT 1')).rows[0];
-  if (!row) return null;
-
-  // Check if token is expired or within 5 minutes of expiring
-  if (new Date(row.expires_at) < new Date(Date.now() + 5 * 60 * 1000)) {
-    // Refresh the token
-    const resp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: row.refresh_token,
-        grant_type: 'refresh_token'
-      })
-    });
-    const data = await resp.json();
-    if (data.access_token) {
-      const expiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000);
-      await pool.query(
-        `UPDATE google_tokens SET access_token=$1, expires_at=$2, updated_at=NOW() WHERE id=$3`,
-        [data.access_token, expiresAt, row.id]
-      );
-      row.access_token = data.access_token;
-    } else {
-      console.error('Google token refresh failed:', data);
-      return null;
-    }
-  }
-  return row;
-}
-
-// Initiate Google OAuth
-app.get('/api/google/auth', requireAdmin, (req, res) => {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    return res.status(503).json({ success: false, error: 'Google credentials not configured' });
-  }
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: GOOGLE_REDIRECT_URI,
-    response_type: 'code',
-    scope: GOOGLE_SCOPES,
-    access_type: 'offline',
-    prompt: 'consent'
-  });
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
-});
-
-// Google OAuth callback
-app.get('/api/google/callback', async (req, res) => {
-  try {
-    const { code, error } = req.query;
-    if (error) {
-      console.error('Google OAuth error:', error);
-      return res.redirect('/settings.html?google=error&msg=' + encodeURIComponent(error));
-    }
-
-    // Exchange code for tokens
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        redirect_uri: GOOGLE_REDIRECT_URI,
-        grant_type: 'authorization_code'
-      })
-    });
-    const tokens = await tokenResp.json();
-
-    if (!tokens.access_token) {
-      console.error('Google token exchange failed:', tokens);
-      return res.redirect('/settings.html?google=error&msg=token_exchange_failed');
-    }
-
-    const expiresAt = new Date(Date.now() + (tokens.expires_in || 3600) * 1000);
-
-    // Get the GBP account and location
-    let accountId = null;
-    let locationId = null;
-    let locationName = null;
-
-    try {
-      // List accounts
-      const acctResp = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
-        headers: { 'Authorization': 'Bearer ' + tokens.access_token }
-      });
-      const acctData = await acctResp.json();
-      const accounts = acctData.accounts || [];
-      if (accounts.length > 0) {
-        accountId = accounts[0].name; // e.g., "accounts/123456"
-
-        // List locations for this account
-        const locResp = await fetch(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountId}/locations?readMask=name,title,storefrontAddress`, {
-          headers: { 'Authorization': 'Bearer ' + tokens.access_token }
-        });
-        const locData = await locResp.json();
-        const locations = locData.locations || [];
-        if (locations.length > 0) {
-          locationId = locations[0].name; // e.g., "locations/789"
-          locationName = locations[0].title || 'Business Location';
-        }
-      }
-    } catch (e) {
-      console.error('Error fetching GBP account/location:', e.message);
-    }
-
-    // Store tokens (replace any existing)
-    await pool.query('DELETE FROM google_tokens');
-    await pool.query(
-      `INSERT INTO google_tokens (account_id, location_id, location_name, access_token, refresh_token, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [accountId, locationId, locationName, tokens.access_token, tokens.refresh_token, expiresAt]
-    );
-
-    res.redirect('/settings.html?google=connected');
-  } catch (error) {
-    console.error('Google callback error:', error);
-    res.redirect('/settings.html?google=error');
-  }
-});
-
-// Check Google connection status
-app.get('/api/google/status', requireAdmin, async (req, res) => {
-  try {
-    const row = (await pool.query('SELECT * FROM google_tokens ORDER BY id DESC LIMIT 1')).rows[0];
-    if (!row) return res.json({ success: true, connected: false });
-
-    res.json({
-      success: true,
-      connected: true,
-      accountId: row.account_id,
-      locationId: row.location_id,
-      locationName: row.location_name,
-      expiresAt: row.expires_at
-    });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// Disconnect Google
-app.post('/api/google/disconnect', requireAdmin, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM google_tokens');
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// Post to Google Business Profile
-app.post('/api/google/post', requireAdmin, async (req, res) => {
-  try {
-    const tokenRow = await getGoogleAccessToken();
-    if (!tokenRow) return res.status(400).json({ success: false, error: 'Google Business Profile not connected' });
-    if (!tokenRow.location_id) return res.status(400).json({ success: false, error: 'No business location found. Reconnect Google.' });
-
-    const { text, callToAction } = req.body;
-    if (!text) return res.status(400).json({ success: false, error: 'Post text is required' });
-
-    // Build the local post body
-    const postBody = {
-      languageCode: 'en',
-      topicType: 'STANDARD',
-      summary: text
-    };
-
-    // Optional CTA (e.g., CALL, LEARN_MORE, BOOK, etc.)
-    if (callToAction) {
-      postBody.callToAction = {
-        actionType: callToAction.type || 'CALL',
-        url: callToAction.url || 'https://pappaslandscaping.com'
-      };
-    }
-
-    const postResp = await fetch(
-      `https://mybusiness.googleapis.com/v4/${tokenRow.account_id}/${tokenRow.location_id}/localPosts`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + tokenRow.access_token,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(postBody)
-      }
-    );
-
-    const postData = await postResp.json();
-
-    if (postData.error) {
-      console.error('GBP post error:', postData.error);
-      return res.status(400).json({ success: false, error: postData.error.message || 'Failed to post to Google' });
-    }
-
-    res.json({ success: true, post: postData });
-  } catch (error) {
-    serverError(res, error, 'Google post failed');
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════
-// PHOTO LIBRARY — Admin endpoints (public endpoints defined before requireAdmin)
-// ═══════════════════════════════════════════════════════════════
-
-// Upload photos (admin)
-app.post('/api/photos/upload', requireAdmin, photoUploadPublic.array('photos', 10), async (req, res) => {
-  try {
-    const { tags, category, notes } = req.body;
-    const tagArray = tags ? (typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : tags) : [];
-
-    const results = [];
-    for (const file of (req.files || [])) {
-      const base64 = file.buffer.toString('base64');
-      const result = await pool.query(
-        `INSERT INTO photo_library (image_data, mime_type, original_name, tags, category, notes, uploaded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, 'admin') RETURNING id, original_name, tags, category, notes, uploaded_by, created_at`,
-        [base64, file.mimetype, file.originalname, tagArray, category || '', notes || '']
-      );
-      results.push(result.rows[0]);
-    }
-    res.json({ success: true, photos: results });
-  } catch (error) {
-    serverError(res, error, 'Photo upload failed');
-  }
-});
-
-// List photos (returns metadata only, not image data)
-app.get('/api/photos', requireAdmin, async (req, res) => {
-  try {
-    const { category, tag } = req.query;
-    let query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library ORDER BY created_at DESC';
-    const params = [];
-    if (category) {
-      query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library WHERE category = $1 ORDER BY created_at DESC';
-      params.push(category);
-    } else if (tag) {
-      query = 'SELECT id, original_name, tags, category, notes, uploaded_by, created_at FROM photo_library WHERE $1 = ANY(tags) ORDER BY created_at DESC';
-      params.push(tag);
-    }
-    const result = await pool.query(query, params);
-    res.json({ success: true, photos: result.rows });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// Update photo tags/category
-app.patch('/api/photos/:id', requireAdmin, async (req, res) => {
-  try {
-    const { tags, category, notes } = req.body;
-    const updates = [];
-    const params = [];
-    let idx = 1;
-    if (tags !== undefined) { updates.push(`tags = $${idx++}`); params.push(Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())); }
-    if (category !== undefined) { updates.push(`category = $${idx++}`); params.push(category); }
-    if (notes !== undefined) { updates.push(`notes = $${idx++}`); params.push(notes); }
-    if (!updates.length) return res.json({ success: true });
-    params.push(req.params.id);
-    await pool.query(`UPDATE photo_library SET ${updates.join(', ')} WHERE id = $${idx}`, params);
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// Delete photo
-app.delete('/api/photos/:id', requireAdmin, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM photo_library WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════
-// SOCIAL MEDIA POST GENERATOR
-// ═══════════════════════════════════════════════════════════════
-
-app.post('/api/social-media/generate', async (req, res) => {
-  try {
-    if (!anthropicClient) {
-      return res.status(503).json({ success: false, error: 'AI service not configured. ANTHROPIC_API_KEY is not set.' });
-    }
-
-    const { postType, context, imageBase64, tone, platform } = req.body;
-    if (!postType) return res.status(400).json({ success: false, error: 'Post type required' });
-
-    const toneLabel = tone || 'Casual';
-    const singlePlatform = platform; // if set, only regenerate one platform
-
-    const platformList = singlePlatform
-      ? [singlePlatform]
-      : ['facebook', 'instagram', 'nextdoor', 'tiktok', 'google', 'twitter'];
-
-    const platformNames = {
-      facebook: 'Facebook', instagram: 'Instagram', nextdoor: 'Nextdoor',
-      tiktok: 'TikTok', google: 'Google Business Profile', twitter: 'X (Twitter)'
-    };
-
-    const jsonStructure = platformList.map(p => `  "${p}": { "text": "...", "tips": "..." }`).join(',\n');
-
-    const messages = [];
-    const userContent = [];
-
-    userContent.push({
-      type: 'text',
-      text: `You write social media posts for Pappas & Co. Landscaping, a landscaping company in the Cleveland, Ohio area.
-
-CRITICAL VOICE GUIDE: You are writing AS Theresa or Tim from Pappas & Co. Here is exactly how they talk:
-- Short, direct sentences. No fluff. "Good morning! The mowing cost will be $39 - same as last year and no problem about the mulch."
-- Friendly but not over-the-top. "Hey! Just wanted to let you know that spots have opened up and we are taking on a few more customers this season."
-- They say "let me know" a lot. They say "no problem." They're straightforward and warm.
-- They DON'T use marketing language. No "transform", "elevate", "trusted professionals", "quality service". They just talk normal.
-- They DON'T write long paragraphs. 1-3 short sentences per thought.
-- They use exclamation points naturally but not excessively.
-- They sound like someone you'd text with, not someone writing an ad.
-
-BAD examples (never write like this):
-- "Transform your outdoor space this spring!"
-- "As your trusted landscaping professionals, we're committed to excellence"
-- "Don't miss out on our amazing spring services!"
-- "We take pride in delivering top-notch results for every client"
-
-GOOD examples (write like this):
-- "Hey! Spots opened up for mowing this season. Let me know if you want me to add you to the list!"
-- "Spring cleanup time. If your yard looks rough after winter, shoot us a message."
-- "That's fine. You can pay by check"
-- "Mulch is going fast this year. We're booking into May already."
-
-VARIETY: Use a completely different opening, structure, and angle every time. Never start with "Hey Cleveland" or "Hey neighbors" repeatedly. Mix it up — question, quick story, tip, weather observation, something funny, or just jump right in. Don't always end with the phone number. Each platform should feel genuinely different from the others.
-
-Company details:
-- Name: Pappas & Co. Landscaping
-- Location: Cleveland OH west side — Lakewood, Bay Village, Rocky River, Westlake, North Olmsted, Fairview Park, Avon, Avon Lake, etc.
-- Services: Mowing, Spring/Fall Cleanup, Mulching, Shrub Trimming, Aeration, Fertilizing, Weed Control, Snow Plowing
-- Phone: 440-886-7318
-- Website: pappaslandscaping.com
-
-Tone: ${toneLabel}
-Post type: ${postType}
-${context ? `Additional context: ${context}` : ''}
-
-Generate a post for: ${platformList.map(p => platformNames[p]).join(', ')}
-
-Format as JSON:
-{
-${jsonStructure}
-}
-
-Platform guidelines:
-- Facebook: Conversational, like you're talking to a friend. Short paragraphs. Don't overdo emojis.
-- Instagram: Natural caption with line breaks. 10-15 relevant hashtags (not 30 generic ones). Use emojis sparingly.
-- Nextdoor: Neighbor-to-neighbor tone. Mention specific Cleveland west side suburbs. Be helpful, not salesy.
-- TikTok: Short punchy hook + caption. Trending but authentic. A few relevant hashtags.
-- Google Business Profile: Mention Cleveland/specific suburbs for local SEO. Professional but still warm. Include service keywords naturally.
-- X/Twitter: Under 280 characters. Conversational, not a slogan. 1-2 hashtags max.
-
-"tips" should be a brief posting suggestion (best time to post, what photo to pair it with, etc.)
-
-Return ONLY valid JSON, no other text.`
-    });
-
-    if (imageBase64) {
-      userContent.push({
-        type: 'image',
-        source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 }
-      });
-    }
-
-    messages.push({ role: 'user', content: userContent });
-
-    const response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.9,
-      messages
-    });
-
-    const text = response.content?.[0]?.text || '';
-
-    // Parse JSON from response
-    let posts;
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      posts = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-    } catch (e) {
-      return res.json({ success: false, error: 'Failed to parse AI response' });
-    }
-
-    if (!posts) return res.json({ success: false, error: 'No posts generated' });
-
-    // Save to DB (skip for single-platform regenerations)
-    if (!singlePlatform) {
-      await pool.query(
-        `INSERT INTO social_media_posts (post_type, context, posts, created_at) VALUES ($1, $2, $3, NOW())`,
-        [postType, context || '', JSON.stringify(posts)]
-      );
-    }
-
-    res.json({ success: true, posts });
-  } catch (error) {
-    console.error('Social media generation error:', error);
-    serverError(res, error);
-  }
-});
-
-app.get('/api/social-media/history', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM social_media_posts ORDER BY created_at DESC LIMIT 50');
-    res.json({ success: true, posts: result.rows });
-  } catch (error) {
-    serverError(res, error);
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════
 // CATCH-ALL: Must be LAST route — serves static files or falls back to index.html
 // ═══════════════════════════════════════════════════════════════
 app.get('*', (req, res) => {
@@ -17025,89 +14944,11 @@ app.get('*', (req, res) => {
       viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       ip_address VARCHAR(45), user_agent TEXT
     )`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS social_media_posts (
-      id SERIAL PRIMARY KEY,
-      post_type VARCHAR(50),
-      context TEXT,
-      posts JSONB,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
     console.log('✅ Startup table initialization complete');
   } catch (err) {
     console.error('⚠️ Startup table initialization error:', err.message);
   }
 })();
-
-// ═══════════════════════════════════════════════════════════
-// TIMECLOCK CALCULATOR — Parse time tracking PDFs for payroll
-// ═══════════════════════════════════════════════════════════
-
-app.post('/api/timeclock/parse-pdf', authenticateToken, pdfUpload.single('pdf'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
-
-    // Extract text from PDF using pdfjs-dist
-    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-    const uint8 = new Uint8Array(req.file.buffer);
-    const doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
-    let text = '';
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map(item => item.str).join(' ') + '\n';
-    }
-
-    // Parse entries from the PDF text (all on one line, space-separated)
-    // Pattern: "Mar 09, 2026 LastName, FirstName , Start End Hours min."
-    const entries = [];
-    const entryRegex = /([A-Z][a-z]{2}\s+\d{1,2},\s*\d{4})\s+([A-Za-z]+,\s*[A-Za-z]+)\s+,\s*(.*?)\s*(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d+)\s*hrs?\.\s*(\d+)\s*min/gi;
-
-    let match;
-    while ((match = entryRegex.exec(text)) !== null) {
-      const hours = parseInt(match[6]);
-      const minutes = parseInt(match[7]);
-      entries.push({
-        date: match[1].trim(),
-        employee: match[2].trim(),
-        customer: match[3].trim().replace(/^,\s*/, '').replace(/,\s*$/, '') || '',
-        start: match[4].trim(),
-        end: match[5].trim(),
-        hours,
-        minutes,
-        totalHours: +(hours + minutes / 60).toFixed(2)
-      });
-    }
-
-    // Group by employee
-    const byEmployee = {};
-    for (const e of entries) {
-      if (!byEmployee[e.employee]) {
-        byEmployee[e.employee] = { entries: [], totalHours: 0, totalMinutes: 0 };
-      }
-      byEmployee[e.employee].entries.push(e);
-      byEmployee[e.employee].totalHours += e.hours;
-      byEmployee[e.employee].totalMinutes += e.minutes;
-    }
-
-    // Normalize minutes to hours
-    for (const emp of Object.keys(byEmployee)) {
-      const d = byEmployee[emp];
-      d.totalHours += Math.floor(d.totalMinutes / 60);
-      d.totalMinutes = d.totalMinutes % 60;
-      d.decimalHours = +(d.totalHours + d.totalMinutes / 60).toFixed(2);
-    }
-
-    // Extract total from header if present
-    const totalMatch = text.match(/Total Working time:\s*(\d+)\s*hrs?\.\s*(\d+)\s*min/i);
-    const reportTotal = totalMatch
-      ? { hours: parseInt(totalMatch[1]), minutes: parseInt(totalMatch[2]) }
-      : null;
-
-    res.json({ success: true, entries, byEmployee, reportTotal });
-  } catch (error) {
-    serverError(res, error, 'Timeclock PDF parse error');
-  }
-});
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 

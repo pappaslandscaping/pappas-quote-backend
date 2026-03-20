@@ -511,6 +511,10 @@
                         icon = '✅'; cls = 'contracted'; title = 'Contract Signed';
                         desc = details.signer_name ? 'Signed by ' + details.signer_name : 'Contract was signed';
                         break;
+                    case 'sent_sms':
+                        icon = '💬'; cls = 'sent'; title = 'Sent by Text';
+                        desc = details.phone ? 'Quote sent via text to ' + details.phone : 'Quote sent via text';
+                        break;
                     default:
                         icon = '📌'; cls = 'created'; title = ev.event_type;
                         desc = ev.description || '';

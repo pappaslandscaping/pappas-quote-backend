@@ -572,6 +572,11 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                             </button>
                         ` : ''}
+                        ${q.status !== 'contracted' ? `
+                            <button class="btn-icon" onclick="sendQuoteSMS(${q.id})" title="Send by Text">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            </button>
+                        ` : ''}
                         ${(q.status === 'signed' || q.status === 'contracted') ? `
                             <button class="btn-icon" onclick="downloadQuote(${q.id})" title="Download Quote PDF">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -629,6 +634,24 @@
             }
         } catch (e) {
             showToast('Error resending quote', true);
+        }
+    }
+
+    // Send quote by text
+    async function sendQuoteSMS(id) {
+        if (!confirm('Send this quote via text message?')) return;
+        showToast('Sending text...');
+        try {
+            const res = await fetch(`/api/sent-quotes/${id}/send-sms`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Quote sent via text!');
+                loadQuotes();
+            } else {
+                showToast(data.error || 'Error sending text', true);
+            }
+        } catch (e) {
+            showToast('Error sending text', true);
         }
     }
 

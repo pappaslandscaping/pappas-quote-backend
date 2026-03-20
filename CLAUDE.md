@@ -59,6 +59,13 @@ c.name || ((c.first_name||'')+(c.last_name?' '+c.last_name:'')).trim() || 'Unkno
 - `POST /api/jobs/:id/setup-recurring` — recurring schedule
 - `PATCH /api/jobs/:id/complete` — marks complete + auto-invoices
 
+## CopilotCRM Integration (DO NOT REMOVE)
+- **Contract signed → CopilotCRM sync** lives in the `POST /api/sent-quotes/:id/sign-contract` handler
+- Uses `COPILOTCRM_USERNAME` and `COPILOTCRM_PASSWORD` env vars (set in Railway)
+- When a contract is signed: logs into CopilotCRM API, finds customer, matches estimate by quote number, marks estimate as accepted, uploads signed contract PDF
+- **Backfill endpoint:** `POST /api/copilotcrm/backfill-contract` with `{ customer_name }` — manually triggers the same sync for a previously signed quote
+- **NEVER replace this code with a Zapier webhook.** It was accidentally removed once before and broke the integration.
+
 ## Dashboard Structure (index.html)
 - 4 stat cards: Revenue This Month, YTD Revenue, Outstanding Invoices, Total Customers
 - Workflow pipeline bar: Requests → Quotes → Jobs → Invoices (clickable, with counts)

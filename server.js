@@ -17046,33 +17046,36 @@ app.post('/api/timeclock/parse-pdf', authenticateToken, pdfUpload.single('pdf'),
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
 
-    const pdfParse = require('pdf-parse');
-    const data = await pdfParse(req.file.buffer);
-    const text = data.text;
+    // Extract text from PDF using pdfjs-dist
+    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+    const uint8 = new Uint8Array(req.file.buffer);
+    const doc = await pdfjsLib.getDocument({ data: uint8 }).promise;
+    let text = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(' ') + '\n';
+    }
 
-    // Parse entries from the PDF text
-    // Format: "Mar 09, 2026 Redarowicz, Christopher , 8:21 am 5:17 pm 8 hrs. 55 min."
+    // Parse entries from the PDF text (all on one line, space-separated)
+    // Pattern: "Mar 09, 2026 LastName, FirstName , Start End Hours min."
     const entries = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const entryRegex = /([A-Z][a-z]{2}\s+\d{1,2},\s*\d{4})\s+([A-Za-z]+,\s*[A-Za-z]+)\s+,\s*(.*?)\s*(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d+)\s*hrs?\.\s*(\d+)\s*min/gi;
 
-    for (const line of lines) {
-      const match = line.match(
-        /^([A-Z][a-z]{2}\s+\d{1,2},\s*\d{4})\s+(.+?)\s+,\s*(.*?)\s*(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d+)\s*hrs?\.\s*(\d+)\s*min/i
-      );
-      if (match) {
-        const hours = parseInt(match[6]);
-        const minutes = parseInt(match[7]);
-        entries.push({
-          date: match[1].trim(),
-          employee: match[2].trim(),
-          customer: match[3].trim().replace(/^,\s*/, '').replace(/,\s*$/, '') || '',
-          start: match[4].trim(),
-          end: match[5].trim(),
-          hours,
-          minutes,
-          totalHours: +(hours + minutes / 60).toFixed(2)
-        });
-      }
+    let match;
+    while ((match = entryRegex.exec(text)) !== null) {
+      const hours = parseInt(match[6]);
+      const minutes = parseInt(match[7]);
+      entries.push({
+        date: match[1].trim(),
+        employee: match[2].trim(),
+        customer: match[3].trim().replace(/^,\s*/, '').replace(/,\s*$/, '') || '',
+        start: match[4].trim(),
+        end: match[5].trim(),
+        hours,
+        minutes,
+        totalHours: +(hours + minutes / 60).toFixed(2)
+      });
     }
 
     // Group by employee

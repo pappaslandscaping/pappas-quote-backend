@@ -4073,9 +4073,10 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
       // Split name from street: name ends before the first house number (digits)
       const match = nameAndStreet.match(/^(.*?)\s+(\d+\s+.*)$/);
       if (match) {
-        return { name: match[1].trim(), address: match[2].trim() };
+        const street = cityStateZip ? match[2] + ', ' + cityStateZip : match[2];
+        return { name: match[1].trim(), address: street };
       }
-      return { name: nameAndStreet.trim(), address: '' };
+      return { name: nameAndStreet.trim(), address: cityStateZip };
     }
     
     let imported = 0, updated = 0, skipped = 0;
@@ -11889,7 +11890,9 @@ app.post('/api/broadcasts/send', async (req, res) => {
           if (jobResult.rows.length > 0) {
             const job = jobResult.rows[0];
             vars.service_type = job.service_type || '';
-            vars.address = job.address || vars.customer_address;
+            // Use street only for SMS (strip city/state/zip/country)
+            const fullAddr = job.address || vars.customer_address || '';
+            vars.address = fullAddr.split(',')[0].trim();
             vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
             vars.job_date = job.job_date ? new Date(job.job_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
           }

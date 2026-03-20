@@ -514,19 +514,27 @@ async function sendMessage() {
         conversationState = 'generating';
         await generateFromChat();
     } else if (conversationState === 'done') {
-        // Follow-up request — treat as new context
-        pendingContext = text;
-        conversationState = 'awaiting_tone';
+        // Check if user wants to start fresh or refine
+        const lowerText = text.toLowerCase();
+        const isNewPost = lowerText.startsWith('new post') || lowerText.startsWith('start over') || lowerText.startsWith('new topic') || lowerText.startsWith('different post');
 
-        await delay(400);
-        addBubble('New post! What tone?', 'assistant', [
-            { label: 'Casual', value: 'Casual' },
-            { label: 'Professional', value: 'Professional' },
-            { label: 'Funny', value: 'Funny' },
-            { label: 'Promotional', value: 'Promotional' },
-            { label: 'Inspiring', value: 'Inspiring' },
-            { label: 'Community', value: 'Community' }
-        ]);
+        if (isNewPost || !currentPosts || Object.keys(currentPosts).length === 0) {
+            pendingContext = text;
+            conversationState = 'awaiting_tone';
+            await delay(400);
+            addBubble('New post! What tone?', 'assistant', [
+                { label: 'Casual', value: 'Casual' },
+                { label: 'Professional', value: 'Professional' },
+                { label: 'Funny', value: 'Funny' },
+                { label: 'Promotional', value: 'Promotional' },
+                { label: 'Inspiring', value: 'Inspiring' },
+                { label: 'Community', value: 'Community' }
+            ]);
+        } else {
+            // Refine existing posts
+            conversationState = 'refining';
+            await refineFromChat(text);
+        }
     }
 }
 
@@ -612,6 +620,80 @@ async function generateFromChat() {
         document.getElementById('photoInput').value = '';
         document.getElementById('photoBadge').style.display = 'none';
         renderPhotoLibrary();
+    } catch (err) {
+        hideTyping();
+        addBubble('Error: ' + err.message, 'assistant');
+        conversationState = 'done';
+    }
+}
+
+async function refineFromChat(instruction) {
+    showTyping();
+    addBubble('Updating your posts...', 'assistant');
+
+    try {
+        const resp = await fetch(API + '/api/social-media/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+            body: JSON.stringify({
+                currentPosts,
+                instruction,
+                tone: selectedTone,
+                originalContext: pendingContext
+            })
+        });
+        const data = await resp.json();
+        hideTyping();
+
+        if (!data.success) {
+            // Remove "Updating..." bubble
+            const msgs = document.getElementById('chatMessages');
+            const lastAssistant = msgs.querySelectorAll('.chat-bubble.assistant');
+            if (lastAssistant.length) lastAssistant[lastAssistant.length - 1].remove();
+
+            // If it's a conversational reply (not post updates), show it as chat
+            addBubble(data.error || 'Something went wrong', 'assistant');
+            conversationState = 'done';
+            return;
+        }
+
+        if (data.reply) {
+            // AI responded conversationally (suggestion, question, etc.)
+            const msgs = document.getElementById('chatMessages');
+            const lastAssistant = msgs.querySelectorAll('.chat-bubble.assistant');
+            if (lastAssistant.length) lastAssistant[lastAssistant.length - 1].remove();
+            addBubble(data.reply, 'assistant');
+        }
+
+        if (data.posts) {
+            // Merge updated posts into current
+            for (const [k, v] of Object.entries(data.posts)) {
+                if (v && v.text) currentPosts[k] = v;
+            }
+
+            // Remove "Updating..." bubble
+            const msgs = document.getElementById('chatMessages');
+            const lastAssistant = msgs.querySelectorAll('.chat-bubble.assistant');
+            if (lastAssistant.length) lastAssistant[lastAssistant.length - 1].remove();
+
+            const msgDiv = addBubble(data.reply || 'Updated! Pick a platform to preview:', 'assistant');
+            const optDiv = document.createElement('div');
+            optDiv.className = 'options';
+            Object.keys(currentPosts).forEach(k => {
+                const info = PLATFORMS[k];
+                if (!info) return;
+                const btn = document.createElement('button');
+                btn.className = 'option-btn platform-btn';
+                btn.style.cssText = 'display:flex;align-items:center;gap:6px;';
+                btn.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${info.color};display:inline-block;"></span>${info.label}`;
+                btn.onclick = () => { currentPlatform = k; showPreviews(); };
+                optDiv.appendChild(btn);
+            });
+            msgDiv.appendChild(optDiv);
+            showPreviews();
+        }
+
+        conversationState = 'done';
     } catch (err) {
         hideTyping();
         addBubble('Error: ' + err.message, 'assistant');

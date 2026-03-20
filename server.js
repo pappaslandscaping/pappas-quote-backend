@@ -16174,6 +16174,69 @@ ${platform ? `Only generate for: ${platform}` : ''}`;
   }
 });
 
+// POST /api/social-media/refine - Refine existing posts or have a conversation
+app.post('/api/social-media/refine', authenticateToken, async (req, res) => {
+  try {
+    if (!anthropicClient) {
+      return res.status(503).json({ success: false, error: 'AI service not configured.' });
+    }
+
+    const { currentPosts, instruction, tone, originalContext } = req.body;
+    if (!instruction) {
+      return res.status(400).json({ success: false, error: 'Please provide an instruction' });
+    }
+
+    const systemPrompt = `You are a social media manager for Pappas & Co. Landscaping in Lakewood/Cleveland, Ohio.
+Owner: Tim Pappas. Phone: 440-886-7318. Instagram/TikTok: @pappaslandscaping.
+Voice: Friendly, community-focused, professional but approachable.
+
+You're in an ongoing conversation helping create and refine social media posts. The user has already generated posts and is now asking for changes, feedback, or new ideas.
+
+Current posts:
+${JSON.stringify(currentPosts, null, 2)}
+
+Original topic: ${originalContext || 'not specified'}
+Tone: ${tone || 'professional'}
+
+The user may:
+1. Ask you to edit specific posts (e.g., "make the Facebook one shorter", "add more hashtags to Instagram")
+2. Ask for your opinion or suggestions (e.g., "which one is best?", "what hashtags should I use?")
+3. Ask about best practices (e.g., "what time should I post?", "should I use a photo?")
+4. Request completely new variations
+
+If the user is asking to MODIFY posts, respond with JSON like:
+{"reply": "your conversational message", "posts": { "facebook": {"text": "..."}, ... }}
+Only include platforms that changed in the posts object.
+
+If the user is asking a QUESTION or for advice (not modifying posts), respond with just:
+{"reply": "your helpful answer"}
+
+Always respond with valid JSON only, no markdown.`;
+
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: instruction }]
+    });
+
+    const text = response.content[0].text;
+    let parsed;
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+    } catch (e) {
+      // If AI didn't return JSON, treat the whole response as a reply
+      parsed = { reply: text };
+    }
+
+    res.json({ success: true, reply: parsed.reply || null, posts: parsed.posts || null });
+  } catch (error) {
+    console.error('Social media refine error:', error);
+    serverError(res, error);
+  }
+});
+
 // GET /api/social-media/history
 app.get('/api/social-media/history', authenticateToken, async (req, res) => {
   try {

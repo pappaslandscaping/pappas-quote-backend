@@ -4065,11 +4065,22 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
     
     function parseNameAddress(details) {
       if (!details) return { name: '', address: '' };
+      // Format: "FirstName LastName 1234 Street Name  City State Zip, Country"
+      // Split on 2+ spaces first to separate street from city
       const parts = details.split(/\s{2,}/);
-      return parts.length >= 2 ? { name: parts[0].trim(), address: parts.slice(1).join(' ').trim() } : { name: details, address: '' };
+      const nameAndStreet = parts[0] || '';
+      const cityStateZip = parts.slice(1).join(' ').trim();
+      // Split name from street: name ends before the first house number (digits)
+      const match = nameAndStreet.match(/^(.*?)\s+(\d+\s+.*)$/);
+      if (match) {
+        const street = cityStateZip ? match[2] + ', ' + cityStateZip : match[2];
+        return { name: match[1].trim(), address: street };
+      }
+      return { name: nameAndStreet.trim(), address: cityStateZip };
     }
     
     let imported = 0, updated = 0, skipped = 0;
+    const importedJobs = [];
     for (const job of jobs) {
       try {
         const jobDate = parseDate(job['Date of Service']);
@@ -4077,18 +4088,51 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
         const { name, address } = parseNameAddress(job['Name / Details']);
         const serviceType = job['Title'] || 'Service';
         const price = parseFloat((job['Visit Total'] || '0').replace(/[^0-9.]/g, '')) || 0;
-        
+
+        // Try to match customer by name
+        const nameParts = name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        let customerId = null, customerPhone = null, customerMobile = null;
+
+        const custMatch = await pool.query(
+          `SELECT id, phone, mobile FROM customers
+           WHERE LOWER(TRIM(name)) = LOWER($1)
+              OR (LOWER(TRIM(first_name)) = LOWER($2) AND LOWER(TRIM(last_name)) = LOWER($3))
+           LIMIT 1`,
+          [name, firstName, lastName]
+        );
+        if (custMatch.rows.length > 0) {
+          customerId = custMatch.rows[0].id;
+          customerPhone = custMatch.rows[0].phone;
+          customerMobile = custMatch.rows[0].mobile;
+        }
+
         const existing = await pool.query('SELECT id FROM scheduled_jobs WHERE job_date = $1 AND customer_name = $2 AND service_type = $3', [jobDate, name, serviceType]);
+        let jobId;
         if (existing.rows.length > 0) {
-          await pool.query('UPDATE scheduled_jobs SET address = $1, service_price = $2 WHERE id = $3', [address, price, existing.rows[0].id]);
+          jobId = existing.rows[0].id;
+          await pool.query('UPDATE scheduled_jobs SET address = $1, service_price = $2, customer_id = COALESCE($3, customer_id) WHERE id = $4', [address, price, customerId, jobId]);
           updated++;
         } else {
-          await pool.query('INSERT INTO scheduled_jobs (job_date, customer_name, service_type, service_price, address, status) VALUES ($1, $2, $3, $4, $5, $6)', [jobDate, name, serviceType, price, address, 'pending']);
+          const insertResult = await pool.query('INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [jobDate, name, customerId, serviceType, price, address, 'pending']);
+          jobId = insertResult.rows[0].id;
           imported++;
         }
+
+        importedJobs.push({
+          id: jobId,
+          job_date: jobDate,
+          customer_name: name,
+          customer_id: customerId,
+          service_type: serviceType,
+          service_price: price,
+          address,
+          phone: customerMobile || customerPhone || null
+        });
       } catch (e) { skipped++; }
     }
-    res.json({ success: true, message: 'Import complete', stats: { total: jobs.length, imported, updated, skipped } });
+    res.json({ success: true, message: 'Import complete', stats: { total: jobs.length, imported, updated, skipped }, jobs: importedJobs });
   } catch (error) { serverError(res, error); }
 });
 
@@ -11715,6 +11759,12 @@ app.post('/api/broadcasts/preview', async (req, res) => {
     if (filters.active_since_months) {
       params.push(filters.active_since_months);
       conditions.push(`c.id IN (SELECT DISTINCT customer_id FROM scheduled_jobs WHERE created_at >= NOW() - ($${paramIdx++} || ' months')::INTERVAL)`);
+    }
+
+    // Scheduled on specific date (for daily reminders)
+    if (filters.job_date) {
+      params.push(filters.job_date);
+      conditions.push(`c.id IN (SELECT DISTINCT customer_id FROM scheduled_jobs WHERE job_date::date = $${paramIdx++}::date AND customer_id IS NOT NULL)`);
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';

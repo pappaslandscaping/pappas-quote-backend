@@ -984,6 +984,15 @@
                         </div>
                     </div>
 
+                    <!-- Scheduled on date (for reminders) -->
+                    <div class="filter-row">
+                        <div class="filter-row-inline">
+                            <input type="checkbox" id="jobDateFilter" onchange="toggleJobDate()">
+                            <label for="jobDateFilter">Scheduled on</label>
+                            <input type="date" id="jobDateValue" disabled onchange="onFilterChange()" style="padding:6px 8px;border:1px solid var(--gray-200);border-radius:6px;font-size:13px;font-family:inherit;">
+                        </div>
+                    </div>
+
                     <div class="filter-actions">
                         <span class="filter-count" id="filterCountLabel">No filters active</span>
                         <button class="btn-clear-filters" onclick="clearAllFilters()">Clear Filters</button>
@@ -1170,10 +1179,21 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTemplates();
     refreshAudience();
 
-    // Check for campaign pre-fill from URL params
+    // Check for URL params
     const params = new URLSearchParams(window.location.search);
     if (params.get('campaign_id')) {
         broadcastCampaignId = params.get('campaign_id');
+    }
+
+    // Pre-fill job date filter from URL (e.g. linked from import-scheduling)
+    if (params.get('job_date')) {
+        document.getElementById('jobDateFilter').checked = true;
+        document.getElementById('jobDateValue').disabled = false;
+        document.getElementById('jobDateValue').value = params.get('job_date');
+        // Auto-select SMS channel for reminders
+        const smsRadio = document.querySelector('input[name="channel"][value="sms"]');
+        if (smsRadio) { smsRadio.checked = true; if (typeof switchChannel === 'function') switchChannel('sms'); }
+        onFilterChange();
     }
 
     // Close dropdowns on outside click
@@ -1224,10 +1244,23 @@ async function loadTemplates() {
             // Auto-select template if passed via URL (from campaign send)
             const params = new URLSearchParams(window.location.search);
             const preTemplateId = params.get('template_id');
+            const preTemplateName = params.get('template_name');
             if (preTemplateId) {
                 sel.value = preTemplateId;
-                // Trigger template change to load preview
                 sel.dispatchEvent(new Event('change'));
+            } else if (preTemplateName) {
+                const match = templates.find(t => (t.name || '').toLowerCase().includes(preTemplateName.toLowerCase()));
+                if (match) {
+                    sel.value = match.id;
+                    sel.dispatchEvent(new Event('change'));
+                    // Auto-populate SMS body from template
+                    if (match.sms_body) {
+                        setTimeout(() => {
+                            document.getElementById('smsBody').value = match.sms_body;
+                            if (typeof updateCharCount === 'function') updateCharCount();
+                        }, 100);
+                    }
+                }
             }
         }
     } catch (e) {
@@ -1325,6 +1358,19 @@ function toggleRecentMonths() {
     onFilterChange();
 }
 
+function toggleJobDate() {
+    const cb = document.getElementById('jobDateFilter');
+    const dateInput = document.getElementById('jobDateValue');
+    dateInput.disabled = !cb.checked;
+    if (cb.checked && !dateInput.value) {
+        // Default to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.value = tomorrow.toISOString().split('T')[0];
+    }
+    onFilterChange();
+}
+
 function updateFilterCount() {
     let count = 0;
     if (chipSelections.tags.length) count++;
@@ -1335,6 +1381,7 @@ function updateFilterCount() {
     if (document.getElementById('typeFilter').value) count++;
     if (document.getElementById('monthlyPlanFilter').checked) count++;
     if (document.getElementById('recentlyActiveFilter').checked) count++;
+    if (document.getElementById('jobDateFilter').checked) count++;
 
     const badge = document.getElementById('activeFilterBadge');
     const label = document.getElementById('filterCountLabel');
@@ -1367,6 +1414,9 @@ function clearAllFilters() {
     document.getElementById('recentlyActiveFilter').checked = false;
     document.getElementById('recentMonths').disabled = true;
     document.getElementById('recentMonths').value = 6;
+    document.getElementById('jobDateFilter').checked = false;
+    document.getElementById('jobDateValue').disabled = true;
+    document.getElementById('jobDateValue').value = '';
     onFilterChange();
 }
 
@@ -1384,6 +1434,9 @@ function buildFilterPayload() {
     if (document.getElementById('monthlyPlanFilter').checked) payload.monthly_plan = true;
     if (document.getElementById('recentlyActiveFilter').checked) {
         payload.active_since_months = parseInt(document.getElementById('recentMonths').value) || 6;
+    }
+    if (document.getElementById('jobDateFilter').checked && document.getElementById('jobDateValue').value) {
+        payload.job_date = document.getElementById('jobDateValue').value;
     }
     return payload;
 }

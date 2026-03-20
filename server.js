@@ -5459,6 +5459,73 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
   }
 });
 
+// POST /api/sent-quotes/:id/send-sms - Send quote via text message
+app.post('/api/sent-quotes/:id/send-sms', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!twilioClient) {
+      return res.status(400).json({ success: false, error: 'SMS is not configured' });
+    }
+
+    const quoteResult = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [id]);
+    if (quoteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Quote not found' });
+    }
+
+    const quote = quoteResult.rows[0];
+
+    // Get customer phone — from quote or customer record
+    let phone = quote.customer_phone;
+    if (!phone && quote.customer_id) {
+      const custResult = await pool.query('SELECT phone, mobile FROM customers WHERE id = $1', [quote.customer_id]);
+      if (custResult.rows.length > 0) {
+        phone = custResult.rows[0].mobile || custResult.rows[0].phone;
+      }
+    }
+
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
+    }
+
+    // Format phone number
+    const cleaned = phone.replace(/\D/g, '');
+    const toNumber = cleaned.length === 10 ? '+1' + cleaned : '+' + cleaned;
+
+    const signUrl = `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sign-quote.html?token=${quote.sign_token}`;
+    const firstName = (quote.customer_name || '').split(' ')[0] || '';
+    const quoteNumber = quote.quote_number || `Q-${quote.id}`;
+
+    const smsBody = `Hi ${firstName}! This is Tim from Pappas & Co. Landscaping. Thanks for giving us the opportunity to quote your service!\n\nYou can view and accept your pricing here: ${signUrl}\n\nTo secure your spot on our route, please click "Accept" on the quote. If you have any questions while reviewing it, feel free to text me back here.\n\nWe look forward to servicing your property!`;
+
+    const twilioMessage = await twilioClient.messages.create({
+      body: smsBody,
+      from: TWILIO_PHONE_NUMBER,
+      to: toNumber
+    });
+
+    // Log to messages table
+    await pool.query(`
+      INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+      VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
+    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, toNumber, smsBody, twilioMessage.status, quote.customer_id]);
+
+    // Update quote status to sent if still draft
+    if (quote.status === 'draft') {
+      await pool.query('UPDATE sent_quotes SET status = $1, sent_at = CURRENT_TIMESTAMP WHERE id = $2', ['sent', id]);
+    }
+
+    // Log event
+    await logQuoteEvent(id, 'sent_sms', 'Quote sent via text to ' + phone, { phone, quote_number: quoteNumber });
+
+    console.log(`📱 Quote ${quoteNumber} sent via SMS to ${phone}`);
+    res.json({ success: true, message: 'Quote sent via text!' });
+  } catch (error) {
+    console.error('Error sending quote SMS:', error);
+    serverError(res, error);
+  }
+});
+
 // DELETE /api/sent-quotes/:id - Delete quote
 app.delete('/api/sent-quotes/:id', async (req, res) => {
   try {

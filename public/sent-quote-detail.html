@@ -407,9 +407,11 @@
         }
         if (q.status === 'draft') {
             actionsHtml += `<button class="btn btn-primary" onclick="sendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg> Send Quote</button>`;
+            actionsHtml += `<button class="btn btn-outline" onclick="sendQuoteSMS()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Send by Text</button>`;
         }
         if (q.status !== 'draft' && q.status !== 'contracted') {
             actionsHtml += `<button class="btn btn-outline" onclick="resendQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Resend</button>`;
+            actionsHtml += `<button class="btn btn-outline" onclick="sendQuoteSMS()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Send by Text</button>`;
         }
         actionsHtml += `<button class="btn btn-outline" onclick="downloadQuote()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PDF</button>`;
         if (q.status === 'contracted') {
@@ -612,6 +614,24 @@
             if (data.success) { alert('Quote resent!'); location.reload(); }
             else alert('Failed to resend: ' + (data.error || 'Unknown error'));
         } catch (e) { alert('Error resending quote'); }
+    }
+
+    async function sendQuoteSMS() {
+        const phone = quoteData.customer_phone || '';
+        if (!phone) {
+            alert('No phone number on file for this customer.');
+            return;
+        }
+        if (!confirm('Send this quote via text to ' + phone + '?')) return;
+        try {
+            const res = await fetch(`/api/sent-quotes/${quoteId}/send-sms`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+            });
+            const data = await res.json();
+            if (data.success) { alert('Quote sent via text!'); location.reload(); }
+            else alert('Failed to send: ' + (data.error || 'Unknown error'));
+        } catch (e) { alert('Error sending quote by text'); }
     }
 
     async function downloadQuote() {

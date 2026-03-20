@@ -25,6 +25,7 @@ Business management app for a landscaping company in Cleveland, OH.
 - **Production URL:** `https://pappas-quote-backend-production.up.railway.app/`
 - **Railway DB:** PostgreSQL on Railway (same schema as local)
 - **Deploy process:** Commit → push to GitHub → Railway auto-deploys code. For DB changes, export local with `pg_dump` and import via Railway's public Postgres URL.
+- **IMPORTANT: Before ANY `pg_dump` import to production**, back up the production DB first: `pg_dump $RAILWAY_DB_URL > backup-$(date +%Y%m%d).sql`. A past import wiped active customer tokens and broke confirm links.
 
 ## Shell System (`public/shell.js`)
 All internal pages share a common shell. Every page just needs:
@@ -39,7 +40,8 @@ All internal pages share a common shell. Every page just needs:
 - Topbar is kept per-page (shell adds one if missing)
 
 ### Public Pages (NO shell.js)
-These 6 pages are public-facing: login, pay-invoice, customer-portal, sign-quote, sign-contract, monthly-plan-request
+These pages are public-facing (customers access them without logging in). Do NOT add shell.js or auth to these:
+login, pay-invoice, customer-portal, sign-quote, sign-contract, monthly-plan-request, confirm-services, campaign, quote-generator, quote-calculator, reset-password
 
 ## Database Tables
 - `customers` — id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code

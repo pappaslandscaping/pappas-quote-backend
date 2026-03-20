@@ -1,2 +1,3 @@
 # Session Log
 - [2026-03-08] Created CLAUDE.md, memory files, hooks, and skills for YardDesk project. Researched home.works operational model from release notes and web. Documented target architecture.
+- [2026-03-20] Fixed broken season kickoff confirm links. All backend kickoff code had been accidentally deleted from server.js in a prior commit. Restored: public confirm/track endpoints, buildKickoffContent, send-test, send-sms, send-bulk, preview, responses CRUD, reply, 2025-services report, table creation. Added new: token-status diagnostic endpoint, recover-tokens endpoint (extracts tokens from email_log HTML), confirm_token in email meta, auto-diagnostic banner on Responses tab with one-click "Fix Now" button.

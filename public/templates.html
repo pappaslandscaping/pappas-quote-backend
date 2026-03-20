@@ -1709,7 +1709,9 @@ async function aiSend(mode) {
                 replyHtml = escHtml(result.sms) + '<br><span style="color:#16a34a;font-size:11px;">Applied to SMS field</span>';
             } else {
                 replyHtml = '<strong>SMS:</strong> ' + escHtml(result.sms);
-                replyHtml += '<br><button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;margin-top:6px;" onclick="document.getElementById(\'editorSms\').value=' + JSON.stringify(result.sms).replace(/'/g, "\\'") + ';markDirty();updateSmsCounter();showToast(\'Applied!\',\'success\');">Apply to SMS</button>';
+                const smsId = '_aiSms' + Date.now();
+                window[smsId] = result.sms;
+                replyHtml += '<br><button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;margin-top:6px;" onclick="document.getElementById(\'editorSms\').value=window[\'' + smsId + '\'];markDirty();updateSmsCounter();showToast(\'Applied!\',\'success\');">Apply to SMS</button>';
             }
         } else if (result.campaign) {
             // Campaign creation
@@ -1830,8 +1832,7 @@ async function createAiCampaign(andSend) {
                 subject: c.subject || '',
                 body: emailHtml,
                 sms_body: c.sms || '',
-                audience: c.audience || 'all',
-                form: c.form || null
+                audience: c.audience || 'all'
             })
         });
         const data = await resp.json();
@@ -1858,16 +1859,7 @@ async function createAiCampaign(andSend) {
             }
         } else {
             showToast('Campaign "' + c.name + '" created!', 'success');
-            addChatBubble('assistant', '<span style="color:#16a34a;">Campaign "' + escHtml(c.name) + '" created!</span> The email template is loaded below — edit it however you like, then save when you\'re happy with it.<br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
-        }
-
-        // Reload templates and auto-select the new campaign template for editing
-        if (templateId) {
-            // Switch to Marketing category so the new template is visible in the sidebar
-            const marketingBtn = document.querySelector('.category-pill[data-cat="marketing"]');
-            if (marketingBtn) setCategory('marketing', marketingBtn);
-            await loadTemplates();
-            selectTemplate(templateId);
+            addChatBubble('assistant', '<span style="color:#16a34a;">Campaign "' + escHtml(c.name) + '" created!</span><br><a href="campaigns.html" style="color:#2e403d;font-size:11px;">View in Campaigns →</a>');
         }
     } catch (err) {
         showToast('Error: ' + err.message, 'error');

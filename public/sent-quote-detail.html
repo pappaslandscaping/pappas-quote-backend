@@ -673,15 +673,19 @@
     function createServiceRow(name, desc, amount) {
         const { opts, isCustom } = buildServiceOptions(name);
         const escName = (name || '').replace(/"/g, '&quot;');
+        const escDesc = (desc || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const row = document.createElement('div');
         row.className = 'edit-svc-row';
         row.innerHTML = `
-            <div class="edit-svc-name-wrap">
-                <select class="edit-svc-select">${opts}</select>
-                <input type="text" class="custom-name ${isCustom ? 'show' : ''}" value="${isCustom ? escName : ''}" placeholder="Enter service name">
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+                <div class="edit-svc-name-wrap">
+                    <select class="edit-svc-select">${opts}</select>
+                    <input type="text" class="custom-name ${isCustom ? 'show' : ''}" value="${isCustom ? escName : ''}" placeholder="Enter service name">
+                </div>
+                <input type="number" class="edit-svc-amount" value="${parseFloat(amount || 0).toFixed(2)}" step="0.01" min="0" style="flex:1;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;text-align:right;">
+                <button class="edit-svc-remove" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px;margin-top:2px;" title="Remove">&times;</button>
             </div>
-            <input type="number" class="edit-svc-amount" value="${parseFloat(amount || 0).toFixed(2)}" step="0.01" min="0" style="flex:1;padding:10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:14px;text-align:right;">
-            <button class="edit-svc-remove" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:18px;padding:4px 8px;margin-top:2px;" title="Remove">&times;</button>
+            <textarea class="edit-svc-desc" placeholder="Service description (optional)" style="width:100%;min-height:60px;padding:8px 10px;border:1px solid var(--gray-200);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;margin-top:6px;color:var(--gray-600);">${escDesc}</textarea>
         `;
         // Wire up events with addEventListener (more reliable than inline handlers)
         row.querySelector('.edit-svc-amount').addEventListener('input', updateEditTotal);
@@ -696,12 +700,19 @@
     function onServiceSelect(select) {
         const row = select.closest('.edit-svc-row');
         const customInput = row.querySelector('.custom-name');
+        const descInput = row.querySelector('.edit-svc-desc');
         if (select.value === '__custom__') {
             customInput.classList.add('show');
             customInput.focus();
+            if (descInput) descInput.value = '';
         } else {
             customInput.classList.remove('show');
             customInput.value = '';
+            // Pre-fill description from predefined service
+            if (descInput) {
+                const predefined = predefinedServices.find(s => s.name === select.value);
+                descInput.value = predefined ? predefined.description : '';
+            }
         }
     }
 
@@ -812,10 +823,8 @@
                 name = select.value;
             }
             const amount = parseFloat(row.querySelector('.edit-svc-amount').value) || 0;
+            const desc = row.querySelector('.edit-svc-desc') ? row.querySelector('.edit-svc-desc').value.trim() : '';
             if (name) {
-                // Description comes from predefined list or empty for custom
-                const predefined = predefinedServices.find(s => s.name === name);
-                const desc = predefined ? predefined.description : '';
                 services.push({ name, description: desc, amount });
             }
         });

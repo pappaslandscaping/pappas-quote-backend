@@ -4086,7 +4086,11 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
         const jobDate = parseDate(job['Date of Service']);
         if (!jobDate) { skipped++; continue; }
         const { name, address } = parseNameAddress(job['Name / Details']);
-        const serviceType = job['Title'] || 'Service';
+        const rawTitle = job['Title'] || 'Service';
+        // Extract crew name from title (e.g. "Spring Cleanup Rob Mowing Crew" -> service: "Spring Cleanup", crew: "Rob Mowing Crew")
+        const crewMatch = rawTitle.match(/^(.+?)\s{1,2}(\w+\s+(?:Mowing|Cleanup|Lawn|Landscape|Plow|Snow)\s+Crew)$/i);
+        const serviceType = crewMatch ? crewMatch[1].trim() : rawTitle.trim();
+        const crewAssigned = crewMatch ? crewMatch[2].trim() : null;
         const price = parseFloat((job['Visit Total'] || '0').replace(/[^0-9.]/g, '')) || 0;
 
         // Try to match customer by name
@@ -4108,14 +4112,15 @@ app.post('/api/import-scheduling', upload.single('csvfile'), async (req, res) =>
           customerMobile = custMatch.rows[0].mobile;
         }
 
-        const existing = await pool.query('SELECT id FROM scheduled_jobs WHERE job_date = $1 AND customer_name = $2 AND service_type = $3', [jobDate, name, serviceType]);
+        // Check for existing by date + customer (ignore old service_type with crew name)
+        const existing = await pool.query('SELECT id FROM scheduled_jobs WHERE job_date = $1 AND customer_name = $2', [jobDate, name]);
         let jobId;
         if (existing.rows.length > 0) {
           jobId = existing.rows[0].id;
-          await pool.query('UPDATE scheduled_jobs SET address = $1, service_price = $2, customer_id = COALESCE($3, customer_id) WHERE id = $4', [address, price, customerId, jobId]);
+          await pool.query('UPDATE scheduled_jobs SET address = $1, service_price = $2, customer_id = COALESCE($3, customer_id), service_type = $4, crew_assigned = COALESCE($5, crew_assigned) WHERE id = $6', [address, price, customerId, serviceType, crewAssigned, jobId]);
           updated++;
         } else {
-          const insertResult = await pool.query('INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [jobDate, name, customerId, serviceType, price, address, 'pending']);
+          const insertResult = await pool.query('INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, status, crew_assigned) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id', [jobDate, name, customerId, serviceType, price, address, 'pending', crewAssigned]);
           jobId = insertResult.rows[0].id;
           imported++;
         }

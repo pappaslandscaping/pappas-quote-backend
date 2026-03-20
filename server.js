@@ -556,6 +556,95 @@ function requireAdmin(req, res, next) {
   }
 }
 
+
+// PUBLIC: Season kickoff confirmation (no auth — customers click from email)
+app.get('/api/season-kickoff/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE token = $1', [token]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid or expired link' });
+    const row = result.rows[0];
+    // Track views: first view timestamp + total count
+    await pool.query('UPDATE season_kickoff_responses SET viewed_at = COALESCE(viewed_at, NOW()), view_count = COALESCE(view_count, 0) + 1 WHERE token = $1', [token]);
+    res.json({ success: true, customerName: row.customer_name, services: row.services, status: row.status });
+  } catch (error) {
+    console.error('Error loading kickoff confirmation:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong' });
+  }
+});
+
+app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { response, notes } = req.body;
+    const result = await pool.query(
+      `UPDATE season_kickoff_responses SET status = $1, notes = $2, responded_at = NOW() WHERE token = $3 RETURNING *`,
+      [response, notes || '', token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invalid link' });
+
+    // Notify admin about the response
+    const row = result.rows[0];
+    const statusLabel = response === 'confirmed' ? 'Confirmed Services' : 'Requested Changes';
+    let svcList = [];
+    try { svcList = typeof row.services === 'string' ? JSON.parse(row.services) : (row.services || []); } catch(e) {}
+    const svcRows = svcList.filter(s => { const l = (s.name||'').toLowerCase(); return !l.includes('snow') && !l.includes('salt') && !l.includes('deic'); })
+      .map(s => `<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td><td style="padding:6px 12px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">${parseFloat(s.rate).toFixed(2)}</td></tr>`).join('');
+    const svcTable = svcRows ? `<table style="width:100%;border-collapse:collapse;margin:12px 0 16px;"><thead><tr style="background:#f8fafc;"><th style="padding:6px 12px;text-align:left;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e5e5e5;">Service</th><th style="padding:6px 12px;text-align:right;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;border-bottom:2px solid #e5e5e5;">Rate</th></tr></thead><tbody>${svcRows}</tbody></table>` : '';
+    let propList = [];
+    try { propList = typeof row.properties === 'string' ? JSON.parse(row.properties) : (row.properties || []); } catch(e) {}
+    const addrHtml = propList.filter(Boolean).map(p => escapeHtml(p)).join('<br>');
+    const notifyHtml = emailTemplate(`
+      <h2 style="font-size:20px;color:#1e293b;font-weight:700;margin:0 0 16px;">Season Kickoff Response</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">
+        <strong>${escapeHtml(row.customer_name)}</strong> has <strong>${statusLabel.toLowerCase()}</strong>.
+      </p>
+      ${row.customer_email ? `<p style="font-size:14px;color:#64748b;margin:0 0 8px;">Contact: ${escapeHtml(row.customer_email)}</p>` : ''}
+      ${addrHtml ? `<p style="font-size:14px;color:#64748b;margin:0 0 12px;">Address: ${addrHtml}</p>` : ''}
+      ${svcTable}
+      ${notes ? `<p style="font-size:14px;color:#475569;margin:12px 0;padding:12px;background:#f8fafc;border-radius:8px;border-left:3px solid #2e403d;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
+    `);
+    sendEmail('hello@pappaslandscaping.com', `Season Kickoff: ${escapeHtml(row.customer_name)} — ${statusLabel}`, notifyHtml).catch(err => console.error('Notify email error:', err));
+
+    // Log to customer profile notes
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const noteText = response === 'confirmed'
+      ? `[${today}] Season Kickoff: Confirmed services for 2026.`
+      : `[${today}] Season Kickoff: Requested changes — ${notes || 'no details provided'}.`;
+    // Find customer_id by name match if not stored
+    const custLookup = row.customer_id
+      ? { rows: [{ id: row.customer_id }] }
+      : await pool.query(`SELECT id FROM customers WHERE LOWER(TRIM(COALESCE(name, first_name || ' ' || last_name))) = LOWER(TRIM($1)) LIMIT 1`, [row.customer_name]);
+    if (custLookup.rows.length > 0) {
+      const custId = custLookup.rows[0].id;
+      await pool.query(
+        `UPDATE customers SET notes = CASE WHEN notes IS NULL OR notes = '' THEN $1 ELSE notes || E'\n' || $1 END, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [noteText, custId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error confirming kickoff:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong' });
+  }
+});
+
+// GET /api/season-kickoff/track/:token - Email open tracking pixel (public)
+app.get('/api/season-kickoff/track/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    await pool.query(
+      `UPDATE season_kickoff_responses SET email_opened_at = COALESCE(email_opened_at, NOW()), email_open_count = COALESCE(email_open_count, 0) + 1 WHERE token = $1`,
+      [token]
+    );
+  } catch (e) { /* silent */ }
+  // Return 1x1 transparent GIF
+  const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate', 'Pragma': 'no-cache', 'Expires': '0' });
+  res.send(pixel);
+});
+
 // Apply admin auth middleware to all routes
 app.use(requireAdmin);
 
@@ -10716,6 +10805,726 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
+// Build season kickoff email content (inner HTML for emailTemplate)
+function buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices) {
+  const firstName = escapeHtml((customerName || 'Customer').split(' ')[0]);
+  const snowFilter = s => {
+    const l = s.name.toLowerCase();
+    return !l.includes('snow') && !l.includes('salt') && !l.includes('deic');
+  };
+
+  // Email open tracking pixel
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+  const tokenMatch = confirmUrl && confirmUrl.match(/token=([a-f0-9]+)/);
+  const trackingPixel = tokenMatch ? `<img src="${baseUrl}/api/season-kickoff/track/${tokenMatch[1]}" width="1" height="1" style="display:block;width:1px;height:1px;border:0;" alt="">` : '';
+
+  const ctaButton = confirmUrl ? `
+    <div style="text-align:center;margin:28px 0 24px;">
+      <a href="${confirmUrl}" style="background:#2e403d;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Confirm or Request Changes</a>
+    </div>
+  ` : '';
+
+  const buildTable = (svcs) => {
+    const rows = svcs.filter(snowFilter).map(s => `
+      <tr>
+        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;">${escapeHtml(s.name)}</td>
+        <td style="padding:10px 16px;border-bottom:1px solid #e5e5e5;font-size:14px;color:#334155;text-align:right;font-weight:600;">${parseFloat(s.rate).toFixed(2)}</td>
+      </tr>
+    `).join('');
+    if (!rows) return '';
+    return `
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 16px;text-align:left;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Service</th>
+          <th style="padding:10px 16px;text-align:right;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #e5e5e5;">Rate</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  };
+
+  // Multi-property: show services grouped by property (only if 2+ properties have services)
+  if (propertyServices && propertyServices.length > 1) {
+    const sections = propertyServices.map(ps => {
+      const table = buildTable(ps.services);
+      if (!table) return '';
+      return `
+        <p style="font-size:15px;color:#2e403d;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #e5e5e5;padding-bottom:6px;">${escapeHtml(ps.address)}</p>
+        ${table}
+      `;
+    }).filter(Boolean).join('');
+
+    if (!sections) return null;
+
+    return `
+      <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+        We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
+      </p>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 8px;">
+        Here's a summary of the services we provided at each property last season:
+      </p>
+      ${sections}
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+        <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Let us know if everything looks right — just click below to confirm.
+      </p>
+      ${ctaButton}
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
+        Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
+      </p>
+      ${trackingPixel}`;
+  }
+
+  // Single property
+  const filtered = services.filter(snowFilter);
+  if (!filtered.length) return null;
+
+  const props = (properties || []).filter(Boolean);
+  const addressSection = props.length > 0 ? `
+    <p style="font-size:15px;color:#2e403d;font-weight:700;margin:20px 0 8px;border-bottom:2px solid #e5e5e5;padding-bottom:6px;">${escapeHtml(props[0])}</p>
+  ` : '';
+
+  return `
+    <h2 style="font-size:24px;color:#1e293b;font-weight:700;margin:0 0 20px;">You're on Our List for 2026!</h2>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">Hi ${firstName},</p>
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+      We hope you had a great winter! As we gear up for the 2026 season, we wanted to reach out and let you know that <strong>you're on our list</strong> for service this year.
+    </p>
+    ${addressSection}
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 20px;">
+      Here's a summary of the services we provided for you last season:
+    </p>
+    ${buildTable(filtered)}
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 24px;">
+      <strong>Spring cleanups have already started</strong>, and <strong>mowing will begin in April</strong>. Let us know if everything looks right — just click below to confirm.
+    </p>
+    ${ctaButton}
+    <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
+      Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
+    </p>
+    ${trackingPixel}
+  `;
+}
+
+// POST /api/season-kickoff/send-test - Send a test kickoff email
+app.post('/api/season-kickoff/send-test', async (req, res) => {
+  try {
+    const { email, customerName, services, properties, propertyServices } = req.body;
+    if (!email || !services) return res.status(400).json({ success: false, error: 'Email and services required' });
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const token = crypto.randomBytes(24).toString('hex');
+    const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
+    // Store token (for test, use a simple in-memory approach; real sends store in DB)
+    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
+      [token, customerName, email, JSON.stringify(services), JSON.stringify(properties || [])]);
+    const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
+    if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
+    const html = emailTemplate(content);
+    const firstName = (customerName || 'Customer').split(' ')[0];
+    const result = await sendEmail(email, `You're on our list for 2026, ${escapeHtml(firstName)}!`, html, null, { type: 'season_kickoff', customer_name: customerName, confirm_token: token });
+    res.json(result);
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/season-kickoff/send-sms - Send season kickoff text message
+app.post('/api/season-kickoff/send-sms', async (req, res) => {
+  try {
+    const { phone, customerName, services } = req.body;
+    if (!phone || !services || !services.length) return res.status(400).json({ success: false, error: 'Phone and services required' });
+    if (!twilioClient) return res.status(500).json({ success: false, error: 'SMS not configured' });
+
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const token = crypto.randomBytes(24).toString('hex');
+    const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
+
+    // Store token in DB
+    await pool.query(`INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
+      [token, customerName, phone, JSON.stringify(services), JSON.stringify([])]);
+
+    const firstName = (customerName || 'Customer').split(' ')[0];
+    const body = `Hi ${firstName}, it's Pappas & Co. Landscaping! We're gearing up for the 2026 season and you're on our list.\n\nSpring cleanups are underway and mowing kicks off in April. Review and confirm your services here:\n\n${confirmUrl}\n\nCall or text us anytime:\n440-886-7318`;
+
+    let formattedTo = phone.replace(/\D/g, '');
+    if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
+    else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
+
+    const twilioMessage = await twilioClient.messages.create({
+      body,
+      from: TWILIO_PHONE_NUMBER,
+      to: formattedTo
+    });
+
+    // Log in messages table
+    const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
+    const customerResult = await pool.query(`
+      SELECT id FROM customers
+      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+      LIMIT 1
+    `, [`%${cleanedPhone}`]);
+
+    await pool.query(`
+      INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+      VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
+    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, formattedTo, body, twilioMessage.status, customerResult.rows[0]?.id || null]);
+
+    res.json({ success: true, sid: twilioMessage.sid });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/season-kickoff/send-bulk - Send kickoff emails to selected customers
+app.post('/api/season-kickoff/send-bulk', async (req, res) => {
+  try {
+    const { customers } = req.body;
+    if (!customers || !customers.length) return res.status(400).json({ success: false, error: 'No customers provided' });
+
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+    const results = { sent: 0, skipped: 0, errors: 0, details: [] };
+
+    for (const cust of customers) {
+      if (!cust.email || !cust.services || !cust.services.length) {
+        results.skipped++;
+        results.details.push({ name: cust.name, status: 'skipped', reason: 'No email or services' });
+        continue;
+      }
+
+      try {
+        const token = crypto.randomBytes(24).toString('hex');
+        const confirmUrl = `${baseUrl}/confirm-services.html?token=${token}`;
+
+        // Store token in DB
+        await pool.query(
+          `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, properties, status) VALUES ($1, $2, $3, $4, $5, 'pending')`,
+          [token, cust.name, cust.email, JSON.stringify(cust.services), JSON.stringify(cust.properties || [])]
+        );
+
+        const content = buildKickoffContent(cust.name, cust.services, confirmUrl, cust.properties, cust.propertyServices);
+        if (!content) {
+          results.skipped++;
+          results.details.push({ name: cust.name, status: 'skipped', reason: 'No eligible services' });
+          continue;
+        }
+
+        const html = emailTemplate(content);
+        const firstName = (cust.name || 'Customer').split(' ')[0];
+        const emailResult = await sendEmail(
+          cust.email,
+          `You're on our list for 2026, ${escapeHtml(firstName)}!`,
+          html,
+          null,
+          { type: 'season_kickoff', customer_name: cust.name, confirm_token: token }
+        );
+
+        if (emailResult && emailResult.success) {
+          results.sent++;
+          results.details.push({ name: cust.name, status: 'sent' });
+        } else {
+          results.errors++;
+          results.details.push({ name: cust.name, status: 'error' });
+        }
+      } catch (e) {
+        console.error(`Season kickoff email error for ${cust.name}:`, e.message);
+        results.errors++;
+        results.details.push({ name: cust.name, status: 'error' });
+      }
+
+      // Rate limit: ~2 emails/sec to avoid Resend 429 errors
+      await delay(1200);
+    }
+
+    res.json({ success: true, ...results });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/season-kickoff/preview - Get email HTML for preview
+app.post('/api/season-kickoff/preview', async (req, res) => {
+  try {
+    const { customerName, services, properties, propertyServices } = req.body;
+    const confirmUrl = '#preview';
+    const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
+    if (!content) return res.json({ success: false, error: 'No eligible services' });
+    const html = emailTemplate(content);
+    res.json({ success: true, html });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// GET /api/season-kickoff/responses - View all responses (admin)
+app.get('/api/season-kickoff/responses', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, customer_name, customer_email, services, properties, status, notes, viewed_at, view_count, email_opened_at, email_open_count, responded_at, created_at FROM season_kickoff_responses ORDER BY responded_at DESC NULLS LAST, created_at DESC');
+    res.json({ success: true, responses: result.rows });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// PATCH /api/season-kickoff/responses/:id - Update a response's services (admin)
+app.patch('/api/season-kickoff/responses/:id', async (req, res) => {
+  try {
+    const { services, properties } = req.body;
+    if (!services) return res.status(400).json({ success: false, error: 'Services required' });
+    await pool.query(
+      `UPDATE season_kickoff_responses SET services = $1, properties = $2 WHERE id = $3`,
+      [JSON.stringify(services), JSON.stringify(properties || []), req.params.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// DELETE /api/season-kickoff/responses/:id - Delete a response (admin)
+app.delete('/api/season-kickoff/responses/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM season_kickoff_responses WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/season-kickoff/reply - Reply to a customer's change request
+app.post('/api/season-kickoff/reply', async (req, res) => {
+  try {
+    const { responseId, message } = req.body;
+    if (!responseId || !message) return res.status(400).json({ success: false, error: 'Response ID and message required' });
+    const result = await pool.query('SELECT * FROM season_kickoff_responses WHERE id = $1', [responseId]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Response not found' });
+    const r = result.rows[0];
+    if (!r.customer_email) return res.status(400).json({ success: false, error: 'No email address' });
+
+    const html = emailTemplate(`
+      <h2 style="font-size:22px;color:#1e293b;font-weight:700;margin:0 0 20px;">Hi ${escapeHtml((r.customer_name || 'there').split(' ')[0])},</h2>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">
+        Thanks for letting us know about the changes you'd like for the 2026 season. Here's our response:
+      </p>
+      <div style="background:#f8fafc;border-left:4px solid #2e403d;padding:16px 20px;margin:0 0 24px;border-radius:0 8px 8px 0;">
+        <p style="font-size:15px;color:#334155;line-height:1.6;margin:0;">${escapeHtml(message)}</p>
+      </div>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 16px;">
+        If you have any other questions, feel free to reply to this email or call us at <strong>440-886-7318</strong>.
+      </p>
+      <p style="font-size:15px;color:#475569;line-height:1.6;margin:0;">
+        Thank you for being a valued Pappas & Co. Landscaping customer. We look forward to another great season!
+      </p>
+    `);
+
+    await sendEmail(r.customer_email, `Re: Your 2026 Service Changes — Pappas & Co. Landscaping`, html);
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// GET /api/season-kickoff/token-status - Check health of tokens vs emails sent
+app.get('/api/season-kickoff/token-status', async (req, res) => {
+  try {
+    const tokens = await pool.query('SELECT COUNT(*) as count FROM season_kickoff_responses');
+    const emails = await pool.query("SELECT COUNT(*) as count FROM email_log WHERE email_type = 'season_kickoff' AND status = 'sent' AND html_body IS NOT NULL");
+    const missing = await pool.query(`
+      SELECT COUNT(*) as count FROM email_log e
+      WHERE e.email_type = 'season_kickoff' AND e.status = 'sent' AND e.html_body IS NOT NULL
+        AND e.html_body ~ 'confirm-services\\.html\\?token=[a-f0-9]+'
+        AND NOT EXISTS (
+          SELECT 1 FROM season_kickoff_responses s
+          WHERE s.token = (regexp_match(e.html_body, 'confirm-services\\.html\\?token=([a-f0-9]+)'))[1]
+        )
+    `);
+    res.json({
+      success: true,
+      tokenCount: parseInt(tokens.rows[0].count),
+      emailCount: parseInt(emails.rows[0].count),
+      missingCount: parseInt(missing.rows[0].count)
+    });
+  } catch (error) {
+    serverError(res, error, 'Error checking token status');
+  }
+});
+
+// POST /api/season-kickoff/recover-tokens - Recover missing tokens from email_log
+app.post('/api/season-kickoff/recover-tokens', async (req, res) => {
+  try {
+    const logs = await pool.query(
+      `SELECT recipient_email, customer_name, html_body, created_at FROM email_log
+       WHERE email_type = 'season_kickoff' AND status = 'sent' AND html_body IS NOT NULL
+       ORDER BY created_at DESC`
+    );
+
+    let recovered = 0, alreadyExists = 0, noToken = 0;
+    const details = [];
+
+    for (const log of logs.rows) {
+      const match = log.html_body.match(/confirm-services\.html\?token=([a-f0-9]+)/);
+      if (!match) { noToken++; continue; }
+      const token = match[1];
+
+      const existing = await pool.query('SELECT id FROM season_kickoff_responses WHERE token = $1', [token]);
+      if (existing.rows.length > 0) { alreadyExists++; continue; }
+
+      const serviceRows = [];
+      const serviceRegex = /<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>\$([0-9.,]+)<\/td>/g;
+      let sMatch;
+      while ((sMatch = serviceRegex.exec(log.html_body)) !== null) {
+        const name = sMatch[1].trim();
+        if (name !== 'SERVICE' && name !== 'Rate') {
+          serviceRows.push({ name, rate: parseFloat(sMatch[2].replace(',', '')) });
+        }
+      }
+
+      await pool.query(
+        `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status, created_at)
+         VALUES ($1, $2, $3, $4, 'pending', $5)
+         ON CONFLICT (token) DO NOTHING`,
+        [token, log.customer_name || '', log.recipient_email, JSON.stringify(serviceRows), log.created_at]
+      );
+
+      recovered++;
+      details.push({ name: log.customer_name, email: log.recipient_email, token: token.slice(0, 8) + '...' });
+    }
+
+    res.json({ success: true, recovered, alreadyExists, noToken, totalEmailsScanned: logs.rows.length, details });
+  } catch (error) {
+    serverError(res, error, 'Error recovering kickoff tokens');
+  }
+});
+
+// GET /api/reports/2025-services - Customers who had services in 2025 (based on line item dates)
+app.get('/api/reports/2025-services', async (req, res) => {
+  try {
+    // Get invoices that have 2025 line items (by item date, or by due_date when item date is missing)
+    const result = await pool.query(`
+      SELECT
+        COALESCE(i.customer_id, c_name.id) as customer_id,
+        COALESCE(
+          NULLIF(COALESCE(c_id.name, c_name.name), ''),
+          NULLIF(TRIM(COALESCE(c_id.first_name, c_name.first_name, '') || ' ' || COALESCE(c_id.last_name, c_name.last_name, '')), ''),
+          i.customer_name,
+          'Unknown'
+        ) as customer_name,
+        COALESCE(c_id.email, c_name.email, i.customer_email) as email,
+        COALESCE(c_id.phone, c_id.mobile, c_name.phone, c_name.mobile) as phone,
+        COALESCE(c_id.street, c_name.street, i.customer_address) as address,
+        COALESCE(c_id.city, c_name.city) as city,
+        COALESCE(c_id.status, c_name.status) as customer_status,
+        i.line_items,
+        i.due_date,
+        i.created_at
+      FROM invoices i
+      LEFT JOIN customers c_id ON c_id.id = i.customer_id
+      LEFT JOIN customers c_name ON i.customer_id IS NULL
+        AND c_name.id = (
+          SELECT c2.id FROM customers c2
+          WHERE LOWER(TRIM(COALESCE(c2.name, c2.first_name || ' ' || c2.last_name))) = LOWER(TRIM(SPLIT_PART(i.customer_name, '#', 1)))
+          LIMIT 1
+        )
+      WHERE (
+        EXISTS (
+          SELECT 1 FROM jsonb_array_elements(i.line_items) item
+          WHERE item->>'date' >= '2025-01-01' AND item->>'date' < '2026-01-01'
+        )
+        OR (
+          i.created_at >= '2025-05-01'
+          AND i.due_date >= '2025-01-01' AND i.due_date < '2026-01-01'
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(i.line_items) item
+            WHERE item->>'date' = '0000-00-00' OR item->>'date' IS NULL OR item->>'date' = ''
+          )
+        )
+      )
+      ORDER BY customer_name
+    `);
+
+    // Group by customer, only counting line items with 2025 service dates
+    const customers = {};
+    for (const inv of result.rows) {
+      // Skip inactive customers
+      if (inv.customer_status && inv.customer_status.toLowerCase() === 'inactive') continue;
+
+      const cid = inv.customer_id || ('name:' + (inv.customer_name || 'Unknown').toLowerCase().trim());
+      if (!customers[cid]) {
+        customers[cid] = {
+          customer_id: inv.customer_id,
+          name: inv.customer_name,
+          email: inv.email,
+          phone: inv.phone,
+          address: inv.address,
+          city: inv.city,
+          services: {},
+          total_invoiced: 0
+        };
+      }
+
+      // Only count line items with actual 2025 service dates
+      const items = inv.line_items || [];
+      for (const item of items) {
+        if (!item.name) continue;
+        let itemDate = item.date || '';
+        // For 0000-00-00 dates, fall back to invoice due_date if the invoice was created in 2025
+        const createdAt = inv.created_at ? inv.created_at.toISOString().slice(0, 10) : '';
+        if ((itemDate === '0000-00-00' || itemDate === '' || !itemDate) && createdAt >= '2025-05-01') {
+          const dd = inv.due_date ? inv.due_date.toISOString().slice(0, 10) : '';
+          if (dd >= '2025-01-01' && dd < '2026-01-01') {
+            itemDate = dd;
+          } else {
+            continue;
+          }
+        }
+        if (itemDate < '2025-01-01' || itemDate >= '2026-01-01') continue;
+        // Skip processing fees and fuel surcharges
+        const lower = item.name.toLowerCase();
+        if (lower.includes('processing fee') || lower.includes('fuel surcharge') || lower.includes('late fee')) continue;
+        // Skip one-time project services that don't repeat
+        if (lower.includes('landscaping') || lower.includes('river rock') || lower.includes('garbage removal') || lower.includes('mowing first cut') || lower.includes('stump grinding')) continue;
+        // Skip generic "." entries
+        if (item.name.trim() === '.') continue;
+
+        let serviceName = item.name;
+        const dashIdx = serviceName.indexOf(' - ');
+        if (dashIdx > -1 && serviceName.toLowerCase().startsWith('property')) {
+          serviceName = serviceName.substring(dashIdx + 3);
+        }
+        // Normalize service names
+        if (serviceName.toLowerCase().trim() === 'fertilizing') serviceName = 'Fertilizing (Per Application)';
+        if (serviceName.toLowerCase().trim() === 'spreading fertilizer') serviceName = 'Fertilizing (Per Application)';
+        const amount = parseFloat(item.amount || 0);
+        const rate = parseFloat(item.rate || 0);
+        const effectiveDate = itemDate;
+        if (!customers[cid].services[serviceName]) {
+          customers[cid].services[serviceName] = { name: serviceName, rate, count: 0, total: 0, latestDate: effectiveDate, earliestRate: rate, earliestDate: effectiveDate, rates: {} };
+        }
+        if (effectiveDate <= customers[cid].services[serviceName].earliestDate) {
+          customers[cid].services[serviceName].earliestRate = rate;
+          customers[cid].services[serviceName].earliestDate = effectiveDate;
+        }
+        // Track all distinct rates with their latest date
+        if (!customers[cid].services[serviceName].rates[rate] || effectiveDate >= customers[cid].services[serviceName].rates[rate]) {
+          customers[cid].services[serviceName].rates[rate] = effectiveDate;
+        }
+        // Always use the latest rate (closest to end of season)
+        if (effectiveDate >= customers[cid].services[serviceName].latestDate) {
+          customers[cid].services[serviceName].rate = rate;
+          customers[cid].services[serviceName].latestDate = effectiveDate;
+        }
+        customers[cid].services[serviceName].count++;
+        customers[cid].services[serviceName].total += amount;
+        customers[cid].total_invoiced += amount;
+      }
+    }
+
+    // Apply minimum rates: Spring Cleanup = $100 minimum
+    for (const cid of Object.keys(customers)) {
+      for (const svcName of Object.keys(customers[cid].services)) {
+        if (svcName.toLowerCase().includes('spring cleanup') && customers[cid].services[svcName].rate < 100) {
+          customers[cid].services[svcName].rate = 100;
+        }
+      }
+    }
+
+    // Add manually-specified customers not captured by 2025 invoice query (scheduled in CRM for 2026)
+    const manualAdditions = [
+      { name: 'Beth Schaefer', services: [{ name: 'Mowing', rate: 40 }, { name: 'Spring Cleanup', rate: 450 }, { name: 'Mulch', rate: 1275 }, { name: 'Weed Control', rate: 150 }] },
+      { name: 'Brennan Investments LLC', services: [{ name: 'Mowing', rate: 44 }], propertyRates: { '17427 Lake Avenue, Lakewood, OH, 44107': 44, '13000 Triskett Road, Cleveland, OH, 44111': 45 } },
+      { name: 'CC Pkwy Owner LLC', services: [{ name: 'Mowing', rate: 0 }] },
+      { name: 'Daniel Corrigan', services: [{ name: 'Spring Cleanup', rate: 243 }] },
+      { name: 'David Fridrich', services: [{ name: 'Mowing', rate: 46 }] },
+      { name: 'Eva Kovach', services: [{ name: 'Mowing', rate: 37 }] },
+      { name: 'Frank Pezzano', services: [{ name: 'Mowing', rate: 36 }], propertyRates: { '3869 Silsby Road, Cleveland, OH, 44111': 36, '3587 West 146th Street, Cleveland, OH, 44111': 48 } },
+      { name: 'Greg Stokley', services: [{ name: 'Mulch', rate: 250 }] },
+      { name: 'John Noell', services: [{ name: 'Mowing', rate: 69 }] },
+      { name: 'Lareesa Rice', services: [{ name: 'Mowing', rate: 35 }], propertyRates: { '10509 Jasper Avenue, Cleveland, OH, 44111': 35, '11917 Saint John Avenue, Cleveland, OH, 44111': 40 } },
+      { name: 'Leo Oblak', services: [{ name: 'Mowing', rate: 0 }] },
+      { name: 'Matthew Ditlevson', services: [{ name: 'Mowing (Bi-Weekly)', rate: 45 }], propertyRates: { '3737 West 134th Street, Cleveland, OH, 44111': 45, '3828 West 157th Street, Cleveland, OH, 44111': 45, '3319 Warren Road, Cleveland, OH, 44111': 44, '3325 Warren Road, Cleveland, OH, 44111': 50 } },
+      { name: 'MLI Properties', services: [{ name: 'Mowing', rate: 39 }], propertyRates: { '13823 Clifton Boulevard, Lakewood, OH, 44107': 39, '13842 Clifton Boulevard, Lakewood, OH, 44107': 33, '1438 Owego Avenue, Lakewood, OH, 44107': 43, '1357 Riverside Drive, Lakewood, OH, 44107': 39 } },
+      { name: 'Monta Demchak', services: [{ name: 'Mowing', rate: 38 }, { name: 'Mulch', rate: 220 }] },
+      { name: 'The Cundiff Group', services: [{ name: 'Mowing (Bi-Weekly)', rate: 60 }], propertyRates: { '19133 Puritas Avenue, Cleveland, OH, 44135': 60, '3107 Warren Road, Cleveland, OH, 44111': 60 } },
+      { name: 'Theresa Pappas', services: [{ name: 'Mowing', rate: 0 }] },
+    ];
+    // Look up these customers from DB and add if not already in the list
+    const existingNames = new Set(Object.values(customers).map(c => (c.name || '').toLowerCase().trim()));
+    for (const manual of manualAdditions) {
+      if (existingNames.has(manual.name.toLowerCase().trim())) continue;
+      const cLookup = await pool.query(
+        `SELECT id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code, status
+         FROM customers WHERE LOWER(TRIM(name)) = $1 OR LOWER(TRIM(CONCAT(first_name, ' ', last_name))) = $1
+         ORDER BY CASE WHEN LOWER(TRIM(name)) = $1 THEN 0 ELSE 1 END LIMIT 1`,
+        [manual.name.toLowerCase().trim()]
+      );
+      if (cLookup.rows.length === 0) continue;
+      const c = cLookup.rows[0];
+      // Don't skip inactive — these are explicitly scheduled for 2026 in CRM
+      const cid = c.id;
+      if (customers[cid]) continue;
+      customers[cid] = {
+        customer_id: c.id,
+        name: c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim(),
+        email: c.email,
+        phone: c.phone || c.mobile,
+        address: c.street,
+        city: c.city,
+        services: {},
+        total_invoiced: 0
+      };
+      for (const svc of manual.services) {
+        const rate = svc.name.toLowerCase().includes('spring cleanup') && svc.rate < 100 ? 100 : svc.rate;
+        // For multi-property, populate multiple rates from propertyRates so the grouping logic works
+        const svcRates = {};
+        if (manual.propertyRates && svc.name.toLowerCase().includes('mow')) {
+          for (const [, pRate] of Object.entries(manual.propertyRates)) {
+            svcRates[pRate] = '2025-10-01';
+          }
+        } else {
+          svcRates[rate] = '2025-10-01';
+        }
+        customers[cid].services[svc.name] = { name: svc.name, rate, count: 1, total: rate, latestDate: '2025-10-01', earliestRate: rate, earliestDate: '2025-04-01', rates: svcRates };
+      }
+    }
+
+    // Get customers who were sent an annual care plan estimate — exclude them
+    const acpResult = await pool.query(`SELECT DISTINCT customer_id FROM sent_quotes WHERE quote_type = 'monthly_plan' AND customer_id IS NOT NULL`);
+    const acpCustomerIds = new Set(acpResult.rows.map(r => r.customer_id));
+
+    // Fetch properties for all customers
+    const customerIds = Object.values(customers).map(c => c.customer_id).filter(Boolean);
+    const propsResult = customerIds.length > 0
+      ? await pool.query(`SELECT customer_id, street, city, state, zip FROM properties WHERE customer_id = ANY($1) ORDER BY customer_id, street`, [customerIds])
+      : { rows: [] };
+    const propsMap = {};
+    for (const p of propsResult.rows) {
+      if (!propsMap[p.customer_id]) propsMap[p.customer_id] = [];
+      const addr = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
+      if (addr) propsMap[p.customer_id].push(addr);
+    }
+
+    // For multi-property customers, build property→rate mapping from scheduled_jobs
+    const multiPropIds = Object.values(customers)
+      .filter(c => c.customer_id && (propsMap[c.customer_id] || []).length > 1)
+      .map(c => c.customer_id);
+    // propRateMap: { customerId: { propertyAddr: mowingRate } }
+    const propRateMap = {};
+    if (multiPropIds.length > 0) {
+      const sjResult = await pool.query(`
+        SELECT DISTINCT sj.customer_id, sj.service_price::numeric as rate, p.street, p.city, p.state, p.zip
+        FROM scheduled_jobs sj
+        JOIN properties p ON p.customer_id = sj.customer_id AND sj.address LIKE '%' || p.zip || '%'
+        WHERE sj.customer_id = ANY($1) AND sj.service_price > 0
+        ORDER BY sj.customer_id, rate
+      `, [multiPropIds]);
+      for (const row of sjResult.rows) {
+        if (!propRateMap[row.customer_id]) propRateMap[row.customer_id] = {};
+        const addr = [row.street, row.city, row.state, row.zip].filter(Boolean).join(', ');
+        propRateMap[row.customer_id][addr] = parseFloat(row.rate);
+      }
+    }
+
+    // Inject propertyRates from manual additions into propRateMap
+    for (const manual of manualAdditions) {
+      if (!manual.propertyRates) continue;
+      const cEntry = Object.values(customers).find(c => c.name && c.name.toLowerCase().trim() === manual.name.toLowerCase().trim());
+      if (cEntry && cEntry.customer_id) {
+        propRateMap[cEntry.customer_id] = {};
+        for (const [addr, pRate] of Object.entries(manual.propertyRates)) {
+          propRateMap[cEntry.customer_id][addr] = pRate;
+        }
+      }
+    }
+
+    // Convert to array, skip customers with no 2025 line items after filtering
+    const list = Object.values(customers)
+      .filter(c => Object.keys(c.services).length > 0)
+      .filter(c => !acpCustomerIds.has(c.customer_id))
+      .map(c => {
+        const props = propsMap[c.customer_id] || [];
+        const propRates = propRateMap[c.customer_id];
+        if (props.length > 1) {
+          // Multi-property customer
+          const byProperty = {};
+          for (const addr of props) byProperty[addr] = [];
+
+          // Check if we can distinguish properties by rate (different zips = different rates)
+          // Only distinguish if ALL properties have a matched rate AND the rates are actually different
+          const propRateValues = propRates ? [...new Set(Object.values(propRates))] : [];
+          const canDistinguish = propRates && propRateValues.length > 1 && Object.keys(propRates).length >= props.length;
+
+          if (canDistinguish) {
+            // Different rates per property — sort properties by mowing rate (low to high)
+            const sortedProps = Object.entries(propRates).sort((a, b) => a[1] - b[1]);
+
+            for (const svc of Object.values(c.services)) {
+              const rateEntries = Object.entries(svc.rates).map(([r, d]) => ({ rate: parseFloat(r), date: d }));
+
+              if (rateEntries.length === 1) {
+                const matchAddr = sortedProps.find(([, mowRate]) => mowRate === rateEntries[0].rate);
+                const addr = matchAddr ? matchAddr[0] : sortedProps[0][0];
+                byProperty[addr].push({ name: svc.name, rate: svc.rate });
+              } else {
+                // Multiple rates — take the N most recent distinct rates
+                const latestPerRate = {};
+                for (const { rate, date } of rateEntries) {
+                  if (!latestPerRate[rate] || date > latestPerRate[rate]) latestPerRate[rate] = date;
+                }
+                const recentRates = Object.entries(latestPerRate)
+                  .map(([r, d]) => ({ rate: parseFloat(r), date: d }))
+                  .sort((a, b) => b.date.localeCompare(a.date))
+                  .slice(0, sortedProps.length);
+                recentRates.sort((a, b) => a.rate - b.rate);
+                for (let i = 0; i < sortedProps.length && i < recentRates.length; i++) {
+                  byProperty[sortedProps[i][0]].push({ name: svc.name, rate: recentRates[i].rate });
+                }
+              }
+            }
+          } else {
+            // Same zip / can't distinguish by rate — show same services under each property
+            const svcs = Object.values(c.services).map(s => ({ name: s.name, rate: s.rate }));
+            for (const addr of props) {
+              byProperty[addr] = [...svcs];
+            }
+          }
+
+          return {
+            ...c,
+            properties: props,
+            propertyServices: Object.entries(byProperty)
+              .filter(([, svcs]) => svcs.length > 0)
+              .map(([addr, svcs]) => ({ address: addr, services: svcs })),
+            services: Object.values(c.services).map(s => ({
+              name: s.name, rate: s.rate, count: s.count, total: s.total,
+              noIncrease: s.name.toLowerCase().includes('mowing') && s.rate <= s.earliestRate
+            })).sort((a, b) => b.total - a.total),
+            total_invoiced: Math.round(c.total_invoiced * 100) / 100
+          };
+        }
+        // Single property: use latest rate only
+        const isMowing = n => n.toLowerCase().includes('mowing');
+        return {
+          ...c,
+          properties: props,
+          services: Object.values(c.services).map(s => ({
+            name: s.name, rate: s.rate, count: s.count, total: s.total,
+            noIncrease: isMowing(s.name) && s.rate <= s.earliestRate
+          })).sort((a, b) => b.total - a.total),
+          total_invoiced: Math.round(c.total_invoiced * 100) / 100
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ success: true, count: list.length, customers: list });
+  } catch (error) {
+    console.error('Error fetching 2025 services:', error);
+    serverError(res, error);
+  }
+});
+
+
 // GET /api/reports/business-summary - KPIs for a period
 app.get('/api/reports/business-summary', async (req, res) => {
   try {
@@ -14215,6 +15024,27 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
 
   // Email log table
   try { await pool.query(EMAIL_LOG_TABLE); } catch(e) {}
+
+  // Season kickoff responses table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS season_kickoff_responses (
+      id SERIAL PRIMARY KEY,
+      token VARCHAR(64) UNIQUE NOT NULL,
+      customer_id INTEGER,
+      customer_name VARCHAR(255),
+      customer_email VARCHAR(255),
+      services JSONB,
+      properties JSONB,
+      status VARCHAR(20) DEFAULT 'pending',
+      notes TEXT,
+      viewed_at TIMESTAMP,
+      view_count INTEGER DEFAULT 0,
+      responded_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      email_opened_at TIMESTAMP,
+      email_open_count INTEGER DEFAULT 0
+    )`);
+  } catch(e) {}
 
   console.log('✅ Time tracking, dispatch templates, service programs, and email log tables ready');
   console.log('✅ All CopilotCRM column migrations ready');

@@ -168,6 +168,20 @@
 
 <!-- Responses Tab -->
 <div id="responsesTab" style="display:none;">
+    <div id="tokenBanner" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div>
+                <div style="font-weight:700;color:#991b1b;font-size:14px;" id="tokenBannerTitle">Missing Tokens Detected</div>
+                <div style="font-size:13px;color:#b91c1c;margin-top:4px;" id="tokenBannerMsg">Some customer confirm links are broken. Click "Fix Now" to restore them.</div>
+            </div>
+            <button class="btn-primary" onclick="recoverTokens()" id="recoverBtn" style="padding:10px 20px;font-size:14px;background:#991b1b;">
+                Fix Now
+            </button>
+        </div>
+    </div>
+    <div id="tokenOkBanner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 20px;margin-bottom:16px;">
+        <div style="font-size:13px;color:#166534;" id="tokenOkMsg"></div>
+    </div>
     <div class="table-card">
         <table>
             <thead>
@@ -668,7 +682,7 @@ function switchTab(tab) {
     document.getElementById('tabCustomers').style.borderBottomColor = tab === 'customers' ? 'var(--primary)' : 'transparent';
     document.getElementById('tabResponses').style.color = tab === 'responses' ? 'var(--primary)' : 'var(--gray-400)';
     document.getElementById('tabResponses').style.borderBottomColor = tab === 'responses' ? 'var(--primary)' : 'transparent';
-    if (tab === 'responses') loadResponses();
+    if (tab === 'responses') { loadResponses(); checkTokenStatus(); }
 }
 
 async function loadResponses() {
@@ -818,6 +832,58 @@ async function replyToResponse(id) {
         if (data.success) { alert('Reply sent!'); loadResponses(); }
         else alert('Failed: ' + (data.error || 'Unknown error'));
     } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function checkTokenStatus() {
+    try {
+        const res = await fetch('/api/season-kickoff/token-status', { headers: { 'Authorization': `Bearer ${TOKEN}` } });
+        const data = await res.json();
+        if (!data.success) return;
+        const banner = document.getElementById('tokenBanner');
+        const okBanner = document.getElementById('tokenOkBanner');
+        if (data.missingCount > 0) {
+            banner.style.display = '';
+            okBanner.style.display = 'none';
+            document.getElementById('tokenBannerTitle').textContent = `${data.missingCount} Broken Customer Link${data.missingCount > 1 ? 's' : ''} Found`;
+            document.getElementById('tokenBannerMsg').textContent = `${data.missingCount} customer${data.missingCount > 1 ? 's' : ''} can't confirm their services because tokens are missing. Click "Fix Now" to restore them automatically.`;
+        } else {
+            banner.style.display = 'none';
+            if (data.emailCount > 0) {
+                okBanner.style.display = '';
+                document.getElementById('tokenOkMsg').textContent = `All ${data.tokenCount} confirm links are working. ${data.emailCount} kickoff emails sent.`;
+            }
+        }
+    } catch(e) { /* silent */ }
+}
+
+async function recoverTokens() {
+    const btn = document.getElementById('recoverBtn');
+    btn.disabled = true;
+    btn.textContent = 'Fixing...';
+    try {
+        const res = await fetch('/api/season-kickoff/recover-tokens', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = 'Fix Now';
+        if (data.success) {
+            if (data.recovered > 0) {
+                alert(`Fixed! ${data.recovered} customer link${data.recovered > 1 ? 's' : ''} restored.\n\nCustomers can now click their original email links and they will work.`);
+                loadResponses();
+            } else {
+                alert('No missing tokens found. All links should be working.');
+            }
+            checkTokenStatus();
+        } else {
+            alert('Recovery failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Fix Now';
         alert('Error: ' + err.message);
     }
 }

@@ -11146,9 +11146,9 @@ app.get('/api/season-kickoff/token-status', async (req, res) => {
 app.post('/api/season-kickoff/recover-tokens', async (req, res) => {
   try {
     const logs = await pool.query(
-      `SELECT recipient_email, customer_name, html_body, created_at FROM email_log
+      `SELECT recipient_email, customer_name, html_body, sent_at FROM email_log
        WHERE email_type = 'season_kickoff' AND status = 'sent' AND html_body IS NOT NULL
-       ORDER BY created_at DESC`
+       ORDER BY sent_at DESC`
     );
 
     let recovered = 0, alreadyExists = 0, noToken = 0;
@@ -11173,10 +11173,10 @@ app.post('/api/season-kickoff/recover-tokens', async (req, res) => {
       }
 
       await pool.query(
-        `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status, created_at)
-         VALUES ($1, $2, $3, $4, 'pending', $5)
+        `INSERT INTO season_kickoff_responses (token, customer_name, customer_email, services, status)
+         VALUES ($1, $2, $3, $4, 'pending')
          ON CONFLICT (token) DO NOTHING`,
-        [token, log.customer_name || '', log.recipient_email, JSON.stringify(serviceRows), log.created_at]
+        [token, log.customer_name || '', log.recipient_email, JSON.stringify(serviceRows)]
       );
 
       recovered++;
@@ -14678,6 +14678,8 @@ const EMAIL_LOG_TABLE = `CREATE TABLE IF NOT EXISTS email_log (
   quote_id INTEGER,
   status VARCHAR(20) DEFAULT 'sent',
   error_message TEXT,
+  html_body TEXT,
+  open_token VARCHAR(255),
   sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 

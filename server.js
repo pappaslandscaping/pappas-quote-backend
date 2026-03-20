@@ -11906,8 +11906,8 @@ app.post('/api/broadcasts/send', async (req, res) => {
 
       // Send SMS
       if (channel === 'sms' || channel === 'both') {
-        // Check prefs: default DO NOT allow sms if no prefs row
-        const smsAllowed = prefs ? prefs.sms_marketing !== false : false;
+        // Check prefs: allow SMS by default if no prefs row exists
+        const smsAllowed = prefs ? prefs.sms_marketing !== false : true;
         if (!smsAllowed || !cust.mobile) {
           results.sms_skipped++;
         } else {

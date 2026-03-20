@@ -15716,7 +15716,7 @@ app.post('/api/ai/generate-quote', async (req, res) => {
     const availableServices = Object.keys(SERVICE_DESCRIPTIONS);
     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
 
-    const prompt = `You are the quoting assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Greater Cleveland area).
+    const prompt = `You are the quoting assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Cleveland West Side).
 
 The current month is ${currentMonth}. Generate a professional landscaping quote for the following customer:
 
@@ -15783,7 +15783,7 @@ app.post('/api/ai/generate-followup', async (req, res) => {
 
     const isSMS = channel === 'sms';
 
-    const prompt = `You are the follow-up assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Lakewood / Greater Cleveland area).
+    const prompt = `You are the follow-up assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Lakewood / Cleveland West Side).
 
 Generate a follow-up message to close the deal with this customer:
 
@@ -15844,7 +15844,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
     const availableServices = Object.keys(SERVICE_DESCRIPTIONS);
 
-    const systemPrompt = `You are the AI assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Greater Cleveland area).
+    const systemPrompt = `You are the AI assistant for Pappas & Co. Landscaping, a professional landscaping company based in Northeast Ohio (Lakewood / Cleveland West Side).
 
 You help the business owner and staff with:
 - Answering questions about landscaping services, pricing, and scheduling
@@ -15899,7 +15899,7 @@ app.post('/api/ai/generate-template', async (req, res) => {
     const { prompt, type, action, history, apply } = req.body;
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt is required' });
 
-    const systemPrompt = `You are an interactive AI template assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Greater Cleveland).
+    const systemPrompt = `You are an interactive AI template assistant for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Cleveland West Side).
 
 You help create, edit, and improve email and SMS templates through conversation. You can:
 - Generate new email templates
@@ -15914,7 +15914,7 @@ BRAND GUIDELINES:
 - Lime accent: #c9dd80
 - Company: Pappas & Co. Landscaping
 - Tagline: "Your Property, Our Priority."
-- Location: Northeast Ohio (Greater Cleveland)
+- Location: Northeast Ohio (Cleveland West Side)
 
 Available merge tags: {customer_name}, {customer_first_name}, {company_name}, {company_phone}, {company_email}, {company_website}, {address}, {quote_link}, {invoice_link}, {quote_total}, {services_list}, {payment_link}, {invoice_number}, {invoice_total}, {job_date}, {service_type}, {crew_name}, {portal_link}, {contract_link}, {quote_number}, {balance_due}, {amount_paid}, {invoice_due_date}
 
@@ -16036,7 +16036,7 @@ app.post('/api/ai/suggest-service', async (req, res) => {
     const { service_name, context } = req.body;
     if (!service_name) return res.status(400).json({ success: false, error: 'service_name is required' });
 
-    const prompt = `You are the service description writer for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Greater Cleveland area).
+    const prompt = `You are the service description writer for Pappas & Co. Landscaping, a professional landscaping company in Northeast Ohio (Cleveland West Side).
 
 Given the service name or rough idea below, provide:
 1. A polished, professional service title
@@ -16099,9 +16099,9 @@ app.post('/api/social-media/generate', authenticateToken, async (req, res) => {
     const systemPrompt = `You are a social media manager for Pappas & Co. Landscaping, a professional landscaping company in Lakewood/Cleveland, Ohio.
 
 Company info:
-- Name: Pappas & Co. Landscaping
+- Name: Pappas & Co. Landscaping (ALWAYS use the full name "Pappas & Co. Landscaping" — NEVER shorten to "Pappas & Co." or "Pappas")
 - Owner: Tim Pappas
-- Areas served: Lakewood, Brook Park, Bay Village, Westpark, Rocky River, Greater Cleveland
+- Areas served: Lakewood, Brook Park, Bay Village, and Westpark
 - Services: mowing, spring/fall cleanup, mulching, aeration, weed control, shrub trimming, landscaping
 - Phone: 440-886-7318
 - Instagram/TikTok: @pappaslandscaping
@@ -16187,6 +16187,7 @@ app.post('/api/social-media/refine', authenticateToken, async (req, res) => {
     }
 
     const systemPrompt = `You are a social media manager for Pappas & Co. Landscaping in Lakewood/Cleveland, Ohio.
+ALWAYS use the full name "Pappas & Co. Landscaping" — NEVER shorten to "Pappas & Co." or "Pappas".
 Owner: Tim Pappas. Phone: 440-886-7318. Instagram/TikTok: @pappaslandscaping.
 Voice: Friendly, community-focused, professional but approachable.
 

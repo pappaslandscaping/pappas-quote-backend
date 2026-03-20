@@ -414,16 +414,6 @@ function verifyPassword(password, stored) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex') === hash;
 }
 
-// TEMPORARY: one-time password reset — REMOVE after use
-app.get('/api/auth/reset-temp-xK9z', async (req, res) => {
-  try {
-    const bcrypt = require('bcryptjs');
-    const hash = await bcrypt.hash('1513Lincoln!', 10);
-    await pool.query("UPDATE users SET password_hash = $1 WHERE email = 'hello@pappaslandscaping.com'", [hash]);
-    res.json({ success: true, message: 'Password reset. Now remove this endpoint.' });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
 // Admin + Employee login
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -11195,7 +11185,8 @@ app.post('/api/season-kickoff/recover-tokens', async (req, res) => {
 
     res.json({ success: true, recovered, alreadyExists, noToken, totalEmailsScanned: logs.rows.length, details });
   } catch (error) {
-    serverError(res, error, 'Error recovering kickoff tokens');
+    console.error('Token recovery error:', error);
+    res.status(500).json({ success: false, error: 'Something went wrong. Please try again.', debug: error.message });
   }
 });
 

@@ -25,6 +25,7 @@ Business management app for a landscaping company in Cleveland, OH.
 - **Production URL:** `https://pappas-quote-backend-production.up.railway.app/`
 - **Railway DB:** PostgreSQL on Railway (same schema as local)
 - **Deploy process:** Commit → push to GitHub → Railway auto-deploys code. For DB changes, export local with `pg_dump` and import via Railway's public Postgres URL.
+- **IMPORTANT: Before ANY `pg_dump` import to production**, back up the production DB first: `pg_dump $RAILWAY_DB_URL > backup-$(date +%Y%m%d).sql`. A past import wiped active customer tokens and broke confirm links.
 
 ## Shell System (`public/shell.js`)
 All internal pages share a common shell. Every page just needs:
@@ -39,7 +40,8 @@ All internal pages share a common shell. Every page just needs:
 - Topbar is kept per-page (shell adds one if missing)
 
 ### Public Pages (NO shell.js)
-These 6 pages are public-facing: login, pay-invoice, customer-portal, sign-quote, sign-contract, monthly-plan-request
+These pages are public-facing (customers access them without logging in). Do NOT add shell.js or auth to these:
+login, pay-invoice, customer-portal, sign-quote, sign-contract, monthly-plan-request, confirm-services, campaign, quote-generator, quote-calculator, reset-password
 
 ## Database Tables
 - `customers` — id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code
@@ -105,6 +107,34 @@ Build toward these concepts incrementally:
 | **Mobile Crew App** | Offline-capable crew app (time tracking, media, forms) | Future |
 
 ## Rules
+
+### NEVER Delete Working Code (MANDATORY)
+**This is the #1 rule. Violations have broken customer-facing features in production.**
+
+- **NEVER remove, replace, or "clean up" existing endpoint code** unless the user explicitly asks you to delete that specific feature
+- **NEVER refactor server.js by rewriting large sections** — only make targeted edits to the code you're changing
+- Before ANY commit that removes more than 10 lines, **verify every deleted function/endpoint is truly unused** by checking all HTML pages and other JS files that call it
+- If you're editing server.js and your diff deletes routes, table definitions, or helper functions you didn't create — **STOP and put them back**
+- When in doubt, **leave code alone**. Extra unused code is infinitely better than accidentally deleting a feature that customers depend on
+
+**Protected features that must NEVER be removed** (features marked with * have been accidentally deleted before):
+
+| Feature | Backend | Frontend | What breaks if removed |
+|---------|---------|----------|----------------------|
+| Season Kickoff* | `season-kickoff/*` endpoints, `buildKickoffContent()`, `season_kickoff_responses` table creation | `season-kickoff.html`, `confirm-services.html` | Customers can't confirm their annual services |
+| CopilotCRM sync* | Inside `POST /api/sent-quotes/:id/sign-contract`, backfill endpoint | — | Signed contracts don't sync to CopilotCRM |
+| Password reset | `forgot-password`, `reset-password` endpoints | `login.html`, `reset-password.html` | Users can't reset passwords |
+| 2025 Services Report* | `GET /api/reports/2025-services` | Used by `season-kickoff.html` | Season kickoff page can't load customer data |
+| Quote signing | `GET/POST /api/sign/:token`, decline, request-changes | `sign-quote.html`, `sign-contract.html` | Customers can't sign quotes or contracts |
+| Invoice payments | `GET/POST /api/pay/:token/*`, Square payment processing | `pay-invoice.html` | Customers can't pay invoices online |
+| Customer portal | `GET/POST /api/portal/:token/*` (dashboard, invoices, cards, requests, reviews) | `customer-portal.html` | Customer self-service portal breaks |
+| Square webhook | `POST /api/webhooks/square` (before express.json middleware) | — | Payment confirmations stop processing |
+| SMS webhook | `POST /api/sms/webhook` | — | Inbound text messages stop being received |
+| Email tracking | `GET /api/t/:trackingId/open.png`, `GET /api/t/:trackingId/click` | — | Email open/click tracking breaks |
+| Quote followups | `quote-followups/*` endpoints, `POST /api/cron/process-followups` | `sent-quotes.html` | Automated follow-up emails stop sending |
+| QuickBooks sync | `quickbooks/*` endpoints (auth, callback, sync, status) | `settings.html` | Accounting sync breaks |
+| Daily automations | `POST/GET /api/cron/daily-automation` | — | Late fees, recurring jobs, auto-invoicing stops |
+| Broadcasts | `broadcasts/*` endpoints, `campaigns/:id/send` | `broadcasts.html`, `campaigns.html` | Can't send bulk emails/SMS to customers |
 
 ### Testing (MANDATORY)
 - ALWAYS test new pages/features against the running app before saying it works

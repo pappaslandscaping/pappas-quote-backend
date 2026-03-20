@@ -879,7 +879,7 @@ async function recoverTokens() {
             }
             checkTokenStatus();
         } else {
-            alert('Recovery failed: ' + (data.error || 'Unknown error'));
+            alert('Recovery failed: ' + (data.error || 'Unknown error') + (data.debug ? '\n\nDetail: ' + data.debug : ''));
         }
     } catch (err) {
         btn.disabled = false;

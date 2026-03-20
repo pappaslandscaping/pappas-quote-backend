@@ -106,6 +106,24 @@ Build toward these concepts incrementally:
 
 ## Rules
 
+### NEVER Delete Working Code (MANDATORY)
+**This is the #1 rule. Violations have broken customer-facing features in production.**
+
+- **NEVER remove, replace, or "clean up" existing endpoint code** unless the user explicitly asks you to delete that specific feature
+- **NEVER refactor server.js by rewriting large sections** — only make targeted edits to the code you're changing
+- Before ANY commit that removes more than 10 lines, **verify every deleted function/endpoint is truly unused** by checking all HTML pages and other JS files that call it
+- If you're editing server.js and your diff deletes routes, table definitions, or helper functions you didn't create — **STOP and put them back**
+- When in doubt, **leave code alone**. Extra unused code is infinitely better than accidentally deleting a feature that customers depend on
+
+**Protected features that must NEVER be removed** (each has been accidentally deleted before):
+
+| Feature | Backend | Frontend | What breaks if removed |
+|---------|---------|----------|----------------------|
+| Season Kickoff | `season-kickoff/*` endpoints, `buildKickoffContent()`, `season_kickoff_responses` table | `season-kickoff.html`, `confirm-services.html` | Customers can't confirm their annual services |
+| CopilotCRM sync | Inside `POST /api/sent-quotes/:id/sign-contract` | — | Signed contracts don't sync to CopilotCRM |
+| Password reset | `forgot-password`, `reset-password` endpoints | `login.html`, `reset-password.html` | Users can't reset passwords |
+| 2025 Services Report | `GET /api/reports/2025-services` | Used by `season-kickoff.html` | Season kickoff page can't load customer data |
+
 ### Testing (MANDATORY)
 - ALWAYS test new pages/features against the running app before saying it works
 - Use `curl` with auth or DB queries to verify data flow

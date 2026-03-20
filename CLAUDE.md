@@ -136,6 +136,12 @@ Build toward these concepts incrementally:
 | Daily automations | `POST/GET /api/cron/daily-automation` | — | Late fees, recurring jobs, auto-invoicing stops |
 | Broadcasts | `broadcasts/*` endpoints, `campaigns/:id/send` | `broadcasts.html`, `campaigns.html` | Can't send bulk emails/SMS to customers |
 
+### Changelog (MANDATORY)
+- **Update `CHANGELOG.md` at the root of the repo** whenever you complete substantive work (new features, bug fixes, UI changes)
+- Group entries by date, use clear headers and bullet points
+- Write from the user's perspective — what changed, not how it was implemented
+- This file is the permanent record of all changes to the app
+
 ### Testing (MANDATORY)
 - ALWAYS test new pages/features against the running app before saying it works
 - Use `curl` with auth or DB queries to verify data flow

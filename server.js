@@ -6204,14 +6204,15 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
               const portalEmailContent = `
                 <p style="font-size:16px;color:#1e293b;line-height:1.7;">Hi ${customerFirstName},</p>
                 <p style="font-size:16px;color:#1e293b;line-height:1.7;">Welcome to Pappas & Co. Landscaping! Your service agreement has been signed and we're excited to get started.</p>
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">We've set up a <strong>client portal</strong> for you where you can:</p>
+                <p style="font-size:16px;color:#1e293b;line-height:1.7;">To keep things running smoothly, <strong>please add a card on file</strong> to your client portal. Your card will only be charged when invoices are due — no surprise charges.</p>
+                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Your portal also gives you access to:</p>
                 <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
+                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">💳</td><td><strong style="color:#1e293b;">Card on File</strong><br><span style="color:#64748b;font-size:13px;">Add a payment method for seamless billing</span></td></tr></table></td></tr>
+                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">📄</td><td><strong style="color:#1e293b;">Quotes & Invoices</strong><br><span style="color:#64748b;font-size:13px;">View and pay invoices online anytime</span></td></tr></table></td></tr>
                   <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">📅</td><td><strong style="color:#1e293b;">Service Schedule</strong><br><span style="color:#64748b;font-size:13px;">View upcoming visits and service history</span></td></tr></table></td></tr>
-                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">💳</td><td><strong style="color:#1e293b;">Easy Payments</strong><br><span style="color:#64748b;font-size:13px;">Add a card on file and pay invoices online</span></td></tr></table></td></tr>
-                  <tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">💬</td><td><strong style="color:#1e293b;">Direct Messaging</strong><br><span style="color:#64748b;font-size:13px;">Send questions or requests to our team</span></td></tr></table></td></tr>
-                  <tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">📄</td><td><strong style="color:#1e293b;">Quotes & Invoices</strong><br><span style="color:#64748b;font-size:13px;">Access all your documents in one place</span></td></tr></table></td></tr>
+                  <tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">💬</td><td><strong style="color:#1e293b;">Direct Messaging</strong><br><span style="color:#64748b;font-size:13px;">Send questions or requests to our team</span></td></tr></table></td></tr>
                 </table>
-                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Click below to create your password and get started.</p>
+                <p style="font-size:16px;color:#1e293b;line-height:1.7;">Click below to create your password and add your card.</p>
                 <div style="text-align:center;margin:32px 0;">
                   <a href="${portalUrl}" style="display:inline-block;padding:14px 40px;background:#2e403d;color:#ffffff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;">Set Up My Portal</a>
                 </div>

@@ -6004,29 +6004,123 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
     `;
     await sendEmail(NOTIFICATION_EMAIL, `🎉 Contract Signed: ${updatedQuote.customer_name}`, emailTemplate(adminContent, { showSignature: false }));
 
-    // Trigger Zapier webhook for CopilotCRM customer portal invite
-    if (process.env.ZAPIER_CONTRACT_SIGNED_WEBHOOK) {
+    // Sync to CopilotCRM — update estimate status to accepted + upload signed contract
+    if (process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
       try {
-        await fetch(process.env.ZAPIER_CONTRACT_SIGNED_WEBHOOK, {
+        // Step 1: Login to CopilotCRM
+        const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            event: 'contract_signed',
-            customer_name: updatedQuote.customer_name,
-            customer_email: updatedQuote.customer_email,
-            customer_phone: updatedQuote.customer_phone,
-            customer_address: updatedQuote.customer_address,
-            quote_number: updatedQuote.quote_number || 'Q-' + updatedQuote.id,
-            total: updatedQuote.total,
-            monthly_payment: updatedQuote.monthly_payment,
-            services: servicesText,
-            signed_by: printed_name,
-            signed_at: new Date().toISOString()
-          })
+          headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+          body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
         });
-        console.log('✅ Zapier webhook sent for contract signed');
-      } catch (e) { 
-        console.error('Zapier contract webhook failed:', e); 
+        const copilotAuth = await copilotLogin.json();
+        if (!copilotAuth.accessToken) throw new Error('CopilotCRM login failed');
+        const copilotCookie = `copilotApiAccessToken=${copilotAuth.accessToken}`;
+        const copilotHeaders = {
+          'Cookie': copilotCookie,
+          'Origin': 'https://secure.copilotcrm.com',
+          'Referer': 'https://secure.copilotcrm.com/',
+          'X-Requested-With': 'XMLHttpRequest'
+        };
+
+        // Step 2: Search for customer by name
+        const customerName = updatedQuote.customer_name || '';
+        const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+          method: 'POST',
+          headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `query=${encodeURIComponent(customerName)}`
+        });
+        const customers = await searchRes.json();
+
+        // Find matching customer
+        const match = customers.find(c => c.id && String(c.id) !== '0');
+        if (!match) {
+          console.log(`⚠️ CopilotCRM: No customer found for "${customerName}"`);
+        } else {
+          const copilotCustomerId = match.id;
+          console.log(`🔍 CopilotCRM: Found customer ${copilotCustomerId} for "${customerName}"`);
+
+          // Step 3: Get customer's estimates to find matching estimate number
+          const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+            method: 'POST',
+            headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `customer_id=${copilotCustomerId}`
+          });
+          const estData = await estRes.json();
+          const estHtml = estData.html || '';
+
+          // Parse estimate IDs and numbers from HTML
+          const quoteNum = updatedQuote.quote_number || '';
+          const paddedNum = quoteNum.replace(/^0+/, '').padStart(7, '0');
+
+          const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
+          let estMatch;
+          let copilotEstimateId = null;
+          while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
+            if (estMatch[2] === paddedNum || estMatch[2] === quoteNum) {
+              copilotEstimateId = estMatch[1];
+              break;
+            }
+          }
+
+          if (!copilotEstimateId) {
+            console.log(`⚠️ CopilotCRM: No estimate matching "${quoteNum}" (padded: ${paddedNum}) found for customer ${copilotCustomerId}`);
+          } else {
+            console.log(`🔍 CopilotCRM: Found estimate ${copilotEstimateId} for quote ${quoteNum}`);
+
+            // Step 4: Accept the estimate
+            const acceptRes = await fetch('https://secure.copilotcrm.com/finances/estimates/accept', {
+              method: 'POST',
+              headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `id=${copilotEstimateId}&key=`
+            });
+            if (acceptRes.ok) {
+              console.log(`✅ CopilotCRM: Estimate ${copilotEstimateId} marked as accepted`);
+            } else {
+              console.error(`CopilotCRM: Accept failed with status ${acceptRes.status}`);
+            }
+
+            // Step 5: Upload signed contract PDF if available
+            if (pdfBytes && pdfBytes.length > 0) {
+              try {
+                // Get signed upload URL from CopilotCRM (S3)
+                const signUrlRes = await fetch('https://secure.copilotcrm.com/getSignedUploadUrl', {
+                  method: 'POST',
+                  headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contentType: 'application/pdf', size: pdfBytes.length })
+                });
+                const signUrlData = await signUrlRes.json();
+
+                if (signUrlData.data && signUrlData.data.uploadUrl) {
+                  // Upload PDF to S3
+                  await fetch(signUrlData.data.uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/pdf' },
+                    body: Buffer.from(pdfBytes)
+                  });
+
+                  // Link uploaded file to the estimate
+                  const uploadRes = await fetch('https://secure.copilotcrm.com/finances/estimates/uploadImage', {
+                    method: 'POST',
+                    headers: { ...copilotHeaders, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      estimateId: String(copilotEstimateId),
+                      tempFileName: signUrlData.data.key,
+                      contentType: 'application/pdf'
+                    })
+                  });
+                  if (uploadRes.ok) {
+                    console.log(`✅ CopilotCRM: Signed contract uploaded to estimate ${copilotEstimateId}`);
+                  }
+                }
+              } catch (uploadErr) {
+                console.error('CopilotCRM: Contract upload failed:', uploadErr.message);
+              }
+            }
+          }
+        }
+      } catch (copilotErr) {
+        console.error('CopilotCRM sync failed:', copilotErr.message);
       }
     }
 

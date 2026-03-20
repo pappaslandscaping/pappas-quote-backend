@@ -1040,6 +1040,9 @@
                             <button type="button" class="merge-btn" onclick="insertMergeVar('{customer_first_name}')">{customer_first_name}</button>
                             <button type="button" class="merge-btn" onclick="insertMergeVar('{customer_name}')">{customer_name}</button>
                             <button type="button" class="merge-btn" onclick="insertMergeVar('{company_name}')">{company_name}</button>
+                            <button type="button" class="merge-btn" onclick="insertMergeVar('{service_type}')">{service_type}</button>
+                            <button type="button" class="merge-btn" onclick="insertMergeVar('{address}')">{address}</button>
+                            <button type="button" class="merge-btn" onclick="insertMergeVar('{job_date}')">{job_date}</button>
                         </div>
                     </div>
                     <button type="button" class="btn-use-template-sms" id="useTemplateSmsBtn" style="display:none;" onclick="useTemplateSms()">
@@ -1772,6 +1775,10 @@ async function sendBroadcast() {
         }
         if (currentChannel === 'sms' || currentChannel === 'both') {
             payload.sms_body = document.getElementById('smsBody').value;
+        }
+        // Pass job_date for service reminder merge vars
+        if (document.getElementById('jobDateFilter').checked && document.getElementById('jobDateValue').value) {
+            payload.job_date = document.getElementById('jobDateValue').value;
         }
 
         const res = await fetch('/api/broadcasts/send', {

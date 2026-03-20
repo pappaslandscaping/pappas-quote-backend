@@ -11824,7 +11824,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
   } catch (err) { return res.status(401).json({ success: false, error: 'Invalid token' }); }
 
   try {
-    const { channel, template_id, sms_body, customer_ids, campaign_id } = req.body;
+    const { channel, template_id, sms_body, customer_ids, campaign_id, job_date } = req.body;
     if (!channel || !['email', 'sms', 'both'].includes(channel)) {
       return res.status(400).json({ success: false, error: 'channel must be email, sms, or both' });
     }
@@ -11872,6 +11872,25 @@ app.post('/api/broadcasts/send', async (req, res) => {
         portal_link: `${baseUrl}/customer-portal.html`,
         unsubscribe_email: encodeURIComponent(cust.email || '')
       };
+
+      // If job_date provided, look up job details for this customer on that date
+      if (job_date) {
+        try {
+          const jobResult = await pool.query(
+            `SELECT service_type, address, service_price, job_date FROM scheduled_jobs
+             WHERE customer_id = $1 AND job_date::date = $2::date
+             ORDER BY id DESC LIMIT 1`,
+            [cust.id, job_date]
+          );
+          if (jobResult.rows.length > 0) {
+            const job = jobResult.rows[0];
+            vars.service_type = job.service_type || '';
+            vars.address = job.address || vars.customer_address;
+            vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
+            vars.job_date = job.job_date ? new Date(job.job_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
+          }
+        } catch (e) { console.error('Job lookup error:', e.message); }
+      }
 
       const prefs = prefsMap[cust.id];
 

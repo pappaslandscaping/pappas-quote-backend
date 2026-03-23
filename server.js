@@ -686,15 +686,23 @@ app.post('/api/season-kickoff/confirm/:token', async (req, res) => {
     let propList = [];
     try { propList = typeof row.properties === 'string' ? JSON.parse(row.properties) : (row.properties || []); } catch(e) {}
     const addrHtml = propList.filter(Boolean).map(p => escapeHtml(p)).join('<br>');
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const appLink = `${baseUrl}/season-kickoff.html?tab=responses`;
+    const replyMailto = row.customer_email ? `mailto:${row.customer_email}?subject=${encodeURIComponent(`Re: Your 2026 Services — Pappas & Co. Landscaping`)}&body=${encodeURIComponent(`Hi ${(row.customer_name || '').split(' ')[0]},\n\nThank you for letting us know! `)}` : '';
+    const actionButtons = `<div style="margin:20px 0 8px;text-align:center;">
+      ${replyMailto ? `<a href="${replyMailto}" style="display:inline-block;padding:12px 24px;background:#2e403d;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;margin-right:10px;">Reply to Customer</a>` : ''}
+      <a href="${appLink}" style="display:inline-block;padding:12px 24px;background:#f1f5f9;color:#2e403d;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;border:1px solid #e2e8f0;">View in App</a>
+    </div>`;
     const notifyHtml = emailTemplate(`
       <h2 style="font-size:20px;color:#1e293b;font-weight:700;margin:0 0 16px;">Season Kickoff Response</h2>
       <p style="font-size:15px;color:#475569;line-height:1.6;margin:0 0 12px;">
         <strong>${escapeHtml(row.customer_name)}</strong> has <strong>${statusLabel.toLowerCase()}</strong>.
       </p>
-      ${row.customer_email ? `<p style="font-size:14px;color:#64748b;margin:0 0 8px;">Contact: ${escapeHtml(row.customer_email)}</p>` : ''}
+      ${row.customer_email ? `<p style="font-size:14px;color:#64748b;margin:0 0 8px;">Contact: <a href="mailto:${escapeHtml(row.customer_email)}" style="color:#2e403d;">${escapeHtml(row.customer_email)}</a></p>` : ''}
       ${addrHtml ? `<p style="font-size:14px;color:#64748b;margin:0 0 12px;">Address: ${addrHtml}</p>` : ''}
       ${svcTable}
       ${notes ? `<p style="font-size:14px;color:#475569;margin:12px 0;padding:12px;background:#f8fafc;border-radius:8px;border-left:3px solid #2e403d;"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ''}
+      ${actionButtons}
     `);
     sendEmail('hello@pappaslandscaping.com', `Season Kickoff: ${escapeHtml(row.customer_name)} — ${statusLabel}`, notifyHtml).catch(err => console.error('Notify email error:', err));
 

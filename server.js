@@ -510,6 +510,108 @@ app.post('/api/auth/change-password', async (req, res) => {
   }
 });
 
+// Forgot password — sends reset link via email
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+    const emailLower = email.toLowerCase().trim();
+
+    // Always return success to avoid email enumeration
+    const successMsg = { success: true, message: 'If an account exists, a reset link has been sent.' };
+
+    // Check admin_users
+    const result = await pool.query('SELECT id, email, name FROM admin_users WHERE email = $1', [emailLower]);
+    if (result.rows.length === 0) {
+      // Check employees
+      const empResult = await pool.query('SELECT id, login_email, first_name FROM employees WHERE login_email = $1 AND is_active = true', [emailLower]);
+      if (empResult.rows.length === 0) return res.json(successMsg);
+    }
+
+    const user = result.rows[0];
+    const isEmployee = !user;
+    const userId = user ? user.id : (await pool.query('SELECT id FROM employees WHERE login_email = $1 AND is_active = true', [emailLower])).rows[0]?.id;
+    if (!userId) return res.json(successMsg);
+
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Store token (create table if needed)
+    await pool.query(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      user_type VARCHAR(20) NOT NULL DEFAULT 'admin',
+      token VARCHAR(255) UNIQUE NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Invalidate any existing tokens for this user
+    await pool.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND user_type = $2', [userId, isEmployee ? 'employee' : 'admin']);
+
+    // Insert new token
+    await pool.query('INSERT INTO password_reset_tokens (user_id, user_type, token, expires_at) VALUES ($1, $2, $3, $4)', [userId, isEmployee ? 'employee' : 'admin', token, expiresAt]);
+
+    // Send reset email
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const resetUrl = `${baseUrl}/reset-password.html?token=${token}`;
+    const userName = user ? (user.name || emailLower) : emailLower;
+
+    const emailContent = `
+      <h2 style="color:#1e293b;font-size:22px;font-weight:600;margin:0 0 12px;">Reset Your Password</h2>
+      <p style="color:#475569;font-size:15px;line-height:1.6;">Hi ${escapeHtml(userName.split(' ')[0] || 'there')},</p>
+      <p style="color:#475569;font-size:15px;line-height:1.6;">We received a request to reset your YardDesk password. Click the button below to choose a new password:</p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:#ffffff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600;">Reset Password</a>
+      </div>
+      <p style="color:#94a3b8;font-size:13px;line-height:1.5;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+    `;
+
+    await sendEmail(emailLower, 'Reset Your YardDesk Password', emailTemplate(emailContent, { showSignature: false }));
+    console.log(`🔐 Password reset email sent to ${emailLower}`);
+    res.json(successMsg);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    serverError(res, error, 'Forgot password error');
+  }
+});
+
+// Reset password — validates token and sets new password
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, new_password } = req.body;
+    if (!token || !new_password) return res.status(400).json({ success: false, error: 'Token and new password required' });
+    if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+
+    // Look up token
+    const result = await pool.query('SELECT * FROM password_reset_tokens WHERE token = $1 AND used = false AND expires_at > NOW()', [token]);
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'This reset link has expired or already been used. Please request a new one.' });
+    }
+
+    const resetRecord = result.rows[0];
+    const newHash = hashPassword(new_password);
+
+    // Update password based on user type
+    if (resetRecord.user_type === 'employee') {
+      await pool.query('UPDATE employees SET password_hash = $1 WHERE id = $2', [newHash, resetRecord.user_id]);
+    } else {
+      await pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, resetRecord.user_id]);
+    }
+
+    // Mark token as used
+    await pool.query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [resetRecord.id]);
+
+    console.log(`🔐 Password reset successful for ${resetRecord.user_type} id=${resetRecord.user_id}`);
+    res.json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    serverError(res, error, 'Reset password error');
+  }
+});
+
 // Admin auth middleware — protects all admin API routes
 const ADMIN_PUBLIC_PATHS = [
   '/api/auth/', '/api/webhooks/', '/api/sms/webhook', '/api/sign/', '/api/pay/',

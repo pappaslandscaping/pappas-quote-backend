@@ -3424,25 +3424,22 @@ app.post('/api/customers', async (req, res) => {
 
     const result = await pool.query(`
       INSERT INTO customers (
-        customer_number, name, email, status, type, country,
-        street, street2, city, state, postal_code, phone, fax, mobile,
+        customer_number, name, email, status, customer_type,
+        street, city, state, postal_code, phone, mobile,
         first_name, last_name, tags, notes, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING *
     `, [
       customer_number || await nextCustomerNumber(),
       finalName,
       email || null,
       finalStatus,
-      type || null,
-      country || 'USA',
+      type || 'customer',
       street || null,
-      street2 || null,
       city || null,
       state || null,
       finalPostalCode,
       phone || null,
-      fax || null,
       mobile || null,
       finalFirstName,
       finalLastName,
@@ -6263,14 +6260,18 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
     // Sync to CopilotCRM — update estimate status to accepted + upload signed contract
     if (process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
       try {
+        console.log(`🔄 CopilotCRM sync starting for "${updatedQuote.customer_name}" (quote ${updatedQuote.quote_number || id})`);
         // Step 1: Login to CopilotCRM
         const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
           body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
         });
-        const copilotAuth = await copilotLogin.json();
-        if (!copilotAuth.accessToken) throw new Error('CopilotCRM login failed');
+        const copilotLoginText = await copilotLogin.text();
+        let copilotAuth;
+        try { copilotAuth = JSON.parse(copilotLoginText); } catch (e) { throw new Error(`CopilotCRM login returned non-JSON: ${copilotLoginText.substring(0, 200)}`); }
+        console.log(`🔑 CopilotCRM login status: ${copilotLogin.status}, hasToken: ${!!copilotAuth.accessToken}`);
+        if (!copilotAuth.accessToken) throw new Error(`CopilotCRM login failed: ${copilotLoginText.substring(0, 200)}`);
         const copilotCookie = `copilotApiAccessToken=${copilotAuth.accessToken}`;
         const copilotHeaders = {
           'Cookie': copilotCookie,
@@ -6286,12 +6287,15 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
           headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `query=${encodeURIComponent(customerName)}`
         });
-        const customers = await searchRes.json();
+        const searchText = await searchRes.text();
+        let customers;
+        try { customers = JSON.parse(searchText); } catch (e) { throw new Error(`CopilotCRM customer search returned non-JSON (status ${searchRes.status}): ${searchText.substring(0, 300)}`); }
+        console.log(`🔍 CopilotCRM: Customer search for "${customerName}" returned ${Array.isArray(customers) ? customers.length : 'non-array'} results`);
 
         // Find matching customer
         const match = customers.find(c => c.id && String(c.id) !== '0');
         if (!match) {
-          console.log(`⚠️ CopilotCRM: No customer found for "${customerName}"`);
+          console.log(`⚠️ CopilotCRM: No customer found for "${customerName}". Search results:`, JSON.stringify(customers).substring(0, 500));
         } else {
           const copilotCustomerId = match.id;
           console.log(`🔍 CopilotCRM: Found customer ${copilotCustomerId} for "${customerName}"`);
@@ -6302,8 +6306,11 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
             headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `customer_id=${copilotCustomerId}`
           });
-          const estData = await estRes.json();
+          const estText = await estRes.text();
+          let estData;
+          try { estData = JSON.parse(estText); } catch (e) { throw new Error(`CopilotCRM estimates returned non-JSON (status ${estRes.status}): ${estText.substring(0, 300)}`); }
           const estHtml = estData.html || '';
+          console.log(`📋 CopilotCRM: Estimates response for customer ${copilotCustomerId}: status=${estRes.status}, htmlLength=${estHtml.length}`);
 
           // Parse estimate IDs and numbers from HTML
           const quoteNum = updatedQuote.quote_number || '';
@@ -6312,12 +6319,15 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
           const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
           let estMatch;
           let copilotEstimateId = null;
+          const allEstNums = [];
           while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
+            allEstNums.push({ id: estMatch[1], num: estMatch[2] });
             if (estMatch[2] === paddedNum || estMatch[2] === quoteNum) {
               copilotEstimateId = estMatch[1];
               break;
             }
           }
+          console.log(`📋 CopilotCRM: Found estimates: ${JSON.stringify(allEstNums)}. Looking for quoteNum="${quoteNum}" / padded="${paddedNum}"`);
 
           if (!copilotEstimateId) {
             console.log(`⚠️ CopilotCRM: No estimate matching "${quoteNum}" (padded: ${paddedNum}) found for customer ${copilotCustomerId}`);
@@ -6418,8 +6428,11 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
           }
         }
       } catch (copilotErr) {
-        console.error('CopilotCRM sync failed:', copilotErr.message);
+        console.error('❌ CopilotCRM sync failed:', copilotErr.message);
+        console.error('CopilotCRM stack:', copilotErr.stack);
       }
+    } else {
+      console.log('⚠️ CopilotCRM sync skipped — COPILOTCRM_USERNAME or COPILOTCRM_PASSWORD not set');
     }
 
     // Stop quote follow-up sequence since quote was accepted
@@ -11281,12 +11294,19 @@ app.get('/api/season-kickoff/responses', async (req, res) => {
 // PATCH /api/season-kickoff/responses/:id - Update a response's services (admin)
 app.patch('/api/season-kickoff/responses/:id', async (req, res) => {
   try {
-    const { services, properties } = req.body;
+    const { services, properties, customer_email } = req.body;
     if (!services) return res.status(400).json({ success: false, error: 'Services required' });
-    await pool.query(
-      `UPDATE season_kickoff_responses SET services = $1, properties = $2 WHERE id = $3`,
-      [JSON.stringify(services), JSON.stringify(properties || []), req.params.id]
-    );
+    if (customer_email !== undefined) {
+      await pool.query(
+        `UPDATE season_kickoff_responses SET services = $1, properties = $2, customer_email = $3 WHERE id = $4`,
+        [JSON.stringify(services), JSON.stringify(properties || []), customer_email, req.params.id]
+      );
+    } else {
+      await pool.query(
+        `UPDATE season_kickoff_responses SET services = $1, properties = $2 WHERE id = $3`,
+        [JSON.stringify(services), JSON.stringify(properties || []), req.params.id]
+      );
+    }
     res.json({ success: true });
   } catch (error) {
     serverError(res, error);

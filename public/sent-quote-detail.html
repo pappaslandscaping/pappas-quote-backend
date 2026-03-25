@@ -730,6 +730,10 @@
                     <button onclick="closeEditModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--gray-400);">&times;</button>
                 </div>
                 <div style="padding:24px 28px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                        <label style="font-weight:600;font-size:13px;color:var(--gray-500);white-space:nowrap;">To:</label>
+                        <input type="email" id="editToEmail" value="${(q.customer_email || '').replace(/"/g, '&quot;')}" style="flex:1;padding:8px 12px;border:1px solid var(--gray-200);border-radius:6px;font-size:14px;font-family:inherit;" />
+                    </div>
                     ${q.status === 'changes_requested' && q.change_details ? `
                         <div style="background:var(--amber-bg);border:1px solid #fde68a;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
                             <div style="font-weight:600;color:#92400e;font-size:13px;margin-bottom:4px;">Customer's Change Request:</div>
@@ -843,6 +847,7 @@
             return;
         }
         try {
+            const editedEmail = document.getElementById('editToEmail') ? document.getElementById('editToEmail').value.trim() : '';
             const res = await fetch(`/api/sent-quotes/${quoteId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -853,7 +858,8 @@
                     tax_rate: editData.tax_rate,
                     tax_amount: editData.tax_amount,
                     notes: editData.notes,
-                    status: 'draft'
+                    status: 'draft',
+                    ...(editedEmail && { customer_email: editedEmail })
                 })
             });
             const data = await res.json();
@@ -876,7 +882,9 @@
             alert('Please add at least one service');
             return;
         }
-        if (!confirm('Save changes and resend to ' + (quoteData.customer_email || 'the customer') + '?')) return;
+        const editedEmail2 = document.getElementById('editToEmail') ? document.getElementById('editToEmail').value.trim() : '';
+        const sendToEmail = editedEmail2 || quoteData.customer_email || 'the customer';
+        if (!confirm('Save changes and resend to ' + sendToEmail + '?')) return;
         try {
             // First save
             const saveRes = await fetch(`/api/sent-quotes/${quoteId}`, {
@@ -889,7 +897,8 @@
                     tax_rate: editData.tax_rate,
                     tax_amount: editData.tax_amount,
                     notes: editData.notes,
-                    status: 'sent'
+                    status: 'sent',
+                    ...(editedEmail2 && { customer_email: editedEmail2 })
                 })
             });
             const saveData = await saveRes.json();

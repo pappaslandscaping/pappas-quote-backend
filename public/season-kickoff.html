@@ -212,7 +212,7 @@
         </div>
         <div class="modal-body">
             <dl class="preview-meta">
-                <dt>To:</dt><dd id="previewTo">—</dd>
+                <dt>To:</dt><dd><input type="email" id="previewTo" style="border:1px solid var(--gray-200);border-radius:6px;padding:4px 8px;font-size:13px;font-family:inherit;width:100%;max-width:320px;" /></dd>
                 <dt>Subject:</dt><dd id="previewSubject">—</dd>
             </dl>
             <div id="propertyEditor" style="margin-bottom:12px;display:none;">
@@ -379,7 +379,7 @@ async function previewEmail(key) {
     editingResponseId = null;
     document.getElementById('responseEditBtns').style.display = 'none';
     document.getElementById('previewTitle').textContent = `Email Preview — ${customer.name}`;
-    document.getElementById('previewTo').textContent = customer.email || 'No email';
+    document.getElementById('previewTo').value = customer.email || '';
     document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${customer.name.split(' ')[0]}!`;
     document.getElementById('previewModal').classList.add('active');
 
@@ -778,7 +778,7 @@ async function editResponse(id) {
     previewPropertyServices = fakeCustomer.propertyServices ? fakeCustomer.propertyServices.map(ps => ({ address: ps.address, services: ps.services.map(s => ({...s})) })) : null;
     document.getElementById('previewModal').classList.add('active');
     document.getElementById('previewTitle').textContent = `Edit — ${r.customer_name}`;
-    document.getElementById('previewTo').textContent = r.customer_email || '';
+    document.getElementById('previewTo').value = r.customer_email || '';
     document.getElementById('previewSubject').textContent = `You're on our list for 2026, ${(r.customer_name || '').split(' ')[0]}!`;
     // Show response edit buttons
     document.getElementById('responseEditBtns').style.display = 'flex';
@@ -791,18 +791,20 @@ async function saveResponseChanges(andResend) {
     if (!editingResponseId) return;
     try {
         const props = previewPropertyServices ? previewPropertyServices.map(ps => ps.address) : previewCustomer.properties;
+        const editedEmail = document.getElementById('previewTo').value.trim();
         const res = await fetch(`/api/season-kickoff/responses/${editingResponseId}`, {
             method: 'PATCH',
             headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ services: previewServices, properties: props })
+            body: JSON.stringify({ services: previewServices, properties: props, customer_email: editedEmail || undefined })
         });
         const data = await res.json();
         if (!data.success) { alert('Failed to save: ' + (data.error || '')); return; }
-        if (andResend && previewCustomer.email) {
+        const sendEmail = editedEmail || previewCustomer.email;
+        if (andResend && sendEmail) {
             const sendRes = await fetch('/api/season-kickoff/send-test', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: previewCustomer.email, customerName: previewCustomer.name, services: previewServices, properties: props, propertyServices: previewPropertyServices })
+                body: JSON.stringify({ email: sendEmail, customerName: previewCustomer.name, services: previewServices, properties: props, propertyServices: previewPropertyServices })
             });
             const sendData = await sendRes.json();
             if (sendData.success) alert('Changes saved and email resent!');

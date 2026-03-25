@@ -11145,8 +11145,8 @@ app.post('/api/season-kickoff/send-test', async (req, res) => {
     if (!content) return res.status(400).json({ success: false, error: 'No eligible services' });
     const html = emailTemplate(content);
     const firstName = (customerName || 'Customer').split(' ')[0];
-    const result = await sendEmail(email, `You're on our list for 2026, ${escapeHtml(firstName)}!`, html, null, { type: 'season_kickoff', customer_name: customerName, confirm_token: token });
-    res.json(result);
+    await sendEmail(email, `You're on our list for 2026, ${escapeHtml(firstName)}!`, html, null, { type: 'season_kickoff', customer_name: customerName, confirm_token: token });
+    res.json({ success: true });
   } catch (error) {
     serverError(res, error);
   }

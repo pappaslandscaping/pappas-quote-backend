@@ -8,10 +8,10 @@
 
 | Metric | Count |
 |--------|-------|
-| Passed | 300 |
+| Passed | 301 |
 | Failed | 0 |
 | Skipped | 6 |
-| **Total** | **306** |
+| **Total** | **307** |
 
 ## Skipped (timeout by design)
 

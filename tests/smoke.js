@@ -330,6 +330,9 @@ const endpoints = [
   ['POST', '/api/settings/home-base', { lat: 0, lng: 0 }],
   ['PATCH', '/api/settings/test_smoke_key', { value: {} }],
 
+  // ── Service Token ──
+  ['POST', '/api/auth/service-token'],
+
   // ── CopilotCRM Sync ──
   ['POST', '/api/copilot/sync', { startDate: '2020-01-01', endDate: '2020-01-01' }],
 

@@ -15630,25 +15630,12 @@ app.post('/api/timeclock/parse-pdf', upload.single('pdf'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
 
-    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+    const { PDFParse } = require('pdf-parse');
     const data = new Uint8Array(req.file.buffer);
-    const doc = await pdfjsLib.getDocument({ data }).promise;
-
-    let allText = '';
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      const lines = [];
-      let lastY = null;
-      for (const item of content.items) {
-        if (lastY !== null && Math.abs(item.transform[5] - lastY) > 2) {
-          lines.push('\n');
-        }
-        lines.push(item.str);
-        lastY = item.transform[5];
-      }
-      allText += lines.join(' ') + '\n';
-    }
+    const parser = new PDFParse(data);
+    await parser.load();
+    const pdfData = await parser.getText();
+    const allText = pdfData.text;
 
     const entries = [];
     const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);

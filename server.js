@@ -15743,8 +15743,35 @@ app.post('/api/timeclock/parse-pdf', uploadPdf.single('pdf'), async (req, res) =
     const reportTotalMatch = allText.match(/total\s+(?:working\s+)?time:\s*(\d+)\s*hrs?\.?\s*(\d+)\s*mins?\.?/i);
     const reportTotal = reportTotalMatch ? { hours: parseInt(reportTotalMatch[1]), minutes: parseInt(reportTotalMatch[2]) } : null;
 
-    res.json({ success: true, entries, byEmployee, reportTotal });
+    // Load saved pay rates and attach to response
+    const ratesResult = await pool.query("SELECT value FROM business_settings WHERE key = 'crew_pay_rates'");
+    const payRates = ratesResult.rows.length ? (typeof ratesResult.rows[0].value === 'string' ? JSON.parse(ratesResult.rows[0].value) : ratesResult.rows[0].value) : {};
+
+    res.json({ success: true, entries, byEmployee, reportTotal, payRates });
   } catch (error) { serverError(res, error, 'Timeclock PDF parse'); }
+});
+
+// Save crew pay rates
+app.put('/api/timeclock/pay-rates', async (req, res) => {
+  try {
+    const { rates } = req.body;
+    if (!rates || typeof rates !== 'object') return res.status(400).json({ success: false, error: 'Invalid rates' });
+    await pool.query(
+      `INSERT INTO business_settings (key, value) VALUES ('crew_pay_rates', $1)
+       ON CONFLICT (key) DO UPDATE SET value = $1`,
+      [JSON.stringify(rates)]
+    );
+    res.json({ success: true });
+  } catch (error) { serverError(res, error, 'Save pay rates'); }
+});
+
+// Get crew pay rates
+app.get('/api/timeclock/pay-rates', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM business_settings WHERE key = 'crew_pay_rates'");
+    const rates = result.rows.length ? (typeof result.rows[0].value === 'string' ? JSON.parse(result.rows[0].value) : result.rows[0].value) : {};
+    res.json({ success: true, rates });
+  } catch (error) { serverError(res, error, 'Get pay rates'); }
 });
 
 // ═══════════════════════════════════════════════════════════

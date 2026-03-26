@@ -336,7 +336,22 @@ function renderResults(filename, data) {
     <span class="total-pay" id="grandTotalPay">$0.00</span>
   `;
 
-  // Rate change handlers
+  // Auto-fill saved pay rates
+  const payRates = data.payRates || {};
+  document.querySelectorAll('.rate-input').forEach(input => {
+    const emp = input.dataset.employee;
+    const savedRate = payRates[emp];
+    if (savedRate) {
+      input.value = savedRate;
+      const hours = parseFloat(input.dataset.hours);
+      const pay = savedRate * hours;
+      document.querySelector(`[data-pay-for="${emp}"]`).textContent = '$' + pay.toFixed(2);
+    }
+  });
+  updateGrandTotal();
+
+  // Rate change handlers — auto-save rates
+  let saveTimeout;
   document.querySelectorAll('.rate-input').forEach(input => {
     input.addEventListener('input', () => {
       const rate = parseFloat(input.value) || 0;
@@ -345,8 +360,25 @@ function renderResults(filename, data) {
       const pay = rate * hours;
       document.querySelector(`[data-pay-for="${emp}"]`).textContent = '$' + pay.toFixed(2);
       updateGrandTotal();
+
+      // Auto-save rates after 500ms debounce
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(savePayRates, 500);
     });
   });
+}
+
+function savePayRates() {
+  const rates = {};
+  document.querySelectorAll('.rate-input').forEach(input => {
+    const rate = parseFloat(input.value);
+    if (rate > 0) rates[input.dataset.employee] = rate;
+  });
+  fetch('/api/timeclock/pay-rates', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rates })
+  }).catch(() => {});
 }
 
 function updateGrandTotal() {

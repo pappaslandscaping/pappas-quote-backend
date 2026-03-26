@@ -16778,14 +16778,32 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
     }
 
     // Fetch from CopilotCRM
-    const formData = new URLSearchParams({
-      accessFrom: 'route',
-      bs4: '1',
-      sDate: startDate,
-      eDate: endDate,
-      optimizationFlag: '1',
-      count: '-1'
-    });
+    // Format dates as "Mar 26, 2026" to match CopilotCRM's expected format
+    function formatCopilotDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    const sDateFormatted = formatCopilotDate(startDate);
+    const eDateFormatted = formatCopilotDate(endDate);
+
+    const formData = new URLSearchParams();
+    formData.append('accessFrom', 'route');
+    formData.append('bs4', '1');
+    formData.append('sDate', sDateFormatted);
+    formData.append('eDate', eDateFormatted);
+    formData.append('optimizationFlag', '1');
+    formData.append('count', '-1');
+    // Event types: 1-5 + 0 (all route event types)
+    for (const t of ['1', '2', '3', '4', '5', '0']) {
+      formData.append('evtypes_route[]', t);
+    }
+    formData.append('isdate', '0');
+    formData.append('sdate', sDateFormatted);
+    formData.append('edate', eDateFormatted);
+    formData.append('erec', 'all');
+    formData.append('estatus', 'any');
+    formData.append('esort', '');
+    formData.append('einvstatus', 'any');
 
     const copilotRes = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
       method: 'POST',

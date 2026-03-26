@@ -3036,6 +3036,7 @@ app.get('/api/quotes', async (req, res) => {
 
 app.get('/api/quotes/:id', async (req, res) => {
   try {
+    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid quote ID' });
     const result = await pool.query('SELECT * FROM quotes WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
     res.json({ success: true, quote: result.rows[0] });
@@ -3412,9 +3413,12 @@ app.post('/api/customers/clean-names', async (req, res) => {
 // POST /api/customers - Create new customer (from Zapier/CopilotCRM sync)
 app.post('/api/customers', async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ success: false, error: 'Request body required' });
+    }
     const {
       customer_number, name, firstName, first_name, lastName, last_name,
-      email, phone, mobile, fax, street, street2, city, state, 
+      email, phone, mobile, fax, street, street2, city, state,
       postal_code, zip, postalCode, country, type, tags, notes, status
     } = req.body;
 
@@ -3587,6 +3591,9 @@ app.get('/api/customers/:id/invoices', async (req, res) => {
 app.post('/api/calls', async (req, res) => {
   try {
     const { call_sid, twilio_sid, from_number, to_number, call_type, option_selected, status, duration, recording_url, transcription } = req.body;
+    if (!from_number || !to_number) {
+      return res.status(400).json({ success: false, error: 'from_number and to_number are required' });
+    }
     const sid = twilio_sid || call_sid;
     const option = option_selected || call_type;
     const result = await pool.query(
@@ -3819,6 +3826,7 @@ app.get('/api/jobs/pipeline', async (req, res) => {
 
 app.get('/api/jobs/:id', async (req, res) => {
   try {
+    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid job ID' });
     const result = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, job: result.rows[0] });
@@ -3871,11 +3879,15 @@ app.patch('/api/jobs/:id', async (req, res) => {
 
 app.patch('/api/jobs/:id/complete', async (req, res) => {
   try {
-    const { completion_lat, completion_lng, completion_notes, completed_by } = req.body;
+    const { completion_notes } = req.body;
     const result = await pool.query(
-      `UPDATE scheduled_jobs SET status = 'completed', completed_at = CURRENT_TIMESTAMP, completion_lat = $2, completion_lng = $3, completion_notes = $4, completed_by = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-      [req.params.id, completion_lat, completion_lng, completion_notes, completed_by]
+      `UPDATE scheduled_jobs SET status = 'completed', completed_at = CURRENT_TIMESTAMP, completion_notes = COALESCE($2, completion_notes), updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+      [req.params.id, completion_notes || null]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
 
     // --- Auto-add completed job to monthly invoice ---
     try {
@@ -5011,7 +5023,11 @@ app.post('/api/campaigns', async (req, res) => {
 app.get('/api/campaigns/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM campaigns WHERE id = $1 OR name = $1', [id]);
+    // If id is numeric, search by id; otherwise search by name
+    const isNumeric = /^\d+$/.test(id);
+    const result = isNumeric
+      ? await pool.query('SELECT * FROM campaigns WHERE id = $1', [id])
+      : await pool.query('SELECT * FROM campaigns WHERE name = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Campaign not found' });
     }
@@ -5492,7 +5508,7 @@ app.post('/api/sent-quotes/:id/send', async (req, res) => {
     const quoteNumber = quote.quote_number || `Q-${quote.id}`;
 
     // Clean email - detailed but warm tone
-    const firstName = quote.customer_name.split(' ')[0];
+    const firstName = (quote.customer_name || '').split(' ')[0] || 'there';
     
     const emailContent = `
       <div style="text-align:center;margin:0 0 28px;">
@@ -6218,7 +6234,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
     // Email to customer with contract signed confirmation
     if (updatedQuote.customer_email) {
-      const firstName = updatedQuote.customer_name.split(' ')[0];
+      const firstName = (updatedQuote.customer_name || '').split(' ')[0] || 'there';
       const customerContent = `
         <div style="text-align:center;margin:0 0 28px;">
           <img src="${process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/email-assets/heading-welcome.png" alt="Welcome to the Pappas Family" style="max-width:400px;width:auto;height:34px;" />
@@ -7029,6 +7045,9 @@ app.get('/api/app/customers', authenticateToken, async (req, res) => {
 // Register device for push notifications
 app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
   const { pushToken, platform } = req.body;
+  if (!pushToken) {
+    return res.status(400).json({ success: false, error: 'pushToken is required' });
+  }
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS app_devices (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, push_token TEXT NOT NULL, platform VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(email, platform))`);
     await pool.query(`INSERT INTO app_devices (email, push_token, platform, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (email, platform) DO UPDATE SET push_token = $2, updated_at = CURRENT_TIMESTAMP`, [req.user.email, pushToken, platform]);
@@ -8447,6 +8466,11 @@ app.post('/api/late-fees/:id/waive', async (req, res) => {
 // GET /api/jobs/recurring - List recurring job templates
 app.get('/api/jobs/recurring', async (req, res) => {
   try {
+    // Check if is_recurring column exists before querying
+    const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'scheduled_jobs' AND column_name = 'is_recurring'`);
+    if (colCheck.rows.length === 0) {
+      return res.json({ success: true, jobs: [] });
+    }
     const result = await pool.query(`SELECT * FROM scheduled_jobs WHERE is_recurring = true ORDER BY customer_name ASC`);
     res.json({ success: true, jobs: result.rows });
   } catch (error) { serverError(res, error); }
@@ -11283,6 +11307,9 @@ app.post('/api/season-kickoff/send-bulk', async (req, res) => {
 app.post('/api/season-kickoff/preview', async (req, res) => {
   try {
     const { customerName, services, properties, propertyServices } = req.body;
+    if (!services || !Array.isArray(services) || services.length === 0) {
+      return res.status(400).json({ success: false, error: 'services array is required' });
+    }
     const confirmUrl = '#preview';
     const content = buildKickoffContent(customerName, services, confirmUrl, properties, propertyServices);
     if (!content) return res.json({ success: false, error: 'No eligible services' });
@@ -13884,7 +13911,7 @@ app.get('/api/reports/job-costing', async (req, res) => {
       SELECT sj.id, sj.customer_name, sj.service_type, sj.service_price as revenue,
         COALESCE((SELECT SUM(amount) FROM expenses WHERE LOWER(description) LIKE '%' || LOWER(sj.customer_name) || '%' OR category = sj.service_type), 0) as expenses
       FROM scheduled_jobs sj WHERE sj.status = 'completed'
-      ORDER BY sj.scheduled_date DESC LIMIT 50
+      ORDER BY sj.completed_at DESC NULLS LAST LIMIT 50
     `);
     const jobs = result.rows.map(r => ({
       id: r.id,
@@ -13906,13 +13933,13 @@ app.get('/api/reports/customer-value', async (req, res) => {
     await ensureInvoicesTable();
     const result = await pool.query(`
       SELECT c.id, c.name, c.email,
-        COALESCE(SUM(i.total_amount), 0) as total_invoiced,
+        COALESCE(SUM(i.total), 0) as total_invoiced,
         COUNT(DISTINCT i.id) as invoice_count,
         MAX(i.created_at) as last_invoice_date
       FROM customers c
       LEFT JOIN invoices i ON (i.customer_email = c.email OR i.customer_name = c.name)
       GROUP BY c.id, c.name, c.email
-      HAVING COALESCE(SUM(i.total_amount), 0) > 0
+      HAVING COALESCE(SUM(i.total), 0) > 0
       ORDER BY total_invoiced DESC
       LIMIT 25
     `);
@@ -16543,6 +16570,13 @@ app.get('/api/social-media/history', authenticateToken, async (req, res) => {
 // GET /api/quotes/next-number - Get next sequential quote number
 app.get('/api/quotes/next-number', async (req, res) => {
   try {
+    // Ensure sent_quotes table exists before querying
+    await pool.query(`CREATE TABLE IF NOT EXISTS sent_quotes (
+      id SERIAL PRIMARY KEY, quote_number VARCHAR(50), customer_name VARCHAR(255),
+      customer_email VARCHAR(255), status VARCHAR(50) DEFAULT 'draft',
+      sign_token VARCHAR(255), services JSONB, total DECIMAL(10,2),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
     const result = await pool.query(
       `SELECT MAX(CAST(quote_number AS INTEGER)) as max_num
        FROM sent_quotes

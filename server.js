@@ -16791,7 +16791,10 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': `copilotApiAccessToken=${tokenInfo.token}`
+        'Cookie': `copilotApiAccessToken=${tokenInfo.token}`,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest'
       },
       body: formData.toString()
     });

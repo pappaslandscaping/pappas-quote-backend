@@ -16680,19 +16680,31 @@ async function ensureCopilotSyncTables() {
 }
 
 async function getCopilotToken() {
-  const result = await pool.query("SELECT value FROM copilot_sync_settings WHERE key = 'copilot_token'");
-  if (result.rows.length === 0) return null;
-  const token = result.rows[0].value;
-  // Decode JWT to check expiry (no verification — just reading the payload)
-  try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const expiresAt = new Date(payload.exp * 1000);
-    const now = new Date();
-    const daysUntilExpiry = (expiresAt - now) / (1000 * 60 * 60 * 24);
-    return { token, expiresAt, daysUntilExpiry };
-  } catch {
-    return { token, expiresAt: null, daysUntilExpiry: null };
+  const result = await pool.query("SELECT key, value FROM copilot_sync_settings WHERE key IN ('copilot_token', 'copilot_cookies')");
+  const settings = {};
+  for (const row of result.rows) settings[row.key] = row.value;
+
+  // Full cookie string takes priority — contains session cookies + JWT
+  const cookies = settings.copilot_cookies || null;
+  const token = settings.copilot_token || null;
+
+  if (!cookies && !token) return null;
+
+  // Build the cookie header: use full cookie string if available, otherwise just the JWT
+  const cookieHeader = cookies || `copilotApiAccessToken=${token}`;
+
+  // Try to extract JWT expiry from the cookie string or standalone token
+  let expiresAt = null, daysUntilExpiry = null;
+  const jwtMatch = (cookies || '').match(/copilotApiAccessToken=([^;]+)/) || (token ? [null, token] : null);
+  if (jwtMatch && jwtMatch[1]) {
+    try {
+      const payload = JSON.parse(Buffer.from(jwtMatch[1].split('.')[1], 'base64').toString());
+      expiresAt = new Date(payload.exp * 1000);
+      daysUntilExpiry = (expiresAt - new Date()) / (1000 * 60 * 60 * 24);
+    } catch { /* not a valid JWT — that's ok */ }
   }
+
+  return { cookieHeader, expiresAt, daysUntilExpiry };
 }
 
 function parseCopilotRouteHtml(html, employeesArray) {
@@ -16767,8 +16779,8 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
 
     // Get token
     const tokenInfo = await getCopilotToken();
-    if (!tokenInfo || !tokenInfo.token) {
-      return res.status(500).json({ success: false, error: 'No CopilotCRM token configured. Insert token into copilot_sync_settings table with key=copilot_token.' });
+    if (!tokenInfo || !tokenInfo.cookieHeader) {
+      return res.status(500).json({ success: false, error: 'No CopilotCRM cookies configured. Insert full browser cookie string into copilot_sync_settings with key=copilot_cookies.' });
     }
 
     // Warn if expiring soon
@@ -16809,7 +16821,7 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': `copilotApiAccessToken=${tokenInfo.token}`,
+        'Cookie': tokenInfo.cookieHeader,
         'Origin': 'https://secure.copilotcrm.com',
         'Referer': 'https://secure.copilotcrm.com/',
         'X-Requested-With': 'XMLHttpRequest'

@@ -108,7 +108,7 @@ try {
   console.log('⚠️ Anthropic SDK not available:', err.message);
 }
 
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
@@ -116,6 +116,18 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only images and CSV files are allowed'));
+    }
+  }
+});
+
+const uploadPdf = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf' || file.originalname.endsWith('.pdf')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
     }
   }
 });
@@ -15626,16 +15638,20 @@ app.get('/api/time-entries/weekly-report', async (req, res) => {
 // ═══ TIMECLOCK PDF PARSER ═════════════════════════════════
 // ═══════════════════════════════════════════════════════════
 
-app.post('/api/timeclock/parse-pdf', upload.single('pdf'), async (req, res) => {
+app.post('/api/timeclock/parse-pdf', uploadPdf.single('pdf'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No PDF file uploaded' });
 
-    const { PDFParse } = require('pdf-parse');
+    const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
     const data = new Uint8Array(req.file.buffer);
-    const parser = new PDFParse(data);
-    await parser.load();
-    const pdfData = await parser.getText();
-    const allText = pdfData.text;
+    const doc = await pdfjsLib.getDocument({ data, disableFontFace: true, useSystemFonts: true }).promise;
+    let allText = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      allText += content.items.map(item => item.str).join(' ') + '\n';
+    }
+    doc.destroy();
 
     const entries = [];
     const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);

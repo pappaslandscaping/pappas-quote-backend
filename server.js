@@ -11,6 +11,7 @@ const twilio = require('twilio');
 const OAuthClient = require('intuit-oauth');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const cheerio = require('cheerio');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -16649,6 +16650,211 @@ app.post('/api/settings/home-base', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// COPILOT ROUTE SYNC
+// ═══════════════════════════════════════════════════════════
+
+async function ensureCopilotSyncTables() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS copilot_sync_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS copilot_sync_jobs (
+    id SERIAL PRIMARY KEY,
+    sync_date DATE NOT NULL,
+    event_id TEXT NOT NULL,
+    customer_name TEXT,
+    customer_id TEXT,
+    crew_name TEXT,
+    employees TEXT,
+    address TEXT,
+    status TEXT,
+    visit_total TEXT,
+    job_title TEXT,
+    stop_order INT,
+    raw_data JSONB,
+    synced_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(sync_date, event_id)
+  )`);
+}
+
+async function getCopilotToken() {
+  const result = await pool.query("SELECT value FROM copilot_sync_settings WHERE key = 'copilot_token'");
+  if (result.rows.length === 0) return null;
+  const token = result.rows[0].value;
+  // Decode JWT to check expiry (no verification — just reading the payload)
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    const expiresAt = new Date(payload.exp * 1000);
+    const now = new Date();
+    const daysUntilExpiry = (expiresAt - now) / (1000 * 60 * 60 * 24);
+    return { token, expiresAt, daysUntilExpiry };
+  } catch {
+    return { token, expiresAt: null, daysUntilExpiry: null };
+  }
+}
+
+function parseCopilotRouteHtml(html, employeesArray) {
+  const $ = cheerio.load(html);
+  const jobs = [];
+  $('tr[data-row-event-id]').each((i, row) => {
+    const $row = $(row);
+    const eventId = $row.attr('data-row-event-id');
+
+    // Customer name + ID from link
+    const customerLink = $row.find('td.column-3 a');
+    const customerName = customerLink.text().trim();
+    const customerHref = customerLink.attr('href') || '';
+    const customerIdMatch = customerHref.match(/\/(\d+)/);
+    const customerId = customerIdMatch ? customerIdMatch[1] : null;
+
+    // Crew name — first text node of span.row-crew-label (before the <small>)
+    const crewLabel = $row.find('span.row-crew-label');
+    const crewName = crewLabel.contents().filter(function() { return this.nodeType === 3; }).first().text().trim();
+
+    // Employees from small tag
+    const employeesText = $row.find('span.row-crew-label small').text().trim();
+
+    // Address
+    const address = $row.find('td.column-13').text().trim();
+
+    // Status
+    const status = $row.find('span.status-label').text().trim();
+
+    // Visit total
+    const visitTotal = $row.find('td.column-11.visit-total-column').text().trim();
+
+    // Job title
+    const jobTitle = $row.find('td.column-2 span.mr-1').text().trim();
+
+    // Stop order
+    const stopOrderText = $row.find('div.dispatch__order_number').text().trim();
+    const stopOrder = parseInt(stopOrderText, 10) || null;
+
+    const parsed = {
+      event_id: eventId,
+      customer_name: customerName,
+      customer_id: customerId,
+      crew_name: crewName,
+      employees: employeesText,
+      address,
+      status,
+      visit_total: visitTotal,
+      job_title: jobTitle,
+      stop_order: stopOrder
+    };
+
+    jobs.push(parsed);
+  });
+  return jobs;
+}
+
+// POST /api/copilot/sync — fetch CopilotCRM route data and sync to local DB
+app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
+  try {
+    await ensureCopilotSyncTables();
+
+    // Date range — defaults to today
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = req.body.startDate || today;
+    const endDate = req.body.endDate || startDate;
+
+    // Get token
+    const tokenInfo = await getCopilotToken();
+    if (!tokenInfo || !tokenInfo.token) {
+      return res.status(500).json({ success: false, error: 'No CopilotCRM token configured. Insert token into copilot_sync_settings table with key=copilot_token.' });
+    }
+
+    // Warn if expiring soon
+    let tokenWarning = null;
+    if (tokenInfo.daysUntilExpiry !== null && tokenInfo.daysUntilExpiry < 7) {
+      tokenWarning = `CopilotCRM token expires in ${Math.round(tokenInfo.daysUntilExpiry)} days (${tokenInfo.expiresAt.toISOString().slice(0, 10)}). Refresh soon.`;
+    }
+
+    // Fetch from CopilotCRM
+    const formData = new URLSearchParams({
+      accessFrom: 'route',
+      bs4: '1',
+      sDate: startDate,
+      eDate: endDate,
+      optimizationFlag: '1',
+      count: '-1'
+    });
+
+    const copilotRes = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': `copilotApiAccessToken=${tokenInfo.token}`
+      },
+      body: formData.toString()
+    });
+
+    if (!copilotRes.ok) {
+      return res.status(502).json({ success: false, error: `CopilotCRM returned ${copilotRes.status}` });
+    }
+
+    const data = await copilotRes.json();
+
+    if (data.status !== undefined && data.status !== 1 && data.status !== '1' && data.status !== true) {
+      return res.status(502).json({ success: false, error: 'CopilotCRM returned non-success status', copilot_status: data.status });
+    }
+
+    // Parse HTML
+    const jobs = parseCopilotRouteHtml(data.html || '', data.employees || []);
+
+    // Check for parse mismatch
+    const expectedCount = data.totalEventCount || 0;
+    if (expectedCount > 0 && jobs.length === 0) {
+      return res.status(500).json({ success: false, error: 'parse_mismatch', expected: expectedCount, got: 0 });
+    }
+
+    // Upsert each job
+    let inserted = 0;
+    let updated = 0;
+
+    for (const job of jobs) {
+      const result = await pool.query(
+        `INSERT INTO copilot_sync_jobs (sync_date, event_id, customer_name, customer_id, crew_name, employees, address, status, visit_total, job_title, stop_order, raw_data, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+         ON CONFLICT (sync_date, event_id) DO UPDATE SET
+           customer_name = EXCLUDED.customer_name,
+           customer_id = EXCLUDED.customer_id,
+           crew_name = EXCLUDED.crew_name,
+           employees = EXCLUDED.employees,
+           address = EXCLUDED.address,
+           status = EXCLUDED.status,
+           visit_total = EXCLUDED.visit_total,
+           job_title = EXCLUDED.job_title,
+           stop_order = EXCLUDED.stop_order,
+           raw_data = EXCLUDED.raw_data,
+           synced_at = NOW()
+         RETURNING (xmax = 0) AS is_insert`,
+        [startDate, job.event_id, job.customer_name, job.customer_id, job.crew_name, job.employees, job.address, job.status, job.visit_total, job.job_title, job.stop_order, JSON.stringify(job)]
+      );
+      if (result.rows[0].is_insert) inserted++;
+      else updated++;
+    }
+
+    const response = {
+      success: true,
+      startDate,
+      endDate,
+      total: jobs.length,
+      inserted,
+      updated,
+      totalEventCount: expectedCount,
+      overallVisitTotal: data.overallVisitTotal || null
+    };
+    if (tokenWarning) response.tokenWarning = tokenWarning;
+
+    res.json(response);
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM sync failed');
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // CATCH-ALL: Must be LAST route — serves static files or falls back to index.html
 // ═══════════════════════════════════════════════════════════════
@@ -16667,6 +16873,7 @@ app.get('*', (req, res) => {
   try {
     await ensureInvoicesTable();
     await ensureQuoteEventsTable();
+    await ensureCopilotSyncTables();
     await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
       id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
       viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

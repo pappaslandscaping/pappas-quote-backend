@@ -16696,7 +16696,12 @@ async function getCopilotToken() {
 }
 
 function parseCopilotRouteHtml(html, employeesArray) {
+  console.log(`[copilot-sync] HTML field length: ${html.length}`);
+  console.log(`[copilot-sync] HTML preview (first 500 chars): ${html.substring(0, 500)}`);
   const $ = cheerio.load(html);
+  console.log(`[copilot-sync] Total <tr> elements: ${$('tr').length}`);
+  console.log(`[copilot-sync] <tr> with data-row-event-id: ${$('tr[data-row-event-id]').length}`);
+  console.log(`[copilot-sync] All tr attributes sample:`, $('tr').first().attr());
   const jobs = [];
   $('tr[data-row-event-id]').each((i, row) => {
     const $row = $(row);

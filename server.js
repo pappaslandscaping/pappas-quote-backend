@@ -15653,95 +15653,70 @@ app.post('/api/timeclock/parse-pdf', uploadPdf.single('pdf'), async (req, res) =
     }
     doc.destroy();
 
+    // Parse Jobber-style time tracking rows from extracted text
+    // Format: "Mar 19, 2026   Camacho, Wilkyn   ,   7:48 am   7:05 pm   11 hrs. 17 min."
     const entries = [];
-    const lines = allText.split('\n').map(l => l.trim()).filter(Boolean);
+    const rowPattern = /(\w{3}\s+\d{1,2},\s*\d{4})\s+([A-Za-z]+,\s*[A-Za-z]+)\s+,?\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d+)\s*hrs?\.?\s*(\d+)\s*min/gi;
+    let match;
+    while ((match = rowPattern.exec(allText)) !== null) {
+      const hours = parseInt(match[5]);
+      const minutes = parseInt(match[6]);
+      const employee = match[2].trim().replace(/,\s*/, ', ');
+      entries.push({
+        employee,
+        date: match[1],
+        start: match[3],
+        end: match[4],
+        hours,
+        minutes,
+        totalHours: parseFloat((hours + minutes / 60).toFixed(2))
+      });
+    }
 
-    // Try to detect Jobber-style time tracking PDF
-    // Common patterns: "Employee Name", date, start time, end time, duration
-    let currentEmployee = null;
-    const timePattern = /(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))/g;
-    const datePattern = /(\w+\s+\d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2})/;
-    const durationPattern = /(\d+)\s*h(?:rs?|ours?)?\s*(\d+)\s*m(?:ins?|inutes?)?|(\d+):(\d{2})/;
-    const totalPattern = /total\s*[:\s]*(\d+)\s*h(?:rs?)?\s*(\d+)\s*m/i;
-
-    // Strategy 1: Look for structured rows with name, date, times, duration
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Detect employee name lines (usually standalone name, not a date/time line)
-      // Jobber format often has employee name as a header followed by their entries
-      const lowerLine = line.toLowerCase();
-      if (lowerLine.includes('total') && totalPattern.test(line)) continue;
-      if (lowerLine === 'time tracking' || lowerLine === 'date' || lowerLine === 'start' || lowerLine === 'end' || lowerLine === 'duration') continue;
-
-      // Check if line has time entries (date + times + duration pattern)
-      const times = line.match(timePattern);
-      const dateMatch = line.match(datePattern);
-      const durMatch = line.match(durationPattern);
-
-      if (times && times.length >= 2 && dateMatch) {
-        // This looks like a time entry row
-        let hours = 0, minutes = 0;
-        if (durMatch) {
-          if (durMatch[1] !== undefined) {
-            hours = parseInt(durMatch[1]); minutes = parseInt(durMatch[2]);
-          } else {
-            hours = parseInt(durMatch[3]); minutes = parseInt(durMatch[4]);
-          }
-        } else {
-          // Calculate from start/end times
-          const parseTime = (t) => {
-            const m = t.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/);
-            if (!m) return 0;
-            let h = parseInt(m[1]), min = parseInt(m[2]);
-            const period = m[3].toUpperCase();
-            if (period === 'PM' && h !== 12) h += 12;
-            if (period === 'AM' && h === 12) h = 0;
-            return h * 60 + min;
-          };
-          const startMin = parseTime(times[0]);
-          const endMin = parseTime(times[1]);
-          const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin + endMin);
-          hours = Math.floor(diff / 60);
-          minutes = diff % 60;
-        }
-
-        const totalHours = (hours + minutes / 60).toFixed(2);
-
+    // Fallback: try more generic pattern if Jobber format didn't match
+    if (entries.length === 0) {
+      const genericRow = /(\w+\s+\d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})\s+(.+?)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d+)\s*(?:hrs?\.?|h)\s*(\d+)\s*(?:mins?\.?|m)/gi;
+      while ((match = genericRow.exec(allText)) !== null) {
+        const hours = parseInt(match[5]);
+        const minutes = parseInt(match[6]);
         entries.push({
-          employee: currentEmployee || 'Unknown',
-          date: dateMatch[1],
-          start: times[0],
-          end: times[1],
+          employee: match[2].trim().replace(/\s*,\s*$/, ''),
+          date: match[1],
+          start: match[3],
+          end: match[4],
           hours,
           minutes,
-          totalHours: parseFloat(totalHours)
+          totalHours: parseFloat((hours + minutes / 60).toFixed(2))
         });
-      } else if (!dateMatch && !times && line.length > 2 && line.length < 60 && !/^\d/.test(line) && !lowerLine.includes('page') && !lowerLine.includes('report') && !lowerLine.includes('time tracking') && !lowerLine.includes('generated')) {
-        // Likely an employee name
-        currentEmployee = line.replace(/\s+/g, ' ').trim();
       }
     }
 
-    // If no structured entries found, try a more aggressive line-by-line parse
+    // If still no entries, try calculating from start/end times
     if (entries.length === 0) {
-      // Try joining lines and looking for patterns across line breaks
-      const fullText = allText.replace(/\n/g, ' ');
-      // Look for employee blocks: Name followed by date/time rows
-      const empBlocks = fullText.split(/(?=(?:[A-Z][a-z]+ ){1,2}[A-Z][a-z]+\s+\d{1,2}\/)/);
-      for (const block of empBlocks) {
-        const blockTimes = block.match(timePattern);
-        const blockDate = block.match(datePattern);
-        if (blockTimes && blockTimes.length >= 2 && blockDate) {
-          const nameMatch = block.match(/^([A-Z][a-z]+(?: [A-Z][a-z]+)+)/);
-          entries.push({
-            employee: nameMatch ? nameMatch[1] : 'Unknown',
-            date: blockDate[1],
-            start: blockTimes[0],
-            end: blockTimes[1],
-            hours: 0, minutes: 0, totalHours: 0
-          });
-        }
+      const timeOnly = /(\w+\s+\d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})\s+(.+?)\s+(\d{1,2}:\d{2}\s*[ap]m)\s+(\d{1,2}:\d{2}\s*[ap]m)/gi;
+      while ((match = timeOnly.exec(allText)) !== null) {
+        const parseTime = (t) => {
+          const m = t.match(/(\d+):(\d+)\s*([ap]m)/i);
+          if (!m) return 0;
+          let h = parseInt(m[1]), min = parseInt(m[2]);
+          if (m[3].toLowerCase() === 'pm' && h !== 12) h += 12;
+          if (m[3].toLowerCase() === 'am' && h === 12) h = 0;
+          return h * 60 + min;
+        };
+        const startMin = parseTime(match[3]);
+        const endMin = parseTime(match[4]);
+        const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin + endMin);
+        const hours = Math.floor(diff / 60);
+        const minutes = diff % 60;
+        entries.push({
+          employee: match[2].trim().replace(/\s*,\s*$/, ''),
+          date: match[1],
+          start: match[3],
+          end: match[4],
+          hours,
+          minutes,
+          totalHours: parseFloat((hours + minutes / 60).toFixed(2))
+        });
       }
     }
 
@@ -15764,8 +15739,8 @@ app.post('/api/timeclock/parse-pdf', uploadPdf.single('pdf'), async (req, res) =
       d.totalMinutes = d.totalMinutes % 60;
     }
 
-    // Check for report total
-    const reportTotalMatch = allText.match(/(?:grand\s*)?total\s*[:\s]*(\d+)\s*h(?:rs?)?\s*(\d+)\s*m/i);
+    // Check for report total — matches "Total Working time: 20 hrs. 26 mins." and similar
+    const reportTotalMatch = allText.match(/total\s+(?:working\s+)?time:\s*(\d+)\s*hrs?\.?\s*(\d+)\s*mins?\.?/i);
     const reportTotal = reportTotalMatch ? { hours: parseInt(reportTotalMatch[1]), minutes: parseInt(reportTotalMatch[2]) } : null;
 
     res.json({ success: true, entries, byEmployee, reportTotal });

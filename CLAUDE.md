@@ -248,6 +248,7 @@ c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim()
 - Run with: `node tests/smoke.js`
 - Accepts `AUTH_TOKEN` env var or mints its own via `JWT_SECRET`
 - Run this after any change to server.js before considering the task done
+- **Baseline (2026-03-26):** 293 passed, 0 failed, 6 expected timeouts (AI endpoints + route optimization). Any future run should meet or beat this. Full baseline at `tests/smoke-baseline.md`.
 
 ## Testing Rules
 - After every change, tell me what to manually test and how.
@@ -273,6 +274,15 @@ Never duplicate a route or helper that already exists. Ask if unsure.
 - Square webhook (must stay BEFORE express.json() — raw body required)
 - Daily automations (cron endpoints)
 - QuickBooks sync
+
+### NEVER Send Communications Without Permission
+**NEVER send any email, text, SMS, voice call, or any outgoing communication to real customers without explicit permission from Theresa.** This includes:
+- Apology emails, test emails, and any automated sends
+- Triggering endpoints that send via Resend, Twilio, or any external messaging service
+- Running cron/automation endpoints that process followups, late fees, or bulk sends
+- Running smoke tests against endpoints that send real communications
+
+If a task involves testing a send endpoint, use mock/dry-run mode or ask first. When in doubt, **ask before sending.**
 
 ---
 

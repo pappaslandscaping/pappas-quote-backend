@@ -113,8 +113,8 @@ const endpoints = [
   ['GET', `/api/invoices/${FAKE_ID}`],
   ['POST', '/api/invoices', {}],
   ['POST', '/api/invoices/batch', { invoice_ids: [] }],
-  ['POST', `/api/invoices/${FAKE_ID}/send`, {}],
-  ['POST', `/api/invoices/${FAKE_ID}/send-reminder`, {}],
+  // SKIP: sends real invoice email — ['POST', `/api/invoices/${FAKE_ID}/send`, {}],
+  // SKIP: sends real reminder email — ['POST', `/api/invoices/${FAKE_ID}/send-reminder`, {}],
   ['POST', `/api/invoices/${FAKE_ID}/mark-paid`, {}],
   ['POST', `/api/invoices/${FAKE_ID}/record-payment`, { amount: 0 }],
   ['POST', `/api/invoices/${FAKE_ID}/charge-card`, {}],
@@ -147,8 +147,8 @@ const endpoints = [
   ['GET', '/api/sent-quotes/event-counts'],
   ['GET', '/api/sent-quotes/view-counts'],
   ['POST', '/api/sent-quotes', { customer_name: 'x', services: [] }],
-  ['POST', `/api/sent-quotes/${FAKE_ID}/send`, {}],
-  ['POST', `/api/sent-quotes/${FAKE_ID}/send-sms`, {}],
+  // SKIP: sends real quote email — ['POST', `/api/sent-quotes/${FAKE_ID}/send`, {}],
+  // SKIP: sends real quote SMS — ['POST', `/api/sent-quotes/${FAKE_ID}/send-sms`, {}],
   ['POST', `/api/sent-quotes/${FAKE_ID}/sign-contract`, {}],
   ['PUT', `/api/sent-quotes/${FAKE_ID}`, {}],
   ['DELETE', `/api/sent-quotes/${FAKE_ID}`],
@@ -162,7 +162,7 @@ const endpoints = [
   // ── Quote Followups ──
   ['GET', '/api/quote-followups'],
   ['GET', '/api/quote-followups/stats'],
-  ['POST', '/api/quote-followups', { customer_name: 'x', customer_email: 'x@x.com' }],
+  // SKIP: creates followup sequence that triggers future sends — ['POST', '/api/quote-followups', { customer_name: 'x', customer_email: 'x@x.com' }],
   ['PATCH', `/api/quote-followups/${FAKE_ID}/stop`, {}],
   ['PATCH', `/api/quote-followups/${FAKE_ID}/resume`, {}],
 
@@ -211,7 +211,7 @@ const endpoints = [
   ['GET', `/api/campaigns/${FAKE_ID}/submissions`],
   ['GET', `/api/campaigns/${FAKE_ID}/send-history`],
   ['POST', '/api/campaigns', {}],
-  ['POST', `/api/campaigns/${FAKE_ID}/send`, {}],
+  // SKIP: sends real campaign emails — ['POST', `/api/campaigns/${FAKE_ID}/send`, {}],
   ['POST', '/api/campaigns/submissions', {}],
   ['PATCH', `/api/campaigns/${FAKE_ID}`, {}],
   ['PATCH', `/api/campaigns/submissions/${FAKE_ID}`, {}],
@@ -219,17 +219,17 @@ const endpoints = [
   ['DELETE', `/api/campaigns/submissions/${FAKE_ID}`],
   ['GET', '/api/broadcasts/filter-options'],
   ['POST', '/api/broadcasts/preview', { filters: {} }],
-  ['POST', '/api/broadcasts/send', { filters: {}, subject: '', body: '' }],
+  // SKIP: sends real broadcast email/SMS — ['POST', '/api/broadcasts/send', { filters: {}, subject: '', body: '' }],
 
   // ── Communications ──
   ['GET', '/api/messages'],
   ['GET', '/api/messages/conversations'],
   ['GET', `/api/messages/thread/${encodeURIComponent(FAKE_PHONE)}`],
-  ['POST', '/api/messages/send', { to: FAKE_PHONE, body: '' }],
+  // SKIP: sends real SMS — ['POST', '/api/messages/send', { to: FAKE_PHONE, body: '' }],
   ['GET', '/api/calls'],
   ['GET', '/api/calls/stats'],
   ['GET', `/api/calls/${FAKE_ID}`],
-  ['POST', '/api/calls', {}],
+  // SKIP: makes real voice call — ['POST', '/api/calls', {}],
   ['PATCH', `/api/calls/${FAKE_ID}`, {}],
   ['DELETE', `/api/calls/${FAKE_ID}`],
   ['GET', '/api/email-log'],
@@ -352,19 +352,19 @@ const endpoints = [
   ['GET', '/api/season-kickoff/responses'],
   ['GET', '/api/season-kickoff/token-status'],
   ['POST', '/api/season-kickoff/preview', {}],
-  ['POST', '/api/season-kickoff/send-test', {}],
-  ['POST', '/api/season-kickoff/send-bulk', { customers: [] }],
-  ['POST', '/api/season-kickoff/send-sms', {}],
+  // SKIP: sends real season kickoff test email — ['POST', '/api/season-kickoff/send-test', {}],
+  // SKIP: sends real season kickoff bulk emails — ['POST', '/api/season-kickoff/send-bulk', { customers: [] }],
+  // SKIP: sends real season kickoff SMS — ['POST', '/api/season-kickoff/send-sms', {}],
   ['POST', '/api/season-kickoff/recover-tokens', {}],
   ['POST', '/api/season-kickoff/reply', {}],
   ['PATCH', `/api/season-kickoff/responses/${FAKE_ID}`, {}],
   ['DELETE', `/api/season-kickoff/responses/${FAKE_ID}`],
 
   // ── Cron (public) ──
-  ['GET', '/api/cron/daily-automation'],
-  ['POST', '/api/cron/daily-automation'],
-  ['GET', '/api/cron/process-followups'],
-  ['POST', '/api/cron/process-followups'],
+  // SKIP: triggers real recurring jobs, monthly invoices, late fees — ['GET', '/api/cron/daily-automation'],
+  // SKIP: triggers real recurring jobs, monthly invoices, late fees — ['POST', '/api/cron/daily-automation'],
+  // SKIP: sends real followup emails + SMS — ['GET', '/api/cron/process-followups'],
+  // SKIP: sends real followup emails + SMS — ['POST', '/api/cron/process-followups'],
 
   // ── QuickBooks ──
   ['GET', '/api/quickbooks/status'],
@@ -390,16 +390,16 @@ const endpoints = [
   ['GET', `/api/portal/${FAKE_TOKEN}/reviews`],
   ['GET', `/api/portal/${FAKE_TOKEN}/service-requests`],
   ['GET', `/api/portal/${FAKE_TOKEN}/google-review-url`],
-  ['POST', '/api/portal/request-access', { email: 'smoke@test.com' }],
+  // SKIP: sends real portal access email — ['POST', '/api/portal/request-access', { email: 'smoke@test.com' }],
   ['POST', `/api/portal/${FAKE_TOKEN}/service-requests`, {}],
   ['POST', `/api/portal/${FAKE_TOKEN}/preferences`, {}],
   ['POST', `/api/portal/${FAKE_TOKEN}/reviews`, {}],
 
   // ── Webhooks ──
-  ['POST', '/api/webhooks/quote-accepted', { email: 'x' }],
-  ['POST', '/api/webhooks/quote-declined', { email: 'x' }],
-  ['POST', '/api/webhooks/customer-replied', {}],
-  ['POST', '/api/sms/webhook', { From: FAKE_PHONE, Body: 'test', To: FAKE_PHONE }],
+  // SKIP: may trigger confirmation email — ['POST', '/api/webhooks/quote-accepted', { email: 'x' }],
+  // SKIP: may trigger response email — ['POST', '/api/webhooks/quote-declined', { email: 'x' }],
+  // SKIP: may trigger auto-reply — ['POST', '/api/webhooks/customer-replied', {}],
+  // SKIP: inbound SMS webhook may trigger auto-reply — ['POST', '/api/sms/webhook', { From: FAKE_PHONE, Body: 'test', To: FAKE_PHONE }],
   // Skip /api/webhooks/square — needs raw body + signature
 
   // ── Email Tracking ──
@@ -445,7 +445,7 @@ const endpoints = [
   ['GET', '/api/app/twilio-numbers'],
   ['GET', '/api/app/voice/token'],
   ['POST', '/api/app/devices/register', {}],
-  ['POST', '/api/app/messages/send', { to: FAKE_PHONE, body: '' }],
+  // SKIP: sends real SMS — ['POST', '/api/app/messages/send', { to: FAKE_PHONE, body: '' }],
 ];
 
 // ─────────────────────────────────────────────

@@ -16912,31 +16912,20 @@ async function assembleMorningBriefing() {
   // ── Section 1: Today's Jobs by Crew ──
   try {
     const jobsResult = await pool.query(
-      `SELECT customer_name, crew_name, employees, address, job_title, status, stop_order
-       FROM copilot_sync_jobs WHERE sync_date = $1 ORDER BY crew_name, stop_order`,
+      `SELECT crew_name, employees, COUNT(*) AS job_count
+       FROM copilot_sync_jobs WHERE sync_date = $1 GROUP BY crew_name, employees ORDER BY crew_name`,
       [todayDate]
     );
-    const jobs = jobsResult.rows;
-    if (jobs.length === 0) {
+    const crews = jobsResult.rows;
+    if (crews.length === 0) {
       sections.jobs = `📋 TODAY'S JOBS (${today})\nNo jobs synced for today. Run the Copilot sync first or check the schedule.`;
     } else {
-      // Group by crew
-      const crews = {};
-      for (const j of jobs) {
-        const crew = j.crew_name || 'Unassigned';
-        if (!crews[crew]) crews[crew] = [];
-        crews[crew].push(j);
-      }
-      let jobText = `📋 TODAY'S JOBS (${today}) — ${jobs.length} total\n`;
-      for (const [crew, crewJobs] of Object.entries(crews)) {
-        jobText += `\nCrew: ${crew}`;
-        if (crewJobs[0].employees) jobText += ` (${crewJobs[0].employees})`;
-        jobText += '\n';
-        for (let i = 0; i < crewJobs.length; i++) {
-          const j = crewJobs[i];
-          const status = j.status && j.status !== 'Scheduled' ? ` [${j.status}]` : '';
-          jobText += `  ${i + 1}. ${j.customer_name || 'Unknown'} — ${j.address || 'No address'}${j.job_title ? ' — ' + j.job_title : ''}${status}\n`;
-        }
+      const totalJobs = crews.reduce((sum, c) => sum + parseInt(c.job_count), 0);
+      let jobText = `📋 TODAY'S JOBS (${today}) — ${totalJobs} total\n`;
+      for (const c of crews) {
+        const crew = c.crew_name || 'Unassigned';
+        const count = parseInt(c.job_count);
+        jobText += `${crew}${c.employees ? ' (' + c.employees + ')' : ''} — ${count} job${count === 1 ? '' : 's'}\n`;
       }
       sections.jobs = jobText.trim();
     }

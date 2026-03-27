@@ -16900,6 +16900,204 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// MORNING BRIEFING — assembles daily summary and sends to Telegram
+// ═══════════════════════════════════════════════════════════════
+
+async function assembleMorningBriefing() {
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
+  const sections = {};
+  const errors = [];
+
+  // ── Section 1: Today's Jobs by Crew ──
+  try {
+    const jobsResult = await pool.query(
+      `SELECT customer_name, crew_name, employees, address, job_title, status, stop_order
+       FROM copilot_sync_jobs WHERE sync_date = $1 ORDER BY crew_name, stop_order`,
+      [todayDate]
+    );
+    const jobs = jobsResult.rows;
+    if (jobs.length === 0) {
+      sections.jobs = `📋 TODAY'S JOBS (${today})\nNo jobs synced for today. Run the Copilot sync first or check the schedule.`;
+    } else {
+      // Group by crew
+      const crews = {};
+      for (const j of jobs) {
+        const crew = j.crew_name || 'Unassigned';
+        if (!crews[crew]) crews[crew] = [];
+        crews[crew].push(j);
+      }
+      let jobText = `📋 TODAY'S JOBS (${today}) — ${jobs.length} total\n`;
+      for (const [crew, crewJobs] of Object.entries(crews)) {
+        jobText += `\nCrew: ${crew}`;
+        if (crewJobs[0].employees) jobText += ` (${crewJobs[0].employees})`;
+        jobText += '\n';
+        for (let i = 0; i < crewJobs.length; i++) {
+          const j = crewJobs[i];
+          const status = j.status && j.status !== 'Scheduled' ? ` [${j.status}]` : '';
+          jobText += `  ${i + 1}. ${j.customer_name || 'Unknown'} — ${j.address || 'No address'}${j.job_title ? ' — ' + j.job_title : ''}${status}\n`;
+        }
+      }
+      sections.jobs = jobText.trim();
+    }
+  } catch (err) {
+    console.error('Morning briefing — jobs error:', err);
+    sections.jobs = `📋 TODAY'S JOBS\n⚠️ Error fetching jobs: ${err.message}`;
+    errors.push('jobs');
+  }
+
+  // ── Section 2: Past Due Invoices from CopilotCRM ──
+  try {
+    const tokenInfo = await getCopilotToken();
+    if (!tokenInfo) {
+      sections.invoices = `💰 PAST DUE INVOICES\n⚠️ No CopilotCRM cookies configured. Cannot fetch invoices.`;
+    } else {
+      const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': tokenInfo.cookieHeader,
+          'Origin': 'https://secure.copilotcrm.com',
+          'Referer': 'https://secure.copilotcrm.com/',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: 'postData[invoice_status][]=4&pagination[]=p=1'
+      });
+
+      if (!copilotRes.ok) {
+        sections.invoices = `💰 PAST DUE INVOICES\n⚠️ CopilotCRM returned HTTP ${copilotRes.status}`;
+      } else {
+        const data = await copilotRes.json();
+        const $ = cheerio.load(data.html || '');
+        const invoices = [];
+
+        $('tbody tr').each((i, row) => {
+          const tds = $(row).find('td');
+          if (tds.length < 14) return;
+          const invoiceNum = tds.eq(1).text().trim();
+          const date = tds.eq(2).text().trim();
+          const customer = tds.eq(3).text().trim().split('\n')[0].trim();
+          const property = tds.eq(5).text().trim();
+          const invoiceTotal = tds.eq(9).text().trim();
+          const totalDue = tds.eq(11).text().trim();
+          const dueAmount = parseFloat(totalDue.replace(/[^0-9.-]/g, '')) || 0;
+          if (dueAmount > 0) {
+            invoices.push({ invoiceNum, date, customer, property, invoiceTotal, totalDue, dueAmount });
+          }
+        });
+
+        if (invoices.length === 0) {
+          sections.invoices = `💰 PAST DUE INVOICES\n✅ All clear — no past due invoices!`;
+        } else {
+          const totalDueSum = invoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
+          // Sort by date ascending (oldest first)
+          invoices.sort((a, b) => new Date(a.date) - new Date(b.date));
+          const top5 = invoices.slice(0, 5);
+
+          let invText = `💰 PAST DUE INVOICES — ${invoices.length} invoices totaling $${totalDueSum.toFixed(2)}\n\nTop 5 oldest:\n`;
+          for (const inv of top5) {
+            const daysAgo = Math.floor((new Date() - new Date(inv.date)) / (1000 * 60 * 60 * 24));
+            invText += `  • INV-${inv.invoiceNum} | ${inv.customer} | ${inv.totalDue} | ${daysAgo} days old\n`;
+          }
+          if (invoices.length > 5) {
+            invText += `  ... and ${invoices.length - 5} more`;
+          }
+          sections.invoices = invText.trim();
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Morning briefing — invoices error:', err);
+    sections.invoices = `💰 PAST DUE INVOICES\n⚠️ Error fetching invoices: ${err.message}`;
+    errors.push('invoices');
+  }
+
+  // ── Section 3: Stripe Failed Payments ──
+  try {
+    if (process.env.STRIPE_SECRET_KEY) {
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      const oneDayAgo = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+      const charges = await stripe.charges.list({ created: { gte: oneDayAgo }, limit: 100 });
+      const failed = charges.data.filter(c => c.status === 'failed');
+      if (failed.length === 0) {
+        sections.stripe = `💳 STRIPE\n✅ All clear — no failed payments in the last 24 hours.`;
+      } else {
+        let stripeText = `💳 STRIPE — ${failed.length} failed payment(s) in the last 24 hours\n`;
+        for (const c of failed.slice(0, 5)) {
+          const amt = (c.amount / 100).toFixed(2);
+          const email = c.billing_details?.email || c.receipt_email || 'unknown';
+          stripeText += `  • $${amt} — ${email} — ${c.failure_message || 'no details'}\n`;
+        }
+        sections.stripe = stripeText.trim();
+      }
+    } else {
+      sections.stripe = `💳 STRIPE\nNot configured yet (no STRIPE_SECRET_KEY).`;
+    }
+  } catch (err) {
+    console.error('Morning briefing — stripe error:', err);
+    sections.stripe = `💳 STRIPE\n⚠️ Error checking Stripe: ${err.message}`;
+    errors.push('stripe');
+  }
+
+  // ── Assemble briefing ──
+  const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}`;
+  return { briefing, sections, errors };
+}
+
+app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
+  try {
+    const { briefing, sections, errors } = await assembleMorningBriefing();
+
+    // Send to Telegram
+    let telegramSent = false;
+    let telegramError = null;
+    try {
+      const tgSettings = await pool.query(
+        "SELECT key, value FROM copilot_sync_settings WHERE key IN ('telegram_bot_token', 'telegram_chat_id')"
+      );
+      const tg = {};
+      for (const row of tgSettings.rows) tg[row.key] = row.value;
+
+      if (tg.telegram_bot_token && tg.telegram_chat_id) {
+        const tgRes = await fetch(`https://api.telegram.org/bot${tg.telegram_bot_token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: tg.telegram_chat_id,
+            text: briefing,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true
+          })
+        });
+        const tgData = await tgRes.json();
+        if (tgData.ok) {
+          telegramSent = true;
+        } else {
+          telegramError = tgData.description || 'Unknown Telegram error';
+          console.error('Telegram send failed:', tgData);
+        }
+      } else {
+        telegramError = 'Telegram bot token or chat ID not configured in copilot_sync_settings';
+      }
+    } catch (err) {
+      telegramError = err.message;
+      console.error('Telegram send error:', err);
+    }
+
+    res.json({
+      success: true,
+      briefing,
+      sections,
+      errors,
+      telegram: { sent: telegramSent, error: telegramError },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    serverError(res, error, 'Morning briefing failed');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // CATCH-ALL: Must be LAST route — serves static files or falls back to index.html
 // ═══════════════════════════════════════════════════════════════
 app.get('*', (req, res) => {

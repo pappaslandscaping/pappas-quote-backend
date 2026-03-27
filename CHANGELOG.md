@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-03-27
+
+### Morning Briefing Endpoint
+- New `POST /api/morning-briefing` endpoint assembles a daily summary and sends it to Telegram
+- Sections: today's jobs by crew (from copilot_sync_jobs), past due invoices (live from CopilotCRM), Stripe failed payments (when configured)
+- Briefing sent to Telegram via bot API; also returned in JSON response for N8N logging
+- Protected with auth middleware — N8N uses existing service token
+
 ## 2026-03-20
 
 ### Contract Signing → Copilot Portal

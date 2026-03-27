@@ -336,6 +336,9 @@ const endpoints = [
   // ── CopilotCRM Sync ──
   ['POST', '/api/copilot/sync', { startDate: '2020-01-01', endDate: '2020-01-01' }],
 
+  // ── Morning Briefing ──
+  ['POST', '/api/morning-briefing', {}],
+
   // ── Late Fees ──
   ['GET', '/api/late-fees'],
   ['POST', `/api/late-fees/${FAKE_ID}/waive`, {}],

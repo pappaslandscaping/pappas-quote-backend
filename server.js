@@ -16900,6 +16900,43 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// TELEGRAM — send a message to Telegram
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/telegram/send', authenticateToken, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ success: false, error: 'message is required' });
+
+    const tgSettings = await pool.query(
+      "SELECT key, value FROM copilot_sync_settings WHERE key IN ('telegram_bot_token', 'telegram_chat_id')"
+    );
+    const tg = {};
+    for (const row of tgSettings.rows) tg[row.key] = row.value;
+
+    if (!tg.telegram_bot_token || !tg.telegram_chat_id) {
+      return res.status(500).json({ success: false, error: 'Telegram bot token or chat ID not configured' });
+    }
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${tg.telegram_bot_token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: tg.telegram_chat_id, text: message })
+    });
+    const tgData = await tgRes.json();
+
+    if (!tgData.ok) {
+      console.error('Telegram send failed:', tgData);
+      return res.status(502).json({ success: false, error: tgData.description || 'Telegram error' });
+    }
+
+    res.json({ success: true, message_id: tgData.result.message_id });
+  } catch (error) {
+    serverError(res, error, 'Telegram send failed');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // MORNING BRIEFING — assembles daily summary and sends to Telegram
 // ═══════════════════════════════════════════════════════════════
 

@@ -333,6 +333,9 @@ const endpoints = [
   // ── Service Token ──
   ['POST', '/api/auth/service-token'],
 
+  // ── Telegram ──
+  // SKIP: sends real Telegram message — ['POST', '/api/telegram/send', { message: 'test' }],
+
   // ── CopilotCRM Sync ──
   ['POST', '/api/copilot/sync', { startDate: '2020-01-01', endDate: '2020-01-01' }],
 

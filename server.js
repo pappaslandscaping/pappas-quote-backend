@@ -7622,6 +7622,138 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
       ).join('\n'));
     }
 
+    // CopilotCRM fallback — only query when question needs live dispatch, CRM notes, or service history
+    const qLower = question.toLowerCase();
+    const needsDispatch = /crew status|dispatch|route today|what.?s happening today|what are the crews|who.?s working/i.test(qLower);
+    const needsCrmLookup = /copilot|crm|crm notes|notes on/i.test(qLower);
+    const needsServiceHistory = /service history|past services|what did we do|jobs completed|previous work|work history/i.test(qLower);
+    const needsCopilot = needsDispatch || needsCrmLookup || needsServiceHistory;
+
+    if (needsCopilot) {
+      try {
+        await ensureCopilotSyncTables();
+        const tokenInfo = await getCopilotToken();
+        if (!tokenInfo || !tokenInfo.cookieHeader) {
+          context.push('COPILOTCRM: Could not connect — no authentication token configured.');
+        } else {
+          const copilotHeaders = {
+            'Cookie': tokenInfo.cookieHeader,
+            'Origin': 'https://secure.copilotcrm.com',
+            'Referer': 'https://secure.copilotcrm.com/',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+
+          // Live dispatch for today
+          if (needsDispatch || needsServiceHistory) {
+            try {
+              const today = new Date();
+              const dateStr = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const formData = new URLSearchParams();
+              formData.append('accessFrom', 'route');
+              formData.append('bs4', '1');
+              formData.append('sDate', dateStr);
+              formData.append('eDate', dateStr);
+              formData.append('optimizationFlag', '1');
+              formData.append('count', '-1');
+              for (const t of ['1', '2', '3', '4', '5', '0']) formData.append('evtypes_route[]', t);
+              formData.append('isdate', '0');
+              formData.append('sdate', dateStr);
+              formData.append('edate', dateStr);
+              formData.append('erec', 'all');
+              formData.append('estatus', 'any');
+              formData.append('esort', '');
+              formData.append('einvstatus', 'any');
+
+              const dispatchRes = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
+                method: 'POST',
+                headers: copilotHeaders,
+                body: formData.toString(),
+              });
+              if (dispatchRes.ok) {
+                const dispatchData = await dispatchRes.json();
+                const jobs = parseCopilotRouteHtml(dispatchData.html || '', dispatchData.employees || []);
+                if (jobs.length > 0) {
+                  context.push('COPILOTCRM LIVE DISPATCH (today):\n' + jobs.map(j =>
+                    `Stop ${j.stop_order || '?'}: ${j.customer_name} — ${j.job_title || 'Service'} — ${j.address || ''} — Crew: ${j.crew_name || 'Unassigned'} — Status: ${j.status || 'Scheduled'}`
+                  ).join('\n'));
+                } else {
+                  context.push('COPILOTCRM LIVE DISPATCH: No jobs scheduled for today.');
+                }
+              }
+            } catch (dispatchErr) {
+              console.error('CopilotCRM dispatch fetch error:', dispatchErr.message);
+              context.push('COPILOTCRM DISPATCH: Could not fetch live dispatch data.');
+            }
+          }
+
+          // Customer search in CRM — extract name from question
+          if (needsCrmLookup || needsServiceHistory) {
+            try {
+              // Try to extract a customer name from the question by matching against our customer list
+              const matchedCustomer = customerResult.rows.find(c => c.name && qLower.includes(c.name.toLowerCase()));
+              if (matchedCustomer) {
+                const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+                  method: 'POST',
+                  headers: copilotHeaders,
+                  body: `query=${encodeURIComponent(matchedCustomer.name)}`,
+                });
+                if (searchRes.ok) {
+                  const crmCustomers = await searchRes.json();
+                  const crmMatch = Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
+                  if (crmMatch) {
+                    const crmFields = Object.entries(crmMatch)
+                      .filter(([k, v]) => v && !['password', 'token', 'hash'].includes(k))
+                      .map(([k, v]) => `  ${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                      .join('\n');
+                    context.push(`COPILOTCRM CUSTOMER RECORD (${matchedCustomer.name}):\n${crmFields}`);
+
+                    // Fetch estimate history if service history was requested
+                    if (needsServiceHistory) {
+                      try {
+                        const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+                          method: 'POST',
+                          headers: copilotHeaders,
+                          body: `customer_id=${crmMatch.id}`,
+                        });
+                        if (estRes.ok) {
+                          const estData = await estRes.json();
+                          if (estData.html) {
+                            const $est = require('cheerio').load(estData.html);
+                            const estimates = [];
+                            $est('tr[id]').each((i, row) => {
+                              const $r = $est(row);
+                              const num = $r.find('a').first().text().trim();
+                              const cells = [];
+                              $r.find('td').each((_, td) => cells.push($est(td).text().trim()));
+                              if (num) estimates.push(cells.join(' | '));
+                            });
+                            if (estimates.length > 0) {
+                              context.push(`COPILOTCRM ESTIMATES/SERVICE HISTORY (${matchedCustomer.name}):\n` + estimates.join('\n'));
+                            }
+                          }
+                        }
+                      } catch (estErr) {
+                        console.error('CopilotCRM estimate fetch error:', estErr.message);
+                      }
+                    }
+                  } else {
+                    context.push(`COPILOTCRM: No customer record found for "${matchedCustomer.name}".`);
+                  }
+                }
+              }
+            } catch (crmErr) {
+              console.error('CopilotCRM customer lookup error:', crmErr.message);
+              context.push('COPILOTCRM: Could not look up customer details.');
+            }
+          }
+        }
+      } catch (copilotErr) {
+        console.error('CopilotCRM fallback error:', copilotErr.message);
+        context.push('COPILOTCRM: Service unavailable right now. Answering from local records only.');
+      }
+    }
+
     const systemPrompt = `You are the Pappas & Co. Landscaping business assistant. You help Tim and Theresa's team answer questions about their landscaping business in Cleveland, OH. Service areas: Lakewood, Brook Park, Bay Village, and Westpark.
 
 You have access to the following business data:
@@ -7634,7 +7766,7 @@ ${context.join('\n\n')}
 Answer the user's question based on this data. Be friendly, conversational, and professional. If you're not sure about something, say so honestly. Keep answers concise but thorough. Format important details clearly.
 
 If the question is about a specific customer, look for their name in the data and include all relevant information (messages, calls, invoices, jobs).
-
+${needsCopilot ? '\nIf CopilotCRM data is included above, mention what came from CopilotCRM vs local records when relevant.' : ''}
 Today's date: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
 
     const apiMessages = [{ role: 'user', content: systemPrompt }];

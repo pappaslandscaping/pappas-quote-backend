@@ -7626,7 +7626,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
     const qLower = question.toLowerCase();
     const needsDispatch = /crew status|dispatch|route today|what.?s happening today|what are the crews|who.?s working/i.test(qLower);
     const needsCrmLookup = /copilot|crm|crm notes|notes on/i.test(qLower);
-    const needsServiceHistory = /service history|past services|what did we do|jobs completed|previous work|work history/i.test(qLower);
+    const needsServiceHistory = /service history|past services|what did we do|jobs completed|previous work|work history|last service|when did we.*service|services did|did we do for/i.test(qLower);
     const needsCopilot = needsDispatch || needsCrmLookup || needsServiceHistory;
 
     if (needsCopilot) {
@@ -7829,22 +7829,37 @@ If the question is about a specific customer, look for their name in the data an
 ${needsCopilot ? '\nIf CopilotCRM data is included above, mention what came from CopilotCRM vs local records when relevant.' : ''}
 Today's date: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
 
-    const apiMessages = [{ role: 'user', content: systemPrompt }];
+    // Build messages array with proper alternating roles for Anthropic API
+    const rawMessages = [];
+    // System context as first user message
+    rawMessages.push({ role: 'user', content: systemPrompt });
+    // Prior conversation turns (skip last which is the current question)
     if (conversationHistory && Array.isArray(conversationHistory)) {
-      // Add prior conversation turns (skip the first which is the current question)
       for (const msg of conversationHistory.slice(0, -1)) {
-        apiMessages.push({ role: msg.role, content: msg.content });
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          rawMessages.push({ role: msg.role, content: String(msg.content || '') });
+        }
       }
     }
-    apiMessages.push({ role: apiMessages.length > 1 ? 'user' : 'user', content: question });
+    // Current question
+    rawMessages.push({ role: 'user', content: question });
 
-    // Fix: ensure alternating roles for Anthropic API
-    if (apiMessages.length > 1 && apiMessages[apiMessages.length - 1].role === apiMessages[apiMessages.length - 2].role) {
-      // Merge consecutive same-role messages
-      const last = apiMessages.pop();
-      apiMessages[apiMessages.length - 1].content += '\n\n' + last.content;
+    // Merge consecutive same-role messages to ensure strict alternation
+    const apiMessages = [];
+    for (const msg of rawMessages) {
+      const prev = apiMessages[apiMessages.length - 1];
+      if (prev && prev.role === msg.role) {
+        prev.content += '\n\n' + msg.content;
+      } else {
+        apiMessages.push({ ...msg });
+      }
+    }
+    // Ensure first message is user role (required by Anthropic)
+    if (apiMessages.length > 0 && apiMessages[0].role !== 'user') {
+      apiMessages[0].role = 'user';
     }
 
+    console.log(`[Assistant] Sending ${apiMessages.length} messages to Anthropic (context: ${context.length} sections, copilot: ${needsCopilot})`);
     const message = await anthropicClient.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,

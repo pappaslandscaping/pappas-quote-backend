@@ -16961,6 +16961,7 @@ async function assembleMorningBriefing() {
       const totalJobs = crews.reduce((sum, c) => sum + parseInt(c.job_count), 0);
       stats.totalJobs = totalJobs;
       stats.crewCount = crews.length;
+      stats.crewNames = crews.map(c => (c.crew_name || 'Unassigned').replace(/ (Mowing |Landscaping )?Crew/i, ''));
       let jobText = `📋 TODAY'S JOBS (${today}) — ${totalJobs} total\n`;
       for (const c of crews) {
         const crew = c.crew_name || 'Unassigned';
@@ -17022,6 +17023,8 @@ async function assembleMorningBriefing() {
           const totalDueSum = invoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
           stats.invoiceCount = invoices.length;
           stats.invoiceTotal = totalDueSum;
+          // Sort by amount descending for top invoices, then by date ascending for display
+          stats.topInvoices = [...invoices].sort((a, b) => b.dueAmount - a.dueAmount).slice(0, 3);
           // Sort by date ascending (oldest first)
           invoices.sort((a, b) => new Date(a.date) - new Date(b.date));
           const top5 = invoices.slice(0, 5);
@@ -17146,36 +17149,70 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
       const phones = [process.env.THERESA_PHONE_NUMBER, process.env.TIM_PHONE_NUMBER].filter(Boolean);
 
       if (twilioSid && twilioAuth && twilioFrom && phones.length > 0) {
-        // Count gmail emails if provided
+        // Parse gmail info from gmailText
         const gmailText = req.body.gmailText || '';
         const emailMatch = gmailText.match(/(\d+)\s+new/i);
         const emailCount = emailMatch ? emailMatch[1] : null;
+        // Extract subject lines — look for common patterns like "- Subject line" or "• Subject" or numbered lines
+        const subjectLines = gmailText.match(/(?:^|\n)\s*(?:[-•*]\s*|(?:\d+[.)]\s*))(.+)/g);
+        const subjects = (subjectLines || [])
+          .map(s => s.replace(/^[\s\-•*\d.)]+/, '').trim())
+          .filter(s => s.length > 3 && s.length < 80)
+          .slice(0, 3);
 
-        // Build concise SMS
-        let sms = `Good morning! Here's your Pappas & Co. daily briefing:\n`;
+        // Build concise SMS (target <600 chars)
+        const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+        let sms = `Good morning! Pappas & Co. daily briefing (${today}):\n`;
+
+        // Jobs
         if (stats.totalJobs > 0) {
-          sms += `📋 Jobs today: ${stats.totalJobs} (${stats.crewCount} crew${stats.crewCount === 1 ? '' : 's'})\n`;
+          const crewInfo = stats.crewNames && stats.crewNames.length <= 3
+            ? stats.crewNames.join(', ')
+            : `${stats.crewCount} crews`;
+          sms += `📋 JOBS: ${stats.totalJobs} today (${crewInfo})\n`;
         } else {
-          sms += `📋 Jobs today: none synced\n`;
+          sms += `📋 JOBS: none synced\n`;
         }
+
+        // Past due invoices with top 3
         if (stats.invoiceCount > 0) {
-          sms += `💰 Past due: ${stats.invoiceCount} invoices, $${stats.invoiceTotal.toFixed(2)}\n`;
+          sms += `💰 PAST DUE: ${stats.invoiceCount} invoices, $${stats.invoiceTotal.toFixed(2)}.`;
+          if (stats.topInvoices && stats.topInvoices.length > 0) {
+            const top3 = stats.topInvoices.map(inv => {
+              const name = inv.customer.split(' ').slice(0, 2).join(' ');
+              return `${name} $${inv.dueAmount.toFixed(0)}`;
+            }).join(', ');
+            sms += ` Top: ${top3}`;
+          }
+          sms += '\n';
         } else {
-          sms += `💰 Past due: all clear\n`;
+          sms += `💰 PAST DUE: all clear\n`;
         }
+
+        // Stripe
         if (stats.stripeConfigured) {
-          sms += `💳 Stripe: ${stats.stripeFailures > 0 ? stats.stripeFailures + ' failed payment' + (stats.stripeFailures > 1 ? 's' : '') : 'all clear'}\n`;
+          sms += `💳 STRIPE: ${stats.stripeFailures > 0 ? stats.stripeFailures + ' failed' : 'all clear'}\n`;
         } else {
-          sms += `💳 Stripe: not configured\n`;
+          sms += `💳 STRIPE: not configured\n`;
         }
+
+        // Email
         if (emailCount) {
-          sms += `📧 ${emailCount} new customer emails\n`;
+          sms += `📧 ${emailCount} new`;
+          if (subjects.length > 0) {
+            sms += ` — ${subjects.join(', ')}`;
+          }
+          sms += '\n';
         } else if (gmailText) {
-          sms += `📧 See Telegram for email details\n`;
+          sms += `📧 See Telegram\n`;
         } else {
           sms += `📧 No email data\n`;
         }
+
         sms += `Full details on Telegram.`;
+
+        // Truncate to 600 chars to avoid multi-segment SMS
+        if (sms.length > 600) sms = sms.substring(0, 597) + '...';
 
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
         const twilioHeaders = {

@@ -17192,7 +17192,13 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
           console.error('SMS send failures:', failures);
         }
       } else {
-        smsError = 'Twilio credentials or phone numbers not configured';
+        const missing = [];
+        if (!twilioSid) missing.push('TWILIO_ACCOUNT_SID');
+        if (!twilioAuth) missing.push('TWILIO_AUTH_TOKEN');
+        if (!twilioFrom) missing.push('TWILIO_PHONE_NUMBER');
+        if (phones.length === 0) missing.push('THERESA_PHONE_NUMBER and/or TIM_PHONE_NUMBER');
+        smsError = `Missing env vars: ${missing.join(', ')}`;
+        console.error('SMS config missing:', missing);
       }
     } catch (err) {
       smsError = err.message;

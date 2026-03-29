@@ -3613,6 +3613,33 @@ app.post('/api/calls', async (req, res) => {
       [sid, from_number, to_number, option || 'Unknown', status || 'new', duration, recording_url, transcription]
     );
     res.json({ success: true, call: result.rows[0] });
+
+    // Send email notification for voicemails (fire-and-forget)
+    if (status === 'voicemail') {
+      const cleanedVmPhone = from_number.replace(/\D/g, '').slice(-10);
+      let vmContactName = null;
+      try {
+        const vmCustomer = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedVmPhone}`]);
+        vmContactName = vmCustomer.rows[0]?.name || null;
+      } catch (e) {}
+      const vmDisplayName = vmContactName ? escapeHtml(vmContactName) : escapeHtml(from_number);
+      const vmSubjectName = vmContactName || from_number;
+      const vmTimestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
+      const vmDuration = duration ? `${Math.floor(duration / 60)}m ${duration % 60}s` : 'Unknown';
+      sendEmail(NOTIFICATION_EMAIL, `🎙️ New voicemail from ${vmSubjectName}`, emailTemplate(`
+        <h2 style="color:#1e293b;margin:0 0 16px;">New Voicemail</h2>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;color:#64748b;width:80px;">From</td><td style="padding:8px 0;color:#1e293b;font-weight:500;">${vmDisplayName}</td></tr>
+          <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(from_number)}</td></tr>
+          <tr><td style="padding:8px 0;color:#64748b;">Duration</td><td style="padding:8px 0;color:#1e293b;">${vmDuration}</td></tr>
+          <tr><td style="padding:8px 0;color:#64748b;">Time</td><td style="padding:8px 0;color:#1e293b;">${vmTimestamp}</td></tr>
+        </table>
+        <div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #2e403d;">
+          <p style="margin:0 0 4px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Transcription</p>
+          <p style="margin:0;color:#1e293b;line-height:1.6;">${transcription ? escapeHtml(transcription) : '<em style="color:#94a3b8;">No transcription available</em>'}</p>
+        </div>
+      `, { showSignature: false })).catch(err => console.error('Voicemail notification email error:', err));
+    }
   } catch (error) { serverError(res, error); }
 });
 
@@ -7225,6 +7252,21 @@ app.post('/api/sms/webhook', async (req, res) => {
 
     // Send push notification
     await sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });
+
+    // Send email notification (fire-and-forget)
+    const smsDisplayName = customerName !== 'Unknown' ? escapeHtml(customerName) : From;
+    const smsTimestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
+    sendEmail(NOTIFICATION_EMAIL, `💬 New text from ${customerName !== 'Unknown' ? customerName : From}`, emailTemplate(`
+      <h2 style="color:#1e293b;margin:0 0 16px;">New Text Message</h2>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><td style="padding:8px 0;color:#64748b;width:80px;">From</td><td style="padding:8px 0;color:#1e293b;font-weight:500;">${smsDisplayName}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(From)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Time</td><td style="padding:8px 0;color:#1e293b;">${smsTimestamp}</td></tr>
+      </table>
+      <div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #2e403d;">
+        <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(Body || 'No message content')}</p>
+      </div>
+    `, { showSignature: false })).catch(err => console.error('SMS notification email error:', err));
 
     // Send TwiML response (empty - don't auto-reply)
     res.type('text/xml').send('<Response></Response>');

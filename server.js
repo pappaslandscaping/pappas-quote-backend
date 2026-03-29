@@ -7126,9 +7126,9 @@ async function createCallsTable() {
 createCallsTable();
 
 // Send Expo Push Notification
-async function sendPushNotification(expoPushToken, title, body, data = {}) {
+async function sendPushNotification(expoPushToken, title, body, data = {}, badge = undefined) {
   try {
-    const payload = { to: expoPushToken, sound: 'default', title, body, data };
+    const payload = { to: expoPushToken, sound: 'default', title, body, data, ...(badge != null && { badge }) };
     console.log('📲 Sending push:', JSON.stringify({ to: expoPushToken.substring(0, 30) + '...', title, body }));
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -7157,10 +7157,20 @@ async function sendPushToAllDevices(title, body, data = {}) {
     if (devices.rows.length === 0) {
       console.log('📲 No devices registered for push notifications');
     }
+
+    // Compute badge count: unread inbound messages + active voicemails
+    let badge = 0;
+    try {
+      const unreadResult = await pool.query(`SELECT COUNT(*) FROM messages WHERE direction = 'inbound' AND read = false`);
+      badge = parseInt(unreadResult.rows[0]?.count || '0', 10);
+    } catch (e) {
+      console.error('Badge count query error:', e.message);
+    }
+
     for (const device of devices.rows) {
       if (device.push_token) {
-        console.log(`📲 → ${device.email} (${device.platform})`);
-        await sendPushNotification(device.push_token, title, body, data);
+        console.log(`📲 → ${device.email} (${device.platform}) badge=${badge}`);
+        await sendPushNotification(device.push_token, title, body, data, badge);
       }
     }
   } catch (error) {

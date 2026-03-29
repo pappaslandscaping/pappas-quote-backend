@@ -7671,7 +7671,10 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                 body: formData.toString(),
               });
               if (dispatchRes.ok) {
-                const dispatchData = await dispatchRes.json();
+                const dispatchData = await dispatchRes.json().catch(() => null);
+                if (!dispatchData) {
+                  context.push('COPILOTCRM DISPATCH: Auth session may have expired. Token may need refresh.');
+                } else {
                 const jobs = parseCopilotRouteHtml(dispatchData.html || '', dispatchData.employees || []);
                 if (jobs.length > 0) {
                   context.push('COPILOTCRM LIVE DISPATCH (today):\n' + jobs.map(j =>
@@ -7679,6 +7682,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                   ).join('\n'));
                 } else {
                   context.push('COPILOTCRM LIVE DISPATCH: No jobs scheduled for today.');
+                }
                 }
               }
             } catch (dispatchErr) {
@@ -7712,8 +7716,11 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                   body: `query=${encodeURIComponent(matchedCustomer.name)}`,
                 });
                 if (searchRes.ok) {
-                  const crmCustomers = await searchRes.json();
-                  const crmMatch = Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
+                  const crmCustomers = await searchRes.json().catch(() => null);
+                  if (!crmCustomers) {
+                    context.push('COPILOTCRM: Auth session may have expired — customer search returned invalid data. Token may need refresh.');
+                  }
+                  const crmMatch = crmCustomers && Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
                   if (crmMatch) {
                     const crmFields = Object.entries(crmMatch)
                       .filter(([k, v]) => v && !['password', 'token', 'hash'].includes(k))
@@ -7729,8 +7736,8 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                         body: `customer_id=${crmMatch.id}`,
                       });
                       if (estRes.ok) {
-                        const estData = await estRes.json();
-                        if (estData.html) {
+                        const estData = await estRes.json().catch(() => null);
+                        if (estData && estData.html) {
                           const $est = cheerio.load(estData.html);
                           const estimates = [];
                           $est('tr[id]').each((i, row) => {
@@ -7781,7 +7788,10 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                       body: histFormData.toString(),
                     });
                     if (histRes.ok) {
-                      const histData = await histRes.json();
+                      const histData = await histRes.json().catch(() => null);
+                      if (!histData) {
+                        context.push('COPILOTCRM SERVICE HISTORY: Auth session may have expired — could not fetch job history. Token may need refresh.');
+                      } else {
                       const allJobs = parseCopilotRouteHtml(histData.html || '', histData.employees || []);
                       // Filter to this customer
                       const custNameLower = matchedCustomer.name.toLowerCase();
@@ -7792,6 +7802,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                         ).join('\n'));
                       } else {
                         context.push(`COPILOTCRM SERVICE HISTORY: No jobs found for "${matchedCustomer.name}" in the past 12 months.`);
+                      }
                       }
                     }
                   } catch (histErr) {

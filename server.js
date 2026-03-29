@@ -17001,6 +17001,7 @@ async function assembleMorningBriefing() {
           const tds = $(row).find('td');
           if (tds.length < 14) return;
           const invoiceNum = tds.eq(1).text().trim();
+          if (!invoiceNum) return; // skip summary/totals rows
           const date = tds.eq(2).text().trim();
           const customer = tds.eq(3).text().trim().split('\n')[0].trim();
           const property = tds.eq(5).text().trim();

@@ -17072,7 +17072,12 @@ async function assembleMorningBriefing() {
 
 app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
   try {
-    const { briefing, sections, errors } = await assembleMorningBriefing();
+    let { briefing, sections, errors } = await assembleMorningBriefing();
+
+    // Append Gmail summary if provided
+    if (req.body.gmailText) {
+      briefing += '\n\n' + req.body.gmailText;
+    }
 
     // Send to Telegram
     let telegramSent = false;

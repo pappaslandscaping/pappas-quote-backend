@@ -16945,7 +16945,7 @@ async function assembleMorningBriefing() {
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
   const sections = {};
   const errors = [];
-  const stats = { totalJobs: 0, invoiceCount: 0, invoiceTotal: 0, stripeFailures: 0, stripeConfigured: false };
+  const stats = { totalJobs: 0, crewCount: 0, invoiceCount: 0, invoiceTotal: 0, stripeFailures: 0, stripeConfigured: false };
 
   // ── Section 1: Today's Jobs by Crew ──
   try {
@@ -16960,6 +16960,7 @@ async function assembleMorningBriefing() {
     } else {
       const totalJobs = crews.reduce((sum, c) => sum + parseInt(c.job_count), 0);
       stats.totalJobs = totalJobs;
+      stats.crewCount = crews.length;
       let jobText = `📋 TODAY'S JOBS (${today}) — ${totalJobs} total\n`;
       for (const c of crews) {
         const crew = c.crew_name || 'Unassigned';
@@ -17151,26 +17152,30 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
         const emailCount = emailMatch ? emailMatch[1] : null;
 
         // Build concise SMS
-        const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
-        let sms = `YardDesk ${today}\n`;
-        sms += `Jobs: ${stats.totalJobs || 'none synced'}\n`;
-        if (stats.invoiceCount > 0) {
-          sms += `Past due: ${stats.invoiceCount} invoices, $${stats.invoiceTotal.toFixed(2)}\n`;
+        let sms = `Good morning! Here's your Pappas & Co. daily briefing:\n`;
+        if (stats.totalJobs > 0) {
+          sms += `📋 Jobs today: ${stats.totalJobs} (${stats.crewCount} crew${stats.crewCount === 1 ? '' : 's'})\n`;
         } else {
-          sms += `Past due: all clear\n`;
+          sms += `📋 Jobs today: none synced\n`;
+        }
+        if (stats.invoiceCount > 0) {
+          sms += `💰 Past due: ${stats.invoiceCount} invoices, $${stats.invoiceTotal.toFixed(2)}\n`;
+        } else {
+          sms += `💰 Past due: all clear\n`;
         }
         if (stats.stripeConfigured) {
-          sms += `Stripe: ${stats.stripeFailures > 0 ? stats.stripeFailures + ' failed' : 'ok'}\n`;
+          sms += `💳 Stripe: ${stats.stripeFailures > 0 ? stats.stripeFailures + ' failed payment' + (stats.stripeFailures > 1 ? 's' : '') : 'all clear'}\n`;
         } else {
-          sms += `Stripe: not configured\n`;
+          sms += `💳 Stripe: not configured\n`;
         }
         if (emailCount) {
-          sms += `Email: ${emailCount} new`;
+          sms += `📧 ${emailCount} new customer emails\n`;
         } else if (gmailText) {
-          sms += `Email: see Telegram`;
+          sms += `📧 See Telegram for email details\n`;
         } else {
-          sms += `Email: no data`;
+          sms += `📧 No email data\n`;
         }
+        sms += `Full details on Telegram.`;
 
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
         const twilioHeaders = {

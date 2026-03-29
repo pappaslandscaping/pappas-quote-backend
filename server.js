@@ -7135,6 +7135,7 @@ async function sendPushNotification(expoPushToken, title, body, data = {}) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...(process.env.EXPO_ACCESS_TOKEN && { 'Authorization': `Bearer ${process.env.EXPO_ACCESS_TOKEN}` }),
       },
       body: JSON.stringify(payload),
     });
@@ -7213,7 +7214,7 @@ app.post('/api/sms/webhook', async (req, res) => {
     console.log(`📨 Incoming SMS from ${customerName} (${From}): ${Body?.substring(0, 50)}...`);
 
     // Send push notification
-    sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });
+    await sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });
 
     // Send TwiML response (empty - don't auto-reply)
     res.type('text/xml').send('<Response></Response>');

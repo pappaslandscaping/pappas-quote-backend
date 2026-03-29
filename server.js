@@ -7690,9 +7690,22 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
           // Customer search in CRM — extract name from question
           if (needsCrmLookup || needsServiceHistory) {
             try {
-              // Try to extract a customer name from the question by matching against our customer list
-              const matchedCustomer = customerResult.rows.find(c => c.name && qLower.includes(c.name.toLowerCase()));
+              // Match customer name from question against our customer list
+              // Try full name first, then last name, then first name
+              let matchedCustomer = customerResult.rows.find(c => c.name && qLower.includes(c.name.toLowerCase()));
+              if (!matchedCustomer) {
+                // Try matching by last name (more than 3 chars to avoid false positives)
+                matchedCustomer = customerResult.rows.find(c => {
+                  if (!c.name) return false;
+                  const parts = c.name.trim().split(/\s+/);
+                  const lastName = parts[parts.length - 1];
+                  return lastName.length > 3 && qLower.includes(lastName.toLowerCase());
+                });
+              }
+              console.log(`[Assistant] CopilotCRM customer match: ${matchedCustomer?.name || 'none found'} for question: "${question.substring(0, 80)}"`);
+
               if (matchedCustomer) {
+                // Look up customer in CopilotCRM
                 const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
                   method: 'POST',
                   headers: copilotHeaders,
@@ -7708,39 +7721,86 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
                       .join('\n');
                     context.push(`COPILOTCRM CUSTOMER RECORD (${matchedCustomer.name}):\n${crmFields}`);
 
-                    // Fetch estimate history if service history was requested
-                    if (needsServiceHistory) {
-                      try {
-                        const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-                          method: 'POST',
-                          headers: copilotHeaders,
-                          body: `customer_id=${crmMatch.id}`,
-                        });
-                        if (estRes.ok) {
-                          const estData = await estRes.json();
-                          if (estData.html) {
-                            const $est = require('cheerio').load(estData.html);
-                            const estimates = [];
-                            $est('tr[id]').each((i, row) => {
-                              const $r = $est(row);
-                              const num = $r.find('a').first().text().trim();
-                              const cells = [];
-                              $r.find('td').each((_, td) => cells.push($est(td).text().trim()));
-                              if (num) estimates.push(cells.join(' | '));
-                            });
-                            if (estimates.length > 0) {
-                              context.push(`COPILOTCRM ESTIMATES/SERVICE HISTORY (${matchedCustomer.name}):\n` + estimates.join('\n'));
-                            }
+                    // Fetch estimates for this customer
+                    try {
+                      const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+                        method: 'POST',
+                        headers: copilotHeaders,
+                        body: `customer_id=${crmMatch.id}`,
+                      });
+                      if (estRes.ok) {
+                        const estData = await estRes.json();
+                        if (estData.html) {
+                          const $est = cheerio.load(estData.html);
+                          const estimates = [];
+                          $est('tr[id]').each((i, row) => {
+                            const $r = $est(row);
+                            const cells = [];
+                            $r.find('td').each((_, td) => cells.push($est(td).text().trim()));
+                            if (cells.length > 0 && cells.some(c => c)) estimates.push(cells.filter(c => c).join(' | '));
+                          });
+                          if (estimates.length > 0) {
+                            context.push(`COPILOTCRM ESTIMATES (${matchedCustomer.name}):\n` + estimates.join('\n'));
                           }
                         }
-                      } catch (estErr) {
-                        console.error('CopilotCRM estimate fetch error:', estErr.message);
                       }
+                    } catch (estErr) {
+                      console.error('CopilotCRM estimate fetch error:', estErr.message);
                     }
                   } else {
                     context.push(`COPILOTCRM: No customer record found for "${matchedCustomer.name}".`);
                   }
                 }
+
+                // Fetch service/job history from scheduler — past 12 months filtered by customer name
+                if (needsServiceHistory) {
+                  try {
+                    const now = new Date();
+                    const yearAgo = new Date(now);
+                    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+                    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const histFormData = new URLSearchParams();
+                    histFormData.append('accessFrom', 'route');
+                    histFormData.append('bs4', '1');
+                    histFormData.append('sDate', fmt(yearAgo));
+                    histFormData.append('eDate', fmt(now));
+                    histFormData.append('optimizationFlag', '1');
+                    histFormData.append('count', '-1');
+                    for (const t of ['1', '2', '3', '4', '5', '0']) histFormData.append('evtypes_route[]', t);
+                    histFormData.append('isdate', '0');
+                    histFormData.append('sdate', fmt(yearAgo));
+                    histFormData.append('edate', fmt(now));
+                    histFormData.append('erec', 'all');
+                    histFormData.append('estatus', 'any');
+                    histFormData.append('esort', '');
+                    histFormData.append('einvstatus', 'any');
+
+                    const histRes = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
+                      method: 'POST',
+                      headers: copilotHeaders,
+                      body: histFormData.toString(),
+                    });
+                    if (histRes.ok) {
+                      const histData = await histRes.json();
+                      const allJobs = parseCopilotRouteHtml(histData.html || '', histData.employees || []);
+                      // Filter to this customer
+                      const custNameLower = matchedCustomer.name.toLowerCase();
+                      const custJobs = allJobs.filter(j => j.customer_name && j.customer_name.toLowerCase().includes(custNameLower));
+                      if (custJobs.length > 0) {
+                        context.push(`COPILOTCRM SERVICE HISTORY (${matchedCustomer.name}, past 12 months, ${custJobs.length} jobs):\n` + custJobs.map(j =>
+                          `${j.job_title || 'Service'} — ${j.address || ''} — Crew: ${j.crew_name || 'N/A'} — Status: ${j.status || 'N/A'}${j.visit_total ? ` — $${j.visit_total}` : ''}`
+                        ).join('\n'));
+                      } else {
+                        context.push(`COPILOTCRM SERVICE HISTORY: No jobs found for "${matchedCustomer.name}" in the past 12 months.`);
+                      }
+                    }
+                  } catch (histErr) {
+                    console.error('CopilotCRM service history fetch error:', histErr.message);
+                    context.push('COPILOTCRM SERVICE HISTORY: Could not fetch job history.');
+                  }
+                }
+              } else {
+                context.push('COPILOTCRM: Could not identify which customer you\'re asking about. Try using their full name.');
               }
             } catch (crmErr) {
               console.error('CopilotCRM customer lookup error:', crmErr.message);

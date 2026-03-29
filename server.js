@@ -17005,7 +17005,7 @@ async function assembleMorningBriefing() {
           const customer = tds.eq(3).text().trim().split('\n')[0].trim();
           const property = tds.eq(5).text().trim();
           const invoiceTotal = tds.eq(9).text().trim();
-          const totalDue = tds.eq(11).text().trim();
+          const totalDue = tds.eq(10).text().trim();
           const dueAmount = parseFloat(totalDue.replace(/[^0-9.-]/g, '')) || 0;
           if (dueAmount > 0) {
             invoices.push({ invoiceNum, date, customer, property, invoiceTotal, totalDue, dueAmount });

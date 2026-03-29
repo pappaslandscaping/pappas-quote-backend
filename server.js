@@ -17075,11 +17075,12 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
     let { briefing, sections, errors } = await assembleMorningBriefing();
 
     // Append Gmail summary if provided
-    if (req.body.gmailText) {
-      briefing += '\n\n' + req.body.gmailText;
+    const gmailText = req.body.gmailText || null;
+    if (gmailText) {
+      briefing += '\n\n' + gmailText;
     }
 
-    // Send to Telegram
+    // Send to Telegram — split into multiple messages if too long
     let telegramSent = false;
     let telegramError = null;
     try {
@@ -17090,22 +17091,34 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
       for (const row of tgSettings.rows) tg[row.key] = row.value;
 
       if (tg.telegram_bot_token && tg.telegram_chat_id) {
-        const tgRes = await fetch(`https://api.telegram.org/bot${tg.telegram_bot_token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: tg.telegram_chat_id,
-            text: briefing,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true
-          })
-        });
-        const tgData = await tgRes.json();
-        if (tgData.ok) {
-          telegramSent = true;
+        const sendTg = async (text) => {
+          const r = await fetch(`https://api.telegram.org/bot${tg.telegram_bot_token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: tg.telegram_chat_id, text, disable_web_page_preview: true })
+          });
+          return r.json();
+        };
+
+        // If briefing is long and we have gmailText, send as two messages
+        const mainBriefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}`;
+        if (gmailText && mainBriefing.length + gmailText.length > 4000) {
+          const tgData1 = await sendTg(mainBriefing);
+          const tgData2 = await sendTg(gmailText);
+          if (tgData1.ok && tgData2.ok) {
+            telegramSent = true;
+          } else {
+            telegramError = (!tgData1.ok ? tgData1.description : tgData2.description) || 'Unknown Telegram error';
+            console.error('Telegram send failed:', !tgData1.ok ? tgData1 : tgData2);
+          }
         } else {
-          telegramError = tgData.description || 'Unknown Telegram error';
-          console.error('Telegram send failed:', tgData);
+          const tgData = await sendTg(briefing);
+          if (tgData.ok) {
+            telegramSent = true;
+          } else {
+            telegramError = tgData.description || 'Unknown Telegram error';
+            console.error('Telegram send failed:', tgData);
+          }
         }
       } else {
         telegramError = 'Telegram bot token or chat ID not configured in copilot_sync_settings';

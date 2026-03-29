@@ -16945,6 +16945,7 @@ async function assembleMorningBriefing() {
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
   const sections = {};
   const errors = [];
+  const stats = { totalJobs: 0, invoiceCount: 0, invoiceTotal: 0, stripeFailures: 0, stripeConfigured: false };
 
   // ── Section 1: Today's Jobs by Crew ──
   try {
@@ -16958,6 +16959,7 @@ async function assembleMorningBriefing() {
       sections.jobs = `📋 TODAY'S JOBS (${today})\nNo jobs synced for today. Run the Copilot sync first or check the schedule.`;
     } else {
       const totalJobs = crews.reduce((sum, c) => sum + parseInt(c.job_count), 0);
+      stats.totalJobs = totalJobs;
       let jobText = `📋 TODAY'S JOBS (${today}) — ${totalJobs} total\n`;
       for (const c of crews) {
         const crew = c.crew_name || 'Unassigned';
@@ -17017,6 +17019,8 @@ async function assembleMorningBriefing() {
           sections.invoices = `💰 PAST DUE INVOICES\n✅ All clear — no past due invoices!`;
         } else {
           const totalDueSum = invoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
+          stats.invoiceCount = invoices.length;
+          stats.invoiceTotal = totalDueSum;
           // Sort by date ascending (oldest first)
           invoices.sort((a, b) => new Date(a.date) - new Date(b.date));
           const top5 = invoices.slice(0, 5);
@@ -17042,10 +17046,12 @@ async function assembleMorningBriefing() {
   // ── Section 3: Stripe Failed Payments ──
   try {
     if (process.env.STRIPE_SECRET_KEY) {
+      stats.stripeConfigured = true;
       const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
       const oneDayAgo = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
       const charges = await stripe.charges.list({ created: { gte: oneDayAgo }, limit: 100 });
       const failed = charges.data.filter(c => c.status === 'failed');
+      stats.stripeFailures = failed.length;
       if (failed.length === 0) {
         sections.stripe = `💳 STRIPE\n✅ All clear — no failed payments in the last 24 hours.`;
       } else {
@@ -17068,12 +17074,12 @@ async function assembleMorningBriefing() {
 
   // ── Assemble briefing ──
   const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}`;
-  return { briefing, sections, errors };
+  return { briefing, sections, errors, stats };
 }
 
 app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
   try {
-    let { briefing, sections, errors } = await assembleMorningBriefing();
+    let { briefing, sections, errors, stats } = await assembleMorningBriefing();
 
     // Append Gmail summary if provided
     const gmailText = req.body.gmailText || null;
@@ -17129,12 +17135,78 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
       console.error('Telegram send error:', err);
     }
 
+    // Send SMS summary via Twilio
+    let smsSent = false;
+    let smsError = null;
+    try {
+      const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+      const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+      const twilioFrom = process.env.TWILIO_PHONE_NUMBER;
+      const phones = [process.env.THERESA_PHONE_NUMBER, process.env.TIM_PHONE_NUMBER].filter(Boolean);
+
+      if (twilioSid && twilioAuth && twilioFrom && phones.length > 0) {
+        // Count gmail emails if provided
+        const gmailText = req.body.gmailText || '';
+        const emailMatch = gmailText.match(/(\d+)\s+new/i);
+        const emailCount = emailMatch ? emailMatch[1] : null;
+
+        // Build concise SMS
+        const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+        let sms = `YardDesk ${today}\n`;
+        sms += `Jobs: ${stats.totalJobs || 'none synced'}\n`;
+        if (stats.invoiceCount > 0) {
+          sms += `Past due: ${stats.invoiceCount} invoices, $${stats.invoiceTotal.toFixed(2)}\n`;
+        } else {
+          sms += `Past due: all clear\n`;
+        }
+        if (stats.stripeConfigured) {
+          sms += `Stripe: ${stats.stripeFailures > 0 ? stats.stripeFailures + ' failed' : 'ok'}\n`;
+        } else {
+          sms += `Stripe: not configured\n`;
+        }
+        if (emailCount) {
+          sms += `Email: ${emailCount} new`;
+        } else if (gmailText) {
+          sms += `Email: see Telegram`;
+        } else {
+          sms += `Email: no data`;
+        }
+
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+        const twilioHeaders = {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64')
+        };
+
+        const results = await Promise.allSettled(phones.map(async (to) => {
+          const body = new URLSearchParams({ To: to, From: twilioFrom, Body: sms });
+          const r = await fetch(twilioUrl, { method: 'POST', headers: twilioHeaders, body: body.toString() });
+          return r.json();
+        }));
+
+        const failures = results.filter(r => r.status === 'rejected' || r.value?.error_code);
+        if (failures.length === 0) {
+          smsSent = true;
+        } else {
+          smsError = failures.map(f => f.reason?.message || f.value?.message || 'unknown').join('; ');
+          console.error('SMS send failures:', failures);
+        }
+      } else {
+        smsError = 'Twilio credentials or phone numbers not configured';
+      }
+    } catch (err) {
+      smsError = err.message;
+      console.error('SMS send error:', err);
+    }
+
     res.json({
       success: true,
       briefing,
       sections,
+      stats,
       errors,
       telegram: { sent: telegramSent, error: telegramError },
+      sms: { sent: smsSent, error: smsError },
       timestamp: new Date().toISOString()
     });
   } catch (error) {

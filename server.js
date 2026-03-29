@@ -7389,6 +7389,88 @@ app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, 
   }
 });
 
+// AI reply suggestion - for app
+app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
+  if (!anthropicClient) {
+    return res.status(503).json({ success: false, error: 'AI service not configured' });
+  }
+  const { messages, contactName } = req.body;
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ success: false, error: 'messages array is required' });
+  }
+  try {
+    const conversationContext = messages.slice(-15).map(m =>
+      `${m.direction === 'outbound' ? 'Tim' : (contactName || 'Customer')}: ${m.body}`
+    ).join('\n');
+
+    const prompt = `You are Tim from Pappas & Co. Landscaping in Cleveland, OH. You're drafting a text message reply to a customer conversation.
+
+Customer name: ${contactName || 'Unknown'}
+
+Recent conversation:
+${conversationContext}
+
+Write a short, friendly, professional text message reply as Tim. Keep it under 300 characters. Be helpful and personable — this is a small local business. Don't use emojis excessively. Just return the message text, nothing else.`;
+
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const suggestion = message.content[0].text.trim();
+    res.json({ success: true, suggestion });
+  } catch (error) {
+    console.error('AI reply error:', error);
+    serverError(res, error, 'AI reply generation failed');
+  }
+});
+
+// AI voicemail summary - for app
+app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) => {
+  if (!anthropicClient) {
+    return res.status(503).json({ success: false, error: 'AI service not configured' });
+  }
+  const { transcription, contactName } = req.body;
+  if (!transcription) {
+    return res.status(400).json({ success: false, error: 'transcription is required' });
+  }
+  try {
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: `Summarize this voicemail in one short sentence (under 80 characters). Focus on what the caller wants or needs. No quotes, no "The caller..." prefix — just state what they want directly.\n\nCaller: ${contactName || 'Unknown'}\nTranscription: ${transcription}` }],
+    });
+    const summary = message.content[0].text.trim();
+    res.json({ success: true, summary });
+  } catch (error) {
+    console.error('AI voicemail summary error:', error);
+    serverError(res, error, 'AI voicemail summary failed');
+  }
+});
+
+// AI text-from-voicemail draft - for app
+app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) => {
+  if (!anthropicClient) {
+    return res.status(503).json({ success: false, error: 'AI service not configured' });
+  }
+  const { transcription, contactName } = req.body;
+  if (!transcription) {
+    return res.status(400).json({ success: false, error: 'transcription is required' });
+  }
+  try {
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      messages: [{ role: 'user', content: `You are Tim from Pappas & Co. Landscaping in Cleveland, OH. A customer left a voicemail and you need to text them back.\n\nCustomer name: ${contactName || 'Unknown'}\nVoicemail transcription: ${transcription}\n\nWrite a short, friendly, professional text message reply. Acknowledge what they said in the voicemail and address their needs. Keep it under 300 characters. Be helpful and personable. Just return the message text, nothing else.` }],
+    });
+    const draft = message.content[0].text.trim();
+    res.json({ success: true, draft });
+  } catch (error) {
+    console.error('AI text-from-voicemail error:', error);
+    serverError(res, error, 'AI text-from-voicemail failed');
+  }
+});
+
 // Send SMS - for app (with multi-number support)
 app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
   const { to, body, mediaUrls, fromNumber } = req.body;

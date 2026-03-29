@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head><title>Update CopilotCRM Cookie</title>
+<style>
+body { font-family: system-ui; max-width: 600px; margin: 60px auto; padding: 20px; }
+h2 { color: #1B4332; }
+textarea { width: 100%; height: 120px; font-size: 13px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+button { background: #1B4332; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 12px; }
+#result { margin-top: 16px; padding: 12px; border-radius: 8px; display: none; }
+.ok { background: #d4edda; color: #155724; }
+.err { background: #f8d7da; color: #721c24; }
+</style>
+</head>
+<body>
+<h2>Update CopilotCRM Cookie</h2>
+<p>Paste the full cookie string from CopilotCRM below:</p>
+<textarea id="cookie" placeholder="copilotApiAccessToken=eyJ..."></textarea>
+<br>
+<button onclick="go()">Update Cookie</button>
+<div id="result"></div>
+<script>
+async function go() {
+  var r = document.getElementById('result');
+  var c = document.getElementById('cookie').value.trim();
+  if (!c) { r.className='err'; r.style.display='block'; r.textContent='Paste a cookie first'; return; }
+  var t = localStorage.getItem('adminToken');
+  if (!t) { r.className='err'; r.style.display='block'; r.textContent='Not logged in — go to the dashboard first, then come back'; return; }
+  try {
+    var res = await fetch('/api/copilot/settings', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookies: c })
+    });
+    var d = await res.json();
+    if (d.success) {
+      r.className='ok'; r.textContent='Updated! Expires: ' + (d.expiresAt || 'unknown') + ' (' + (d.daysUntilExpiry || '?') + ' days)';
+    } else {
+      r.className='err'; r.textContent='Error: ' + (d.error || 'Unknown');
+    }
+  } catch(e) {
+    r.className='err'; r.textContent='Request failed: ' + e.message;
+  }
+  r.style.display='block';
+}
+</script>
+</body>
+</html>

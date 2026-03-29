@@ -17430,6 +17430,47 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
   }
 });
 
+// GET/POST CopilotCRM settings — view and update auth cookies
+app.get('/api/copilot/settings', authenticateToken, async (req, res) => {
+  try {
+    await ensureCopilotSyncTables();
+    const tokenInfo = await getCopilotToken();
+    res.json({
+      success: true,
+      hasCookies: !!tokenInfo,
+      expiresAt: tokenInfo?.expiresAt || null,
+      daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
+    });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM settings fetch failed');
+  }
+});
+
+app.post('/api/copilot/settings', authenticateToken, async (req, res) => {
+  const { cookies } = req.body;
+  if (!cookies || typeof cookies !== 'string') {
+    return res.status(400).json({ success: false, error: 'cookies string is required' });
+  }
+  try {
+    await ensureCopilotSyncTables();
+    await pool.query(
+      `INSERT INTO copilot_sync_settings (key, value, updated_at) VALUES ('copilot_cookies', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [cookies.trim()]
+    );
+    // Verify the token works
+    const tokenInfo = await getCopilotToken();
+    console.log(`✅ CopilotCRM cookies updated. Expires: ${tokenInfo?.expiresAt || 'unknown'}`);
+    res.json({
+      success: true,
+      message: 'CopilotCRM cookies updated',
+      expiresAt: tokenInfo?.expiresAt || null,
+      daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
+    });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM settings update failed');
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // TELEGRAM — send a message to Telegram
 // ═══════════════════════════════════════════════════════════════

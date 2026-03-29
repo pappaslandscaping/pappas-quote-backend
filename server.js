@@ -7794,7 +7794,10 @@ Today's date: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_
     res.json({ success: true, answer });
   } catch (error) {
     console.error('AI assistant error:', error);
-    serverError(res, error, 'AI assistant failed');
+    // Return specific error for debugging — this is an internal tool, not customer-facing
+    const errMsg = error.message || 'Unknown error';
+    const errType = error.constructor?.name || 'Error';
+    res.status(500).json({ success: false, error: `Assistant failed: ${errType}: ${errMsg}` });
   }
 });
 

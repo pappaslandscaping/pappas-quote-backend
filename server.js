@@ -7539,6 +7539,165 @@ app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) 
   }
 });
 
+// AI Business Assistant - for app
+app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
+  if (!anthropicClient) {
+    return res.status(503).json({ success: false, error: 'AI service not configured' });
+  }
+  const { question, conversationHistory } = req.body;
+  if (!question) {
+    return res.status(400).json({ success: false, error: 'question is required' });
+  }
+  try {
+    // Gather context from relevant tables based on the question
+    const context = [];
+
+    // Search customers by name if question mentions a person
+    const customerResult = await pool.query(`SELECT id, name, phone, mobile, email, street, city FROM customers ORDER BY name LIMIT 500`);
+    const customerNames = customerResult.rows.map(c => `${c.name} (${c.phone || c.mobile || 'no phone'})`).join(', ');
+
+    // Recent messages (last 50)
+    const messagesResult = await pool.query(`
+      SELECT m.direction, m.from_number, m.to_number, m.body, m.created_at,
+        COALESCE(c.name, 'Unknown') as customer_name
+      FROM messages m
+      LEFT JOIN customers c ON m.customer_id = c.id
+      ORDER BY m.created_at DESC LIMIT 50
+    `);
+    if (messagesResult.rows.length > 0) {
+      context.push('RECENT MESSAGES (last 50):\n' + messagesResult.rows.map(m =>
+        `[${new Date(m.created_at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short' })}] ${m.direction === 'inbound' ? m.customer_name + ' →' : '← Tim to ' + m.customer_name}: ${(m.body || '').substring(0, 200)}`
+      ).join('\n'));
+    }
+
+    // Recent calls and voicemails (from local calls table)
+    const callsResult = await pool.query(`
+      SELECT c.from_number, c.to_number, c.status, c.duration, c.transcription, c.created_at,
+        COALESCE(cu.name, 'Unknown') as customer_name
+      FROM calls c
+      LEFT JOIN customers cu ON RIGHT(REGEXP_REPLACE(cu.phone, '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(c.from_number, '[^0-9]', '', 'g'), 10)
+        OR RIGHT(REGEXP_REPLACE(COALESCE(cu.mobile, ''), '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(c.from_number, '[^0-9]', '', 'g'), 10)
+      ORDER BY c.created_at DESC LIMIT 30
+    `);
+    if (callsResult.rows.length > 0) {
+      context.push('RECENT CALLS/VOICEMAILS (last 30):\n' + callsResult.rows.map(c =>
+        `[${new Date(c.created_at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short' })}] ${c.customer_name} (${c.from_number}) — ${c.status}${c.duration ? `, ${c.duration}s` : ''}${c.transcription ? ` — Transcription: "${c.transcription.substring(0, 200)}"` : ''}`
+      ).join('\n'));
+    }
+
+    // Invoices
+    const invoicesResult = await pool.query(`
+      SELECT i.invoice_number, i.customer_name, i.status, i.total, i.due_date, i.created_at
+      FROM invoices i
+      ORDER BY i.created_at DESC LIMIT 30
+    `);
+    if (invoicesResult.rows.length > 0) {
+      context.push('RECENT INVOICES (last 30):\n' + invoicesResult.rows.map(i =>
+        `#${i.invoice_number || i.id} — ${i.customer_name} — $${parseFloat(i.total || 0).toFixed(2)} — ${i.status}${i.due_date ? ` — Due: ${new Date(i.due_date).toLocaleDateString('en-US')}` : ''}`
+      ).join('\n'));
+    }
+
+    // Scheduled jobs
+    const jobsResult = await pool.query(`
+      SELECT j.customer_name, j.service_type, j.date, j.status, j.assigned_crew, j.service_price, j.address
+      FROM scheduled_jobs j
+      WHERE j.date >= CURRENT_DATE - INTERVAL '7 days'
+      ORDER BY j.date ASC LIMIT 50
+    `);
+    if (jobsResult.rows.length > 0) {
+      context.push('SCHEDULED JOBS (past week + upcoming):\n' + jobsResult.rows.map(j =>
+        `${j.date ? new Date(j.date).toLocaleDateString('en-US') : 'No date'} — ${j.customer_name} — ${j.service_type} — ${j.status || 'scheduled'}${j.assigned_crew ? ` — Crew: ${j.assigned_crew}` : ''}${j.service_price ? ` — $${j.service_price}` : ''}`
+      ).join('\n'));
+    }
+
+    // Quotes
+    const quotesResult = await pool.query(`
+      SELECT q.quote_number, q.customer_name, q.status, q.total, q.created_at
+      FROM sent_quotes q
+      ORDER BY q.created_at DESC LIMIT 20
+    `);
+    if (quotesResult.rows.length > 0) {
+      context.push('RECENT QUOTES (last 20):\n' + quotesResult.rows.map(q =>
+        `#${q.quote_number || q.id} — ${q.customer_name} — $${parseFloat(q.total || 0).toFixed(2)} — ${q.status}`
+      ).join('\n'));
+    }
+
+    const systemPrompt = `You are the Pappas & Co. Landscaping business assistant. You help Tim and Theresa's team answer questions about their landscaping business in Cleveland, OH. Service areas: Lakewood, Brook Park, Bay Village, and Westpark.
+
+You have access to the following business data:
+
+CUSTOMERS (${customerResult.rows.length} total):
+${customerNames}
+
+${context.join('\n\n')}
+
+Answer the user's question based on this data. Be friendly, conversational, and professional. If you're not sure about something, say so honestly. Keep answers concise but thorough. Format important details clearly.
+
+If the question is about a specific customer, look for their name in the data and include all relevant information (messages, calls, invoices, jobs).
+
+Today's date: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+    const apiMessages = [{ role: 'user', content: systemPrompt }];
+    if (conversationHistory && Array.isArray(conversationHistory)) {
+      // Add prior conversation turns (skip the first which is the current question)
+      for (const msg of conversationHistory.slice(0, -1)) {
+        apiMessages.push({ role: msg.role, content: msg.content });
+      }
+    }
+    apiMessages.push({ role: apiMessages.length > 1 ? 'user' : 'user', content: question });
+
+    // Fix: ensure alternating roles for Anthropic API
+    if (apiMessages.length > 1 && apiMessages[apiMessages.length - 1].role === apiMessages[apiMessages.length - 2].role) {
+      // Merge consecutive same-role messages
+      const last = apiMessages.pop();
+      apiMessages[apiMessages.length - 1].content += '\n\n' + last.content;
+    }
+
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: apiMessages,
+    });
+    const answer = message.content[0].text.trim();
+    res.json({ success: true, answer });
+  } catch (error) {
+    console.error('AI assistant error:', error);
+    serverError(res, error, 'AI assistant failed');
+  }
+});
+
+// AI freeform draft - for app (new message compose)
+app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
+  if (!anthropicClient) {
+    return res.status(503).json({ success: false, error: 'AI service not configured' });
+  }
+  const { contactName, prompt, refinements } = req.body;
+  if (!prompt && (!refinements || refinements.length === 0)) {
+    return res.status(400).json({ success: false, error: 'prompt is required' });
+  }
+  try {
+    const systemPrompt = `You are Tim from Pappas & Co. Landscaping in Cleveland, OH. Draft a text message based on the user's description.${contactName ? `\n\nRecipient: ${contactName}` : ''}\n\nKeep it under 300 characters. Be friendly, professional, and personable. Just return the message text, nothing else.`;
+
+    const apiMessages = [{ role: 'user', content: prompt ? `${systemPrompt}\n\nUser wants to say: ${prompt}` : systemPrompt }];
+    if (refinements && Array.isArray(refinements)) {
+      for (const r of refinements) {
+        apiMessages.push({ role: r.role, content: r.content });
+      }
+    }
+
+    const message = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 256,
+      messages: apiMessages,
+    });
+    const draft = message.content[0].text.trim();
+    res.json({ success: true, draft });
+  } catch (error) {
+    console.error('AI draft error:', error);
+    serverError(res, error, 'AI draft generation failed');
+  }
+});
+
 // Send SMS - for app (with multi-number support)
 app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
   const { to, body, mediaUrls, fromNumber } = req.body;

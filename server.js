@@ -7599,14 +7599,14 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
 
     // Scheduled jobs
     const jobsResult = await pool.query(`
-      SELECT j.customer_name, j.service_type, j.date, j.status, j.assigned_crew, j.service_price, j.address
+      SELECT j.customer_name, j.service_type, j.job_date, j.status, j.crew_assigned, j.service_price, j.address
       FROM scheduled_jobs j
-      WHERE j.date >= CURRENT_DATE - INTERVAL '7 days'
-      ORDER BY j.date ASC LIMIT 50
+      WHERE j.job_date >= CURRENT_DATE - INTERVAL '7 days'
+      ORDER BY j.job_date ASC LIMIT 50
     `);
     if (jobsResult.rows.length > 0) {
       context.push('SCHEDULED JOBS (past week + upcoming):\n' + jobsResult.rows.map(j =>
-        `${j.date ? new Date(j.date).toLocaleDateString('en-US') : 'No date'} — ${j.customer_name} — ${j.service_type} — ${j.status || 'scheduled'}${j.assigned_crew ? ` — Crew: ${j.assigned_crew}` : ''}${j.service_price ? ` — $${j.service_price}` : ''}`
+        `${j.job_date ? new Date(j.job_date).toLocaleDateString('en-US') : 'No date'} — ${j.customer_name} — ${j.service_type} — ${j.status || 'scheduled'}${j.crew_assigned ? ` — Crew: ${j.crew_assigned}` : ''}${j.service_price ? ` — $${j.service_price}` : ''}`
       ).join('\n'));
     }
 

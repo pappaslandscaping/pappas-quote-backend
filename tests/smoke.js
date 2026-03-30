@@ -338,7 +338,7 @@ const endpoints = [
 
   // ── CopilotCRM Sync ──
   ['POST', '/api/copilot/sync', { startDate: '2020-01-01', endDate: '2020-01-01' }],
-  // SKIP: launches headless browser — ['POST', '/api/copilot/refresh-cookies', {}],
+  // SKIP: logs into CopilotCRM and overwrites cookies — ['POST', '/api/copilot/refresh-cookies', {}],
 
   // ── Morning Briefing ──
   ['POST', '/api/morning-briefing', {}],

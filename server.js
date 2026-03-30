@@ -18304,28 +18304,36 @@ async function assembleMorningBriefing() {
     errors.push('stripe');
   }
 
-  // ── Section 4: Stripe Next-Day Deposit ──
+  // ── Section 4: Stripe Upcoming Deposits ──
   try {
     if (process.env.STRIPE_SECRET_KEY) {
       const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-      const payouts = await stripe.payouts.list({ limit: 1, status: 'pending' });
-      if (payouts.data.length > 0) {
-        const payout = payouts.data[0];
-        const amt = (payout.amount / 100).toFixed(2);
-        const arrival = new Date(payout.arrival_date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
-        sections.deposit = `💵 DEPOSIT: $${amt} arriving ${arrival}`;
-        stats.depositAmount = payout.amount / 100;
-        stats.depositDate = arrival;
+      const payouts = await stripe.payouts.list({ limit: 5 });
+      const upcomingPayouts = payouts.data.filter(p => p.status === 'in_transit' || p.status === 'pending');
+      if (upcomingPayouts.length > 0) {
+        upcomingPayouts.sort((a, b) => a.arrival_date - b.arrival_date);
+        const total = upcomingPayouts.reduce((sum, p) => sum + p.amount, 0) / 100;
+        let depText = `💰 STRIPE DEPOSITS\n─────────────────────\n`;
+        for (const p of upcomingPayouts) {
+          const amt = (p.amount / 100).toFixed(2);
+          const arrival = new Date(p.arrival_date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+          depText += `${arrival}: $${amt}\n`;
+        }
+        depText += `Total incoming: $${total.toFixed(2)}`;
+        sections.deposit = depText;
+        stats.depositAmount = total;
+        stats.depositCount = upcomingPayouts.length;
       } else {
-        sections.deposit = `💵 DEPOSIT: No pending deposits.`;
+        sections.deposit = `💰 STRIPE DEPOSITS\nNo upcoming deposits.`;
         stats.depositAmount = 0;
+        stats.depositCount = 0;
       }
     } else {
-      sections.deposit = `💵 DEPOSIT: Stripe not configured.`;
+      sections.deposit = `💰 STRIPE DEPOSITS\nStripe not configured.`;
     }
   } catch (err) {
     console.error('Morning briefing — deposit error:', err);
-    sections.deposit = `💵 DEPOSIT: ⚠️ Error fetching payout: ${err.message}`;
+    sections.deposit = `💰 STRIPE DEPOSITS\n⚠️ Error fetching payouts: ${err.message}`;
     errors.push('deposit');
   }
 

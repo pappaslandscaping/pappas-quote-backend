@@ -3614,8 +3614,18 @@ app.post('/api/calls', async (req, res) => {
     );
     res.json({ success: true, call: result.rows[0] });
 
-    // Send email notification for voicemails (fire-and-forget)
+    // Send push + email notification for voicemails (fire-and-forget)
     if (status === 'voicemail') {
+      // Push notification
+      const cleanedVmPhonePush = from_number.replace(/\D/g, '').slice(-10);
+      let vmPushName = null;
+      try {
+        const vmPushCustomer = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedVmPhonePush}`]);
+        vmPushName = vmPushCustomer.rows[0]?.name || null;
+      } catch (e) {}
+      const vmPushTitle = `🎙️ ${vmPushName || from_number}`;
+      const vmPushBody = transcription ? transcription.substring(0, 100) : 'New voicemail';
+      sendPushToAllDevices(vmPushTitle, vmPushBody, { type: 'voicemail' }).catch(err => console.error('Voicemail push error:', err));
       const cleanedVmPhone = from_number.replace(/\D/g, '').slice(-10);
       let vmContactName = null;
       try {
@@ -8406,8 +8416,8 @@ app.get('/api/mms-image/:id', async (req, res) => {
 app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
   const { to, body, mediaUrls, fromNumber } = req.body;
 
-  if (!to || !body) {
-    return res.status(400).json({ message: 'Phone number and message body required' });
+  if (!to || (!body && (!mediaUrls || mediaUrls.length === 0))) {
+    return res.status(400).json({ message: 'Phone number and message body or image required' });
   }
 
   try {
@@ -8427,7 +8437,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
 
     // Send via Twilio
     const messageOptions = {
-      body,
+      body: body || '',
       from: sendFromNumber,
       to: formattedTo
     };

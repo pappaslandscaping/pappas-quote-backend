@@ -17965,6 +17965,89 @@ app.post('/api/copilot/settings', authenticateToken, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// COPILOT — automated cookie refresh via Puppeteer headless login
+// ═══════════════════════════════════════════════════════════════
+
+app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => {
+  const username = process.env.COPILOT_USERNAME || process.env.COPILOTCRM_USERNAME;
+  const password = process.env.COPILOT_PASSWORD || process.env.COPILOTCRM_PASSWORD;
+  if (!username || !password) {
+    return res.status(500).json({ success: false, error: 'COPILOT_USERNAME and COPILOT_PASSWORD env vars are not set' });
+  }
+
+  let browser;
+  try {
+    const puppeteer = require('puppeteer');
+    console.log('🔄 CopilotCRM cookie refresh: launching headless browser...');
+
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Navigate to CopilotCRM login
+    await page.goto('https://secure.copilotcrm.com/login', { waitUntil: 'networkidle2', timeout: 30000 });
+
+    // Fill in credentials and submit
+    await page.waitForSelector('input[name="email"], input[type="email"]', { timeout: 15000 });
+    await page.type('input[name="email"], input[type="email"]', username, { delay: 50 });
+    await page.type('input[name="password"], input[type="password"]', password, { delay: 50 });
+
+    // Click login button
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
+      page.click('button[type="submit"]'),
+    ]);
+
+    // Grab all cookies from the logged-in session
+    const cookies = await page.cookies();
+    if (!cookies || cookies.length === 0) {
+      throw new Error('No cookies returned after login — login may have failed');
+    }
+
+    // Check for the access token cookie specifically
+    const accessTokenCookie = cookies.find(c => c.name === 'copilotApiAccessToken');
+    if (!accessTokenCookie) {
+      const currentUrl = page.url();
+      throw new Error(`copilotApiAccessToken cookie not found after login. Current URL: ${currentUrl}`);
+    }
+
+    // Build cookie string in the format the sync expects
+    const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+    // Store in copilot_sync_settings
+    await ensureCopilotSyncTables();
+    await pool.query(
+      `INSERT INTO copilot_sync_settings (key, value, updated_at) VALUES ('copilot_cookies', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [cookieString]
+    );
+
+    // Verify stored token
+    const tokenInfo = await getCopilotToken();
+    console.log(`✅ CopilotCRM cookies auto-refreshed via Puppeteer. Expires: ${tokenInfo?.expiresAt || 'unknown'}`);
+
+    await browser.close();
+    browser = null;
+
+    res.json({
+      success: true,
+      message: 'CopilotCRM cookies refreshed via headless login',
+      cookieCount: cookies.length,
+      expiresAt: tokenInfo?.expiresAt || null,
+      daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
+    });
+  } catch (error) {
+    if (browser) {
+      try { await browser.close(); } catch (_) {}
+    }
+    console.error('❌ CopilotCRM cookie refresh failed:', error.message);
+    serverError(res, error, 'CopilotCRM cookie refresh failed');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // TELEGRAM — send a message to Telegram
 // ═══════════════════════════════════════════════════════════════
 

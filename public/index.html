@@ -1733,6 +1733,7 @@ setInterval(loadAll, 60000);
     let quoteStep = null; // 'name' or 'address'
     let followupStep = null; // 'details' or 'channel'
     let collected = {};
+    let conversationHistory = []; // Track chat history for multi-turn assistant
 
     function getToken() {
         return localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
@@ -1897,13 +1898,18 @@ setInterval(loadAll, 60000);
             return;
         }
 
-        // Default: general chat
+        // Default: general chat — uses database-aware assistant
+        conversationHistory.push({ role: 'user', content: text });
         addTypingIndicator();
         try {
-            const data = await sendToAPI('/api/ai/chat', { message: text });
+            const data = await sendToAPI('/api/app/ai/assistant', {
+                question: text,
+                conversationHistory: conversationHistory
+            });
             removeTypingIndicator();
-            const response = data.reply || data.response || data.result || data.message || JSON.stringify(data);
+            const response = data.answer || data.reply || data.response || JSON.stringify(data);
             addMessage(response, 'assistant');
+            conversationHistory.push({ role: 'assistant', content: response });
         } catch (err) {
             removeTypingIndicator();
             addMessage('Error: ' + err.message, 'assistant');

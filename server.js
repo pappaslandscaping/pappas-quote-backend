@@ -7913,6 +7913,19 @@ Guidelines:
       }
     }
 
+    // If we exhausted rounds without a text answer, force one final text-only call
+    if (!finalAnswer) {
+      try {
+        const forceTextResponse = await anthropicClient.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages: currentMessages,
+          tool_choice: { type: 'none' },
+        });
+        finalAnswer = forceTextResponse.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+      } catch { /* fall through to generic message */ }
+    }
     if (!finalAnswer) {
       finalAnswer = 'I ran into an issue processing your question. Could you try rephrasing it?';
     }

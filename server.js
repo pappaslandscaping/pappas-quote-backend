@@ -7551,79 +7551,133 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
   try {
     // Gather context from relevant tables based on the question
     const context = [];
+    const qLower = question.toLowerCase();
+    const fmtDate = (d) => new Date(d).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short' });
 
-    // Search customers by name if question mentions a person
-    const customerResult = await pool.query(`SELECT id, name, phone, mobile, email, street, city FROM customers ORDER BY name LIMIT 500`);
-    const customerNames = customerResult.rows.map(c => `${c.name} (${c.phone || c.mobile || 'no phone'})`).join(', ');
+    // Load customer list (names only for matching, not for the prompt)
+    const customerResult = await pool.query(`SELECT id, name, phone, mobile, email, street, city, state, postal_code FROM customers ORDER BY name LIMIT 500`);
 
-    // Recent messages (last 50)
-    const messagesResult = await pool.query(`
-      SELECT m.direction, m.from_number, m.to_number, m.body, m.created_at,
-        COALESCE(c.name, 'Unknown') as customer_name
-      FROM messages m
-      LEFT JOIN customers c ON m.customer_id = c.id
-      ORDER BY m.created_at DESC LIMIT 50
-    `);
-    if (messagesResult.rows.length > 0) {
-      context.push('RECENT MESSAGES (last 50):\n' + messagesResult.rows.map(m =>
-        `[${new Date(m.created_at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short' })}] ${m.direction === 'inbound' ? m.customer_name + ' →' : '← Tim to ' + m.customer_name}: ${(m.body || '').substring(0, 200)}`
-      ).join('\n'));
+    // Try to identify a specific customer the question is about
+    let focusCustomer = customerResult.rows.find(c => c.name && qLower.includes(c.name.toLowerCase()));
+    if (!focusCustomer) {
+      focusCustomer = customerResult.rows.find(c => {
+        if (!c.name) return false;
+        const parts = c.name.trim().split(/\s+/);
+        const lastName = parts[parts.length - 1];
+        return lastName.length > 3 && qLower.includes(lastName.toLowerCase());
+      });
     }
 
-    // Recent calls and voicemails (from local calls table)
-    const callsResult = await pool.query(`
-      SELECT c.from_number, c.to_number, c.status, c.duration, c.transcription, c.created_at,
-        COALESCE(cu.name, 'Unknown') as customer_name
-      FROM calls c
-      LEFT JOIN customers cu ON RIGHT(REGEXP_REPLACE(cu.phone, '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(c.from_number, '[^0-9]', '', 'g'), 10)
-        OR RIGHT(REGEXP_REPLACE(COALESCE(cu.mobile, ''), '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(c.from_number, '[^0-9]', '', 'g'), 10)
-      ORDER BY c.created_at DESC LIMIT 30
-    `);
-    if (callsResult.rows.length > 0) {
-      context.push('RECENT CALLS/VOICEMAILS (last 30):\n' + callsResult.rows.map(c =>
-        `[${new Date(c.created_at).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short' })}] ${c.customer_name} (${c.from_number}) — ${c.status}${c.duration ? `, ${c.duration}s` : ''}${c.transcription ? ` — Transcription: "${c.transcription.substring(0, 200)}"` : ''}`
-      ).join('\n'));
-    }
+    if (focusCustomer) {
+      // FOCUSED MODE: question is about a specific customer — give detailed data for just them
+      context.push(`TARGET CUSTOMER (this is who the user is asking about — use these exact details):\n  Name: ${focusCustomer.name}\n  Phone: ${focusCustomer.phone || focusCustomer.mobile || 'none'}\n  Mobile: ${focusCustomer.mobile || 'none'}\n  Email: ${focusCustomer.email || 'none'}\n  Address: ${[focusCustomer.street, focusCustomer.city, focusCustomer.state, focusCustomer.postal_code].filter(Boolean).join(', ')}`);
 
-    // Invoices
-    const invoicesResult = await pool.query(`
-      SELECT i.invoice_number, i.customer_name, i.status, i.total, i.due_date, i.created_at
-      FROM invoices i
-      ORDER BY i.created_at DESC LIMIT 30
-    `);
-    if (invoicesResult.rows.length > 0) {
-      context.push('RECENT INVOICES (last 30):\n' + invoicesResult.rows.map(i =>
-        `#${i.invoice_number || i.id} — ${i.customer_name} — $${parseFloat(i.total || 0).toFixed(2)} — ${i.status}${i.due_date ? ` — Due: ${new Date(i.due_date).toLocaleDateString('en-US')}` : ''}`
-      ).join('\n'));
-    }
+      // Messages for this customer
+      const custMessages = await pool.query(`
+        SELECT m.direction, m.from_number, m.to_number, m.body, m.created_at
+        FROM messages m
+        WHERE m.customer_id = $1
+        ORDER BY m.created_at DESC LIMIT 20
+      `, [focusCustomer.id]);
+      if (custMessages.rows.length > 0) {
+        context.push(`MESSAGES WITH ${focusCustomer.name} (${custMessages.rows.length} recent):\n` + custMessages.rows.map(m =>
+          `[${fmtDate(m.created_at)}] ${m.direction === 'inbound' ? focusCustomer.name + ' →' : '← Tim →'}: ${(m.body || '').substring(0, 300)}`
+        ).join('\n'));
+      }
 
-    // Scheduled jobs
-    const jobsResult = await pool.query(`
-      SELECT j.customer_name, j.service_type, j.job_date, j.status, j.crew_assigned, j.service_price, j.address
-      FROM scheduled_jobs j
-      WHERE j.job_date >= CURRENT_DATE - INTERVAL '7 days'
-      ORDER BY j.job_date ASC LIMIT 50
-    `);
-    if (jobsResult.rows.length > 0) {
-      context.push('SCHEDULED JOBS (past week + upcoming):\n' + jobsResult.rows.map(j =>
-        `${j.job_date ? new Date(j.job_date).toLocaleDateString('en-US') : 'No date'} — ${j.customer_name} — ${j.service_type} — ${j.status || 'scheduled'}${j.crew_assigned ? ` — Crew: ${j.crew_assigned}` : ''}${j.service_price ? ` — $${j.service_price}` : ''}`
-      ).join('\n'));
-    }
+      // Calls for this customer
+      const custPhone = (focusCustomer.mobile || focusCustomer.phone || '').replace(/\D/g, '').slice(-10);
+      if (custPhone) {
+        const custCalls = await pool.query(`
+          SELECT from_number, to_number, status, duration, transcription, created_at
+          FROM calls
+          WHERE RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1
+             OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
+          ORDER BY created_at DESC LIMIT 10
+        `, [custPhone]);
+        if (custCalls.rows.length > 0) {
+          context.push(`CALLS WITH ${focusCustomer.name} (${custCalls.rows.length} recent):\n` + custCalls.rows.map(c =>
+            `[${fmtDate(c.created_at)}] ${c.status}${c.duration ? `, ${c.duration}s` : ''}${c.transcription ? ` — "${c.transcription.substring(0, 300)}"` : ''}`
+          ).join('\n'));
+        }
+      }
 
-    // Quotes
-    const quotesResult = await pool.query(`
-      SELECT q.quote_number, q.customer_name, q.status, q.total, q.created_at
-      FROM sent_quotes q
-      ORDER BY q.created_at DESC LIMIT 20
-    `);
-    if (quotesResult.rows.length > 0) {
-      context.push('RECENT QUOTES (last 20):\n' + quotesResult.rows.map(q =>
-        `#${q.quote_number || q.id} — ${q.customer_name} — $${parseFloat(q.total || 0).toFixed(2)} — ${q.status}`
-      ).join('\n'));
+      // Invoices for this customer
+      const custInvoices = await pool.query(`SELECT invoice_number, status, total, due_date, created_at FROM invoices WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 10`, [focusCustomer.id]);
+      if (custInvoices.rows.length > 0) {
+        context.push(`INVOICES FOR ${focusCustomer.name}:\n` + custInvoices.rows.map(i =>
+          `#${i.invoice_number || 'N/A'} — $${parseFloat(i.total || 0).toFixed(2)} — ${i.status}${i.due_date ? ` — Due: ${new Date(i.due_date).toLocaleDateString('en-US')}` : ''}`
+        ).join('\n'));
+      }
+
+      // Jobs for this customer
+      const custJobs = await pool.query(`SELECT service_type, job_date, status, crew_assigned, service_price, address FROM scheduled_jobs WHERE customer_id = $1 OR customer_name ILIKE $2 ORDER BY job_date DESC LIMIT 20`, [focusCustomer.id, `%${focusCustomer.name}%`]);
+      if (custJobs.rows.length > 0) {
+        context.push(`JOBS FOR ${focusCustomer.name} (${custJobs.rows.length}):\n` + custJobs.rows.map(j =>
+          `${j.job_date ? new Date(j.job_date).toLocaleDateString('en-US') : 'No date'} — ${j.service_type} — ${j.status || 'scheduled'}${j.crew_assigned ? ` — Crew: ${j.crew_assigned}` : ''}${j.service_price ? ` — $${j.service_price}` : ''} — ${j.address || ''}`
+        ).join('\n'));
+      }
+
+      // Quotes for this customer
+      const custQuotes = await pool.query(`SELECT quote_number, status, total, created_at FROM sent_quotes WHERE customer_id = $1 OR customer_name ILIKE $2 ORDER BY created_at DESC LIMIT 10`, [focusCustomer.id, `%${focusCustomer.name}%`]);
+      if (custQuotes.rows.length > 0) {
+        context.push(`QUOTES FOR ${focusCustomer.name}:\n` + custQuotes.rows.map(q =>
+          `#${q.quote_number || 'N/A'} — $${parseFloat(q.total || 0).toFixed(2)} — ${q.status}`
+        ).join('\n'));
+      }
+    } else {
+      // GENERAL MODE: no specific customer — show recent activity across the business
+      const customerNames = customerResult.rows.slice(0, 100).map(c => c.name).filter(Boolean).join(', ');
+      context.push(`CUSTOMER LIST (${customerResult.rows.length} total, first 100): ${customerNames}`);
+
+      const messagesResult = await pool.query(`
+        SELECT m.direction, m.body, m.created_at, COALESCE(c.name, 'Unknown') as customer_name
+        FROM messages m LEFT JOIN customers c ON m.customer_id = c.id
+        ORDER BY m.created_at DESC LIMIT 25
+      `);
+      if (messagesResult.rows.length > 0) {
+        context.push('RECENT MESSAGES:\n' + messagesResult.rows.map(m =>
+          `[${fmtDate(m.created_at)}] ${m.direction === 'inbound' ? m.customer_name + ' →' : '← Tim →'}: ${(m.body || '').substring(0, 150)}`
+        ).join('\n'));
+      }
+
+      const callsResult = await pool.query(`
+        SELECT c.from_number, c.status, c.duration, c.transcription, c.created_at,
+          COALESCE(cu.name, 'Unknown') as customer_name
+        FROM calls c
+        LEFT JOIN customers cu ON RIGHT(REGEXP_REPLACE(COALESCE(cu.mobile,''), '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(c.from_number, '[^0-9]', '', 'g'), 10)
+          OR RIGHT(REGEXP_REPLACE(cu.phone, '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(c.from_number, '[^0-9]', '', 'g'), 10)
+        ORDER BY c.created_at DESC LIMIT 15
+      `);
+      if (callsResult.rows.length > 0) {
+        context.push('RECENT CALLS:\n' + callsResult.rows.map(c =>
+          `[${fmtDate(c.created_at)}] ${c.customer_name} — ${c.status}${c.transcription ? ` — "${c.transcription.substring(0, 150)}"` : ''}`
+        ).join('\n'));
+      }
+
+      const invoicesResult = await pool.query(`SELECT invoice_number, customer_name, status, total, due_date FROM invoices ORDER BY created_at DESC LIMIT 15`);
+      if (invoicesResult.rows.length > 0) {
+        context.push('RECENT INVOICES:\n' + invoicesResult.rows.map(i =>
+          `#${i.invoice_number || 'N/A'} — ${i.customer_name} — $${parseFloat(i.total || 0).toFixed(2)} — ${i.status}`
+        ).join('\n'));
+      }
+
+      const jobsResult = await pool.query(`SELECT customer_name, service_type, job_date, status, crew_assigned FROM scheduled_jobs WHERE job_date >= CURRENT_DATE - INTERVAL '7 days' ORDER BY job_date ASC LIMIT 30`);
+      if (jobsResult.rows.length > 0) {
+        context.push('SCHEDULED JOBS (past week + upcoming):\n' + jobsResult.rows.map(j =>
+          `${j.job_date ? new Date(j.job_date).toLocaleDateString('en-US') : '?'} — ${j.customer_name} — ${j.service_type} — ${j.status || 'scheduled'}${j.crew_assigned ? ` — ${j.crew_assigned}` : ''}`
+        ).join('\n'));
+      }
+
+      const quotesResult = await pool.query(`SELECT quote_number, customer_name, status, total FROM sent_quotes ORDER BY created_at DESC LIMIT 10`);
+      if (quotesResult.rows.length > 0) {
+        context.push('RECENT QUOTES:\n' + quotesResult.rows.map(q =>
+          `#${q.quote_number || 'N/A'} — ${q.customer_name} — $${parseFloat(q.total || 0).toFixed(2)} — ${q.status}`
+        ).join('\n'));
+      }
     }
 
     // CopilotCRM fallback — only query when question needs live dispatch, CRM notes, or service history
-    const qLower = question.toLowerCase();
     const needsDispatch = /crew status|dispatch|route today|what.?s happening today|what are the crews|who.?s working/i.test(qLower);
     const needsCrmLookup = /copilot|crm|crm notes|notes on/i.test(qLower);
     const needsServiceHistory = /service history|past services|what did we do|jobs completed|previous work|work history|last service|when did we.*service|services did|did we do for/i.test(qLower);
@@ -7829,14 +7883,11 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
 
 You have access to the following business data:
 
-CUSTOMERS (${customerResult.rows.length} total):
-${customerNames}
-
 ${context.join('\n\n')}
 
 Answer the user's question based on this data. Be friendly, conversational, and professional. If you're not sure about something, say so honestly. Keep answers concise but thorough. Format important details clearly.
 
-If the question is about a specific customer, look for their name in the data and include all relevant information (messages, calls, invoices, jobs).
+IMPORTANT: When a TARGET CUSTOMER section is provided, use ONLY the exact details from that section for their name, phone, address, etc. Do NOT paraphrase or approximate addresses — quote them exactly as shown. Include all relevant information from their messages, calls, invoices, and jobs.
 ${needsCopilot ? '\nIf CopilotCRM data is included above, mention what came from CopilotCRM vs local records when relevant.' : ''}
 Today's date: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
 

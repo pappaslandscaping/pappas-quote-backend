@@ -18308,39 +18308,41 @@ async function assembleMorningBriefing() {
   try {
     if (process.env.STRIPE_SECRET_KEY) {
       const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-      const nowTs = Math.floor(Date.now() / 1000);
-      const payouts = await stripe.payouts.list({ limit: 10, arrival_date: { gte: nowTs } });
-      console.log('Payouts found:', JSON.stringify(payouts.data.map(p => ({ status: p.status, amount: p.amount, arrival: p.arrival_date }))));
-      const upcomingPayouts = payouts.data.filter(p => p.status === 'in_transit' || p.status === 'pending');
+      const threeDaysAgo = Math.floor(Date.now() / 1000) - 86400 * 3;
 
-      if (upcomingPayouts.length > 0) {
-        upcomingPayouts.sort((a, b) => a.arrival_date - b.arrival_date);
-        const total = upcomingPayouts.reduce((sum, p) => sum + p.amount, 0) / 100;
+      // Fetch both balance and recent payouts
+      const [balance, payouts] = await Promise.all([
+        stripe.balance.retrieve(),
+        stripe.payouts.list({ limit: 10, created: { gte: threeDaysAgo } }),
+      ]);
+      console.log('Stripe balance:', JSON.stringify(balance));
+      console.log('Recent payouts:', JSON.stringify(payouts.data.map(p => ({ id: p.id, status: p.status, amount: p.amount, arrival: p.arrival_date, created: p.created }))));
+
+      const pendingTotal = balance.pending.reduce((sum, b) => sum + b.amount, 0) / 100;
+
+      if (payouts.data.length > 0) {
+        // Show each payout with arrival date and amount
+        const sorted = [...payouts.data].sort((a, b) => a.arrival_date - b.arrival_date);
+        const total = sorted.reduce((sum, p) => sum + p.amount, 0) / 100;
         let depText = `💰 STRIPE DEPOSITS\n─────────────────────\n`;
-        for (const p of upcomingPayouts) {
+        for (const p of sorted) {
           const amt = (p.amount / 100).toFixed(2);
           const arrival = new Date(p.arrival_date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
-          depText += `${arrival}: $${amt}\n`;
+          const statusTag = p.status === 'paid' ? ' ✓' : p.status === 'in_transit' ? ' →' : '';
+          depText += `${arrival}: $${amt}${statusTag}\n`;
         }
         depText += `Total incoming: $${total.toFixed(2)}`;
         sections.deposit = depText;
         stats.depositAmount = total;
-        stats.depositCount = upcomingPayouts.length;
+        stats.depositCount = sorted.length;
+      } else if (pendingTotal > 0) {
+        sections.deposit = `💰 STRIPE DEPOSITS\nPending balance: $${pendingTotal.toFixed(2)} (arriving within 1-2 business days)`;
+        stats.depositAmount = pendingTotal;
+        stats.depositCount = 0;
       } else {
-        // Fallback: show pending balance from Stripe
-        console.log('No upcoming payouts found, falling back to balance.retrieve()');
-        const balance = await stripe.balance.retrieve();
-        console.log('Stripe balance:', JSON.stringify(balance));
-        const pendingTotal = balance.pending.reduce((sum, b) => sum + b.amount, 0) / 100;
-        if (pendingTotal > 0) {
-          sections.deposit = `💰 STRIPE DEPOSITS\nPending balance: $${pendingTotal.toFixed(2)}`;
-          stats.depositAmount = pendingTotal;
-          stats.depositCount = 0;
-        } else {
-          sections.deposit = `💰 STRIPE DEPOSITS\nNo upcoming deposits.`;
-          stats.depositAmount = 0;
-          stats.depositCount = 0;
-        }
+        sections.deposit = `💰 STRIPE DEPOSITS\nNo upcoming deposits.`;
+        stats.depositAmount = 0;
+        stats.depositCount = 0;
       }
     } else {
       sections.deposit = `💰 STRIPE DEPOSITS\nStripe not configured.`;
@@ -18352,7 +18354,7 @@ async function assembleMorningBriefing() {
   }
 
   // ── Assemble briefing ──
-  const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}\n\n${sections.deposit}`;
+  const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.deposit}\n\n${sections.invoices}\n\n${sections.stripe}`;
   return { briefing, sections, errors, stats };
 }
 
@@ -18387,7 +18389,7 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
         };
 
         // If briefing is long and we have gmailText, send as two messages
-        const mainBriefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}\n\n${sections.deposit}`;
+        const mainBriefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.deposit}\n\n${sections.invoices}\n\n${sections.stripe}`;
         if (gmailText && mainBriefing.length + gmailText.length > 4000) {
           const tgData1 = await sendTg(mainBriefing);
           const tgData2 = await sendTg(gmailText);

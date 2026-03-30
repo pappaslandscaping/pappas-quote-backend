@@ -7549,12 +7549,387 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
     return res.status(400).json({ success: false, error: 'question is required' });
   }
   try {
-    // Gather context from relevant tables based on the question
-    const context = [];
-    const qLower = question.toLowerCase();
-    const fmtDate = (d) => new Date(d).toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'short', timeStyle: 'short' });
+    // ─── Tool-use AI Assistant: Claude can query the database dynamically ───
+    const DB_SCHEMA = `
+DATABASE SCHEMA (PostgreSQL) — use these tables to answer questions:
 
-    // Load customer list (names only for matching, not for the prompt)
+customers: id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code, customer_number, customer_type, monthly_plan_amount, tax_exempt, created_at
+scheduled_jobs: id, job_date, customer_id, customer_name, service_type, service_frequency, service_price, address, status, crew_assigned, estimated_duration, recurring_end_date, is_recurring, recurring_pattern, pipeline_stage, material_cost, labor_cost, invoice_id, property_id, completion_notes, created_at
+invoices: id, invoice_number, customer_id, customer_name, customer_email, status (draft/sent/paid/overdue), subtotal, tax_amount, total, amount_paid, due_date, paid_at, sent_at, created_at, line_items (JSONB), billing_month, processing_fee
+payments: id, invoice_id, customer_id, amount, method, status (pending/completed/failed), square_payment_id, card_brand, card_last4, paid_at, created_at
+sent_quotes: id, quote_number, customer_name, customer_email, customer_phone, customer_address, status, services (JSONB), total, contract_signed_at, created_at, customer_id
+quotes: id, name, email, phone, address, services (TEXT[]), status, source, created_at
+properties: id, property_name, street, city, state, zip, lot_size, customer_id, status, tags, created_at
+messages: id, direction, from_number, to_number, body, customer_id, read, created_at
+calls: id, direction, from_number, to_number, status, duration, transcription, customer_id, created_at
+employees: id, title, first_name, last_name, hire_date, pay_type, is_active, created_at
+crews: id, name, members, crew_type, is_active, color, created_at
+time_entries: id, crew_id, crew_name, job_id, customer_name, clock_in, clock_out, break_minutes, created_at
+job_expenses: id, job_id, description, category, amount, created_at
+campaigns: id, name, description, status, send_count, open_count, click_count, created_at
+campaign_submissions: id, campaign_id, name, email, phone, address, status, created_at
+season_kickoff_responses: id, customer_id, customer_name, customer_email, services (JSONB), status, responded_at, created_at
+email_log: id, recipient_email, subject, email_type, customer_id, status, sent_at
+service_requests: id, customer_id, type, service_type, description, urgency, status, created_at
+late_fees: id, invoice_id, fee_amount, days_overdue, waived, created_at
+cancellations: id, customer_name, cancellation_reason, status, created_at
+business_settings: id, key (UNIQUE), value (JSONB)
+internal_notes: id, entity_type, entity_id, author_name, content, pinned, created_at
+automations: id, name, trigger_type, actions, enabled, created_at
+social_media_posts: id, platform, content, tone, created_at
+service_items: id, name, default_rate, duration_minutes, category, active, created_at
+
+NOTES:
+- Customer name fallback: use COALESCE(name, TRIM(CONCAT(first_name, ' ', last_name)), 'Unknown')
+- invoice line_items is JSONB array: [{description, quantity, unit_price, amount, taxable}]
+- sent_quotes services is JSONB array: [{name, price, frequency, description}]
+- season_kickoff_responses services is JSONB: service confirmations for annual plans
+- Use ILIKE for case-insensitive text matching
+- Dates are timestamptz — use AT TIME ZONE 'America/New_York' when formatting
+- "monthly plan" customers typically have monthly_plan_amount > 0 or recurring service_frequency
+`;
+
+    const SENSITIVE_COLUMNS = ['password_hash', 'password', 'token', 'access_token', 'refresh_token', 'sign_token', 'payment_token', 'push_token', 'secret'];
+
+    const toolDefinition = {
+      name: 'query_database',
+      description: 'Run a read-only SQL SELECT query against the business database. Use this to look up customers, invoices, jobs, quotes, revenue, counts, and any business data. You can run multiple queries to drill down into data.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          sql: { type: 'string', description: 'A PostgreSQL SELECT query. Only SELECT is allowed — no INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or GRANT.' },
+          purpose: { type: 'string', description: 'Brief description of what this query is checking (for logging)' }
+        },
+        required: ['sql']
+      }
+    };
+
+    async function executeReadOnlyQuery(sql) {
+      // Safety: only allow SELECT
+      const normalized = sql.trim().replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      const firstWord = normalized.split(/\s+/)[0].toUpperCase();
+      if (firstWord !== 'SELECT' && firstWord !== 'WITH' && firstWord !== '(') {
+        return { error: 'Only SELECT queries are allowed.' };
+      }
+      const forbidden = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|CREATE|COPY)\b/i;
+      if (forbidden.test(normalized)) {
+        return { error: 'Query contains forbidden keywords. Only SELECT queries are allowed.' };
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('SET statement_timeout = 5000');
+        await client.query('BEGIN READ ONLY');
+        const result = await client.query(sql);
+        await client.query('COMMIT');
+        let rows = result.rows.slice(0, 100);
+        // Strip sensitive columns
+        rows = rows.map(row => {
+          const clean = { ...row };
+          for (const key of Object.keys(clean)) {
+            if (SENSITIVE_COLUMNS.some(s => key.toLowerCase().includes(s))) {
+              clean[key] = '[REDACTED]';
+            }
+          }
+          return clean;
+        });
+        return { rows, rowCount: result.rowCount, truncated: result.rowCount > 100 };
+      } catch (queryErr) {
+        await client.query('ROLLBACK').catch(() => {});
+        return { error: queryErr.message };
+      } finally {
+        client.release();
+      }
+    }
+
+    // ─── CopilotCRM tool: live dispatch, customer lookup, service history ───
+    const copilotToolDefinition = {
+      name: 'query_copilotcrm',
+      description: 'Query CopilotCRM for live dispatch/route data, customer records, estimates, or service history. Use this when asked about today\'s schedule, crew routes, dispatch, what crews are doing, CRM notes, or past service history from CopilotCRM.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['dispatch_today', 'dispatch_date_range', 'customer_lookup', 'customer_estimates', 'service_history'],
+            description: 'What to fetch: dispatch_today (today\'s route/schedule), dispatch_date_range (jobs for a date range), customer_lookup (CRM record for a customer), customer_estimates (estimates for a CRM customer), service_history (past 12 months of jobs for a customer)'
+          },
+          customer_name: { type: 'string', description: 'Customer name (required for customer_lookup, customer_estimates, service_history)' },
+          start_date: { type: 'string', description: 'Start date for dispatch_date_range (e.g. "Mar 1, 2026")' },
+          end_date: { type: 'string', description: 'End date for dispatch_date_range (e.g. "Mar 31, 2026")' },
+          purpose: { type: 'string', description: 'Brief description of what this lookup is for (for logging)' }
+        },
+        required: ['action']
+      }
+    };
+
+    async function executeCopilotQuery(action, params) {
+      try {
+        await ensureCopilotSyncTables();
+        const tokenInfo = await getCopilotToken();
+        if (!tokenInfo || !tokenInfo.cookieHeader) {
+          return { error: 'CopilotCRM not connected — no authentication token configured. Check copilot_sync_settings table.' };
+        }
+        const copilotHeaders = {
+          'Cookie': tokenInfo.cookieHeader,
+          'Origin': 'https://secure.copilotcrm.com',
+          'Referer': 'https://secure.copilotcrm.com/',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        };
+
+        if (action === 'dispatch_today' || action === 'dispatch_date_range') {
+          const today = new Date();
+          const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          let sDate, eDate;
+          if (action === 'dispatch_date_range' && params.start_date) {
+            sDate = params.start_date;
+            eDate = params.end_date || params.start_date;
+          } else {
+            sDate = fmt(today);
+            eDate = fmt(today);
+          }
+          const formData = new URLSearchParams();
+          formData.append('accessFrom', 'route');
+          formData.append('bs4', '1');
+          formData.append('sDate', sDate);
+          formData.append('eDate', eDate);
+          formData.append('optimizationFlag', '1');
+          formData.append('count', '-1');
+          for (const t of ['1', '2', '3', '4', '5', '0']) formData.append('evtypes_route[]', t);
+          formData.append('isdate', '0');
+          formData.append('sdate', sDate);
+          formData.append('edate', eDate);
+          formData.append('erec', 'all');
+          formData.append('estatus', 'any');
+          formData.append('esort', '');
+          formData.append('einvstatus', 'any');
+
+          const res = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
+            method: 'POST', headers: copilotHeaders, body: formData.toString(),
+          });
+          if (!res.ok) return { error: `CopilotCRM dispatch returned ${res.status}` };
+          const data = await res.json().catch(() => null);
+          if (!data) return { error: 'CopilotCRM auth session may have expired. Token may need refresh.' };
+          const jobs = parseCopilotRouteHtml(data.html || '', data.employees || []);
+          return { jobs, jobCount: jobs.length, dateRange: `${sDate} to ${eDate}` };
+        }
+
+        if (action === 'customer_lookup' || action === 'customer_estimates') {
+          if (!params.customer_name) return { error: 'customer_name is required for this action' };
+          const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+            method: 'POST', headers: copilotHeaders,
+            body: `query=${encodeURIComponent(params.customer_name)}`,
+          });
+          if (!searchRes.ok) return { error: `CopilotCRM customer search returned ${searchRes.status}` };
+          const crmCustomers = await searchRes.json().catch(() => null);
+          if (!crmCustomers) return { error: 'CopilotCRM auth session may have expired.' };
+          const crmMatch = Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
+          if (!crmMatch) return { error: `No CopilotCRM record found for "${params.customer_name}"` };
+
+          // Strip sensitive fields
+          const cleanRecord = { ...crmMatch };
+          for (const k of Object.keys(cleanRecord)) {
+            if (['password', 'token', 'hash', 'secret'].some(s => k.toLowerCase().includes(s))) delete cleanRecord[k];
+          }
+
+          if (action === 'customer_lookup') return { customer: cleanRecord };
+
+          // Fetch estimates
+          try {
+            const estRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+              method: 'POST', headers: copilotHeaders,
+              body: `customer_id=${crmMatch.id}`,
+            });
+            if (estRes.ok) {
+              const estData = await estRes.json().catch(() => null);
+              if (estData && estData.html) {
+                const $est = cheerio.load(estData.html);
+                const estimates = [];
+                $est('tr[id]').each((i, row) => {
+                  const cells = [];
+                  $est(row).find('td').each((_, td) => cells.push($est(td).text().trim()));
+                  if (cells.length > 0 && cells.some(c => c)) estimates.push(cells.filter(c => c).join(' | '));
+                });
+                return { customer: cleanRecord, estimates };
+              }
+            }
+            return { customer: cleanRecord, estimates: [] };
+          } catch (estErr) {
+            return { customer: cleanRecord, estimates: [], estimateError: estErr.message };
+          }
+        }
+
+        if (action === 'service_history') {
+          if (!params.customer_name) return { error: 'customer_name is required for service_history' };
+          const now = new Date();
+          const yearAgo = new Date(now);
+          yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+          const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const formData = new URLSearchParams();
+          formData.append('accessFrom', 'route');
+          formData.append('bs4', '1');
+          formData.append('sDate', fmt(yearAgo));
+          formData.append('eDate', fmt(now));
+          formData.append('optimizationFlag', '1');
+          formData.append('count', '-1');
+          for (const t of ['1', '2', '3', '4', '5', '0']) formData.append('evtypes_route[]', t);
+          formData.append('isdate', '0');
+          formData.append('sdate', fmt(yearAgo));
+          formData.append('edate', fmt(now));
+          formData.append('erec', 'all');
+          formData.append('estatus', 'any');
+          formData.append('esort', '');
+          formData.append('einvstatus', 'any');
+
+          const histRes = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
+            method: 'POST', headers: copilotHeaders, body: formData.toString(),
+          });
+          if (!histRes.ok) return { error: `CopilotCRM service history returned ${histRes.status}` };
+          const histData = await histRes.json().catch(() => null);
+          if (!histData) return { error: 'CopilotCRM auth session may have expired.' };
+          const allJobs = parseCopilotRouteHtml(histData.html || '', histData.employees || []);
+          const custNameLower = params.customer_name.toLowerCase();
+          const custJobs = allJobs.filter(j => j.customer_name && j.customer_name.toLowerCase().includes(custNameLower));
+          return { jobs: custJobs, jobCount: custJobs.length, customer_name: params.customer_name, period: 'past 12 months' };
+        }
+
+        return { error: `Unknown action: ${action}` };
+      } catch (err) {
+        console.error('CopilotCRM tool error:', err.message);
+        return { error: `CopilotCRM error: ${err.message}` };
+      }
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const systemPrompt = `You are the Pappas & Co. Landscaping business assistant. You help Tim and Theresa manage their landscaping business in Cleveland, OH. Service areas: Lakewood, Brook Park, Bay Village, and Westpark.
+
+You have TWO tools:
+1. **query_database** — query the local PostgreSQL database for customers, invoices, jobs, quotes, revenue, schedules, communications, and more
+2. **query_copilotcrm** — query CopilotCRM for live dispatch/route data, CRM customer records, estimates, and service history
+
+USE THESE TOOLS. Never say you don't have access to data. Always query to answer questions.
+
+Use query_database for: customer counts, invoice totals, revenue, payments, quotes, campaign data, communications, employee info, and any aggregate/analytical questions.
+Use query_copilotcrm for: today's dispatch/route, what crews are doing, live schedule, CRM notes on customers, CopilotCRM estimates, and past service history.
+
+${DB_SCHEMA}
+
+Today's date: ${todayStr}
+
+Guidelines:
+- ALWAYS query to answer questions — never guess or say you can't access data
+- Run multiple queries if needed to get the full picture
+- Be friendly, concise, and professional
+- Format numbers as currency ($X,XXX.XX) when showing money
+- When listing items, use clear formatting
+- If a query returns no results, say so clearly — don't make up data`;
+
+    // Build messages with conversation history
+    const messages = [];
+    if (conversationHistory && Array.isArray(conversationHistory)) {
+      for (const msg of conversationHistory.slice(0, -1)) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: String(msg.content || '') });
+        }
+      }
+    }
+    messages.push({ role: 'user', content: question });
+
+    // Merge consecutive same-role messages
+    const apiMessages = [];
+    for (const msg of messages) {
+      const prev = apiMessages[apiMessages.length - 1];
+      if (prev && prev.role === msg.role) {
+        prev.content += '\n\n' + msg.content;
+      } else {
+        apiMessages.push({ ...msg });
+      }
+    }
+    if (apiMessages.length > 0 && apiMessages[0].role !== 'user') {
+      apiMessages[0].role = 'user';
+    }
+
+    // Tool-use loop: let Claude query the database up to 5 times
+    let currentMessages = [...apiMessages];
+    let finalAnswer = '';
+    const MAX_TOOL_ROUNDS = 8;
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS + 1; round++) {
+      const apiParams = {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: currentMessages,
+        tools: [toolDefinition, copilotToolDefinition],
+      };
+      // On last possible round, force no more tools
+      if (round === MAX_TOOL_ROUNDS) {
+        apiParams.tool_choice = { type: 'none' };
+      }
+
+      console.log(`[Assistant] Round ${round + 1}: sending ${currentMessages.length} messages`);
+      const response = await anthropicClient.messages.create(apiParams);
+
+      // Check if Claude wants to use tools
+      const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+      const textBlocks = response.content.filter(b => b.type === 'text');
+
+      if (toolUseBlocks.length === 0) {
+        // No tool calls — Claude has the final answer
+        finalAnswer = textBlocks.map(b => b.text).join('\n').trim();
+        break;
+      }
+
+      // Process tool calls
+      currentMessages.push({ role: 'assistant', content: response.content });
+      const toolResults = [];
+      for (const toolBlock of toolUseBlocks) {
+        let result;
+        if (toolBlock.name === 'query_database') {
+          const { sql, purpose } = toolBlock.input;
+          console.log(`[Assistant] DB query (${purpose || 'query'}): ${(sql || '').substring(0, 200)}`);
+          result = await executeReadOnlyQuery(sql || '');
+        } else if (toolBlock.name === 'query_copilotcrm') {
+          const { action, purpose, ...params } = toolBlock.input;
+          console.log(`[Assistant] CopilotCRM (${action}): ${purpose || params.customer_name || ''}`);
+          result = await executeCopilotQuery(action, params);
+        } else {
+          result = { error: `Unknown tool: ${toolBlock.name}` };
+        }
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolBlock.id,
+          content: JSON.stringify(result),
+        });
+      }
+      currentMessages.push({ role: 'user', content: toolResults });
+
+      // If there was also text with the tool calls, capture it
+      if (response.stop_reason === 'end_turn' && textBlocks.length > 0) {
+        finalAnswer = textBlocks.map(b => b.text).join('\n').trim();
+        break;
+      }
+    }
+
+    if (!finalAnswer) {
+      finalAnswer = 'I ran into an issue processing your question. Could you try rephrasing it?';
+    }
+
+    res.json({ success: true, answer: finalAnswer });
+  } catch (error) {
+    console.error('AI assistant error:', error);
+    const errMsg = error.message || 'Unknown error';
+    const errType = error.constructor?.name || 'Error';
+    res.status(500).json({ success: false, error: `Assistant failed: ${errType}: ${errMsg}` });
+  }
+});
+
+// ─── Legacy context-based assistant (kept for mobile app compatibility) ───
+// The mobile app (TwilioConnect) still calls this endpoint format
+// If mobile app is updated, this can be removed
+/* REMOVED - old context-gathering assistant replaced by tool-use version above
     const customerResult = await pool.query(`SELECT id, name, phone, mobile, email, street, city, state, postal_code FROM customers ORDER BY name LIMIT 500`);
 
     // Try to identify a specific customer the question is about
@@ -7937,6 +8312,7 @@ Today's date: ${new Date().toLocaleDateString('en-US', { timeZone: 'America/New_
     res.status(500).json({ success: false, error: `Assistant failed: ${errType}: ${errMsg}` });
   }
 });
+END OF OLD ASSISTANT */
 
 // AI freeform draft - for app (new message compose)
 app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
@@ -7967,6 +8343,49 @@ app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('AI draft error:', error);
     serverError(res, error, 'AI draft generation failed');
+  }
+});
+
+// Upload image for MMS - stores in DB and returns a public URL for Twilio
+app.post('/api/app/messages/upload', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No image file provided' });
+    const b64 = req.file.buffer.toString('base64');
+    const mimeType = req.file.mimetype;
+    // Store in DB
+    await pool.query(`CREATE TABLE IF NOT EXISTS mms_uploads (
+      id SERIAL PRIMARY KEY,
+      mime_type VARCHAR(100) NOT NULL,
+      data TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    const result = await pool.query(
+      'INSERT INTO mms_uploads (mime_type, data) VALUES ($1, $2) RETURNING id',
+      [mimeType, b64]
+    );
+    const imageId = result.rows[0].id;
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const publicUrl = `${baseUrl}/api/mms-image/${imageId}`;
+    console.log(`📷 MMS image uploaded: ${req.file.originalname} (${Math.round(req.file.size / 1024)}KB) → ${publicUrl}`);
+    res.json({ success: true, url: publicUrl });
+  } catch (error) {
+    console.error('MMS upload error:', error);
+    serverError(res, error, 'MMS upload failed');
+  }
+});
+
+// Serve MMS image — public (Twilio needs to fetch this)
+app.get('/api/mms-image/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT mime_type, data FROM mms_uploads WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).send('Not found');
+    const { mime_type, data } = result.rows[0];
+    const buffer = Buffer.from(data, 'base64');
+    res.set('Content-Type', mime_type);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).send('Error');
   }
 });
 

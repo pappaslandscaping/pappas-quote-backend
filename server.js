@@ -17859,14 +17859,21 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       body: formData.toString()
     });
 
+    const debug = req.query.debug === '1' || req.body.debug === true;
+
     if (!copilotRes.ok) {
-      return res.status(502).json({ success: false, error: `CopilotCRM returned ${copilotRes.status}` });
+      const errBody = await copilotRes.text().catch(() => '');
+      return res.status(502).json({ success: false, error: `CopilotCRM returned ${copilotRes.status}`, ...(debug && { responseBody: errBody.substring(0, 1000) }) });
     }
 
     const data = await copilotRes.json();
 
+    if (debug) {
+      console.log(`🔍 CopilotCRM sync debug: status=${data.status}, totalEventCount=${data.totalEventCount}, htmlLength=${(data.html || '').length}, employeesCount=${(data.employees || []).length}`);
+    }
+
     if (data.status !== undefined && data.status !== 1 && data.status !== '1' && data.status !== true) {
-      return res.status(502).json({ success: false, error: 'CopilotCRM returned non-success status', copilot_status: data.status });
+      return res.status(502).json({ success: false, error: 'CopilotCRM returned non-success status', copilot_status: data.status, ...(debug && { rawKeys: Object.keys(data) }) });
     }
 
     // Parse HTML
@@ -17916,6 +17923,17 @@ app.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       overallVisitTotal: data.overallVisitTotal || null
     };
     if (tokenWarning) response.tokenWarning = tokenWarning;
+    if (debug) {
+      response.debug = {
+        copilotStatus: data.status,
+        htmlLength: (data.html || '').length,
+        htmlPreview: (data.html || '').substring(0, 500),
+        employeesCount: (data.employees || []).length,
+        rawKeys: Object.keys(data),
+        cookieHeaderLength: tokenInfo.cookieHeader.length,
+        cookieHeaderPreview: tokenInfo.cookieHeader.substring(0, 80) + '...',
+      };
+    }
 
     res.json(response);
   } catch (error) {
@@ -17977,8 +17995,9 @@ app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => 
 
   try {
     console.log('🔄 CopilotCRM cookie refresh: logging in via API...');
+    const cookieJar = new Map(); // name → value
 
-    // Same login approach used by contract signing (line ~6342)
+    // Step 1: API login to get accessToken (same as contract signing)
     const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
@@ -17995,11 +18014,59 @@ app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => 
       throw new Error(`CopilotCRM login failed (status ${loginRes.status}): ${loginText.substring(0, 200)}`);
     }
 
-    // Build cookie string — accessToken is the critical one, also capture any Set-Cookie headers
-    const setCookies = loginRes.headers.getSetCookie?.() || [];
-    const extraCookies = setCookies.map(c => c.split(';')[0]).filter(Boolean);
-    const allCookies = [`copilotApiAccessToken=${loginData.accessToken}`, ...extraCookies];
-    const cookieString = allCookies.join('; ');
+    cookieJar.set('copilotApiAccessToken', loginData.accessToken);
+
+    // Capture any Set-Cookie headers from the API login
+    const apiSetCookies = loginRes.headers.getSetCookie?.() || [];
+    for (const sc of apiSetCookies) {
+      const [pair] = sc.split(';');
+      const eqIdx = pair.indexOf('=');
+      if (eqIdx > 0) cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
+    }
+
+    // Step 2: Hit secure.copilotcrm.com with the token to establish a full session
+    // The scheduler endpoint may require session cookies that only come from the web app domain
+    const sessionCookie = `copilotApiAccessToken=${loginData.accessToken}`;
+    const sessionRes = await fetch('https://secure.copilotcrm.com/dashboard', {
+      method: 'GET',
+      headers: {
+        'Cookie': sessionCookie,
+        'Origin': 'https://secure.copilotcrm.com',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      redirect: 'manual', // Don't follow redirects — we want the Set-Cookie headers
+    });
+
+    const webSetCookies = sessionRes.headers.getSetCookie?.() || [];
+    for (const sc of webSetCookies) {
+      const [pair] = sc.split(';');
+      const eqIdx = pair.indexOf('=');
+      if (eqIdx > 0) cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
+    }
+    console.log(`🔑 CopilotCRM session: API login cookies=${apiSetCookies.length}, web session cookies=${webSetCookies.length}, total unique=${cookieJar.size}`);
+
+    // Step 3: Also try the scheduler page to grab any scheduler-specific session cookies
+    const fullCookieSoFar = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+    const schedRes = await fetch('https://secure.copilotcrm.com/scheduler', {
+      method: 'GET',
+      headers: {
+        'Cookie': fullCookieSoFar,
+        'Origin': 'https://secure.copilotcrm.com',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      redirect: 'manual',
+    });
+
+    const schedSetCookies = schedRes.headers.getSetCookie?.() || [];
+    for (const sc of schedSetCookies) {
+      const [pair] = sc.split(';');
+      const eqIdx = pair.indexOf('=');
+      if (eqIdx > 0) cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
+    }
+    if (schedSetCookies.length > 0) console.log(`🔑 CopilotCRM scheduler page added ${schedSetCookies.length} more cookies`);
+
+    // Build final cookie string
+    const cookieString = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
 
     // Store in copilot_sync_settings
     await ensureCopilotSyncTables();
@@ -18008,13 +18075,49 @@ app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => 
       [cookieString]
     );
 
-    // Verify stored token
+    // Quick verification: try the actual scheduler endpoint
+    const testFormData = new URLSearchParams();
+    testFormData.append('accessFrom', 'route');
+    testFormData.append('bs4', '1');
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    testFormData.append('sDate', today);
+    testFormData.append('eDate', today);
+    testFormData.append('count', '-1');
+    for (const t of ['1', '2', '3', '4', '5', '0']) testFormData.append('evtypes_route[]', t);
+    testFormData.append('erec', 'all');
+    testFormData.append('estatus', 'any');
+    testFormData.append('einvstatus', 'any');
+
+    const verifyRes = await fetch('https://secure.copilotcrm.com/scheduler/all/list', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookieString,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: testFormData.toString(),
+    });
+    let verifyEventCount = null;
+    if (verifyRes.ok) {
+      try {
+        const verifyData = await verifyRes.json();
+        verifyEventCount = verifyData.totalEventCount || 0;
+        console.log(`✅ CopilotCRM scheduler verification: ${verifyEventCount} events for today`);
+      } catch { /* non-JSON response */ }
+    } else {
+      console.log(`⚠️ CopilotCRM scheduler verification returned ${verifyRes.status}`);
+    }
+
     const tokenInfo = await getCopilotToken();
-    console.log(`✅ CopilotCRM cookies refreshed via API login. Expires: ${tokenInfo?.expiresAt || 'unknown'}`);
+    console.log(`✅ CopilotCRM cookies refreshed. ${cookieJar.size} cookies stored. Expires: ${tokenInfo?.expiresAt || 'unknown'}`);
 
     res.json({
       success: true,
       message: 'CopilotCRM cookies refreshed via API login',
+      cookieCount: cookieJar.size,
+      verifyEventCount,
       expiresAt: tokenInfo?.expiresAt || null,
       daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
     });

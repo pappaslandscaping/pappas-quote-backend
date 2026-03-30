@@ -18308,8 +18308,11 @@ async function assembleMorningBriefing() {
   try {
     if (process.env.STRIPE_SECRET_KEY) {
       const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-      const payouts = await stripe.payouts.list({ limit: 5 });
+      const nowTs = Math.floor(Date.now() / 1000);
+      const payouts = await stripe.payouts.list({ limit: 10, arrival_date: { gte: nowTs } });
+      console.log('Payouts found:', JSON.stringify(payouts.data.map(p => ({ status: p.status, amount: p.amount, arrival: p.arrival_date }))));
       const upcomingPayouts = payouts.data.filter(p => p.status === 'in_transit' || p.status === 'pending');
+
       if (upcomingPayouts.length > 0) {
         upcomingPayouts.sort((a, b) => a.arrival_date - b.arrival_date);
         const total = upcomingPayouts.reduce((sum, p) => sum + p.amount, 0) / 100;
@@ -18324,9 +18327,20 @@ async function assembleMorningBriefing() {
         stats.depositAmount = total;
         stats.depositCount = upcomingPayouts.length;
       } else {
-        sections.deposit = `💰 STRIPE DEPOSITS\nNo upcoming deposits.`;
-        stats.depositAmount = 0;
-        stats.depositCount = 0;
+        // Fallback: show pending balance from Stripe
+        console.log('No upcoming payouts found, falling back to balance.retrieve()');
+        const balance = await stripe.balance.retrieve();
+        console.log('Stripe balance:', JSON.stringify(balance));
+        const pendingTotal = balance.pending.reduce((sum, b) => sum + b.amount, 0) / 100;
+        if (pendingTotal > 0) {
+          sections.deposit = `💰 STRIPE DEPOSITS\nPending balance: $${pendingTotal.toFixed(2)}`;
+          stats.depositAmount = pendingTotal;
+          stats.depositCount = 0;
+        } else {
+          sections.deposit = `💰 STRIPE DEPOSITS\nNo upcoming deposits.`;
+          stats.depositAmount = 0;
+          stats.depositCount = 0;
+        }
       }
     } else {
       sections.deposit = `💰 STRIPE DEPOSITS\nStripe not configured.`;

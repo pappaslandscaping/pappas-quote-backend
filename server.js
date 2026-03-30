@@ -18304,8 +18304,33 @@ async function assembleMorningBriefing() {
     errors.push('stripe');
   }
 
+  // ── Section 4: Stripe Next-Day Deposit ──
+  try {
+    if (process.env.STRIPE_SECRET_KEY) {
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      const payouts = await stripe.payouts.list({ limit: 1, status: 'pending' });
+      if (payouts.data.length > 0) {
+        const payout = payouts.data[0];
+        const amt = (payout.amount / 100).toFixed(2);
+        const arrival = new Date(payout.arrival_date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+        sections.deposit = `💵 DEPOSIT: $${amt} arriving ${arrival}`;
+        stats.depositAmount = payout.amount / 100;
+        stats.depositDate = arrival;
+      } else {
+        sections.deposit = `💵 DEPOSIT: No pending deposits.`;
+        stats.depositAmount = 0;
+      }
+    } else {
+      sections.deposit = `💵 DEPOSIT: Stripe not configured.`;
+    }
+  } catch (err) {
+    console.error('Morning briefing — deposit error:', err);
+    sections.deposit = `💵 DEPOSIT: ⚠️ Error fetching payout: ${err.message}`;
+    errors.push('deposit');
+  }
+
   // ── Assemble briefing ──
-  const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}`;
+  const briefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}\n\n${sections.deposit}`;
   return { briefing, sections, errors, stats };
 }
 
@@ -18340,7 +18365,7 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
         };
 
         // If briefing is long and we have gmailText, send as two messages
-        const mainBriefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}`;
+        const mainBriefing = `Good morning Theresa! Here's your daily briefing:\n\n${sections.jobs}\n\n${sections.invoices}\n\n${sections.stripe}\n\n${sections.deposit}`;
         if (gmailText && mainBriefing.length + gmailText.length > 4000) {
           const tgData1 = await sendTg(mainBriefing);
           const tgData2 = await sendTg(gmailText);
@@ -18367,7 +18392,7 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
       console.error('Telegram send error:', err);
     }
 
-    // Send SMS summary via Twilio
+    // Send full briefing via SMS (split into multiple messages if needed)
     let smsSent = false;
     let smsError = null;
     try {
@@ -18377,70 +18402,49 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
       const phones = [process.env.THERESA_PHONE_NUMBER, process.env.TIM_PHONE_NUMBER].filter(Boolean);
 
       if (twilioSid && twilioAuth && twilioFrom && phones.length > 0) {
-        // Parse gmail info from gmailText
-        const gmailText = req.body.gmailText || '';
-        const emailMatch = gmailText.match(/(\d+)\s+new/i);
-        const emailCount = emailMatch ? emailMatch[1] : null;
-        // Extract subject lines — look for common patterns like "- Subject line" or "• Subject" or numbered lines
-        const subjectLines = gmailText.match(/(?:^|\n)\s*(?:[-•*]\s*|(?:\d+[.)]\s*))(.+)/g);
-        const subjects = (subjectLines || [])
-          .map(s => s.replace(/^[\s\-•*\d.)]+/, '').trim())
-          .filter(s => s.length > 3 && s.length < 80)
-          .slice(0, 3);
-
-        // Build concise SMS (target <600 chars)
         const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
-        let sms = `Good morning! Pappas & Co. daily briefing (${today}):\n`;
 
-        // Jobs
-        if (stats.totalJobs > 0) {
-          const crewInfo = stats.crewNames && stats.crewNames.length <= 3
-            ? stats.crewNames.join(', ')
-            : `${stats.crewCount} crews`;
-          sms += `📋 JOBS: ${stats.totalJobs} today (${crewInfo})\n`;
-        } else {
-          sms += `📋 JOBS: none synced\n`;
+        // Build full SMS briefing
+        const smsParts = [];
+        let sms1 = `Good morning! Pappas & Co. daily briefing (${today}):\n\n`;
+        sms1 += sections.jobs + '\n\n';
+        sms1 += sections.deposit;
+        smsParts.push(sms1);
+
+        // Part 2: Invoices
+        let sms2 = sections.invoices;
+        smsParts.push(sms2);
+
+        // Part 3: Stripe + email
+        let sms3 = sections.stripe;
+        const gmailSmsText = req.body.gmailText || '';
+        if (gmailSmsText) {
+          sms3 += '\n\n' + gmailSmsText;
         }
+        smsParts.push(sms3);
 
-        // Past due invoices with top 3
-        if (stats.invoiceCount > 0) {
-          sms += `💰 PAST DUE: ${stats.invoiceCount} invoices, $${stats.invoiceTotal.toFixed(2)}.`;
-          if (stats.topInvoices && stats.topInvoices.length > 0) {
-            const top3 = stats.topInvoices.map(inv => {
-              const name = inv.customer.split(' ').slice(0, 2).join(' ');
-              return `${name} $${inv.dueAmount.toFixed(0)}`;
-            }).join(', ');
-            sms += ` Top: ${top3}`;
+        // Filter out empty parts and split any that exceed 1600 chars (Twilio limit)
+        const smsMessages = [];
+        for (const part of smsParts) {
+          const trimmed = part.trim();
+          if (!trimmed) continue;
+          if (trimmed.length <= 1600) {
+            smsMessages.push(trimmed);
+          } else {
+            // Split on newlines at ~1500 char boundaries
+            let remaining = trimmed;
+            while (remaining.length > 0) {
+              if (remaining.length <= 1600) {
+                smsMessages.push(remaining);
+                break;
+              }
+              let splitIdx = remaining.lastIndexOf('\n', 1500);
+              if (splitIdx < 500) splitIdx = 1500;
+              smsMessages.push(remaining.substring(0, splitIdx).trim());
+              remaining = remaining.substring(splitIdx).trim();
+            }
           }
-          sms += '\n';
-        } else {
-          sms += `💰 PAST DUE: all clear\n`;
         }
-
-        // Stripe
-        if (stats.stripeConfigured) {
-          sms += `💳 STRIPE: ${stats.stripeFailures > 0 ? stats.stripeFailures + ' failed' : 'all clear'}\n`;
-        } else {
-          sms += `💳 STRIPE: not configured\n`;
-        }
-
-        // Email
-        if (emailCount) {
-          sms += `📧 ${emailCount} new`;
-          if (subjects.length > 0) {
-            sms += ` — ${subjects.join(', ')}`;
-          }
-          sms += '\n';
-        } else if (gmailText) {
-          sms += `📧 See Telegram\n`;
-        } else {
-          sms += `📧 No email data\n`;
-        }
-
-        sms += `Full details on Telegram.`;
-
-        // Truncate to 600 chars to avoid multi-segment SMS
-        if (sms.length > 600) sms = sms.substring(0, 597) + '...';
 
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
         const twilioHeaders = {
@@ -18448,17 +18452,26 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
           'Authorization': 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64')
         };
 
-        const results = await Promise.allSettled(phones.map(async (to) => {
-          const body = new URLSearchParams({ To: to, From: twilioFrom, Body: sms });
-          const r = await fetch(twilioUrl, { method: 'POST', headers: twilioHeaders, body: body.toString() });
-          return r.json();
-        }));
+        // Send each message part sequentially to preserve order
+        const allResults = [];
+        for (const phone of phones) {
+          for (const msg of smsMessages) {
+            const body = new URLSearchParams({ To: phone, From: twilioFrom, Body: msg });
+            try {
+              const r = await fetch(twilioUrl, { method: 'POST', headers: twilioHeaders, body: body.toString() });
+              allResults.push(await r.json());
+            } catch (e) {
+              allResults.push({ error_code: true, message: e.message });
+            }
+          }
+        }
 
-        const failures = results.filter(r => r.status === 'rejected' || r.value?.error_code);
+        const failures = allResults.filter(r => r.error_code);
         if (failures.length === 0) {
           smsSent = true;
+          console.log(`✅ Morning briefing SMS: ${smsMessages.length} message(s) sent to ${phones.length} recipient(s)`);
         } else {
-          smsError = failures.map(f => f.reason?.message || f.value?.message || 'unknown').join('; ');
+          smsError = failures.map(f => f.message || 'unknown').join('; ');
           console.error('SMS send failures:', failures);
         }
       } else {

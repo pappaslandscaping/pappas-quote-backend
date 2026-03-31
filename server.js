@@ -6977,9 +6977,10 @@ app.all('/api/app/voice/incoming', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   const from = req.body.From || req.query.From || 'Unknown';
+  const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
 
   twiml.say({ voice: 'alice' }, 'Connecting you now.');
-  const dial = twiml.dial({ callerId: from, timeout: 30 });
+  const dial = twiml.dial({ callerId: from, timeout: 30, action: `${baseUrl}/api/app/voice/dial-status` });
   // Ring all registered app users — identity matches the email used in voice token
   dial.client('hello@pappaslandscaping.com');
   dial.client('montague.theresa@gmail.com');
@@ -6987,6 +6988,73 @@ app.all('/api/app/voice/incoming', (req, res) => {
 
   res.type('text/xml');
   res.send(twiml.toString());
+});
+
+// Called after dial attempt — if nobody answered, record a voicemail
+app.all('/api/app/voice/dial-status', async (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const dialStatus = req.body.DialCallStatus || req.query.DialCallStatus || '';
+  const from = req.body.From || req.query.From || 'Unknown';
+  const baseUrl = process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app';
+
+  if (dialStatus === 'completed' || dialStatus === 'answered') {
+    twiml.hangup();
+  } else {
+    // No answer — record voicemail
+    twiml.say({ voice: 'alice' }, 'No one is available right now. Please leave a message after the beep.');
+    twiml.record({
+      maxLength: 120,
+      transcribe: true,
+      transcribeCallback: `${baseUrl}/api/app/voice/transcription`,
+      recordingStatusCallback: `${baseUrl}/api/app/voice/recording-complete`,
+      recordingStatusCallbackEvent: ['completed'],
+    });
+    twiml.say({ voice: 'alice' }, 'Thank you. Goodbye.');
+  }
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+// Called when voicemail recording is complete — send push notification
+app.all('/api/app/voice/recording-complete', async (req, res) => {
+  const from = req.body.From || req.query.From || 'Unknown';
+  const recordingUrl = req.body.RecordingUrl || '';
+  const duration = parseInt(req.body.RecordingDuration || '0', 10);
+
+  console.log(`🎙️ Voicemail recording complete from ${from} (${duration}s)`);
+
+  // Look up customer name
+  const cleanedPhone = from.replace(/\D/g, '').slice(-10);
+  let contactName = null;
+  try {
+    const custResult = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedPhone}`]);
+    contactName = custResult.rows[0]?.name || null;
+  } catch (e) {}
+
+  // Send push notification
+  await sendPushToAllDevices(
+    `🎙️ ${contactName || from}`,
+    `New voicemail (${duration}s)`,
+    { type: 'voicemail' }
+  ).catch(err => console.error('VM recording push error:', err));
+
+  // Send email notification
+  const vmDisplayName = contactName ? escapeHtml(contactName) : escapeHtml(from);
+  const vmTimestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
+  sendEmail(NOTIFICATION_EMAIL, `🎙️ New voicemail from ${contactName || from}`, emailTemplate(`
+    <h2 style="color:#1e293b;margin:0 0 16px;">New Voicemail</h2>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr><td style="padding:8px 0;color:#64748b;width:80px;">From</td><td style="padding:8px 0;color:#1e293b;font-weight:500;">${vmDisplayName}</td></tr>
+      <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(from)}</td></tr>
+      <tr><td style="padding:8px 0;color:#64748b;">Duration</td><td style="padding:8px 0;color:#1e293b;">${Math.floor(duration / 60)}m ${duration % 60}s</td></tr>
+      <tr><td style="padding:8px 0;color:#64748b;">Time</td><td style="padding:8px 0;color:#1e293b;">${vmTimestamp}</td></tr>
+    </table>
+    ${recordingUrl ? `<p style="margin-top:16px;"><a href="${escapeHtml(recordingUrl)}" style="color:#2e403d;font-weight:500;">Listen to Recording</a></p>` : ''}
+  `, { showSignature: false })).catch(err => console.error('VM recording email error:', err));
+
+  res.sendStatus(200);
 });
 
 // TwiML for outbound calls from the app Client

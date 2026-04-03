@@ -18656,7 +18656,6 @@ async function getWeather(city, state) {
 function serviceCompleteEmailTemplate(data) {
   const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
   const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
-  const headingImg = `${assetsUrl}/email-assets/heading-1.png`;
   const SOCIAL_FB = `${assetsUrl}/email-assets/fb-white.png`;
   const SOCIAL_IG = `${assetsUrl}/email-assets/ig-white.png`;
   const SOCIAL_ND = `${assetsUrl}/email-assets/nd-white.png`;
@@ -18692,9 +18691,9 @@ function serviceCompleteEmailTemplate(data) {
     <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
   </td></tr>
 
-  <!-- Heading image -->
+  <!-- Heading -->
   <tr><td style="padding:40px 48px 8px;text-align:center;">
-    <img src="${headingImg}" alt="" style="max-width:400px;width:auto;height:34px;" />
+    <p style="margin:0;font-size:26px;font-weight:700;color:#2e403d;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">Your Lawn Service is Complete \u2705</p>
   </td></tr>
 
   <!-- Body -->

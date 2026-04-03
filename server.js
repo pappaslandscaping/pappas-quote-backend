@@ -18681,6 +18681,14 @@ function serviceCompleteEmailTemplate(data) {
   };
   const serviceDisplayName = service.displayName || data.serviceTitle;
 
+  // Replace "Today we" with "We" for past service dates
+  let description = service.description;
+  let tips = service.tips;
+  if (!data.isRecent) {
+    description = description.replace(/^Today we /i, 'We ').replace(/today's /gi, 'the ');
+    tips = tips.replace(/today's /gi, 'the ').replace(/after today's /gi, 'after the ');
+  }
+
   const weatherRow = data.weather ? `
     <tr>
       <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Weather</td>
@@ -18689,7 +18697,7 @@ function serviceCompleteEmailTemplate(data) {
       </td>
     </tr>` : '';
 
-  const tipsList = service.tips.split(/(?<=\.) /).map(tip =>
+  const tipsList = tips.split(/(?<=\.) /).map(tip =>
     `<li style="margin-bottom:8px;color:#4a5568;">${tip}</li>`
   ).join('');
 
@@ -18745,7 +18753,7 @@ function serviceCompleteEmailTemplate(data) {
 
     <!-- What We Applied -->
     <p style="font-size:15px;color:#2e403d;font-weight:700;margin:0 0 10px;">\u{1f33f} What We Applied</p>
-    <p style="font-size:14px;color:#4a5568;line-height:1.7;margin:0 0 28px;">${service.description}</p>
+    <p style="font-size:14px;color:#4a5568;line-height:1.7;margin:0 0 28px;">${description}</p>
 
     <!-- Lawn Care Tips -->
     <p style="font-size:15px;color:#2e403d;font-weight:700;margin:0 0 10px;">\u{1f4a1} Lawn Care Tips</p>

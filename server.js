@@ -18814,8 +18814,46 @@ app.post('/api/service-complete-email', async (req, res) => {
       matchedTitle = Object.keys(SERVICE_LOOKUP).find(k => serviceTitle.toLowerCase().includes(k.toLowerCase()));
     }
 
+    // Parse technician name — could be "Event Closed By" string or crew name like "Rob Mowing Crew"
+    let parsedTechName = technicianName;
+    let parsedTime = serviceTime;
+    if (technicianName && /closed by/i.test(technicianName)) {
+      // "visit Event closed by - Robert Ellison at 10:33 am on Apr 03, 2026"
+      const match = technicianName.match(/closed by\s*-?\s*([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+at\s+(\d{1,2}:\d{2}\s*[ap]m)/i);
+      if (match) {
+        parsedTechName = match[1].split(' ')[0];
+        if (!serviceTime) parsedTime = match[2];
+      }
+    } else if (technicianName) {
+      // "Rob Mowing Crew" → "Rob", or "Robert Ellison" → "Robert"
+      parsedTechName = technicianName.split(' ')[0];
+    }
+
+    // Parse full address — "15520 Delaware Avenue Lakewood OH 44107"
+    // Extract city from address if serviceCity not provided separately
+    let parsedCity = serviceCity;
+    let parsedAddress = serviceAddress || '';
+    let parsedState = serviceState || 'OH';
+    if (serviceAddress && !serviceCity) {
+      // Try to match: street, city, state, zip
+      const addrMatch = serviceAddress.match(/^(.+?)\s+(Lakewood|Bay Village|Brook Park|Westlake|Rocky River|Fairview Park|North Olmsted|Avon|Avon Lake|Westpark|Cleveland|Parma|North Royalton|Strongsville|Berea|Middleburg Heights|Olmsted Falls)\s+([A-Z]{2})\s+(\d{5})$/i);
+      if (addrMatch) {
+        parsedAddress = addrMatch[1];
+        parsedCity = addrMatch[2];
+        parsedState = addrMatch[3];
+      } else {
+        // Fallback: try splitting on common OH cities or just grab last parts
+        const ohMatch = serviceAddress.match(/^(.+?)\s+(\w[\w\s]*?)\s+OH\s+\d{5}$/i);
+        if (ohMatch) {
+          parsedAddress = ohMatch[1];
+          parsedCity = ohMatch[2];
+          parsedState = 'OH';
+        }
+      }
+    }
+
     // Fetch weather
-    const weather = serviceCity ? await getWeather(serviceCity, serviceState || 'OH') : null;
+    const weather = parsedCity ? await getWeather(parsedCity, parsedState) : null;
 
     const emailData = {
       customerName: customerName || 'Valued Customer',
@@ -18823,10 +18861,10 @@ app.post('/api/service-complete-email', async (req, res) => {
       customerEmail,
       serviceTitle: matchedTitle || serviceTitle,
       serviceDate: serviceDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-      serviceTime: serviceTime || null,
-      technicianName: technicianName || 'Our crew',
-      serviceAddress: serviceAddress || '',
-      serviceCity: serviceCity || '',
+      serviceTime: serviceTime || parsedTime || null,
+      technicianName: parsedTechName || 'Our crew',
+      serviceAddress: parsedAddress,
+      serviceCity: parsedCity || '',
       weather
     };
 

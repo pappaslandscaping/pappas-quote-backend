@@ -18812,8 +18812,13 @@ app.post('/api/service-complete-email', async (req, res) => {
   try {
     const { customerName, customerFirstName, customerEmail, serviceTitle, serviceDate, serviceTime, technicianName, serviceAddress, serviceCity, serviceState } = req.body;
 
-    if (!customerEmail || !serviceTitle) {
-      return res.status(400).json({ error: 'customerEmail and serviceTitle are required' });
+    if (!customerEmail) {
+      console.log('⏭️ Service complete email skipped — no email for', customerName || 'unknown');
+      return res.json({ success: true, skipped: true, reason: 'No customer email provided' });
+    }
+    if (!serviceTitle) {
+      console.log('⏭️ Service complete email skipped — no service title for', customerName || 'unknown');
+      return res.json({ success: true, skipped: true, reason: 'No service title provided' });
     }
 
     // Match service title (fuzzy — try exact, then partial)

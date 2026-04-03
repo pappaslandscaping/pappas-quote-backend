@@ -18602,36 +18602,49 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
 
 const SERVICE_LOOKUP = {
   "Early Spring": {
+    displayName: "Early Spring Fertilizer & Crabgrass Control",
     description: "Today we applied an early spring fertilizer with pre-emergent crabgrass control to your lawn. The pre-emergent is formulated to reduce infestation of annual grasses such as crabgrass, goosegrass, foxtail, and barnyard grass. It works by establishing a barrier at the soil surface that interrupts the development of these grasses. The fertilizer helps your lawn recover from winter stresses and promotes spring greening without excessive top growth.",
     tips: "Do not mow for 24 hours after today's application to allow the product to settle into the soil. When you do mow, keep your blade at the highest setting (3\u20133.5 inches) \u2014 taller grass helps crowd out weeds. Water your lawn within 2\u20133 days if rain is not in the forecast, as the pre-emergent needs moisture to activate. Avoid raking or dethatching for at least 4 weeks \u2014 disturbing the soil can break the crabgrass barrier. Per state law, please leave the posting flag in place for 24 hours."
   },
   "Late Spring": {
+    displayName: "Late Spring Weed Control & Fertilizer",
     description: "Today we applied a weed control treatment and fertilizer to your lawn. The low-volume liquid weed control is formulated to target existing broadleaf weeds such as dandelions, plantain, chickweed, thistle, spurge, and clover. The fertilizer provides nutrients to improve your lawn's color, heartiness, and density.",
     tips: "Do not mow for 24\u201348 hours after this application. The weed control needs time to be absorbed through the weed leaves \u2014 mowing too soon removes the treated foliage before it can work. Do not water for 24 hours to allow the treatment to dry and absorb. You should see weeds curling and yellowing within 7\u201314 days. Please mow at the highest setting to keep your lawn looking its best, and avoid cutting off more than 1/3 of the grass blade. Per state law, please leave the posting flag in place for 24 hours."
   },
   "Early Summer": {
+    displayName: "Early Summer Fertilizer, Insect & Weed Control",
     description: "Today we applied a slow-release granular fertilizer to your lawn along with insect control and weed treatment. The insect-control product helps prevent infestation of lawn-damaging surface insects such as chinch bugs, billbugs, and sod webworms, as well as subsurface insects such as white grubs. The fertilizer provides nutrients to improve your lawn's tolerance to summer heat and drought. Broadleaf weed control was applied as needed to help maintain a weed-free lawn.",
     tips: "Do not mow for 24 hours after today's service. Keep children and pets off the treated area for 24 hours. During summer, mow at the highest setting (3.5\u20134 inches) \u2014 taller grass shades the soil, keeps roots cooler, and retains moisture. Water your lawn deeply but infrequently \u2014 about 1 inch per week, ideally in the early morning. Avoid cutting more than 1/3 of the grass blade for best color. Per state law, please leave the posting flag in place for 24 hours."
   },
   "Late Summer": {
+    displayName: "Late Summer Fertilizer & Weed Treatment",
     description: "Today we applied a slow-release granular fertilizer to your lawn and treated for weeds and surface insects as needed. The fertilizer will help your lawn recover from the stresses of summer and build new roots, tillers, and grass plants. Cooler temperatures and better moisture will accelerate plant growth and increase density through early fall. Broadleaf weed control was applied as needed to maintain a weed-free lawn.",
     tips: "Do not mow for 24 hours after today's application. Keep children and pets off the lawn for 24 hours. Please mow at the highest setting to keep the lawn looking its best \u2014 avoid cutting off more than 1/3 of the grass blade for best color. Water your lawn more often as summer heat continues. As temperatures cool, your lawn will start growing more vigorously. If you're considering aeration, now is the perfect time \u2014 contact us to schedule! Per state law, please leave the posting flag in place for 24 hours."
   },
   "Fall": {
+    displayName: "Fall Winterizer Fertilizer",
     description: "Today we applied a fall winterizer fertilizer to your lawn. This fertilizer promotes healthy root growth and development, which takes place from late fall into early winter. It replenishes important nutrient reserves in the soil, providing extra energy for winter survival that is stored and used for an early spring green-up.",
     tips: "Continue mowing until the grass stops growing \u2014 typically into November. On your last mow of the season, lower your blade to about 2.5 inches to help prevent snow mold. Keep fallen leaves off your lawn by raking or mulch-mowing \u2014 a thick layer of leaves can smother the grass and invite disease. Your lawn will go dormant soon, but the fertilizer is working underground to build strong roots all winter for a great spring green-up."
   },
   "Grub Preventer": {
+    displayName: "Merit Grub Preventer Application",
     description: "Today we applied a Merit grub preventer to your lawn. This product creates a protective zone in the soil that eliminates grub larvae before they can damage your lawn's root system. Grubs are the #1 cause of brown, dead patches in Northeast Ohio lawns in late summer and fall.",
     tips: "PLEASE water your lawn as soon as possible \u2014 irrigation or rainfall is needed to activate this product and guarantee results. Water deeply (about 0.5 inches). Keep children and pets off the lawn for 24 hours or until the product has been watered in and the lawn has dried. This treatment is preventive \u2014 you won't see immediate visible results, but it's working underground to protect your lawn. Per state law, please leave the posting flag in place for 24 hours."
   },
   "Aeration": {
+    displayName: "Core Aeration",
     description: "Today we core-aerated your lawn. Aeration pulls small plugs of soil from the ground, relieving compaction and allowing air, water, and nutrients to reach the roots more effectively. This is one of the best things you can do for your lawn's long-term health \u2014 especially in Northeast Ohio's heavy clay soils.",
     tips: "Leave the soil plugs on the lawn \u2014 they break down naturally in 1\u20132 weeks and return nutrients to the soil. You can mow and use your lawn normally right away. Water your lawn within a day or two if rain is not in the forecast \u2014 moisture helps the soil settle and speeds plug breakdown. This is also a great time to fertilize, as nutrients can now reach deeper into the root zone."
   },
   "Lime Application": {
+    displayName: "Granular Lime Application",
     description: "Today we applied granular lime to your lawn to correct soil acidity. Ohio soils tend to become acidic over time, making it harder for grass to absorb fertilizer and nutrients. Lime raises the soil pH back to a healthy range so your lawn gets the full benefit of each fertilizer application.",
     tips: "Water your lawn within 2\u20133 days if rain is not expected \u2014 moisture helps the lime break down into the soil. Lime is slow-acting (2\u20133 months to fully adjust pH), so results are gradual. You can mow and use your lawn normally right away. No special precautions needed."
+  },
+  "Weed Control": {
+    displayName: "Professional Weed Control Treatment",
+    description: "Today we applied a professional-grade herbicide to your landscape beds to eliminate actively growing weeds. This targeted application ensures effective weed control while minimizing disruption to surrounding plants. We focused on high-growth areas and problem spots to maximize effectiveness.",
+    tips: "Avoid watering or disturbing the treated areas for at least 24 hours to allow the herbicide to absorb into the weeds. Treated weeds will begin to wither and die within 7\u201314 days \u2014 no manual removal is needed, as they will break down naturally over time. This service is performed monthly from April through September to maintain a weed-free landscape."
   }
 };
 
@@ -18662,9 +18675,11 @@ function serviceCompleteEmailTemplate(data) {
   const reviewLink = process.env.GOOGLE_REVIEW_LINK || 'https://g.page/r/CXOm9gkatDbPEAE/review';
 
   const service = SERVICE_LOOKUP[data.serviceTitle] || {
+    displayName: data.serviceTitle,
     description: `Today we completed ${data.serviceTitle} service on your lawn.`,
     tips: 'Water your lawn if rain is not in the forecast within the next few days.'
   };
+  const serviceDisplayName = service.displayName || data.serviceTitle;
 
   const weatherRow = data.weather ? `
     <tr>
@@ -18709,7 +18724,7 @@ function serviceCompleteEmailTemplate(data) {
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Service</td>
-            <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:700;text-align:right;border-bottom:1px solid #d4e4d0;">${escapeHtml(data.serviceTitle)}</td>
+            <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:700;text-align:right;border-bottom:1px solid #d4e4d0;">${escapeHtml(serviceDisplayName)}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Date</td>
@@ -18816,7 +18831,9 @@ app.post('/api/service-complete-email', async (req, res) => {
     };
 
     const html = serviceCompleteEmailTemplate(emailData);
-    const subject = `Your ${emailData.serviceTitle} service is complete! \u{1f33f}`;
+    const matchedService = SERVICE_LOOKUP[emailData.serviceTitle];
+    const displayName = matchedService?.displayName || emailData.serviceTitle;
+    const subject = `Your ${displayName} is complete! \u{1f33f}`;
 
     await sendEmail(customerEmail, subject, html, null, {
       type: 'service_complete',

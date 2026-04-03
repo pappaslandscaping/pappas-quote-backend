@@ -59,11 +59,13 @@
         .filter-tabs {
             display: flex; gap: 2px; padding: 8px 12px;
             border-bottom: 1px solid var(--gray-100);
+            overflow-x: auto; white-space: nowrap; flex-shrink: 0;
         }
         .filter-tab {
             padding: 5px 10px; border-radius: 6px; font-size: 12px;
             font-weight: 600; color: var(--gray-500); cursor: pointer;
             border: none; background: none; font-family: inherit; transition: all 0.15s ease;
+            white-space: nowrap; flex-shrink: 0;
         }
         .filter-tab:hover { background: var(--gray-100); color: var(--gray-700); }
         .filter-tab.active { background: var(--primary); color: var(--white); }
@@ -217,11 +219,11 @@
 
     <!-- Stats -->
     <div class="stats-bar" id="stats-bar">
-        <div class="stat-item" onclick="setFilter('active')"><div class="stat-num" id="cn-active" style="color:var(--green)">--</div><div class="stat-label">Active</div></div>
-        <div class="stat-item" onclick="setFilter('handed_off')"><div class="stat-num" id="cn-handoff" style="color:var(--amber)">--</div><div class="stat-label">Handed Off</div></div>
-        <div class="stat-item" onclick="setFilter('emergency')"><div class="stat-num" id="cn-emergency" style="color:var(--red)">--</div><div class="stat-label">Emergency</div></div>
-        <div class="stat-item" onclick="setFilter('existing')"><div class="stat-num" id="cn-existing" style="color:var(--blue)">--</div><div class="stat-label">Existing Customer</div></div>
-        <div class="stat-item" onclick="setFilter('all')"><div class="stat-num" id="cn-total">--</div><div class="stat-label">Total</div></div>
+        <div class="stat-item" onclick="setFilter('active')"><div class="stat-num" id="cn-active" style="color:var(--green)">0</div><div class="stat-label">Active</div></div>
+        <div class="stat-item" onclick="setFilter('handed_off')"><div class="stat-num" id="cn-handoff" style="color:var(--amber)">0</div><div class="stat-label">Handed Off</div></div>
+        <div class="stat-item" onclick="setFilter('emergency')"><div class="stat-num" id="cn-emergency" style="color:var(--red)">0</div><div class="stat-label">Emergency</div></div>
+        <div class="stat-item" onclick="setFilter('existing')"><div class="stat-num" id="cn-existing" style="color:var(--blue)">0</div><div class="stat-label">Existing Customer</div></div>
+        <div class="stat-item" onclick="setFilter('all')"><div class="stat-num" id="cn-total">0</div><div class="stat-label">Total</div></div>
     </div>
 
     <!-- Layout -->

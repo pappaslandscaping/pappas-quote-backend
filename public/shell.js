@@ -54,6 +54,7 @@
     { href: 'reports.html', icon: 'reports', label: 'Reports', perm: 'reports' },
     { href: 'kpi.html', icon: 'kpi', label: 'Insights', perm: 'insights' },
     { href: 'crew.html', icon: 'crew', label: 'Crew', perm: 'crew' },
+    { href: 'ai-conversations.html', icon: 'comms', label: 'AI Texts', perm: 'marketing' },
     { href: 'settings.html', icon: 'settings', label: 'Settings', perm: 'settings' }
   ];
 

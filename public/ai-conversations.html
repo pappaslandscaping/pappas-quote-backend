@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Texts — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        body { overflow: hidden; }
+        .main { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            background: var(--white); border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+        .stat-item {
+            padding: 18px 24px; border-right: 1px solid var(--gray-200);
+            cursor: pointer; transition: background 0.15s ease; position: relative;
+        }
+        .stat-item:last-child { border-right: none; }
+        .stat-item:hover { background: var(--gray-50); }
+        .stat-item.active-filter::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+            height: 2px; background: var(--primary);
+        }
+        .stat-num {
+            font-size: 26px; font-weight: 700; color: var(--gray-700);
+            line-height: 1; margin-bottom: 4px;
+        }
+        .stat-label { font-size: 12px; color: var(--gray-400); font-weight: 500; }
+
+        /* Layout */
+        .ai-layout {
+            flex: 1; display: grid; grid-template-columns: 360px 1fr;
+            overflow: hidden; min-height: 0;
+        }
+
+        /* Feed Panel */
+        .feed-panel {
+            border-right: 1px solid var(--gray-200);
+            display: flex; flex-direction: column;
+            background: var(--white); overflow: hidden;
+        }
+        .feed-toolbar { padding: 10px 14px; border-bottom: 1px solid var(--gray-100); }
+        .feed-search {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            border-radius: 8px; padding: 7px 12px;
+        }
+        .feed-search svg { width: 14px; height: 14px; color: var(--gray-400); flex-shrink: 0; }
+        .feed-search input {
+            border: none; background: none; outline: none;
+            font-size: 13px; font-family: inherit; color: var(--gray-700); width: 100%;
+        }
+        .feed-search input::placeholder { color: var(--gray-400); }
+        .filter-tabs {
+            display: flex; gap: 2px; padding: 8px 12px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .filter-tab {
+            padding: 5px 10px; border-radius: 6px; font-size: 12px;
+            font-weight: 600; color: var(--gray-500); cursor: pointer;
+            border: none; background: none; font-family: inherit; transition: all 0.15s ease;
+        }
+        .filter-tab:hover { background: var(--gray-100); color: var(--gray-700); }
+        .filter-tab.active { background: var(--primary); color: var(--white); }
+        .feed-list { flex: 1; overflow-y: auto; }
+
+        .feed-item {
+            display: flex; align-items: flex-start; gap: 11px;
+            padding: 13px 16px; border-bottom: 1px solid var(--gray-100);
+            cursor: pointer; transition: background 0.15s ease; position: relative;
+        }
+        .feed-item:hover { background: var(--gray-50); }
+        .feed-item.selected { background: rgba(22,163,74,0.06); border-left: 2px solid var(--primary); }
+        .feed-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; flex-shrink: 0; letter-spacing: -0.5px;
+        }
+        .av-active { background: var(--green-bg); color: var(--green); }
+        .av-handoff { background: var(--amber-bg); color: var(--amber); }
+        .av-emergency { background: var(--red-bg); color: var(--red); }
+        .av-existing { background: var(--blue-bg); color: var(--blue); }
+        .av-closed { background: var(--gray-100); color: var(--gray-400); }
+        .feed-body { flex: 1; min-width: 0; }
+        .feed-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .feed-name { font-size: 13px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+        .feed-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
+        .feed-phone { font-size: 12px; color: var(--gray-400); margin-bottom: 3px; }
+        .feed-bottom { display: flex; justify-content: space-between; align-items: center; }
+        .type-pill {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: 4px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .pill-active { background: var(--green-bg); color: var(--green); }
+        .pill-handed_off { background: var(--amber-bg); color: var(--amber); }
+        .pill-emergency { background: var(--red-bg); color: var(--red); }
+        .pill-existing_customer, .pill-replied { background: var(--blue-bg); color: var(--blue); }
+        .pill-closed, .pill-owner_stopped, .pill-after_hours, .pill-abusive { background: var(--gray-100); color: var(--gray-500); }
+        .feed-meta { font-size: 11px; color: var(--gray-400); }
+
+        /* Detail Panel */
+        .detail-panel {
+            display: flex; flex-direction: column; overflow: hidden; background: var(--gray-50);
+        }
+        .detail-empty {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 12px; color: var(--gray-300);
+        }
+        .detail-empty svg { width: 52px; height: 52px; }
+        .detail-empty p { font-size: 14px; color: var(--gray-400); }
+
+        /* Thread Header */
+        .thread-back-btn {
+            display: none; align-items: center; gap: 6px;
+            background: none; border: none; cursor: pointer;
+            color: var(--primary); font-size: 13px; font-weight: 600;
+            padding: 0; margin-right: 10px; font-family: inherit;
+        }
+        .thread-back-btn svg { width: 16px; height: 16px; }
+        .thread-header {
+            padding: 14px 24px; background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+        .thread-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .thread-who { display: flex; align-items: center; gap: 12px; }
+        .thread-av {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: var(--green-bg); color: var(--green);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px;
+        }
+        .thread-name { font-size: 15px; font-weight: 700; color: var(--gray-700); }
+        .thread-num { font-size: 12px; color: var(--gray-400); }
+        .thread-num a { color: var(--primary); text-decoration: none; }
+        .thread-num a:hover { text-decoration: underline; }
+        .thread-meta { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+        .thread-meta-item { font-size: 12px; color: var(--gray-400); }
+        .thread-meta-item strong { color: var(--gray-600); }
+        .thread-actions { display: flex; gap: 8px; }
+
+        /* Chat Bubbles */
+        .thread-messages {
+            flex: 1; overflow-y: auto; padding: 20px 24px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .bubble { display: flex; flex-direction: column; max-width: 68%; }
+        .bubble.inbound { align-self: flex-start; }
+        .bubble.outbound { align-self: flex-end; }
+        .bubble-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.3px; margin-bottom: 3px; padding: 0 4px;
+        }
+        .inbound .bubble-label { color: var(--blue); align-self: flex-start; }
+        .outbound .bubble-label { color: var(--green); align-self: flex-end; }
+        .bubble-body {
+            padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5;
+        }
+        .inbound .bubble-body {
+            background: var(--white); color: var(--gray-700);
+            border: 1px solid var(--gray-200); border-bottom-left-radius: 4px;
+        }
+        .outbound .bubble-body {
+            background: var(--primary); color: var(--white); border-bottom-right-radius: 4px;
+        }
+        .bubble-time { font-size: 11px; color: var(--gray-400); margin-top: 3px; padding: 0 2px; }
+        .inbound .bubble-time { align-self: flex-start; }
+        .outbound .bubble-time { align-self: flex-end; }
+
+        .date-divider {
+            text-align: center; margin: 12px 0;
+        }
+        .date-divider span {
+            background: var(--gray-200); color: var(--gray-500);
+            font-size: 11px; padding: 3px 12px; border-radius: 12px; font-weight: 500;
+        }
+
+        .feed-empty { text-align: center; padding: 48px 20px; color: var(--gray-400); }
+        .feed-empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: 0.35; display: block; margin-left: auto; margin-right: auto; }
+        .feed-empty p { font-size: 13px; }
+
+        @media (max-width: 768px) {
+            .stats-bar { grid-template-columns: repeat(3, 1fr); }
+            .ai-layout { grid-template-columns: 1fr; }
+            .detail-panel { display: none; }
+            .detail-panel.visible { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100; }
+            .thread-back-btn { display: flex; }
+            .bubble { max-width: 85%; }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+
+<div class="main">
+    <!-- Topbar -->
+    <div class="topbar">
+        <div class="topbar-left">
+            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <h1>AI Texts</h1>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn btn-secondary" onclick="loadConversations()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="stats-bar">
+        <div class="stat-item" onclick="setFilter('active')"><div class="stat-num" id="cn-active" style="color:var(--green)">--</div><div class="stat-label">Active</div></div>
+        <div class="stat-item" onclick="setFilter('handed_off')"><div class="stat-num" id="cn-handoff" style="color:var(--amber)">--</div><div class="stat-label">Handed Off</div></div>
+        <div class="stat-item" onclick="setFilter('emergency')"><div class="stat-num" id="cn-emergency" style="color:var(--red)">--</div><div class="stat-label">Emergency</div></div>
+        <div class="stat-item" onclick="setFilter('existing')"><div class="stat-num" id="cn-existing" style="color:var(--blue)">--</div><div class="stat-label">Existing Customer</div></div>
+        <div class="stat-item" onclick="setFilter('all')"><div class="stat-num" id="cn-total">--</div><div class="stat-label">Total</div></div>
+    </div>
+
+    <!-- Layout -->
+    <div class="ai-layout">
+        <!-- Feed -->
+        <div class="feed-panel">
+            <div class="feed-toolbar">
+                <div class="feed-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" placeholder="Search name or phone..." id="search-input" oninput="renderFeed()">
+                </div>
+            </div>
+            <div class="filter-tabs" id="filter-tabs">
+                <button class="filter-tab active" data-filter="all">All</button>
+                <button class="filter-tab" data-filter="active">Active</button>
+                <button class="filter-tab" data-filter="handed_off">Handed Off</button>
+                <button class="filter-tab" data-filter="emergency">Emergency</button>
+                <button class="filter-tab" data-filter="existing">Existing</button>
+                <button class="filter-tab" data-filter="closed">Closed</button>
+            </div>
+            <div class="feed-list" id="feed-list"><div class="spinner"></div></div>
+        </div>
+
+        <!-- Detail -->
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-empty" id="detail-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                <p>Select a conversation to view</p>
+            </div>
+            <div id="detail-content" style="display:none;flex:1;flex-direction:column;overflow:hidden;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = window.location.hostname === 'localhost'
+    ? 'http://localhost:8080'
+    : 'https://pappas-twilio-webhook-production.up.railway.app';
+
+let conversations = [];
+let allConversations = [];
+let selectedId = null;
+let activeFilter = 'all';
+let listInterval, detailInterval;
+
+// ─── Helpers ───
+function fmtPhone(p) {
+    if (!p) return '';
+    return p.replace(/^\+1/, '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+}
+function timeAgo(d) {
+    const diff = Date.now() - new Date(d).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return m + 'm';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h';
+    return Math.floor(h / 24) + 'd';
+}
+function fmtTime(d) { return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }); }
+function fmtDate(d) { return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+function statusPill(s) {
+    const labels = { active:'Active', handed_off:'Handed Off', emergency:'Emergency', existing_customer:'Existing', replied:'Replied', closed:'Closed', owner_stopped:'Taken Over', after_hours:'After Hours', abusive:'Abusive' };
+    return '<span class="type-pill pill-' + s + '">' + (labels[s] || s) + '</span>';
+}
+
+function avatarClass(s) {
+    if (s === 'active') return 'av-active';
+    if (s === 'handed_off') return 'av-handoff';
+    if (s === 'emergency') return 'av-emergency';
+    if (s === 'existing_customer' || s === 'replied') return 'av-existing';
+    return 'av-closed';
+}
+function avatarIcon(s) {
+    if (s === 'emergency') return '!';
+    if (s === 'existing_customer' || s === 'replied') return '👤';
+    return '🤖';
+}
+
+function matchesFilter(c) {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'active') return c.status === 'active';
+    if (activeFilter === 'handed_off') return c.status === 'handed_off';
+    if (activeFilter === 'emergency') return c.status === 'emergency';
+    if (activeFilter === 'existing') return c.status === 'existing_customer' || c.status === 'replied';
+    if (activeFilter === 'closed') return ['closed','owner_stopped','after_hours','abusive'].includes(c.status);
+    return true;
+}
+
+// ─── Load ───
+async function loadConversations() {
+    try {
+        const res = await fetch(API_BASE + '/api/ai-conversations?limit=200');
+        const data = await res.json();
+        allConversations = data.conversations || [];
+        updateStats();
+        renderFeed();
+    } catch (err) {
+        console.error('Load error:', err);
+        document.getElementById('feed-list').innerHTML = '<div class="feed-empty"><p>Could not load conversations</p></div>';
+    }
+}
+
+function updateStats() {
+    let active = 0, handoff = 0, emergency = 0, existing = 0;
+    allConversations.forEach(c => {
+        if (c.status === 'active') active++;
+        else if (c.status === 'handed_off') handoff++;
+        else if (c.status === 'emergency') emergency++;
+        else if (c.status === 'existing_customer' || c.status === 'replied') existing++;
+    });
+    document.getElementById('cn-active').textContent = active;
+    document.getElementById('cn-handoff').textContent = handoff;
+    document.getElementById('cn-emergency').textContent = emergency;
+    document.getElementById('cn-existing').textContent = existing;
+    document.getElementById('cn-total').textContent = allConversations.length;
+}
+
+function renderFeed() {
+    const list = document.getElementById('feed-list');
+    const q = (document.getElementById('search-input').value || '').toLowerCase();
+
+    let filtered = allConversations.filter(matchesFilter);
+    if (q) {
+        filtered = filtered.filter(c =>
+            (c.customer_name || '').toLowerCase().includes(q) ||
+            (c.phone_number || '').includes(q) || fmtPhone(c.phone_number).toLowerCase().includes(q)
+        );
+    }
+
+    if (!filtered.length) {
+        list.innerHTML = '<div class="feed-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><p>No conversations</p></div>';
+        return;
+    }
+
+    list.innerHTML = filtered.map(c => {
+        const name = c.customer_name || fmtPhone(c.phone_number);
+        return `
+        <div class="feed-item ${c.id === selectedId ? 'selected' : ''}" onclick="selectConv(${c.id})">
+            <div class="feed-avatar ${avatarClass(c.status)}">${avatarIcon(c.status)}</div>
+            <div class="feed-body">
+                <div class="feed-top">
+                    <span class="feed-name">${name}</span>
+                    <span class="feed-time">${timeAgo(c.last_message_at || c.created_at)}</span>
+                </div>
+                ${c.customer_name ? '<div class="feed-phone">' + fmtPhone(c.phone_number) + '</div>' : ''}
+                <div class="feed-bottom">
+                    ${statusPill(c.status)}
+                    <span class="feed-meta">${c.message_count || 0} msgs</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ─── Detail ───
+async function selectConv(id) {
+    selectedId = id;
+    renderFeed();
+    try {
+        const res = await fetch(API_BASE + '/api/ai-conversations/' + id);
+        const data = await res.json();
+        renderDetail(data.conversation, data.messages || []);
+    } catch (err) {
+        console.error('Detail error:', err);
+    }
+}
+
+function renderDetail(conv, msgs) {
+    const panel = document.getElementById('detail-panel');
+    const empty = document.getElementById('detail-empty');
+    const content = document.getElementById('detail-content');
+
+    empty.style.display = 'none';
+    content.style.display = 'flex';
+    panel.classList.add('visible');
+
+    const name = conv.customer_name || fmtPhone(conv.phone_number);
+    const canTakeOver = ['active','existing_customer'].includes(conv.status);
+    const canReopen = ['closed','owner_stopped','handed_off','after_hours'].includes(conv.status);
+
+    content.innerHTML = `
+    <div class="thread-header">
+        <div class="thread-top">
+            <div class="thread-who">
+                <button class="thread-back-btn" onclick="closeDetail()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Back
+                </button>
+                <div class="thread-av ${avatarClass(conv.status)}">${avatarIcon(conv.status)}</div>
+                <div>
+                    <div class="thread-name">${name}</div>
+                    <div class="thread-num"><a href="tel:${conv.phone_number}">${fmtPhone(conv.phone_number)}</a></div>
+                </div>
+            </div>
+            <div class="thread-actions">
+                ${canTakeOver ? '<button class="btn btn-primary btn-sm" onclick="takeOver(' + conv.id + ')">Take Over</button>' : ''}
+                ${canReopen ? '<button class="btn btn-secondary btn-sm" onclick="reopenConv(' + conv.id + ')">Reopen</button>' : ''}
+            </div>
+        </div>
+        <div class="thread-meta">
+            <div class="thread-meta-item">${statusPill(conv.status)}</div>
+            ${conv.service_interest ? '<div class="thread-meta-item"><strong>Service:</strong> ' + conv.service_interest + '</div>' : ''}
+            ${conv.address ? '<div class="thread-meta-item"><strong>Address:</strong> ' + conv.address + '</div>' : ''}
+            <div class="thread-meta-item"><strong>Started:</strong> ${fmtDate(conv.created_at)} ${fmtTime(conv.created_at)}</div>
+        </div>
+    </div>
+    <div class="thread-messages" id="chat-area">${renderMessages(msgs)}</div>`;
+
+    document.getElementById('chat-area').scrollTop = 999999;
+    clearInterval(detailInterval);
+    if (conv.status === 'active') detailInterval = setInterval(() => selectConv(conv.id), 10000);
+}
+
+function renderMessages(msgs) {
+    if (!msgs.length) return '<div class="feed-empty"><p>No messages yet</p></div>';
+    let html = '', lastDate = '';
+    msgs.forEach(m => {
+        const d = fmtDate(m.created_at);
+        if (d !== lastDate) { html += '<div class="date-divider"><span>' + d + '</span></div>'; lastDate = d; }
+        const dir = m.role === 'user' ? 'inbound' : 'outbound';
+        const label = m.role === 'user' ? 'Customer' : 'AI';
+        html += `<div class="bubble ${dir}">
+            <div class="bubble-label">${label}</div>
+            <div class="bubble-body">${m.body}</div>
+            <div class="bubble-time">${fmtTime(m.created_at)}</div>
+        </div>`;
+    });
+    return html;
+}
+
+function closeDetail() {
+    document.getElementById('detail-panel').classList.remove('visible');
+    document.getElementById('detail-content').style.display = 'none';
+    document.getElementById('detail-empty').style.display = 'flex';
+    selectedId = null;
+    clearInterval(detailInterval);
+    renderFeed();
+}
+
+// ─── Actions ───
+async function takeOver(id) {
+    await fetch(API_BASE + '/api/ai-conversations/' + id + '/close', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'owner_stopped' })
+    });
+    await loadConversations();
+    await selectConv(id);
+}
+async function reopenConv(id) {
+    await fetch(API_BASE + '/api/ai-conversations/' + id + '/close', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' })
+    });
+    await loadConversations();
+    await selectConv(id);
+}
+
+// ─── Filters ───
+function setFilter(f) {
+    activeFilter = f;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+    document.querySelectorAll('.stat-item').forEach(s => s.classList.remove('active-filter'));
+    renderFeed();
+}
+document.getElementById('filter-tabs').addEventListener('click', e => {
+    const tab = e.target.closest('.filter-tab');
+    if (tab) setFilter(tab.dataset.filter);
+});
+
+// ─── Init ───
+loadConversations();
+listInterval = setInterval(loadConversations, 30000);
+</script>
+</body>
+</html>

@@ -18716,7 +18716,7 @@ function serviceCompleteEmailTemplate(data) {
 
     <!-- Greeting -->
     <p style="font-size:16px;color:#2e403d;font-weight:600;margin:0 0 8px;">Hi ${escapeHtml(data.customerFirstName || data.customerName)}!</p>
-    <p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 24px;">We just finished servicing your lawn. Here's a summary of what we did today and some tips to help you get the most out of it.</p>
+    <p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 24px;">${data.isRecent ? "We just finished servicing your lawn. Here's a summary of what we did today and some tips to help you get the most out of it." : "Here's a summary of your recent lawn service and some tips to help you get the most out of it."}</p>
 
     <!-- Service details card -->
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f0e4;border-radius:10px;margin:0 0 28px;">
@@ -18852,6 +18852,11 @@ app.post('/api/service-complete-email', async (req, res) => {
       }
     }
 
+    // Check if service was today
+    const today = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: '2-digit', year: 'numeric' });
+    const svcDateStr = serviceDate || '';
+    const isToday = svcDateStr.includes(new Date().getFullYear().toString()) && new Date(svcDateStr).toDateString() === new Date().toDateString();
+
     // Fetch weather
     const weather = parsedCity ? await getWeather(parsedCity, parsedState) : null;
 
@@ -18865,7 +18870,8 @@ app.post('/api/service-complete-email', async (req, res) => {
       technicianName: parsedTechName || 'Our crew',
       serviceAddress: parsedAddress,
       serviceCity: parsedCity || '',
-      weather
+      weather,
+      isRecent: isToday
     };
 
     const html = serviceCompleteEmailTemplate(emailData);

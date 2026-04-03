@@ -642,7 +642,8 @@ const ADMIN_PUBLIC_PATHS = [
   '/api/portal/', '/api/campaigns/submissions', '/api/app/',
   '/api/cron/', '/api/t/', '/api/square/status', '/api/services',
   '/api/config/', '/health', '/api/test-quote-pdf',
-  '/api/quickbooks/auth', '/api/quickbooks/callback'
+  '/api/quickbooks/auth', '/api/quickbooks/callback',
+  '/api/service-complete-email'
 ];
 
 function requireAdmin(req, res, next) {
@@ -18592,6 +18593,249 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     serverError(res, error, 'Morning briefing failed');
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST-SERVICE NOTIFICATION EMAIL (Zapier webhook from CopilotCRM)
+// ═══════════════════════════════════════════════════════════════
+
+const SERVICE_LOOKUP = {
+  "Early Spring": {
+    description: "Today we applied an early spring fertilizer with pre-emergent crabgrass control to your lawn. The pre-emergent is formulated to reduce infestation of annual grasses such as crabgrass, goosegrass, foxtail, and barnyard grass. It works by establishing a barrier at the soil surface that interrupts the development of these grasses. The fertilizer helps your lawn recover from winter stresses and promotes spring greening without excessive top growth.",
+    tips: "Do not mow for 24 hours after today's application to allow the product to settle into the soil. When you do mow, keep your blade at the highest setting (3\u20133.5 inches) \u2014 taller grass helps crowd out weeds. Water your lawn within 2\u20133 days if rain is not in the forecast, as the pre-emergent needs moisture to activate. Avoid raking or dethatching for at least 4 weeks \u2014 disturbing the soil can break the crabgrass barrier. Per state law, please leave the posting flag in place for 24 hours."
+  },
+  "Late Spring": {
+    description: "Today we applied a weed control treatment and fertilizer to your lawn. The low-volume liquid weed control is formulated to target existing broadleaf weeds such as dandelions, plantain, chickweed, thistle, spurge, and clover. The fertilizer provides nutrients to improve your lawn's color, heartiness, and density.",
+    tips: "Do not mow for 24\u201348 hours after this application. The weed control needs time to be absorbed through the weed leaves \u2014 mowing too soon removes the treated foliage before it can work. Do not water for 24 hours to allow the treatment to dry and absorb. You should see weeds curling and yellowing within 7\u201314 days. Please mow at the highest setting to keep your lawn looking its best, and avoid cutting off more than 1/3 of the grass blade. Per state law, please leave the posting flag in place for 24 hours."
+  },
+  "Early Summer": {
+    description: "Today we applied a slow-release granular fertilizer to your lawn along with insect control and weed treatment. The insect-control product helps prevent infestation of lawn-damaging surface insects such as chinch bugs, billbugs, and sod webworms, as well as subsurface insects such as white grubs. The fertilizer provides nutrients to improve your lawn's tolerance to summer heat and drought. Broadleaf weed control was applied as needed to help maintain a weed-free lawn.",
+    tips: "Do not mow for 24 hours after today's service. Keep children and pets off the treated area for 24 hours. During summer, mow at the highest setting (3.5\u20134 inches) \u2014 taller grass shades the soil, keeps roots cooler, and retains moisture. Water your lawn deeply but infrequently \u2014 about 1 inch per week, ideally in the early morning. Avoid cutting more than 1/3 of the grass blade for best color. Per state law, please leave the posting flag in place for 24 hours."
+  },
+  "Late Summer": {
+    description: "Today we applied a slow-release granular fertilizer to your lawn and treated for weeds and surface insects as needed. The fertilizer will help your lawn recover from the stresses of summer and build new roots, tillers, and grass plants. Cooler temperatures and better moisture will accelerate plant growth and increase density through early fall. Broadleaf weed control was applied as needed to maintain a weed-free lawn.",
+    tips: "Do not mow for 24 hours after today's application. Keep children and pets off the lawn for 24 hours. Please mow at the highest setting to keep the lawn looking its best \u2014 avoid cutting off more than 1/3 of the grass blade for best color. Water your lawn more often as summer heat continues. As temperatures cool, your lawn will start growing more vigorously. If you're considering aeration, now is the perfect time \u2014 contact us to schedule! Per state law, please leave the posting flag in place for 24 hours."
+  },
+  "Fall": {
+    description: "Today we applied a fall winterizer fertilizer to your lawn. This fertilizer promotes healthy root growth and development, which takes place from late fall into early winter. It replenishes important nutrient reserves in the soil, providing extra energy for winter survival that is stored and used for an early spring green-up.",
+    tips: "Continue mowing until the grass stops growing \u2014 typically into November. On your last mow of the season, lower your blade to about 2.5 inches to help prevent snow mold. Keep fallen leaves off your lawn by raking or mulch-mowing \u2014 a thick layer of leaves can smother the grass and invite disease. Your lawn will go dormant soon, but the fertilizer is working underground to build strong roots all winter for a great spring green-up."
+  },
+  "Grub Preventer": {
+    description: "Today we applied a Merit grub preventer to your lawn. This product creates a protective zone in the soil that eliminates grub larvae before they can damage your lawn's root system. Grubs are the #1 cause of brown, dead patches in Northeast Ohio lawns in late summer and fall.",
+    tips: "PLEASE water your lawn as soon as possible \u2014 irrigation or rainfall is needed to activate this product and guarantee results. Water deeply (about 0.5 inches). Keep children and pets off the lawn for 24 hours or until the product has been watered in and the lawn has dried. This treatment is preventive \u2014 you won't see immediate visible results, but it's working underground to protect your lawn. Per state law, please leave the posting flag in place for 24 hours."
+  },
+  "Aeration": {
+    description: "Today we core-aerated your lawn. Aeration pulls small plugs of soil from the ground, relieving compaction and allowing air, water, and nutrients to reach the roots more effectively. This is one of the best things you can do for your lawn's long-term health \u2014 especially in Northeast Ohio's heavy clay soils.",
+    tips: "Leave the soil plugs on the lawn \u2014 they break down naturally in 1\u20132 weeks and return nutrients to the soil. You can mow and use your lawn normally right away. Water your lawn within a day or two if rain is not in the forecast \u2014 moisture helps the soil settle and speeds plug breakdown. This is also a great time to fertilize, as nutrients can now reach deeper into the root zone."
+  },
+  "Lime Application": {
+    description: "Today we applied granular lime to your lawn to correct soil acidity. Ohio soils tend to become acidic over time, making it harder for grass to absorb fertilizer and nutrients. Lime raises the soil pH back to a healthy range so your lawn gets the full benefit of each fertilizer application.",
+    tips: "Water your lawn within 2\u20133 days if rain is not expected \u2014 moisture helps the lime break down into the soil. Lime is slow-acting (2\u20133 months to fully adjust pH), so results are gradual. You can mow and use your lawn normally right away. No special precautions needed."
+  }
+};
+
+async function getWeather(city, state) {
+  const apiKey = process.env.OPENWEATHER_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const resp = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)},${state},US&appid=${apiKey}&units=imperial`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      temp: Math.round(data.main.temp),
+      description: data.weather[0].description,
+      icon: data.weather[0].icon
+    };
+  } catch (err) {
+    console.error('Weather API error:', err.message);
+    return null;
+  }
+}
+
+function serviceCompleteEmailTemplate(data) {
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+  const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
+  const headingImg = `${assetsUrl}/email-assets/heading-1.png`;
+  const SOCIAL_FB = `${assetsUrl}/email-assets/fb-white.png`;
+  const SOCIAL_IG = `${assetsUrl}/email-assets/ig-white.png`;
+  const SOCIAL_ND = `${assetsUrl}/email-assets/nd-white.png`;
+  const reviewLink = process.env.GOOGLE_REVIEW_LINK || 'https://g.page/r/CXOm9gkatDbPEAE/review';
+
+  const service = SERVICE_LOOKUP[data.serviceTitle] || {
+    description: `Today we completed ${data.serviceTitle} service on your lawn.`,
+    tips: 'Water your lawn if rain is not in the forecast within the next few days.'
+  };
+
+  const weatherRow = data.weather ? `
+    <tr>
+      <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Weather</td>
+      <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:600;text-align:right;border-bottom:1px solid #d4e4d0;">
+        <img src="https://openweathermap.org/img/wn/${data.weather.icon}.png" alt="" style="width:24px;height:24px;vertical-align:middle;margin-right:4px;">${data.weather.temp}\u00b0F, ${data.weather.description}
+      </td>
+    </tr>` : '';
+
+  const tipsList = service.tips.split(/(?<=\.) /).map(tip =>
+    `<li style="margin-bottom:8px;color:#4a5568;">${tip}</li>`
+  ).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+
+  <!-- Header -->
+  <tr><td style="background:#2e403d;padding:36px 48px;text-align:center;">
+    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
+  </td></tr>
+
+  <!-- Heading image -->
+  <tr><td style="padding:40px 48px 8px;text-align:center;">
+    <img src="${headingImg}" alt="" style="max-width:400px;width:auto;height:34px;" />
+  </td></tr>
+
+  <!-- Body -->
+  <tr><td style="padding:24px 48px 12px;">
+
+    <!-- Greeting -->
+    <p style="font-size:16px;color:#2e403d;font-weight:600;margin:0 0 8px;">Hi ${escapeHtml(data.customerFirstName || data.customerName)}!</p>
+    <p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 24px;">We just finished servicing your lawn. Here's a summary of what we did today and some tips to help you get the most out of it.</p>
+
+    <!-- Service details card -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8f0e4;border-radius:10px;margin:0 0 28px;">
+      <tr><td style="padding:20px 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Service</td>
+            <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:700;text-align:right;border-bottom:1px solid #d4e4d0;">${escapeHtml(data.serviceTitle)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Date</td>
+            <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:600;text-align:right;border-bottom:1px solid #d4e4d0;">${escapeHtml(data.serviceDate)}${data.serviceTime ? ' at ' + escapeHtml(data.serviceTime) : ''}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#4a5568;border-bottom:1px solid #d4e4d0;">Technician</td>
+            <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:600;text-align:right;border-bottom:1px solid #d4e4d0;">${escapeHtml(data.technicianName)}</td>
+          </tr>
+          ${weatherRow}
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#4a5568;">Location</td>
+            <td style="padding:8px 0;font-size:13px;color:#2e403d;font-weight:600;text-align:right;">${escapeHtml(data.serviceAddress)}, ${escapeHtml(data.serviceCity)}</td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+
+    <!-- What We Applied -->
+    <p style="font-size:15px;color:#2e403d;font-weight:700;margin:0 0 10px;">\u{1f33f} What We Applied</p>
+    <p style="font-size:14px;color:#4a5568;line-height:1.7;margin:0 0 28px;">${service.description}</p>
+
+    <!-- Lawn Care Tips -->
+    <p style="font-size:15px;color:#2e403d;font-weight:700;margin:0 0 10px;">\u{1f4a1} Lawn Care Tips</p>
+    <ul style="font-size:14px;line-height:1.7;margin:0 0 28px;padding-left:20px;">
+      ${tipsList}
+    </ul>
+
+    <!-- Lime divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;"><tr>
+      <td style="width:30%;height:1px;background:transparent;"></td>
+      <td style="width:40%;height:2px;background:#c9dd80;border-radius:1px;"></td>
+      <td style="width:30%;height:1px;background:transparent;"></td>
+    </tr></table>
+
+    <!-- Google Review CTA -->
+    <p style="font-size:14px;color:#4a5568;text-align:center;margin:0 0 16px;">Enjoying our service? A quick review means the world to us!</p>
+    <div style="text-align:center;margin:0 0 20px;">
+      <a href="${reviewLink}" style="background:#c9dd80;color:#2e403d;padding:14px 44px;text-decoration:none;border-radius:50px;font-weight:700;font-size:14px;display:inline-block;">Leave a Google Review \u2b50</a>
+    </div>
+
+    <!-- Contact CTA -->
+    <p style="font-size:13px;color:#94a3b8;text-align:center;margin:0 0 8px;">Questions about today's service? Just reply to this email.</p>
+
+  </td></tr>
+
+  <!-- Signature -->
+  <tr><td style="padding:0 48px 36px;">
+    <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:400px;width:100%;height:auto;">
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#2e403d;padding:28px 40px;text-align:center;">
+    <p style="margin:0 0 6px;font-size:14px;color:#c9dd80;font-weight:600;letter-spacing:0.5px;">Quality Care for Every Season</p>
+    <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+      <tr>
+        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FB}" alt="Facebook" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_IG}" alt="Instagram" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_ND}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
+      </tr>
+    </table>
+    <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
+    <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+    <p style="margin:0 0 10px;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
+    <p style="margin:0;font-size:10px;color:#5a7a57;"><a href="${baseUrl}/unsubscribe.html?email=${encodeURIComponent(data.customerEmail || '')}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+app.post('/api/service-complete-email', async (req, res) => {
+  try {
+    const { customerName, customerFirstName, customerEmail, serviceTitle, serviceDate, serviceTime, technicianName, serviceAddress, serviceCity, serviceState } = req.body;
+
+    if (!customerEmail || !serviceTitle) {
+      return res.status(400).json({ error: 'customerEmail and serviceTitle are required' });
+    }
+
+    // Match service title (fuzzy — try exact, then partial)
+    let matchedTitle = Object.keys(SERVICE_LOOKUP).find(k => k.toLowerCase() === serviceTitle.toLowerCase());
+    if (!matchedTitle) {
+      matchedTitle = Object.keys(SERVICE_LOOKUP).find(k => serviceTitle.toLowerCase().includes(k.toLowerCase()));
+    }
+
+    // Fetch weather
+    const weather = serviceCity ? await getWeather(serviceCity, serviceState || 'OH') : null;
+
+    const emailData = {
+      customerName: customerName || 'Valued Customer',
+      customerFirstName: customerFirstName || customerName?.split(' ')[0] || 'there',
+      customerEmail,
+      serviceTitle: matchedTitle || serviceTitle,
+      serviceDate: serviceDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      serviceTime: serviceTime || null,
+      technicianName: technicianName || 'Our crew',
+      serviceAddress: serviceAddress || '',
+      serviceCity: serviceCity || '',
+      weather
+    };
+
+    const html = serviceCompleteEmailTemplate(emailData);
+    const subject = `Your ${emailData.serviceTitle} service is complete! \u{1f33f}`;
+
+    await sendEmail(customerEmail, subject, html, null, {
+      type: 'service_complete',
+      customer_name: customerName
+    });
+
+    console.log(`\u{1f4e7} Service complete email sent to ${customerEmail} for ${emailData.serviceTitle}`);
+
+    res.json({
+      success: true,
+      email: customerEmail,
+      service: emailData.serviceTitle,
+      matched: !!matchedTitle,
+      weather: weather ? `${weather.temp}\u00b0F, ${weather.description}` : 'unavailable'
+    });
+  } catch (error) {
+    console.error('Service complete email error:', error);
+    serverError(res, error, 'Failed to send service complete email');
   }
 });
 

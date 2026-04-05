@@ -3224,10 +3224,15 @@ app.get('/api/customers/search', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, name, email, phone, mobile, street, city, state, postal_code
+      `SELECT id, COALESCE(name, TRIM(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')), 'Unknown') as name, email, phone, mobile, street, city, state, postal_code
        FROM customers
-       WHERE LOWER(name) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1) OR phone LIKE $1
-       ORDER BY name
+       WHERE LOWER(COALESCE(name, '')) LIKE LOWER($1)
+          OR LOWER(COALESCE(first_name, '')) LIKE LOWER($1)
+          OR LOWER(COALESCE(last_name, '')) LIKE LOWER($1)
+          OR LOWER(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')) LIKE LOWER($1)
+          OR LOWER(COALESCE(email, '')) LIKE LOWER($1)
+          OR COALESCE(phone, '') LIKE $1
+       ORDER BY COALESCE(name, first_name, last_name, '')
        LIMIT 10`,
       [`%${query}%`]
     );

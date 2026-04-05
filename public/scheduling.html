@@ -521,17 +521,60 @@
         .date-nav .day-label { font-size: 14px; color: var(--gray-500); font-weight: 500; }
 
         /* Enhanced Job Cards */
-        .job-card { 
-            background: var(--white); 
-            border: 1px solid var(--gray-200); 
-            border-radius: 12px; 
-            padding: 16px 20px; 
-            display: grid; 
-            grid-template-columns: 40px 1fr auto auto auto; 
-            align-items: center; 
-            gap: 16px; 
-            transition: all 0.15s; 
-            cursor: pointer; 
+        .job-checkbox {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .job-checkbox input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+        .select-all-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-500);
+        }
+        .select-all-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+        .bulk-delete-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+        .bulk-delete-btn:hover { background: #b91c1c; }
+        .job-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: grid;
+            grid-template-columns: 28px 40px 1fr auto auto auto;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.15s;
+            cursor: pointer;
             margin-bottom: 8px;
             position: relative;
         }
@@ -1275,7 +1318,7 @@
         .form-row textarea { resize: vertical; min-height: 60px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) {
-            .job-card { grid-template-columns: 36px 1fr; gap: 12px; }
+            .job-card { grid-template-columns: 28px 36px 1fr; gap: 12px; }
             .job-meta, .job-actions { display: none; }
             .modal { width: 95%; margin: 0 10px; }
             .form-grid { grid-template-columns: 1fr; }
@@ -1380,6 +1423,7 @@
             <div class="bulk-actions" id="bulkActions" style="display:none;">
                 <span class="selected-count"><span id="selectedCount">0</span> selected</span>
                 <button class="btn btn-sm btn-success" onclick="bulkComplete()">Complete All</button>
+                <button class="bulk-delete-btn" onclick="bulkDeleteJobs()">Delete Selected</button>
                 <button class="btn btn-sm btn-secondary" onclick="clearSelection()">Clear</button>
             </div>
         </div>
@@ -1432,6 +1476,11 @@
         <!-- Day View Job List -->
         <div id="dayView">
             <div id="timeSlotView" style="display:none;"></div>
+            <div class="select-all-row" id="selectAllRow" style="display:none;">
+                <input type="checkbox" id="selectAllDayCheckbox" onchange="toggleSelectAllDay()">
+                <label for="selectAllDayCheckbox">Select All</label>
+                <span id="selectAllCount" style="color:var(--gray-400);font-size:12px;"></span>
+            </div>
             <div id="jobsList"><div class="loading-state"><div class="loading-spinner"></div>Loading jobs...</div></div>
         </div>
 
@@ -1608,6 +1657,7 @@ let allCrews = [];
 let selectedDate = new Date().toISOString().split('T')[0];
 let currentView = 'day';
 let selectedJobs = new Set();
+let selectedJobIds = new Set();
 
 async function init() {
     // Check for date in URL params
@@ -1789,6 +1839,8 @@ function selectWeekDay(dateStr) {
 
 async function loadJobs() {
     selectedDate = document.getElementById('dateInput').value;
+    selectedJobIds.clear();
+    updateBulkBar();
     updateDayLabel();
     try {
         const [jobsRes, statsRes] = await Promise.all([
@@ -1880,6 +1932,7 @@ function renderJobs() {
     if (!filtered.length) {
         document.getElementById('jobsList').innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><p>No jobs scheduled for this day</p></div>';
         document.getElementById('timeSlotView').style.display = 'none';
+        document.getElementById('selectAllRow').style.display = 'none';
         return;
     }
     
@@ -1906,8 +1959,12 @@ function renderJobs() {
         const statusClass = j.status === 'completed' ? 'is-completed' : (j.status === 'in_progress' ? 'is-in_progress' : '');
         const crewClass = j.crew_assigned ? '' : 'unassigned';
         
+        const isChecked = selectedJobIds.has(j.id);
         return `
             <div class="job-card ${statusClass}" data-id="${j.id}">
+                <div class="job-checkbox" onclick="event.stopPropagation()">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobSelect(${j.id})">
+                </div>
                 <div class="job-order">${j.route_order || (i + 1)}</div>
                 <div class="job-info">
                     <h4>${esc(j.customer_name)}</h4>
@@ -1942,6 +1999,10 @@ function renderJobs() {
     document.querySelectorAll('.job-card').forEach(card => {
         card.addEventListener('click', () => openPanel(parseInt(card.dataset.id)));
     });
+
+    // Show select-all row and sync state
+    document.getElementById('selectAllRow').style.display = 'flex';
+    updateSelectAllState(filtered);
 }
 
 function buildCompletionSection(j) {
@@ -2226,6 +2287,100 @@ async function deleteJob(id) {
     catch(e) { showToast('Delete failed'); }
 }
 
+function toggleJobSelect(id) {
+    if (selectedJobIds.has(id)) {
+        selectedJobIds.delete(id);
+    } else {
+        selectedJobIds.add(id);
+    }
+    updateBulkBar();
+    updateSelectAllState();
+}
+
+function toggleSelectAllDay() {
+    const cb = document.getElementById('selectAllDayCheckbox');
+    const status = document.getElementById('statusFilter').value;
+    const crew = document.getElementById('crewFilter').value;
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const filtered = allJobs.filter(j => {
+        if (status && j.status !== status) return false;
+        if (crew && j.crew_assigned !== crew) return false;
+        if (search) {
+            const searchStr = `${j.customer_name} ${j.address} ${j.service_type}`.toLowerCase();
+            if (!searchStr.includes(search)) return false;
+        }
+        return true;
+    });
+    if (cb.checked) {
+        filtered.forEach(j => selectedJobIds.add(j.id));
+    } else {
+        filtered.forEach(j => selectedJobIds.delete(j.id));
+    }
+    // Re-render checkboxes
+    document.querySelectorAll('.job-card').forEach(card => {
+        const jobId = parseInt(card.dataset.id);
+        const checkbox = card.querySelector('.job-checkbox input');
+        if (checkbox) checkbox.checked = selectedJobIds.has(jobId);
+    });
+    updateBulkBar();
+}
+
+function updateSelectAllState(filtered) {
+    if (!filtered) {
+        const status = document.getElementById('statusFilter').value;
+        const crew = document.getElementById('crewFilter').value;
+        const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+        filtered = allJobs.filter(j => {
+            if (status && j.status !== status) return false;
+            if (crew && j.crew_assigned !== crew) return false;
+            if (search) {
+                const searchStr = `${j.customer_name} ${j.address} ${j.service_type}`.toLowerCase();
+                if (!searchStr.includes(search)) return false;
+            }
+            return true;
+        });
+    }
+    const cb = document.getElementById('selectAllDayCheckbox');
+    const countEl = document.getElementById('selectAllCount');
+    if (!filtered.length) {
+        cb.checked = false;
+        cb.indeterminate = false;
+        countEl.textContent = '';
+        return;
+    }
+    const checkedCount = filtered.filter(j => selectedJobIds.has(j.id)).length;
+    cb.checked = checkedCount === filtered.length;
+    cb.indeterminate = checkedCount > 0 && checkedCount < filtered.length;
+    countEl.textContent = checkedCount > 0 ? `(${checkedCount} of ${filtered.length})` : `(${filtered.length} jobs)`;
+}
+
+function updateBulkBar() {
+    updateBulkActionsUI();
+}
+
+async function bulkDeleteJobs() {
+    if (selectedJobIds.size === 0) return;
+    if (!confirm(`Delete ${selectedJobIds.size} selected job${selectedJobIds.size > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    try {
+        const res = await fetch('/api/jobs/bulk', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: Array.from(selectedJobIds) })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Deleted ${data.deleted} job${data.deleted > 1 ? 's' : ''}`);
+            selectedJobIds.clear();
+            closePanel();
+            loadJobs();
+        } else {
+            showToast(data.error || 'Delete failed');
+        }
+    } catch(e) {
+        showToast('Delete failed');
+    }
+}
+
 function showToast(m) { const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500); }
 function esc(s) { return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; }
 
@@ -2378,7 +2533,7 @@ function toggleJobSelection(id, event) {
 
 function updateBulkActionsUI() {
     const bulkActions = document.getElementById('bulkActions');
-    const count = selectedJobs.size;
+    const count = Math.max(selectedJobs.size, selectedJobIds.size);
     if (count > 0) {
         bulkActions.style.display = 'flex';
         document.getElementById('selectedCount').textContent = count;
@@ -2407,7 +2562,9 @@ async function bulkComplete() {
 
 function clearSelection() {
     selectedJobs.clear();
+    selectedJobIds.clear();
     updateBulkActionsUI();
+    updateBulkBar();
     renderJobs();
 }
 

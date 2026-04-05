@@ -3752,12 +3752,13 @@ app.get('/api/jobs/stats', async (req, res) => {
     let filter = '';
     const params = [];
     if (date) { filter = ' WHERE job_date::date = $1::date'; params.push(date); }
-    const [total, byStatus, revenue] = await Promise.all([
+    const [total, byStatus, revenue, byCrew] = await Promise.all([
       pool.query(`SELECT COUNT(*) FROM scheduled_jobs${filter}`, params),
       pool.query(`SELECT status, COUNT(*) FROM scheduled_jobs${filter} GROUP BY status`, params),
-      pool.query(`SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs${filter}`, params)
+      pool.query(`SELECT COALESCE(SUM(service_price), 0) as total FROM scheduled_jobs${filter}`, params),
+      pool.query(`SELECT COALESCE(crew_assigned, 'Unassigned') as crew, COUNT(*) FROM scheduled_jobs${filter} GROUP BY crew_assigned`, params)
     ]);
-    res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), totalRevenue: parseFloat(revenue.rows[0].total) } });
+    res.json({ success: true, stats: { total: parseInt(total.rows[0].count), byStatus: Object.fromEntries(byStatus.rows.map(r => [r.status, parseInt(r.count)])), totalRevenue: parseFloat(revenue.rows[0].total), byCrew: Object.fromEntries(byCrew.rows.map(r => [r.crew, parseInt(r.count)])) } });
   } catch (error) { serverError(res, error); }
 });
 
@@ -4124,6 +4125,21 @@ app.post('/api/jobs/optimize-route', async (req, res) => {
     for (const job of optimizedJobs) { await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [job.route_order, job.id]); }
     res.json({ success: true, message: 'Route optimized (local algorithm)', jobs: optimizedJobs, stats: { totalStops: optimizedJobs.length } });
   } catch (error) { serverError(res, error); }
+});
+
+app.delete('/api/jobs/bulk', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'ids must be a non-empty array' });
+    }
+    const intIds = ids.map(id => parseInt(id)).filter(id => !isNaN(id));
+    if (intIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid job IDs provided' });
+    }
+    const result = await pool.query('DELETE FROM scheduled_jobs WHERE id = ANY($1::int[]) RETURNING id', [intIds]);
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (error) { serverError(res, error, 'Bulk delete jobs'); }
 });
 
 app.delete('/api/jobs/:id', async (req, res) => {

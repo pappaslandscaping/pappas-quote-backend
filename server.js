@@ -6846,18 +6846,18 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
                 headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: ep.body
               });
-              if (detailRes.ok) {
-                const text = await detailRes.text();
+              const text = await detailRes.text();
+              console.log(`🔍 CopilotCRM: POST ${ep.url} → ${detailRes.status} (${text.length} bytes): ${text.substring(0, 800)}`);
+              if (detailRes.ok && text.length > 2) {
                 try {
                   const json = JSON.parse(text);
                   if (json && typeof json === 'object' && Object.keys(json).length > 0) {
                     estimateData = json;
-                    console.log(`✅ CopilotCRM: Got estimate data from POST ${ep.url}: ${JSON.stringify(json).substring(0, 500)}`);
+                    console.log(`✅ CopilotCRM: Got estimate data from POST ${ep.url}`);
                     break;
                   }
                 } catch (e) { /* not JSON */ }
               }
-              console.log(`🔍 CopilotCRM: POST ${ep.url} → ${detailRes.status}`);
             } catch (e) {
               console.log(`🔍 CopilotCRM: POST ${ep.url} → error: ${e.message}`);
             }

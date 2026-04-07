@@ -6794,17 +6794,16 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
         });
         const estDetailHtml = await estDetailRes.text();
 
-        // DEBUG: Log a sample of the HTML around line items to understand CopilotCRM's structure
+        // DEBUG: Log the line-items-table section from CopilotCRM estimate HTML
         console.log(`🔍 CopilotCRM estimate HTML length: ${estDetailHtml.length}`);
-        // Find the items/services section
-        const itemsSectionIdx = estDetailHtml.search(/item|service|line.*item|qty|quantity/i);
-        if (itemsSectionIdx > -1) {
-          console.log(`🔍 CopilotCRM estimate HTML near 'item' (char ${itemsSectionIdx}): ${estDetailHtml.substring(Math.max(0, itemsSectionIdx - 200), itemsSectionIdx + 1000).replace(/\s+/g, ' ')}`);
+        const lineItemsTableIdx = estDetailHtml.indexOf('line-items-table');
+        if (lineItemsTableIdx > -1) {
+          console.log(`🔍 CopilotCRM line-items-table (char ${lineItemsTableIdx}): ${estDetailHtml.substring(lineItemsTableIdx - 100, lineItemsTableIdx + 2000).replace(/\s+/g, ' ')}`);
         }
-        // Also log around dollar amounts
-        const dollarIdx = estDetailHtml.search(/\$\s*[\d,]+\.\d{2}/);
-        if (dollarIdx > -1) {
-          console.log(`🔍 CopilotCRM estimate HTML near '$' (char ${dollarIdx}): ${estDetailHtml.substring(Math.max(0, dollarIdx - 300), dollarIdx + 500).replace(/\s+/g, ' ')}`);
+        // Also search for estimate total area
+        const estimateTotalIdx = estDetailHtml.search(/estimate[_-]?total|grand[_-]?total|total.*amount/i);
+        if (estimateTotalIdx > -1) {
+          console.log(`🔍 CopilotCRM total area (char ${estimateTotalIdx}): ${estDetailHtml.substring(estimateTotalIdx - 100, estimateTotalIdx + 500).replace(/\s+/g, ' ')}`);
         }
 
         // Parse line items from the estimate detail HTML

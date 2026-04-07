@@ -6688,6 +6688,282 @@ app.post('/api/copilotcrm/backfill-contract', authenticateToken, async (req, res
   }
 });
 
+// POST /api/copilotcrm/estimate-accepted - CopilotCRM estimate accepted → send YardDesk contract
+// Minimal required: customer_name + estimate_number. Fetches email, services, and total from CopilotCRM.
+// Optional overrides: email, phone, address, services, estimate_amount (skip CopilotCRM lookup for provided fields)
+app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res) => {
+  try {
+    let { customer_name, phone, address, email, estimate_number, estimate_amount, services } = req.body;
+    if (!customer_name || !estimate_number) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: customer_name, estimate_number' });
+    }
+
+    // Dedupe check — don't create duplicate contracts for the same estimate
+    const existing = await pool.query(
+      `SELECT id, sign_token FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
+      [estimate_number]
+    );
+    if (existing.rows.length > 0) {
+      const ex = existing.rows[0];
+      const contractUrl = `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sign-contract.html?token=${ex.sign_token}`;
+      return res.json({ success: true, message: 'Contract already exists for this estimate', quote_id: ex.id, contract_url: contractUrl });
+    }
+
+    // Fetch missing data from CopilotCRM (email, services, total)
+    const needsCopilotLookup = !email || !services || !estimate_amount;
+    let copilotHeaders = null;
+
+    if (needsCopilotLookup) {
+      if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
+        return res.status(400).json({ success: false, error: 'CopilotCRM credentials not configured. Provide email, services, and estimate_amount manually.' });
+      }
+
+      // Login to CopilotCRM
+      const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+        body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
+      });
+      const copilotAuth = await copilotLogin.json();
+      if (!copilotAuth.accessToken) {
+        return res.status(500).json({ success: false, error: 'CopilotCRM login failed' });
+      }
+      copilotHeaders = {
+        'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest'
+      };
+
+      // Search for customer
+      const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+        method: 'POST',
+        headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `query=${encodeURIComponent(customer_name)}`
+      });
+      const crmCustomers = await searchRes.json().catch(() => null);
+      const crmMatch = Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
+      if (!crmMatch) {
+        return res.status(404).json({ success: false, error: `Customer "${customer_name}" not found in CopilotCRM` });
+      }
+
+      // Fill in missing customer fields from CopilotCRM
+      if (!email) email = crmMatch.email;
+      if (!phone && crmMatch.phone) phone = crmMatch.phone;
+      if (!address && crmMatch.address) address = crmMatch.address;
+      console.log(`📧 CopilotCRM lookup: customer=${crmMatch.id}, email=${email}, phone=${phone || 'n/a'}`);
+
+      if (!email) {
+        return res.status(404).json({ success: false, error: `No email found for "${customer_name}" in CopilotCRM` });
+      }
+
+      // Fetch estimate details if services or amount not provided
+      if (!services || !estimate_amount) {
+        const copilotCustomerId = crmMatch.id;
+
+        // Get estimates list to find the CopilotCRM internal estimate ID
+        const estListRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+          method: 'POST',
+          headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `customer_id=${copilotCustomerId}`
+        });
+        const estListData = await estListRes.json().catch(() => null);
+        const estHtml = (estListData && estListData.html) || '';
+
+        // Parse estimate IDs and numbers from the list HTML
+        const paddedNum = String(estimate_number).replace(/^0+/, '').padStart(7, '0');
+        const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
+        let estMatch;
+        let copilotEstimateId = null;
+        while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
+          if (estMatch[2] === paddedNum || estMatch[2] === String(estimate_number)) {
+            copilotEstimateId = estMatch[1];
+            break;
+          }
+        }
+
+        if (!copilotEstimateId) {
+          return res.status(404).json({ success: false, error: `Estimate #${estimate_number} not found in CopilotCRM for "${customer_name}". Provide services and estimate_amount manually.` });
+        }
+        console.log(`📋 CopilotCRM: Found estimate ID ${copilotEstimateId} for #${estimate_number}`);
+
+        // Fetch the estimate detail page to get line items
+        const estDetailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${copilotEstimateId}`, {
+          method: 'GET',
+          headers: copilotHeaders
+        });
+        const estDetailHtml = await estDetailRes.text();
+
+        // Parse line items from the estimate detail HTML
+        // CopilotCRM estimate pages have line items in a table with service name, description, qty, rate, amount
+        const parsedServices = [];
+        let parsedTotal = 0;
+
+        // Match line item rows: look for item name + amount patterns in the estimate HTML
+        // Pattern: <td> with item name, followed by qty, rate, and amount cells
+        const lineItemRegex = /<tr[^>]*class="[^"]*item-row[^"]*"[^>]*>[\s\S]*?<\/tr>/gi;
+        const lineItems = estDetailHtml.match(lineItemRegex) || [];
+
+        for (const row of lineItems) {
+          // Extract item name from the first significant td
+          const nameMatch = row.match(/<td[^>]*class="[^"]*item-name[^"]*"[^>]*>([\s\S]*?)<\/td>/i)
+            || row.match(/<td[^>]*>\s*<div[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+            || row.match(/<td[^>]*>\s*<span[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+          // Extract amount (last dollar amount in the row)
+          const amountMatches = row.match(/\$\s*([\d,]+\.?\d*)/g);
+          const amount = amountMatches && amountMatches.length > 0
+            ? parseFloat(amountMatches[amountMatches.length - 1].replace(/[$,]/g, ''))
+            : 0;
+
+          if (nameMatch) {
+            const name = nameMatch[1].replace(/<[^>]+>/g, '').trim();
+            if (name && name.length > 0) {
+              parsedServices.push({ name, price: amount });
+            }
+          }
+        }
+
+        // Fallback: try a broader pattern if item-row didn't match
+        if (parsedServices.length === 0) {
+          // Look for a simpler table structure with item names and amounts
+          const simpleTdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+          const allTds = [];
+          let tdMatch;
+          while ((tdMatch = simpleTdRegex.exec(estDetailHtml)) !== null) {
+            allTds.push(tdMatch[1].replace(/<[^>]+>/g, '').trim());
+          }
+          // Log for debugging in case parsing fails
+          console.log(`⚠️ CopilotCRM: item-row pattern found 0 items. Total tds in page: ${allTds.length}`);
+        }
+
+        // Parse total from the estimate page
+        const totalMatch = estDetailHtml.match(/(?:Total|Grand\s*Total)[^$]*\$\s*([\d,]+\.?\d*)/i)
+          || estDetailHtml.match(/class="[^"]*total[^"]*"[^>]*>[^$]*\$\s*([\d,]+\.?\d*)/i);
+        if (totalMatch) {
+          parsedTotal = parseFloat(totalMatch[1].replace(/,/g, ''));
+        }
+
+        // Use parsed data if not already provided
+        if (!services && parsedServices.length > 0) {
+          services = parsedServices;
+          console.log(`📋 CopilotCRM: Parsed ${services.length} line items from estimate #${estimate_number}`);
+        }
+        if (!estimate_amount && parsedTotal > 0) {
+          estimate_amount = parsedTotal;
+          console.log(`💰 CopilotCRM: Parsed total $${estimate_amount} from estimate #${estimate_number}`);
+        }
+
+        // If still no services after parsing, return error
+        if (!services || services.length === 0) {
+          return res.status(422).json({
+            success: false,
+            error: `Could not parse line items from CopilotCRM estimate #${estimate_number}. Provide services manually.`,
+            hint: 'The CopilotCRM estimate page HTML structure may have changed. Check server logs for details.'
+          });
+        }
+        if (!estimate_amount) {
+          // Fall back to summing service prices
+          estimate_amount = services.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
+        }
+      }
+    }
+
+    // Final validation — we need email, services, and amount at this point
+    if (!email) return res.status(400).json({ success: false, error: 'No customer email available. Provide email manually.' });
+    if (!services || services.length === 0) return res.status(400).json({ success: false, error: 'No services available. Provide services manually.' });
+    if (!estimate_amount) return res.status(400).json({ success: false, error: 'No estimate amount available. Provide estimate_amount manually.' });
+
+    // Find or create customer
+    let customer_id = null;
+    const existingCustomer = await pool.query('SELECT id FROM customers WHERE email = $1', [email]);
+    if (existingCustomer.rows.length > 0) {
+      customer_id = existingCustomer.rows[0].id;
+    } else {
+      const newCustNum = await nextCustomerNumber();
+      const newCustomer = await pool.query(
+        `INSERT INTO customers (customer_number, name, email, phone, street, created_at)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) RETURNING id`,
+        [newCustNum, customer_name, email, phone || null, address || null]
+      );
+      customer_id = newCustomer.rows[0].id;
+      console.log('Created new customer from CopilotCRM estimate:', customer_id);
+
+      if (process.env.ZAPIER_CUSTOMER_WEBHOOK) {
+        try {
+          await fetch(process.env.ZAPIER_CUSTOMER_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id, name: customer_name, email, phone, address, source: 'copilotcrm_estimate' })
+          });
+        } catch (e) { console.error('Zapier webhook failed:', e); }
+      }
+    }
+
+    // Generate token and map services
+    const sign_token = generateToken();
+    const serviceItems = services.map(s => ({ name: s.name, amount: s.price || s.amount, price: s.price || s.amount }));
+
+    // Create sent_quotes record — status='sent' since estimate is already accepted
+    const result = await pool.query(
+      `INSERT INTO sent_quotes (
+        customer_id, customer_name, customer_email, customer_phone, customer_address,
+        quote_type, services, subtotal, tax_rate, tax_amount, total,
+        status, sign_token, notes, quote_number, created_at, sent_at
+      ) VALUES ($1, $2, $3, $4, $5, 'regular', $6, $7, 0, 0, $7, 'sent', $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING *`,
+      [
+        customer_id, customer_name, email, phone || null, address || null,
+        JSON.stringify(serviceItems), estimate_amount,
+        sign_token, 'Auto-created from CopilotCRM estimate #' + estimate_number, estimate_number
+      ]
+    );
+    const newQuote = result.rows[0];
+
+    await logQuoteEvent(newQuote.id, 'created', 'Contract created from CopilotCRM estimate #' + estimate_number, {
+      source: 'copilotcrm', estimate_number, total: estimate_amount, services_count: services.length
+    });
+
+    // Build and send contract email
+    const contractUrl = `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sign-contract.html?token=${sign_token}`;
+    const firstName = escapeHtml((customer_name || '').split(' ')[0] || 'there');
+    const assetsUrl = process.env.EMAIL_ASSETS_URL || process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+
+    const emailContent = `
+      <div style="text-align:center;margin:0 0 28px;">
+        <img src="${assetsUrl}/email-assets/heading-quote.png" alt="Your Service Agreement" style="max-width:400px;width:auto;height:34px;" />
+      </div>
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for accepting your estimate with Pappas & Co. Landscaping! Before we get started, please take a moment to review and sign your service agreement.</p>
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">This agreement covers the scope of work, terms, and pricing for the services below:</p>
+      <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin:0 0 20px;">
+        ${serviceItems.map(s => `<div style="padding:8px 0;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;"><span style="font-size:15px;color:#4a5568;">${escapeHtml(s.name)}</span><strong style="color:#2e403d;">$${parseFloat(s.amount).toFixed(2)}</strong></div>`).join('')}
+        <p style="text-align:right;font-weight:700;font-size:16px;color:#2e403d;margin:12px 0 0;">Total: $${parseFloat(estimate_amount).toFixed(2)}</p>
+      </div>
+      <div style="text-align:center;margin:28px 0 20px;">
+        <a href="${contractUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">Review & Sign Agreement \u{2192}</a>
+      </div>
+      <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or just reply to this email with any questions</p>
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">If you have any questions, feel free to call or text us at <strong>440-886-7318</strong>. We're always happy to help!</p>
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We look forward to working with you!</p>
+    `;
+
+    await sendEmail(
+      email,
+      'Your Service Agreement from ' + COMPANY_NAME,
+      emailTemplate(emailContent),
+      null,
+      { type: 'contract', customer_id, customer_name, quote_id: newQuote.id }
+    );
+
+    await logQuoteEvent(newQuote.id, 'sent', 'Contract sent to ' + email, { email, source: 'copilotcrm' });
+
+    console.log(`✅ CopilotCRM estimate-accepted: Contract sent to ${email} for estimate #${estimate_number}`);
+    res.json({ success: true, message: 'Contract sent to ' + email, quote_id: newQuote.id, contract_url: contractUrl });
+  } catch (error) {
+    serverError(res, error, 'Error creating contract from CopilotCRM estimate');
+  }
+});
+
 // GET /api/sent-quotes/:id/contract-status - Check contract status
 app.get('/api/sent-quotes/:id/contract-status', async (req, res) => {
   try {

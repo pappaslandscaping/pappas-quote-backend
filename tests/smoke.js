@@ -339,6 +339,7 @@ const endpoints = [
   // ── CopilotCRM Sync ──
   ['POST', '/api/copilot/sync', { startDate: '2020-01-01', endDate: '2020-01-01' }],
   // SKIP: logs into CopilotCRM and overwrites cookies — ['POST', '/api/copilot/refresh-cookies', {}],
+  // SKIP: sends real contract email + logs into CopilotCRM — ['POST', '/api/copilotcrm/estimate-accepted', { customer_name: 'Test', estimate_number: '0000' }],
 
   // ── Morning Briefing ──
   ['POST', '/api/morning-briefing', {}],

@@ -6794,46 +6794,61 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
         });
         const estDetailHtml = await estDetailRes.text();
 
+        // DEBUG: Log a sample of the HTML around line items to understand CopilotCRM's structure
+        console.log(`🔍 CopilotCRM estimate HTML length: ${estDetailHtml.length}`);
+        // Find the items/services section
+        const itemsSectionIdx = estDetailHtml.search(/item|service|line.*item|qty|quantity/i);
+        if (itemsSectionIdx > -1) {
+          console.log(`🔍 CopilotCRM estimate HTML near 'item' (char ${itemsSectionIdx}): ${estDetailHtml.substring(Math.max(0, itemsSectionIdx - 200), itemsSectionIdx + 1000).replace(/\s+/g, ' ')}`);
+        }
+        // Also log around dollar amounts
+        const dollarIdx = estDetailHtml.search(/\$\s*[\d,]+\.\d{2}/);
+        if (dollarIdx > -1) {
+          console.log(`🔍 CopilotCRM estimate HTML near '$' (char ${dollarIdx}): ${estDetailHtml.substring(Math.max(0, dollarIdx - 300), dollarIdx + 500).replace(/\s+/g, ' ')}`);
+        }
+
         // Parse line items from the estimate detail HTML
-        // CopilotCRM estimate pages have line items in a table with service name, description, qty, rate, amount
         const parsedServices = [];
         let parsedTotal = 0;
 
-        // Match line item rows: look for item name + amount patterns in the estimate HTML
-        // Pattern: <td> with item name, followed by qty, rate, and amount cells
+        // Try multiple patterns to find line items in CopilotCRM's HTML
+        // Pattern 1: rows with item-row class
         const lineItemRegex = /<tr[^>]*class="[^"]*item-row[^"]*"[^>]*>[\s\S]*?<\/tr>/gi;
         const lineItems = estDetailHtml.match(lineItemRegex) || [];
 
         for (const row of lineItems) {
-          // Extract item name from the first significant td
           const nameMatch = row.match(/<td[^>]*class="[^"]*item-name[^"]*"[^>]*>([\s\S]*?)<\/td>/i)
             || row.match(/<td[^>]*>\s*<div[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
             || row.match(/<td[^>]*>\s*<span[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
-          // Extract amount (last dollar amount in the row)
           const amountMatches = row.match(/\$\s*([\d,]+\.?\d*)/g);
           const amount = amountMatches && amountMatches.length > 0
             ? parseFloat(amountMatches[amountMatches.length - 1].replace(/[$,]/g, ''))
             : 0;
-
           if (nameMatch) {
             const name = nameMatch[1].replace(/<[^>]+>/g, '').trim();
-            if (name && name.length > 0) {
-              parsedServices.push({ name, price: amount });
-            }
+            if (name && name.length > 0) parsedServices.push({ name, price: amount });
           }
         }
 
-        // Fallback: try a broader pattern if item-row didn't match
+        // Pattern 2: look for table rows containing dollar amounts (broader match)
         if (parsedServices.length === 0) {
-          // Look for a simpler table structure with item names and amounts
-          const simpleTdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-          const allTds = [];
-          let tdMatch;
-          while ((tdMatch = simpleTdRegex.exec(estDetailHtml)) !== null) {
-            allTds.push(tdMatch[1].replace(/<[^>]+>/g, '').trim());
+          const trRegex = /<tr[^>]*>[\s\S]*?<\/tr>/gi;
+          const allRows = estDetailHtml.match(trRegex) || [];
+          for (const row of allRows) {
+            if (!/\$\s*[\d,]+\.?\d*/.test(row)) continue; // skip rows without dollar amounts
+            if (/total|subtotal|tax|discount/i.test(row.replace(/<[^>]+>/g, ''))) continue; // skip summary rows
+            const tds = [];
+            const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+            let m;
+            while ((m = tdRegex.exec(row)) !== null) tds.push(m[1].replace(/<[^>]+>/g, '').trim());
+            if (tds.length >= 2) {
+              const name = tds.find(t => t.length > 2 && !/^\$/.test(t) && !/^\d+(\.\d+)?$/.test(t));
+              const amountMatches = row.match(/\$\s*([\d,]+\.?\d*)/g);
+              const amount = amountMatches ? parseFloat(amountMatches[amountMatches.length - 1].replace(/[$,]/g, '')) : 0;
+              if (name && amount > 0) parsedServices.push({ name, price: amount });
+            }
           }
-          // Log for debugging in case parsing fails
-          console.log(`⚠️ CopilotCRM: item-row pattern found 0 items. Total tds in page: ${allTds.length}`);
+          console.log(`🔍 CopilotCRM: Pattern 2 (broad tr scan) found ${parsedServices.length} items from ${allRows.length} rows`);
         }
 
         // Parse total from the estimate page

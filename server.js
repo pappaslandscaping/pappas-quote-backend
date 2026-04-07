@@ -6818,11 +6818,7 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
       </div>
       <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
       <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for accepting your estimate with Pappas & Co. Landscaping! Before we get started, please take a moment to review and sign your service agreement.</p>
-      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">This agreement covers the scope of work, terms, and pricing for the services below:</p>
-      <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin:0 0 20px;">
-        ${serviceItems.map(s => `<div style="padding:8px 0;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;"><span style="font-size:15px;color:#4a5568;">${escapeHtml(s.name)}</span><strong style="color:#2e403d;">$${parseFloat(s.amount).toFixed(2)}</strong></div>`).join('')}
-        <p style="text-align:right;font-weight:700;font-size:16px;color:#2e403d;margin:12px 0 0;">Total: $${parseFloat(estimate_amount).toFixed(2)}</p>
-      </div>
+      <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">This agreement covers the scope of work, terms, and pricing for your accepted estimate.</p>
       <div style="text-align:center;margin:28px 0 20px;">
         <a href="${contractUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">Review & Sign Agreement \u{2192}</a>
       </div>

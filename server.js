@@ -6814,7 +6814,7 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
 
     const emailContent = `
       <div style="text-align:center;margin:0 0 28px;">
-        <img src="${assetsUrl}/email-assets/heading-quote.png" alt="Your Service Agreement" style="max-width:400px;width:auto;height:34px;" />
+        <h2 style="font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#2e403d;font-size:24px;font-weight:600;margin:0;">Your Service Agreement is Ready</h2>
       </div>
       <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
       <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for accepting your estimate with Pappas & Co. Landscaping! Before we get started, please take a moment to review and sign your service agreement.</p>

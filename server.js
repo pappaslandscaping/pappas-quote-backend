@@ -6689,13 +6689,14 @@ app.post('/api/copilotcrm/backfill-contract', authenticateToken, async (req, res
 });
 
 // POST /api/copilotcrm/estimate-accepted - CopilotCRM estimate accepted → send YardDesk contract
-// Minimal required: customer_name + estimate_number. Fetches email, services, and total from CopilotCRM.
-// Optional overrides: email, phone, address, services, estimate_amount (skip CopilotCRM lookup for provided fields)
+// Required: customer_name, estimate_number, estimate_amount
+// Optional: email, phone, address, services (if not provided, email/phone/address looked up from CopilotCRM)
+// If services not provided, creates a single line item "Services per Estimate #XXXX"
 app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res) => {
   try {
     let { customer_name, phone, address, email, estimate_number, estimate_amount, services } = req.body;
-    if (!customer_name || !estimate_number) {
-      return res.status(400).json({ success: false, error: 'Missing required fields: customer_name, estimate_number' });
+    if (!customer_name || !estimate_number || !estimate_amount) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: customer_name, estimate_number, estimate_amount' });
     }
 
     // Dedupe check — don't create duplicate contracts for the same estimate
@@ -6709,16 +6710,11 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
       return res.json({ success: true, message: 'Contract already exists for this estimate', quote_id: ex.id, contract_url: contractUrl });
     }
 
-    // Fetch missing data from CopilotCRM (email, services, total)
-    const needsCopilotLookup = !email || !services || !estimate_amount;
-    let copilotHeaders = null;
-
-    if (needsCopilotLookup) {
+    // If no email, look up customer in CopilotCRM
+    if (!email) {
       if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
-        return res.status(400).json({ success: false, error: 'CopilotCRM credentials not configured. Provide email, services, and estimate_amount manually.' });
+        return res.status(400).json({ success: false, error: 'Email not provided and CopilotCRM credentials not configured' });
       }
-
-      // Login to CopilotCRM
       const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
@@ -6728,14 +6724,12 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
       if (!copilotAuth.accessToken) {
         return res.status(500).json({ success: false, error: 'CopilotCRM login failed' });
       }
-      copilotHeaders = {
+      const copilotHeaders = {
         'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
         'Origin': 'https://secure.copilotcrm.com',
         'Referer': 'https://secure.copilotcrm.com/',
         'X-Requested-With': 'XMLHttpRequest'
       };
-
-      // Search for customer
       const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
         method: 'POST',
         headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -6744,210 +6738,24 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
       const crmCustomers = await searchRes.json().catch(() => null);
       const crmMatch = Array.isArray(crmCustomers) ? crmCustomers.find(c => c.id && String(c.id) !== '0') : null;
       if (!crmMatch) {
-        return res.status(404).json({ success: false, error: `Customer "${customer_name}" not found in CopilotCRM` });
+        return res.status(404).json({ success: false, error: `Customer "${customer_name}" not found in CopilotCRM. Provide email manually.` });
       }
-
-      // Fill in missing customer fields from CopilotCRM
-      if (!email) email = crmMatch.email;
+      if (!crmMatch.email) {
+        return res.status(404).json({ success: false, error: `No email on file for "${customer_name}" in CopilotCRM. Provide email manually.` });
+      }
+      email = crmMatch.email;
       if (!phone && crmMatch.phone) phone = crmMatch.phone;
       if (!address && crmMatch.address) address = crmMatch.address;
       console.log(`📧 CopilotCRM lookup: customer=${crmMatch.id}, email=${email}, phone=${phone || 'n/a'}`);
-
-      if (!email) {
-        return res.status(404).json({ success: false, error: `No email found for "${customer_name}" in CopilotCRM` });
-      }
-
-      // Fetch estimate details if services or amount not provided
-      if (!services || !estimate_amount) {
-        const copilotCustomerId = crmMatch.id;
-
-        // Get estimates list to find the CopilotCRM internal estimate ID
-        const estListRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
-          method: 'POST',
-          headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `customer_id=${copilotCustomerId}`
-        });
-        const estListData = await estListRes.json().catch(() => null);
-        const estHtml = (estListData && estListData.html) || '';
-
-        // Parse estimate IDs and numbers from the list HTML
-        const paddedNum = String(estimate_number).replace(/^0+/, '').padStart(7, '0');
-        const estimateRegex = /<tr\s+id="(\d+)"[\s\S]*?<a\s+href="\/finances\/estimates\/view\/\d+">\s*(\d+)\s*<\/a>/g;
-        let estMatch;
-        let copilotEstimateId = null;
-        while ((estMatch = estimateRegex.exec(estHtml)) !== null) {
-          if (estMatch[2] === paddedNum || estMatch[2] === String(estimate_number)) {
-            copilotEstimateId = estMatch[1];
-            break;
-          }
-        }
-
-        if (!copilotEstimateId) {
-          return res.status(404).json({ success: false, error: `Estimate #${estimate_number} not found in CopilotCRM for "${customer_name}". Provide services and estimate_amount manually.` });
-        }
-        console.log(`📋 CopilotCRM: Found estimate ID ${copilotEstimateId} for #${estimate_number}`);
-
-        // Log the full estimates list HTML to understand what data is available
-        console.log(`🔍 CopilotCRM estimates list HTML (${estHtml.length} bytes): ${estHtml.substring(0, 3000).replace(/\s+/g, ' ')}`);
-
-        // Fetch the estimate detail page to get line items
-        const estDetailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${copilotEstimateId}`, {
-          method: 'GET',
-          headers: copilotHeaders
-        });
-        const estDetailHtml = await estDetailRes.text();
-
-        // CopilotCRM estimate view is a client-side SPA — data is loaded via API, not in the HTML.
-        // Try multiple CopilotCRM API endpoints to get estimate details.
-        const parsedServices = [];
-        let parsedTotal = 0;
-
-        // Try 1: GET the estimate detail API (returns JSON with line items)
-        const endpoints = [
-          `https://secure.copilotcrm.com/finances/estimates/getEstimateData/${copilotEstimateId}`,
-          `https://secure.copilotcrm.com/finances/estimates/detail/${copilotEstimateId}`,
-          `https://secure.copilotcrm.com/finances/estimates/${copilotEstimateId}`,
-          `https://secure.copilotcrm.com/api/estimates/${copilotEstimateId}`,
-        ];
-
-        let estimateData = null;
-        for (const url of endpoints) {
-          try {
-            const detailRes = await fetch(url, { method: 'GET', headers: copilotHeaders });
-            if (detailRes.ok) {
-              const text = await detailRes.text();
-              try {
-                const json = JSON.parse(text);
-                console.log(`🔍 CopilotCRM: GET ${url} → 200 JSON keys: ${Object.keys(json).join(', ')} | sample: ${JSON.stringify(json).substring(0, 800)}`);
-                if (json && typeof json === 'object' && Object.keys(json).length > 0) {
-                  estimateData = json;
-                  console.log(`✅ CopilotCRM: Got estimate data from ${url}`);
-                  break;
-                }
-              } catch (e) {
-                console.log(`🔍 CopilotCRM: GET ${url} → 200 but not JSON (${text.length} bytes, starts: ${text.substring(0, 200)})`);
-              }
-            } else {
-              console.log(`🔍 CopilotCRM: ${url} → ${detailRes.status}`);
-            }
-          } catch (e) {
-            console.log(`🔍 CopilotCRM: ${url} → error: ${e.message}`);
-          }
-        }
-
-        // Try 2: POST to getEstimateLineItems or similar
-        if (!estimateData) {
-          const postEndpoints = [
-            { url: 'https://secure.copilotcrm.com/finances/estimates/getEstimateLineItems', body: `estimate_id=${copilotEstimateId}` },
-            { url: 'https://secure.copilotcrm.com/finances/estimates/getLineItems', body: `id=${copilotEstimateId}` },
-            { url: 'https://secure.copilotcrm.com/finances/estimates/getEstimateDetails', body: `id=${copilotEstimateId}` },
-          ];
-          for (const ep of postEndpoints) {
-            try {
-              const detailRes = await fetch(ep.url, {
-                method: 'POST',
-                headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: ep.body
-              });
-              const text = await detailRes.text();
-              console.log(`🔍 CopilotCRM: POST ${ep.url} → ${detailRes.status} (${text.length} bytes): ${text.substring(0, 800)}`);
-              if (detailRes.ok && text.length > 2) {
-                try {
-                  const json = JSON.parse(text);
-                  if (json && typeof json === 'object' && Object.keys(json).length > 0) {
-                    estimateData = json;
-                    console.log(`✅ CopilotCRM: Got estimate data from POST ${ep.url}`);
-                    break;
-                  }
-                } catch (e) { /* not JSON */ }
-              }
-            } catch (e) {
-              console.log(`🔍 CopilotCRM: POST ${ep.url} → error: ${e.message}`);
-            }
-          }
-        }
-
-        // Try 3: Fetch the estimate view page and look for data in script tags or Angular/React state
-        if (!estimateData) {
-          const estDetailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${copilotEstimateId}`, {
-            method: 'GET', headers: copilotHeaders
-          });
-          const estDetailHtml = await estDetailRes.text();
-          // Look for JSON data embedded in the page (common in SPAs)
-          const patterns = [
-            /window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});/,
-            /window\.__data__\s*=\s*(\{[\s\S]*?\});/,
-            /"line_items"\s*:\s*(\[[\s\S]*?\])/,
-            /"items"\s*:\s*(\[[\s\S]*?\])/,
-            /estimateItems\s*=\s*(\[[\s\S]*?\]);/,
-          ];
-          for (const pat of patterns) {
-            const match = estDetailHtml.match(pat);
-            if (match) {
-              try {
-                const parsed = JSON.parse(match[1]);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  estimateData = { items: parsed };
-                  console.log(`✅ CopilotCRM: Found embedded data via pattern ${pat.source.substring(0, 30)}`);
-                  break;
-                } else if (typeof parsed === 'object') {
-                  estimateData = parsed;
-                  break;
-                }
-              } catch (e) { /* continue */ }
-            }
-          }
-          if (!estimateData) {
-            console.log(`⚠️ CopilotCRM: No embedded data found in estimate view page (${estDetailHtml.length} bytes)`);
-          }
-        }
-
-        // Parse the estimate data into services
-        if (estimateData) {
-          const items = estimateData.line_items || estimateData.items || estimateData.services
-            || (estimateData.estimate && (estimateData.estimate.line_items || estimateData.estimate.items))
-            || (estimateData.data && (estimateData.data.line_items || estimateData.data.items))
-            || [];
-          for (const item of (Array.isArray(items) ? items : [])) {
-            const name = item.name || item.title || item.description || item.service_name || item.item_name || '';
-            const price = parseFloat(item.total || item.amount || item.price || item.rate || 0);
-            if (name.trim()) parsedServices.push({ name: name.trim(), price });
-          }
-          parsedTotal = parseFloat(estimateData.total || estimateData.grand_total
-            || (estimateData.estimate && estimateData.estimate.total)
-            || (estimateData.data && estimateData.data.total) || 0);
-          console.log(`📋 CopilotCRM: Parsed ${parsedServices.length} services, total=$${parsedTotal} from API data`);
-        }
-
-        // Use parsed data if not already provided
-        if (!services && parsedServices.length > 0) {
-          services = parsedServices;
-          console.log(`📋 CopilotCRM: Parsed ${services.length} line items from estimate #${estimate_number}`);
-        }
-        if (!estimate_amount && parsedTotal > 0) {
-          estimate_amount = parsedTotal;
-          console.log(`💰 CopilotCRM: Parsed total $${estimate_amount} from estimate #${estimate_number}`);
-        }
-
-        // If still no services after parsing, return error
-        if (!services || services.length === 0) {
-          return res.status(422).json({
-            success: false,
-            error: `Could not parse line items from CopilotCRM estimate #${estimate_number}. Provide services manually.`,
-            hint: 'The CopilotCRM estimate page HTML structure may have changed. Check server logs for details.'
-          });
-        }
-        if (!estimate_amount) {
-          // Fall back to summing service prices
-          estimate_amount = services.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
-        }
-      }
     }
 
-    // Final validation — we need email, services, and amount at this point
+    // If no services provided, create a single line item from the estimate
+    if (!services || services.length === 0) {
+      services = [{ name: `Services per Estimate #${estimate_number}`, price: estimate_amount }];
+    }
+
+    // Validation
     if (!email) return res.status(400).json({ success: false, error: 'No customer email available. Provide email manually.' });
-    if (!services || services.length === 0) return res.status(400).json({ success: false, error: 'No services available. Provide services manually.' });
-    if (!estimate_amount) return res.status(400).json({ success: false, error: 'No estimate amount available. Provide estimate_amount manually.' });
 
     // Find or create customer
     let customer_id = null;

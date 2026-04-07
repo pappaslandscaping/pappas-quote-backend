@@ -6794,67 +6794,132 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
         });
         const estDetailHtml = await estDetailRes.text();
 
-        // DEBUG: Log the line-items-table section from CopilotCRM estimate HTML
-        console.log(`🔍 CopilotCRM estimate HTML length: ${estDetailHtml.length}`);
-        const lineItemsTableIdx = estDetailHtml.indexOf('line-items-table');
-        if (lineItemsTableIdx > -1) {
-          console.log(`🔍 CopilotCRM line-items-table (char ${lineItemsTableIdx}): ${estDetailHtml.substring(lineItemsTableIdx - 100, lineItemsTableIdx + 2000).replace(/\s+/g, ' ')}`);
-        }
-        // Also search for estimate total area
-        const estimateTotalIdx = estDetailHtml.search(/estimate[_-]?total|grand[_-]?total|total.*amount/i);
-        if (estimateTotalIdx > -1) {
-          console.log(`🔍 CopilotCRM total area (char ${estimateTotalIdx}): ${estDetailHtml.substring(estimateTotalIdx - 100, estimateTotalIdx + 500).replace(/\s+/g, ' ')}`);
-        }
-
-        // Parse line items from the estimate detail HTML
+        // CopilotCRM estimate view is a client-side SPA — data is loaded via API, not in the HTML.
+        // Try multiple CopilotCRM API endpoints to get estimate details.
         const parsedServices = [];
         let parsedTotal = 0;
 
-        // Try multiple patterns to find line items in CopilotCRM's HTML
-        // Pattern 1: rows with item-row class
-        const lineItemRegex = /<tr[^>]*class="[^"]*item-row[^"]*"[^>]*>[\s\S]*?<\/tr>/gi;
-        const lineItems = estDetailHtml.match(lineItemRegex) || [];
+        // Try 1: GET the estimate detail API (returns JSON with line items)
+        const endpoints = [
+          `https://secure.copilotcrm.com/finances/estimates/getEstimateData/${copilotEstimateId}`,
+          `https://secure.copilotcrm.com/finances/estimates/detail/${copilotEstimateId}`,
+          `https://secure.copilotcrm.com/finances/estimates/${copilotEstimateId}`,
+          `https://secure.copilotcrm.com/api/estimates/${copilotEstimateId}`,
+        ];
 
-        for (const row of lineItems) {
-          const nameMatch = row.match(/<td[^>]*class="[^"]*item-name[^"]*"[^>]*>([\s\S]*?)<\/td>/i)
-            || row.match(/<td[^>]*>\s*<div[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
-            || row.match(/<td[^>]*>\s*<span[^>]*class="[^"]*name[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
-          const amountMatches = row.match(/\$\s*([\d,]+\.?\d*)/g);
-          const amount = amountMatches && amountMatches.length > 0
-            ? parseFloat(amountMatches[amountMatches.length - 1].replace(/[$,]/g, ''))
-            : 0;
-          if (nameMatch) {
-            const name = nameMatch[1].replace(/<[^>]+>/g, '').trim();
-            if (name && name.length > 0) parsedServices.push({ name, price: amount });
+        let estimateData = null;
+        for (const url of endpoints) {
+          try {
+            const detailRes = await fetch(url, { method: 'GET', headers: copilotHeaders });
+            if (detailRes.ok) {
+              const text = await detailRes.text();
+              try {
+                const json = JSON.parse(text);
+                if (json && (json.line_items || json.items || json.services || json.estimate || json.data)) {
+                  estimateData = json;
+                  console.log(`✅ CopilotCRM: Got estimate data from ${url}`);
+                  break;
+                }
+              } catch (e) {
+                // Not JSON — might be HTML, check for embedded JSON data
+                const jsonDataMatch = text.match(/var\s+(?:estimateData|estimate|pageData)\s*=\s*(\{[\s\S]*?\});/);
+                if (jsonDataMatch) {
+                  try {
+                    estimateData = JSON.parse(jsonDataMatch[1]);
+                    console.log(`✅ CopilotCRM: Got estimate data from embedded JS in ${url}`);
+                    break;
+                  } catch (e2) { /* continue */ }
+                }
+              }
+            }
+            console.log(`🔍 CopilotCRM: ${url} → ${detailRes.status}`);
+          } catch (e) {
+            console.log(`🔍 CopilotCRM: ${url} → error: ${e.message}`);
           }
         }
 
-        // Pattern 2: look for table rows containing dollar amounts (broader match)
-        if (parsedServices.length === 0) {
-          const trRegex = /<tr[^>]*>[\s\S]*?<\/tr>/gi;
-          const allRows = estDetailHtml.match(trRegex) || [];
-          for (const row of allRows) {
-            if (!/\$\s*[\d,]+\.?\d*/.test(row)) continue; // skip rows without dollar amounts
-            if (/total|subtotal|tax|discount/i.test(row.replace(/<[^>]+>/g, ''))) continue; // skip summary rows
-            const tds = [];
-            const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-            let m;
-            while ((m = tdRegex.exec(row)) !== null) tds.push(m[1].replace(/<[^>]+>/g, '').trim());
-            if (tds.length >= 2) {
-              const name = tds.find(t => t.length > 2 && !/^\$/.test(t) && !/^\d+(\.\d+)?$/.test(t));
-              const amountMatches = row.match(/\$\s*([\d,]+\.?\d*)/g);
-              const amount = amountMatches ? parseFloat(amountMatches[amountMatches.length - 1].replace(/[$,]/g, '')) : 0;
-              if (name && amount > 0) parsedServices.push({ name, price: amount });
+        // Try 2: POST to getEstimateLineItems or similar
+        if (!estimateData) {
+          const postEndpoints = [
+            { url: 'https://secure.copilotcrm.com/finances/estimates/getEstimateLineItems', body: `estimate_id=${copilotEstimateId}` },
+            { url: 'https://secure.copilotcrm.com/finances/estimates/getLineItems', body: `id=${copilotEstimateId}` },
+            { url: 'https://secure.copilotcrm.com/finances/estimates/getEstimateDetails', body: `id=${copilotEstimateId}` },
+          ];
+          for (const ep of postEndpoints) {
+            try {
+              const detailRes = await fetch(ep.url, {
+                method: 'POST',
+                headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: ep.body
+              });
+              if (detailRes.ok) {
+                const text = await detailRes.text();
+                try {
+                  const json = JSON.parse(text);
+                  if (json && typeof json === 'object' && Object.keys(json).length > 0) {
+                    estimateData = json;
+                    console.log(`✅ CopilotCRM: Got estimate data from POST ${ep.url}: ${JSON.stringify(json).substring(0, 500)}`);
+                    break;
+                  }
+                } catch (e) { /* not JSON */ }
+              }
+              console.log(`🔍 CopilotCRM: POST ${ep.url} → ${detailRes.status}`);
+            } catch (e) {
+              console.log(`🔍 CopilotCRM: POST ${ep.url} → error: ${e.message}`);
             }
           }
-          console.log(`🔍 CopilotCRM: Pattern 2 (broad tr scan) found ${parsedServices.length} items from ${allRows.length} rows`);
         }
 
-        // Parse total from the estimate page
-        const totalMatch = estDetailHtml.match(/(?:Total|Grand\s*Total)[^$]*\$\s*([\d,]+\.?\d*)/i)
-          || estDetailHtml.match(/class="[^"]*total[^"]*"[^>]*>[^$]*\$\s*([\d,]+\.?\d*)/i);
-        if (totalMatch) {
-          parsedTotal = parseFloat(totalMatch[1].replace(/,/g, ''));
+        // Try 3: Fetch the estimate view page and look for data in script tags or Angular/React state
+        if (!estimateData) {
+          const estDetailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${copilotEstimateId}`, {
+            method: 'GET', headers: copilotHeaders
+          });
+          const estDetailHtml = await estDetailRes.text();
+          // Look for JSON data embedded in the page (common in SPAs)
+          const patterns = [
+            /window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});/,
+            /window\.__data__\s*=\s*(\{[\s\S]*?\});/,
+            /"line_items"\s*:\s*(\[[\s\S]*?\])/,
+            /"items"\s*:\s*(\[[\s\S]*?\])/,
+            /estimateItems\s*=\s*(\[[\s\S]*?\]);/,
+          ];
+          for (const pat of patterns) {
+            const match = estDetailHtml.match(pat);
+            if (match) {
+              try {
+                const parsed = JSON.parse(match[1]);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  estimateData = { items: parsed };
+                  console.log(`✅ CopilotCRM: Found embedded data via pattern ${pat.source.substring(0, 30)}`);
+                  break;
+                } else if (typeof parsed === 'object') {
+                  estimateData = parsed;
+                  break;
+                }
+              } catch (e) { /* continue */ }
+            }
+          }
+          if (!estimateData) {
+            console.log(`⚠️ CopilotCRM: No embedded data found in estimate view page (${estDetailHtml.length} bytes)`);
+          }
+        }
+
+        // Parse the estimate data into services
+        if (estimateData) {
+          const items = estimateData.line_items || estimateData.items || estimateData.services
+            || (estimateData.estimate && (estimateData.estimate.line_items || estimateData.estimate.items))
+            || (estimateData.data && (estimateData.data.line_items || estimateData.data.items))
+            || [];
+          for (const item of (Array.isArray(items) ? items : [])) {
+            const name = item.name || item.title || item.description || item.service_name || item.item_name || '';
+            const price = parseFloat(item.total || item.amount || item.price || item.rate || 0);
+            if (name.trim()) parsedServices.push({ name: name.trim(), price });
+          }
+          parsedTotal = parseFloat(estimateData.total || estimateData.grand_total
+            || (estimateData.estimate && estimateData.estimate.total)
+            || (estimateData.data && estimateData.data.total) || 0);
+          console.log(`📋 CopilotCRM: Parsed ${parsedServices.length} services, total=$${parsedTotal} from API data`);
         }
 
         // Use parsed data if not already provided

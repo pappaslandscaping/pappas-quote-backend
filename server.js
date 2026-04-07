@@ -6815,24 +6815,18 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
               const text = await detailRes.text();
               try {
                 const json = JSON.parse(text);
-                if (json && (json.line_items || json.items || json.services || json.estimate || json.data)) {
+                console.log(`🔍 CopilotCRM: GET ${url} → 200 JSON keys: ${Object.keys(json).join(', ')} | sample: ${JSON.stringify(json).substring(0, 800)}`);
+                if (json && typeof json === 'object' && Object.keys(json).length > 0) {
                   estimateData = json;
                   console.log(`✅ CopilotCRM: Got estimate data from ${url}`);
                   break;
                 }
               } catch (e) {
-                // Not JSON — might be HTML, check for embedded JSON data
-                const jsonDataMatch = text.match(/var\s+(?:estimateData|estimate|pageData)\s*=\s*(\{[\s\S]*?\});/);
-                if (jsonDataMatch) {
-                  try {
-                    estimateData = JSON.parse(jsonDataMatch[1]);
-                    console.log(`✅ CopilotCRM: Got estimate data from embedded JS in ${url}`);
-                    break;
-                  } catch (e2) { /* continue */ }
-                }
+                console.log(`🔍 CopilotCRM: GET ${url} → 200 but not JSON (${text.length} bytes, starts: ${text.substring(0, 200)})`);
               }
+            } else {
+              console.log(`🔍 CopilotCRM: ${url} → ${detailRes.status}`);
             }
-            console.log(`🔍 CopilotCRM: ${url} → ${detailRes.status}`);
           } catch (e) {
             console.log(`🔍 CopilotCRM: ${url} → error: ${e.message}`);
           }

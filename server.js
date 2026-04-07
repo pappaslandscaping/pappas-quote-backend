@@ -6740,13 +6740,28 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
       if (!crmMatch) {
         return res.status(404).json({ success: false, error: `Customer "${customer_name}" not found in CopilotCRM. Provide email manually.` });
       }
-      if (!crmMatch.email) {
-        return res.status(404).json({ success: false, error: `No email on file for "${customer_name}" in CopilotCRM. Provide email manually.` });
+      if (crmMatch.email) {
+        email = crmMatch.email;
       }
-      email = crmMatch.email;
       if (!phone && crmMatch.phone) phone = crmMatch.phone;
       if (!address && crmMatch.address) address = crmMatch.address;
-      console.log(`📧 CopilotCRM lookup: customer=${crmMatch.id}, email=${email}, phone=${phone || 'n/a'}`);
+      console.log(`📧 CopilotCRM lookup: customer=${crmMatch.id}, email=${email || 'none'}, phone=${phone || 'n/a'}`);
+    }
+
+    // Fallback: look up email from our own customers table by name or phone
+    if (!email) {
+      const localLookup = await pool.query(
+        `SELECT email FROM customers WHERE email IS NOT NULL AND email != '' AND (
+          LOWER(name) = LOWER($1)
+          OR LOWER(CONCAT(first_name, ' ', last_name)) = LOWER($1)
+          ${phone ? `OR phone = $2 OR mobile = $2` : ''}
+        ) LIMIT 1`,
+        phone ? [customer_name, phone.replace(/\D/g, '').replace(/^1/, '')] : [customer_name]
+      );
+      if (localLookup.rows.length > 0) {
+        email = localLookup.rows[0].email;
+        console.log(`📧 Local DB lookup: Found email ${email} for "${customer_name}"`);
+      }
     }
 
     // If no services provided, create a single line item from the estimate

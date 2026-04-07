@@ -6787,6 +6787,9 @@ app.post('/api/copilotcrm/estimate-accepted', authenticateToken, async (req, res
         }
         console.log(`📋 CopilotCRM: Found estimate ID ${copilotEstimateId} for #${estimate_number}`);
 
+        // Log the full estimates list HTML to understand what data is available
+        console.log(`🔍 CopilotCRM estimates list HTML (${estHtml.length} bytes): ${estHtml.substring(0, 3000).replace(/\s+/g, ' ')}`);
+
         // Fetch the estimate detail page to get line items
         const estDetailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${copilotEstimateId}`, {
           method: 'GET',

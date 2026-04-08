@@ -19013,6 +19013,13 @@ app.post('/api/service-complete-email', async (req, res) => {
       return res.json({ success: true, skipped: true, reason: 'No service title provided' });
     }
 
+    // Skip service complete emails for recurring mowing — only send for one-time services like fertilizing, aeration, etc.
+    const skipServices = /^mowing/i;
+    if (skipServices.test(serviceTitle.trim())) {
+      console.log(`⏭️ Service complete email skipped — "${serviceTitle}" is a recurring mowing service for ${customerName || 'unknown'}`);
+      return res.json({ success: true, skipped: true, reason: `Service complete email not sent for "${serviceTitle}"` });
+    }
+
     // Match service title (fuzzy — try exact, then partial)
     let matchedTitle = Object.keys(SERVICE_LOOKUP).find(k => k.toLowerCase() === serviceTitle.toLowerCase());
     if (!matchedTitle) {

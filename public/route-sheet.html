@@ -168,15 +168,21 @@
 
             // Extract last name and address
             const nameDetail = cols[nameIdx] || '';
-            // Split on first house number (digits at start of address)
-            const nameParts = nameDetail.match(/^(.+?)\s+(\d+[\d\-]*\s+.*)$/);
+            // Try splitting on house number first, then on street suffix for addresses without numbers
+            const streetSuffixes = '(?:Avenue|Ave|Boulevard|Blvd|Street|St|Drive|Dr|Road|Rd|Lane|Ln|Court|Ct|Circle|Cir|Way|Place|Pl|Terrace|Ter|Trail|Trl|Parkway|Pkwy)';
+            let nameParts = nameDetail.match(/^(.+?)\s+(\d+[\d\-]*\s+.*)$/);
+            if (!nameParts) {
+                // No house number — try matching on street suffix (e.g., "On Call Waterproofing Kensington Avenue...")
+                const suffixRe = new RegExp('^(.+?)\\s+([A-Z][a-z]+\\s+' + streetSuffixes + '\\b.*)$', 'i');
+                nameParts = nameDetail.match(suffixRe);
+            }
             let lastName = '', address = '';
             if (nameParts) {
                 const fullName = nameParts[1].trim();
                 const fullAddr = nameParts[2].trim();
 
                 // Business keywords — show full name instead of last word
-                const bizWords = /\b(HOA|LLC|Inc|Corp|Realty|Reality|Investments|Church|Industrial|Ready|Equip|Hearts|Village)\b/i;
+                const bizWords = /\b(HOA|LLC|Inc|Corp|Realty|Reality|Investments|Church|Industrial|Ready|Equip|Hearts|Village|Waterproofing|Roofing|Plumbing|Landscaping|Cleaning|Services|Properties|Management|Solutions|Group|Company)\b/i;
                 if (bizWords.test(fullName)) {
                     lastName = fullName;
                 } else {

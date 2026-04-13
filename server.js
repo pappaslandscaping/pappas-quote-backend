@@ -14158,7 +14158,7 @@ app.post('/api/campaigns/:id/send', async (req, res) => {
       try {
         const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
         const vars = {
-          customer_name: cust.name, customer_first_name: (cust.name || '').split(' ')[0],
+          customer_name: cust.name, customer_first_name: cust.first_name || cust.name,
           customer_email: cust.email, company_name: 'Pappas & Co. Landscaping',
           company_phone: '(440) 886-7318', company_website: 'pappaslandscaping.com',
           unsubscribe_email: encodeURIComponent(cust.email || '')
@@ -14467,7 +14467,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
       const vars = {
         customer_name: custName,
-        customer_first_name: (custName).split(' ')[0],
+        customer_first_name: cust.first_name || custName,
         customer_email: cust.email,
         customer_phone: cust.phone || cust.mobile,
         customer_address: [cust.street, cust.city, cust.state, cust.postal_code].filter(Boolean).join(', '),

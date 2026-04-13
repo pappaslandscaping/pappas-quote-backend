@@ -168,16 +168,30 @@
 
             // Extract last name and address
             const nameDetail = cols[nameIdx] || '';
-            const nameParts = nameDetail.match(/^(.+?)\s+(\d+.*)$/);
+            // Split on first house number (digits at start of address)
+            const nameParts = nameDetail.match(/^(.+?)\s+(\d+[\d\-]*\s+.*)$/);
             let lastName = '', address = '';
             if (nameParts) {
                 const fullName = nameParts[1].trim();
                 const fullAddr = nameParts[2].trim();
-                // Get last name (last word of name, or company name)
-                const nameWords = fullName.split(/\s+/);
-                lastName = nameWords.length > 1 ? nameWords[nameWords.length - 1] : fullName;
-                // Shorten address: just street number + street name
-                address = fullAddr.replace(/\s+(Brook Park|Cleveland|Lakewood|Bay Village|Westlake|Westpark|North Olmsted|Berea|Middleburg Heights|Parma|Strongsville)[, ].*$/i, '').replace(/\s+OH\s+\d{5}.*$/i, '').replace(/,\s*US$/i, '').replace(/,\s*$/, '').trim();
+
+                // Business keywords — show full name instead of last word
+                const bizWords = /\b(HOA|LLC|Inc|Corp|Realty|Reality|Investments|Church|Industrial|Ready|Equip|Hearts|Village)\b/i;
+                if (bizWords.test(fullName)) {
+                    lastName = fullName;
+                } else {
+                    // Personal name — take last name (skip first name)
+                    const nameWords = fullName.split(/\s+/);
+                    lastName = nameWords.length > 1 ? nameWords.slice(1).join(' ') : fullName;
+                }
+
+                // Shorten address: strip city, state, zip, country
+                address = fullAddr
+                    .replace(/,?\s*(Brook Park|Cleveland|Lakewood|Bay Village|Westlake|Westpark|North Olmsted|Berea|Middleburg Heights|Parma|Strongsville)[,\s].*$/i, '')
+                    .replace(/,?\s*OH\s+\d{5}.*$/i, '')
+                    .replace(/,?\s*US$/i, '')
+                    .replace(/,\s*$/, '')
+                    .trim();
             } else {
                 lastName = nameDetail.split(/\s+/)[0] || nameDetail;
             }

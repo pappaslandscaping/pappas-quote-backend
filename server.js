@@ -14490,7 +14490,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
           );
           if (jobResult.rows.length > 0) {
             const job = jobResult.rows[0];
-            vars.service_type = job.service_type || '';
+            vars.service_type = (job.service_type || '').toLowerCase();
             // Use street only for SMS (strip city/state/zip/country)
             const fullAddr = job.address || vars.customer_address || '';
             vars.address = fullAddr.split(',')[0].trim();

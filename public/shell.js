@@ -44,6 +44,7 @@
     { href: 'index.html', icon: 'home', label: 'Home', perm: 'home' },
     { href: 'scheduling.html', icon: 'calendar', label: 'Schedule', perm: 'schedule' },
     { href: 'dispatch.html', icon: 'dispatch', label: 'Dispatch', perm: 'dispatch' },
+    { href: 'route-sheet.html', icon: 'dispatch', label: 'Route Sheet', perm: 'dispatch' },
     { href: 'customers.html', icon: 'clients', label: 'Clients', perm: 'clients' },
     { href: 'work-requests.html', icon: 'comms', label: 'Requests', perm: 'requests' },
     { href: 'quotes.html', icon: 'quotes', label: 'Quotes', perm: 'quotes' },

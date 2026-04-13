@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Sheet — YardDesk</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --forest: #2e403d;
+            --forest-dark: #1f2b29;
+            --lime: #c9dd80;
+            --lime-soft: #dce9a8;
+            --gray-50: #f8faf8;
+            --gray-100: #f0f2f0;
+            --gray-200: #e2e5e2;
+            --gray-400: #9ca09c;
+            --gray-500: #6e726e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'DM Sans', sans-serif; background: var(--gray-50); color: var(--forest); }
+
+        /* ── Screen styles ── */
+        .main { margin-left: 240px; padding: 32px; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+        .topbar h1 { font-size: 24px; font-weight: 700; }
+        .topbar-actions { display: flex; gap: 10px; }
+
+        .upload-zone {
+            border: 2px dashed var(--gray-200); border-radius: 12px; padding: 48px; text-align: center;
+            cursor: pointer; transition: border-color .2s, background .2s; margin-bottom: 24px;
+        }
+        .upload-zone:hover, .upload-zone.dragover { border-color: var(--lime); background: #f7faf2; }
+        .upload-zone p { color: var(--gray-500); margin-top: 8px; }
+        .upload-zone .icon { font-size: 36px; }
+
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
+        .btn-primary { background: var(--forest); color: #fff; }
+        .btn-primary:hover { background: var(--forest-dark); }
+        .btn-outline { background: #fff; color: var(--forest); border: 1px solid var(--gray-200); }
+        .btn-outline:hover { background: var(--gray-50); }
+
+        .crew-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .crew-tab { padding: 8px 16px; border-radius: 8px; background: #fff; border: 1px solid var(--gray-200); cursor: pointer; font-size: 14px; font-weight: 500; }
+        .crew-tab.active { background: var(--forest); color: #fff; border-color: var(--forest); }
+
+        #route-output { display: none; }
+
+        /* ── Route table (screen + print) ── */
+        .route-page { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+        .route-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid var(--forest); }
+        .route-header h2 { font-size: 18px; font-weight: 700; }
+        .route-header .date { font-size: 14px; color: var(--gray-500); }
+        .route-header .company { font-size: 14px; font-weight: 600; font-style: italic; }
+
+        .route-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .route-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--forest); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-500); }
+        .route-table td { padding: 5px 8px; border-bottom: 1px solid var(--gray-100); }
+        .route-table tr:nth-child(even) { background: #fafbf7; }
+        .route-table .num { width: 30px; text-align: center; font-weight: 600; }
+        .route-table .name { width: 160px; font-weight: 600; }
+        .route-table .addr { width: 200px; }
+        .route-table .comments { color: var(--forest); font-size: 12px; }
+        .route-table .biweekly { font-size: 10px; font-weight: 600; color: #7a8a3d; background: #f0f5d9; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+        .route-table .check { width: 28px; text-align: center; }
+        .route-table .check-box { width: 16px; height: 16px; border: 2px solid var(--gray-300); border-radius: 3px; display: inline-block; }
+
+        .summary { font-size: 13px; color: var(--gray-500); margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--gray-200); }
+
+        /* ── Print styles ── */
+        @media print {
+            body { background: #fff; }
+            .main { margin-left: 0 !important; padding: 0 !important; }
+            .sidebar, .topbar, .upload-zone, .crew-tabs, .topbar-actions, .btn, nav, aside { display: none !important; }
+            .route-page { box-shadow: none; border-radius: 0; padding: 12px 0; margin-bottom: 0; page-break-after: always; }
+            .route-page:last-child { page-break-after: avoid; }
+            .route-table { font-size: 12px; }
+            .route-table td, .route-table th { padding: 4px 6px; }
+            .route-header { margin-bottom: 8px; padding-bottom: 8px; }
+            #route-output { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="main" id="main">
+    <div class="topbar">
+        <h1>Route Sheet</h1>
+        <div class="topbar-actions">
+            <button class="btn btn-outline" onclick="document.getElementById('csv-input').click()">Upload CSV</button>
+            <button class="btn btn-primary" onclick="window.print()" style="display:none" id="print-btn">Print</button>
+        </div>
+    </div>
+
+    <input type="file" id="csv-input" accept=".csv" style="display:none">
+
+    <div class="upload-zone" id="upload-zone">
+        <div class="icon">&#128203;</div>
+        <p><strong>Drop CopilotCRM CSV here</strong> or click to upload</p>
+        <p style="font-size:12px; margin-top:4px;">Export from CopilotCRM &rarr; Visits &rarr; CSV</p>
+    </div>
+
+    <div class="crew-tabs" id="crew-tabs"></div>
+    <div id="route-output"></div>
+</div>
+
+<script src="shell.js"></script>
+<script>
+(function() {
+    const zone = document.getElementById('upload-zone');
+    const input = document.getElementById('csv-input');
+    const output = document.getElementById('route-output');
+    const tabsEl = document.getElementById('crew-tabs');
+    const printBtn = document.getElementById('print-btn');
+
+    // Drag and drop
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+    input.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+        if (!file || !file.name.endsWith('.csv')) return alert('Please upload a CSV file');
+        const reader = new FileReader();
+        reader.onload = e => parseCSV(e.target.result);
+        reader.readAsText(file);
+    }
+
+    function parseCSV(text) {
+        const lines = text.split('\n');
+        if (lines.length < 2) return;
+
+        // Parse header
+        const header = parseCSVLine(lines[0]);
+        const titleIdx = header.findIndex(h => /title/i.test(h));
+        const nameIdx = header.findIndex(h => /name.*detail/i.test(h));
+        const dateIdx = header.findIndex(h => /date.*service/i.test(h));
+        const visitNotesIdx = header.findIndex(h => /visit\s*notes/i.test(h));
+        const crewNotesIdx = header.findIndex(h => /crew\s*notes/i.test(h));
+        const totalIdx = header.findIndex(h => /visit\s*total/i.test(h));
+        const statusIdx = header.findIndex(h => /status/i.test(h));
+
+        const crews = {};
+        let serviceDate = '';
+
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line === 'null') continue;
+            const cols = parseCSVLine(line);
+            if (!cols[nameIdx] || !cols[titleIdx]) continue;
+
+            // Extract date
+            const rawDate = (cols[dateIdx] || '').replace(/^="/, '').replace(/"$/, '').trim();
+            if (rawDate && !serviceDate) serviceDate = rawDate;
+
+            // Extract crew name from title (e.g., "Mowing Tim Mowing Crew" → "Tim")
+            const title = cols[titleIdx] || '';
+            const crewMatch = title.match(/(\w+)\s+(?:Mowing\s+)?Crew/i);
+            const crewName = crewMatch ? crewMatch[1] : 'Other';
+
+            // Check bi-weekly
+            const isBiWeekly = /bi-?weekly/i.test(title);
+
+            // Extract service type modifier
+            const serviceMatch = title.match(/Mowing\s*\(([^)]+)\)/i);
+            const serviceNote = serviceMatch ? serviceMatch[1] : '';
+
+            // Extract last name and address
+            const nameDetail = cols[nameIdx] || '';
+            const nameParts = nameDetail.match(/^(.+?)\s+(\d+.*)$/);
+            let lastName = '', address = '';
+            if (nameParts) {
+                const fullName = nameParts[1].trim();
+                const fullAddr = nameParts[2].trim();
+                // Get last name (last word of name, or company name)
+                const nameWords = fullName.split(/\s+/);
+                lastName = nameWords.length > 1 ? nameWords[nameWords.length - 1] : fullName;
+                // Shorten address: just street number + street name
+                address = fullAddr.replace(/\s+(Brook Park|Cleveland|Lakewood|Bay Village|Westlake|Westpark|North Olmsted|Berea|Middleburg Heights|Parma|Strongsville)[, ].*$/i, '').replace(/\s+OH\s+\d{5}.*$/i, '').replace(/,\s*US$/i, '').replace(/,\s*$/, '').trim();
+            } else {
+                lastName = nameDetail.split(/\s+/)[0] || nameDetail;
+            }
+
+            // Comments from notes
+            const notes = [];
+            const visitNotes = cleanHtml(cols[visitNotesIdx] || '');
+            const crewNotes = cleanHtml(cols[crewNotesIdx] || '');
+            if (serviceNote && serviceNote !== 'Bi-Weekly') notes.push(serviceNote);
+            if (crewNotes) notes.push(crewNotes);
+            if (visitNotes) notes.push(visitNotes);
+            const comments = notes.join(' / ');
+
+            // Price
+            const price = parseFloat((cols[totalIdx] || '0').replace(/[,$"]/g, '')) || 0;
+
+            if (!crews[crewName]) crews[crewName] = [];
+            crews[crewName].push({ lastName, address, comments, isBiWeekly, price });
+        }
+
+        renderRoutes(crews, serviceDate);
+    }
+
+    function cleanHtml(str) {
+        return str.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
+    }
+
+    function parseCSVLine(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+                else { inQuotes = !inQuotes; }
+            } else if (ch === ',' && !inQuotes) {
+                result.push(current.trim()); current = '';
+            } else {
+                current += ch;
+            }
+        }
+        result.push(current.trim());
+        // Clean ="..." wrappers
+        return result.map(v => v.replace(/^="?/, '').replace(/"?$/, ''));
+    }
+
+    function renderRoutes(crews, serviceDate) {
+        const crewNames = Object.keys(crews).sort();
+        if (crewNames.length === 0) return alert('No routes found in CSV');
+
+        // Show tabs
+        tabsEl.innerHTML = '';
+        crewNames.forEach((name, i) => {
+            const tab = document.createElement('button');
+            tab.className = 'crew-tab' + (i === 0 ? ' active' : '');
+            tab.textContent = name + ' (' + crews[name].length + ')';
+            tab.onclick = () => {
+                document.querySelectorAll('.crew-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.route-page').forEach((p, j) => {
+                    p.style.display = j === i ? '' : 'none';
+                });
+            };
+            tabsEl.appendChild(tab);
+        });
+
+        // Add "All" tab
+        const allTab = document.createElement('button');
+        allTab.className = 'crew-tab';
+        allTab.textContent = 'All';
+        allTab.onclick = () => {
+            document.querySelectorAll('.crew-tab').forEach(t => t.classList.remove('active'));
+            allTab.classList.add('active');
+            document.querySelectorAll('.route-page').forEach(p => p.style.display = '');
+        };
+        tabsEl.appendChild(allTab);
+
+        // Render tables
+        let html = '';
+        crewNames.forEach((crewName, ci) => {
+            const stops = crews[crewName];
+            const totalPrice = stops.reduce((s, r) => s + r.price, 0);
+            html += `<div class="route-page" style="${ci > 0 ? 'display:none' : ''}">
+                <div class="route-header">
+                    <div>
+                        <div class="company">Pappas & Co. Landscaping</div>
+                        <h2>${esc(crewName)} — Mowing</h2>
+                    </div>
+                    <div class="date">${esc(serviceDate)}</div>
+                </div>
+                <table class="route-table">
+                    <thead><tr>
+                        <th class="num">#</th>
+                        <th class="check"></th>
+                        <th class="name">Name</th>
+                        <th class="addr">Address</th>
+                        <th class="comments">Comments</th>
+                    </tr></thead>
+                    <tbody>`;
+            stops.forEach((s, i) => {
+                html += `<tr>
+                    <td class="num">${i + 1}</td>
+                    <td class="check"><span class="check-box"></span></td>
+                    <td class="name">${esc(s.lastName)}${s.isBiWeekly ? '<span class="biweekly">BW</span>' : ''}</td>
+                    <td class="addr">${esc(s.address)}</td>
+                    <td class="comments">${esc(s.comments)}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>
+                <div class="summary">${stops.length} stops &middot; $${totalPrice.toLocaleString()}</div>
+            </div>`;
+        });
+
+        output.innerHTML = html;
+        output.style.display = 'block';
+        zone.style.display = 'none';
+        printBtn.style.display = '';
+    }
+
+    function esc(s) {
+        if (!s) return '';
+        const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+    }
+})();
+</script>
+</body>
+</html>

@@ -13974,6 +13974,9 @@ const DEFAULT_TEMPLATES = [
   { name: 'Campaign Email', slug: 'campaign_email', category: 'marketing', subject: '{subject}', body: '<p>{body}</p>', sms_body: '{body}', variables: '["customer_first_name","customer_name","subject","body","company_name","company_phone"]' },
   { name: 'Contract Unsigned Reminder', slug: 'contract_unsigned_reminder', category: 'quotes', subject: 'One more step — sign your service agreement', body: '<h2 style="color:#2e403d">Almost There!</h2><p>Hi {customer_first_name},</p><p>Great news — you accepted your quote <strong>#{quote_number}</strong>! There\'s just one more step before we can get you on the schedule.</p><p>Please sign your service agreement so we can lock in your spot:</p><p><a href="{contract_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Sign Service Agreement</a></p><p style="color:#666;">It only takes about 30 seconds. If you have any questions, reply to this email or call us at (440) 886-7318.</p>', sms_body: 'Hi {customer_first_name}! You accepted your quote from Pappas & Co. but we still need your signature to get started. Sign here: {contract_link}', variables: '["customer_first_name","customer_name","quote_number","quote_total","contract_link"]' },
   { name: 'Contract Unsigned — Final Reminder', slug: 'contract_unsigned_final', category: 'quotes', subject: 'Don\'t lose your spot — service agreement still needs your signature', body: '<h2 style="color:#2e403d">Your Spot is Waiting</h2><p>Hi {customer_first_name},</p><p>We still need your signed service agreement for quote <strong>#{quote_number}</strong> before we can schedule your service.</p><p>Our schedule fills up fast — please sign today so we don\'t have to give away your spot:</p><p><a href="{contract_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Sign Now — Takes 30 Seconds</a></p><p style="color:#666;">Questions? Call us at (440) 886-7318 or just reply to this email.</p>', sms_body: 'Hi {customer_first_name}, friendly reminder — we need your signed agreement before we can schedule your service. Sign here: {contract_link}', variables: '["customer_first_name","customer_name","quote_number","contract_link"]' },
+  { name: 'Referral Announcement', slug: 'referral_announcement', category: 'marketing', subject: 'Know a neighbor who needs a landscaper? Get a free mow.', body: '<h2 style="color:#2e403d">Refer a Neighbor, Get a Free Mow</h2><p>Hi {customer_first_name}, it\'s Tim.</p><p>If you know a neighbor who could use a good landscaper, send them our way. For every neighbor who signs up and mentions your name, you\'ll get a free mow on us.</p><p>No limit. The more neighbors you refer, the more free mows you earn.</p><p>We service Lakewood, Bay Village, Brook Park, and Westpark.</p><p style="text-align:center;margin:28px 0;"><a href="tel:4408867318" style="display:inline-block;padding:14px 44px;background:#c9dd80;color:#2e403d;border-radius:50px;font-weight:700;font-size:14px;text-decoration:none;">Refer a Neighbor</a></p>', sms_body: 'Hi {customer_first_name}, it\'s Tim from Pappas & Co. Got a neighbor who could use a good landscaper? Send them our way and you\'ll get a free mow. No limit. They just mention your name when they reach out. We service Lakewood, Bay Village, Brook Park, and Westpark.', variables: '["customer_first_name","customer_name"]' },
+  { name: 'Referral Follow-up', slug: 'referral_followup', category: 'marketing', subject: 'A free mow is waiting for you', body: '<h2 style="color:#2e403d">A Free Mow is Waiting for You</h2><p>Hi {customer_first_name}, just wanted to make sure you saw this.</p><p>We\'re offering a free mow for every neighbor you refer to Pappas & Co. No forms, no codes. They just mention your name when they call or text us.</p><p>Know someone whose yard could use some help?</p><p style="text-align:center;margin:28px 0;"><a href="tel:4408867318" style="display:inline-block;padding:14px 44px;background:#c9dd80;color:#2e403d;border-radius:50px;font-weight:700;font-size:14px;text-decoration:none;">Refer a Neighbor</a></p>', sms_body: 'Hi {customer_first_name}, Tim from Pappas & Co. here. Just making sure you saw this. Free mow for every neighbor you refer. No forms, no codes. They just mention your name when they call or text us at (440) 886-7318.', variables: '["customer_first_name","customer_name"]' },
+  { name: 'Referral Thank You', slug: 'referral_thank_you', category: 'marketing', subject: 'You earned a free mow!', body: '<h2 style="color:#2e403d">You Earned a Free Mow!</h2><p>Hey {customer_first_name}!</p><p>Your neighbor <strong>{referred_name}</strong> signed up and mentioned your name, so you\'ve got a free mow coming. We\'ll apply it to your next service.</p><p>Thanks for helping us grow in the neighborhood!</p>', sms_body: 'Hey {customer_first_name}! It\'s Tim from Pappas & Co. Your neighbor {referred_name} signed up and mentioned your name, so you\'ve got a free mow coming. We\'ll apply it to your next service. Thanks for helping us grow in the neighborhood!', variables: '["customer_first_name","customer_name","referred_name"]' },
 ];
 
 // Seed default templates
@@ -15767,6 +15770,174 @@ app.post('/api/ai/review-request/:jobId', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// REFERRAL PROGRAM
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/referrals - Log a new referral
+app.post('/api/referrals', authenticateToken, async (req, res) => {
+  try {
+    const { referrer_id, referred_name, referred_customer_id, notes } = req.body;
+    if (!referrer_id || !referred_name) {
+      return res.status(400).json({ success: false, error: 'referrer_id and referred_name are required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO referrals (referrer_id, referred_name, referred_customer_id, notes) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [referrer_id, referred_name.trim(), referred_customer_id || null, notes || null]
+    );
+    res.json({ success: true, referral: result.rows[0] });
+  } catch (error) { serverError(res, error, 'Create referral error'); }
+});
+
+// GET /api/referrals - List referrals with optional filters
+app.get('/api/referrals', authenticateToken, async (req, res) => {
+  try {
+    const { status, referrer_id } = req.query;
+    const where = [];
+    const params = [];
+    let p = 1;
+    if (status) { where.push(`r.status = $${p}`); params.push(status); p++; }
+    if (referrer_id) { where.push(`r.referrer_id = $${p}`); params.push(referrer_id); p++; }
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const result = await pool.query(`
+      SELECT r.*, c.name AS referrer_name, c.first_name AS referrer_first_name
+      FROM referrals r
+      LEFT JOIN customers c ON c.id = r.referrer_id
+      ${whereClause}
+      ORDER BY r.created_at DESC
+    `, params);
+    res.json({ success: true, referrals: result.rows });
+  } catch (error) { serverError(res, error, 'List referrals error'); }
+});
+
+// GET /api/customers/:id/referrals - Referrals for a specific customer
+app.get('/api/customers/:id/referrals', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM referrals WHERE referrer_id = $1 ORDER BY created_at DESC`,
+      [req.params.id]
+    );
+    res.json({ success: true, referrals: result.rows });
+  } catch (error) { serverError(res, error, 'Customer referrals error'); }
+});
+
+// PATCH /api/referrals/:id - Update referral status or details
+app.patch('/api/referrals/:id', authenticateToken, async (req, res) => {
+  try {
+    const { status, referred_customer_id, notes } = req.body;
+    const sets = [];
+    const params = [];
+    let p = 1;
+    if (status) { sets.push(`status = $${p}`); params.push(status); p++; if (status === 'credited') { sets.push(`credited_at = NOW()`); } }
+    if (referred_customer_id !== undefined) { sets.push(`referred_customer_id = $${p}`); params.push(referred_customer_id); p++; }
+    if (notes !== undefined) { sets.push(`notes = $${p}`); params.push(notes); p++; }
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+    params.push(req.params.id);
+    const result = await pool.query(`UPDATE referrals SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, params);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Referral not found' });
+    res.json({ success: true, referral: result.rows[0] });
+  } catch (error) { serverError(res, error, 'Update referral error'); }
+});
+
+// POST /api/referrals/:id/apply-credit - Apply free mow credit + send thank-you SMS
+app.post('/api/referrals/:id/apply-credit', authenticateToken, async (req, res) => {
+  try {
+    const { mow_price } = req.body;
+    const price = parseFloat(mow_price);
+    if (!price || price <= 0) return res.status(400).json({ success: false, error: 'mow_price is required and must be positive' });
+
+    // Get the referral
+    const ref = await pool.query('SELECT * FROM referrals WHERE id = $1', [req.params.id]);
+    if (ref.rows.length === 0) return res.status(404).json({ success: false, error: 'Referral not found' });
+    const referral = ref.rows[0];
+    if (referral.status === 'credited') return res.status(400).json({ success: false, error: 'Credit already applied for this referral' });
+
+    // Get referrer info
+    const cust = await pool.query('SELECT id, name, first_name, last_name, email, phone, mobile, address FROM customers WHERE id = $1', [referral.referrer_id]);
+    if (cust.rows.length === 0) return res.status(404).json({ success: false, error: 'Referrer customer not found' });
+    const customer = cust.rows[0];
+    const custName = customer.name || ((customer.first_name || '') + (customer.last_name ? ' ' + customer.last_name : '')).trim() || 'Unknown';
+
+    // Add negative line item to current draft invoice or create one
+    const creditItem = {
+      name: 'Mowing',
+      description: `FREE MOW - Referral credit (referred: ${referral.referred_name})`,
+      quantity: 1,
+      rate: -price,
+      amount: -price
+    };
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const existingInv = await pool.query(
+      `SELECT id, line_items, subtotal, tax_amount, total FROM invoices
+       WHERE customer_id = $1 AND status = 'draft'
+       AND created_at >= $2 AND created_at <= ($3::date + interval '1 day')
+       ORDER BY created_at DESC LIMIT 1`,
+      [customer.id, monthStart, monthEnd]
+    );
+
+    let invoiceId;
+    if (existingInv.rows.length > 0) {
+      const inv = existingInv.rows[0];
+      let items = inv.line_items || [];
+      if (typeof items === 'string') items = JSON.parse(items);
+      items.push(creditItem);
+      const taxResult = await calculateTax(customer.id, null, items);
+      await pool.query(
+        `UPDATE invoices SET line_items = $1, subtotal = $2, tax_amount = $3, total = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`,
+        [JSON.stringify(taxResult.lineItems), taxResult.subtotal, taxResult.taxAmount, taxResult.total, inv.id]
+      );
+      invoiceId = inv.id;
+    } else {
+      const invNum = await nextInvoiceNumber();
+      const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      const taxResult = await calculateTax(customer.id, null, [creditItem]);
+      const invResult = await pool.query(
+        `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, customer_address, status, subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
+         VALUES ($1, $2, $3, $4, $5, 'draft', $6, 0, $7, $8, $9, $10, $11) RETURNING id`,
+        [invNum, customer.id, custName, customer.email || '', customer.address || '', taxResult.subtotal, taxResult.taxAmount, taxResult.total, dueDate,
+         'Referral credit - ' + now.toLocaleDateString('en-US', {month:'long', year:'numeric'}),
+         JSON.stringify(taxResult.lineItems)]
+      );
+      invoiceId = invResult.rows[0].id;
+    }
+
+    // Mark referral as credited
+    await pool.query('UPDATE referrals SET status = $1, credited_at = NOW() WHERE id = $2', ['credited', req.params.id]);
+
+    // Send thank-you SMS
+    let smsSent = false;
+    const phone = customer.mobile || customer.phone;
+    if (phone && twilioClient) {
+      try {
+        const firstName = customer.first_name || custName;
+        const smsBody = `Hey ${firstName}! It's Tim from Pappas & Co. Your neighbor ${referral.referred_name} signed up and mentioned your name, so you've got a free mow coming. We'll apply it to your next service. Thanks for helping us grow in the neighborhood!`;
+        const digits = phone.replace(/\D/g, '');
+        const toNumber = digits.length === 10 ? '+1' + digits : digits.length === 11 ? '+' + digits : null;
+        if (toNumber) {
+          await twilioClient.messages.create({ body: smsBody, from: TWILIO_PHONE_NUMBER, to: toNumber });
+          smsSent = true;
+          // Log to messages table
+          try {
+            await pool.query(
+              `INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, read) VALUES ($1, 'outbound', $2, $3, $4, '{}', 'sent', true)`,
+              ['referral-' + Date.now(), TWILIO_PHONE_NUMBER, toNumber, smsBody]
+            );
+          } catch (e) { /* ignore logging error */ }
+        }
+      } catch (smsErr) {
+        console.error('Referral thank-you SMS error:', smsErr.message);
+      }
+    }
+
+    console.log(`🎉 Referral credit applied: ${custName} gets free mow for referring ${referral.referred_name}`);
+    res.json({ success: true, invoiceId, smsSent, referral: { ...referral, status: 'credited' } });
+  } catch (error) { serverError(res, error, 'Apply referral credit error'); }
+});
+
 // 7.4 Churn Prediction
 app.get('/api/ai/churn-risk', async (req, res) => {
   try {
@@ -16478,6 +16649,22 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_notes_entity ON internal_notes (entity_type, entity_id)`);
+  } catch(e) {}
+
+  // Referrals table
+  try {
+    await pool.query(`CREATE TABLE IF NOT EXISTS referrals (
+      id SERIAL PRIMARY KEY,
+      referrer_id INTEGER NOT NULL,
+      referred_name VARCHAR(255) NOT NULL,
+      referred_customer_id INTEGER,
+      status VARCHAR(20) DEFAULT 'pending',
+      credited_at TIMESTAMP,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_referrals_status ON referrals (status)`);
   } catch(e) {}
 
   // Job expenses table

@@ -297,6 +297,7 @@ async function loadCustomer() {
         loadCommunications();
         loadEmailHistory();
         loadNotes();
+        loadReferrals();
         loadAIIntel();
         loadSavedCards();
     } catch (e) {
@@ -451,6 +452,14 @@ function render() {
                         <div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">Loading...</div>
                     </div>
                     <div class="billing-footer"><span>Current balance</span><span class="amount" id="currentBalance">$0.00</span></div>
+                </div>
+
+                <!-- Referrals -->
+                <div class="sidebar-card">
+                    <div class="sc-header" style="display:flex;justify-content:space-between;align-items:center;">Referrals <button class="btn btn-primary btn-sm" onclick="showReferralModal()" style="font-size:11px;padding:4px 10px;">+ Log Referral</button></div>
+                    <div id="referralsSection" style="padding:16px 20px;">
+                        <div style="text-align:center;color:var(--gray-400);font-size:13px">Loading...</div>
+                    </div>
                 </div>
 
                 <!-- Internal Notes -->
@@ -787,6 +796,83 @@ async function togglePin(id, pinned) {
 
 async function deleteNote(id) {
     try { await fetch('/api/notes/' + id, { method: 'DELETE' }); showToast('Note deleted'); loadNotes(); } catch(e) {}
+}
+
+// ─── Referrals ─────────────────────────────────────────────
+async function loadReferrals() {
+    const el = document.getElementById('referralsSection');
+    if (!el) return;
+    try {
+        const res = await fetch('/api/customers/' + customerId + '/referrals');
+        const data = await res.json();
+        if (!data.success) throw new Error();
+        const refs = data.referrals || [];
+        const credited = refs.filter(r => r.status === 'credited' || r.status === 'used').length;
+        if (refs.length === 0) {
+            el.innerHTML = '<div style="font-size:13px;color:var(--gray-400);">No referrals yet</div>';
+            return;
+        }
+        let html = `<div style="font-size:13px;color:var(--gray-600);margin-bottom:12px;">${refs.length} referral${refs.length !== 1 ? 's' : ''} &middot; ${credited} free mow${credited !== 1 ? 's' : ''} earned</div>`;
+        html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+        for (const r of refs) {
+            const date = new Date(r.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric'});
+            const statusColor = r.status === 'credited' ? '#16a34a' : r.status === 'used' ? '#2563eb' : '#d97706';
+            const statusLabel = r.status === 'credited' ? 'Credited' : r.status === 'used' ? 'Used' : 'Pending';
+            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--gray-50);border-radius:8px;">
+                <div>
+                    <div style="font-size:13px;font-weight:600;color:var(--gray-700);">${esc(r.referred_name)}</div>
+                    <div style="font-size:11px;color:var(--gray-400);">${date}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:11px;font-weight:600;color:${statusColor};background:${statusColor}15;padding:2px 8px;border-radius:4px;">${statusLabel}</span>
+                    ${r.status === 'pending' ? `<button class="btn btn-sm" onclick="applyReferralCredit(${r.id}, '${esc(r.referred_name)}')" style="font-size:11px;padding:3px 8px;background:var(--primary);color:white;border:none;border-radius:4px;cursor:pointer;">Apply Credit</button>` : ''}
+                </div>
+            </div>`;
+        }
+        html += '</div>';
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = '<div style="font-size:13px;color:var(--gray-400);">Could not load referrals</div>';
+    }
+}
+
+function showReferralModal() {
+    const name = prompt('Name of the person this customer referred:');
+    if (!name || !name.trim()) return;
+    logReferral(name.trim());
+}
+
+async function logReferral(referredName) {
+    try {
+        const res = await fetch('/api/referrals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referrer_id: parseInt(customerId), referred_name: referredName })
+        });
+        const data = await res.json();
+        if (data.success) { showToast('Referral logged'); loadReferrals(); }
+        else { showToast('Failed: ' + (data.error || 'Unknown error')); }
+    } catch(e) { showToast('Failed to log referral'); }
+}
+
+async function applyReferralCredit(referralId, referredName) {
+    const priceStr = prompt('Mow price to credit (e.g. 45):');
+    if (!priceStr) return;
+    const price = parseFloat(priceStr);
+    if (isNaN(price) || price <= 0) { showToast('Invalid price'); return; }
+    try {
+        const res = await fetch('/api/referrals/' + referralId + '/apply-credit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mow_price: price })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Free mow credit applied' + (data.smsSent ? ' + thank-you text sent' : ''));
+            loadReferrals();
+            loadInvoices();
+        } else { showToast('Failed: ' + (data.error || 'Unknown error')); }
+    } catch(e) { showToast('Failed to apply credit'); }
 }
 
 // ─── AI Intelligence (Lead Score + Churn Risk) ────────────

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-04-14
+
+### Route Sheet — Name & Address Parsing Fixes
+- Addresses no longer get truncated when a city name appears inside the street (e.g., "14950 Lakewood Heights Boulevard", "1283 Westlake Avenue" — previously collapsed to just the house number)
+- Personal names now use the surname only. "Mary Ann Marsal" → "Marsal", "Dallas Marie Holifield" → "Holifield" (previously included middle names)
+- "Ready" removed from business-keyword list so "Martha Ready" → "Ready" instead of showing the full name
+- Names with lowercase internal words (e.g., "Mews at Rockport") now render in full instead of being stripped to "at Rockport"
+- Added "COA" to business-keyword list so "Kirtland House COA" renders in full
+- Non-mowing service types (e.g., "Weed Whacking - Pavement Area") now appear in the Comments column instead of being dropped
+
 ## 2026-03-27
 
 ### Morning Briefing Endpoint

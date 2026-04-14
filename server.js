@@ -14498,15 +14498,22 @@ app.post('/api/broadcasts/send', async (req, res) => {
               vars.service_type = job.service_type || '';
               const fullAddr = job.address || vars.customer_address || '';
               vars.address = fullAddr.split(',')[0].trim();
+              vars.service_list = `${vars.service_type} at ${vars.address}`;
               vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
             } else {
-              // Multiple jobs — list each property + service
+              // Multiple jobs — build "Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave"
+              const jobParts = jobResult.rows.map(j => {
+                const svc = j.service_type || '';
+                const fa = j.address || vars.customer_address || '';
+                const street = fa.split(',')[0].trim();
+                return `${svc} at ${street}`;
+              });
+              vars.service_list = jobParts.join(' and ');
               vars.service_type = jobResult.rows.map(j => j.service_type || '').join(' & ');
               vars.address = jobResult.rows.map(j => {
                 const fa = j.address || vars.customer_address || '';
                 return fa.split(',')[0].trim();
               }).join(' & ');
-              // Combined total price
               const total = jobResult.rows.reduce((sum, j) => sum + (j.service_price ? Number(j.service_price) : 0), 0);
               vars.service_price = total > 0 ? '$' + total.toFixed(2) : '';
             }

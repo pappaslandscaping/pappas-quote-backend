@@ -14482,23 +14482,36 @@ app.post('/api/broadcasts/send', async (req, res) => {
         unsubscribe_email: encodeURIComponent(cust.email || '')
       };
 
-      // If job_date provided, look up job details for this customer on that date
+      // If job_date provided, look up ALL job details for this customer on that date
       if (job_date) {
         try {
           const jobResult = await pool.query(
             `SELECT service_type, address, service_price, job_date FROM scheduled_jobs
              WHERE customer_id = $1 AND job_date::date = $2::date
-             ORDER BY id DESC LIMIT 1`,
+             ORDER BY id ASC`,
             [cust.id, job_date]
           );
           if (jobResult.rows.length > 0) {
-            const job = jobResult.rows[0];
-            vars.service_type = (job.service_type || '').toLowerCase();
-            // Use street only for SMS (strip city/state/zip/country)
-            const fullAddr = job.address || vars.customer_address || '';
-            vars.address = fullAddr.split(',')[0].trim();
-            vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
-            vars.job_date = job.job_date ? new Date(job.job_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
+            if (jobResult.rows.length === 1) {
+              // Single job — keep simple format
+              const job = jobResult.rows[0];
+              vars.service_type = job.service_type || '';
+              const fullAddr = job.address || vars.customer_address || '';
+              vars.address = fullAddr.split(',')[0].trim();
+              vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
+            } else {
+              // Multiple jobs — list each property + service
+              vars.service_type = jobResult.rows.map(j => j.service_type || '').join(' & ');
+              vars.address = jobResult.rows.map(j => {
+                const fa = j.address || vars.customer_address || '';
+                return fa.split(',')[0].trim();
+              }).join(' & ');
+              // Combined total price
+              const total = jobResult.rows.reduce((sum, j) => sum + (j.service_price ? Number(j.service_price) : 0), 0);
+              vars.service_price = total > 0 ? '$' + total.toFixed(2) : '';
+            }
+            const firstJob = jobResult.rows[0];
+            vars.job_date = firstJob.job_date ? new Date(firstJob.job_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
           }
         } catch (e) { console.error('Job lookup error:', e.message); }
       }

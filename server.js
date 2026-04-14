@@ -14499,6 +14499,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
               const fullAddr = job.address || vars.customer_address || '';
               vars.address = fullAddr.split(',')[0].trim();
               vars.service_list = `${vars.service_type} at ${vars.address}`;
+              vars.services_list = vars.service_list;
               vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
             } else {
               // Multiple jobs — build "Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave"
@@ -14509,6 +14510,7 @@ app.post('/api/broadcasts/send', async (req, res) => {
                 return `${svc} at ${street}`;
               });
               vars.service_list = jobParts.join(' and ');
+              vars.services_list = vars.service_list;
               vars.service_type = jobResult.rows.map(j => j.service_type || '').join(' & ');
               vars.address = jobResult.rows.map(j => {
                 const fa = j.address || vars.customer_address || '';

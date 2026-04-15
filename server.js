@@ -12,6 +12,11 @@ const OAuthClient = require('intuit-oauth');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const cheerio = require('cheerio');
+const { getConfig } = require('./config');
+const { authenticateToken: createAuthenticateToken, decodeToken, extractBearerToken, hasAdminAccess } = require('./middleware/auth');
+const { logAuditEvent } = require('./lib/audit');
+
+const config = getConfig();
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -134,7 +139,7 @@ const uploadPdf = multer({
 });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
@@ -233,8 +238,8 @@ app.use(express.static('public', {
 }));
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  connectionString: config.databaseUrl,
+  ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : false
 });
 
 // Handle unexpected pool errors so the server doesn't crash
@@ -275,23 +280,22 @@ app.use('/api/pay', paymentLimiter);
 
 // Email via Resend API
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const NOTIFICATION_EMAIL = process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
+const NOTIFICATION_EMAIL = config.notifications.email;
 const FROM_EMAIL = 'Pappas & Co. Landscaping <hello@pappaslandscaping.com>';
 // CopilotCRM-hosted logo (green leaf with text)
 const LOGO_URL = 'https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png';
 const COMPANY_NAME = 'Pappas & Co. Landscaping';
 
 // TwilioConnect App Config
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_ACCOUNT_SID = config.twilio.accountSid;
+const TWILIO_AUTH_TOKEN = config.twilio.authToken;
 // Multi-number support - both business lines
 const TWILIO_NUMBERS = {
   '4408867318': '+14408867318',  // Primary (440) 886-7318
   '2169413737': '+12169413737'   // Secondary (216) 941-3737
 };
-const TWILIO_PHONE_NUMBER = '+14408867318'; // Default for backward compatibility
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) { console.error('❌ FATAL: JWT_SECRET environment variable is required'); process.exit(1); }
+const TWILIO_PHONE_NUMBER = config.twilio.phoneNumber;
+const JWT_SECRET = config.auth.jwtSecret;
 let twilioClient = null;
 try {
   if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
@@ -386,16 +390,32 @@ function getServiceDescription(serviceName, forPdf = false) {
 }
 
 // JWT Auth Middleware for TwilioConnect App
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Access token required' });
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Invalid or expired token' });
-    req.user = user;
-    next();
-  });
-};
+const authenticateToken = createAuthenticateToken(JWT_SECRET);
+
+function buildAdminClaims(user) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isAdmin: true,
+    accountType: 'admin',
+  };
+}
+
+function buildEmployeeClaims(employee) {
+  const empName = `${employee.first_name || ''} ${employee.last_name || ''}`.trim();
+  return {
+    id: employee.id,
+    email: employee.login_email,
+    name: empName,
+    role: employee.title || 'Employee',
+    accountType: 'employee',
+    isEmployee: true,
+    employeeId: employee.id,
+    permissions: employee.permissions || [],
+  };
+}
 
 // ═══════════════════════════════════════════════════════════
 // ADMIN AUTHENTICATION SYSTEM
@@ -442,6 +462,7 @@ app.post('/api/auth/login', async (req, res) => {
       const user = adminResult.rows[0];
       if (!verifyPassword(password, user.password_hash)) {
         console.log(`🔐 Login failed: password mismatch for ${email}`);
+        logAuditEvent('auth.login.failed', { email: emailLower, accountType: 'admin', reason: 'password_mismatch' });
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
       }
       // Rehash with random salt if still using legacy format
@@ -450,8 +471,10 @@ app.post('/api/auth/login', async (req, res) => {
         await pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
       }
       await pool.query('UPDATE admin_users SET last_login = NOW() WHERE id = $1', [user.id]);
-      const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
+      const claims = buildAdminClaims(user);
+      const token = jwt.sign(claims, JWT_SECRET, { expiresIn: '7d' });
       console.log(`🔐 Admin login successful: ${user.email}`);
+      logAuditEvent('auth.login.succeeded', { email: user.email, accountType: 'admin', actorId: user.id });
       return res.json({ success: true, token, name: user.name, email: user.email, role: user.role, isAdmin: true });
     }
 
@@ -461,6 +484,7 @@ app.post('/api/auth/login', async (req, res) => {
       const emp = empResult.rows[0];
       if (!emp.password_hash || !verifyPassword(password, emp.password_hash)) {
         console.log(`🔐 Login failed: password mismatch for employee ${email}`);
+        logAuditEvent('auth.login.failed', { email: emailLower, accountType: 'employee', reason: 'password_mismatch' });
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
       }
       // Rehash with random salt if still using legacy format
@@ -469,13 +493,16 @@ app.post('/api/auth/login', async (req, res) => {
         await pool.query('UPDATE employees SET password_hash = $1 WHERE id = $2', [newHash, emp.id]);
       }
       await pool.query('UPDATE employees SET updated_at = NOW() WHERE id = $1', [emp.id]);
-      const empName = emp.first_name + ' ' + emp.last_name;
-      const token = jwt.sign({ id: emp.id, email: emp.login_email, name: empName, role: emp.title || 'employee', isAdmin: true, isEmployee: true, employeeId: emp.id, permissions: emp.permissions }, JWT_SECRET, { expiresIn: '7d' });
+      const claims = buildEmployeeClaims(emp);
+      const token = jwt.sign(claims, JWT_SECRET, { expiresIn: '7d' });
+      const empName = claims.name;
       console.log(`🔐 Employee login successful: ${emp.login_email} (${empName})`);
+      logAuditEvent('auth.login.succeeded', { email: emp.login_email, accountType: 'employee', actorId: emp.id });
       return res.json({ success: true, token, name: empName, email: emp.login_email, role: emp.title || 'Employee', isEmployee: true, permissions: emp.permissions });
     }
 
     console.log(`🔐 Login failed: no user found for ${email}`);
+    logAuditEvent('auth.login.failed', { email: emailLower, reason: 'unknown_email' });
     res.status(401).json({ success: false, error: 'Invalid email or password' });
   } catch (error) {
     console.error('Login error:', error);
@@ -485,13 +512,22 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Verify token (admin or employee)
 app.get('/api/auth/me', (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = extractBearerToken(req);
   if (!token) return res.status(401).json({ success: false, error: 'No token' });
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not authorized' });
-    res.json({ success: true, user: { email: decoded.email, name: decoded.name, role: decoded.role, isEmployee: !!decoded.isEmployee, permissions: decoded.permissions || null } });
+    const decoded = decodeToken(token, JWT_SECRET);
+    res.json({
+      success: true,
+      user: {
+        email: decoded.email,
+        name: decoded.name,
+        role: decoded.role,
+        accountType: decoded.accountType || (decoded.isEmployee ? 'employee' : 'admin'),
+        isEmployee: !!decoded.isEmployee,
+        isAdmin: hasAdminAccess(decoded),
+        permissions: decoded.permissions || null,
+      }
+    });
   } catch (err) {
     return res.status(401).json({ success: false, error: 'Invalid token' });
   }
@@ -499,32 +535,35 @@ app.get('/api/auth/me', (req, res) => {
 
 // Generate long-lived service token for N8N / automation use
 app.post('/api/auth/service-token', authenticateToken, (req, res) => {
-  if (!req.user.isAdmin) return res.status(403).json({ success: false, error: 'Admin access required' });
-  const payload = { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role, isAdmin: true, isServiceToken: true };
+  if (!hasAdminAccess(req.user)) return res.status(403).json({ success: false, error: 'Admin access required' });
+  const payload = { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role, isAdmin: true, accountType: 'admin', isServiceToken: true };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1y' });
   const decoded = jwt.decode(token);
   const expiresAt = new Date(decoded.exp * 1000).toISOString();
   console.log(`🔑 Service token generated by ${req.user.email}, expires ${expiresAt}`);
+  logAuditEvent('auth.service_token.created', { actorId: req.user.id, email: req.user.email, expiresAt });
   res.json({ success: true, token, expiresAt });
 });
 
 // Change password
 app.post('/api/auth/change-password', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = extractBearerToken(req);
   if (!token) return res.status(401).json({ success: false, error: 'No token' });
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Not admin' });
+    const decoded = decodeToken(token, JWT_SECRET);
     const { current_password, new_password } = req.body;
     if (!current_password || !new_password) return res.status(400).json({ success: false, error: 'Both passwords required' });
     if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
 
-    const result = await pool.query('SELECT password_hash FROM admin_users WHERE id = $1', [decoded.id]);
+    const isEmployee = decoded.accountType === 'employee' || decoded.isEmployee;
+    const table = isEmployee ? 'employees' : 'admin_users';
+    const idColumn = 'id';
+    const result = await pool.query(`SELECT password_hash FROM ${table} WHERE ${idColumn} = $1`, [decoded.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
     if (!verifyPassword(current_password, result.rows[0].password_hash)) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
     const newHash = hashPassword(new_password);
-    await pool.query('UPDATE admin_users SET password_hash = $1 WHERE id = $2', [newHash, decoded.id]);
+    await pool.query(`UPDATE ${table} SET password_hash = $1 WHERE ${idColumn} = $2`, [newHash, decoded.id]);
+    logAuditEvent('auth.password.changed', { actorId: decoded.id, email: decoded.email, accountType: isEmployee ? 'employee' : 'admin' });
     res.json({ success: true, message: 'Password changed' });
   } catch (err) {
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
@@ -579,7 +618,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     await pool.query('INSERT INTO password_reset_tokens (user_id, user_type, token, expires_at) VALUES ($1, $2, $3, $4)', [userId, isEmployee ? 'employee' : 'admin', token, expiresAt]);
 
     // Send reset email
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const baseUrl = config.urls.baseUrl;
     const resetUrl = `${baseUrl}/reset-password.html?token=${token}`;
     const userName = user ? (user.name || emailLower) : emailLower;
 
@@ -595,6 +634,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     await sendEmail(emailLower, 'Reset Your YardDesk Password', emailTemplate(emailContent, { showSignature: false }));
     console.log(`🔐 Password reset email sent to ${emailLower}`);
+    logAuditEvent('auth.password_reset.requested', { email: emailLower, accountType: isEmployee ? 'employee' : 'admin', actorId: userId });
     res.json(successMsg);
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -629,6 +669,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     await pool.query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [resetRecord.id]);
 
     console.log(`🔐 Password reset successful for ${resetRecord.user_type} id=${resetRecord.user_id}`);
+    logAuditEvent('auth.password_reset.completed', { actorId: resetRecord.user_id, accountType: resetRecord.user_type });
     res.json({ success: true, message: 'Password reset successfully' });
   } catch (error) {
     console.error('Reset password error:', error);
@@ -660,13 +701,13 @@ function requireAdmin(req, res, next) {
     if (req.path.startsWith(p) || req.path === p) return next();
   }
   // Check admin JWT
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const token = extractBearerToken(req);
   if (!token) return res.status(401).json({ success: false, error: 'Authentication required' });
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.isAdmin) return res.status(403).json({ success: false, error: 'Admin access required' });
+    const decoded = decodeToken(token, JWT_SECRET);
+    if (!hasAdminAccess(decoded)) return res.status(403).json({ success: false, error: 'Admin access required' });
     req.adminUser = decoded;
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ success: false, error: 'Session expired — please log in again' });
@@ -16861,16 +16902,22 @@ const CAMPAIGN_SENDS_TABLE = `CREATE TABLE IF NOT EXISTS campaign_sends (
   // Create admin_users table and seed default admin accounts
   try {
     await pool.query(ADMIN_USERS_TABLE);
-    const adminUsers = [
-      { email: 'hello@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'changeme', name: 'Theresa Pappas', role: 'owner' },
-      { email: 'tim@pappaslandscaping.com', password: process.env.ADMIN_PASSWORD || 'changeme', name: 'Tim Pappas', role: 'owner' },
-    ];
-    for (const u of adminUsers) {
-      const hash = hashPassword(u.password);
-      await pool.query(
-        `INSERT INTO admin_users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO UPDATE SET password_hash = $2`,
-        [u.email, hash, u.name, u.role]
-      );
+    const bootstrapPassword = config.auth.bootstrapAdminPassword;
+    if (!bootstrapPassword) {
+      console.log('ℹ️ Admin bootstrap skipped (BOOTSTRAP_ADMIN_PASSWORD not set)');
+    } else {
+      const adminUsers = [
+        { email: 'hello@pappaslandscaping.com', password: bootstrapPassword, name: 'Theresa Pappas', role: 'owner' },
+        { email: 'tim@pappaslandscaping.com', password: bootstrapPassword, name: 'Tim Pappas', role: 'owner' },
+      ];
+      for (const u of adminUsers) {
+        const hash = hashPassword(u.password);
+        await pool.query(
+          `INSERT INTO admin_users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING`,
+          [u.email, hash, u.name, u.role]
+        );
+      }
+      logAuditEvent('auth.bootstrap_admin.completed', { seededUsers: adminUsers.map(user => user.email) });
     }
     console.log('✅ Admin users ready');
   } catch(e) { console.error('Admin users error:', e.message); }

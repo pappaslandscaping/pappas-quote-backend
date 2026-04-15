@@ -141,6 +141,9 @@ const uploadPdf = multer({
 const app = express();
 const PORT = config.port;
 
+// Railway sits behind a proxy, so Express should trust forwarded headers.
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
   credentials: true

@@ -360,6 +360,71 @@
             font-style: italic;
         }
 
+        .template-preview-iframe {
+            margin-top: 12px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f2f4f3;
+            display: none;
+        }
+
+        .template-preview-iframe.visible {
+            display: block;
+        }
+
+        .template-preview-iframe iframe {
+            width: 100%;
+            height: 320px;
+            border: none;
+            transform: scale(0.55);
+            transform-origin: top left;
+            width: 182%;
+            height: 582px;
+        }
+
+        .template-preview-iframe-wrap {
+            height: 320px;
+            overflow: hidden;
+        }
+
+        .tpl-select-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .tpl-select-header a {
+            font-size: 12px;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .tpl-select-header a:hover {
+            text-decoration: underline;
+        }
+
+        .category-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .cat-quotes { background: var(--blue-bg); color: var(--blue); }
+        .cat-invoices { background: var(--green-bg); color: var(--green); }
+        .cat-payments { background: var(--green-bg); color: var(--green); }
+        .cat-followups { background: var(--amber-bg); color: var(--amber); }
+        .cat-portal { background: var(--purple-bg); color: var(--purple); }
+        .cat-marketing { background: #f0fdf4; color: var(--primary); }
+        .cat-system { background: var(--gray-100); color: var(--gray-600); }
+
         /* ─── SMS Section ───────────────────────────────────── */
         .sms-textarea {
             width: 100%;
@@ -1009,11 +1074,20 @@
                     </h3>
                 </div>
                 <div class="bc-card-body">
+                    <div class="tpl-select-header">
+                        <span style="font-size:12px;font-weight:600;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.03em;">Choose Template</span>
+                        <a href="templates.html" target="_blank">Create New Template &rarr;</a>
+                    </div>
                     <select class="filter-input" id="templateSelect" onchange="previewTemplate()">
                         <option value="">Select a template...</option>
                     </select>
                     <div class="template-preview-box empty" id="templatePreview">
                         Select a template to see preview
+                    </div>
+                    <div class="template-preview-iframe" id="templatePreviewIframe">
+                        <div class="template-preview-iframe-wrap">
+                            <iframe id="templatePreviewFrame" sandbox="allow-same-origin"></iframe>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1618,10 +1692,12 @@ function updateSelCount() {
 function previewTemplate() {
     const sel = document.getElementById('templateSelect');
     const preview = document.getElementById('templatePreview');
+    const iframeWrap = document.getElementById('templatePreviewIframe');
     const id = sel.value;
     if (!id) {
         preview.className = 'template-preview-box empty';
         preview.textContent = 'Select a template to see preview';
+        iframeWrap.classList.remove('visible');
         selectedTemplate = null;
         document.getElementById('useTemplateSmsBtn').style.display = 'none';
         return;
@@ -1631,14 +1707,39 @@ function previewTemplate() {
 
     const subject = selectedTemplate.subject || 'No subject';
     const body = selectedTemplate.body || selectedTemplate.html_body || '';
-    // Strip HTML tags for snippet
-    const snippet = body.replace(/<[^>]*>/g, '').substring(0, 200);
+    const catClass = 'cat-' + (selectedTemplate.category || 'system');
 
+    // Show subject + category badge
     preview.className = 'template-preview-box';
     preview.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="category-badge ${catClass}" style="font-size:9px;padding:2px 6px;">${escHtml(selectedTemplate.category || 'system')}</span>
+            <span style="font-size:10px;color:var(--gray-400);">${selectedTemplate.channel === 'both' ? 'Email + SMS' : selectedTemplate.channel === 'sms' ? 'SMS Only' : 'Email'}</span>
+        </div>
         <div class="tpl-subject">${escHtml(subject)}</div>
-        <div class="tpl-snippet">${escHtml(snippet)}${snippet.length >= 200 ? '...' : ''}</div>
     `;
+
+    // Render wrapped email preview in iframe
+    const sampleVars = {
+        customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com',
+        customer_phone: '(555) 234-5678', customer_address: '742 Evergreen Terrace, Springfield, IL 62704',
+        services_list: 'Spring Cleanup, Lawn Mowing', service_type: 'Lawn Maintenance',
+        job_date: 'Monday, March 9, 2026', address: '742 Evergreen Terrace', crew_name: 'Alpha Crew',
+        company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318',
+        portal_link: '#', quote_link: '#', payment_link: '#',
+        invoice_number: 'INV-2024-0042', invoice_total: '$1,250.00', quote_total: '$3,400.00'
+    };
+    let html = body;
+    for (const [key, val] of Object.entries(sampleVars)) {
+        html = html.replace(new RegExp('\\{' + key + '\\}', 'g'), val);
+    }
+    const wrapped = wrapBroadcastPreview(html);
+    const iframe = document.getElementById('templatePreviewFrame');
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(wrapped);
+    doc.close();
+    iframeWrap.classList.add('visible');
 
     // Show "Use template SMS" button if template has sms_body
     if (selectedTemplate.sms_body && (currentChannel === 'sms' || currentChannel === 'both')) {
@@ -1646,6 +1747,28 @@ function previewTemplate() {
     } else {
         document.getElementById('useTemplateSmsBtn').style.display = 'none';
     }
+}
+
+function wrapBroadcastPreview(bodyHtml) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;padding:0;background:#f2f4f3;font-family:'DM Sans',-apple-system,sans-serif;}</style>
+</head><body>
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+    <div style="background:#2e403d;padding:36px 48px;text-align:center;">
+        <img src="/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;">
+    </div>
+    <div style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</div>
+    <div style="padding:44px 48px 36px;color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,sans-serif;">
+        ${bodyHtml}
+    </div>
+    <div style="background:#243330;padding:32px 40px;text-align:center;">
+        <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',Arial,sans-serif;">Questions? Reply or call <span style="color:#c9dd80;font-weight:600;">(440) 886-7318</span></p>
+        <p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',Arial,sans-serif;">Pappas & Co. Landscaping</p>
+        <p style="margin:0;font-size:11px;color:#5f8a5c;font-family:'DM Sans',Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+    </div>
+</div>
+</body></html>`;
 }
 
 function applySmsTemplate() {

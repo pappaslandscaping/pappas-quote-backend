@@ -850,8 +850,8 @@ function emailTemplate(content, options = {}) {
   const showSignature = options.showSignature !== false; // Default to true
   
   const signatureHtml = showSignature ? `
-    <div style="margin-top:35px;padding-top:20px;">
-      <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:450px;width:100%;height:auto;">
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e5e7eb;">
+      <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;">
     </div>
   ` : '';
   
@@ -905,33 +905,38 @@ function emailTemplate(content, options = {}) {
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>@font-face{font-family:'Qualy';src:url('${baseUrl}/Qualy.otf') format('opentype');}</style>
+<style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');</style>
 </head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#f2f4f3;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f3;padding:40px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+  <!-- Header -->
   <tr><td style="background:#2e403d;padding:36px 48px;text-align:center;">
-    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
+    <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;">
   </td></tr>
-  <tr><td style="padding:40px 48px;">
+  <!-- Lime accent bar -->
+  <tr><td style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+  <!-- Content -->
+  <tr><td style="padding:44px 48px 36px;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;line-height:1.8;color:#374151;">
     ${content}
     ${signatureHtml}
   </td></tr>
   ${featuresSection}
-  <tr><td style="background:#2e403d;padding:28px 40px;text-align:center;">
-    <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
-    <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+  <!-- Footer -->
+  <tr><td style="background:#243330;padding:32px 40px;text-align:center;">
+    <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
       <tr>
-        <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="width:28px;height:28px;"></a></td>
-        <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="width:28px;height:28px;"></a></td>
-        <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
+        <td style="padding:0 10px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="width:30px;height:30px;"></a></td>
+        <td style="padding:0 10px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="width:30px;height:30px;"></a></td>
+        <td style="padding:0 10px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="width:30px;height:30px;"></a></td>
       </tr>
     </table>
-    <p style="margin:0 0 3px;font-size:12px;color:#7a9477;">Pappas & Co. Landscaping</p>
-    <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-    <p style="margin:0 0 10px;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;">pappaslandscaping.com</a></p>
-    <p style="margin:0;font-size:10px;color:#5a7a57;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
+    <p style="margin:0 0 4px;font-size:11px;color:#5f8a5c;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+    <p style="margin:0 0 14px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-weight:500;font-family:'DM Sans',-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
+    <p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
   </td></tr>
 </table>
 </td></tr>
@@ -14127,6 +14132,144 @@ app.get('/api/templates/variables', (req, res) => {
       company: ['company_name', 'company_phone', 'company_email', 'company_website', 'portal_link']
     }
   });
+});
+
+// GET /api/templates/library - Pre-built professional template library
+app.get('/api/templates/library', (req, res) => {
+  const library = [
+    {
+      id: 'spring-cleanup',
+      name: 'Spring Cleanup Promotion',
+      category: 'marketing',
+      description: 'Seasonal promo for spring cleanup services with CTA',
+      subject: 'Spring is here — time to refresh your yard!',
+      sms_body: 'Hi {customer_first_name}! Spring is here and your yard is calling. Book your spring cleanup today: {portal_link} — Tim, Pappas & Co.',
+      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Spring Is Here, {customer_first_name}!</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">The snow has melted, and your property is ready for some fresh attention. Our spring cleanup crew is booking fast — let&rsquo;s get your yard looking its best before the growing season kicks off.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;" role="presentation"><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F33F;</td><td><strong style="color:#2e403d;">Debris &amp; Leaf Removal</strong><br><span style="color:#64748b;font-size:13px;">Clear winter buildup from beds, lawn, and hardscapes</span></td></tr></table></td></tr><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x2702;&#xFE0F;</td><td><strong style="color:#2e403d;">Bed Edging &amp; Mulch Prep</strong><br><span style="color:#64748b;font-size:13px;">Crisp edges and fresh beds ready for mulch</span></td></tr></table></td></tr><tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F3E1;</td><td><strong style="color:#2e403d;">First Mow of the Season</strong><br><span style="color:#64748b;font-size:13px;">Get your lawn off to the right start</span></td></tr></table></td></tr></table>
+<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Book Spring Cleanup</a></div>`
+    },
+    {
+      id: 'fall-leaf-removal',
+      name: 'Fall Leaf Removal Campaign',
+      category: 'marketing',
+      description: 'Seasonal promo for fall leaf removal and winterization',
+      subject: 'Leaves are falling — let us handle the cleanup',
+      sms_body: 'Hi {customer_first_name}! Leaves piling up? We\'ve got you. Book fall cleanup before spots fill up: {portal_link} — Tim',
+      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Fall Cleanup Time, {customer_first_name}</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">The leaves are coming down, and your lawn needs protection before winter. Our fall cleanup includes everything to get your property ready for the cold months ahead.</p>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px 24px;margin:24px 0;text-align:center;"><p style="color:#2e403d;font-size:18px;font-weight:700;margin:0 0 6px;">Fall Cleanup Includes</p><p style="color:#374151;font-size:14px;margin:0;">Leaf removal &bull; Gutter clearing &bull; Bed cleanup &bull; Final mow &bull; Winterization prep</p></div>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Spots fill up fast this time of year. Let us know if you'd like to get on the schedule.</p>
+<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Schedule Fall Cleanup</a></div>`
+    },
+    {
+      id: 'service-recap',
+      name: 'Monthly Service Recap',
+      category: 'system',
+      description: 'Summary of completed work this month',
+      subject: 'Your monthly service recap from Pappas & Co.',
+      sms_body: 'Hi {customer_first_name}, your monthly service recap is ready! Check your email for details. — Tim, Pappas & Co.',
+      body: `<h2 style="color:#2e403d;font-size:22px;font-weight:700;margin:0 0 16px;">Your Monthly Recap</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Hi {customer_first_name}, here&rsquo;s a summary of the work we completed at your property this month.</p>
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:24px 0;">
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;"><strong style="color:#2e403d;">Services Completed:</strong> {services_list}</p>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;"><strong style="color:#2e403d;">Address:</strong> {customer_address}</p>
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:24px 0;">
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Have questions or want to adjust your services? Just reply to this email or give us a call.</p>
+<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">View Your Portal</a></div>`
+    },
+    {
+      id: 'new-customer-welcome',
+      name: 'New Customer Welcome',
+      category: 'portal',
+      description: 'Welcome email for new customers with portal intro',
+      subject: 'Welcome to Pappas & Co. Landscaping!',
+      sms_body: 'Welcome to Pappas & Co., {customer_first_name}! We\'re excited to work with you. Check your email for your portal access. — Tim',
+      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Welcome to the Family, {customer_first_name}!</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">We&rsquo;re thrilled to have you as part of the Pappas &amp; Co. Landscaping family. Tim and the team are looking forward to taking care of your property.</p>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Your customer portal is ready. Here&rsquo;s what you can do:</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;" role="presentation"><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F4C5;</td><td><strong style="color:#2e403d;">View Your Schedule</strong><br><span style="color:#64748b;font-size:13px;">See upcoming services and past visits</span></td></tr></table></td></tr><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F4B3;</td><td><strong style="color:#2e403d;">Pay Invoices Online</strong><br><span style="color:#64748b;font-size:13px;">Quick, secure payments anytime</span></td></tr></table></td></tr><tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F4AC;</td><td><strong style="color:#2e403d;">Message Us Directly</strong><br><span style="color:#64748b;font-size:13px;">Questions, requests, or feedback — we&rsquo;re here</span></td></tr></table></td></tr></table>
+<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Access Your Portal</a></div>`
+    },
+    {
+      id: 'service-reminder',
+      name: 'Service Day Reminder',
+      category: 'system',
+      description: 'Remind customer about tomorrow\'s scheduled service',
+      subject: 'Reminder: {service_type} tomorrow at your property',
+      sms_body: 'Hi {customer_first_name}! Friendly reminder — we\'ll be at {address} tomorrow for {service_type}. See you then! — Tim',
+      body: `<h2 style="color:#2e403d;font-size:22px;font-weight:700;margin:0 0 16px;">Service Reminder</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Hi {customer_first_name}, just a quick heads-up that we&rsquo;ll be at your property tomorrow!</p>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px 24px;margin:24px 0;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:6px 0;"><strong style="color:#2e403d;">Service:</strong> <span style="color:#374151;">{service_type}</span></td></tr><tr><td style="padding:6px 0;"><strong style="color:#2e403d;">Date:</strong> <span style="color:#374151;">{job_date}</span></td></tr><tr><td style="padding:6px 0;"><strong style="color:#2e403d;">Address:</strong> <span style="color:#374151;">{address}</span></td></tr><tr><td style="padding:6px 0;"><strong style="color:#2e403d;">Crew:</strong> <span style="color:#374151;">{crew_name}</span></td></tr></table></div>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">No need to be home — we&rsquo;ll take care of everything. If you have any special instructions, just reply to this email.</p>`
+    },
+    {
+      id: 'rate-adjustment',
+      name: 'Annual Rate Adjustment Notice',
+      category: 'invoices',
+      description: 'Professional notification of pricing changes',
+      subject: 'A note about your 2026 service rates',
+      sms_body: 'Hi {customer_first_name}, we sent you an important update about your service rates for the coming year. Please check your email when you get a chance. — Tim',
+      body: `<h2 style="color:#2e403d;font-size:22px;font-weight:700;margin:0 0 16px;">A Note About Your Service Rates</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Hi {customer_first_name},</p>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">I wanted to reach out personally about a small adjustment to our service rates for the coming season. As costs for fuel, equipment, and materials continue to rise, we&rsquo;re making a modest increase to keep delivering the same quality you&rsquo;ve come to expect.</p>
+<blockquote style="border-left:4px solid #c9dd80;padding:16px 20px;margin:24px 0;background:#f8fafc;border-radius:0 8px 8px 0;"><p style="color:#374151;font-size:15px;line-height:1.8;margin:0;font-style:italic;">We value your business and work hard to keep our pricing fair while maintaining the high standards you deserve.</p></blockquote>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Your updated rates will take effect at the start of the new season. If you have any questions, please don&rsquo;t hesitate to reach out — I&rsquo;m always happy to chat.</p>`
+    },
+    {
+      id: 'winter-dormancy',
+      name: 'Winter Season End',
+      category: 'marketing',
+      description: '"See you in spring" end-of-season message',
+      subject: 'Wrapping up for the season — see you in spring!',
+      sms_body: 'Hi {customer_first_name}! Another great season in the books. We\'ll see you in spring. Have a wonderful winter! — Tim, Pappas & Co.',
+      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Another Great Season in the Books!</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Hi {customer_first_name},</p>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">As the season wraps up, I just wanted to say thank you for trusting Pappas &amp; Co. with your property this year. It&rsquo;s been a pleasure taking care of your lawn and landscaping.</p>
+<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px 24px;margin:24px 0;text-align:center;"><p style="color:#2e403d;font-size:18px;font-weight:700;margin:0 0 6px;">Want to Lock In Your Spring Spot?</p><p style="color:#374151;font-size:14px;margin:0 0 16px;">Early-bird customers get priority scheduling when the season starts back up.</p><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block;">Reserve My Spot</a></div>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Wishing you and your family a wonderful winter. We&rsquo;ll see you in spring!</p>`
+    },
+    {
+      id: 'winback',
+      name: 'Win-Back / Re-engagement',
+      category: 'marketing',
+      description: 'Re-engage inactive customers with a personal touch',
+      subject: 'We miss taking care of your lawn, {customer_first_name}',
+      sms_body: 'Hi {customer_first_name}, it\'s Tim from Pappas & Co. It\'s been a while! If your yard needs some love, we\'d be happy to help: {portal_link}',
+      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Hey {customer_first_name}, It&rsquo;s Been a While!</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">We noticed it&rsquo;s been some time since we last worked together, and I wanted to check in. Whether your needs changed or life just got busy, we&rsquo;d love to help with your property again.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;" role="presentation"><tr><td style="width:48%;vertical-align:top;padding-right:12px;"><h3 style="color:#2e403d;font-size:16px;margin:0 0 8px;">One-Time Service</h3><p style="color:#374151;font-size:14px;line-height:1.7;margin:0;">Need a cleanup, mulch job, or one-time mow? We&rsquo;re happy to help with just a single visit.</p></td><td style="width:4%;"></td><td style="width:48%;vertical-align:top;padding-left:12px;"><h3 style="color:#2e403d;font-size:16px;margin:0 0 8px;">Regular Service</h3><p style="color:#374151;font-size:14px;line-height:1.7;margin:0;">Ready to get back on a regular schedule? We&rsquo;ll pick up right where we left off.</p></td></tr></table>
+<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Let&rsquo;s Reconnect</a></div>`
+    },
+    {
+      id: 'holiday-thank-you',
+      name: 'Holiday Thank You',
+      category: 'marketing',
+      description: 'End-of-year gratitude message to all customers',
+      subject: 'Happy Holidays from Pappas & Co. Landscaping',
+      sms_body: 'Happy Holidays from Tim and the whole Pappas & Co. team! Thank you for a wonderful year. Wishing you and your family all the best.',
+      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;text-align:center;">Happy Holidays, {customer_first_name}!</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;text-align:center;">From our family to yours, we want to say <strong>thank you</strong> for trusting Pappas &amp; Co. Landscaping with your property this year.</p>
+<hr style="border:none;border-top:2px solid #e5e7eb;margin:28px 0;">
+<blockquote style="border-left:4px solid #c9dd80;padding:16px 20px;margin:24px 0;background:#f8fafc;border-radius:0 8px 8px 0;"><p style="color:#374151;font-size:15px;line-height:1.8;margin:0;font-style:italic;">&ldquo;Every client is part of our extended family. We don&rsquo;t just care for your lawn — we care about your experience from the first call to the last leaf.&rdquo;</p><p style="color:#64748b;font-size:13px;margin:8px 0 0;font-weight:600;">&mdash; Tim Pappas</p></blockquote>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;text-align:center;">Wishing you a joyful holiday season and a wonderful new year. We&rsquo;ll see you in the spring!</p>`
+    },
+    {
+      id: 'emergency-service',
+      name: 'Emergency / Storm Service',
+      category: 'marketing',
+      description: 'Urgent service availability after storms',
+      subject: 'Storm cleanup help available — Pappas & Co.',
+      sms_body: 'Hi {customer_first_name}, storm damage? Our crew is available for emergency cleanup. Call us at (440) 886-7318 or reply here. — Tim, Pappas & Co.',
+      body: `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px 24px;margin:0 0 24px;text-align:center;"><p style="color:#991b1b;font-size:18px;font-weight:700;margin:0 0 6px;">Emergency Cleanup Available</p><p style="color:#374151;font-size:14px;margin:0;">Our crews are ready to help with storm damage and debris removal</p></div>
+<h2 style="color:#2e403d;font-size:22px;font-weight:700;margin:0 0 16px;">We&rsquo;re Here to Help, {customer_first_name}</h2>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">If the recent storms left damage on your property, our team is ready to help with emergency cleanup. We&rsquo;re prioritizing our existing customers first.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;" role="presentation"><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F333;</td><td><strong style="color:#2e403d;">Fallen Tree &amp; Branch Removal</strong></td></tr></table></td></tr><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F9F9;</td><td><strong style="color:#2e403d;">Debris &amp; Yard Cleanup</strong></td></tr></table></td></tr><tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F6A8;</td><td><strong style="color:#2e403d;">Priority Scheduling for Current Customers</strong></td></tr></table></td></tr></table>
+<div style="text-align:center;margin:28px 0;"><a href="tel:4408867318" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Call (440) 886-7318</a></div>
+<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;text-align:center;">Or reply to this email and we&rsquo;ll get back to you right away.</p>`
+    }
+  ];
+  res.json({ success: true, templates: library });
 });
 
 // ═══════════════════════════════════════════════════════════

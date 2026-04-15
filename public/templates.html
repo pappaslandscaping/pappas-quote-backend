@@ -6,6 +6,7 @@
     <title>Templates — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
     <style>
         /* ─── Split Layout ─────────────────────────────────── */
         .workspace {
@@ -390,59 +391,69 @@
             color: var(--gray-600);
         }
 
-        /* Split Pane for HTML + Preview */
-        .split-pane {
-            display: flex;
-            gap: 16px;
-            min-height: 340px;
+        /* TinyMCE Editor Container */
+        .tinymce-wrap {
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 360px;
         }
 
-        .split-pane-left, .split-pane-right {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
+        .tinymce-wrap .tox-tinymce {
+            border: none !important;
+            border-radius: 0 !important;
         }
 
-        .split-pane-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 6px;
+        /* Preview Toggle */
+        .preview-toggle-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            margin-bottom: 10px;
         }
 
-        .html-textarea {
-            flex: 1;
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--gray-200);
+        .preview-toggle-bar .editor-section-title {
+            margin-bottom: 0;
+        }
+
+        .preview-btn-group {
+            display: flex;
+            gap: 4px;
+            background: var(--gray-100);
             border-radius: 8px;
-            font-family: 'DM Sans', monospace;
-            font-size: 12px;
-            color: var(--gray-700);
-            background: var(--gray-50);
-            resize: none;
-            line-height: 1.6;
-            tab-size: 2;
+            padding: 3px;
         }
 
-        .html-textarea:focus {
-            outline: none;
-            border-color: var(--primary);
+        .preview-btn-group button {
+            padding: 5px 14px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .preview-btn-group button.active {
             background: var(--white);
+            color: var(--gray-700);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .preview-frame-container {
-            flex: 1;
             border: 1px solid var(--gray-200);
             border-radius: 8px;
             overflow: hidden;
             background: var(--white);
+            height: 480px;
+            display: none;
+        }
+
+        .preview-frame-container.visible {
+            display: block;
         }
 
         .preview-frame {
@@ -450,6 +461,43 @@
             height: 100%;
             border: none;
             background: var(--white);
+        }
+
+        /* Block Palette */
+        .block-palette {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .block-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--gray-500);
+            transition: all 0.15s;
+            min-width: 64px;
+        }
+
+        .block-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #f0fdf4;
+        }
+
+        .block-btn svg {
+            width: 18px;
+            height: 18px;
         }
 
         /* Variables Pills */
@@ -758,7 +806,10 @@
             <div class="list-header">
                 <div class="list-header-top">
                     <h3>Templates</h3>
-                    <button class="btn btn-primary btn-sm" onclick="createNewTemplate()">+ New Template</button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="openLibrary()" title="Browse pre-built templates">Library</button>
+                        <button class="btn btn-primary btn-sm" onclick="createNewTemplate()">+ New</button>
+                    </div>
                 </div>
                 <div class="search-box">
                     <span class="search-icon">&#x1F50D;</span>
@@ -837,25 +888,64 @@
                         <input type="text" class="form-input" id="editorSubject" placeholder="e.g. Your quote from {company_name} is ready" oninput="markDirty()">
                     </div>
 
-                    <!-- HTML Body + Preview -->
+                    <!-- Email Body — Visual Editor + Preview -->
                     <div class="editor-section email-section">
-                        <div class="editor-section-title">&#x1F4E7; Email Body &amp; Preview</div>
-                        <div class="split-pane">
-                            <div class="split-pane-left">
-                                <div class="split-pane-label">
-                                    <span>HTML SOURCE</span>
-                                </div>
-                                <textarea class="html-textarea" id="editorBody" placeholder="<h2>Hello {customer_name},</h2>&#10;<p>Your quote is ready...</p>" oninput="markDirty(); debouncedPreview();"></textarea>
+                        <div class="preview-toggle-bar">
+                            <div class="editor-section-title" style="margin-bottom:0;">Email Body</div>
+                            <div class="preview-btn-group">
+                                <button class="active" onclick="setEditorView('edit', this)">Edit</button>
+                                <button onclick="setEditorView('preview', this)">Preview</button>
                             </div>
-                            <div class="split-pane-right">
-                                <div class="split-pane-label">
-                                    <span>LIVE PREVIEW</span>
-                                    <button class="btn btn-xs btn-secondary" onclick="refreshPreview()">&#x21BB; Refresh</button>
-                                </div>
-                                <div class="preview-frame-container">
-                                    <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
-                                </div>
-                            </div>
+                        </div>
+
+                        <!-- Block Palette -->
+                        <div class="block-palette" id="blockPalette">
+                            <button class="block-btn" onclick="insertBlock('heading')" title="Heading block">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 12l3-2v8"/></svg>
+                                Heading
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('text')" title="Text paragraph">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 6H3"/><path d="M21 12H3"/><path d="M15.5 18H3"/></svg>
+                                Text
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('button')" title="Call-to-action button">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M9 12h6"/></svg>
+                                Button
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('image')" title="Image block">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                Image
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('divider')" title="Horizontal divider">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>
+                                Divider
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('two-column')" title="Two-column layout">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+                                2 Column
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('feature-list')" title="Feature list with icons">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                                Features
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('testimonial')" title="Quote / testimonial block">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
+                                Quote
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('callout')" title="Callout / highlight box">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                                Callout
+                            </button>
+                        </div>
+
+                        <!-- TinyMCE Editor -->
+                        <div class="tinymce-wrap" id="editorWrap">
+                            <textarea id="editorBody"></textarea>
+                        </div>
+
+                        <!-- Wrapped Email Preview -->
+                        <div class="preview-frame-container" id="previewContainer">
+                            <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
                         </div>
                     </div>
 
@@ -930,6 +1020,39 @@
     </div>
 </div>
 
+<!-- ─── Template Library Modal ───────────────────────────── -->
+<div class="modal-overlay" id="libraryModal">
+    <div class="modal" style="max-width:780px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+        <div class="modal-header">
+            <h3>Template Library</h3>
+            <button class="modal-close" onclick="closeLibrary()">&times;</button>
+        </div>
+        <div class="modal-body" style="overflow-y:auto;flex:1;">
+            <p style="color:var(--gray-500);font-size:13px;margin:0 0 16px;">Professional templates ready to use. Click one to preview, then use it as a starting point.</p>
+            <div id="libraryGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                <div style="text-align:center;padding:40px;color:var(--gray-400);">Loading templates...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Library Preview Modal ───────────────────────────── -->
+<div class="modal-overlay" id="libraryPreviewModal" style="z-index:1001;">
+    <div class="modal" style="max-width:680px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+        <div class="modal-header">
+            <h3 id="libraryPreviewName">Template Preview</h3>
+            <button class="modal-close" onclick="closeLibraryPreview()">&times;</button>
+        </div>
+        <div class="modal-body" style="overflow-y:auto;flex:1;padding:0;">
+            <iframe id="libraryPreviewFrame" sandbox="allow-same-origin" style="width:100%;height:480px;border:none;"></iframe>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeLibraryPreview()">Back</button>
+            <button class="btn btn-primary" id="useTemplateBtn">Use This Template</button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── Delete Confirmation Modal ────────────────────────── -->
 <div class="modal-overlay" id="deleteModal">
     <div class="modal">
@@ -993,13 +1116,16 @@ const SAMPLE_VARS = {
 /* ==============================================================
    Init
    ============================================================== */
+let editorReady = false;
+
 document.addEventListener('DOMContentLoaded', () => {
     loadTemplates();
     loadVariables();
+    initTinyMCE();
 
     // Track which textarea last had focus
     document.addEventListener('focusin', (e) => {
-        if (e.target.id === 'editorBody' || e.target.id === 'editorSms' || e.target.id === 'editorSubject') {
+        if (e.target.id === 'editorSms' || e.target.id === 'editorSubject') {
             lastFocusedTextarea = e.target;
         }
     });
@@ -1012,6 +1138,189 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/* ==============================================================
+   TinyMCE Init
+   ============================================================== */
+function initTinyMCE() {
+    tinymce.init({
+        selector: '#editorBody',
+        height: 420,
+        menubar: false,
+        plugins: 'link image lists code table',
+        toolbar: 'undo redo | blocks | bold italic underline | forecolor backcolor | alignleft aligncenter alignright | bullist numlist | link image | table | mergevars | code',
+        valid_elements: 'a[href|style|target],strong/b,em/i,u,p[style],h1[style],h2[style],h3[style],h4[style],br,hr[style],ul[style],ol[style],li[style],table[style|width|cellpadding|cellspacing|border|role],tr[style],td[style|colspan|rowspan|width|align|valign],th[style],img[src|alt|style|width|height],div[style],span[style],blockquote[style],sup,sub',
+        valid_styles: {
+            '*': 'color,background-color,background,font-size,font-weight,font-family,text-align,text-decoration,line-height,padding,padding-top,padding-bottom,padding-left,padding-right,margin,margin-top,margin-bottom,margin-left,margin-right,border,border-top,border-bottom,border-left,border-right,border-radius,border-collapse,border-spacing,display,width,max-width,height,vertical-align,list-style-type,letter-spacing,font-style,text-transform'
+        },
+        content_style: `
+            @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+            body {
+                font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 15px;
+                line-height: 1.8;
+                color: #374151;
+                padding: 16px;
+                max-width: 560px;
+                margin: 0 auto;
+            }
+            h1, h2, h3 { color: #2e403d; font-weight: 700; }
+            h1 { font-size: 28px; }
+            h2 { font-size: 22px; }
+            h3 { font-size: 18px; }
+            a { color: #2e403d; }
+            p { margin: 0 0 16px; }
+            table { border-collapse: collapse; }
+            td { vertical-align: top; }
+            .mce-mergevar {
+                background: #c9dd80;
+                color: #2e403d;
+                padding: 1px 6px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 13px;
+                display: inline-block;
+            }
+        `,
+        forced_root_block: 'p',
+        entity_encoding: 'raw',
+        convert_urls: false,
+        relative_urls: false,
+        skin: 'oxide',
+        promotion: false,
+        branding: false,
+        color_map: [
+            '#2e403d', 'Forest Green (Brand)',
+            '#c9dd80', 'Lime (Brand)',
+            '#374151', 'Body Text',
+            '#1e293b', 'Dark Heading',
+            '#4a5568', 'Muted Text',
+            '#64748b', 'Light Text',
+            '#ffffff', 'White',
+            '#f0fdf4', 'Green Tint BG',
+            '#f8fafc', 'Light BG',
+            '#ef4444', 'Red',
+            '#f59e0b', 'Amber'
+        ],
+        setup: function(editor) {
+            // Merge variables toolbar button
+            editor.ui.registry.addMenuButton('mergevars', {
+                text: '{x}',
+                tooltip: 'Insert merge variable',
+                fetch: function(callback) {
+                    const items = [];
+                    for (const [group, vars] of Object.entries(variablesByCategory)) {
+                        items.push({
+                            type: 'nestedmenuitem',
+                            text: group.charAt(0).toUpperCase() + group.slice(1),
+                            getSubmenuItems: function() {
+                                return vars.map(v => ({
+                                    type: 'menuitem',
+                                    text: '{' + v + '}',
+                                    onAction: function() {
+                                        editor.insertContent('<span class="mce-mergevar">{' + v + '}</span>');
+                                    }
+                                }));
+                            }
+                        });
+                    }
+                    callback(items);
+                }
+            });
+
+            editor.on('change keyup', function() {
+                markDirty();
+            });
+
+            editor.on('init', function() {
+                editorReady = true;
+            });
+        }
+    });
+}
+
+/* ==============================================================
+   Editor Helpers — get/set content with TinyMCE
+   ============================================================== */
+function getEditorContent() {
+    const editor = tinymce.get('editorBody');
+    if (editor && editorReady) {
+        let html = editor.getContent();
+        // Convert merge variable spans back to plain {var} text for storage
+        html = html.replace(/<span class="mce-mergevar">\{([^}]+)\}<\/span>/g, '{$1}');
+        return html;
+    }
+    return document.getElementById('editorBody').value || '';
+}
+
+function setEditorContent(html) {
+    // Convert plain {var} text to styled spans for display in editor
+    const styledHtml = (html || '').replace(/\{([a-z_]+)\}/g, '<span class="mce-mergevar">{$1}</span>');
+    const editor = tinymce.get('editorBody');
+    if (editor && editorReady) {
+        editor.setContent(styledHtml);
+    } else {
+        document.getElementById('editorBody').value = html || '';
+        // Retry once TinyMCE is ready
+        const check = setInterval(() => {
+            const e = tinymce.get('editorBody');
+            if (e && editorReady) {
+                e.setContent(styledHtml);
+                clearInterval(check);
+            }
+        }, 200);
+        setTimeout(() => clearInterval(check), 5000);
+    }
+}
+
+/* ==============================================================
+   Edit / Preview Toggle
+   ============================================================== */
+function setEditorView(view, btn) {
+    const wrap = document.getElementById('editorWrap');
+    const palette = document.getElementById('blockPalette');
+    const preview = document.getElementById('previewContainer');
+
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    if (view === 'preview') {
+        wrap.style.display = 'none';
+        palette.style.display = 'none';
+        preview.classList.add('visible');
+        refreshPreview();
+    } else {
+        wrap.style.display = '';
+        palette.style.display = '';
+        preview.classList.remove('visible');
+    }
+}
+
+/* ==============================================================
+   Block Insertion
+   ============================================================== */
+function insertBlock(type) {
+    const editor = tinymce.get('editorBody');
+    if (!editor) return;
+
+    const blocks = {
+        heading: '<h2 style="color: #2e403d; font-size: 22px; font-weight: 700; margin: 0 0 16px;">Your Heading Here</h2>',
+        text: '<p style="color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 16px;">Your text goes here. Write something great.</p>',
+        button: '<div style="text-align: center; margin: 28px 0;"><a href="#" style="background: #2e403d; color: #c9dd80; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">Button Text</a></div>',
+        image: '<div style="text-align: center; margin: 20px 0;"><img src="https://placehold.co/540x200/2e403d/c9dd80?text=Your+Image" alt="Image" style="max-width: 100%; height: auto; border-radius: 8px;"></div>',
+        divider: '<hr style="border: none; border-top: 2px solid #e5e7eb; margin: 28px 0;">',
+        'two-column': '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;" role="presentation"><tr><td style="width: 48%; vertical-align: top; padding-right: 12px;"><h3 style="color: #2e403d; font-size: 16px; margin: 0 0 8px;">Left Column</h3><p style="color: #374151; font-size: 14px; line-height: 1.7; margin: 0;">Content for the left side.</p></td><td style="width: 4%;"></td><td style="width: 48%; vertical-align: top; padding-left: 12px;"><h3 style="color: #2e403d; font-size: 16px; margin: 0 0 8px;">Right Column</h3><p style="color: #374151; font-size: 14px; line-height: 1.7; margin: 0;">Content for the right side.</p></td></tr></table>',
+        'feature-list': '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;" role="presentation"><tr><td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width: 40px; vertical-align: top; font-size: 20px;">&#x2705;</td><td><strong style="color: #2e403d;">Feature One</strong><br><span style="color: #64748b; font-size: 13px;">Description of this feature</span></td></tr></table></td></tr><tr><td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width: 40px; vertical-align: top; font-size: 20px;">&#x2705;</td><td><strong style="color: #2e403d;">Feature Two</strong><br><span style="color: #64748b; font-size: 13px;">Description of this feature</span></td></tr></table></td></tr><tr><td style="padding: 12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width: 40px; vertical-align: top; font-size: 20px;">&#x2705;</td><td><strong style="color: #2e403d;">Feature Three</strong><br><span style="color: #64748b; font-size: 13px;">Description of this feature</span></td></tr></table></td></tr></table>',
+        testimonial: '<blockquote style="border-left: 4px solid #c9dd80; padding: 16px 20px; margin: 24px 0; background: #f8fafc; border-radius: 0 8px 8px 0;"><p style="color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 8px; font-style: italic;">"Your testimonial or quote text goes here."</p><p style="color: #64748b; font-size: 13px; margin: 0; font-weight: 600;">&mdash; Customer Name</p></blockquote>',
+        callout: '<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; text-align: center;"><p style="color: #2e403d; font-size: 18px; font-weight: 700; margin: 0 0 6px;">Important Info</p><p style="color: #374151; font-size: 14px; margin: 0;">Highlight key information, amounts, or dates here.</p></div>'
+    };
+
+    const html = blocks[type];
+    if (html) {
+        editor.insertContent(html);
+        markDirty();
+    }
+}
 
 /* ==============================================================
    API Helpers
@@ -1170,7 +1479,7 @@ function openTemplate(t) {
     document.getElementById('editorChannel').value = channel;
     setTemplateChannel(channel);
     document.getElementById('editorSubject').value = t.subject || '';
-    document.getElementById('editorBody').value = t.body || '';
+    setEditorContent(t.body || '');
     document.getElementById('editorSms').value = t.sms_body || '';
     document.getElementById('editorActive').checked = !!t.is_active;
     document.getElementById('editorDefault').checked = !!t.is_default;
@@ -1211,7 +1520,7 @@ function createNewTemplate() {
     document.getElementById('editorChannel').value = 'email';
     setTemplateChannel('email');
     document.getElementById('editorSubject').value = '';
-    document.getElementById('editorBody').value = defaultBodyTemplate();
+    setEditorContent(defaultBodyTemplate());
     document.getElementById('editorSms').value = '';
     document.getElementById('editorActive').checked = true;
     document.getElementById('editorDefault').checked = false;
@@ -1267,7 +1576,7 @@ async function saveTemplate() {
         category: document.getElementById('editorCategory').value,
         channel: document.getElementById('editorChannel').value,
         subject: document.getElementById('editorSubject').value,
-        body: document.getElementById('editorBody').value,
+        body: getEditorContent(),
         sms_body: document.getElementById('editorSms').value,
         is_active: document.getElementById('editorActive').checked,
         is_default: document.getElementById('editorDefault').checked,
@@ -1356,7 +1665,7 @@ async function deleteTemplate() {
    ============================================================== */
 async function sendTestEmail() {
     const subject = document.getElementById('editorSubject').value;
-    const body = document.getElementById('editorBody').value;
+    const body = getEditorContent();
     if (!subject && !body) {
         showToast('Add a subject and body first', 'error');
         return;
@@ -1391,7 +1700,7 @@ function debouncedPreview() {
 }
 
 function refreshPreview() {
-    const body = document.getElementById('editorBody').value;
+    const body = getEditorContent();
     const subject = document.getElementById('editorSubject').value;
 
     // Replace variables with sample data
@@ -1415,33 +1724,34 @@ function refreshPreview() {
 
 function wrapEmail(bodyHtml, subject) {
     if (currentWrapper === 'none') {
-        return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:'DM Sans',-apple-system,sans-serif;margin:0;padding:20px;color:#333633;}</style></head><body>${bodyHtml}</body></html>`;
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body{font-family:'DM Sans',-apple-system,sans-serif;margin:0;padding:20px;color:#374151;font-size:15px;line-height:1.8;}</style></head><body>${bodyHtml}</body></html>`;
     }
 
     const isMinimal = currentWrapper === 'minimal';
 
     const header = isMinimal ? '' : `
         <div style="background:#2e403d;padding:36px 48px;text-align:center;">
-            <img src="${window.location.origin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
+            <img src="${window.location.origin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;">
         </div>
+        <div style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</div>
     `;
 
     const footer = isMinimal ? `
-        <div style="padding:20px 32px;text-align:center;font-size:12px;color:#57694e;font-family:-apple-system,Arial,sans-serif;">
+        <div style="padding:20px 32px;text-align:center;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">
             Pappas & Co. Landscaping &bull; hello@pappaslandscaping.com
         </div>
     ` : `
-        <div style="background:#2e403d;padding:28px 40px;text-align:center;">
-            <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;font-family:-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <span style="color:#c9dd80;font-weight:600;">(440) 886-7318</span></p>
-            <div style="margin:0 0 16px;">
-                <span style="display:inline-block;width:28px;height:28px;background:#57694e;border-radius:50%;margin:0 4px;line-height:28px;text-align:center;font-size:14px;color:white;">f</span>
-                <span style="display:inline-block;width:28px;height:28px;background:#57694e;border-radius:50%;margin:0 4px;line-height:28px;text-align:center;font-size:14px;color:white;">ig</span>
-                <span style="display:inline-block;width:28px;height:28px;background:#57694e;border-radius:50%;margin:0 4px;line-height:28px;text-align:center;font-size:14px;color:white;">nd</span>
+        <div style="background:#243330;padding:32px 40px;text-align:center;">
+            <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <span style="color:#c9dd80;font-weight:600;">(440) 886-7318</span></p>
+            <div style="margin:0 0 20px;">
+                <span style="display:inline-block;width:30px;height:30px;background:#3d5a4e;border-radius:50%;margin:0 5px;line-height:30px;text-align:center;font-size:14px;color:white;">f</span>
+                <span style="display:inline-block;width:30px;height:30px;background:#3d5a4e;border-radius:50%;margin:0 5px;line-height:30px;text-align:center;font-size:14px;color:white;">ig</span>
+                <span style="display:inline-block;width:30px;height:30px;background:#3d5a4e;border-radius:50%;margin:0 5px;line-height:30px;text-align:center;font-size:14px;color:white;">nd</span>
             </div>
-            <p style="margin:0 0 3px;font-size:12px;color:#7a9477;font-family:-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
-            <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;font-family:-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-            <p style="margin:0 0 10px;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-family:-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
-            <p style="margin:0;font-size:10px;color:#5a7a57;font-family:-apple-system,Arial,sans-serif;"><a href="#" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+            <p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
+            <p style="margin:0 0 4px;font-size:11px;color:#5f8a5c;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+            <p style="margin:0 0 14px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-weight:500;font-family:'DM Sans',-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
+            <p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="#" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
         </div>
     `;
 
@@ -1450,14 +1760,15 @@ function wrapEmail(bodyHtml, subject) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+        body { margin: 0; padding: 0; background: #f2f4f3; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
     </style>
 </head>
 <body>
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
         ${header}
-        <div style="padding:40px 48px;color:#4a5568;font-size:15px;line-height:1.8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+        <div style="padding:44px 48px 36px;color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
             ${bodyHtml}
         </div>
         ${footer}
@@ -1470,27 +1781,29 @@ function wrapEmail(bodyHtml, subject) {
    Insert Variable at Cursor
    ============================================================== */
 function insertVariable(varName) {
-    const target = lastFocusedTextarea || document.getElementById('editorBody');
     const text = '{' + varName + '}';
 
-    // Focus the target
-    target.focus();
-
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    const before = target.value.substring(0, start);
-    const after = target.value.substring(end);
-
-    target.value = before + text + after;
-    target.selectionStart = target.selectionEnd = start + text.length;
-
-    markDirty();
-
-    if (target.id === 'editorBody') {
-        debouncedPreview();
+    // If last focused was SMS or Subject, insert into that textarea
+    if (lastFocusedTextarea && lastFocusedTextarea.id !== 'editorBody') {
+        const target = lastFocusedTextarea;
+        target.focus();
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        const before = target.value.substring(0, start);
+        const after = target.value.substring(end);
+        target.value = before + text + after;
+        target.selectionStart = target.selectionEnd = start + text.length;
+        markDirty();
+        if (target.id === 'editorSms') updateSmsCounter();
+        return;
     }
-    if (target.id === 'editorSms') {
-        updateSmsCounter();
+
+    // Default: insert into TinyMCE
+    const editor = tinymce.get('editorBody');
+    if (editor) {
+        editor.focus();
+        editor.insertContent('<span class="mce-mergevar">' + text + '</span>');
+        markDirty();
     }
 }
 
@@ -1639,7 +1952,7 @@ async function aiSend(mode) {
     const shouldApply = mode === 'apply';
 
     // Include current template context
-    const currentBody = document.getElementById('editorBody').value.trim();
+    const currentBody = getEditorContent().trim();
     const currentSubject = document.getElementById('editorSubject').value.trim();
     const currentSms = document.getElementById('editorSms').value.trim();
     const templateName = document.getElementById('editorName').value.trim();
@@ -1712,9 +2025,8 @@ async function aiSend(mode) {
                 }
             });
             if (result.subject) document.getElementById('editorSubject').value = result.subject;
-            document.getElementById('editorBody').value = emailHtml;
+            setEditorContent(emailHtml);
             markDirty();
-            refreshPreview();
             replyHtml = (result.message || 'Template applied!') + '<br><span style="color:#16a34a;font-size:11px;">Applied to editor above</span>';
         } else if (result.subjects) {
             // Subject line suggestions
@@ -1806,9 +2118,8 @@ function applyAiBlocks() {
         }
     });
     if (result.subject) document.getElementById('editorSubject').value = result.subject;
-    document.getElementById('editorBody').value = emailHtml;
+    setEditorContent(emailHtml);
     markDirty();
-    refreshPreview();
     showToast('Template applied!', 'success');
     window._pendingAiBlocks = null;
 }
@@ -1889,6 +2200,121 @@ async function createAiCampaign(andSend) {
     }
 }
 function createAndSendAiCampaign() { createAiCampaign(true); }
+
+/* ==============================================================
+   Template Library
+   ============================================================== */
+let libraryTemplates = [];
+
+async function openLibrary() {
+    document.getElementById('libraryModal').classList.add('show');
+    const grid = document.getElementById('libraryGrid');
+    grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);grid-column:1/-1;">Loading...</div>';
+    try {
+        const res = await fetch('/api/templates/library');
+        const data = await res.json();
+        libraryTemplates = data.templates || [];
+        renderLibraryGrid();
+    } catch (err) {
+        grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red);grid-column:1/-1;">Failed to load library</div>';
+    }
+}
+
+function closeLibrary() {
+    document.getElementById('libraryModal').classList.remove('show');
+}
+
+function renderLibraryGrid() {
+    const grid = document.getElementById('libraryGrid');
+    const catColors = {
+        marketing: { bg: '#f0fdf4', color: '#2e403d' },
+        system: { bg: 'var(--gray-100)', color: 'var(--gray-600)' },
+        portal: { bg: 'var(--purple-bg)', color: 'var(--purple)' },
+        invoices: { bg: 'var(--green-bg)', color: 'var(--green)' },
+        quotes: { bg: 'var(--blue-bg)', color: 'var(--blue)' }
+    };
+    grid.innerHTML = libraryTemplates.map((t, i) => {
+        const cc = catColors[t.category] || catColors.system;
+        return `
+        <div style="border:1px solid var(--gray-200);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.15s;"
+             onmouseover="this.style.borderColor='var(--primary)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'"
+             onmouseout="this.style.borderColor='var(--gray-200)';this.style.boxShadow='none'"
+             onclick="previewLibraryTemplate(${i})">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;padding:2px 8px;border-radius:10px;background:${cc.bg};color:${cc.color};">${escHtml(t.category)}</span>
+            </div>
+            <div style="font-size:14px;font-weight:700;color:var(--gray-700);margin-bottom:4px;">${escHtml(t.name)}</div>
+            <div style="font-size:12px;color:var(--gray-400);line-height:1.4;">${escHtml(t.description)}</div>
+        </div>`;
+    }).join('');
+}
+
+function previewLibraryTemplate(index) {
+    const t = libraryTemplates[index];
+    if (!t) return;
+    document.getElementById('libraryPreviewName').textContent = t.name;
+    document.getElementById('useTemplateBtn').onclick = () => useLibraryTemplate(index);
+
+    // Render preview with sample vars
+    let html = t.body;
+    for (const [key, val] of Object.entries(SAMPLE_VARS)) {
+        html = html.replace(new RegExp('\\{' + key + '\\}', 'g'), val);
+    }
+    const wrapped = wrapEmail(html, t.subject);
+    const iframe = document.getElementById('libraryPreviewFrame');
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(wrapped);
+    doc.close();
+
+    document.getElementById('libraryPreviewModal').classList.add('show');
+}
+
+function closeLibraryPreview() {
+    document.getElementById('libraryPreviewModal').classList.remove('show');
+}
+
+async function useLibraryTemplate(index) {
+    const t = libraryTemplates[index];
+    if (!t) return;
+
+    closeLibraryPreview();
+    closeLibrary();
+
+    // Create a new template pre-filled with the library content
+    if (isDirty && selectedId) {
+        if (!confirm('You have unsaved changes. Discard them?')) return;
+    }
+
+    selectedId = null;
+    isDirty = true;
+    document.getElementById('unsavedDot').classList.add('show');
+
+    document.getElementById('editorEmpty').style.display = 'none';
+    document.getElementById('editorContent').style.display = 'flex';
+
+    document.getElementById('editorName').value = t.name;
+    document.getElementById('editorSlug').value = t.id;
+    document.getElementById('editorCategory').value = t.category || 'marketing';
+    document.getElementById('editorChannel').value = t.sms_body ? 'both' : 'email';
+    setTemplateChannel(t.sms_body ? 'both' : 'email');
+    document.getElementById('editorSubject').value = t.subject || '';
+    setEditorContent(t.body || '');
+    document.getElementById('editorSms').value = t.sms_body || '';
+    document.getElementById('editorActive').checked = true;
+    document.getElementById('editorDefault').checked = false;
+
+    currentWrapper = 'full';
+    document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
+        const val = opt.querySelector('input').value;
+        opt.classList.toggle('selected', val === 'full');
+        opt.querySelector('input').checked = (val === 'full');
+    });
+
+    updateSmsCounter();
+    renderTemplateList();
+    showToast('Template loaded from library — customize and save!', 'success');
+}
 
 function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 </script>

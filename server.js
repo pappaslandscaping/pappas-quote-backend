@@ -13986,7 +13986,7 @@ async function seedDefaultTemplates() {
       await pool.query(
         `INSERT INTO email_templates (name, slug, category, subject, body, sms_body, variables, is_default, is_active)
          VALUES ($1, $2, $3, $4, $5, $6, $7, true, true)
-         ON CONFLICT (slug) DO NOTHING`,
+         ON CONFLICT (slug) DO UPDATE SET body = EXCLUDED.body, sms_body = EXCLUDED.sms_body, subject = EXCLUDED.subject, variables = EXCLUDED.variables WHERE email_templates.is_default = true`,
         [t.name, t.slug, t.category, t.subject, t.body, t.sms_body, t.variables]
       );
     } catch(e) { /* ignore dups */ }

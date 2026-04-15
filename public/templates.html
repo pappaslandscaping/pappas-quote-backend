@@ -1254,8 +1254,8 @@ function getEditorContent() {
 }
 
 function setEditorContent(html) {
-    // Convert plain {var} text to styled spans for display in editor
-    const styledHtml = (html || '').replace(/\{([a-z_]+)\}/g, '<span class="mce-mergevar">{$1}</span>');
+    // Highlight merge variables in text nodes only (not inside href or other attributes)
+    const styledHtml = highlightMergeVars(html || '');
     const editor = tinymce.get('editorBody');
     if (editor && editorReady) {
         editor.setContent(styledHtml);
@@ -1271,6 +1271,33 @@ function setEditorContent(html) {
         }, 200);
         setTimeout(() => clearInterval(check), 5000);
     }
+}
+
+function highlightMergeVars(html) {
+    // Parse HTML and only wrap {var} in text nodes, not inside attributes
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    const walker = document.createTreeWalker(doc.body.firstChild, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    for (const node of textNodes) {
+        if (/\{[a-z_]+\}/.test(node.textContent)) {
+            const frag = document.createDocumentFragment();
+            const parts = node.textContent.split(/(\{[a-z_]+\})/g);
+            for (const part of parts) {
+                if (/^\{[a-z_]+\}$/.test(part)) {
+                    const span = document.createElement('span');
+                    span.className = 'mce-mergevar';
+                    span.textContent = part;
+                    frag.appendChild(span);
+                } else {
+                    frag.appendChild(document.createTextNode(part));
+                }
+            }
+            node.parentNode.replaceChild(frag, node);
+        }
+    }
+    return doc.body.firstChild.innerHTML;
 }
 
 /* ==============================================================

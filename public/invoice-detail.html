@@ -460,6 +460,7 @@
             const custEmail = inv.customer_email || '';
             const custAddress = inv.customer_address || '';
             const status = inv.status || 'draft';
+            const sentStatus = (inv.sent_status || (inv.external_metadata && inv.external_metadata.sent_status) || '').toLowerCase();
             const total = parseFloat(inv.total) || 0;
             const amountPaid = parseFloat(inv.amount_paid) || 0;
             const balance = total - amountPaid;
@@ -468,6 +469,7 @@
             const sentAt = inv.sent_at;
             const createdAt = inv.created_at;
             const notes = inv.notes || '';
+            const terms = inv.terms || (inv.external_metadata && inv.external_metadata.terms_raw) || '';
             const qbId = inv.qb_invoice_id;
 
             let lineItems = inv.line_items || [];
@@ -520,6 +522,14 @@
                         ${qbId ? `<div class="detail"><strong>QuickBooks ID:</strong> ${qbId}</div>` : ''}
                     </div>
                 </div>`;
+            } else if (status === 'pending') {
+                paymentHtml = `<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:16px; margin-bottom:20px;">
+                    <h4 style="color:#b45309; font-size:13px; margin-bottom:8px;">📝 Invoice Pending${sentStatus === 'not sent' ? ' — Not Sent' : ''}</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px;">
+                        <div class="detail" style="color:#92400e;"><strong>Amount due:</strong> ${formatCurrency(balance || total)}</div>
+                        ${dueDate ? `<div class="detail" style="color:#92400e;"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                    </div>
+                </div>`;
             } else if (status === 'sent') {
                 paymentHtml = `<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:16px; margin-bottom:20px;">
                     <h4 style="color:#1d4ed8; font-size:13px; margin-bottom:8px;">📬 Invoice Sent — Awaiting Payment</h4>
@@ -537,7 +547,7 @@
                     const name = item.name || item.description || 'Service';
                     const qty = item.quantity || item.qty || 1;
                     const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
-                    const amount = parseFloat(item.amount || (qty * rate) || 0);
+                    const amount = parseFloat(item.line_total || item.amount || (qty * rate) || 0);
                     const dateStr = item.service_date ? new Date(item.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
                     return `<tr>
                         <td>
@@ -606,6 +616,7 @@
                             <div class="label">Status</div>
                             <div class="value"><span class="status-badge ${status}">${status}</span></div>
                         </div>
+                        ${sentStatus ? `<div class="detail-field"><div class="label">Sending</div><div class="value">${esc(sentStatus)}</div></div>` : ''}
                         <div class="detail-field">
                             <div class="label">Invoice #</div>
                             <div class="value">${esc(invNum)}</div>
@@ -659,6 +670,11 @@
                     <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(notes)}</p>
                 </div>` : ''}
 
+                ${terms ? `<div class="detail-card full-width" style="margin-bottom:20px;">
+                    <h3>Terms</h3>
+                    <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(terms)}</p>
+                </div>` : ''}
+
                 <div class="detail-card full-width" style="margin-bottom:20px;">
                     <h3>Invoice History</h3>
                     <div class="history-timeline">
@@ -667,15 +683,15 @@
                 </div>
 
                 <div class="actions">
-                    ${status === 'draft' ? `<button class="btn btn-primary" onclick="sendInvoice()">📤 Send Invoice</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
+                    ${status === 'draft' || (status === 'pending' && sentStatus === 'not sent') ? `<button class="btn btn-primary" onclick="sendInvoice()">📤 Send Invoice</button>` : ''}
+                    ${['pending', 'partial', 'sent', 'overdue'].includes(status) ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
+                    ${status === 'sent' || status === 'overdue' || (status === 'pending' && sentStatus && sentStatus !== 'not sent') ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
                     <button class="btn btn-outline" onclick="showEditModal()">✏️ Edit</button>
                     <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showRecordPayment()">💵 Record Payment</button>` : ''}
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showSplitPayment()">📅 Split Payments</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="showChargeCard()">💳 Charge Card on File</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
+                    ${['pending', 'partial', 'sent', 'overdue'].includes(status) ? `<button class="btn btn-outline" onclick="showChargeCard()">💳 Charge Card on File</button>` : ''}
+                    ${['partial', 'sent', 'overdue'].includes(status) ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
                     <button class="btn btn-outline" onclick="downloadPDF()">📥 Download PDF</button>
                     <button class="btn btn-danger" onclick="deleteInvoice()">Delete</button>
                 </div>

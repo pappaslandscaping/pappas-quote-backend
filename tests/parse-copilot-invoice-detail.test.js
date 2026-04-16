@@ -32,6 +32,8 @@ const fixture10448 = `
   <input type="hidden" id="inv_cust_id" value="237">
   <input type="hidden" id="invoice_number" value="10448">
   <input type="hidden" id="invoice_date" value="2024-07-15">
+  <input type="hidden" id="due_date" value="2024-08-14">
+  <input type="hidden" id="sent_status" value="Not Sent">
 
   <div class="invoice-header">
     <h1>Invoice #10448</h1>
@@ -114,6 +116,7 @@ it('totals: subtotal 42.00, tax 3.36, total 45.36, total_due 45.36', () => {
   assert.strictEqual(detail.total, 45.36);
   assert.strictEqual(detail.total_due, 45.36);
   assert.strictEqual(detail.amount_paid, 0);
+  assert.strictEqual(detail.due_date, '2024-08-14');
 });
 
 it('parses 2 line items including Mowing (Bi-Weekly) and Fuel Surcharge', () => {
@@ -154,6 +157,11 @@ it('captures notes and terms', () => {
   assert.strictEqual(detail.terms, 'Net 30. Late fees apply after 30 days.');
 });
 
+it('preserves sent status separately from invoice status', () => {
+  assert.strictEqual(detail.sent_status, 'not sent');
+  assert.strictEqual(detail.status, 'pending');
+});
+
 it('toDbValuesFromDetail builds importer-ready row', () => {
   const v = toDbValuesFromDetail(detail, null);
   assert.strictEqual(v.external_invoice_id, '10448');
@@ -162,8 +170,10 @@ it('toDbValuesFromDetail builds importer-ready row', () => {
   assert.strictEqual(v.tax_amount, 3.36);
   assert.strictEqual(v.total, 45.36);
   assert.strictEqual(v.amount_paid, 0);
+  assert.strictEqual(v.due_date, '2024-08-14');
   assert.strictEqual(v.notes, 'Thanks for your business!');
   assert.strictEqual(v.terms, 'Net 30. Late fees apply after 30 days.');
+  assert.strictEqual(v.sent_status, 'not sent');
   assert.strictEqual(v.line_items.length, 2);
   assert.strictEqual(v.metadata.copilot_customer_id, '237');
   assert.strictEqual(v.metadata.terms_raw, 'Net 30. Late fees apply after 30 days.');

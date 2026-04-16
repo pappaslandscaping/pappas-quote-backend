@@ -29,11 +29,11 @@ it('parseMoney handles negative and blank', () => {
 it('mapStatus maps Paid in Full → paid', () => {
   assert.strictEqual(_internal.mapStatus('Paid in Full', 100, 100), 'paid');
 });
-it('mapStatus maps Pending → sent', () => {
-  assert.strictEqual(_internal.mapStatus('Pending', 0, 100), 'sent');
+it('mapStatus maps Pending → pending', () => {
+  assert.strictEqual(_internal.mapStatus('Pending', 0, 100, 'not sent'), 'pending');
 });
 it('mapStatus infers partial when amount_paid < total', () => {
-  assert.strictEqual(_internal.mapStatus('Pending', 40, 100), 'partial');
+  assert.strictEqual(_internal.mapStatus('Pending', 40, 100, 'sent'), 'partial');
 });
 it('mapStatus maps Void', () => {
   assert.strictEqual(_internal.mapStatus('Void', 0, 100), 'void');
@@ -147,6 +147,7 @@ it('row 2: pending with partial payment → status partial, plain-text email', (
   assert.strictEqual(r.total, 200);
   assert.strictEqual(r.amount_paid, 80);
   assert.strictEqual(r.status, 'partial');
+  assert.strictEqual(r.sent_status, 'not sent');
 });
 
 it('row 3: void status, single-line property (no address split), no email, blank money cells → null', () => {
@@ -197,6 +198,28 @@ it('accepts a row-only fragment (no <table>/<thead>) using positional fallback',
   assert.strictEqual(r[0].external_invoice_id, '999');
   assert.strictEqual(r[0].invoice_number, 'INV-9999');
   assert.strictEqual(r[0].total, 50);
+});
+
+it('preserves a not-sent pending invoice as pending instead of sent', () => {
+  const fragment = `
+    <tr id="invoice_10448">
+      <td><a href="/finances/invoices/view/10448">10448</a></td>
+      <td>Jul 15, 2024</td>
+      <td><a href="/customers/details/237">Nance Gorman</a></td>
+      <td>456 Lake Rd</td>
+      <td>Crew A</td>
+      <td>$3.36</td>
+      <td>$45.36</td>
+      <td>$45.36</td>
+      <td>$0.00</td>
+      <td>$0.00</td>
+      <td>Pending</td>
+      <td>Not Sent</td>
+    </tr>`;
+  const r = parseInvoiceListHtml(fragment);
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].status, 'pending');
+  assert.strictEqual(r[0].sent_status, 'not sent');
 });
 
 if (failures > 0) {

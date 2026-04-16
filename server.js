@@ -15,7 +15,8 @@ const cheerio = require('cheerio');
 const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('./lib/api-error');
 const { validate, schemas } = require('./lib/validate');
 const { parseInvoiceListHtml } = require('./scripts/parse-copilot-invoices');
-const { syncInvoicesToDatabase } = require('./scripts/import-copilot-invoices');
+const { parseInvoiceDetailHtml } = require('./scripts/parse-copilot-invoice-detail');
+const { syncInvoicesToDatabase, syncInvoiceDetailsToDatabase } = require('./scripts/import-copilot-invoices');
 const {
   getCopilotToken: getCopilotTokenFromService,
   parseCopilotRouteHtml,
@@ -10545,12 +10546,34 @@ async function fetchCopilotInvoicePage({ cookieHeader, page = 1, pageSize = 100,
   };
 }
 
+async function fetchCopilotInvoiceDetail({ cookieHeader, viewPath, externalInvoiceId } = {}) {
+  const detailPath = viewPath || (externalInvoiceId ? `/finances/invoices/view/${externalInvoiceId}` : null);
+  if (!detailPath) throw new Error('Missing Copilot invoice detail path');
+  const detailUrl = detailPath.startsWith('http') ? detailPath : `https://secure.copilotcrm.com${detailPath}`;
+  const detailRes = await fetch(detailUrl, {
+    headers: {
+      'Cookie': cookieHeader,
+      'Referer': 'https://secure.copilotcrm.com/finances/invoices',
+    },
+  });
+
+  if (!detailRes.ok) {
+    const errBody = await detailRes.text().catch(() => '');
+    throw new Error(`Copilot invoice detail ${externalInvoiceId || detailPath} failed (${detailRes.status}): ${errBody.substring(0, 200)}`);
+  }
+
+  const html = await detailRes.text();
+  return parseInvoiceDetailHtml(html);
+}
+
 async function syncCopilotInvoices({
   pageSize = 100,
   maxPages = 150,
   linkCustomers = true,
   invoiceStatuses = [],
   sort = 'datedesc',
+  detailMode = 'missing',
+  detailLimit = 40,
 } = {}) {
   await ensureCopilotSyncTables(pool);
   const tokenInfo = await getCopilotToken();
@@ -10593,6 +10616,71 @@ async function syncCopilotInvoices({
   }
 
   const syncResult = await syncInvoicesToDatabase(pool, allInvoices, { linkCustomers });
+  let detailResult = { total: 0, inserted: 0, updated: 0, errors: 0 };
+
+  if (detailMode !== 'off' && allInvoices.length > 0) {
+    const rowByExternalId = new Map(allInvoices.map(row => [String(row.external_invoice_id || ''), row]));
+    let candidates = allInvoices;
+
+    if (detailMode === 'missing') {
+      const externalIds = allInvoices
+        .map(row => row.external_invoice_id)
+        .filter(Boolean)
+        .map(id => String(id));
+
+      if (externalIds.length) {
+        const missingDetail = await pool.query(
+          `SELECT external_invoice_id
+             FROM invoices
+            WHERE external_source = 'copilotcrm'
+              AND external_invoice_id = ANY($1::text[])
+              AND (
+                jsonb_array_length(COALESCE(line_items, '[]'::jsonb)) = 0
+                OR due_date IS NULL
+                OR sent_status IS NULL
+                OR terms IS NULL
+                OR notes IS NULL
+              )
+            ORDER BY created_at DESC NULLS LAST
+            LIMIT $2`,
+          [externalIds, Number(detailLimit) || 40]
+        );
+        candidates = missingDetail.rows
+          .map(row => rowByExternalId.get(String(row.external_invoice_id || '')))
+          .filter(Boolean);
+      }
+    } else if (detailLimit > 0) {
+      candidates = allInvoices.slice(0, Number(detailLimit) || 40);
+    }
+
+    const details = [];
+    for (const row of candidates) {
+      try {
+        const detail = await fetchCopilotInvoiceDetail({
+          cookieHeader: tokenInfo.cookieHeader,
+          viewPath: row.view_path,
+          externalInvoiceId: row.external_invoice_id,
+        });
+        if (!detail.sent_status && row.sent_status) detail.sent_status = row.sent_status;
+        if (!detail.raw_status && row.raw_status) detail.raw_status = row.raw_status;
+        if (!detail.status && row.status) detail.status = row.status;
+        details.push(detail);
+      } catch (error) {
+        detailResult.errors += 1;
+        console.error('Copilot detail enrichment error:', error.message);
+      }
+    }
+
+    if (details.length > 0) {
+      const applied = await syncInvoiceDetailsToDatabase(pool, details, { linkCustomers });
+      detailResult = {
+        ...detailResult,
+        total: applied.total,
+        inserted: applied.inserted,
+        updated: applied.updated,
+      };
+    }
+  }
 
   await pool.query(
     `INSERT INTO copilot_sync_settings (key, value, updated_at)
@@ -10608,7 +10696,9 @@ async function syncCopilotInvoices({
         inserted: syncResult.inserted,
         updated: syncResult.updated,
         total: syncResult.total,
-        refreshed: false,
+        detailMode,
+        detail: detailResult,
+        refreshed: detailResult.total > 0,
       }),
     ]
   );
@@ -10617,7 +10707,8 @@ async function syncCopilotInvoices({
     success: true,
     totalCount,
     pages,
-    refreshed: false,
+    refreshed: detailResult.total > 0,
+    detail: detailResult,
     ...syncResult,
   };
 }
@@ -10639,7 +10730,8 @@ app.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) => {
       pageSize: Number(req.body.pageSize || 100),
       maxPages: Number(req.body.maxPages || 150),
       linkCustomers: req.body.linkCustomers !== false,
-      minDaysRemaining: Number(req.body.minDaysRemaining || 1),
+      detailMode: req.body.detailMode || 'missing',
+      detailLimit: Number(req.body.detailLimit || 40),
     });
     res.json(result);
   } catch (error) {
@@ -10676,7 +10768,8 @@ app.post('/api/cron/copilot-invoices-sync', async (req, res) => {
       pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
       maxPages: Number(req.body?.maxPages || req.query.maxPages || 150),
       linkCustomers: req.body?.linkCustomers !== false && req.query.linkCustomers !== 'false',
-      minDaysRemaining: Number(req.body?.minDaysRemaining || req.query.minDaysRemaining || 1),
+      detailMode: req.body?.detailMode || req.query.detailMode || 'missing',
+      detailLimit: Number(req.body?.detailLimit || req.query.detailLimit || 40),
     });
     res.json({ success: true, trigger: 'cron', ...result, timestamp: new Date().toISOString() });
   } catch (error) {

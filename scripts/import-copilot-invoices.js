@@ -266,6 +266,32 @@ async function upsert(pool, v) {
   return { id: r.rows[0].id, inserted: true };
 }
 
+async function syncInvoicesToDatabase(pool, rows, { linkCustomers = false } = {}) {
+  const byExtId = new Map();
+  for (const row of rows || []) {
+    const key = row.external_invoice_id || `__no_id__:${row.invoice_number || Math.random()}`;
+    byExtId.set(key, row);
+  }
+
+  const uniqueRows = [...byExtId.values()];
+  let inserted = 0;
+  let updated = 0;
+
+  for (const row of uniqueRows) {
+    const customerId = await resolveCustomerId(pool, row);
+    const values = toDbValues(row, linkCustomers ? customerId : null);
+    const result = await upsert(pool, values);
+    if (result.inserted) inserted += 1;
+    else updated += 1;
+  }
+
+  return {
+    total: uniqueRows.length,
+    inserted,
+    updated,
+  };
+}
+
 async function main(target) {
   const files = listSourceFiles(target);
   log(`Found ${files.length} file(s) under ${target}`);
@@ -388,4 +414,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { toDbValues, toDbValuesFromDetail, upsert };
+module.exports = { toDbValues, toDbValuesFromDetail, upsert, syncInvoicesToDatabase };

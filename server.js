@@ -15,7 +15,6 @@ const cheerio = require('cheerio');
 const { getConfig } = require('./config');
 const { authenticateToken: createAuthenticateToken, decodeToken, extractBearerToken, hasAdminAccess } = require('./middleware/auth');
 const { logAuditEvent } = require('./lib/audit');
-const { assertNoPendingMigrations } = require('./lib/migrations');
 const {
   parseInvoiceListHtml,
   syncInvoicesToDatabase,
@@ -18845,7 +18844,6 @@ app.get('*', (req, res) => {
 
 async function startServer() {
   try {
-    await assertNoPendingMigrations({ pool });
     databaseReady = true;
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   } catch (error) {

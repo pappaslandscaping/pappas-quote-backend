@@ -15,9 +15,14 @@ const cheerio = require('cheerio');
 const { getConfig } = require('./config');
 const { authenticateToken: createAuthenticateToken, decodeToken, extractBearerToken, hasAdminAccess } = require('./middleware/auth');
 const { logAuditEvent } = require('./lib/audit');
-const { createStartupSchemaTools } = require('./lib/startup-schema');
+const { assertNoPendingMigrations } = require('./lib/migrations');
+const {
+  parseInvoiceListHtml,
+  syncInvoicesToDatabase,
+} = require('./scripts/import-copilot-invoices');
 
 const config = getConfig();
+let databaseReady = false;
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -425,16 +430,6 @@ function buildEmployeeClaims(employee) {
 // ADMIN AUTHENTICATION SYSTEM
 // ═══════════════════════════════════════════════════════════
 
-const ADMIN_USERS_TABLE = `CREATE TABLE IF NOT EXISTS admin_users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(255),
-  role VARCHAR(50) DEFAULT 'admin',
-  last_login TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`;
-
 function hashPassword(password, existingSalt) {
   const salt = existingSalt || crypto.randomBytes(32).toString('hex');
   const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
@@ -451,13 +446,55 @@ function verifyPassword(password, stored) {
   return crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex') === hash;
 }
 
-const { ensurePaymentsTables, runCoreStartupMigrations } = createStartupSchemaTools({
-  pool,
-  config,
-  hashPassword,
-  logAuditEvent,
-  adminUsersTable: ADMIN_USERS_TABLE,
-});
+function requireDatabaseReady(context) {
+  if (!databaseReady) {
+    throw new Error(`Database schema is not ready for ${context}. Run npm run migrate before starting the API.`);
+  }
+}
+
+async function ensureAppDevicesTable() {
+  requireDatabaseReady('app devices');
+}
+
+async function ensureCustomerReviewsTable() {
+  requireDatabaseReady('customer reviews');
+}
+
+async function ensureExpensesTable() {
+  requireDatabaseReady('expenses');
+}
+
+async function ensureMmsUploadsTable() {
+  requireDatabaseReady('mms uploads');
+}
+
+async function ensurePaymentsTables() {
+  requireDatabaseReady('payments');
+}
+
+async function ensurePasswordResetTokensTable() {
+  requireDatabaseReady('password reset tokens');
+}
+
+async function ensureQuoteViewsTable() {
+  requireDatabaseReady('quote views');
+}
+
+async function ensureSentQuotesTable() {
+  requireDatabaseReady('sent quotes');
+}
+
+async function ensureServiceItemsTable() {
+  requireDatabaseReady('service items');
+}
+
+async function ensureSocialMediaPostsTable() {
+  requireDatabaseReady('social media posts');
+}
+
+async function ensureTemplatesTable() {
+  requireDatabaseReady('message templates');
+}
 
 // Admin + Employee login
 app.post('/api/auth/login', async (req, res) => {
@@ -468,7 +505,6 @@ app.post('/api/auth/login', async (req, res) => {
     const emailLower = email.toLowerCase().trim();
 
     // Try admin_users first
-    await pool.query(ADMIN_USERS_TABLE);
     const adminResult = await pool.query('SELECT * FROM admin_users WHERE email = $1', [emailLower]);
     if (adminResult.rows.length > 0) {
       const user = adminResult.rows[0];
@@ -612,16 +648,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    // Store token (create table if needed)
-    await pool.query(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      user_type VARCHAR(20) NOT NULL DEFAULT 'admin',
-      token VARCHAR(255) UNIQUE NOT NULL,
-      expires_at TIMESTAMP NOT NULL,
-      used BOOLEAN DEFAULT false,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
+    await ensurePasswordResetTokensTable();
 
     // Invalidate any existing tokens for this user
     await pool.query('UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND user_type = $2', [userId, isEmployee ? 'employee' : 'admin']);
@@ -657,6 +684,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 // Reset password — validates token and sets new password
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
+    await ensurePasswordResetTokensTable();
     const { token, new_password } = req.body;
     if (!token || !new_password) return res.status(400).json({ success: false, error: 'Token and new password required' });
     if (new_password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
@@ -4785,6 +4813,7 @@ async function estimatePixelRatio(maskUrl) {
 // GET /api/expenses
 app.get('/api/expenses', async (req, res) => {
   try {
+    await ensureExpensesTable();
     const { year, category } = req.query;
     let query = 'SELECT * FROM expenses WHERE 1=1';
     const params = [];
@@ -4811,6 +4840,7 @@ app.get('/api/expenses', async (req, res) => {
 // GET /api/expenses/stats
 app.get('/api/expenses/stats', async (req, res) => {
   try {
+    await ensureExpensesTable();
     const { year } = req.query;
     const currentYear = year || new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
@@ -4840,6 +4870,7 @@ app.get('/api/expenses/stats', async (req, res) => {
 // POST /api/expenses
 app.post('/api/expenses', async (req, res) => {
   try {
+    await ensureExpensesTable();
     const { vendor, amount, expense_date, category, receipt_image, notes } = req.body;
     
     if (!vendor || !amount || !expense_date) {
@@ -4862,6 +4893,7 @@ app.post('/api/expenses', async (req, res) => {
 // GET /api/expenses/:id
 app.get('/api/expenses/:id', async (req, res) => {
   try {
+    await ensureExpensesTable();
     const result = await pool.query('SELECT * FROM expenses WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Expense not found' });
@@ -4876,6 +4908,7 @@ app.get('/api/expenses/:id', async (req, res) => {
 // PATCH /api/expenses/:id
 app.patch('/api/expenses/:id', async (req, res) => {
   try {
+    await ensureExpensesTable();
     const { vendor, amount, expense_date, category, receipt_image, notes } = req.body;
     const sets = [], vals = [];
     let p = 1;
@@ -4912,6 +4945,7 @@ app.patch('/api/expenses/:id', async (req, res) => {
 // DELETE /api/expenses/:id
 app.delete('/api/expenses/:id', async (req, res) => {
   try {
+    await ensureExpensesTable();
     const result = await pool.query('DELETE FROM expenses WHERE id = $1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Expense not found' });
@@ -5392,11 +5426,7 @@ app.get('/api/sent-quotes', async (req, res) => {
 // IMPORTANT: Must be registered BEFORE :id route
 app.get('/api/sent-quotes/view-counts', async (req, res) => {
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
-      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
-      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ip_address VARCHAR(45), user_agent TEXT
-    )`);
+    await ensureQuoteViewsTable();
     const counts = await pool.query(
       'SELECT sent_quote_id, COUNT(*) as view_count, MAX(viewed_at) as last_viewed FROM quote_views GROUP BY sent_quote_id'
     );
@@ -5464,14 +5494,7 @@ app.get('/api/services', (req, res) => {
 // QUOTE EVENT TRACKING
 // ═══════════════════════════════════════════════════════════
 async function ensureQuoteEventsTable() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS quote_events (
-    id SERIAL PRIMARY KEY,
-    sent_quote_id INTEGER NOT NULL,
-    event_type VARCHAR(50) NOT NULL,
-    description TEXT,
-    details JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )`);
+  requireDatabaseReady('quote events');
 }
 
 async function logQuoteEvent(quoteId, eventType, description, details = null) {
@@ -5814,14 +5837,7 @@ app.get('/api/sign/:token', async (req, res) => {
 
     const quote = result.rows[0];
 
-    // Ensure quote_views table exists
-    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
-      id SERIAL PRIMARY KEY,
-      sent_quote_id INTEGER NOT NULL,
-      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ip_address VARCHAR(45),
-      user_agent TEXT
-    )`);
+    await ensureQuoteViewsTable();
 
     // Log every view
     const ip = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || '';
@@ -5978,11 +5994,7 @@ app.post('/api/sign/:token/decline', async (req, res) => {
 // GET /api/sent-quotes/:id/views - Full view history for a quote
 app.get('/api/sent-quotes/:id/views', async (req, res) => {
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
-      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
-      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ip_address VARCHAR(45), user_agent TEXT
-    )`);
+    await ensureQuoteViewsTable();
     const views = await pool.query(
       'SELECT id, viewed_at, ip_address, user_agent FROM quote_views WHERE sent_quote_id = $1 ORDER BY viewed_at DESC',
       [req.params.id]
@@ -7417,7 +7429,7 @@ app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
     return res.status(400).json({ success: false, error: 'pushToken is required' });
   }
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS app_devices (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, push_token TEXT NOT NULL, platform VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(email, platform))`);
+    await ensureAppDevicesTable();
     await pool.query(`INSERT INTO app_devices (email, push_token, platform, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (email, platform) DO UPDATE SET push_token = $2, updated_at = CURRENT_TIMESTAMP`, [req.user.email, pushToken, platform]);
     console.log(`📱 Device registered for ${req.user.email} (${platform})`);
     res.json({ success: true });
@@ -7431,56 +7443,6 @@ app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Create messages table if it doesn't exist
-async function createMessagesTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id SERIAL PRIMARY KEY,
-      twilio_sid VARCHAR(100) UNIQUE,
-      direction VARCHAR(20) NOT NULL,
-      from_number VARCHAR(20) NOT NULL,
-      to_number VARCHAR(20) NOT NULL,
-      body TEXT,
-      media_urls TEXT[],
-      status VARCHAR(50),
-      customer_id INTEGER REFERENCES customers(id),
-      read BOOLEAN DEFAULT false,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_from ON messages(from_number)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_number)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC)`);
-}
-createMessagesTable();
-
-async function createCallsTable() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS calls (
-        id SERIAL PRIMARY KEY,
-        twilio_sid VARCHAR(100) UNIQUE,
-        direction VARCHAR(10) DEFAULT 'inbound',
-        from_number VARCHAR(50) NOT NULL,
-        to_number VARCHAR(50) NOT NULL,
-        status VARCHAR(50) DEFAULT 'completed',
-        duration INTEGER,
-        option_selected VARCHAR(100),
-        recording_url TEXT,
-        transcription TEXT,
-        customer_id INTEGER,
-        read BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_calls_from ON calls(from_number)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_calls_created ON calls(created_at DESC)`);
-    console.log('✅ Calls table ready');
-  } catch (err) {
-    console.log('ℹ️ Calls table setup:', err.message);
-  }
-}
-createCallsTable();
-
 // Send Expo Push Notification
 async function sendPushNotification(expoPushToken, title, body, data = {}, badge = undefined) {
   try {
@@ -7508,6 +7470,7 @@ async function sendPushNotification(expoPushToken, title, body, data = {}, badge
 // Send push to all registered devices
 async function sendPushToAllDevices(title, body, data = {}) {
   try {
+    await ensureAppDevicesTable();
     const devices = await pool.query('SELECT push_token, email, platform FROM app_devices WHERE push_token IS NOT NULL');
     console.log(`📲 Sending push to ${devices.rows.length} device(s)`);
     if (devices.rows.length === 0) {
@@ -7537,6 +7500,7 @@ async function sendPushToAllDevices(title, body, data = {}) {
 // Debug: Check registered devices (admin only)
 app.get('/api/app/devices', authenticateToken, async (req, res) => {
   try {
+    await ensureAppDevicesTable();
     const devices = await pool.query('SELECT id, email, platform, push_token, updated_at FROM app_devices ORDER BY updated_at DESC');
     res.json({ devices: devices.rows.map(d => ({ ...d, push_token: d.push_token ? d.push_token.substring(0, 30) + '...' : null })) });
   } catch (error) {
@@ -8694,13 +8658,7 @@ app.post('/api/app/messages/upload', authenticateToken, upload.single('image'), 
     if (!req.file) return res.status(400).json({ success: false, error: 'No image file provided' });
     const b64 = req.file.buffer.toString('base64');
     const mimeType = req.file.mimetype;
-    // Store in DB
-    await pool.query(`CREATE TABLE IF NOT EXISTS mms_uploads (
-      id SERIAL PRIMARY KEY,
-      mime_type VARCHAR(100) NOT NULL,
-      data TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
+    await ensureMmsUploadsTable();
     const result = await pool.query(
       'INSERT INTO mms_uploads (mime_type, data) VALUES ($1, $2) RETURNING id',
       [mimeType, b64]
@@ -8719,6 +8677,7 @@ app.post('/api/app/messages/upload', authenticateToken, upload.single('image'), 
 // Serve MMS image — public (Twilio needs to fetch this)
 app.get('/api/mms-image/:id', async (req, res) => {
   try {
+    await ensureMmsUploadsTable();
     const result = await pool.query('SELECT mime_type, data FROM mms_uploads WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).send('Not found');
     const { mime_type, data } = result.rows[0];
@@ -9042,44 +9001,8 @@ app.post('/api/messages/send', async (req, res) => {
 
 // Create quote_followups table
 async function createQuoteFollowupsTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS quote_followups (
-      id SERIAL PRIMARY KEY,
-      quote_id VARCHAR(50) NOT NULL,
-      quote_number VARCHAR(50),
-      customer_name VARCHAR(255) NOT NULL,
-      customer_email VARCHAR(255) NOT NULL,
-      customer_phone VARCHAR(50),
-      quote_amount DECIMAL(10,2),
-      services TEXT,
-      
-      quote_sent_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      status VARCHAR(50) DEFAULT 'pending',
-      current_stage INT DEFAULT 0,
-      
-      followup_1_date TIMESTAMP,
-      followup_1_sent BOOLEAN DEFAULT false,
-      followup_2_date TIMESTAMP,
-      followup_2_sent BOOLEAN DEFAULT false,
-      followup_3_date TIMESTAMP,
-      followup_3_sent BOOLEAN DEFAULT false,
-      followup_4_date TIMESTAMP,
-      followup_4_sent BOOLEAN DEFAULT false,
-      
-      stopped_at TIMESTAMP,
-      stopped_reason VARCHAR(100),
-      stopped_by VARCHAR(100),
-      
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      notes TEXT
-    )
-  `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_followups_status ON quote_followups(status)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_followups_email ON quote_followups(customer_email)`);
-  console.log('✅ Quote followups table ready');
+  requireDatabaseReady('quote followups');
 }
-createQuoteFollowupsTable();
 
 // POST /api/quote-followups - Create a new follow-up sequence when quote is sent
 app.post('/api/quote-followups', async (req, res) => {
@@ -10492,33 +10415,8 @@ function haversine(lat1, lon1, lat2, lon2) {
 // ═══ INVOICING ════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
 
-const INVOICES_TABLE = `CREATE TABLE IF NOT EXISTS invoices (
-  id SERIAL PRIMARY KEY,
-  invoice_number VARCHAR(50) UNIQUE,
-  customer_id INTEGER,
-  customer_name VARCHAR(255),
-  customer_email VARCHAR(255),
-  customer_address TEXT,
-  sent_quote_id INTEGER,
-  job_id INTEGER,
-  status VARCHAR(20) DEFAULT 'draft',
-  subtotal DECIMAL(10,2) DEFAULT 0,
-  tax_rate DECIMAL(5,3) DEFAULT 0,
-  tax_amount DECIMAL(10,2) DEFAULT 0,
-  total DECIMAL(10,2) DEFAULT 0,
-  amount_paid DECIMAL(10,2) DEFAULT 0,
-  due_date DATE,
-  paid_at TIMESTAMP,
-  sent_at TIMESTAMP,
-  qb_invoice_id VARCHAR(100),
-  notes TEXT,
-  line_items JSONB DEFAULT '[]',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`;
-
 async function ensureInvoicesTable() {
-  await pool.query(INVOICES_TABLE);
+  requireDatabaseReady('invoices');
 }
 
 async function nextCustomerNumber() {
@@ -12093,17 +11991,6 @@ app.post('/api/portal/:token/preferences', async (req, res) => {
 // CUSTOMER PORTAL — DASHBOARD, PHOTOS, REVIEWS
 // ═══════════════════════════════════════════════════════════
 
-// Ensure customer_reviews table exists
-async function ensureCustomerReviewsTable() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS customer_reviews (
-    id SERIAL PRIMARY KEY,
-    customer_id INTEGER NOT NULL,
-    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-  )`);
-}
-
 // GET /api/portal/:token/dashboard - Portal dashboard summary
 app.get('/api/portal/:token/dashboard', async (req, res) => {
   try {
@@ -12332,12 +12219,7 @@ app.patch('/api/service-requests/:id', async (req, res) => {
 app.get('/api/finance/summary', async (req, res) => {
   try {
     await ensureInvoicesTable();
-    await pool.query(`CREATE TABLE IF NOT EXISTS expenses (
-      id SERIAL PRIMARY KEY, description TEXT, amount NUMERIC(10,2) DEFAULT 0,
-      category VARCHAR(100), vendor VARCHAR(255), expense_date DATE DEFAULT CURRENT_DATE,
-      receipt_url TEXT, notes TEXT, qb_id VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
-    try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
+    await ensureExpensesTable();
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
@@ -13323,32 +13205,8 @@ app.get('/api/reports/sales-tax', async (req, res) => {
 
 // --- QB Database Tables ---
 async function ensureQBTables() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS qb_tokens (
-    id SERIAL PRIMARY KEY,
-    realm_id VARCHAR(100) NOT NULL,
-    access_token TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
-    token_type VARCHAR(50) DEFAULT 'bearer',
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS qb_sync_log (
-    id SERIAL PRIMARY KEY,
-    sync_type VARCHAR(50),
-    customers_synced INTEGER DEFAULT 0,
-    invoices_synced INTEGER DEFAULT 0,
-    payments_synced INTEGER DEFAULT 0,
-    expenses_synced INTEGER DEFAULT 0,
-    errors TEXT,
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP
-  )`);
-  // Add qb_id columns if they don't exist
-  try { await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
-  try { await pool.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS qb_id VARCHAR(100)`); } catch(e) {}
+  requireDatabaseReady('quickbooks tables');
 }
-ensureQBTables().catch(e => console.error('QB tables init error:', e));
 
 // --- QB OAuth Client Factory ---
 function createOAuthClient() {
@@ -15475,20 +15333,6 @@ app.get('/api/reports/customer-value', async (req, res) => {
   }
 });
 
-// 8.3 Service Items CRUD
-const ensureServiceItemsTable = async () => {
-  await pool.query(`CREATE TABLE IF NOT EXISTS service_items (
-    id SERIAL PRIMARY KEY, name VARCHAR(255), default_rate DECIMAL(10,2),
-    duration_minutes INTEGER, category VARCHAR(100), active BOOLEAN DEFAULT true,
-    description TEXT, tax_rate DECIMAL(5,2) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW()
-  )`);
-  // Add columns if they don't exist (for existing tables)
-  await pool.query(`ALTER TABLE service_items ADD COLUMN IF NOT EXISTS description TEXT`).catch(() => {});
-  await pool.query(`ALTER TABLE service_items ADD COLUMN IF NOT EXISTS tax_rate DECIMAL(5,2) DEFAULT 0`).catch(() => {});
-  await pool.query(`ALTER TABLE service_items ADD COLUMN IF NOT EXISTS taxable BOOLEAN DEFAULT true`).catch(() => {});
-};
-
 app.get('/api/service-items', async (req, res) => {
   try {
     await ensureServiceItemsTable();
@@ -15571,22 +15415,6 @@ app.post('/api/service-items/import', async (req, res) => {
 });
 
 // ─── Email & SMS Templates ─────────────────────────────────────────
-const ensureTemplatesTable = async () => {
-  await pool.query(`CREATE TABLE IF NOT EXISTS message_templates (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(20) DEFAULT 'email',
-    subject VARCHAR(500),
-    html_content TEXT,
-    text_content TEXT,
-    category VARCHAR(100),
-    tags TEXT[] DEFAULT '{}',
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-  )`);
-};
-
 app.get('/api/templates', async (req, res) => {
   try {
     await ensureTemplatesTable();
@@ -15664,30 +15492,7 @@ app.post('/api/templates/:id/duplicate', async (req, res) => {
 
 // ─── Automations / Sequences ────────────────────────────────────────
 const ensureAutomationsTable = async () => {
-  await pool.query(`CREATE TABLE IF NOT EXISTS automations (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    trigger_type VARCHAR(100) NOT NULL,
-    trigger_config JSONB DEFAULT '{}',
-    conditions JSONB DEFAULT '[]',
-    actions JSONB DEFAULT '[]',
-    active BOOLEAN DEFAULT true,
-    review_before_exec BOOLEAN DEFAULT false,
-    run_count INTEGER DEFAULT 0,
-    last_run_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-  )`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS automation_history (
-    id SERIAL PRIMARY KEY,
-    automation_id INTEGER REFERENCES automations(id) ON DELETE CASCADE,
-    triggered_by VARCHAR(255),
-    trigger_data JSONB DEFAULT '{}',
-    actions_taken JSONB DEFAULT '[]',
-    status VARCHAR(50) DEFAULT 'completed',
-    created_at TIMESTAMP DEFAULT NOW()
-  )`);
+  requireDatabaseReady('automations');
 };
 
 app.get('/api/automations', async (req, res) => {
@@ -17493,15 +17298,7 @@ ${platform ? `Only generate for: ${platform}` : ''}`;
 
     // Save to history
     try {
-      await pool.query(`CREATE TABLE IF NOT EXISTS social_media_posts (
-        id SERIAL PRIMARY KEY,
-        post_type VARCHAR(100),
-        tone VARCHAR(50),
-        context TEXT,
-        posts JSONB,
-        created_by INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`);
+      await ensureSocialMediaPostsTable();
       await pool.query(
         'INSERT INTO social_media_posts (post_type, tone, context, posts, created_by) VALUES ($1, $2, $3, $4, $5)',
         [postType || 'Custom', tone, context, JSON.stringify(posts), req.user?.id]
@@ -17584,15 +17381,7 @@ Always respond with valid JSON only, no markdown.`;
 // GET /api/social-media/history
 app.get('/api/social-media/history', authenticateToken, async (req, res) => {
   try {
-    await pool.query(`CREATE TABLE IF NOT EXISTS social_media_posts (
-      id SERIAL PRIMARY KEY,
-      post_type VARCHAR(100),
-      tone VARCHAR(50),
-      context TEXT,
-      posts JSONB,
-      created_by INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
+    await ensureSocialMediaPostsTable();
     const result = await pool.query('SELECT * FROM social_media_posts ORDER BY created_at DESC LIMIT 20');
     res.json({ success: true, posts: result.rows });
   } catch (error) {
@@ -17604,13 +17393,7 @@ app.get('/api/social-media/history', authenticateToken, async (req, res) => {
 // GET /api/quotes/next-number - Get next sequential quote number
 app.get('/api/quotes/next-number', async (req, res) => {
   try {
-    // Ensure sent_quotes table exists before querying
-    await pool.query(`CREATE TABLE IF NOT EXISTS sent_quotes (
-      id SERIAL PRIMARY KEY, quote_number VARCHAR(50), customer_name VARCHAR(255),
-      customer_email VARCHAR(255), status VARCHAR(50) DEFAULT 'draft',
-      sign_token VARCHAR(255), services JSONB, total DECIMAL(10,2),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`);
+    await ensureSentQuotesTable();
     const result = await pool.query(
       `SELECT MAX(CAST(quote_number AS INTEGER)) as max_num
        FROM sent_quotes
@@ -17688,28 +17471,7 @@ app.post('/api/settings/home-base', async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 async function ensureCopilotSyncTables() {
-  await pool.query(`CREATE TABLE IF NOT EXISTS copilot_sync_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-  )`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS copilot_sync_jobs (
-    id SERIAL PRIMARY KEY,
-    sync_date DATE NOT NULL,
-    event_id TEXT NOT NULL,
-    customer_name TEXT,
-    customer_id TEXT,
-    crew_name TEXT,
-    employees TEXT,
-    address TEXT,
-    status TEXT,
-    visit_total TEXT,
-    job_title TEXT,
-    stop_order INT,
-    raw_data JSONB,
-    synced_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(sync_date, event_id)
-  )`);
+  requireDatabaseReady('copilot sync tables');
 }
 
 async function getCopilotToken() {
@@ -17738,6 +17500,238 @@ async function getCopilotToken() {
   }
 
   return { cookieHeader, expiresAt, daysUntilExpiry };
+}
+
+function addCookiesToJar(cookieJar, setCookies = []) {
+  for (const sc of setCookies) {
+    const [pair] = String(sc || '').split(';');
+    const eqIdx = pair.indexOf('=');
+    if (eqIdx > 0) {
+      cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
+    }
+  }
+}
+
+async function storeCopilotCookies(cookieString) {
+  await ensureCopilotSyncTables();
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at) VALUES ('copilot_cookies', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+    [cookieString]
+  );
+}
+
+async function refreshCopilotCookiesViaLogin() {
+  const username = process.env.COPILOT_USERNAME || process.env.COPILOTCRM_USERNAME;
+  const password = process.env.COPILOT_PASSWORD || process.env.COPILOTCRM_PASSWORD;
+  if (!username || !password) {
+    throw new Error('COPILOT_USERNAME and COPILOT_PASSWORD env vars are not set');
+  }
+
+  console.log('🔄 CopilotCRM cookie refresh: logging in via API...');
+  const cookieJar = new Map();
+
+  const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+    body: JSON.stringify({ username, password }),
+  });
+
+  const loginText = await loginRes.text();
+  let loginData;
+  try {
+    loginData = JSON.parse(loginText);
+  } catch (e) {
+    throw new Error(`CopilotCRM login returned non-JSON (status ${loginRes.status}): ${loginText.substring(0, 200)}`);
+  }
+
+  if (!loginData.accessToken) {
+    throw new Error(`CopilotCRM login failed (status ${loginRes.status}): ${loginText.substring(0, 200)}`);
+  }
+
+  cookieJar.set('copilotApiAccessToken', loginData.accessToken);
+  addCookiesToJar(cookieJar, loginRes.headers.getSetCookie?.() || []);
+
+  const sessionCookie = `copilotApiAccessToken=${loginData.accessToken}`;
+  const sessionRes = await fetch('https://secure.copilotcrm.com/dashboard', {
+    method: 'GET',
+    headers: {
+      'Cookie': sessionCookie,
+      'Origin': 'https://secure.copilotcrm.com',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+    redirect: 'manual',
+  });
+
+  const webSetCookies = sessionRes.headers.getSetCookie?.() || [];
+  addCookiesToJar(cookieJar, webSetCookies);
+
+  const fullCookieSoFar = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+  const schedRes = await fetch('https://secure.copilotcrm.com/scheduler', {
+    method: 'GET',
+    headers: {
+      'Cookie': fullCookieSoFar,
+      'Origin': 'https://secure.copilotcrm.com',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+    redirect: 'manual',
+  });
+
+  const schedSetCookies = schedRes.headers.getSetCookie?.() || [];
+  addCookiesToJar(cookieJar, schedSetCookies);
+
+  const cookieString = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+  await storeCopilotCookies(cookieString);
+
+  const tokenInfo = await getCopilotToken();
+
+  return {
+    cookieString,
+    cookieCount: cookieJar.size,
+    expiresAt: tokenInfo?.expiresAt || null,
+    daysUntilExpiry: tokenInfo?.daysUntilExpiry || null,
+  };
+}
+
+async function getUsableCopilotToken({ forceRefresh = false, minDaysRemaining = 1 } = {}) {
+  let tokenInfo = forceRefresh ? null : await getCopilotToken();
+
+  const shouldRefresh =
+    forceRefresh ||
+    !tokenInfo ||
+    !tokenInfo.cookieHeader ||
+    (tokenInfo.daysUntilExpiry !== null && tokenInfo.daysUntilExpiry < minDaysRemaining);
+
+  if (!shouldRefresh) return { tokenInfo, refreshed: false };
+
+  const refreshed = await refreshCopilotCookiesViaLogin();
+  tokenInfo = await getCopilotToken();
+  return { tokenInfo, refreshed: true, refreshMeta: refreshed };
+}
+
+function buildCopilotInvoiceRequestBody({ page = 1, pageSize = 100, sort = 'datedesc', invoiceStatuses = [] } = {}) {
+  const formData = new URLSearchParams();
+  formData.append('pagination[]', `p=${page}`);
+  formData.append('pagination[]', `iop=${pageSize}`);
+  formData.append('pagination[]', `sort=${sort}`);
+
+  for (const status of invoiceStatuses) {
+    formData.append('postData[invoice_status][]', String(status));
+  }
+
+  return formData.toString();
+}
+
+function extractCopilotInvoiceTotalCount(html) {
+  const match = String(html || '').match(/(\d+)\s*-\s*(\d+)\s+of\s+(\d+)/i);
+  if (!match) return null;
+  const total = parseInt(match[3], 10);
+  return Number.isFinite(total) ? total : null;
+}
+
+async function fetchCopilotInvoicePage({ cookieHeader, page = 1, pageSize = 100, sort = 'datedesc', invoiceStatuses = [] } = {}) {
+  const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookieHeader,
+      'Origin': 'https://secure.copilotcrm.com',
+      'Referer': 'https://secure.copilotcrm.com/',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: buildCopilotInvoiceRequestBody({ page, pageSize, sort, invoiceStatuses }),
+  });
+
+  if (!copilotRes.ok) {
+    const errBody = await copilotRes.text().catch(() => '');
+    throw new Error(`Copilot invoice page ${page} failed (${copilotRes.status}): ${errBody.substring(0, 200)}`);
+  }
+
+  const data = await copilotRes.json();
+  return {
+    data,
+    invoices: parseInvoiceListHtml(data.html || ''),
+    totalCount: extractCopilotInvoiceTotalCount(data.html || ''),
+  };
+}
+
+async function syncCopilotInvoices({
+  pageSize = 100,
+  maxPages = 150,
+  linkCustomers = true,
+  invoiceStatuses = [],
+  sort = 'datedesc',
+  minDaysRemaining = 1,
+} = {}) {
+  await ensureCopilotSyncTables();
+  const { tokenInfo, refreshed, refreshMeta } = await getUsableCopilotToken({ minDaysRemaining });
+
+  if (!tokenInfo || !tokenInfo.cookieHeader) {
+    throw new Error('No CopilotCRM cookies configured and automatic refresh is unavailable');
+  }
+
+  const allInvoices = [];
+  const seenFirstIds = new Set();
+  const pages = [];
+  let totalCount = null;
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageResult = await fetchCopilotInvoicePage({
+      cookieHeader: tokenInfo.cookieHeader,
+      page,
+      pageSize,
+      sort,
+      invoiceStatuses,
+    });
+
+    const invoices = pageResult.invoices;
+    if (!invoices.length) break;
+
+    const firstId = invoices[0].external_invoice_id;
+    if (seenFirstIds.has(firstId)) break;
+    seenFirstIds.add(firstId);
+
+    pages.push({
+      page,
+      count: invoices.length,
+      firstId,
+    });
+    allInvoices.push(...invoices);
+
+    if (pageResult.totalCount) totalCount = pageResult.totalCount;
+    if (invoices.length < pageSize) break;
+    if (totalCount && page * pageSize >= totalCount) break;
+  }
+
+  const syncResult = await syncInvoicesToDatabase(pool, allInvoices, { linkCustomers });
+
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES
+       ('copilot_invoice_last_sync_at', $1, NOW()),
+       ('copilot_invoice_last_sync_summary', $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [
+      new Date().toISOString(),
+      JSON.stringify({
+        totalCount,
+        pages,
+        inserted: syncResult.inserted,
+        updated: syncResult.updated,
+        total: syncResult.total,
+        refreshed,
+      }),
+    ]
+  );
+
+  return {
+    success: true,
+    totalCount,
+    pages,
+    refreshed,
+    refreshMeta: refreshMeta || null,
+    ...syncResult,
+  };
 }
 
 function parseCopilotRouteHtml(html, employeesArray) {
@@ -17985,95 +17979,10 @@ app.post('/api/copilot/settings', authenticateToken, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => {
-  const username = process.env.COPILOT_USERNAME || process.env.COPILOTCRM_USERNAME;
-  const password = process.env.COPILOT_PASSWORD || process.env.COPILOTCRM_PASSWORD;
-  if (!username || !password) {
-    return res.status(500).json({ success: false, error: 'COPILOT_USERNAME and COPILOT_PASSWORD env vars are not set' });
-  }
-
   try {
-    console.log('🔄 CopilotCRM cookie refresh: logging in via API...');
-    const cookieJar = new Map(); // name → value
+    const refreshMeta = await refreshCopilotCookiesViaLogin();
+    const tokenInfo = await getCopilotToken();
 
-    // Step 1: API login to get accessToken (same as contract signing)
-    const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
-      body: JSON.stringify({ username, password }),
-    });
-
-    const loginText = await loginRes.text();
-    let loginData;
-    try { loginData = JSON.parse(loginText); } catch (e) {
-      throw new Error(`CopilotCRM login returned non-JSON (status ${loginRes.status}): ${loginText.substring(0, 200)}`);
-    }
-
-    if (!loginData.accessToken) {
-      throw new Error(`CopilotCRM login failed (status ${loginRes.status}): ${loginText.substring(0, 200)}`);
-    }
-
-    cookieJar.set('copilotApiAccessToken', loginData.accessToken);
-
-    // Capture any Set-Cookie headers from the API login
-    const apiSetCookies = loginRes.headers.getSetCookie?.() || [];
-    for (const sc of apiSetCookies) {
-      const [pair] = sc.split(';');
-      const eqIdx = pair.indexOf('=');
-      if (eqIdx > 0) cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
-    }
-
-    // Step 2: Hit secure.copilotcrm.com with the token to establish a full session
-    // The scheduler endpoint may require session cookies that only come from the web app domain
-    const sessionCookie = `copilotApiAccessToken=${loginData.accessToken}`;
-    const sessionRes = await fetch('https://secure.copilotcrm.com/dashboard', {
-      method: 'GET',
-      headers: {
-        'Cookie': sessionCookie,
-        'Origin': 'https://secure.copilotcrm.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      redirect: 'manual', // Don't follow redirects — we want the Set-Cookie headers
-    });
-
-    const webSetCookies = sessionRes.headers.getSetCookie?.() || [];
-    for (const sc of webSetCookies) {
-      const [pair] = sc.split(';');
-      const eqIdx = pair.indexOf('=');
-      if (eqIdx > 0) cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
-    }
-    console.log(`🔑 CopilotCRM session: API login cookies=${apiSetCookies.length}, web session cookies=${webSetCookies.length}, total unique=${cookieJar.size}`);
-
-    // Step 3: Also try the scheduler page to grab any scheduler-specific session cookies
-    const fullCookieSoFar = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-    const schedRes = await fetch('https://secure.copilotcrm.com/scheduler', {
-      method: 'GET',
-      headers: {
-        'Cookie': fullCookieSoFar,
-        'Origin': 'https://secure.copilotcrm.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      redirect: 'manual',
-    });
-
-    const schedSetCookies = schedRes.headers.getSetCookie?.() || [];
-    for (const sc of schedSetCookies) {
-      const [pair] = sc.split(';');
-      const eqIdx = pair.indexOf('=');
-      if (eqIdx > 0) cookieJar.set(pair.substring(0, eqIdx).trim(), pair.substring(eqIdx + 1).trim());
-    }
-    if (schedSetCookies.length > 0) console.log(`🔑 CopilotCRM scheduler page added ${schedSetCookies.length} more cookies`);
-
-    // Build final cookie string
-    const cookieString = [...cookieJar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-
-    // Store in copilot_sync_settings
-    await ensureCopilotSyncTables();
-    await pool.query(
-      `INSERT INTO copilot_sync_settings (key, value, updated_at) VALUES ('copilot_cookies', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
-      [cookieString]
-    );
-
-    // Quick verification: try the actual scheduler endpoint
     const testFormData = new URLSearchParams();
     testFormData.append('accessFrom', 'route');
     testFormData.append('bs4', '1');
@@ -18090,7 +17999,7 @@ app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => 
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieString,
+        'Cookie': tokenInfo.cookieHeader,
         'Origin': 'https://secure.copilotcrm.com',
         'Referer': 'https://secure.copilotcrm.com/',
         'X-Requested-With': 'XMLHttpRequest',
@@ -18107,14 +18016,12 @@ app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => 
     } else {
       console.log(`⚠️ CopilotCRM scheduler verification returned ${verifyRes.status}`);
     }
-
-    const tokenInfo = await getCopilotToken();
-    console.log(`✅ CopilotCRM cookies refreshed. ${cookieJar.size} cookies stored. Expires: ${tokenInfo?.expiresAt || 'unknown'}`);
+    console.log(`✅ CopilotCRM cookies refreshed. ${refreshMeta.cookieCount} cookies stored. Expires: ${tokenInfo?.expiresAt || 'unknown'}`);
 
     res.json({
       success: true,
       message: 'CopilotCRM cookies refreshed via API login',
-      cookieCount: cookieJar.size,
+      cookieCount: refreshMeta.cookieCount,
       verifyEventCount,
       expiresAt: tokenInfo?.expiresAt || null,
       daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
@@ -18122,6 +18029,83 @@ app.post('/api/copilot/refresh-cookies', authenticateToken, async (req, res) => 
   } catch (error) {
     console.error('❌ CopilotCRM cookie refresh failed:', error.message);
     serverError(res, error, 'CopilotCRM cookie refresh failed');
+  }
+});
+
+function assertCronSecret(req, res) {
+  const configuredSecret = process.env.CRON_SECRET || process.env.CRON_API_KEY || '';
+  if (!configuredSecret) return true;
+
+  const provided = req.get('x-cron-secret') || req.query.key || req.query.token || req.body?.key || req.body?.token || '';
+  if (provided === configuredSecret) return true;
+
+  res.status(401).json({ success: false, error: 'Invalid cron secret' });
+  return false;
+}
+
+app.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) => {
+  try {
+    const result = await syncCopilotInvoices({
+      pageSize: Number(req.body.pageSize || 100),
+      maxPages: Number(req.body.maxPages || 150),
+      linkCustomers: req.body.linkCustomers !== false,
+      minDaysRemaining: Number(req.body.minDaysRemaining || 1),
+    });
+    res.json(result);
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM invoice sync failed');
+  }
+});
+
+app.get('/api/copilot/invoices/status', authenticateToken, async (req, res) => {
+  try {
+    await ensureCopilotSyncTables();
+    const result = await pool.query(
+      "SELECT key, value, updated_at FROM copilot_sync_settings WHERE key IN ('copilot_invoice_last_sync_at', 'copilot_invoice_last_sync_summary', 'copilot_cookies', 'copilot_token') ORDER BY key"
+    );
+    const settings = {};
+    for (const row of result.rows) settings[row.key] = row.value;
+    const tokenInfo = await getCopilotToken();
+    res.json({
+      success: true,
+      lastSyncAt: settings.copilot_invoice_last_sync_at || null,
+      lastSyncSummary: settings.copilot_invoice_last_sync_summary ? JSON.parse(settings.copilot_invoice_last_sync_summary) : null,
+      hasCopilotAuth: !!(settings.copilot_cookies || settings.copilot_token),
+      expiresAt: tokenInfo?.expiresAt || null,
+      daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
+    });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM invoice sync status failed');
+  }
+});
+
+app.post('/api/cron/copilot-invoices-sync', async (req, res) => {
+  if (!assertCronSecret(req, res)) return;
+  try {
+    const result = await syncCopilotInvoices({
+      pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
+      maxPages: Number(req.body?.maxPages || req.query.maxPages || 150),
+      linkCustomers: req.body?.linkCustomers !== false && req.query.linkCustomers !== 'false',
+      minDaysRemaining: Number(req.body?.minDaysRemaining || req.query.minDaysRemaining || 1),
+    });
+    res.json({ success: true, trigger: 'cron', ...result, timestamp: new Date().toISOString() });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM cron invoice sync failed');
+  }
+});
+
+app.get('/api/cron/copilot-invoices-sync', async (req, res) => {
+  if (!assertCronSecret(req, res)) return;
+  try {
+    const result = await syncCopilotInvoices({
+      pageSize: Number(req.query.pageSize || 100),
+      maxPages: Number(req.query.maxPages || 150),
+      linkCustomers: req.query.linkCustomers !== 'false',
+      minDaysRemaining: Number(req.query.minDaysRemaining || 1),
+    });
+    res.json({ success: true, trigger: 'cron', ...result, timestamp: new Date().toISOString() });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM cron invoice sync failed');
   }
 });
 
@@ -18859,26 +18843,18 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ═══════════════════════════════════════════════════════════
-// STARTUP TABLE INITIALIZATION — run once, not per-request
-// ═══════════════════════════════════════════════════════════
-(async () => {
+async function startServer() {
   try {
-    await runCoreStartupMigrations();
-    await ensureInvoicesTable();
-    await ensureQuoteEventsTable();
-    await ensureCopilotSyncTables();
-    await pool.query(`CREATE TABLE IF NOT EXISTS quote_views (
-      id SERIAL PRIMARY KEY, sent_quote_id INTEGER NOT NULL,
-      viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ip_address VARCHAR(45), user_agent TEXT
-    )`);
-    console.log('✅ Startup table initialization complete');
-  } catch (err) {
-    console.error('⚠️ Startup table initialization error:', err.message);
+    await assertNoPendingMigrations({ pool });
+    databaseReady = true;
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  } catch (error) {
+    console.error('❌ Startup check failed:', error.message);
+    await pool.end().catch(() => {});
+    process.exit(1);
   }
-})();
+}
 
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+startServer();
 
 process.on('SIGTERM', async () => { await pool.end(); process.exit(0); });

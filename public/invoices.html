@@ -763,6 +763,31 @@
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
     }
 
+    function looksLikeDateLabel(value) {
+        const s = String(value || '').trim();
+        if (!s) return false;
+        return /^[A-Z][a-z]{2}\s+\d{2},\s+\d{4}$/.test(s)
+            || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+            || /^\d{4}-\d{2}-\d{2}$/.test(s);
+    }
+
+    function getInvoiceNumberDisplay(inv) {
+        const candidates = [
+            inv.display_invoice_number,
+            inv.invoice_number,
+            inv.invoiceNumber,
+            inv.external_source === 'copilotcrm' ? inv.external_invoice_id : null,
+            inv.externalInvoiceId
+        ];
+
+        for (const candidate of candidates) {
+            const value = String(candidate || '').trim();
+            if (!value || looksLikeDateLabel(value)) continue;
+            return value;
+        }
+        return '—';
+    }
+
     function getStatusPill(status) {
         const map = {
             draft:   { cls: 'neutral', label: 'Draft'   },
@@ -837,10 +862,20 @@
         const body = document.getElementById('invoicesBody');
 
         const sorted = [...invoices].sort((a, b) => {
-            let aVal = a[sortCol] ?? a[sortCol.replace('_','')];
-            let bVal = b[sortCol] ?? b[sortCol.replace('_','')];
+            let aVal = sortCol === 'invoice_number' ? getInvoiceNumberDisplay(a) : (a[sortCol] ?? a[sortCol.replace('_','')]);
+            let bVal = sortCol === 'invoice_number' ? getInvoiceNumberDisplay(b) : (b[sortCol] ?? b[sortCol.replace('_','')]);
             if (sortCol === 'total') { aVal = parseFloat(aVal) || 0; bVal = parseFloat(bVal) || 0; }
-            else if (sortCol === 'invoice_number') { aVal = parseInt(aVal) || 0; bVal = parseInt(bVal) || 0; }
+            else if (sortCol === 'invoice_number') {
+                const aNum = parseInt(aVal, 10);
+                const bNum = parseInt(bVal, 10);
+                if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+                    aVal = aNum;
+                    bVal = bNum;
+                } else {
+                    aVal = String(aVal || '').toLowerCase();
+                    bVal = String(bVal || '').toLowerCase();
+                }
+            }
             else if (sortCol === 'due_date' || sortCol === 'created_at') {
                 aVal = aVal ? new Date(aVal).getTime() : 0;
                 bVal = bVal ? new Date(bVal).getTime() : 0;
@@ -866,7 +901,7 @@
         }
 
         body.innerHTML = sorted.map(inv => {
-            const invNum = inv.invoice_number || inv.invoiceNumber || ('INV-' + inv.id);
+            const invNum = getInvoiceNumberDisplay(inv);
             const custName = inv.customer_name || inv.customerName || '—';
             const custEmail = inv.customer_email || inv.customerEmail || '';
             const due = dueMeta(inv);

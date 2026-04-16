@@ -52,6 +52,14 @@ function extractIdFromHref(href, prefix) {
   return m ? m[1] : null;
 }
 
+function looksLikeDateLabel(value) {
+  const s = clean(value);
+  if (!s) return false;
+  return /^[A-Z][a-z]{2}\s+\d{2},\s+\d{4}$/.test(s)
+    || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+    || /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
 function mapStatus(rawStatus, amountPaid, total, sentStatus) {
   return normalizeCopilotInvoiceStatus({
     rawStatus,
@@ -147,9 +155,16 @@ function parseInvoiceListHtml(htmlOrPayload) {
 
       // Invoice # cell often contains <a href="/finances/invoices/view/123">INV-1234</a>
       const $invCell = cell(idx.invoice);
-      const $invAnchor = $invCell ? $invCell.find('a').first() : null;
-      row.invoice_number = clean($invAnchor && $invAnchor.length ? $invAnchor.text() : ($invCell ? $invCell.text() : ''));
+      let $invAnchor = $invCell ? $invCell.find('a[href*="/finances/invoices/view/"]').first() : null;
+      if (!$invAnchor || !$invAnchor.length) {
+        $invAnchor = $tr.find('a[href*="/finances/invoices/view/"]').first();
+      }
+      const invoiceText = clean($invAnchor && $invAnchor.length ? $invAnchor.text() : ($invCell ? $invCell.text() : ''));
+      row.invoice_number = looksLikeDateLabel(invoiceText) ? null : invoiceText;
       row.view_path = $invAnchor && $invAnchor.length ? ($invAnchor.attr('href') || null) : null;
+      if (!row.invoice_number && row.external_invoice_id) {
+        row.invoice_number = row.external_invoice_id;
+      }
       // Edit link if present anywhere in the row.
       const $editAnchor = $tr.find('a[href*="/edit/"], a[href*="/invoices/edit"]').first();
       row.edit_path = $editAnchor.length ? ($editAnchor.attr('href') || null) : null;

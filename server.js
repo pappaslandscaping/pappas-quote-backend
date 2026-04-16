@@ -14,9 +14,16 @@ const rateLimit = require('express-rate-limit');
 const cheerio = require('cheerio');
 const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('./lib/api-error');
 const { validate, schemas } = require('./lib/validate');
+const { parseInvoiceListHtml } = require('./scripts/parse-copilot-invoices');
+const { syncInvoicesToDatabase } = require('./scripts/import-copilot-invoices');
+const {
+  getCopilotToken: getCopilotTokenFromService,
+  parseCopilotRouteHtml,
+} = require('./services/copilot/client');
 const {
   ADMIN_USERS_TABLE,
   hashPassword,
+  ensureCopilotSyncTables,
   ensureQuoteEventsTable: _ensureQuoteEventsTable,
   runStartupMigrations,
   runStartupTableInit,
@@ -249,6 +256,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
+
+async function getCopilotToken() {
+  return getCopilotTokenFromService(pool);
+}
 
 // Handle unexpected pool errors so the server doesn't crash
 pool.on('error', (err) => {
@@ -10485,6 +10496,206 @@ app.post('/api/settings/home-base', async (req, res) => {
     res.json({ success: true, address: address.trim(), lat, lng });
   } catch (error) {
     serverError(res, error);
+  }
+});
+
+function buildCopilotInvoiceRequestBody({ page = 1, pageSize = 100, sort = 'datedesc', invoiceStatuses = [] } = {}) {
+  const formData = new URLSearchParams();
+  formData.append('pagination[]', `p=${page}`);
+  formData.append('pagination[]', `iop=${pageSize}`);
+  formData.append('pagination[]', `sort=${sort}`);
+
+  for (const status of invoiceStatuses) {
+    formData.append('postData[invoice_status][]', String(status));
+  }
+
+  return formData.toString();
+}
+
+function extractCopilotInvoiceTotalCount(html) {
+  const match = String(html || '').match(/(\d+)\s*-\s*(\d+)\s+of\s+(\d+)/i);
+  if (!match) return null;
+  const total = parseInt(match[3], 10);
+  return Number.isFinite(total) ? total : null;
+}
+
+async function fetchCopilotInvoicePage({ cookieHeader, page = 1, pageSize = 100, sort = 'datedesc', invoiceStatuses = [] } = {}) {
+  const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookieHeader,
+      'Origin': 'https://secure.copilotcrm.com',
+      'Referer': 'https://secure.copilotcrm.com/',
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: buildCopilotInvoiceRequestBody({ page, pageSize, sort, invoiceStatuses }),
+  });
+
+  if (!copilotRes.ok) {
+    const errBody = await copilotRes.text().catch(() => '');
+    throw new Error(`Copilot invoice page ${page} failed (${copilotRes.status}): ${errBody.substring(0, 200)}`);
+  }
+
+  const data = await copilotRes.json();
+  return {
+    data,
+    invoices: parseInvoiceListHtml(data.html || ''),
+    totalCount: extractCopilotInvoiceTotalCount(data.html || ''),
+  };
+}
+
+async function syncCopilotInvoices({
+  pageSize = 100,
+  maxPages = 150,
+  linkCustomers = true,
+  invoiceStatuses = [],
+  sort = 'datedesc',
+} = {}) {
+  await ensureCopilotSyncTables(pool);
+  const tokenInfo = await getCopilotToken();
+
+  if (!tokenInfo || !tokenInfo.cookieHeader) {
+    throw new Error('No CopilotCRM cookies configured.');
+  }
+
+  const allInvoices = [];
+  const seenFirstIds = new Set();
+  const pages = [];
+  let totalCount = null;
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageResult = await fetchCopilotInvoicePage({
+      cookieHeader: tokenInfo.cookieHeader,
+      page,
+      pageSize,
+      sort,
+      invoiceStatuses,
+    });
+
+    const invoices = pageResult.invoices;
+    if (!invoices.length) break;
+
+    const firstId = invoices[0].external_invoice_id;
+    if (firstId && seenFirstIds.has(firstId)) break;
+    if (firstId) seenFirstIds.add(firstId);
+
+    pages.push({
+      page,
+      count: invoices.length,
+      firstId: firstId || null,
+    });
+    allInvoices.push(...invoices);
+
+    if (pageResult.totalCount) totalCount = pageResult.totalCount;
+    if (invoices.length < pageSize) break;
+    if (totalCount && page * pageSize >= totalCount) break;
+  }
+
+  const syncResult = await syncInvoicesToDatabase(pool, allInvoices, { linkCustomers });
+
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES
+       ('copilot_invoice_last_sync_at', $1, NOW()),
+       ('copilot_invoice_last_sync_summary', $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [
+      new Date().toISOString(),
+      JSON.stringify({
+        totalCount,
+        pages,
+        inserted: syncResult.inserted,
+        updated: syncResult.updated,
+        total: syncResult.total,
+        refreshed: false,
+      }),
+    ]
+  );
+
+  return {
+    success: true,
+    totalCount,
+    pages,
+    refreshed: false,
+    ...syncResult,
+  };
+}
+
+function assertCronSecret(req, res) {
+  const configuredSecret = process.env.CRON_SECRET || process.env.CRON_API_KEY || '';
+  if (!configuredSecret) return true;
+
+  const provided = req.get('x-cron-secret') || req.query.key || req.query.token || req.body?.key || req.body?.token || '';
+  if (provided === configuredSecret) return true;
+
+  res.status(401).json({ success: false, error: 'Invalid cron secret' });
+  return false;
+}
+
+app.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) => {
+  try {
+    const result = await syncCopilotInvoices({
+      pageSize: Number(req.body.pageSize || 100),
+      maxPages: Number(req.body.maxPages || 150),
+      linkCustomers: req.body.linkCustomers !== false,
+      minDaysRemaining: Number(req.body.minDaysRemaining || 1),
+    });
+    res.json(result);
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM invoice sync failed');
+  }
+});
+
+app.get('/api/copilot/invoices/status', authenticateToken, async (req, res) => {
+  try {
+    await ensureCopilotSyncTables(pool);
+    const result = await pool.query(
+      "SELECT key, value, updated_at FROM copilot_sync_settings WHERE key IN ('copilot_invoice_last_sync_at', 'copilot_invoice_last_sync_summary', 'copilot_cookies', 'copilot_token') ORDER BY key"
+    );
+    const settings = {};
+    for (const row of result.rows) settings[row.key] = row.value;
+    const tokenInfo = await getCopilotToken();
+    res.json({
+      success: true,
+      lastSyncAt: settings.copilot_invoice_last_sync_at || null,
+      lastSyncSummary: settings.copilot_invoice_last_sync_summary ? JSON.parse(settings.copilot_invoice_last_sync_summary) : null,
+      hasCopilotAuth: !!(settings.copilot_cookies || settings.copilot_token),
+      expiresAt: tokenInfo?.expiresAt || null,
+      daysUntilExpiry: tokenInfo?.daysUntilExpiry ? Math.round(tokenInfo.daysUntilExpiry) : null,
+    });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM invoice sync status failed');
+  }
+});
+
+app.post('/api/cron/copilot-invoices-sync', async (req, res) => {
+  if (!assertCronSecret(req, res)) return;
+  try {
+    const result = await syncCopilotInvoices({
+      pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
+      maxPages: Number(req.body?.maxPages || req.query.maxPages || 150),
+      linkCustomers: req.body?.linkCustomers !== false && req.query.linkCustomers !== 'false',
+      minDaysRemaining: Number(req.body?.minDaysRemaining || req.query.minDaysRemaining || 1),
+    });
+    res.json({ success: true, trigger: 'cron', ...result, timestamp: new Date().toISOString() });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM cron invoice sync failed');
+  }
+});
+
+app.get('/api/cron/copilot-invoices-sync', async (req, res) => {
+  if (!assertCronSecret(req, res)) return;
+  try {
+    const result = await syncCopilotInvoices({
+      pageSize: Number(req.query.pageSize || 100),
+      maxPages: Number(req.query.maxPages || 150),
+      linkCustomers: req.query.linkCustomers !== 'false',
+      minDaysRemaining: Number(req.query.minDaysRemaining || 1),
+    });
+    res.json({ success: true, trigger: 'cron', ...result, timestamp: new Date().toISOString() });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM cron invoice sync failed');
   }
 });
 

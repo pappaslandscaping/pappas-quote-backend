@@ -7,6 +7,8 @@ Business management app for Pappas & Co. Landscaping in Cleveland, OH. Service a
 ## Quick Start
 
 ```bash
+npm run migrate # run core database migrations/bootstrap without starting the server
+npm run bootstrap # explicit one-shot DB bootstrap helper
 npm run dev     # nodemon with auto-reload (local development)
 npm start       # direct node server.js (production)
 ```
@@ -91,6 +93,14 @@ All backend logic lives in one file. No route splitting or module system. The fi
 | Startup | End of file | Table creation, pool init, listen, graceful shutdown |
 
 **Total: ~349 API endpoints, 48+ database tables, 100+ helper functions.**
+
+### Startup Schema Path
+
+- Core startup schema/bootstrap logic now lives in `lib/startup-schema.js`
+- Reusable scripts:
+  - `npm run migrate`
+  - `npm run bootstrap`
+- `server.js` still performs app boot, but the large database startup mutation path is no longer defined inline there
 
 ### Frontend: 56 Vanilla HTML Pages in `/public/`
 

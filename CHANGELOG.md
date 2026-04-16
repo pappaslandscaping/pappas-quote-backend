@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-15
+
+### Startup Schema Extraction
+- Added Railway-friendly database config fallback so `DATABASE_URL` can be derived from `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, and `PGDATABASE`
+- Added reusable `npm run migrate` and `npm run bootstrap` scripts for core database startup/bootstrap work
+- Extracted the large startup schema/bootstrap logic into `lib/startup-schema.js` so app boot and manual DB setup share the same code path
+
 ## 2026-04-14
 
 ### Route Sheet — Name & Address Parsing Fixes

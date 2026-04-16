@@ -75,7 +75,7 @@ router.get('/api/payments', async (req, res) => {
 // GET /api/invoices - List invoices
 router.get('/api/invoices', async (req, res) => {
   try {
-    const { status, customer_id, search, limit = 9999, offset = 0, include_blank_drafts } = req.query;
+    const { status, customer_id, search, limit = 25000, offset = 0, include_blank_drafts } = req.query;
     // Build a real display name. The customers table is inconsistent —
     // some rows have `name` populated, others only `first_name`+`last_name`,
     // and many invoices have a stale or missing customer_id. Walk the chain:
@@ -91,7 +91,15 @@ router.get('/api/invoices', async (req, res) => {
                       NULLIF(i.customer_name, '')
                     ) AS customer_name,
                     c.name AS linked_customer_name,
-                    i.customer_name AS invoice_customer_name
+                    i.customer_name AS invoice_customer_name,
+                    CASE
+                      WHEN COALESCE(NULLIF(TRIM(i.invoice_number), ''), '') = ''
+                        OR i.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
+                        OR i.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+                        OR i.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                      THEN NULLIF(CASE WHEN i.external_source = 'copilotcrm' THEN i.external_invoice_id ELSE NULL END, '')
+                      ELSE i.invoice_number
+                    END AS display_invoice_number
              FROM invoices i
              LEFT JOIN customers c ON i.customer_id = c.id`;
     const params = [];

@@ -199,6 +199,23 @@ it('accepts a row-only fragment (no <table>/<thead>) using positional fallback',
   assert.strictEqual(r[0].total, 50);
 });
 
+it('does not store a date label in invoice_number when the invoice cell is misaligned', () => {
+  const fragment = `
+    <tr id="invoice_777">
+      <td><input type="checkbox"></td>
+      <td>Apr 08, 2026</td>
+      <td><a href="/finances/invoices/view/777">777</a></td>
+      <td><a href="/customers/details/12">Test Customer</a></td>
+      <td>$50.00</td>
+      <td>Pending</td>
+      <td>Not Sent</td>
+    </tr>`;
+  const r = parseInvoiceListHtml(fragment);
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].invoice_number, '777');
+  assert.strictEqual(r[0].view_path, '/finances/invoices/view/777');
+});
+
 if (failures > 0) {
   console.error(`\n${failures} test(s) failed.`);
   process.exit(1);

@@ -1,462 +1,391 @@
 #!/usr/bin/env node
+// ─────────────────────────────────────────────────────────────
+// One-time CopilotCRM invoice importer.
+//
+// Reads JSON files captured from the browser (POST .../invoices/getInvoicesListAjax
+// returns { html, isEmpty }), parses each row's HTML, and upserts into the
+// local invoices table.
+//
+// Usage:
+//   node scripts/import-copilot-invoices.js <file-or-dir> [--apply] [--quiet]
+//
+// Flags:
+//   --apply         Actually write to the DB. Without it, runs as a dry run
+//                   and prints a summary of what would be upserted.
+//   --link-customers Try to resolve customer_id by matching on email, then
+//                    on name. Off by default; opt-in only.
+//   --quiet         Only print the final summary.
+//
+// Files: any *.json files at the given path are processed in lexical order.
+//
+// Idempotence: upsert key is (external_source='copilotcrm', external_invoice_id).
+// Re-running over the same files will UPDATE rows in place — no duplicates.
+// invoice_number is preserved if already set on the local row to avoid
+// breaking links (we only fill it in when local invoice_number is NULL).
+// ─────────────────────────────────────────────────────────────
 
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
+const { parseInvoiceListHtml } = require('./parse-copilot-invoices');
+const { parseInvoiceDetailHtml } = require('./parse-copilot-invoice-detail');
 
-function loadDotenvIfAvailable() {
-  try {
-    const dotenv = require('dotenv');
-    const candidatePaths = [
-      path.resolve(process.cwd(), '.env'),
-      path.resolve(__dirname, '..', '.env'),
-    ];
+const SOURCE = 'copilotcrm';
 
-    candidatePaths.forEach((envPath) => {
-      if (fs.existsSync(envPath)) {
-        dotenv.config({ path: envPath, override: false });
-      }
-    });
-  } catch (error) {
-    // The repo has some iCloud-backed placeholders; skip dotenv if it is unavailable.
+// CLI flags are only parsed when this file is executed directly, not when
+// it's `require()`-d from a test or another script.
+let APPLY = false, QUIET = false, LINK_CUSTOMERS = false;
+
+function log(...a) { if (!QUIET) console.log(...a); }
+function warn(...a) { console.warn(...a); }
+
+function listSourceFiles(p) {
+  const stat = fs.statSync(p);
+  if (stat.isFile()) return [p];
+  if (stat.isDirectory()) {
+    return fs.readdirSync(p)
+      .filter(f => /\.(json|html?)$/i.test(f))
+      .sort()
+      .map(f => path.join(p, f));
   }
+  throw new Error(`Path is neither a file nor a directory: ${p}`);
 }
 
-function decodeHtml(value) {
-  return String(value || '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+// File routing:
+//   *.json  → list-response file (POST .../getInvoicesListAjax body)
+//   *.html  → invoice detail page (GET .../invoices/view/{id})
+// The list-vs-detail distinction matters because list rows seed the table
+// and detail pages enrich them with line items, totals, notes, etc.
+function classifyFile(file) {
+  const ext = path.extname(file).toLowerCase();
+  if (ext === '.html' || ext === '.htm') return 'detail';
+  if (ext === '.json') return 'list';
+  // Sniff content if extension is ambiguous.
+  const head = fs.readFileSync(file, 'utf8').slice(0, 200).trim();
+  if (head.startsWith('{')) return 'list';
+  if (head.startsWith('<')) return 'detail';
+  return 'list';
 }
 
-function stripTags(value) {
-  return decodeHtml(String(value || '').replace(/<[^>]+>/g, ' '));
-}
-
-function parseMoney(value) {
-  if (!value) return 0;
-  const normalized = String(value).replace(/[$,\s]/g, '').trim();
-  const number = Number.parseFloat(normalized);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function parseText(value) {
-  return stripTags(value).replace(/\s+/g, ' ').trim();
-}
-
-function parseDate(value) {
-  const text = parseText(value);
-  if (!text) return null;
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
-}
-
-function splitTableCells(rowHtml) {
-  const cells = [];
-  const tdPattern = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
-  let match;
-  while ((match = tdPattern.exec(rowHtml))) {
-    cells.push(match[1]);
-  }
-  return cells;
-}
-
-function getFirstHref(html) {
-  const match = String(html || '').match(/href="([^"]+)"/i);
-  return match ? decodeHtml(match[1]) : '';
-}
-
-function parseCustomerCell(cellHtml) {
-  const html = String(cellHtml || '');
-  const parts = html
-    .split(/<br\s*\/?>/i)
-    .map(parseText)
-    .filter(Boolean);
-
-  const name = parts[0] || parseText(html);
-  const email = parts.find((part) => /@/.test(part)) || '';
-  const href = getFirstHref(html);
-  const customerIdMatch = href.match(/\/customers\/details\/(\d+)/);
-
-  return {
-    customer_name: name,
-    customer_email: email,
-    external_customer_id: customerIdMatch ? customerIdMatch[1] : null,
-  };
-}
-
-function parseSentStatus(cellHtml) {
-  const html = String(cellHtml || '');
-  const badges = [];
-  const badgePattern = /<span\b[^>]*class="[^"]*badge[^"]*"[^>]*>([\s\S]*?)<\/span>/gi;
-  let match;
-  while ((match = badgePattern.exec(html))) {
-    badges.push(parseText(match[1]));
-  }
-  if (badges.length) return badges.join(' | ');
-  return parseText(html);
-}
-
-function parseInvoiceRow(rowHtml, rowId) {
-  const tds = splitTableCells(rowHtml);
-  if (tds.length < 10) return null;
-
-  const id = String(rowId || '').trim();
-  if (!id) return null;
-
-  const viewPath = getFirstHref(tds[1]);
-  const customer = parseCustomerCell(tds[3]);
-
-  const invoice = {
-    external_source: 'copilotcrm',
-    external_invoice_id: id,
-    invoice_number: parseText(tds[1]),
-    created_at: parseDate(tds[2]),
-    invoice_date_raw: parseText(tds[2]),
-    customer_name: customer.customer_name,
-    customer_email: customer.customer_email || null,
-    external_customer_id: customer.external_customer_id,
-    title_description: parseText(tds[4]) || null,
-    property_name: parseText(tds[5]) || null,
-    property_address: parseText(tds[6]) || null,
-    crew: parseText(tds[7]) || null,
-    tax_amount: parseMoney(tds[8]),
-    total: parseMoney(tds[9]),
-    total_due: parseMoney(tds[10]),
-    amount_paid: parseMoney(tds[11]),
-    credit_available: parseMoney(tds[12]),
-    status: parseText(tds[13]) || 'pending',
-    sent_status: parseSentStatus(tds[14]) || null,
-    view_path: viewPath || null,
-    metadata: {
-      crew: parseText(tds[7]) || null,
-      property_name: parseText(tds[5]) || null,
-      property_address: parseText(tds[6]) || null,
-      sent_status: parseSentStatus(tds[14]) || null,
-      external_customer_id: customer.external_customer_id,
-      view_path: viewPath || null,
-      invoice_date_raw: parseText(tds[2]) || null,
-    },
-  };
-
-  invoice.subtotal = Math.max(0, Number((invoice.total - invoice.tax_amount).toFixed(2)));
-
-  return invoice;
-}
-
-function parseInvoiceListHtml(html) {
-  const invoices = [];
-  const rowPattern = /<tr\b[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gi;
-  let match;
-  while ((match = rowPattern.exec(String(html || '')))) {
-    const parsed = parseInvoiceRow(match[2], match[1]);
-    if (parsed) invoices.push(parsed);
-  }
-
-  return invoices;
-}
-
-function extractHtmlPayloads(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const parsed = JSON.parse(raw);
-
-  if (Array.isArray(parsed)) {
-    return parsed
-      .map((entry) => ({
-        source_file: path.basename(filePath),
-        page: entry.page || null,
-        html: entry?.data?.html || entry?.html || '',
-      }))
-      .filter((entry) => entry.html);
-  }
-
-  if (parsed && typeof parsed === 'object' && parsed.html) {
-    return [{
-      source_file: path.basename(filePath),
-      page: parsed.page || null,
-      html: parsed.html,
-    }];
-  }
-
-  return [];
-}
-
-function collectInvoicesFromDirectory(importDir) {
-  const entries = fs.readdirSync(importDir)
-    .filter((name) => name.endsWith('.json'))
-    .map((name) => path.join(importDir, name));
-
-  const invoices = [];
-  const fileSummaries = [];
-
-  for (const filePath of entries) {
-    const payloads = extractHtmlPayloads(filePath);
-    let count = 0;
-    for (const payload of payloads) {
-      const parsed = parseInvoiceListHtml(payload.html).map((invoice) => ({
-        ...invoice,
-        source_file: payload.source_file,
-        source_page: payload.page,
-      }));
-      invoices.push(...parsed);
-      count += parsed.length;
-    }
-
-    fileSummaries.push({
-      file: path.basename(filePath),
-      pages: payloads.length,
-      invoices: count,
-    });
-  }
-
-  return { invoices, fileSummaries };
-}
-
-function dedupeInvoices(invoices) {
-  const byKey = new Map();
-  for (const invoice of invoices) {
-    const key = `${invoice.external_source}:${invoice.external_invoice_id}`;
-    byKey.set(key, invoice);
-  }
-  return [...byKey.values()];
-}
-
-async function ensureCopilotColumns(pool) {
-  const statements = [
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS external_source VARCHAR(50)",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS external_invoice_id VARCHAR(100)",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(10,2) DEFAULT 0",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS total_due DECIMAL(10,2) DEFAULT 0",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS credit_available DECIMAL(10,2) DEFAULT 0",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS property_name TEXT",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS property_address TEXT",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sent_status TEXT",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS external_customer_id VARCHAR(100)",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb",
-    "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS title_description TEXT",
-  ];
-
-  for (const statement of statements) {
-    await pool.query(statement);
-  }
-
-  await pool.query(
-    `CREATE UNIQUE INDEX IF NOT EXISTS invoices_external_source_external_invoice_id_idx
-     ON invoices (external_source, external_invoice_id)
-     WHERE external_source IS NOT NULL AND external_invoice_id IS NOT NULL`
-  );
-}
-
-async function maybeLinkCustomer(pool, invoice) {
-  if (invoice.customer_email) {
-    const byEmail = await pool.query(
-      'SELECT id FROM customers WHERE LOWER(email) = LOWER($1) ORDER BY id ASC LIMIT 1',
-      [invoice.customer_email]
+async function resolveCustomerId(pool, row) {
+  if (!LINK_CUSTOMERS) return null;
+  // Try email first, then exact name. Both are best-effort; we never
+  // overwrite an already-set customer_id.
+  if (row.customer_email) {
+    const r = await pool.query(
+      'SELECT id FROM customers WHERE LOWER(email) = LOWER($1) LIMIT 1',
+      [row.customer_email]
     );
-    if (byEmail.rows[0]) return byEmail.rows[0].id;
+    if (r.rows.length) return r.rows[0].id;
   }
-
-  if (invoice.customer_name) {
-    const byName = await pool.query(
-      'SELECT id FROM customers WHERE LOWER(name) = LOWER($1) ORDER BY id ASC LIMIT 1',
-      [invoice.customer_name]
+  if (row.customer_name) {
+    const r = await pool.query(
+      `SELECT id FROM customers
+       WHERE LOWER(COALESCE(NULLIF(name, ''), TRIM(CONCAT_WS(' ', first_name, last_name)))) = LOWER($1)
+       LIMIT 1`,
+      [row.customer_name]
     );
-    if (byName.rows[0]) return byName.rows[0].id;
+    if (r.rows.length) return r.rows[0].id;
   }
-
   return null;
 }
 
-async function upsertInvoice(pool, invoice, { linkCustomers = false } = {}) {
-  let customerId = null;
-  if (linkCustomers) {
-    customerId = await maybeLinkCustomer(pool, invoice);
-  }
+// Map a list-row → DB column values. Pure; no side effects.
+function toDbValues(row, customerId) {
+  const total = row.total != null ? row.total : null;
+  const tax = row.tax_amount != null ? row.tax_amount : null;
+  // Subtotal isn't in the list view; infer from total - tax when both exist.
+  const subtotal = (total != null && tax != null) ? Math.max(0, total - tax) : (total != null ? total : null);
 
-  const existing = await pool.query(
-    `SELECT id
-       FROM invoices
-      WHERE (external_source = $1 AND external_invoice_id = $2)
-         OR invoice_number = $3
-      ORDER BY CASE WHEN external_source = $1 AND external_invoice_id = $2 THEN 0 ELSE 1 END
-      LIMIT 1`,
-    [invoice.external_source, invoice.external_invoice_id, invoice.invoice_number]
-  );
-
-  const params = [
-    invoice.invoice_number,
-    customerId,
-    invoice.customer_name,
-    invoice.customer_email,
-    invoice.status.toLowerCase(),
-    invoice.subtotal,
-    invoice.total,
-    invoice.amount_paid,
-    JSON.stringify([]),
-    invoice.created_at ? new Date(invoice.created_at) : new Date(),
-    invoice.external_source,
-    invoice.external_invoice_id,
-    invoice.tax_amount,
-    invoice.total_due,
-    invoice.credit_available,
-    invoice.property_name,
-    invoice.property_address,
-    invoice.sent_status,
-    invoice.external_customer_id,
-    JSON.stringify(invoice.metadata || {}),
-    invoice.title_description,
-  ];
-
-  if (existing.rows[0]) {
-    await pool.query(
-      `UPDATE invoices
-          SET invoice_number = $1,
-              customer_id = COALESCE($2, customer_id),
-              customer_name = $3,
-              customer_email = $4,
-              status = $5,
-              subtotal = $6,
-              total = $7,
-              amount_paid = $8,
-              line_items = $9,
-              created_at = $10,
-              external_source = $11,
-              external_invoice_id = $12,
-              tax_amount = $13,
-              total_due = $14,
-              credit_available = $15,
-              property_name = $16,
-              property_address = $17,
-              sent_status = $18,
-              external_customer_id = $19,
-              metadata = COALESCE(metadata, '{}'::jsonb) || $20::jsonb,
-              title_description = $21,
-              updated_at = CURRENT_TIMESTAMP
-        WHERE id = $22`,
-      [...params, existing.rows[0].id]
-    );
-    return { action: 'updated', id: existing.rows[0].id };
-  }
-
-  const inserted = await pool.query(
-    `INSERT INTO invoices (
-        invoice_number, customer_id, customer_name, customer_email,
-        status, subtotal, total, amount_paid, line_items, created_at,
-        external_source, external_invoice_id, tax_amount, total_due,
-        credit_available, property_name, property_address, sent_status,
-        external_customer_id, metadata, title_description
-      ) VALUES (
-        $1,$2,$3,$4,
-        $5,$6,$7,$8,$9,$10,
-        $11,$12,$13,$14,
-        $15,$16,$17,$18,
-        $19,$20::jsonb,$21
-      ) RETURNING id`,
-    params
-  );
-
-  return { action: 'inserted', id: inserted.rows[0].id };
-}
-
-async function syncInvoicesToDatabase(pool, invoices, { linkCustomers = false } = {}) {
-  await ensureCopilotColumns(pool);
-
-  const deduped = dedupeInvoices(invoices);
-  let inserted = 0;
-  let updated = 0;
-
-  for (const invoice of deduped) {
-    const result = await upsertInvoice(pool, invoice, { linkCustomers });
-    if (result.action === 'inserted') inserted += 1;
-    if (result.action === 'updated') updated += 1;
-  }
+  const metadata = {
+    copilot_customer_id: row.copilot_customer_id || null,
+    property_name:       row.property_name       || null,
+    property_address:    row.property_address    || null,
+    crew:                row.crew                || null,
+    sent_status:         row.sent_status         || null,
+    raw_status:          row.raw_status          || null,
+    total_due:           row.total_due           ?? null,
+    credit_available:    row.credit_available    ?? null,
+    view_path:           row.view_path           || null,
+    edit_path:           row.edit_path           || null,
+  };
 
   return {
-    total: deduped.length,
-    inserted,
-    updated,
+    external_invoice_id: row.external_invoice_id || null,
+    invoice_number:      row.invoice_number || null,
+    customer_id:         customerId,
+    customer_name:       row.customer_name || null,
+    customer_email:      row.customer_email || null,
+    customer_address:    row.property_address || null,
+    status:              row.status || 'sent',
+    subtotal,
+    tax_amount:          tax,
+    total,
+    amount_paid:         row.amount_paid != null ? row.amount_paid : 0,
+    due_date:            null, // not in list view
+    created_at:          row.invoice_date || null,
+    notes:               null,
+    terms:               null,
+    line_items:          [], // detail enrichment fills this in
+    metadata,
   };
 }
 
-function printSummary(summary, invoices) {
-  console.log(`Parsed ${invoices.length} invoices from ${summary.length} file(s).`);
-  summary.forEach((item) => {
-    console.log(`- ${item.file}: ${item.invoices} invoice row(s) across ${item.pages} payload(s)`);
-  });
-
-  const sample = invoices.slice(0, 5);
-  if (sample.length) {
-    console.log('\nSample invoices:');
-    sample.forEach((invoice) => {
-      console.log(
-        `- #${invoice.invoice_number} | ${invoice.customer_name || 'Unknown'} | total ${invoice.total.toFixed(2)} | status ${invoice.status}`
-      );
-    });
-  }
+// Map a detail-page parsed object → DB column values. Carries line_items,
+// notes, terms, and the more-accurate subtotal from the totals table.
+function toDbValuesFromDetail(detail, customerId) {
+  const metadata = {
+    copilot_customer_id: detail.copilot_customer_id || null,
+    property_name:       detail.property_name       || null,
+    property_address:    detail.property_address    || null,
+    crew:                detail.crew                || null,
+    raw_status:          detail.raw_status          || null,
+    total_due:           detail.total_due           ?? null,
+    terms_raw:           detail.terms               || null,
+  };
+  return {
+    external_invoice_id: detail.external_invoice_id || null,
+    invoice_number:      detail.invoice_number || null,
+    customer_id:         customerId,
+    customer_name:       detail.customer_name || null,
+    customer_email:      detail.customer_email || null,
+    customer_address:    detail.customer_address || detail.property_address || null,
+    status:              detail.status || 'sent',
+    subtotal:            detail.subtotal,
+    tax_amount:          detail.tax_amount,
+    total:               detail.total,
+    amount_paid:         detail.amount_paid != null ? detail.amount_paid : 0,
+    due_date:            null,
+    created_at:          detail.invoice_date || null,
+    notes:               detail.notes || null,
+    terms:               detail.terms || null,
+    line_items:          Array.isArray(detail.line_items) ? detail.line_items : [],
+    metadata,
+  };
 }
 
-async function main(argv = process.argv.slice(2)) {
-  loadDotenvIfAvailable();
-  const importDirArg = argv.find((arg) => !arg.startsWith('--'));
-  const importDir = path.resolve(process.cwd(), importDirArg || 'scripts/copilot-imports');
-  const apply = argv.includes('--apply');
-  const linkCustomers = argv.includes('--link-customers');
+// Two-stage match: first by (external_source, external_invoice_id), then by
+// invoice_number alone. If neither finds a row, INSERT a new one.
+//
+// This is hand-rolled (instead of a single ON CONFLICT) because we want the
+// invoice_number fallback for cases like:
+//   - importing a detail HTML for an invoice that wasn't in the captured list
+//   - importing a list response after a manual invoice with the same number
+//     was already created in the local app
+//
+// Updates merge fields conservatively:
+//   - never NULL out an existing populated field with a missing import value
+//   - external_metadata is JSONB-merged so prior import data survives
+//   - line_items only overwrites when the import actually carries items
+//   - notes / terms only overwrite when import carries non-empty values
+async function upsert(pool, v) {
+  // 1) Try external id match
+  let existing = null;
+  if (v.external_invoice_id) {
+    const r = await pool.query(
+      'SELECT id FROM invoices WHERE external_source = $1 AND external_invoice_id = $2',
+      [SOURCE, v.external_invoice_id]
+    );
+    if (r.rows.length) existing = r.rows[0].id;
+  }
+  // 2) Fall back to invoice_number
+  if (!existing && v.invoice_number) {
+    const r = await pool.query(
+      'SELECT id FROM invoices WHERE invoice_number = $1',
+      [v.invoice_number]
+    );
+    if (r.rows.length) existing = r.rows[0].id;
+  }
 
-  if (!fs.existsSync(importDir)) {
-    console.error(`Import directory not found: ${importDir}`);
-    process.exitCode = 1;
+  if (existing) {
+    const setParts = [
+      // Stamp source + external id even if previously NULL (this is how
+      // a manual local invoice gets adopted by re-runs).
+      `external_source = $${1}`,
+      `external_invoice_id = COALESCE(invoices.external_invoice_id, $${2})`,
+      `invoice_number    = COALESCE(invoices.invoice_number, $${3})`,
+      `customer_id       = COALESCE(invoices.customer_id, $${4})`,
+      `customer_name     = COALESCE(NULLIF($${5}, ''), invoices.customer_name)`,
+      `customer_email    = COALESCE(NULLIF($${6}, ''), invoices.customer_email)`,
+      `customer_address  = COALESCE(NULLIF($${7}, ''), invoices.customer_address)`,
+      `status            = COALESCE($${8}, invoices.status)`,
+      `subtotal          = COALESCE($${9}, invoices.subtotal)`,
+      `tax_amount        = COALESCE($${10}, invoices.tax_amount)`,
+      `total             = COALESCE($${11}, invoices.total)`,
+      `amount_paid       = COALESCE($${12}, invoices.amount_paid)`,
+      `created_at        = COALESCE(invoices.created_at, $${13}::timestamp)`,
+      // Notes/terms: empty string treated as missing so we don't blank
+      // out a hand-edited note.
+      `notes             = COALESCE(NULLIF($${14}, ''), invoices.notes)`,
+      // Line items: only overwrite when the import actually carries items.
+      `line_items        = CASE WHEN jsonb_array_length($${15}::jsonb) > 0 THEN $${15}::jsonb ELSE invoices.line_items END`,
+      `external_metadata = invoices.external_metadata || $${16}::jsonb`,
+      `imported_at       = CURRENT_TIMESTAMP`,
+      `updated_at        = CURRENT_TIMESTAMP`,
+    ];
+    // terms isn't a real column today — store it inside external_metadata via the merged json above (already there).
+    const params = [
+      SOURCE, v.external_invoice_id, v.invoice_number,
+      v.customer_id, v.customer_name, v.customer_email, v.customer_address,
+      v.status, v.subtotal, v.tax_amount, v.total, v.amount_paid,
+      v.created_at,
+      v.notes, JSON.stringify(v.line_items || []),
+      JSON.stringify(v.metadata || {}),
+      existing,
+    ];
+    await pool.query(`UPDATE invoices SET ${setParts.join(', ')} WHERE id = $${params.length}`, params);
+    return { id: existing, inserted: false };
+  }
+
+  // 3) Fresh INSERT
+  const insertSql = `
+    INSERT INTO invoices (
+      external_source, external_invoice_id, invoice_number,
+      customer_id, customer_name, customer_email, customer_address,
+      status, subtotal, tax_amount, total, amount_paid,
+      due_date, created_at, notes, line_items,
+      external_metadata, imported_at
+    )
+    VALUES (
+      $1, $2, $3,
+      $4, $5, $6, $7,
+      $8, $9, $10, $11, $12,
+      $13, COALESCE($14::timestamp, CURRENT_TIMESTAMP),
+      $15, $16::jsonb,
+      $17::jsonb, CURRENT_TIMESTAMP
+    )
+    RETURNING id`;
+  const r = await pool.query(insertSql, [
+    SOURCE, v.external_invoice_id, v.invoice_number,
+    v.customer_id, v.customer_name, v.customer_email, v.customer_address,
+    v.status, v.subtotal, v.tax_amount, v.total, v.amount_paid,
+    v.due_date, v.created_at,
+    v.notes, JSON.stringify(v.line_items || []),
+    JSON.stringify(v.metadata || {}),
+  ]);
+  return { id: r.rows[0].id, inserted: true };
+}
+
+async function main(target) {
+  const files = listSourceFiles(target);
+  log(`Found ${files.length} file(s) under ${target}`);
+
+  // Parse all files first. List files seed rows; detail files each map to
+  // exactly one row (the page they describe).
+  const listRows = [];     // { source, row } from list responses
+  const detailRows = [];   // { source, detail } from detail HTML pages
+
+  for (const file of files) {
+    let raw;
+    try { raw = fs.readFileSync(file, 'utf8'); }
+    catch (e) { warn(`! Could not read ${file}: ${e.message}`); continue; }
+
+    const kind = classifyFile(file);
+    if (kind === 'list') {
+      let payload;
+      try { payload = JSON.parse(raw); }
+      catch (e) { warn(`! Skipping ${file}: not valid JSON (${e.message})`); continue; }
+      let rows;
+      try { rows = parseInvoiceListHtml(payload); }
+      catch (e) { warn(`! Skipping ${file}: list parser error (${e.message})`); continue; }
+      log(`  ${path.basename(file)}: list, ${rows.length} row(s)`);
+      rows.forEach(r => listRows.push({ source: file, row: r }));
+    } else {
+      let detail;
+      try { detail = parseInvoiceDetailHtml(raw); }
+      catch (e) { warn(`! Skipping ${file}: detail parser error (${e.message})`); continue; }
+      const numItems = (detail.line_items || []).length;
+      log(`  ${path.basename(file)}: detail, invoice_number=${detail.invoice_number || '?'}, ${numItems} line item(s)`);
+      detailRows.push({ source: file, detail });
+    }
+  }
+
+  // Dedup list rows by external_invoice_id (later file wins for the same id).
+  const byExtId = new Map();
+  for (const item of listRows) {
+    const key = item.row.external_invoice_id || `__no_id__:${item.row.invoice_number || Math.random()}`;
+    byExtId.set(key, item);
+  }
+  const uniqueList = [...byExtId.values()];
+
+  log(`Parsed ${listRows.length} list row(s) → ${uniqueList.length} unique; ${detailRows.length} detail page(s).`);
+
+  if (!APPLY) {
+    log('\n— DRY RUN —  Add --apply to write to the database.');
+    if (uniqueList.length) {
+      log('Sample list rows (first 2):');
+      for (const u of uniqueList.slice(0, 2)) log('  •', JSON.stringify(u.row, null, 2));
+    }
+    if (detailRows.length) {
+      log('Sample detail (first 1):');
+      log('  •', JSON.stringify(detailRows[0].detail, null, 2));
+    }
+    log(`\nWould upsert ${uniqueList.length} list row(s) and ${detailRows.length} detail page(s).`);
     return;
   }
 
-  const { invoices, fileSummaries } = collectInvoicesFromDirectory(importDir);
-  const deduped = dedupeInvoices(invoices);
-
-  printSummary(fileSummaries, deduped);
-
-  if (!apply) {
-    console.log('\nDry run only. Re-run with --apply to write invoices.');
-    return;
-  }
-
+  // ── Apply ──
   if (!process.env.DATABASE_URL) {
-    console.error('\nDATABASE_URL is not set, so --apply cannot connect to the database.');
-    process.exitCode = 1;
-    return;
+    console.error('DATABASE_URL is not set. Aborting.');
+    process.exit(2);
   }
-
-  const { Pool } = require('pg');
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: process.env.DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : undefined,
   });
 
-  try {
-    const { inserted, updated } = await syncInvoicesToDatabase(pool, deduped, { linkCustomers });
-
-    console.log(`\nApply complete: ${inserted} inserted, ${updated} updated.`);
-  } finally {
-    await pool.end();
+  // Phase 1: list rows. These create stub invoices (or update existing
+  // ones) so detail-only files have something to enrich.
+  let listInserted = 0, listUpdated = 0, listErrors = 0;
+  for (const { source, row } of uniqueList) {
+    try {
+      const customerId = await resolveCustomerId(pool, row);
+      const v = toDbValues(row, customerId);
+      const r = await upsert(pool, v);
+      if (r.inserted) listInserted++; else listUpdated++;
+    } catch (e) {
+      listErrors++;
+      warn(`! Error on list row external_id=${row.external_invoice_id} from ${path.basename(source)}: ${e.message}`);
+    }
   }
+
+  // Phase 2: detail pages. These overwrite line_items + notes + (more
+  // accurate) totals on the matched invoice.
+  let detailInserted = 0, detailUpdated = 0, detailErrors = 0;
+  for (const { source, detail } of detailRows) {
+    try {
+      const customerId = await resolveCustomerId(pool, detail);
+      const v = toDbValuesFromDetail(detail, customerId);
+      const r = await upsert(pool, v);
+      if (r.inserted) detailInserted++; else detailUpdated++;
+    } catch (e) {
+      detailErrors++;
+      warn(`! Error on detail external_id=${detail.external_invoice_id} from ${path.basename(source)}: ${e.message}`);
+    }
+  }
+
+  log('\n─────────────────────');
+  log(`List rows  → inserted: ${listInserted}, updated: ${listUpdated}, errors: ${listErrors}`);
+  log(`Detail pgs → inserted: ${detailInserted}, updated: ${detailUpdated}, errors: ${detailErrors}`);
+  log('─────────────────────');
+
+  await pool.end();
 }
 
 if (require.main === module) {
-  main().catch((error) => {
-    console.error(error);
+  const args = process.argv.slice(2);
+  const target = args.find(a => !a.startsWith('--'));
+  APPLY = args.includes('--apply');
+  QUIET = args.includes('--quiet');
+  LINK_CUSTOMERS = args.includes('--link-customers');
+  if (!target) {
+    console.error('Usage: node scripts/import-copilot-invoices.js <file-or-dir> [--apply] [--link-customers] [--quiet]');
+    process.exit(2);
+  }
+  main(target).catch(e => {
+    console.error('Importer failed:', e);
     process.exit(1);
   });
 }
 
-module.exports = {
-  main,
-  parseInvoiceListHtml,
-  collectInvoicesFromDirectory,
-  dedupeInvoices,
-  parseInvoiceRow,
-  ensureCopilotColumns,
-  upsertInvoice,
-  syncInvoicesToDatabase,
-};
+module.exports = { toDbValues, toDbValuesFromDetail, upsert };

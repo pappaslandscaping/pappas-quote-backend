@@ -1,1961 +1,442 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard — YardDesk</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="shared.css">
-    <style>
-        /* ─── Dashboard-specific styles ─────────────────────── */
-        .stat-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-
-        /* Sparkline Cards */
-        .sparkline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-        .sparkline-card {
-            background: var(--white);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            padding: 20px;
-        }
-        .spark-header {
-            display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;
-        }
-        .spark-title { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.03em; }
-        .spark-value { font-size: 22px; font-weight: 700; color: var(--gray-800); margin-top: 2px; }
-        .spark-sub { font-size: 12px; color: var(--gray-400); }
-        .spark-bar-container { padding-bottom: 4px; display: flex; align-items: flex-end; gap: 4px; height: 80px; }
-
-        /* Action Required */
-        .action-section {
-            margin-bottom: 24px;
-            background: var(--amber-bg);
-            border: 1px solid #fcd34d;
-            border-radius: 12px;
-            padding: 16px;
-        }
-        .action-section h3 {
-            font-size: 14px; font-weight: 600; color: var(--amber);
-            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-        }
-        .action-section h3 svg { width: 18px; height: 18px; }
-        .action-items { display: flex; flex-direction: column; gap: 6px; }
-        .action-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 12px; background: var(--white); border-radius: 8px;
-            text-decoration: none; color: var(--gray-700); transition: all 0.15s;
-        }
-        .action-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .action-item-info { display: flex; align-items: center; gap: 10px; }
-        .action-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-        .action-item-icon svg { width: 16px; height: 16px; }
-        .action-item-text strong { font-size: 13px; display: block; }
-        .action-item-text span { font-size: 12px; color: var(--gray-500); }
-        .action-item-count { font-size: 18px; font-weight: 700; color: var(--amber); }
-        .action-item-count.red { color: var(--red); }
-        .action-item-count.blue { color: var(--blue); }
-        .action-item-count.purple { color: var(--purple); }
-
-        /* Today's Schedule */
-        .schedule-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-        .schedule-header h3 { font-size: 16px; font-weight: 700; color: var(--gray-800); display: flex; align-items: center; gap: 8px; }
-        .schedule-header h3 svg { width: 20px; height: 20px; color: var(--primary); }
-        .schedule-header a { font-size: 13px; color: var(--primary); text-decoration: none; font-weight: 500; }
-        .schedule-header a:hover { text-decoration: underline; }
-        .schedule-jobs { display: grid; grid-template-columns: 1fr; gap: 8px; }
-        .schedule-job {
-            display: flex; align-items: center; gap: 14px;
-            padding: 12px 16px; background: var(--white);
-            border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            text-decoration: none; color: var(--gray-700); transition: all 0.15s;
-        }
-        .schedule-job:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .schedule-job-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-        .schedule-job-info { flex: 1; min-width: 0; }
-        .schedule-job-customer { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .schedule-job-details { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .schedule-job-meta { text-align: right; flex-shrink: 0; }
-        .schedule-job-crew { font-size: 12px; font-weight: 600; color: var(--primary); }
-        .schedule-job-type { font-size: 11px; color: var(--gray-400); }
-
-        /* Workflow Columns */
-        .workflow-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-        .wf-col { background: var(--white); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
-        .wf-col-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 16px; border-bottom: 1px solid var(--gray-100);
-        }
-        .wf-col-header h3 { font-size: 14px; font-weight: 600; color: var(--gray-800); display: flex; align-items: center; gap: 8px; }
-        .wf-col-header h3 svg { width: 18px; height: 18px; }
-        .wf-col-header a { font-size: 12px; color: var(--primary); text-decoration: none; }
-        .wf-col-header a:hover { text-decoration: underline; }
-        .wf-rows { padding: 8px; }
-        .wf-row {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 10px; border-radius: 8px; text-decoration: none;
-            color: var(--gray-700); transition: background 0.15s;
-        }
-        .wf-row:hover { background: var(--gray-50); }
-        .wf-row-left { display: flex; align-items: center; gap: 10px; }
-        .wf-row-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .wf-row-label { font-size: 13px; font-weight: 500; }
-        .wf-row-right { display: flex; align-items: center; gap: 8px; }
-        .wf-row-count {
-            font-size: 13px; font-weight: 600; color: var(--gray-500);
-            background: var(--gray-100); padding: 2px 8px; border-radius: 10px;
-            min-width: 28px; text-align: center;
-        }
-        .wf-row-count.highlight { background: var(--amber-bg); color: var(--amber); }
-        .wf-row-count.success { background: var(--green-bg); color: var(--green); }
-        .wf-row-amount { font-size: 12px; color: var(--gray-400); }
-        .wf-cta {
-            display: flex; align-items: center; justify-content: center;
-            gap: 6px; padding: 10px; margin: 8px; border-radius: 8px;
-            background: var(--gray-50); color: var(--primary);
-            text-decoration: none; font-size: 13px; font-weight: 600;
-            transition: all 0.15s;
-        }
-        .wf-cta:hover { background: var(--gray-100); }
-
-        /* Bottom Grid */
-        .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
-        .recent-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 12px; border-radius: 8px; text-decoration: none;
-            color: var(--gray-700); transition: background 0.15s;
-        }
-        .recent-item:hover { background: var(--gray-50); }
-        .recent-item-info { flex: 1; min-width: 0; }
-        .recent-item-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .recent-item-sub { font-size: 12px; color: var(--gray-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        /* Activity Feed */
-        .activity-item {
-            display: flex; align-items: flex-start; gap: 10px;
-            padding: 10px 12px; border-radius: 8px; transition: background 0.15s;
-            text-decoration: none; color: var(--gray-700);
-        }
-        .activity-item:hover { background: var(--gray-50); }
-        .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-        .activity-dot.quote_sent { background: var(--blue); }
-        .activity-dot.quote_signed { background: var(--green); }
-        .activity-dot.invoice_created { background: var(--purple); }
-        .activity-dot.payment_received { background: var(--green); }
-        .activity-dot.job_completed { background: var(--primary); }
-        .activity-dot.job_scheduled { background: var(--amber); }
-        .activity-dot.new_customer { background: var(--blue); }
-        .activity-text { font-size: 13px; line-height: 1.4; flex: 1; min-width: 0; }
-        .activity-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; white-space: nowrap; }
-
-        /* Responsive */
-        @media (max-width: 1100px) {
-            .stat-row { grid-template-columns: repeat(2, 1fr); }
-            .workflow-columns { grid-template-columns: 1fr; }
-            .bottom-grid { grid-template-columns: 1fr; }
-            .sparkline-row { grid-template-columns: 1fr; }
-            .feature-cards { grid-template-columns: repeat(3, 1fr) !important; }
-        }
-        @media (max-width: 768px) {
-            .stat-row { grid-template-columns: 1fr 1fr; }
-            .feature-cards { grid-template-columns: repeat(2, 1fr) !important; }
-        }
-
-        /* ─── AI Assistant Panel ──────────────────────────────── */
-        .ai-fab {
-            position: fixed;
-            bottom: 28px;
-            right: 28px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: var(--white);
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 16px rgba(22,163,74,0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1100;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .ai-fab:hover { transform: scale(1.08); box-shadow: 0 6px 24px rgba(22,163,74,0.45); }
-        .ai-fab svg { width: 26px; height: 26px; }
-
-        .ai-panel-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.25);
-            z-index: 1200;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s;
-        }
-        .ai-panel-overlay.open { opacity: 1; visibility: visible; }
-
-        .ai-panel {
-            position: fixed;
-            top: 0;
-            right: -420px;
-            width: 400px;
-            height: 100vh;
-            background: var(--white);
-            z-index: 1300;
-            box-shadow: -4px 0 24px rgba(0,0,0,0.12);
-            display: flex;
-            flex-direction: column;
-            transition: right 0.3s ease;
-        }
-        .ai-panel.open { right: 0; }
-
-        .ai-panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-100);
-            background: var(--gray-50);
-        }
-        .ai-panel-header h3 {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--gray-800);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .ai-panel-header h3 svg { width: 18px; height: 18px; color: var(--primary); }
-        .ai-panel-close {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: var(--gray-400);
-            padding: 4px;
-            border-radius: 6px;
-            transition: all 0.15s;
-        }
-        .ai-panel-close:hover { background: var(--gray-100); color: var(--gray-700); }
-        .ai-panel-close svg { width: 20px; height: 20px; }
-
-        .ai-quick-actions {
-            display: flex;
-            gap: 8px;
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--gray-100);
-            flex-wrap: wrap;
-        }
-        .ai-quick-btn {
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: 1px solid var(--gray-200);
-            background: var(--white);
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-600);
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.15s;
-        }
-        .ai-quick-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
-
-        .ai-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .ai-msg {
-            max-width: 85%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.5;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-        }
-        .ai-msg.user {
-            align-self: flex-end;
-            background: var(--primary);
-            color: var(--white);
-            border-bottom-right-radius: 4px;
-        }
-        .ai-msg.assistant {
-            align-self: flex-start;
-            background: var(--gray-100);
-            color: var(--gray-700);
-            border-bottom-left-radius: 4px;
-        }
-        .ai-msg.assistant .ai-typing {
-            display: inline-flex;
-            gap: 4px;
-        }
-        .ai-msg.assistant .ai-typing span {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: var(--gray-400);
-            animation: aiBounce 1.2s infinite;
-        }
-        .ai-msg.assistant .ai-typing span:nth-child(2) { animation-delay: 0.2s; }
-        .ai-msg.assistant .ai-typing span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes aiBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-4px)} }
-
-        .ai-input-area {
-            display: flex;
-            gap: 8px;
-            padding: 12px 16px;
-            border-top: 1px solid var(--gray-100);
-            background: var(--gray-50);
-        }
-        .ai-input-area input {
-            flex: 1;
-            padding: 10px 14px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            font-size: 13px;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-        .ai-input-area input:focus { border-color: var(--primary); }
-        .ai-send-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            border: none;
-            background: var(--primary);
-            color: var(--white);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.15s;
-            flex-shrink: 0;
-        }
-        .ai-send-btn:hover { background: var(--primary-dark); }
-        .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .ai-send-btn svg { width: 18px; height: 18px; }
-
-        @media (max-width: 500px) {
-            .ai-panel { width: 100%; right: -105%; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home — YardDesk</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* Inline shimmer for loading values — small, page-specific */
+  .skeleton {
+    display: inline-block;
+    background: linear-gradient(90deg, var(--surface-soft) 0%, var(--surface-muted) 50%, var(--surface-soft) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s infinite;
+    border-radius: 6px;
+    color: transparent;
+    min-width: 60px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
 </head>
 <body>
 <script src="shell.js"></script>
 
 <div class="main">
-    <div class="topbar">
-        <div class="topbar-left">
-            <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </button>
-            <h1>Dashboard</h1>
-        </div>
-        <div class="topbar-actions">
-            <div class="topbar-search-wrap" id="search-container">
-                <div class="topbar-search-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                </div>
-                <input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off">
-                <div class="search-dropdown" id="search-dropdown"></div>
-            </div>
-            <button class="topbar-icon-btn" onclick="loadAll()" title="Refresh">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-            </button>
-            <div style="position:relative">
-                <button class="topbar-icon-btn" title="Notifications" id="notif-btn" onclick="toggleNotifications()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                    <span class="notif-badge" id="notif-badge" style="display:none"></span>
-                </button>
-                <div class="search-dropdown" id="notif-dropdown" style="display:none;right:0;left:auto;min-width:340px;max-height:400px;">
-                    <div style="padding:12px 14px;font-weight:600;font-size:14px;border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center;">
-                        Notifications
-                        <button onclick="markAllRead()" style="font-size:11px;color:var(--green);background:none;border:none;cursor:pointer;font-weight:600;">Mark all read</button>
-                    </div>
-                    <div id="notif-list"><div class="search-empty">Loading...</div></div>
-                </div>
-            </div>
-            <div style="position:relative">
-                <div class="topbar-avatar" title="Account" id="avatar-btn" style="cursor:pointer">TP</div>
-                <div class="search-dropdown" id="avatar-dropdown" style="display:none;right:0;left:auto;min-width:180px;z-index:9999;">
-                    <div style="padding:12px 14px;border-bottom:1px solid var(--gray-100);">
-                        <div style="font-weight:600;font-size:13px;" id="avatar-name">Theresa Pappas</div>
-                    </div>
-                    <a href="settings.html" style="display:block;padding:10px 14px;font-size:13px;color:var(--gray-700);text-decoration:none;" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='none'">Settings</a>
-                    <div onclick="doLogout()" style="padding:10px 14px;font-size:13px;color:#c0392b;cursor:pointer;border-top:1px solid var(--gray-100);" onmouseover="this.style.background='var(--gray-50)'" onmouseout="this.style.background='none'">Log Out</div>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div class="page-content">
+    <section class="home-page">
 
-    <div class="page-content">
-        <!-- Page Title -->
-        <div style="margin-bottom: 24px;">
-            <div style="font-size: 13px; color: var(--gray-400);" id="date-line"></div>
+      <!-- Row 1: Hero -->
+      <div class="dashboard-card home-header">
+        <div class="home-header__content">
+          <div>
+            <p class="section-label">Operations briefing</p>
+            <h1 class="page-title" id="hero-greeting" style="margin-top: 6px;">Good morning</h1>
+            <p class="page-subtitle" id="hero-subtitle" style="margin-top: 8px;">
+              <span class="skeleton">Loading today&rsquo;s context&hellip;</span>
+            </p>
+          </div>
+          <div class="home-header__actions">
+            <a href="quote-generator.html" class="btn btn-secondary">New Quote</a>
+            <a href="new-invoice.html" class="btn btn-secondary">New Invoice</a>
+            <a href="new-job.html" class="btn btn-primary">New Job</a>
+          </div>
         </div>
+      </div>
 
-        <!-- Stat Cards -->
-        <div class="stat-row">
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Revenue This Month</div>
-                    <div class="stat-icon icon-green">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                    </div>
-                </div>
-                <div class="stat-value" id="stat-revenue">--</div>
-                <div class="stat-sub" id="stat-revenue-sub"></div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">YTD Revenue</div>
-                    <div class="stat-icon icon-blue">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                    </div>
-                </div>
-                <div class="stat-value" id="stat-ytd">--</div>
-                <div class="stat-sub" id="stat-ytd-sub"></div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Outstanding Invoices</div>
-                    <div class="stat-icon icon-amber">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    </div>
-                </div>
-                <div class="stat-value" id="stat-outstanding">--</div>
-                <div class="stat-sub" id="stat-outstanding-sub"></div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Total Customers</div>
-                    <div class="stat-icon icon-purple">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    </div>
-                </div>
-                <div class="stat-value" id="stat-customers">--</div>
-                <div class="stat-sub" id="stat-customers-sub"></div>
-            </div>
-        </div>
+      <!-- Row 2: 4-card stats -->
+      <div class="home-stat-grid">
+        <article class="dashboard-card stat-card">
+          <p class="stat-card-label">Revenue This Month</p>
+          <h2 class="stat-card-value" id="stat-revenue"><span class="skeleton">$0</span></h2>
+          <p class="stat-card-meta">collected to date</p>
+        </article>
+        <article class="dashboard-card stat-card">
+          <p class="stat-card-label">Outstanding</p>
+          <h2 class="stat-card-value" id="stat-outstanding"><span class="skeleton">$0</span></h2>
+          <p class="stat-card-meta">open balance</p>
+        </article>
+        <article class="dashboard-card stat-card">
+          <p class="stat-card-label">Pipeline Value</p>
+          <h2 class="stat-card-value" id="stat-pipeline"><span class="skeleton">$0</span></h2>
+          <p class="stat-card-meta">unsigned quote dollars</p>
+        </article>
+        <article class="dashboard-card stat-card">
+          <p class="stat-card-label">Active Clients</p>
+          <h2 class="stat-card-value" id="stat-clients"><span class="skeleton">0</span></h2>
+          <p class="stat-card-meta">current season</p>
+        </article>
+      </div>
 
-        <!-- Workflow Pipeline -->
-        <div class="workflow-pipeline">
-            <a href="quotes.html" class="pipeline-stage">
-                <div class="stage-label">Requests</div>
-                <div class="stage-count" id="pipe-requests">--</div>
-                <div class="stage-value" id="pipe-requests-val"></div>
-                <svg class="pipeline-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </a>
-            <a href="sent-quotes.html" class="pipeline-stage">
-                <div class="stage-label">Quotes</div>
-                <div class="stage-count" id="pipe-quotes">--</div>
-                <div class="stage-value" id="pipe-quotes-val"></div>
-                <svg class="pipeline-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </a>
-            <a href="scheduling.html" class="pipeline-stage">
-                <div class="stage-label">Jobs</div>
-                <div class="stage-count" id="pipe-jobs">--</div>
-                <div class="stage-value" id="pipe-jobs-val"></div>
-                <svg class="pipeline-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </a>
-            <a href="invoices.html" class="pipeline-stage">
-                <div class="stage-label">Invoices</div>
-                <div class="stage-count" id="pipe-invoices">--</div>
-                <div class="stage-value" id="pipe-invoices-val"></div>
-            </a>
+      <!-- Row 3: Two-column main grid -->
+      <div class="home-main-grid">
+        <div class="home-left-stack">
+
+          <!-- Sales pulse -->
+          <article class="dashboard-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Sales pulse</h3>
+                <p class="card-subtitle">Quotes, requests, and signatures</p>
+              </div>
+              <a href="sent-quotes.html" class="card-link">View pipeline →</a>
+            </div>
+            <div class="metric-list metric-list--two">
+              <div class="metric-item">
+                <p class="metric-item-label">New Requests</p>
+                <p class="metric-item-value" id="sales-new-requests">—</p>
+                <p class="metric-item-sub">awaiting first contact</p>
+              </div>
+              <div class="metric-item">
+                <p class="metric-item-label">Quotes Awaiting Decision</p>
+                <p class="metric-item-value" id="sales-pending">—</p>
+                <p class="metric-item-sub">sent or viewed, not signed</p>
+              </div>
+              <div class="metric-item">
+                <p class="metric-item-label">Signed This Month</p>
+                <p class="metric-item-value" id="sales-signed">—</p>
+                <p class="metric-item-sub">contracts in motion</p>
+              </div>
+              <div class="metric-item">
+                <p class="metric-item-label">Pipeline Value</p>
+                <p class="metric-item-value" id="sales-pipeline-value">—</p>
+                <p class="metric-item-sub">unsigned quote dollars</p>
+              </div>
+            </div>
+          </article>
+
+          <!-- Operations today -->
+          <article class="dashboard-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Operations today</h3>
+                <p class="card-subtitle">Schedule and crew load</p>
+              </div>
+              <a href="scheduling.html" class="card-link">Open schedule →</a>
+            </div>
+            <div class="metric-list metric-list--two">
+              <div class="metric-item">
+                <p class="metric-item-label">Jobs Today</p>
+                <p class="metric-item-value" id="ops-today-jobs">—</p>
+                <p class="metric-item-sub" id="ops-today-jobs-sub">scheduled visits</p>
+              </div>
+              <div class="metric-item">
+                <p class="metric-item-label">This Week</p>
+                <p class="metric-item-value" id="ops-week-jobs">—</p>
+                <p class="metric-item-sub">job load through Sunday</p>
+              </div>
+              <div class="metric-item">
+                <p class="metric-item-label">Crews Active</p>
+                <p class="metric-item-value" id="ops-crews">—</p>
+                <p class="metric-item-sub">teams on the schedule</p>
+              </div>
+              <div class="metric-item">
+                <p class="metric-item-label">Unassigned</p>
+                <p class="metric-item-value" id="ops-unassigned">—</p>
+                <p class="metric-item-sub">jobs without a crew</p>
+              </div>
+            </div>
+          </article>
         </div>
 
-        <!-- Quick Access Features -->
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;" class="feature-cards">
-            <a href="customers.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
-                <div style="width:44px;height:44px;border-radius:10px;background:var(--green-bg);display:flex;align-items:center;justify-content:center;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                </div>
+        <div class="home-right-stack">
+
+          <!-- Needs attention -->
+          <article class="dashboard-card dashboard-card--attention">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Needs attention</h3>
+                <p class="card-subtitle">Items that need action now</p>
+              </div>
+            </div>
+            <div class="attention-list">
+              <a class="attention-item" href="invoices.html?status=overdue">
                 <div>
-                    <div style="font-size:13px;font-weight:700;">Manage Customers</div>
-                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Client details, job notes & history in one place</div>
+                  <p class="attention-item-meta">Billing</p>
+                  <p class="attention-item-title">Overdue invoices</p>
                 </div>
-            </a>
-            <a href="dispatch.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
-                <div style="width:44px;height:44px;border-radius:10px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
+                <div class="attention-item-count urgent" id="attn-overdue">—</div>
+              </a>
+              <a class="attention-item" href="sent-quotes.html?status=signed">
                 <div>
-                    <div style="font-size:13px;font-weight:700;">Schedule & Dispatch</div>
-                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Assign jobs, optimize routes & update crews in real-time</div>
+                  <p class="attention-item-meta">Sales</p>
+                  <p class="attention-item-title">Pending signatures</p>
                 </div>
-            </a>
-            <a href="invoices.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
-                <div style="width:44px;height:44px;border-radius:10px;background:var(--amber-bg);display:flex;align-items:center;justify-content:center;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                </div>
+                <div class="attention-item-count" id="attn-signatures">—</div>
+              </a>
+              <a class="attention-item" href="sent-quotes.html?status=changes_requested">
                 <div>
-                    <div style="font-size:13px;font-weight:700;">Invoices & Payments</div>
-                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Automate billing & make it easy for customers to pay</div>
+                  <p class="attention-item-meta">Sales</p>
+                  <p class="attention-item-title">Quote change requests</p>
                 </div>
-            </a>
-            <a href="marketing.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
-                <div style="width:44px;height:44px;border-radius:10px;background:#fce7f3;display:flex;align-items:center;justify-content:center;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                </div>
+                <div class="attention-item-count" id="attn-changes">—</div>
+              </a>
+              <a class="attention-item" href="dispatch.html">
                 <div>
-                    <div style="font-size:13px;font-weight:700;">Follow-ups & Reminders</div>
-                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Reduce no-shows & stay on top of communication</div>
+                  <p class="attention-item-meta">Operations</p>
+                  <p class="attention-item-title">Unassigned jobs today</p>
                 </div>
-            </a>
-            <a href="reports.html" style="background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:20px 16px;text-decoration:none;color:var(--gray-700);transition:all 0.15s;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'">
-                <div style="width:44px;height:44px;border-radius:10px;background:#ede9fe;display:flex;align-items:center;justify-content:center;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                </div>
+                <div class="attention-item-count" id="attn-unassigned">—</div>
+              </a>
+              <a class="attention-item" href="work-requests.html">
                 <div>
-                    <div style="font-size:13px;font-weight:700;">Track Performance</div>
-                    <div style="font-size:11px;color:var(--gray-400);margin-top:3px;line-height:1.4;">Reports for profitability & business growth</div>
+                  <p class="attention-item-meta">Inbox</p>
+                  <p class="attention-item-title">Work requests open</p>
                 </div>
-            </a>
+                <div class="attention-item-count" id="attn-requests">—</div>
+              </a>
+            </div>
+          </article>
         </div>
+      </div>
 
-        <!-- Revenue Sparkline + Quotes -->
-        <div class="sparkline-row">
-            <div class="sparkline-card">
-                <div class="spark-header">
-                    <div>
-                        <div class="spark-title">6-Month Revenue</div>
-                        <div class="spark-value" id="spark-total">--</div>
-                    </div>
-                    <div class="spark-sub" id="spark-trend"></div>
-                </div>
-                <div class="spark-bar-container" id="spark-bars"></div>
-            </div>
-            <div class="sparkline-card">
-                <div class="spark-header">
-                    <div>
-                        <div class="spark-title">Quotes This Month</div>
-                        <div class="spark-value" id="stat-quotes">--</div>
-                    </div>
-                </div>
-                <div class="stat-sub" id="stat-quotes-sub" style="margin-top:4px"></div>
-                <div style="margin-top:12px">
-                    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-500);margin-bottom:4px">
-                        <span>Conversion Rate</span>
-                        <span id="conversion-rate">--</span>
-                    </div>
-                    <div style="height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden">
-                        <div id="conversion-bar" style="height:100%;background:var(--primary);border-radius:3px;width:0%;transition:width 0.5s"></div>
-                    </div>
-                </div>
-            </div>
+      <!-- Row 4: Recent activity (full-width) -->
+      <article class="dashboard-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Recent activity</h3>
+            <p class="card-subtitle">Latest activity across sales, billing, and ops</p>
+          </div>
+          <a href="email-log.html" class="card-link">Full log →</a>
         </div>
-
-        <!-- Action Required -->
-        <div class="action-section" id="action-section" style="display:none;">
-            <h3>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Needs Your Attention
-            </h3>
-            <div class="action-items" id="action-items"></div>
+        <div class="activity-list" id="activity-list">
+          <div class="activity-item">
+            <div class="activity-item-content">
+              <p class="activity-item-text"><span class="skeleton">Loading recent activity&hellip;</span></p>
+            </div>
+          </div>
         </div>
+      </article>
 
-        <!-- Today's Schedule -->
-        <div id="today-schedule-section" style="display:none; margin-bottom: 24px;">
-            <div class="schedule-header">
-                <h3>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    Today's Schedule
-                </h3>
-                <a href="scheduling.html">View Full Schedule</a>
-            </div>
-            <div class="schedule-jobs" id="today-jobs"></div>
-        </div>
-
-        <!-- Workflow Columns -->
-        <div class="workflow-columns">
-            <div class="wf-col">
-                <div class="wf-col-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        Requests
-                    </h3>
-                    <a href="quotes.html">View All</a>
-                </div>
-                <div class="wf-rows">
-                    <a href="quotes.html?status=new" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">New</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-new">--</span></div>
-                    </a>
-                    <a href="quotes.html?status=contacted" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">Contacted</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-contacted">--</span></div>
-                    </a>
-                    <a href="quotes.html?status=quoted" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--purple)"></div><span class="wf-row-label">Quoted</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-req-quoted">--</span></div>
-                    </a>
-                </div>
-                <a href="quotes.html" class="wf-cta">Review Requests</a>
-            </div>
-
-            <div class="wf-col">
-                <div class="wf-col-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                        Quotes
-                    </h3>
-                    <a href="sent-quotes.html">View All</a>
-                </div>
-                <div class="wf-rows">
-                    <a href="sent-quotes.html?status=sent" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">Sent / Viewed</span></div>
-                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-sent-amt"></span><span class="wf-row-count" id="wf-q-sent">--</span></div>
-                    </a>
-                    <a href="sent-quotes.html?status=signed" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--green)"></div><span class="wf-row-label">Signed</span></div>
-                        <div class="wf-row-right"><span class="wf-row-amount" id="wf-q-signed-amt"></span><span class="wf-row-count success" id="wf-q-signed">--</span></div>
-                    </a>
-                    <a href="sent-quotes.html?status=changes_requested" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">Changes Requested</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count highlight" id="wf-q-changes">--</span></div>
-                    </a>
-                    <a href="sent-quotes.html?status=contracted" class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--primary)"></div><span class="wf-row-label">Contracted</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count success" id="wf-q-contracted">--</span></div>
-                    </a>
-                </div>
-                <a href="quote-generator.html" class="wf-cta">Create New Quote</a>
-            </div>
-
-            <div class="wf-col">
-                <div class="wf-col-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        Jobs
-                    </h3>
-                    <a href="scheduling.html">View All</a>
-                </div>
-                <div class="wf-rows">
-                    <div class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--blue)"></div><span class="wf-row-label">Today</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-today">--</span></div>
-                    </div>
-                    <div class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--amber)"></div><span class="wf-row-label">This Week</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-week">--</span></div>
-                    </div>
-                    <div class="wf-row">
-                        <div class="wf-row-left"><div class="wf-row-dot" style="background:var(--green)"></div><span class="wf-row-label">Pending</span></div>
-                        <div class="wf-row-right"><span class="wf-row-count" id="wf-j-pending">--</span></div>
-                    </div>
-                </div>
-                <a href="scheduling.html" class="wf-cta">View Schedule</a>
-            </div>
-        </div>
-
-        <!-- Bottom Grid -->
-        <div class="bottom-grid">
-            <div class="card">
-                <div class="card-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Activity Feed
-                    </h3>
-                </div>
-                <div class="card-body" style="padding: 8px;">
-                    <div id="activity-feed"><div class="loading"><div class="spinner"></div></div></div>
-                </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:16px;">
-                <div class="card">
-                    <div class="card-header">
-                        <h3>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                            Recent Messages
-                        </h3>
-                        <a href="communications.html">View All</a>
-                    </div>
-                    <div class="card-body" style="padding: 8px;">
-                        <div id="messages-list"><div class="loading"><div class="spinner"></div></div></div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <h3>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                            Recent Customers
-                        </h3>
-                        <a href="customers.html">View All</a>
-                    </div>
-                    <div class="card-body" style="padding: 8px;">
-                        <div id="customers-list"><div class="loading"><div class="spinner"></div></div></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Quick New Customer Modal -->
-<div class="modal-overlay" id="customer-modal" onclick="if(event.target===this)closeModal('customer-modal')">
-    <div class="modal">
-        <div class="modal-header">
-            <h2>New Customer</h2>
-            <button class="modal-close" onclick="closeModal('customer-modal')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <form id="customer-form" onsubmit="return submitCustomer(event)">
-            <div class="modal-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Full Name *</label>
-                        <input type="text" id="cust-name" required placeholder="John Smith">
-                    </div>
-                    <div class="form-group">
-                        <label>Type</label>
-                        <select id="cust-type">
-                            <option value="residential">Residential</option>
-                            <option value="commercial">Commercial</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="cust-email" placeholder="john@example.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Phone</label>
-                        <input type="tel" id="cust-phone" placeholder="(555) 123-4567">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Address</label>
-                    <input type="text" id="cust-address" placeholder="123 Main St, City, State">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('customer-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary" id="cust-submit-btn">Create Customer</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Quick New Job Modal -->
-<div class="modal-overlay" id="job-modal" onclick="if(event.target===this)closeModal('job-modal')">
-    <div class="modal">
-        <div class="modal-header">
-            <h2>New Job</h2>
-            <button class="modal-close" onclick="closeModal('job-modal')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <form id="job-form" onsubmit="return submitJob(event)">
-            <div class="modal-body">
-                <div class="form-group autocomplete-wrap">
-                    <label>Customer *</label>
-                    <input type="text" id="job-customer-search" placeholder="Search customers..." autocomplete="off" required>
-                    <input type="hidden" id="job-customer-id">
-                    <div class="autocomplete-list" id="job-customer-list"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Date *</label>
-                        <input type="date" id="job-date" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Service Type *</label>
-                        <input type="text" id="job-service" required placeholder="Mowing, Cleanup, etc.">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Address *</label>
-                    <input type="text" id="job-address" required placeholder="Service address">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Crew</label>
-                        <select id="job-crew"><option value="">-- Select Crew --</option></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Price</label>
-                        <input type="number" id="job-price" step="0.01" placeholder="0.00">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Notes</label>
-                    <textarea id="job-notes" placeholder="Special instructions..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('job-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary" id="job-submit-btn">Create Job</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Quick New Invoice Modal -->
-<div class="modal-overlay" id="invoice-modal" onclick="if(event.target===this)closeModal('invoice-modal')">
-    <div class="modal" style="max-width:600px">
-        <div class="modal-header">
-            <h2>New Invoice</h2>
-            <button class="modal-close" onclick="closeModal('invoice-modal')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-        <form id="invoice-form" onsubmit="return submitInvoice(event)">
-            <div class="modal-body">
-                <div class="form-group autocomplete-wrap">
-                    <label>Customer *</label>
-                    <input type="text" id="inv-customer-search" placeholder="Search customers..." autocomplete="off" required>
-                    <input type="hidden" id="inv-customer-id">
-                    <input type="hidden" id="inv-customer-email">
-                    <div class="autocomplete-list" id="inv-customer-list"></div>
-                </div>
-                <div class="form-group">
-                    <label>Due Date</label>
-                    <input type="date" id="inv-due-date">
-                </div>
-                <div class="form-group">
-                    <label>Line Items</label>
-                    <table class="line-items-table">
-                        <thead><tr><th style="width:60%">Description</th><th style="width:30%">Amount</th><th style="width:10%"></th></tr></thead>
-                        <tbody id="inv-line-items">
-                            <tr>
-                                <td><input type="text" class="li-desc" placeholder="Service description"></td>
-                                <td><input type="number" class="li-amt" step="0.01" placeholder="0.00" oninput="calcInvoiceTotal()"></td>
-                                <td><button type="button" class="li-remove" onclick="removeLineItem(this)" title="Remove">&times;</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <button type="button" class="add-line-btn" onclick="addLineItem()">+ Add Line Item</button>
-                </div>
-                <div class="invoice-total-row">
-                    <span>Total:</span>
-                    <span id="inv-total-display">$0.00</span>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary" id="inv-submit-btn">Create Invoice</button>
-            </div>
-        </form>
-    </div>
+    </section>
+  </div>
 </div>
 
 <script>
-// Avatar dropdown & logout
-(function() {
-    var btn = document.getElementById('avatar-btn');
-    var dd = document.getElementById('avatar-dropdown');
-    if (btn && dd) {
-        btn.addEventListener('click', function(e) { e.stopPropagation(); dd.style.display = dd.style.display === 'none' ? 'block' : 'none'; });
-        document.addEventListener('click', function() { dd.style.display = 'none'; });
-        dd.addEventListener('click', function(e) { e.stopPropagation(); });
-    }
-    var nameEl = document.getElementById('avatar-name');
-    if (nameEl) nameEl.textContent = localStorage.getItem('adminName') || 'Admin';
+'use strict';
+
+// ── Helpers ─────────────────────────────────────────────────
+function money(n) {
+  if (n == null || isNaN(n)) return '$0';
+  var num = Number(n);
+  if (Math.abs(num) >= 10000) return '$' + Math.round(num).toLocaleString();
+  return '$' + num.toLocaleString(undefined, { minimumFractionDigits: num % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
+}
+function num(n) { return n == null ? '0' : Number(n).toLocaleString(); }
+function setText(id, value) { var el = document.getElementById(id); if (el) el.innerHTML = value; }
+function timeAgo(iso) {
+  if (!iso) return '';
+  var diffMs = Date.now() - new Date(iso).getTime();
+  var sec = Math.max(1, Math.round(diffMs / 1000));
+  if (sec < 60) return sec + 's ago';
+  var min = Math.round(sec / 60);
+  if (min < 60) return min + 'm ago';
+  var hr = Math.round(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  var day = Math.round(hr / 24);
+  if (day < 30) return day + 'd ago';
+  return new Date(iso).toLocaleDateString();
+}
+
+async function getJson(url) {
+  try {
+    var res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+
+// ── Hero greeting ───────────────────────────────────────────
+(function setGreeting() {
+  var hour = new Date().getHours();
+  var part = hour < 12 ? 'morning' : (hour < 17 ? 'afternoon' : 'evening');
+  var first = (localStorage.getItem('adminName') || '').split(' ')[0] || 'Theresa';
+  document.getElementById('hero-greeting').textContent = 'Good ' + part + ', ' + first;
 })();
-function doLogout() {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminName');
-    localStorage.removeItem('adminEmail');
-    window.location.href = '/login.html';
-}
 
-let searchDebounceTimer = null;
+// ── Hero subtitle: live operating context ───────────────────
+async function loadHeroSubtitle() {
+  var [today, sentQuotes, requests] = await Promise.all([
+    getJson('/api/jobs?date=' + new Date().toISOString().slice(0, 10)),
+    getJson('/api/sent-quotes?limit=500'),
+    getJson('/api/work-requests?status=pending'),
+  ]);
 
-function esc(s) {
-    return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
-}
+  var jobsToday = today && Array.isArray(today.jobs) ? today.jobs.length : 0;
 
-function fmtPhone(p) {
-    if (!p) return 'Unknown';
-    const d = p.replace(/\D/g,'');
-    if (d.length === 11 && d[0] === '1') return '(' + d.slice(1,4) + ') ' + d.slice(4,7) + '-' + d.slice(7);
-    if (d.length === 10) return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
-    return p;
-}
-
-function timeAgo(dateStr) {
-    if (!dateStr) return '';
-    const now = new Date();
-    const d = new Date(dateStr);
-    const diffMs = now - d;
-    const mins = Math.floor(diffMs / 60000);
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return mins + 'm ago';
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return hrs + 'h ago';
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return days + 'd ago';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function fmtMoney(n) {
-    if (!n || isNaN(n)) return '$0';
-    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function renderItem(name, sub, status, href) {
-    return '<a href="' + href + '" class="recent-item">' +
-        '<div class="recent-item-info">' +
-            '<div class="recent-item-name">' + esc(name) + '</div>' +
-            '<div class="recent-item-sub">' + esc(sub) + '</div>' +
-        '</div>' +
-        '<span class="status-badge status-' + status + '">' + status + '</span>' +
-    '</a>';
-}
-
-function showEmpty(el, msg) {
-    el.innerHTML = '<div class="empty-state">' + msg + '</div>';
-}
-
-function showToast(msg, isError) {
-    var t = document.createElement('div');
-    t.className = 'toast' + (isError ? ' toast-error' : '');
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(function() { t.remove(); }, 3000);
-}
-
-// Modal Handling
-function openModal(id) {
-    var el = document.getElementById(id);
-    if (el) el.classList.add('visible');
-    var qcm = document.getElementById('quick-create-menu');
-    if (qcm) qcm.classList.remove('visible');
-    if (id === 'job-modal') loadCrews();
-}
-
-function closeModal(id) {
-    document.getElementById(id).classList.remove('visible');
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-overlay.visible').forEach(function(m) { m.classList.remove('visible'); });
-        closeSearch();
-    }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('search-input').focus(); }
-});
-
-// Quick-Create Dropdown (may be handled by shell.js)
-var _qcBtn = document.getElementById('quick-create-btn');
-var _qcMenu = document.getElementById('quick-create-menu');
-var _qcOverlay = document.getElementById('qc-overlay');
-if (_qcBtn && _qcMenu && _qcOverlay) {
-    _qcBtn.addEventListener('click', function() {
-        _qcMenu.classList.toggle('visible');
-        _qcOverlay.classList.toggle('visible');
+  var pendingSigs = 0;
+  if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+    sentQuotes.quotes.forEach(function(q) {
+      if (['sent', 'viewed', 'signed'].indexOf(q.status) >= 0 && !q.contract_signed_at) pendingSigs++;
     });
-    document.addEventListener('click', function(e) {
-        if (!_qcBtn.contains(e.target) && !_qcMenu.contains(e.target)) {
-            _qcMenu.classList.remove('visible');
-            _qcOverlay.classList.remove('visible');
-        }
+  }
+
+  var openRequests = 0;
+  if (requests && Array.isArray(requests.requests)) openRequests = requests.requests.length;
+  else if (requests && requests.total != null) openRequests = requests.total;
+
+  var bits = [];
+  bits.push(jobsToday + ' job' + (jobsToday === 1 ? '' : 's') + ' scheduled today');
+  bits.push(pendingSigs + ' signature' + (pendingSigs === 1 ? '' : 's') + ' pending');
+  bits.push(openRequests + ' work request' + (openRequests === 1 ? '' : 's') + ' open');
+  document.getElementById('hero-subtitle').textContent = bits.join(', ') + '.';
+}
+
+// ── Top metrics ─────────────────────────────────────────────
+async function loadStats() {
+  var [finance, invStats, custStats, sentQuotes] = await Promise.all([
+    getJson('/api/finance/summary'),
+    getJson('/api/invoices/stats'),
+    getJson('/api/customers/stats'),
+    getJson('/api/sent-quotes?limit=500'),
+  ]);
+
+  // Revenue this month
+  var revenue = finance && (finance.paid_this_month || finance.revenue_this_month);
+  if (revenue == null && invStats) revenue = invStats.paid_this_month || 0;
+  setText('stat-revenue', revenue != null ? money(revenue) : '—');
+
+  // Outstanding
+  var outstanding = invStats && (invStats.total_outstanding || invStats.outstanding || invStats.balance_due);
+  if (outstanding == null && finance) outstanding = finance.outstanding;
+  setText('stat-outstanding', outstanding != null ? money(outstanding) : '—');
+
+  // Pipeline value (sum of unsigned sent_quotes)
+  var pipeline = 0;
+  if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+    sentQuotes.quotes.forEach(function(q) {
+      if (q.status && ['sent', 'viewed', 'pending', 'changes_requested'].indexOf(q.status) >= 0) {
+        pipeline += parseFloat(q.total) || 0;
+      }
     });
-    _qcOverlay.addEventListener('click', function() {
-        _qcMenu.classList.remove('visible');
-        _qcOverlay.classList.remove('visible');
+  }
+  setText('stat-pipeline', money(pipeline));
+
+  // Active clients
+  var clients = custStats && (custStats.total_active || custStats.active || custStats.total);
+  setText('stat-clients', clients != null ? num(clients) : '—');
+}
+
+// ── Sales pulse ─────────────────────────────────────────────
+async function loadSalesPulse() {
+  var [requests, sentQuotes] = await Promise.all([
+    getJson('/api/quotes?limit=500'),
+    getJson('/api/sent-quotes?limit=500'),
+  ]);
+
+  var newReqs = 0, signed = 0, pending = 0, pipelineDollars = 0;
+  if (requests && Array.isArray(requests.quotes)) {
+    requests.quotes.forEach(function(r) { if (r.status === 'new' || !r.status) newReqs++; });
+  }
+
+  var monthStart = new Date();
+  monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+
+  if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+    sentQuotes.quotes.forEach(function(q) {
+      if (q.status && ['sent', 'viewed', 'pending', 'changes_requested'].indexOf(q.status) >= 0) {
+        pending++;
+        pipelineDollars += parseFloat(q.total) || 0;
+      }
+      if (q.status && ['signed', 'contracted'].indexOf(q.status) >= 0) {
+        var when = q.contract_signed_at || q.updated_at || q.created_at;
+        if (when && new Date(when) >= monthStart) signed++;
+      }
     });
+  }
+
+  setText('sales-new-requests', num(newReqs));
+  setText('sales-pending', num(pending));
+  setText('sales-signed', num(signed));
+  setText('sales-pipeline-value', money(pipelineDollars));
 }
 
-// Customer Autocomplete (shared)
-var customerAutoTimer = null;
-function setupCustomerAutocomplete(inputId, listId, customerIdField, emailField) {
-    var input = document.getElementById(inputId);
-    var list = document.getElementById(listId);
-    input.addEventListener('input', function() {
-        clearTimeout(customerAutoTimer);
-        var q = input.value.trim();
-        if (q.length < 2) { list.classList.remove('visible'); return; }
-        customerAutoTimer = setTimeout(async function() {
-            try {
-                var res = await fetch('/api/customers/search?q=' + encodeURIComponent(q) + '&limit=8');
-                var data = await res.json();
-                var customers = data.customers || [];
-                if (!customers.length) {
-                    list.innerHTML = '<div class="autocomplete-option" style="color:var(--gray-400)">No customers found</div>';
-                    list.classList.add('visible');
-                    return;
-                }
-                list.innerHTML = customers.map(function(c) {
-                    return '<div class="autocomplete-option" data-id="' + c.id + '" data-name="' + esc(c.name||'') + '" data-email="' + esc(c.email||'') + '" data-address="' + esc(c.street||c.address||'') + '">' +
-                        '<div>' + esc(c.name||'Unknown') + '</div>' +
-                        '<div class="ac-sub">' + esc(c.email||'') + (c.city ? ' - ' + esc(c.city) : '') + '</div>' +
-                    '</div>';
-                }).join('');
-                list.classList.add('visible');
-                list.querySelectorAll('.autocomplete-option').forEach(function(opt) {
-                    opt.addEventListener('click', function() {
-                        input.value = opt.dataset.name;
-                        document.getElementById(customerIdField).value = opt.dataset.id;
-                        if (emailField) document.getElementById(emailField).value = opt.dataset.email || '';
-                        var addrField = input.closest('form').querySelector('[id$="-address"]');
-                        if (addrField && opt.dataset.address && !addrField.value) addrField.value = opt.dataset.address;
-                        list.classList.remove('visible');
-                    });
-                });
-            } catch (e) { list.classList.remove('visible'); }
-        }, 300);
+// ── Operations today ────────────────────────────────────────
+async function loadOperations() {
+  var today = new Date().toISOString().slice(0, 10);
+  var [todayJobs, dashboard, crews] = await Promise.all([
+    getJson('/api/jobs?date=' + today),
+    getJson('/api/jobs/dashboard'),
+    getJson('/api/crews?active_only=true'),
+  ]);
+
+  var todayCount = 0, unassigned = 0;
+  if (todayJobs && Array.isArray(todayJobs.jobs)) {
+    todayCount = todayJobs.jobs.length;
+    todayJobs.jobs.forEach(function(j) { if (!j.crew_assigned) unassigned++; });
+  }
+
+  var weekCount = '—';
+  if (dashboard) {
+    weekCount = dashboard.week_count != null ? num(dashboard.week_count) : (dashboard.this_week != null ? num(dashboard.this_week) : '—');
+  }
+
+  var crewCount = (crews && Array.isArray(crews.crews)) ? crews.crews.length : '—';
+
+  setText('ops-today-jobs', num(todayCount));
+  document.getElementById('ops-today-jobs-sub').textContent = unassigned > 0 ? unassigned + ' unassigned' : 'all assigned';
+  setText('ops-week-jobs', weekCount);
+  setText('ops-crews', crewCount);
+  setText('ops-unassigned', num(unassigned));
+  setText('attn-unassigned', num(unassigned));
+}
+
+// ── Attention rail ──────────────────────────────────────────
+async function loadAttention() {
+  var [requests, sentQuotes, invStats] = await Promise.all([
+    getJson('/api/quotes?limit=500'),
+    getJson('/api/sent-quotes?limit=500'),
+    getJson('/api/invoices/stats'),
+  ]);
+
+  var openReqs = 0;
+  if (requests && Array.isArray(requests.quotes)) {
+    requests.quotes.forEach(function(r) {
+      if (r.status !== 'closed' && r.status !== 'won' && r.status !== 'lost') openReqs++;
     });
-    document.addEventListener('click', function(e) {
-        if (!input.contains(e.target) && !list.contains(e.target)) list.classList.remove('visible');
+  }
+  var awaitingSig = 0, changesReq = 0;
+  if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+    sentQuotes.quotes.forEach(function(q) {
+      if (['sent', 'viewed', 'signed'].indexOf(q.status) >= 0 && !q.contract_signed_at) awaitingSig++;
+      if (q.status === 'changes_requested') changesReq++;
     });
+  }
+  var overdue = invStats && (invStats.overdue_count || invStats.overdue || 0);
+  setText('attn-overdue', num(overdue));
+  setText('attn-signatures', num(awaitingSig));
+  setText('attn-changes', num(changesReq));
+  setText('attn-requests', num(openReqs));
 }
 
-// Submit Customer
-async function submitCustomer(e) {
-    e.preventDefault();
-    var btn = document.getElementById('cust-submit-btn');
-    btn.disabled = true; btn.textContent = 'Creating...';
-    try {
-        var res = await fetch('/api/customers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: document.getElementById('cust-name').value.trim(),
-                email: document.getElementById('cust-email').value.trim(),
-                phone: document.getElementById('cust-phone').value.trim(),
-                street: document.getElementById('cust-address').value.trim(),
-                customer_type: document.getElementById('cust-type').value,
-                status: 'active'
-            })
-        });
-        var data = await res.json();
-        if (data.success || data.customer) {
-            showToast('Customer created successfully');
-            closeModal('customer-modal');
-            document.getElementById('customer-form').reset();
-            loadCustomers();
-        } else {
-            showToast(data.error || 'Failed to create customer', true);
-        }
-    } catch (err) {
-        showToast('Error creating customer', true);
-    }
-    btn.disabled = false; btn.textContent = 'Create Customer';
-    return false;
+// ── Recent activity ─────────────────────────────────────────
+async function loadActivity() {
+  var feed = await getJson('/api/dashboard/activity-feed');
+  var el = document.getElementById('activity-list');
+  if (!feed || !feed.events || !feed.events.length) {
+    el.innerHTML = '<div class="activity-item"><div class="activity-item-content"><p class="activity-item-text" style="color:var(--muted)">No recent activity yet.</p></div></div>';
+    return;
+  }
+  el.innerHTML = feed.events.slice(0, 8).map(function(ev) {
+    var text = ev.text || ev.message || ev.description || ev.title || 'Activity';
+    var when = ev.created_at || ev.timestamp || ev.at;
+    return '<div class="activity-item">' +
+           '  <div class="activity-item-dot"></div>' +
+           '  <div class="activity-item-content">' +
+           '    <p class="activity-item-text">' + text + '</p>' +
+           '    <p class="activity-item-time">' + timeAgo(when) + '</p>' +
+           '  </div>' +
+           '</div>';
+  }).join('');
 }
 
-// Load Crews
-async function loadCrews() {
-    try {
-        var res = await fetch('/api/crews');
-        var data = await res.json();
-        var crews = data.crews || [];
-        var sel = document.getElementById('job-crew');
-        sel.innerHTML = '<option value="">-- Select Crew --</option>';
-        crews.forEach(function(c) {
-            sel.innerHTML += '<option value="' + esc(c.name || c.crew_name || '') + '">' + esc(c.name || c.crew_name || 'Crew #'+c.id) + '</option>';
-        });
-    } catch (e) {}
-}
-
-// Submit Job
-async function submitJob(e) {
-    e.preventDefault();
-    var btn = document.getElementById('job-submit-btn');
-    btn.disabled = true; btn.textContent = 'Creating...';
-    try {
-        var res = await fetch('/api/jobs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                customer_name: document.getElementById('job-customer-search').value.trim(),
-                customer_id: document.getElementById('job-customer-id').value || null,
-                job_date: document.getElementById('job-date').value,
-                service_type: document.getElementById('job-service').value.trim(),
-                address: document.getElementById('job-address').value.trim(),
-                crew_assigned: document.getElementById('job-crew').value || null,
-                service_price: parseFloat(document.getElementById('job-price').value) || 0,
-                special_notes: document.getElementById('job-notes').value.trim(),
-                status: 'pending'
-            })
-        });
-        var data = await res.json();
-        if (data.success || data.job) {
-            showToast('Job created successfully');
-            closeModal('job-modal');
-            document.getElementById('job-form').reset();
-            loadJobsColumn();
-            loadTodaySchedule();
-        } else {
-            showToast(data.error || 'Failed to create job', true);
-        }
-    } catch (err) {
-        showToast('Error creating job', true);
-    }
-    btn.disabled = false; btn.textContent = 'Create Job';
-    return false;
-}
-
-// Invoice Line Items
-function addLineItem() {
-    var tbody = document.getElementById('inv-line-items');
-    var tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="text" class="li-desc" placeholder="Service description"></td>' +
-        '<td><input type="number" class="li-amt" step="0.01" placeholder="0.00" oninput="calcInvoiceTotal()"></td>' +
-        '<td><button type="button" class="li-remove" onclick="removeLineItem(this)" title="Remove">&times;</button></td>';
-    tbody.appendChild(tr);
-}
-
-function removeLineItem(btn) {
-    var tbody = document.getElementById('inv-line-items');
-    if (tbody.children.length > 1) { btn.closest('tr').remove(); calcInvoiceTotal(); }
-}
-
-function calcInvoiceTotal() {
-    var total = 0;
-    document.querySelectorAll('#inv-line-items .li-amt').forEach(function(inp) { total += parseFloat(inp.value) || 0; });
-    document.getElementById('inv-total-display').textContent = '$' + total.toFixed(2);
-}
-
-// Submit Invoice
-async function submitInvoice(e) {
-    e.preventDefault();
-    var btn = document.getElementById('inv-submit-btn');
-    btn.disabled = true; btn.textContent = 'Creating...';
-    try {
-        var lineItems = [];
-        document.querySelectorAll('#inv-line-items tr').forEach(function(row) {
-            var desc = row.querySelector('.li-desc').value.trim();
-            var amt = parseFloat(row.querySelector('.li-amt').value) || 0;
-            if (desc || amt) lineItems.push({ description: desc, amount: amt });
-        });
-        var total = lineItems.reduce(function(s, li) { return s + li.amount; }, 0);
-        var res = await fetch('/api/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                customer_id: document.getElementById('inv-customer-id').value || null,
-                customer_name: document.getElementById('inv-customer-search').value.trim(),
-                customer_email: document.getElementById('inv-customer-email').value || '',
-                subtotal: total,
-                total: total,
-                due_date: document.getElementById('inv-due-date').value || null,
-                line_items: lineItems
-            })
-        });
-        var data = await res.json();
-        if (data.success || data.invoice) {
-            showToast('Invoice created successfully');
-            closeModal('invoice-modal');
-            document.getElementById('invoice-form').reset();
-            document.getElementById('inv-total-display').textContent = '$0.00';
-            document.getElementById('inv-line-items').innerHTML =
-                '<tr><td><input type="text" class="li-desc" placeholder="Service description"></td>' +
-                '<td><input type="number" class="li-amt" step="0.01" placeholder="0.00" oninput="calcInvoiceTotal()"></td>' +
-                '<td><button type="button" class="li-remove" onclick="removeLineItem(this)" title="Remove">&times;</button></td></tr>';
-            loadStatCards();
-        } else {
-            showToast(data.error || 'Failed to create invoice', true);
-        }
-    } catch (err) {
-        showToast('Error creating invoice', true);
-    }
-    btn.disabled = false; btn.textContent = 'Create Invoice';
-    return false;
-}
-
-// Date Display
-function updateDate() {
-    var now = new Date();
-    document.getElementById('date-line').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-// Search
-var searchInput = document.getElementById('search-input');
-var searchDropdown = document.getElementById('search-dropdown');
-
-function closeSearch() { searchDropdown.classList.remove('visible'); }
-
-document.addEventListener('click', function(e) {
-    if (!document.getElementById('search-container').contains(e.target)) closeSearch();
-});
-
-searchInput.addEventListener('input', function(e) {
-    var query = e.target.value.trim();
-    if (query.length < 2) { closeSearch(); return; }
-    clearTimeout(searchDebounceTimer);
-    searchDropdown.innerHTML = '<div class="search-empty">Searching...</div>';
-    searchDropdown.classList.add('visible');
-    searchDebounceTimer = setTimeout(function() { performSearch(query); }, 300);
-});
-
-async function performSearch(query) {
-    try {
-        var [cRes, qRes, pRes] = await Promise.all([
-            fetch('/api/customers?search=' + encodeURIComponent(query) + '&limit=5').catch(function() { return null; }),
-            fetch('/api/sent-quotes?search=' + encodeURIComponent(query) + '&limit=5').catch(function() { return null; }),
-            fetch('/api/properties?search=' + encodeURIComponent(query) + '&limit=5').catch(function() { return null; })
-        ]);
-        var customers = (cRes && cRes.ok ? await cRes.json() : {}).customers || [];
-        var quotes = (qRes && qRes.ok ? await qRes.json() : {}).quotes || [];
-        var properties = (pRes && pRes.ok ? await pRes.json() : {}).properties || [];
-        var html = '';
-        if (customers.length) {
-            html += '<div class="search-group"><div class="search-group-title">Customers</div>';
-            customers.forEach(function(c) { html += '<a href="customer-detail.html?id=' + c.id + '" class="search-item">' + esc(c.name || 'Unknown') + '</a>'; });
-            html += '</div>';
-        }
-        if (quotes.length) {
-            html += '<div class="search-group"><div class="search-group-title">Quotes</div>';
-            quotes.forEach(function(q) { html += '<a href="sent-quotes.html?quote=' + q.id + '" class="search-item">' + esc(q.customer_name || 'Unknown') + '</a>'; });
-            html += '</div>';
-        }
-        if (properties.length) {
-            html += '<div class="search-group"><div class="search-group-title">Properties</div>';
-            properties.forEach(function(p) { html += '<a href="properties.html?id=' + p.id + '" class="search-item">' + esc(p.property_name || p.street || 'Unknown') + '</a>'; });
-            html += '</div>';
-        }
-        searchDropdown.innerHTML = html || '<div class="search-empty">No results found</div>';
-    } catch (e) {
-        searchDropdown.innerHTML = '<div class="search-empty">Search error</div>';
-    }
-}
-
-// Data Loading
-async function loadAll() {
-    loadStatCards();
-    loadRequestsColumn();
-    loadQuotesColumn();
-    loadJobsColumn();
-    loadMessages();
-    loadCustomers();
-    loadTodaySchedule();
-    loadActivityFeed();
-    loadActionItems();
-    loadPipeline();
-}
-
-async function loadPipeline() {
-    try {
-        var [reqRes, quoteRes, jobRes, invRes] = await Promise.all([
-            fetch('/api/quotes?limit=500').catch(function() { return null; }),
-            fetch('/api/sent-quotes?limit=500').catch(function() { return null; }),
-            fetch('/api/jobs/dashboard').catch(function() { return null; }),
-            fetch('/api/invoices/stats').catch(function() { return null; })
-        ]);
-        var reqData = reqRes && reqRes.ok ? await reqRes.json() : {};
-        var quoteData = quoteRes && quoteRes.ok ? await quoteRes.json() : {};
-        var jobData = jobRes && jobRes.ok ? await jobRes.json() : {};
-        var invData = invRes && invRes.ok ? await invRes.json() : {};
-
-        var requests = reqData.quotes || [];
-        var activeReqs = requests.filter(function(q) { return q.status !== 'archived' && q.status !== 'cancelled'; });
-        document.getElementById('pipe-requests').textContent = activeReqs.length;
-
-        var quotes = quoteData.quotes || [];
-        var activeQuotes = quotes.filter(function(q) { return q.status === 'sent' || q.status === 'viewed'; });
-        var quoteVal = activeQuotes.reduce(function(s, q) { return s + (parseFloat(q.total_price) || 0); }, 0);
-        document.getElementById('pipe-quotes').textContent = activeQuotes.length;
-        document.getElementById('pipe-quotes-val').textContent = quoteVal ? fmtMoney(quoteVal) : '';
-
-        var totalJobs = (jobData.stats && (jobData.stats.thisWeek || jobData.stats.week)) || 0;
-        document.getElementById('pipe-jobs').textContent = totalJobs;
-
-        var outstanding = parseFloat(invData.outstanding) || 0;
-        var totalInvoices = parseInt(invData.outstanding_count) || 0;
-        document.getElementById('pipe-invoices').textContent = totalInvoices;
-        document.getElementById('pipe-invoices-val').textContent = outstanding ? fmtMoney(outstanding) : '';
-    } catch (e) { console.error('Pipeline:', e); }
-}
-
-async function loadStatCards() {
-    try {
-        var [finRes, invRes, custRes] = await Promise.all([
-            fetch('/api/finance/summary').catch(function() { return null; }),
-            fetch('/api/invoices/stats').catch(function() { return null; }),
-            fetch('/api/customers/stats').catch(function() { return null; })
-        ]);
-
-        var fin = finRes && finRes.ok ? await finRes.json() : {};
-        var revMonth = parseFloat(fin.thisMonth && fin.thisMonth.revenue) || parseFloat(fin.revenueMonth) || 0;
-        var revYear = parseFloat(fin.yearToDate && fin.yearToDate.revenue) || parseFloat(fin.revenueYear) || 0;
-        var revLastMonth = parseFloat(fin.lastMonth && fin.lastMonth.revenue) || 0;
-        document.getElementById('stat-revenue').textContent = fmtMoney(revMonth);
-        if (revLastMonth > 0) {
-            var pctChange = Math.round(((revMonth - revLastMonth) / revLastMonth) * 100);
-            if (pctChange >= 0) {
-                document.getElementById('stat-revenue-sub').innerHTML = '<span class="up">&uarr; ' + pctChange + '%</span> vs last month';
-            } else {
-                document.getElementById('stat-revenue-sub').innerHTML = '<span class="down">&darr; ' + Math.abs(pctChange) + '%</span> vs last month';
-            }
-        } else {
-            document.getElementById('stat-revenue-sub').textContent = fmtMoney(revYear) + ' this year';
-        }
-
-        document.getElementById('stat-ytd').textContent = fmtMoney(revYear);
-        var allTimeRev = parseFloat(fin.allTime && fin.allTime.revenue) || 0;
-        document.getElementById('stat-ytd-sub').textContent = allTimeRev > revYear ? fmtMoney(allTimeRev) + ' all time' : '';
-
-        var inv = invRes && invRes.ok ? await invRes.json() : {};
-        var outstanding = parseFloat(inv.outstanding) || parseFloat(fin.outstanding && fin.outstanding.totalOutstanding) || 0;
-        var overdue = parseInt(inv.overdue_count) || parseInt(fin.outstanding && fin.outstanding.overdueCount) || 0;
-        document.getElementById('stat-outstanding').textContent = fmtMoney(outstanding);
-        if (overdue > 0) {
-            document.getElementById('stat-outstanding-sub').innerHTML = '<span class="down">' + overdue + ' overdue</span>';
-        } else {
-            document.getElementById('stat-outstanding-sub').textContent = 'All current';
-        }
-
-        var custData = custRes && custRes.ok ? await custRes.json() : {};
-        var cust = custData.stats || custData;
-        document.getElementById('stat-customers').textContent = cust.total || 0;
-        if (cust.trend) {
-            var pct = cust.trend.pct;
-            if (pct > 0) {
-                document.getElementById('stat-customers-sub').innerHTML = '<span class="up">&uarr; ' + pct + '%</span> last 30 days';
-            } else if (pct < 0) {
-                document.getElementById('stat-customers-sub').innerHTML = '<span class="down">&darr; ' + Math.abs(pct) + '%</span> last 30 days';
-            } else {
-                document.getElementById('stat-customers-sub').textContent = 'Steady last 30 days';
-            }
-        }
-
-        renderSparkline(fin.monthlyRevenue || []);
-
-        var sentRes = await fetch('/api/sent-quotes?limit=200').catch(function() { return null; });
-        var sentData = sentRes && sentRes.ok ? await sentRes.json() : {};
-        var allQuotes = sentData.quotes || [];
-        var now = new Date();
-        var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        var thisMonthQuotes = allQuotes.filter(function(q) { return new Date(q.created_at) >= monthStart; });
-        var signedThisMonth = thisMonthQuotes.filter(function(q) { return q.status === 'signed' || q.status === 'contracted'; }).length;
-        document.getElementById('stat-quotes').textContent = thisMonthQuotes.length;
-        var totalValue = thisMonthQuotes.reduce(function(s, q) { return s + (parseFloat(q.total_price) || 0); }, 0);
-        document.getElementById('stat-quotes-sub').textContent = totalValue ? fmtMoney(totalValue) + ' total value' : '';
-        if (thisMonthQuotes.length > 0) {
-            var rate = Math.round((signedThisMonth / thisMonthQuotes.length) * 100);
-            document.getElementById('conversion-rate').textContent = rate + '%';
-            document.getElementById('conversion-bar').style.width = rate + '%';
-        } else {
-            document.getElementById('conversion-rate').textContent = '--';
-        }
-    } catch (e) {
-        console.error('Failed to load stat cards:', e);
-    }
-}
-
-function renderSparkline(monthlyRev) {
-    var container = document.getElementById('spark-bars');
-    var now = new Date();
-    var currentMonth = now.getMonth();
-    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var months = [];
-    for (var i = 5; i >= 0; i--) {
-        var mIdx = (currentMonth - i + 12) % 12;
-        months.push({ label: monthNames[mIdx], value: monthlyRev[mIdx] || 0 });
-    }
-    var max = Math.max.apply(null, months.map(function(m) { return m.value; }).concat([1]));
-    var sixMonthTotal = months.reduce(function(s, m) { return s + m.value; }, 0);
-    document.getElementById('spark-total').textContent = fmtMoney(sixMonthTotal);
-
-    var first3 = months.slice(0, 3).reduce(function(s, m) { return s + m.value; }, 0);
-    var last3 = months.slice(3).reduce(function(s, m) { return s + m.value; }, 0);
-    var trendEl = document.getElementById('spark-trend');
-    if (first3 > 0) {
-        var pct = Math.round(((last3 - first3) / first3) * 100);
-        if (pct >= 0) {
-            trendEl.innerHTML = '<span style="color:var(--green);font-weight:600">&uarr; ' + pct + '%</span>';
-        } else {
-            trendEl.innerHTML = '<span style="color:var(--red);font-weight:600">&darr; ' + Math.abs(pct) + '%</span>';
-        }
-    }
-
-    container.innerHTML = months.map(function(m) {
-        var h = Math.max(3, (m.value / max) * 60);
-        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
-            '<div style="height:' + h + 'px;width:100%;background:var(--primary);border-radius:3px 3px 0 0;min-height:3px;opacity:0.7" title="' + m.label + ': ' + fmtMoney(m.value) + '"></div>' +
-            '<div style="font-size:9px;color:var(--gray-400);margin-top:4px">' + m.label + '</div>' +
-        '</div>';
-    }).join('');
-}
-
-async function loadActionItems() {
-    try {
-        var res = await fetch('/api/dashboard/today-summary');
-        var data = res.ok ? await res.json() : {};
-        var actions = [];
-
-        if (data.overdue_invoices > 0) {
-            actions.push({ title: 'Overdue Invoices', sub: 'Past due date, payment needed', count: data.overdue_invoices, href: 'invoices.html?status=overdue', iconClass: 'icon-red', countClass: 'red', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' });
-        }
-        if (data.pending_quotes > 0) {
-            actions.push({ title: 'Unsigned Quotes', sub: 'Sent but awaiting signature', count: data.pending_quotes, href: 'sent-quotes.html?status=sent', iconClass: 'icon-purple', countClass: 'purple', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' });
-        }
-        if (data.unread_messages > 0) {
-            actions.push({ title: 'Unread Messages', sub: 'Customer messages need reply', count: data.unread_messages, href: 'communications.html', iconClass: 'icon-blue', countClass: 'blue', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' });
-        }
-
-        var qRes = await fetch('/api/sent-quotes?limit=200').catch(function() { return null; });
-        var qData = qRes && qRes.ok ? await qRes.json() : {};
-        var quotes = qData.quotes || [];
-        var thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        var recentSigned = quotes.filter(function(q) { return q.status === 'signed' && new Date(q.signed_at || q.created_at) > thirtyDaysAgo; }).length;
-        var recentChanges = quotes.filter(function(q) { return q.status === 'changes_requested' && new Date(q.updated_at || q.created_at) > thirtyDaysAgo; }).length;
-
-        if (recentSigned > 0) {
-            actions.push({ title: 'Pending Contract Signatures', sub: 'Accepted quotes awaiting contract', count: recentSigned, href: 'sent-quotes.html?status=signed', iconClass: 'icon-amber', countClass: '', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' });
-        }
-        if (recentChanges > 0) {
-            actions.push({ title: 'Quote Change Requests', sub: 'Customers want modifications', count: recentChanges, href: 'sent-quotes.html?status=changes_requested', iconClass: 'icon-amber', countClass: '', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>' });
-        }
-
-        var section = document.getElementById('action-section');
-        if (actions.length > 0) {
-            section.style.display = 'block';
-            document.getElementById('action-items').innerHTML = actions.map(function(a) {
-                return '<a href="' + a.href + '" class="action-item">' +
-                    '<div class="action-item-info">' +
-                        '<div class="action-item-icon ' + a.iconClass + '">' + a.icon + '</div>' +
-                        '<div class="action-item-text"><strong>' + a.title + '</strong><span>' + a.sub + '</span></div>' +
-                    '</div>' +
-                    '<span class="action-item-count ' + a.countClass + '">' + a.count + '</span>' +
-                '</a>';
-            }).join('');
-        } else {
-            section.style.display = 'none';
-        }
-    } catch (e) { console.error('Action items:', e); }
-}
-
-async function loadTodaySchedule() {
-    try {
-        var today = new Date().toISOString().split('T')[0];
-        var res = await fetch('/api/jobs?date=' + today);
-        var data = res.ok ? await res.json() : {};
-        var jobs = data.jobs || [];
-        var section = document.getElementById('today-schedule-section');
-        if (!jobs.length) { section.style.display = 'none'; return; }
-        section.style.display = 'block';
-        var statusColors = {
-            pending: 'var(--amber)', scheduled: 'var(--blue)',
-            'in-progress': 'var(--purple)', in_progress: 'var(--purple)',
-            completed: 'var(--green)', done: 'var(--green)',
-            cancelled: 'var(--gray-400)'
-        };
-        document.getElementById('today-jobs').innerHTML = jobs.slice(0, 8).map(function(j) {
-            var color = statusColors[j.status] || 'var(--gray-400)';
-            var addr = (j.address || '').split(',')[0];
-            return '<a href="job-detail.html?id=' + j.id + '" class="schedule-job">' +
-                '<div class="schedule-job-status" style="background:' + color + '"></div>' +
-                '<div class="schedule-job-info">' +
-                    '<div class="schedule-job-customer">' + esc(j.customer_name || 'Unknown') + '</div>' +
-                    '<div class="schedule-job-details">' + esc(addr) + '</div>' +
-                '</div>' +
-                '<div class="schedule-job-meta">' +
-                    '<div class="schedule-job-crew">' + esc(j.crew_assigned || '') + '</div>' +
-                    '<div class="schedule-job-type">' + esc(j.service_type || '') + '</div>' +
-                '</div>' +
-            '</a>';
-        }).join('');
-    } catch (e) {
-        console.error('Today schedule:', e);
-        document.getElementById('today-schedule-section').style.display = 'none';
-    }
-}
-
-async function loadActivityFeed() {
-    var container = document.getElementById('activity-feed');
-    try {
-        var res = await fetch('/api/dashboard/activity-feed');
-        var data = res.ok ? await res.json() : {};
-        var events = data.events || [];
-        if (!events.length) { container.innerHTML = '<div class="empty-state">No recent activity</div>'; return; }
-        container.innerHTML = events.map(function(ev) {
-            return '<a href="' + (ev.link || '#') + '" class="activity-item">' +
-                '<div class="activity-dot ' + ev.type + '"></div>' +
-                '<div class="activity-text">' + esc(ev.description) + '</div>' +
-                '<div class="activity-time">' + timeAgo(ev.timestamp) + '</div>' +
-            '</a>';
-        }).join('');
-    } catch (e) {
-        container.innerHTML = '<div class="empty-state">Unable to load activity</div>';
-    }
-}
-
-async function loadRequestsColumn() {
-    try {
-        var res = await fetch('/api/quotes?limit=200');
-        var data = await res.json();
-        var quotes = data.quotes || [];
-        var newCount = quotes.filter(function(q) { return q.status === 'new'; }).length;
-        var contactedCount = quotes.filter(function(q) { return q.status === 'contacted'; }).length;
-        var quotedCount = quotes.filter(function(q) { return q.status === 'quoted'; }).length;
-        document.getElementById('wf-req-new').textContent = newCount;
-        document.getElementById('wf-req-contacted').textContent = contactedCount;
-        document.getElementById('wf-req-quoted').textContent = quotedCount;
-        if (newCount > 0) document.getElementById('wf-req-new').classList.add('highlight');
-    } catch (e) { console.error('Requests:', e); }
-}
-
-async function loadQuotesColumn() {
-    try {
-        var res = await fetch('/api/sent-quotes?limit=200');
-        var data = await res.json();
-        var quotes = data.quotes || [];
-        var counts = data.counts || {};
-        var sentViewed = (counts.sent || 0) + (counts.viewed || 0);
-        document.getElementById('wf-q-sent').textContent = sentViewed;
-        document.getElementById('wf-q-signed').textContent = counts.signed || 0;
-        document.getElementById('wf-q-changes').textContent = counts.changes_requested || 0;
-        document.getElementById('wf-q-contracted').textContent = counts.contracted || 0;
-        var sentQuotes = quotes.filter(function(q) { return q.status === 'sent' || q.status === 'viewed'; });
-        var signedQuotes = quotes.filter(function(q) { return q.status === 'signed'; });
-        var sentTotal = sentQuotes.reduce(function(sum, q) { return sum + (parseFloat(q.total_price) || 0); }, 0);
-        var signedTotal = signedQuotes.reduce(function(sum, q) { return sum + (parseFloat(q.total_price) || 0); }, 0);
-        document.getElementById('wf-q-sent-amt').textContent = sentTotal ? fmtMoney(sentTotal) : '';
-        document.getElementById('wf-q-signed-amt').textContent = signedTotal ? fmtMoney(signedTotal) : '';
-    } catch (e) { console.error('Quotes:', e); }
-}
-
-async function loadJobsColumn() {
-    try {
-        var res = await fetch('/api/jobs/dashboard');
-        var data = await res.json();
-        if (data.success) {
-            document.getElementById('wf-j-today').textContent = data.stats && data.stats.today || 0;
-            document.getElementById('wf-j-week').textContent = data.stats && (data.stats.thisWeek || data.stats.week) || 0;
-            document.getElementById('wf-j-pending').textContent = data.stats && data.stats.pending || 0;
-        }
-    } catch (e) { console.error('Jobs:', e); }
-}
-
-async function loadMessages() {
-    var list = document.getElementById('messages-list');
-    try {
-        var res = await fetch('/api/messages?limit=5');
-        var data = res.ok ? await res.json() : {};
-        var messages = data.messages || [];
-        if (!messages.length) { showEmpty(list, 'No recent messages'); return; }
-        list.innerHTML = messages.slice(0, 5).map(function(m) {
-            var body = (m.body || '').substring(0, 40);
-            var ago = timeAgo(m.created_at || m.timestamp);
-            var sub = [body, ago].filter(Boolean).join(' . ');
-            return renderItem(
-                m.customer_name || m.customerName || fmtPhone(m.from_number || m.from),
-                sub, m.read ? 'read' : 'unread', 'communications.html'
-            );
-        }).join('');
-    } catch (e) { showEmpty(list, 'Unable to load messages'); }
-}
-
-async function loadCustomers() {
-    var list = document.getElementById('customers-list');
-    try {
-        var res = await fetch('/api/customers?limit=5&sort=newest');
-        var data = await res.json();
-        var customers = data.customers || [];
-        if (!customers.length) { showEmpty(list, 'No customers yet'); return; }
-        list.innerHTML = customers.slice(0, 5).map(function(c) {
-            var ago = timeAgo(c.created_at);
-            var sub = [c.city || c.street || '', ago].filter(Boolean).join(' . ');
-            return renderItem(
-                c.name || c.customer_company_name || 'Unknown',
-                sub, 'active', 'customer-detail.html?id=' + (c.id || c.customer_id)
-            );
-        }).join('');
-    } catch (e) { showEmpty(list, 'Unable to load customers'); }
-}
-
-// ── Notifications ──────────────────────────────────────────
-function toggleNotifications() {
-    var dd = document.getElementById('notif-dropdown');
-    if (dd.style.display === 'none') {
-        dd.style.display = 'block';
-        loadNotifications();
-    } else {
-        dd.style.display = 'none';
-    }
-}
-
-document.addEventListener('click', function(e) {
-    var dd = document.getElementById('notif-dropdown');
-    var btn = document.getElementById('notif-btn');
-    if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
-        dd.style.display = 'none';
-    }
-});
-
-async function loadNotifications() {
-    var list = document.getElementById('notif-list');
-    try {
-        // Fetch recent activity: overdue invoices, new requests, upcoming jobs
-        var [invRes, reqRes, jobRes] = await Promise.all([
-            fetch('/api/invoices?status=sent&limit=10').then(r => r.json()).catch(() => ({ invoices: [] })),
-            fetch('/api/work-requests?status=new&limit=5').then(r => r.json()).catch(() => ({ requests: [] })),
-            fetch('/api/jobs?date=' + new Date().toISOString().split('T')[0] + '&limit=5').then(r => r.json()).catch(() => ({ jobs: [] }))
-        ]);
-
-        var items = [];
-
-        // Overdue invoices
-        var now = new Date();
-        (invRes.invoices || []).forEach(function(inv) {
-            if (inv.due_date && new Date(inv.due_date) < now) {
-                items.push({
-                    icon: '💰',
-                    text: 'Overdue invoice for ' + esc(inv.customer_name || 'Unknown'),
-                    sub: '$' + (Number(inv.total)||0).toFixed(2) + ' due ' + new Date(inv.due_date).toLocaleDateString(),
-                    href: 'invoice-detail.html?id=' + inv.id,
-                    time: new Date(inv.due_date)
-                });
-            }
-        });
-
-        // New work requests
-        (reqRes.requests || []).forEach(function(r) {
-            items.push({
-                icon: '📋',
-                text: 'New request from ' + esc(r.customer_name || r.name || 'Unknown'),
-                sub: esc(r.service_type || r.description || '').slice(0, 60),
-                href: 'work-requests.html',
-                time: new Date(r.created_at || now)
-            });
-        });
-
-        // Today's jobs
-        (jobRes.jobs || []).forEach(function(j) {
-            if (j.status === 'scheduled') {
-                items.push({
-                    icon: '🗓️',
-                    text: esc(j.customer_name || 'Job') + ' — ' + esc(j.service_type || ''),
-                    sub: 'Scheduled for today',
-                    href: 'job-detail.html?id=' + j.id,
-                    time: new Date(j.job_date || now)
-                });
-            }
-        });
-
-        // Update badge
-        var badge = document.getElementById('notif-badge');
-        if (items.length > 0) {
-            badge.textContent = items.length > 9 ? '9+' : items.length;
-            badge.style.display = '';
-        } else {
-            badge.style.display = 'none';
-        }
-
-        if (!items.length) {
-            list.innerHTML = '<div class="search-empty">You\'re all caught up!</div>';
-            return;
-        }
-
-        list.innerHTML = items.map(function(item) {
-            return '<a href="' + item.href + '" class="search-result-item" style="gap:10px;padding:10px 14px;">'
-                + '<div style="font-size:18px;flex-shrink:0;">' + item.icon + '</div>'
-                + '<div style="min-width:0;">'
-                + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.text + '</div>'
-                + '<div style="font-size:11px;color:var(--gray-400);">' + item.sub + '</div>'
-                + '</div></a>';
-        }).join('');
-    } catch (e) {
-        list.innerHTML = '<div class="search-empty">Unable to load notifications</div>';
-    }
-}
-
-function markAllRead() {
-    document.getElementById('notif-badge').style.display = 'none';
-    document.getElementById('notif-dropdown').style.display = 'none';
-}
-
-// Init
-document.addEventListener('DOMContentLoaded', function() {
-    updateDate();
-    loadAll();
-    loadNotifications();
-    setupCustomerAutocomplete('job-customer-search', 'job-customer-list', 'job-customer-id', null);
-    setupCustomerAutocomplete('inv-customer-search', 'inv-customer-list', 'inv-customer-id', 'inv-customer-email');
-    document.getElementById('job-date').value = new Date().toISOString().split('T')[0];
-    var dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
-    document.getElementById('inv-due-date').value = dueDate.toISOString().split('T')[0];
-});
-setInterval(loadAll, 60000);
-</script>
-
-<!-- AI Assistant FAB + Panel -->
-<button class="ai-fab" id="aiFab" title="AI Assistant">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/>
-    </svg>
-</button>
-<div class="ai-panel-overlay" id="aiOverlay"></div>
-<div class="ai-panel" id="aiPanel">
-    <div class="ai-panel-header">
-        <h3>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/>
-            </svg>
-            YardDesk AI
-        </h3>
-        <button class="ai-panel-close" id="aiClose">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-    </div>
-    <div class="ai-quick-actions">
-        <button class="ai-quick-btn" data-action="generate-quote">Generate Quote</button>
-        <button class="ai-quick-btn" data-action="write-followup">Write Follow-up</button>
-        <button class="ai-quick-btn" data-action="ask-ai">Ask AI</button>
-    </div>
-    <div class="ai-messages" id="aiMessages">
-        <div class="ai-msg assistant">Hi! I'm your YardDesk AI assistant. Use the quick actions above or type a message below. I can help generate quotes, write follow-ups, or answer questions.</div>
-    </div>
-    <div class="ai-input-area">
-        <input type="text" id="aiInput" placeholder="Type a message..." autocomplete="off">
-        <button class="ai-send-btn" id="aiSend">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-    </div>
-</div>
-
-<script>
-(function() {
-    const fab = document.getElementById('aiFab');
-    const panel = document.getElementById('aiPanel');
-    const overlay = document.getElementById('aiOverlay');
-    const closeBtn = document.getElementById('aiClose');
-    const input = document.getElementById('aiInput');
-    const sendBtn = document.getElementById('aiSend');
-    const messagesEl = document.getElementById('aiMessages');
-
-    let currentMode = 'ask-ai';
-    let quoteStep = null; // 'name' or 'address'
-    let followupStep = null; // 'details' or 'channel'
-    let collected = {};
-    let conversationHistory = []; // Track chat history for multi-turn assistant
-
-    function getToken() {
-        return localStorage.getItem('adminToken') || localStorage.getItem('token') || '';
-    }
-
-    function openPanel() {
-        panel.classList.add('open');
-        overlay.classList.add('open');
-        fab.style.display = 'none';
-        setTimeout(() => input.focus(), 350);
-    }
-
-    function closePanel() {
-        panel.classList.remove('open');
-        overlay.classList.remove('open');
-        fab.style.display = 'flex';
-    }
-
-    fab.addEventListener('click', openPanel);
-    closeBtn.addEventListener('click', closePanel);
-    overlay.addEventListener('click', closePanel);
-
-    function addMessage(text, role) {
-        const div = document.createElement('div');
-        div.className = 'ai-msg ' + role;
-        div.textContent = text;
-        messagesEl.appendChild(div);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-        return div;
-    }
-
-    function addTypingIndicator() {
-        const div = document.createElement('div');
-        div.className = 'ai-msg assistant';
-        div.id = 'aiTyping';
-        div.innerHTML = '<div class="ai-typing"><span></span><span></span><span></span></div>';
-        messagesEl.appendChild(div);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-        return div;
-    }
-
-    function removeTypingIndicator() {
-        const el = document.getElementById('aiTyping');
-        if (el) el.remove();
-    }
-
-    async function sendToAPI(endpoint, body) {
-        const token = getToken();
-        try {
-            const resp = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token
-                },
-                body: JSON.stringify(body)
-            });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || data.message || 'Request failed');
-            return data;
-        } catch (err) {
-            throw err;
-        }
-    }
-
-    async function handleSend() {
-        const text = input.value.trim();
-        if (!text) return;
-
-        addMessage(text, 'user');
-        input.value = '';
-        sendBtn.disabled = true;
-
-        // Quote flow: collect name, then address, then call API
-        if (quoteStep === 'name') {
-            collected.customer_name = text;
-            quoteStep = 'address';
-            addMessage('Great! Now enter the property address:', 'assistant');
-            input.placeholder = 'Enter property address...';
-            sendBtn.disabled = false;
-            input.focus();
-            return;
-        }
-        if (quoteStep === 'address') {
-            collected.address = text;
-            quoteStep = null;
-            addTypingIndicator();
-            try {
-                const data = await sendToAPI('/api/ai/generate-quote', {
-                    address: collected.address,
-                    customer_name: collected.customer_name
-                });
-                removeTypingIndicator();
-                let response;
-                if (data.quote && typeof data.quote === 'object') {
-                    const q = data.quote;
-                    let lines = [];
-                    if (q.summary) lines.push(q.summary);
-                    if (q.services && q.services.length) {
-                        lines.push('\nServices:');
-                        q.services.forEach(s => {
-                            lines.push('• ' + s.name + ' — $' + s.price + (s.frequency ? ' (' + s.frequency + ')' : ''));
-                            if (s.description) lines.push('  ' + s.description);
-                        });
-                    }
-                    if (q.total) lines.push('\nTotal: $' + q.total);
-                    if (q.notes) lines.push('\n' + q.notes);
-                    response = lines.join('\n');
-                } else {
-                    response = typeof data.quote === 'string' ? data.quote : JSON.stringify(data, null, 2);
-                }
-                addMessage(response, 'assistant');
-            } catch (err) {
-                removeTypingIndicator();
-                addMessage('Error: ' + err.message, 'assistant');
-            }
-            collected = {};
-            input.placeholder = 'Type a message...';
-            sendBtn.disabled = false;
-            return;
-        }
-
-        // Follow-up flow: collect details, then channel
-        if (followupStep === 'details') {
-            collected.customer_name = text;
-            followupStep = 'channel';
-            addMessage('Email or SMS?', 'assistant');
-            input.placeholder = 'Type email or sms...';
-            sendBtn.disabled = false;
-            input.focus();
-            return;
-        }
-        if (followupStep === 'channel') {
-            const ch = text.toLowerCase().includes('sms') || text.toLowerCase().includes('text') ? 'sms' : 'email';
-            collected.channel = ch;
-            followupStep = null;
-            addTypingIndicator();
-            try {
-                const data = await sendToAPI('/api/ai/generate-followup', {
-                    customer_name: collected.customer_name,
-                    channel: collected.channel
-                });
-                removeTypingIndicator();
-                let response;
-                const msg = data.message || data.followup || data.result;
-                if (msg && typeof msg === 'object') {
-                    let lines = [];
-                    if (msg.subject) lines.push('Subject: ' + msg.subject + '\n');
-                    if (msg.body) lines.push(msg.body.replace(/<[^>]+>/g, ''));
-                    response = lines.join('\n');
-                } else {
-                    response = typeof msg === 'string' ? msg : JSON.stringify(data, null, 2);
-                }
-                addMessage(response, 'assistant');
-            } catch (err) {
-                removeTypingIndicator();
-                addMessage('Error: ' + err.message, 'assistant');
-            }
-            collected = {};
-            input.placeholder = 'Type a message...';
-            sendBtn.disabled = false;
-            return;
-        }
-
-        // Default: general chat — uses database-aware assistant
-        conversationHistory.push({ role: 'user', content: text });
-        addTypingIndicator();
-        try {
-            const data = await sendToAPI('/api/app/ai/assistant', {
-                question: text,
-                conversationHistory: conversationHistory
-            });
-            removeTypingIndicator();
-            const response = data.answer || data.reply || data.response || JSON.stringify(data);
-            addMessage(response, 'assistant');
-            conversationHistory.push({ role: 'assistant', content: response });
-        } catch (err) {
-            removeTypingIndicator();
-            addMessage('Error: ' + err.message, 'assistant');
-        }
-
-        sendBtn.disabled = false;
-    }
-
-    sendBtn.addEventListener('click', handleSend);
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    });
-
-    document.querySelectorAll('.ai-quick-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const action = this.dataset.action;
-            document.querySelectorAll('.ai-quick-btn').forEach(b => b.style.borderColor = '');
-            this.style.borderColor = 'var(--primary)';
-            quoteStep = null;
-            followupStep = null;
-            collected = {};
-
-            if (action === 'generate-quote') {
-                currentMode = 'generate-quote';
-                quoteStep = 'name';
-                addMessage('Let\'s generate a quote! What is the customer\'s name?', 'assistant');
-                input.placeholder = 'Enter customer name...';
-                input.focus();
-            } else if (action === 'write-followup') {
-                currentMode = 'write-followup';
-                followupStep = 'details';
-                addMessage('Who is this follow-up for? Enter the customer\'s name.', 'assistant');
-                input.placeholder = 'Enter customer name...';
-                input.focus();
-            } else if (action === 'ask-ai') {
-                currentMode = 'ask-ai';
-                addMessage('Ask me anything about your business, quotes, or lawn care!', 'assistant');
-                input.placeholder = 'Type a message...';
-                input.focus();
-            }
-        });
-    });
-})();
+// ── Kick everything off ─────────────────────────────────────
+loadHeroSubtitle();
+loadStats();
+loadSalesPulse();
+loadOperations();
+loadAttention();
+loadActivity();
 </script>
 </body>
 </html>

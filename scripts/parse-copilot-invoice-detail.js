@@ -1,0 +1,314 @@
+// ─────────────────────────────────────────────────────────────
+// Pure parser for CopilotCRM's invoice DETAIL page.
+//
+// Source: GET https://secure.copilotcrm.com/finances/invoices/view/{id}
+// returns a full HTML page. Hidden inputs #inv_id and #inv_cust_id are the
+// stable identity signals; everything else (line items, notes, totals) is
+// scraped from documented containers.
+//
+// Returns one normalized invoice object suitable for the importer's
+// upsert path. Side-effect-free; safe to call from tests with raw fixture
+// strings.
+// ─────────────────────────────────────────────────────────────
+
+const cheerio = require('cheerio');
+
+// ── Helpers (mirrored from the list parser to keep this file standalone) ──
+function clean(text) {
+  return (text || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseMoney(text) {
+  if (text == null) return null;
+  const s = String(text).replace(/[^0-9.\-]/g, '');
+  if (s === '' || s === '-' || s === '.') return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseNumber(text) {
+  if (text == null) return null;
+  const s = String(text).replace(/[^0-9.\-]/g, '');
+  if (s === '' || s === '-' || s === '.') return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parsePercent(text) {
+  if (text == null) return null;
+  const s = String(text).replace(/[^0-9.\-]/g, '');
+  if (s === '' || s === '-' || s === '.') return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseDate(text) {
+  const t = clean(text);
+  if (!t) return null;
+  const d = new Date(t);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+function mapStatus(rawStatus, amountPaid, total) {
+  const s = clean(rawStatus).toLowerCase();
+  // Always honor an explicit status string when present.
+  if (s) {
+    if (s.includes('paid in full') || s === 'paid') return 'paid';
+    if (s.includes('partial')) return 'partial';
+    if (s.includes('written off') || s.includes('writeoff')) return 'void';
+    if (s.includes('void') || s.includes('cancel')) return 'void';
+    if (s.includes('draft')) return 'draft';
+    if (s.includes('overdue') || s.includes('past due')) return 'overdue';
+    if (s.includes('pending')) {
+      // Pending + partial payment → partial; Pending + full payment → paid.
+      const paid = parseFloat(amountPaid || 0);
+      const tot = parseFloat(total || 0);
+      if (tot > 0 && paid >= tot) return 'paid';
+      if (paid > 0 && paid < tot) return 'partial';
+      return 'sent';
+    }
+  }
+  // No status string (common on detail pages): infer from money.
+  const paid = parseFloat(amountPaid || 0);
+  const tot = parseFloat(total || 0);
+  if (tot > 0 && paid >= tot) return 'paid';
+  if (paid > 0 && paid < tot) return 'partial';
+  return 'sent';
+}
+
+// Read either input.value or [data-value], whichever fires first.
+function valOrText($el) {
+  if (!$el || !$el.length) return null;
+  const v = $el.attr('value') || $el.val && $el.val();
+  if (v != null && v !== '') return clean(v);
+  const txt = clean($el.text());
+  return txt || null;
+}
+
+// Walk a label/value table where each <tr> has two <td>s and the first cell
+// is the label. Returns a Map of normalized label → raw value-cell text.
+function readLabelValueTable($, $table) {
+  const out = new Map();
+  $table.find('tr').each((_, tr) => {
+    const $tds = cheerio.load('<x>' + $.html(tr) + '</x>')('x').find('td');
+    // Use the live cheerio reference instead so attributes are intact:
+    const $live = $(tr).find('td');
+    if ($live.length < 2) return;
+    const label = clean($live.eq(0).text()).toLowerCase().replace(/[:\s]+$/, '');
+    const valueText = $live.eq($live.length - 1).text();
+    if (label) out.set(label, valueText);
+  });
+  return out;
+}
+
+function pick(map, ...keys) {
+  for (const k of keys) {
+    const want = k.toLowerCase();
+    for (const [label, value] of map.entries()) {
+      if (label === want || label.includes(want)) return value;
+    }
+  }
+  return null;
+}
+
+// Index a line-item header row to a column map. Returns indices for known
+// columns, or -1 when missing.
+function indexLineItemColumns($table) {
+  const headers = [];
+  $table.find('thead th').each((i, th) => {
+    headers.push(clean(cheerio.load('<x>' + (th.children ? '' : '') + '</x>') ? '' : '')); // unused; keep cheerio happy
+  });
+  // Simpler: just iterate via $:
+  return null;
+}
+
+// ── Main parser ────────────────────────────────────────────────
+function parseInvoiceDetailHtml(html) {
+  if (typeof html !== 'string' || html.length === 0) {
+    throw new Error('parseInvoiceDetailHtml: expected an HTML string');
+  }
+  const $ = cheerio.load(html, { decodeEntities: true });
+
+  // ── Identity ─────────────────────────────────────────────
+  // Hidden inputs are the most reliable signals when present.
+  const external_invoice_id = (
+    valOrText($('#inv_id')) ||
+    valOrText($('input[name="inv_id"]')) ||
+    valOrText($('input[name="invoice_id"]')) ||
+    null
+  );
+  const copilot_customer_id = (
+    valOrText($('#inv_cust_id')) ||
+    valOrText($('input[name="inv_cust_id"]')) ||
+    valOrText($('input[name="customer_id"]')) ||
+    null
+  );
+
+  // ── Invoice number ───────────────────────────────────────
+  // Try several common locations. Copilot may render it in a heading,
+  // a hidden input, or a "Invoice #NNNN" string somewhere on the page.
+  let invoice_number = (
+    valOrText($('#invoice_number')) ||
+    valOrText($('input[name="invoice_number"]')) ||
+    valOrText($('.invoice-number, .invoice_number, .inv-number')) ||
+    null
+  );
+  if (!invoice_number) {
+    // Scan headings/title for "Invoice #NNNN" or "Invoice NNNN"
+    const haystacks = [
+      clean($('title').text()),
+      clean($('h1, h2, h3').first().text()),
+      clean($('.invoice-header, .invoice_header, .inv-header').text()),
+    ].filter(Boolean);
+    for (const h of haystacks) {
+      const m = h.match(/invoice\s*#?\s*(\d+)/i);
+      if (m) { invoice_number = m[1]; break; }
+    }
+  }
+  // Final fallback: when hidden #inv_id is the primary key Copilot uses, it
+  // is usually identical to the invoice number too.
+  if (!invoice_number && external_invoice_id) invoice_number = external_invoice_id;
+
+  // ── Invoice date ─────────────────────────────────────────
+  let invoice_date = (
+    parseDate(valOrText($('#invoice_date'))) ||
+    parseDate(valOrText($('input[name="invoice_date"]'))) ||
+    parseDate(clean($('.invoice-date, .inv-date, .invoice_date').first().text()))
+  );
+
+  // ── Customer name + address ──────────────────────────────
+  // Try a series of common containers; fall back to anchor with /customers/details/.
+  let customer_name = (
+    clean($('.customer-name, .cust-name, .customer_name').first().text()) ||
+    clean($('.bill-to .name, .billing-name').first().text()) ||
+    null
+  );
+  if (!customer_name) {
+    const $a = $('a[href*="/customers/details/"]').first();
+    if ($a.length) customer_name = clean($a.text());
+  }
+
+  let customer_address = (
+    clean($('.customer-address, .cust-address, .customer_address').first().text()) ||
+    clean($('.bill-to .address, .billing-address').first().text()) ||
+    null
+  );
+  let customer_email = null;
+  const $mailto = $('a[href^="mailto:"]').first();
+  if ($mailto.length) customer_email = clean($mailto.attr('href').replace(/^mailto:/i, ''));
+
+  // ── Property info (mostly informational) ─────────────────
+  const property_name = clean($('.property-name, .property_name').first().text()) || null;
+  const property_address = clean($('.property-address, .property_address').first().text()) || customer_address || null;
+
+  // ── Line items ───────────────────────────────────────────
+  const line_items = [];
+  const $itemTable = $('.table--description').first();
+  if ($itemTable.length) {
+    // Build a label→column-index map from the header.
+    const colByLabel = {};
+    $itemTable.find('thead th').each((i, th) => {
+      const label = clean($(th).text()).toLowerCase();
+      if (!label) return;
+      if (label.includes('date'))                 colByLabel.date         = i;
+      else if (label.includes('desc') || label.includes('item') || label.includes('service')) colByLabel.description = i;
+      else if (label.includes('rate') || label.includes('price')) colByLabel.rate = i;
+      else if (label.includes('qty') || label.includes('quantity')) colByLabel.quantity = i;
+      else if (label.includes('hour') || label.includes('budget')) colByLabel.budgeted_hours = i;
+      else if (label.includes('tax'))             colByLabel.tax_percent  = i;
+      else if (label.includes('total') || label.includes('amount')) colByLabel.line_total = i;
+    });
+    const colOrFallback = (k, fallbackIdx) => (colByLabel[k] != null ? colByLabel[k] : fallbackIdx);
+
+    $itemTable.find('tbody tr').each((_, tr) => {
+      const $tds = $(tr).find('td');
+      if ($tds.length === 0) return;
+      const cell = (i) => (i >= 0 && i < $tds.length) ? clean($tds.eq(i).text()) : '';
+      // Positional fallback when no header (date, description, rate, qty, hours, tax, total)
+      const item = {
+        service_date:    parseDate(cell(colOrFallback('date', 0))),
+        description:     cell(colOrFallback('description', 1)),
+        rate:            parseMoney(cell(colOrFallback('rate', 2))),
+        quantity:        parseNumber(cell(colOrFallback('quantity', 3))),
+        budgeted_hours:  parseNumber(cell(colOrFallback('budgeted_hours', 4))),
+        tax_percent:     parsePercent(cell(colOrFallback('tax_percent', 5))),
+        line_total:      parseMoney(cell(colOrFallback('line_total', $tds.length - 1))),
+      };
+      // Skip a row that is clearly empty (no description AND no money).
+      if (!item.description && item.line_total == null && item.rate == null) return;
+      line_items.push(item);
+    });
+  }
+
+  // ── Totals from .table--sub-total ────────────────────────
+  let subtotal = null, tax_amount = null, total = null, amount_paid = null, total_due = null;
+  const $totalsTable = $('.table--sub-total').first();
+  if ($totalsTable.length) {
+    const totals = readLabelValueTable($, $totalsTable);
+    subtotal     = parseMoney(pick(totals, 'subtotal', 'sub-total', 'sub total'));
+    tax_amount   = parseMoney(pick(totals, 'tax'));
+    total        = parseMoney(pick(totals, 'total') ); // note: matches 'total', 'invoice total'
+    // Re-pick more specifically since "total" may match "total due" first.
+    const totalRaw = pick(totals, 'invoice total');
+    if (totalRaw != null) total = parseMoney(totalRaw);
+    amount_paid  = parseMoney(pick(totals, 'amount paid', 'paid'));
+    total_due    = parseMoney(pick(totals, 'total due', 'balance due', 'due'));
+    // If the generic 'total' match grabbed 'total due', recover the true total
+    // by picking the row whose label is exactly 'total'.
+    for (const [label, value] of totals.entries()) {
+      if (label === 'total') { total = parseMoney(value); break; }
+    }
+  }
+
+  // Sometimes subtotal is omitted from the totals table — derive it.
+  if (subtotal == null && total != null && tax_amount != null) {
+    subtotal = Math.max(0, total - tax_amount);
+  }
+
+  // ── Notes + terms ────────────────────────────────────────
+  const notes = clean($('.inv-notes-container').first().text()) || null;
+  const terms = clean($('.inv-terms-table').first().text()) || null;
+
+  // ── Status hint (best-effort; detail page may not display it) ──
+  const rawStatus = (
+    clean($('.invoice-status, .inv-status').first().text()) ||
+    clean($('[data-invoice-status]').first().attr('data-invoice-status')) ||
+    null
+  );
+  const status = mapStatus(rawStatus, amount_paid, total);
+
+  // ── Crew (informational) ─────────────────────────────────
+  const crew = clean($('.invoice-crew, .crew-name').first().text()) || null;
+
+  return {
+    external_invoice_id,
+    copilot_customer_id,
+    invoice_number,
+    invoice_date,
+    customer_name,
+    customer_email,
+    customer_address,
+    property_name,
+    property_address,
+    crew,
+    line_items,
+    notes,
+    terms,
+    subtotal,
+    tax_amount,
+    total,
+    amount_paid,
+    total_due,
+    raw_status: rawStatus,
+    status,
+  };
+}
+
+module.exports = {
+  parseInvoiceDetailHtml,
+  _internal: { clean, parseMoney, parseNumber, parsePercent, parseDate, mapStatus },
+};

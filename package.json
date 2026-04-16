@@ -12,6 +12,11 @@
     "test:unit": "jest --runInBand --testPathIgnorePatterns='tests/(quote-flow|cron-automation|invoice-webhook|square-payment|customer-portal)\\.test\\.js'",
     "test:integration": "jest --runInBand tests/quote-flow.test.js tests/cron-automation.test.js tests/invoice-webhook.test.js tests/square-payment.test.js tests/customer-portal.test.js",
     "test:all": "npm run test:unit && npm run test:integration",
+    "test:structure": "jest tests/gotchas.test.js",
+    "test:smoke": "node tests/smoke.js",
+    "test:auth": "node tests/auth.js",
+    "test:validation": "node tests/validation.js",
+    "test:communications": "node tests/communications.js",
     "test:watch": "jest --watch"
   },
   "keywords": [

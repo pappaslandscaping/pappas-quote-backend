@@ -117,15 +117,17 @@ function toDbValues(row, customerId) {
     customer_name:       row.customer_name || null,
     customer_email:      row.customer_email || null,
     customer_address:    row.property_address || null,
-    status:              row.status || 'sent',
+    status:              row.status || 'pending',
     subtotal,
     tax_amount:          tax,
     total,
     amount_paid:         row.amount_paid != null ? row.amount_paid : 0,
     due_date:            null, // not in list view
+    paid_at:             null,
     created_at:          row.invoice_date || null,
     notes:               null,
     terms:               null,
+    sent_status:         row.sent_status || null,
     line_items:          [], // detail enrichment fills this in
     metadata,
   };
@@ -150,15 +152,17 @@ function toDbValuesFromDetail(detail, customerId) {
     customer_name:       detail.customer_name || null,
     customer_email:      detail.customer_email || null,
     customer_address:    detail.customer_address || detail.property_address || null,
-    status:              detail.status || 'sent',
+    status:              detail.status || 'pending',
     subtotal:            detail.subtotal,
     tax_amount:          detail.tax_amount,
     total:               detail.total,
     amount_paid:         detail.amount_paid != null ? detail.amount_paid : 0,
-    due_date:            null,
+    due_date:            detail.due_date || null,
+    paid_at:             detail.paid_at || null,
     created_at:          detail.invoice_date || null,
     notes:               detail.notes || null,
     terms:               detail.terms || null,
+    sent_status:         detail.sent_status || null,
     line_items:          Array.isArray(detail.line_items) ? detail.line_items : [],
     metadata,
   };
@@ -213,23 +217,26 @@ async function upsert(pool, v) {
       `tax_amount        = COALESCE($${10}, invoices.tax_amount)`,
       `total             = COALESCE($${11}, invoices.total)`,
       `amount_paid       = COALESCE($${12}, invoices.amount_paid)`,
-      `created_at        = COALESCE(invoices.created_at, $${13}::timestamp)`,
+      `due_date          = COALESCE($${13}::date, invoices.due_date)`,
+      `paid_at           = COALESCE($${14}::timestamp, invoices.paid_at)`,
+      `created_at        = COALESCE(invoices.created_at, $${15}::timestamp)`,
       // Notes/terms: empty string treated as missing so we don't blank
       // out a hand-edited note.
-      `notes             = COALESCE(NULLIF($${14}, ''), invoices.notes)`,
+      `notes             = COALESCE(NULLIF($${16}, ''), invoices.notes)`,
+      `terms             = COALESCE(NULLIF($${17}, ''), invoices.terms)`,
+      `sent_status       = COALESCE(NULLIF($${18}, ''), invoices.sent_status)`,
       // Line items: only overwrite when the import actually carries items.
-      `line_items        = CASE WHEN jsonb_array_length($${15}::jsonb) > 0 THEN $${15}::jsonb ELSE invoices.line_items END`,
-      `external_metadata = invoices.external_metadata || $${16}::jsonb`,
+      `line_items        = CASE WHEN jsonb_array_length($${19}::jsonb) > 0 THEN $${19}::jsonb ELSE invoices.line_items END`,
+      `external_metadata = invoices.external_metadata || $${20}::jsonb`,
       `imported_at       = CURRENT_TIMESTAMP`,
       `updated_at        = CURRENT_TIMESTAMP`,
     ];
-    // terms isn't a real column today — store it inside external_metadata via the merged json above (already there).
     const params = [
       SOURCE, v.external_invoice_id, v.invoice_number,
       v.customer_id, v.customer_name, v.customer_email, v.customer_address,
       v.status, v.subtotal, v.tax_amount, v.total, v.amount_paid,
-      v.created_at,
-      v.notes, JSON.stringify(v.line_items || []),
+      v.due_date, v.paid_at, v.created_at,
+      v.notes, v.terms, v.sent_status, JSON.stringify(v.line_items || []),
       JSON.stringify(v.metadata || {}),
       existing,
     ];
@@ -243,24 +250,24 @@ async function upsert(pool, v) {
       external_source, external_invoice_id, invoice_number,
       customer_id, customer_name, customer_email, customer_address,
       status, subtotal, tax_amount, total, amount_paid,
-      due_date, created_at, notes, line_items,
+      due_date, paid_at, created_at, notes, terms, sent_status, line_items,
       external_metadata, imported_at
     )
     VALUES (
       $1, $2, $3,
       $4, $5, $6, $7,
       $8, $9, $10, $11, $12,
-      $13, COALESCE($14::timestamp, CURRENT_TIMESTAMP),
-      $15, $16::jsonb,
-      $17::jsonb, CURRENT_TIMESTAMP
+      $13, $14::timestamp, COALESCE($15::timestamp, CURRENT_TIMESTAMP),
+      $16, $17, $18, $19::jsonb,
+      $20::jsonb, CURRENT_TIMESTAMP
     )
     RETURNING id`;
   const r = await pool.query(insertSql, [
     SOURCE, v.external_invoice_id, v.invoice_number,
     v.customer_id, v.customer_name, v.customer_email, v.customer_address,
     v.status, v.subtotal, v.tax_amount, v.total, v.amount_paid,
-    v.due_date, v.created_at,
-    v.notes, JSON.stringify(v.line_items || []),
+    v.due_date, v.paid_at, v.created_at,
+    v.notes, v.terms, v.sent_status, JSON.stringify(v.line_items || []),
     JSON.stringify(v.metadata || {}),
   ]);
   return { id: r.rows[0].id, inserted: true };
@@ -287,6 +294,32 @@ async function syncInvoicesToDatabase(pool, rows, { linkCustomers = false } = {}
 
   return {
     total: uniqueRows.length,
+    inserted,
+    updated,
+  };
+}
+
+async function syncInvoiceDetailsToDatabase(pool, details, { linkCustomers = false } = {}) {
+  const byExtId = new Map();
+  for (const detail of details || []) {
+    const key = detail.external_invoice_id || `__no_id__:${detail.invoice_number || Math.random()}`;
+    byExtId.set(key, detail);
+  }
+
+  const uniqueDetails = [...byExtId.values()];
+  let inserted = 0;
+  let updated = 0;
+
+  for (const detail of uniqueDetails) {
+    const customerId = await resolveCustomerId(pool, detail);
+    const values = toDbValuesFromDetail(detail, linkCustomers ? customerId : null);
+    const result = await upsert(pool, values);
+    if (result.inserted) inserted += 1;
+    else updated += 1;
+  }
+
+  return {
+    total: uniqueDetails.length,
     inserted,
     updated,
   };
@@ -414,4 +447,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { toDbValues, toDbValuesFromDetail, upsert, syncInvoicesToDatabase };
+module.exports = { toDbValues, toDbValuesFromDetail, upsert, syncInvoicesToDatabase, syncInvoiceDetailsToDatabase };

@@ -14,6 +14,10 @@
 // ─────────────────────────────────────────────────────────────
 
 const cheerio = require('cheerio');
+const {
+  normalizeCopilotInvoiceStatus,
+  normalizeCopilotSentStatus,
+} = require('../lib/invoice-status');
 
 // ── Helpers ────────────────────────────────────────────────────
 function clean(text) {
@@ -56,21 +60,14 @@ function looksLikeDateLabel(value) {
     || /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-// Map a Copilot status label → our local status enum.
-function mapStatus(rawStatus, amountPaid, total) {
-  const s = clean(rawStatus).toLowerCase();
-  if (!s) return 'sent';
-  if (s.includes('paid in full') || s === 'paid') return 'paid';
-  if (s.includes('partial')) return 'partial';
-  if (s.includes('void') || s.includes('cancel')) return 'void';
-  if (s.includes('draft')) return 'draft';
-  if (s.includes('overdue') || s.includes('past due')) return 'overdue';
-  // "Pending", "Open", "Sent", "Outstanding" → all map to 'sent' locally,
-  // bumped to 'partial' when there's a payment recorded.
-  if (parseFloat(amountPaid || 0) > 0 && parseFloat(amountPaid || 0) < parseFloat(total || 0)) {
-    return 'partial';
-  }
-  return 'sent';
+function mapStatus(rawStatus, amountPaid, total, sentStatus) {
+  return normalizeCopilotInvoiceStatus({
+    rawStatus,
+    sentStatus,
+    amountPaid,
+    total,
+    defaultUnpaidStatus: 'pending',
+  }) || 'pending';
 }
 
 // Find the best <td> for a given header label. CopilotCRM's column order
@@ -217,8 +214,8 @@ function parseInvoiceListHtml(htmlOrPayload) {
       row.amount_paid = parseMoney(cellText(idx.paid));
       row.credit_available = parseMoney(cellText(idx.credit));
       row.raw_status = cellText(idx.status) || null;
-      row.status = mapStatus(row.raw_status, row.amount_paid, row.total);
-      row.sent_status = cellText(idx.sent) || null;
+      row.sent_status = normalizeCopilotSentStatus(cellText(idx.sent) || null);
+      row.status = mapStatus(row.raw_status, row.amount_paid, row.total, row.sent_status);
 
       // Skip obvious junk rows (no id and no invoice number)
       if (!row.external_invoice_id && !row.invoice_number) return;

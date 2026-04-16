@@ -7,9 +7,20 @@
 const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
+const {
+  normalizeStoredInvoiceStatus,
+  isOutstandingInvoice,
+  cleanStatusValue,
+} = require('../lib/invoice-status');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME }) {
   const router = express.Router();
+
+function outstandingBalance(inv) {
+  const total = parseFloat(inv.total) || 0;
+  const paid = parseFloat(inv.amount_paid) || 0;
+  return Math.max(0, total - paid);
+}
 
 // GET /api/payments - List received payments (paid/partial invoices)
 router.get('/api/payments', async (req, res) => {
@@ -148,26 +159,26 @@ router.get('/api/invoices', async (req, res) => {
 // GET /api/invoices/stats - Invoice statistics
 router.get('/api/invoices/stats', async (req, res) => {
   try {
-    const all = await pool.query('SELECT status, total, amount_paid, due_date FROM invoices');
+    const all = await pool.query('SELECT status, total, amount_paid, due_date, paid_at FROM invoices');
     const now = new Date();
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    let stats = { total: 0, draft: 0, sent: 0, viewed: 0, paid: 0, overdue: 0, void: 0,
+    let stats = { total: 0, draft: 0, pending: 0, partial: 0, sent: 0, paid: 0, overdue: 0, void: 0,
       outstanding: 0, overdueAmount: 0, paidThisMonth: 0, totalRevenue: 0 };
     all.rows.forEach(inv => {
+      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+      const balance = outstandingBalance(inv);
       stats.total++;
-      stats[inv.status] = (stats[inv.status] || 0) + 1;
+      stats[effectiveStatus] = (stats[effectiveStatus] || 0) + 1;
       const t = parseFloat(inv.total) || 0;
-      const p = parseFloat(inv.amount_paid) || 0;
-      if (inv.status === 'paid') {
+      if (effectiveStatus === 'paid') {
         stats.totalRevenue += t;
         if (inv.paid_at && new Date(inv.paid_at) >= thisMonth) stats.paidThisMonth += t;
       }
-      if (['sent', 'viewed'].includes(inv.status)) {
-        stats.outstanding += (t - p);
-        if (inv.due_date && new Date(inv.due_date) < now) {
-          stats.overdue++;
-          stats.overdueAmount += (t - p);
-        }
+      if (isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) {
+        stats.outstanding += balance;
+      }
+      if (effectiveStatus === 'overdue' && balance > 0) {
+        stats.overdueAmount += balance;
       }
     });
     res.json({ success: true, stats });
@@ -181,9 +192,9 @@ router.get('/api/invoices/stats', async (req, res) => {
 router.get('/api/invoices/aging', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, status
+      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, status, sent_status, external_metadata
       FROM invoices
-      WHERE status IN ('sent', 'viewed', 'overdue') AND total > COALESCE(amount_paid, 0)
+      WHERE total > COALESCE(amount_paid, 0) AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')
     `);
     const now = new Date();
     const buckets = {
@@ -194,7 +205,9 @@ router.get('/api/invoices/aging', async (req, res) => {
       '90_plus': { count: 0, total: 0, invoices: [] }
     };
     result.rows.forEach(inv => {
-      const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+      if (!isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) return;
+      const balance = outstandingBalance(inv);
       const due = inv.due_date ? new Date(inv.due_date) : now;
       const daysOverdue = Math.floor((now - due) / (1000 * 60 * 60 * 24));
       let bucket;
@@ -205,7 +218,7 @@ router.get('/api/invoices/aging', async (req, res) => {
       else bucket = '90_plus';
       buckets[bucket].count++;
       buckets[bucket].total += balance;
-      buckets[bucket].invoices.push({ id: inv.id, invoice_number: inv.invoice_number, customer_name: inv.customer_name, balance, days_overdue: Math.max(0, daysOverdue) });
+      buckets[bucket].invoices.push({ id: inv.id, invoice_number: inv.invoice_number, customer_name: inv.customer_name, balance, days_overdue: Math.max(0, daysOverdue), status: effectiveStatus });
     });
     res.json({ success: true, buckets });
   } catch (error) {
@@ -345,7 +358,7 @@ router.post('/api/invoices/from-quote/:quoteId', async (req, res) => {
 // PATCH /api/invoices/:id - Update invoice
 router.patch('/api/invoices/:id', async (req, res) => {
   try {
-    const fields = ['status','customer_name','customer_email','customer_address','subtotal','tax_rate','tax_amount','total','amount_paid','due_date','paid_at','sent_at','qb_invoice_id','notes','line_items'];
+    const fields = ['status','sent_status','customer_name','customer_email','customer_address','subtotal','tax_rate','tax_amount','total','amount_paid','due_date','paid_at','sent_at','qb_invoice_id','notes','terms','line_items'];
     const sets = []; const params = [];
     fields.forEach(f => {
       if (req.body[f] !== undefined) {
@@ -421,7 +434,7 @@ router.post('/api/invoices/:id/send', async (req, res) => {
     } catch (pdfErr) { console.error('Invoice PDF error:', pdfErr); }
 
     await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content), attachments, { type: 'invoice', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
-    await pool.query("UPDATE invoices SET status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
+    await pool.query("UPDATE invoices SET status = 'sent', sent_status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
     res.json({ success: true, message: 'Invoice sent' });
   } catch (error) {
     console.error('Error sending invoice:', error);
@@ -541,7 +554,7 @@ router.get('/api/pay/:token', async (req, res) => {
     }
     const inv = result.rows[0];
     // Update viewed_at
-    await pool.query('UPDATE invoices SET viewed_at = CURRENT_TIMESTAMP WHERE id = $1 AND viewed_at IS NULL', [inv.id]);
+    await pool.query("UPDATE invoices SET viewed_at = CURRENT_TIMESTAMP, sent_status = CASE WHEN sent_status = 'viewed' THEN sent_status ELSE 'viewed' END WHERE id = $1", [inv.id]);
 
     // Get payment history
     try {
@@ -683,7 +696,10 @@ router.post('/api/pay/:token/card', async (req, res) => {
 
     // Update invoice
     const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
-    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    const currentStatus = cleanStatusValue(inv.status).toLowerCase();
+    const newStatus = newAmountPaid >= parseFloat(inv.total)
+      ? 'paid'
+      : (currentStatus === 'pending' || currentStatus === 'sent' || currentStatus === 'overdue' ? 'partial' : inv.status);
     if (processingFee > 0) {
       await pool.query(
         `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,

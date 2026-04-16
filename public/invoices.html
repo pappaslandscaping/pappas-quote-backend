@@ -495,7 +495,7 @@
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
                 </div>
                 <div class="stat-value" id="awaitingStat">$0</div>
-                <div class="stat-sub">sent, not yet overdue</div>
+                <div class="stat-sub">pending, partial, and current sent invoices</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
@@ -548,6 +548,8 @@
                 <select id="statusFilter" class="filter-select" onchange="loadInvoices()">
                     <option value="">All Statuses</option>
                     <option value="draft">Draft</option>
+                    <option value="pending">Pending</option>
+                    <option value="partial">Partial</option>
                     <option value="sent">Sent</option>
                     <option value="paid">Paid</option>
                     <option value="overdue">Overdue</option>
@@ -789,6 +791,8 @@
     function getStatusPill(status) {
         const map = {
             draft:   { cls: 'neutral', label: 'Draft'   },
+            pending: { cls: 'warning', label: 'Pending' },
+            partial: { cls: 'warning', label: 'Partial' },
             sent:    { cls: 'info',    label: 'Sent'    },
             paid:    { cls: 'success', label: 'Paid'    },
             overdue: { cls: 'danger',  label: 'Overdue' },
@@ -796,6 +800,20 @@
         };
         const m = map[status] || map.draft;
         return `<span class="status-pill ${m.cls}">${m.label}</span>`;
+    }
+
+    function getSentStatus(inv) {
+        const sentStatus = inv.sent_status || (inv.external_metadata && inv.external_metadata.sent_status) || '';
+        return String(sentStatus || '').trim().toLowerCase();
+    }
+
+    function getSentStatusLabel(sentStatus) {
+        const map = {
+            'not sent': 'Not Sent',
+            sent: 'Sent',
+            viewed: 'Viewed',
+        };
+        return map[sentStatus] || '';
     }
 
     function dueMeta(inv) {
@@ -892,10 +910,13 @@
             const dueSubCls = due.overdue ? 'invoice-due-sub overdue-flag' : 'invoice-due-sub';
 
             const actions = [];
-            if (inv.status === 'draft') {
+            const sentStatus = getSentStatus(inv);
+            const sentStatusLabel = getSentStatusLabel(sentStatus);
+
+            if (inv.status === 'draft' || (inv.status === 'pending' && sentStatus === 'not sent')) {
                 actions.push(`<button class="btn btn-primary" onclick="sendInvoice('${inv.id}')">Send</button>`);
             }
-            if (inv.status === 'sent' || inv.status === 'overdue') {
+            if (['pending', 'partial', 'sent', 'overdue'].includes(inv.status)) {
                 actions.push(`<button class="btn btn-success" onclick="markPaid('${inv.id}')">Mark Paid</button>`);
             }
             if (inv.payment_token) {
@@ -911,7 +932,10 @@
                     ${custEmail ? `<div class="invoice-customer-sub">${esc(custEmail)}</div>` : ''}
                 </div>
                 <div class="invoice-amount col-amount">${formatCurrency(inv.total || 0)}</div>
-                <div class="col-status">${getStatusPill(inv.status)}${lateFeeBadge}</div>
+                <div class="col-status">
+                    ${getStatusPill(inv.status)}${lateFeeBadge}
+                    ${sentStatusLabel ? `<div class="invoice-customer-sub" style="margin-top:6px;">${esc(sentStatusLabel)}</div>` : ''}
+                </div>
                 <div class="col-due">
                     <div class="invoice-due">${due.primary}</div>
                     ${due.sub ? `<div class="${dueSubCls}">${esc(due.sub)}</div>` : ''}

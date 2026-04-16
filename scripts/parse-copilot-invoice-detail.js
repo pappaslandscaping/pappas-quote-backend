@@ -12,6 +12,10 @@
 // ─────────────────────────────────────────────────────────────
 
 const cheerio = require('cheerio');
+const {
+  normalizeCopilotInvoiceStatus,
+  normalizeCopilotSentStatus,
+} = require('../lib/invoice-status');
 
 // ── Helpers (mirrored from the list parser to keep this file standalone) ──
 function clean(text) {
@@ -53,31 +57,15 @@ function parseDate(text) {
   return d.toISOString().slice(0, 10);
 }
 
-function mapStatus(rawStatus, amountPaid, total) {
-  const s = clean(rawStatus).toLowerCase();
-  // Always honor an explicit status string when present.
-  if (s) {
-    if (s.includes('paid in full') || s === 'paid') return 'paid';
-    if (s.includes('partial')) return 'partial';
-    if (s.includes('written off') || s.includes('writeoff')) return 'void';
-    if (s.includes('void') || s.includes('cancel')) return 'void';
-    if (s.includes('draft')) return 'draft';
-    if (s.includes('overdue') || s.includes('past due')) return 'overdue';
-    if (s.includes('pending')) {
-      // Pending + partial payment → partial; Pending + full payment → paid.
-      const paid = parseFloat(amountPaid || 0);
-      const tot = parseFloat(total || 0);
-      if (tot > 0 && paid >= tot) return 'paid';
-      if (paid > 0 && paid < tot) return 'partial';
-      return 'sent';
-    }
-  }
-  // No status string (common on detail pages): infer from money.
-  const paid = parseFloat(amountPaid || 0);
-  const tot = parseFloat(total || 0);
-  if (tot > 0 && paid >= tot) return 'paid';
-  if (paid > 0 && paid < tot) return 'partial';
-  return 'sent';
+function mapStatus(rawStatus, amountPaid, total, dueDate, sentStatus) {
+  return normalizeCopilotInvoiceStatus({
+    rawStatus,
+    sentStatus,
+    amountPaid,
+    total,
+    dueDate,
+    defaultUnpaidStatus: null,
+  });
 }
 
 // Read either input.value or [data-value], whichever fires first.
@@ -113,6 +101,17 @@ function pick(map, ...keys) {
     }
   }
   return null;
+}
+
+function collectLabelValues($) {
+  const out = new Map();
+  $('table').each((_, table) => {
+    const rows = readLabelValueTable($, $(table));
+    for (const [label, value] of rows.entries()) {
+      if (!out.has(label)) out.set(label, value);
+    }
+  });
+  return out;
 }
 
 // Index a line-item header row to a column map. Returns indices for known
@@ -269,6 +268,22 @@ function parseInvoiceDetailHtml(html) {
     subtotal = Math.max(0, total - tax_amount);
   }
 
+  const labelValues = collectLabelValues($);
+  const due_date = (
+    parseDate(valOrText($('#due_date'))) ||
+    parseDate(valOrText($('input[name="due_date"]'))) ||
+    parseDate(clean($('.invoice-due-date, .due-date, .inv-due-date').first().text())) ||
+    parseDate(pick(labelValues, 'due date', 'invoice due'))
+  );
+
+  const paidAtRaw = (
+    valOrText($('#paid_at')) ||
+    valOrText($('input[name="paid_at"]')) ||
+    clean($('.invoice-paid-date, .paid-date, .inv-paid-date').first().text()) ||
+    pick(labelValues, 'paid date', 'payment date', 'date paid')
+  );
+  const paid_at = parseDate(paidAtRaw);
+
   // ── Notes + terms ────────────────────────────────────────
   const notes = clean($('.inv-notes-container').first().text()) || null;
   const terms = clean($('.inv-terms-table').first().text()) || null;
@@ -277,9 +292,17 @@ function parseInvoiceDetailHtml(html) {
   const rawStatus = (
     clean($('.invoice-status, .inv-status').first().text()) ||
     clean($('[data-invoice-status]').first().attr('data-invoice-status')) ||
+    clean(valOrText($('#invoice_status'))) ||
+    clean(pick(labelValues, 'invoice status')) ||
     null
   );
-  const status = mapStatus(rawStatus, amount_paid, total);
+  const sent_status = normalizeCopilotSentStatus(
+    clean($('.invoice-sent-status, .sent-status, .inv-sent-status').first().text()) ||
+    clean(valOrText($('#sent_status'))) ||
+    clean(pick(labelValues, 'sent', 'sent status', 'delivery status')) ||
+    null
+  );
+  const status = mapStatus(rawStatus, amount_paid, total, due_date, sent_status);
 
   // ── Crew (informational) ─────────────────────────────────
   const crew = clean($('.invoice-crew, .crew-name').first().text()) || null;
@@ -303,7 +326,10 @@ function parseInvoiceDetailHtml(html) {
     total,
     amount_paid,
     total_due,
+    due_date,
+    paid_at,
     raw_status: rawStatus,
+    sent_status,
     status,
   };
 }

@@ -4,68 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scheduling — YardDesk</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
     <style>
         body { overflow-x: hidden; }
 
-        /* ─── Stats Row ─────────────────────────────────────── */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 28px;
-        }
+        /* Stats/cards/buttons/inputs/status-pills now defined in shared.css.
+           Page-specific overrides start below. */
+        .stats-row { cursor: default; }
 
-        .stat-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
+        .stat-card { cursor: pointer; }
 
-        .stat-card:hover {
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-            transform: translateY(-2px);
-        }
-
-        .stat-card .stat-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .stat-card .stat-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-500);
-        }
-
-        .stat-card .stat-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .stat-card .stat-icon svg { width: 18px; height: 18px; }
-
-        .stat-card .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--gray-700);
-            line-height: 1;
-        }
-
-        .icon-blue { background: var(--blue-bg); color: var(--blue); }
-        .icon-amber { background: var(--amber-bg); color: var(--amber); }
-        .icon-green { background: var(--green-bg); color: var(--green); }
-        .icon-purple { background: var(--purple-bg); color: var(--purple); }
+        /* stat-card internals come from shared.css */
+        .icon-blue { background: var(--info-bg); color: var(--info); }
+        .icon-amber { background: var(--warning-bg); color: var(--warning); }
+        .icon-green { background: var(--success-bg); color: var(--success); }
+        .icon-purple { background: var(--surface-soft); color: var(--brand-soft); }
 
         /* ─── Table Card ────────────────────────────────────── */
         .table-card {
@@ -100,44 +53,33 @@
             font-weight: 700;
         }
 
+        /* filter-select and search-input now inherit from shared.css .control */
         .filter-select {
-            padding: 6px 28px 6px 10px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--gray-600);
-            background: var(--white);
-            cursor: pointer;
             appearance: none;
-            transition: all 0.15s ease;
-            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%239ca09c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2373827b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 8px center;
+            background-position: right 14px center;
+            padding-right: 36px;
+            cursor: pointer;
         }
 
-        .filter-select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(22,163,74,0.1);
+        .search-box {
+            position: relative;
+            min-width: 240px;
         }
-
-        .search-input {
-            padding: 6px 10px 6px 32px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--gray-600);
-            width: 200px;
-            transition: all 0.15s ease;
-            background: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%239ca09c' stroke-width='2'/%3E%3Cpath d='M16 16L20 20' stroke='%239ca09c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 10px center;
+        .search-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            color: var(--muted);
+            pointer-events: none;
         }
-
-        .search-input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(22,163,74,0.1);
+        .search-box input.search-input {
+            width: 100%;
+            padding-left: 38px;
         }
 
         table {
@@ -190,36 +132,13 @@
 
         .td-phone a:hover { color: var(--primary); }
 
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-
-        .status-pill::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-        }
-
-        .status-new { background: var(--blue-bg); color: var(--blue); }
-        .status-new::before { background: var(--blue); }
-        .status-contacted { background: var(--amber-bg); color: var(--amber); }
-        .status-contacted::before { background: var(--amber); }
-        .status-quoted { background: var(--purple-bg); color: var(--purple); }
-        .status-quoted::before { background: var(--purple); }
-        .status-scheduled { background: var(--green-bg); color: var(--green); }
-        .status-scheduled::before { background: var(--green); }
-        .status-completed { background: var(--green-bg); color: var(--green); }
-        .status-completed::before { background: var(--green); }
-        .status-cancelled { background: var(--red-bg); color: var(--red); }
-        .status-cancelled::before { background: var(--red); }
+        /* status-pill base + status-completed/-pending/-in-progress/-unassigned in shared.css */
+        .status-new       { background: var(--info-bg);    color: var(--info);    }
+        .status-contacted { background: var(--warning-bg); color: var(--warning); }
+        .status-quoted    { background: var(--surface-soft); color: var(--brand-soft); }
+        .status-scheduled { background: var(--success-bg); color: var(--success); }
+        .status-cancelled { background: var(--danger-bg);  color: var(--danger);  }
+        .status-skipped   { background: var(--surface-muted); color: var(--muted); }
 
         .row-actions {
             display: flex;
@@ -511,46 +430,63 @@
         .icon-red { background: var(--red-bg); color: var(--red); }
 
     
-        .date-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-        .date-nav button { padding: 8px 14px; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); font-family: inherit; font-size: 13px; font-weight: 600; color: var(--gray-600); cursor: pointer; }
-        .date-nav button:hover { background: var(--gray-50); border-color: var(--gray-300); }
-        .date-nav button.today-btn { background: var(--primary); color: var(--white); border-color: var(--primary); }
-        .date-nav button.today-btn:hover { background: var(--primary-dark); }
-        .date-nav input[type="date"] { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; outline: none; }
-        .date-nav input[type="date"]:focus { border-color: var(--primary); }
-        .date-nav .day-label { font-size: 14px; color: var(--gray-500); font-weight: 500; }
-
-        /* Enhanced Job Cards */
-        .job-checkbox {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .job-checkbox input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
+        .date-nav { display: flex; align-items: center; gap: var(--space-2); margin-bottom: 0; flex-wrap: wrap; }
+        .date-nav button {
+            min-height: 42px;
+            padding: 0 16px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            font: 700 var(--text-sm)/1 var(--font-ui);
+            color: var(--text);
             cursor: pointer;
-            accent-color: var(--primary);
+            transition: background 0.15s, border-color 0.15s;
         }
+        .date-nav button:hover { background: var(--surface-soft); border-color: var(--line-strong); }
+        .date-nav button.today-btn {
+            background: var(--primary);
+            color: var(--primary-text);
+            border-color: var(--primary);
+        }
+        .date-nav button.today-btn:hover { background: var(--primary-deep); border-color: var(--primary-deep); }
+        .date-nav input[type="date"] {
+            min-height: 42px;
+            padding: 0 14px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            font: 700 var(--text-sm)/1 var(--font-ui);
+            color: var(--text);
+            outline: none;
+        }
+        .date-nav input[type="date"]:focus { border-color: var(--brand-soft); box-shadow: 0 0 0 4px rgba(47, 69, 65, 0.08); }
+        .date-nav .day-label {
+            font: 600 var(--text-sm)/1 var(--font-ui);
+            color: var(--muted);
+            margin-left: var(--space-2);
+        }
+
+        /* Job row checkbox styles handled in shared.css .job-row .job-check */
+        /* Sits inside .list-card as the table-header row */
         .select-all-row {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 20px;
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 10px;
-            margin-bottom: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-500);
+            padding: 10px 18px;
+            background: var(--surface-soft);
+            border-bottom: 1px solid var(--line);
+            font: 700 11px/1 var(--font-ui);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--muted);
         }
         .select-all-row input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             cursor: pointer;
             accent-color: var(--primary);
         }
+        .select-all-row label { cursor: pointer; }
         .bulk-delete-btn {
             background: #dc2626;
             color: white;
@@ -564,159 +500,80 @@
             transition: background 0.15s;
         }
         .bulk-delete-btn:hover { background: #b91c1c; }
-        .job-card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 16px 20px;
-            display: grid;
-            grid-template-columns: 28px 40px 1fr auto auto auto;
-            align-items: center;
-            gap: 16px;
-            transition: all 0.15s;
+        /* Job row layout — base styles in shared.css (.job-row).
+           These add the page-specific extras (status borders, hover actions). */
+        .job-row {
             cursor: pointer;
-            margin-bottom: 8px;
             position: relative;
+            margin-bottom: 0;
         }
-        .job-card:hover {
-            border-color: var(--primary);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transform: translateY(-1px);
-        }
-        .job-card.is-completed { opacity: 0.6; background: var(--gray-50); }
-        .job-card.is-completed .job-order { color: var(--green); }
-        .job-card.is-in_progress { border-left: 4px solid var(--blue); }
-        
-        .job-order { 
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px; 
-            font-weight: 700; 
-            color: var(--white);
-            background: var(--gray-300);
-            border-radius: 50%;
-        }
-        .job-card:hover .job-order { background: var(--primary); }
-        
-        .job-info { min-width: 0; }
-        .job-info h4 { 
-            font-size: 15px; 
-            font-weight: 600; 
-            color: var(--gray-700);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .job-info .addr { 
-            font-size: 13px; 
-            color: var(--gray-500); 
-            margin-top: 4px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .job-info .addr a {
-            color: var(--primary);
-            text-decoration: none;
-        }
-        .job-info .addr a:hover { text-decoration: underline; }
-        .job-info .service-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-        .job-info .service-tag { 
-            display: inline-block; 
-            padding: 4px 10px; 
-            border-radius: 6px; 
-            font-size: 11px; 
-            font-weight: 600; 
-            background: var(--green-bg); 
-            color: var(--green);
-        }
-        .service-tag.tag-cleanup { background: var(--amber-bg); color: var(--amber); }
-        .service-tag.tag-mowing { background: var(--green-bg); color: var(--green); }
-        .service-tag.tag-mulch { background: #fef3c7; color: #92400e; }
-        .service-tag.tag-fertilizer { background: var(--purple-bg); color: var(--purple); }
-        .service-tag.tag-aeration { background: var(--blue-bg); color: var(--blue); }
-        .service-tag.tag-snow { background: #e0f2fe; color: #0369a1; }
-        
-        .job-meta {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 4px;
-        }
-        .job-price { 
-            font-size: 16px; 
-            font-weight: 700; 
-            color: var(--gray-700);
-        }
-        .job-crew { 
-            font-size: 12px; 
-            color: var(--gray-500); 
-            background: var(--gray-100);
-            padding: 2px 8px;
-            border-radius: 4px;
-        }
-        .job-crew.unassigned { color: var(--amber); background: var(--amber-bg); }
-        
-        /* Quick Actions */
-        .job-actions {
+        .job-row.is-completed { opacity: 0.62; }
+        .job-row.is-in_progress { border-left: 3px solid var(--info); }
+
+        .job-row .job-actions {
             display: flex;
             gap: 6px;
             opacity: 0;
             transition: opacity 0.15s;
         }
-        .job-card:hover .job-actions { opacity: 1; }
+        .job-row:hover .job-actions { opacity: 1; }
         .job-action-btn {
             width: 32px;
             height: 32px;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             border: none;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.15s;
+            transition: background 0.15s, color 0.15s;
         }
         .job-action-btn svg { width: 16px; height: 16px; }
-        .job-action-btn.action-complete { background: var(--green-bg); color: var(--green); }
-        .job-action-btn.action-complete:hover { background: var(--green); color: white; }
+        .job-action-btn.action-complete { background: var(--success-bg); color: var(--success); }
+        .job-action-btn.action-complete:hover { background: var(--success); color: white; }
+
+        /* Service tag color variants — use the shared .tag base */
+        .tag.tag-cleanup    { background: var(--warning-bg); color: var(--warning); }
+        .tag.tag-mowing     { background: var(--success-bg); color: var(--success); }
+        .tag.tag-mulch      { background: #f5e9d3; color: #8a6a3d; }
+        .tag.tag-fertilizer { background: var(--surface-soft); color: var(--brand-soft); }
+        .tag.tag-aeration   { background: var(--info-bg); color: var(--info); }
+        .tag.tag-snow       { background: #e6eef0; color: #4a6e7a; }
         .job-action-btn.action-edit { background: var(--blue-bg); color: var(--blue); }
         .job-action-btn.action-edit:hover { background: var(--blue); color: white; }
         .job-action-btn.action-map { background: var(--gray-100); color: var(--gray-600); }
         .job-action-btn.action-map:hover { background: var(--primary); color: white; }
         
-        /* Route Summary Bar */
+        /* Compact daily route summary — sits above the list */
         .route-summary {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 16px 20px;
-            margin-bottom: 16px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            padding: 12px 18px;
+            margin-bottom: var(--space-3);
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 16px;
+            gap: var(--space-4);
+            box-shadow: var(--shadow-sm);
         }
         .route-summary-stats {
             display: flex;
-            gap: 24px;
+            gap: 28px;
+            align-items: baseline;
         }
-        .route-summary-stat {
-            text-align: center;
-        }
+        .route-summary-stat { text-align: left; display: flex; align-items: baseline; gap: 8px; }
         .route-summary-stat .value {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--primary);
+            font: 700 18px/1 var(--font-ui);
+            color: var(--text-strong);
+            letter-spacing: -0.01em;
         }
         .route-summary-stat .label {
-            font-size: 11px;
-            color: var(--gray-500);
+            font: 600 11px/1 var(--font-ui);
+            color: var(--muted);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.08em;
         }
         .route-actions {
             display: flex;
@@ -728,72 +585,52 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
+            margin-bottom: var(--space-4);
             flex-wrap: wrap;
-            gap: 16px;
+            gap: var(--space-4);
         }
         .view-toggle {
             display: flex;
-            background: var(--gray-100);
-            border-radius: 8px;
+            background: var(--surface-soft);
+            border-radius: var(--radius-md);
             padding: 4px;
+            gap: 2px;
         }
         .view-btn {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 14px;
+            min-height: 36px;
+            padding: 0 14px;
             border: none;
             background: transparent;
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--gray-500);
+            border-radius: var(--radius-sm);
+            font: 700 13px/1 var(--font-ui);
+            color: var(--muted);
             cursor: pointer;
-            transition: all 0.15s;
+            transition: background 0.15s, color 0.15s;
         }
         .view-btn svg { width: 16px; height: 16px; }
-        .view-btn:hover { color: var(--gray-700); }
-        .view-btn.active { background: var(--white); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .view-btn:hover { color: var(--text); }
+        .view-btn.active { background: var(--surface); color: var(--text-strong); box-shadow: var(--shadow-sm); }
 
-        /* Toolbar Row */
+        /* Filters / actions row — flat utility, no decoration */
         .toolbar-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: var(--space-4);
             flex-wrap: wrap;
-            gap: 12px;
+            gap: var(--space-3);
         }
         .filters {
             display: flex;
-            gap: 12px;
+            gap: var(--space-3);
             flex-wrap: wrap;
             align-items: center;
         }
-        .search-box {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-        .search-box svg {
-            position: absolute;
-            left: 12px;
-            width: 16px;
-            height: 16px;
-            color: var(--gray-400);
-        }
-        .search-box input {
-            padding: 8px 12px 8px 36px;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 13px;
-            width: 200px;
-            outline: none;
-        }
-        .search-box input:focus { border-color: var(--primary); }
+        /* .search-box base defined earlier; here we set the overall width on this page */
+        .search-box { min-width: 240px; flex: 1; max-width: 360px; }
         
         .bulk-actions {
             display: flex;
@@ -808,7 +645,7 @@
             font-size: 13px;
             font-weight: 600;
         }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        /* .btn-sm now in shared.css */
 
         /* Week View Grid */
         .week-grid {
@@ -1013,7 +850,7 @@
             background: var(--green-bg) !important;
             box-shadow: inset 0 0 0 2px var(--primary);
         }
-        .job-card.dragging { opacity: 0.4; }
+        .job-row.dragging { opacity: 0.4; }
 
         /* ─── Undo Toast ───────────────────────────────────────── */
         .toast-undo {
@@ -1092,25 +929,29 @@
         /* Map View Styles */
         .map-container {
             display: flex;
-            height: calc(100vh - 380px);
-            min-height: 500px;
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
+            /* Topbar (64) + page header (~100) + date-nav (~74) + stats-row (~120) + page padding ≈ 360 */
+            height: calc(100vh - 360px);
+            min-height: 600px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
             overflow: hidden;
-            background: var(--white);
+            background: var(--surface);
         }
         .map-sidebar {
             width: 380px;
-            flex-shrink: 0;
+            flex: 0 0 380px;
             display: flex;
             flex-direction: column;
-            border-right: 1px solid var(--gray-200);
-            background: var(--gray-50);
+            min-height: 0;
+            overflow: hidden;
+            border-right: 1px solid var(--line);
+            background: var(--surface-soft);
         }
         .map-sidebar-header {
+            flex: 0 0 auto;
             padding: 12px 16px;
-            border-bottom: 1px solid var(--gray-200);
-            background: var(--white);
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
         }
         .bulk-select-all {
             display: flex;
@@ -1136,32 +977,55 @@
             color: white;
             border-color: var(--primary);
         }
+        /* Bulk action bar — selected count gets its own line so the
+           Apply + Complete buttons never get clipped in the narrow sidebar. */
         .bulk-actions-bar {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 8px;
             margin-top: 10px;
             padding-top: 10px;
-            border-top: 1px solid var(--gray-200);
+            border-top: 1px solid var(--line);
             font-size: 12px;
-            color: var(--gray-600);
+            color: var(--muted);
+        }
+        .bulk-actions-bar .selected-count-line {
+            flex: 0 0 100%;
+            margin-bottom: 2px;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+        .bulk-actions-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            width: 100%;
+            min-width: 0;
+        }
+        .bulk-actions-bar .btn {
+            flex: 0 0 auto;
+            white-space: nowrap;
         }
         .bulk-crew-select {
-            padding: 5px 8px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            font-size: 12px;
-            font-family: inherit;
-            background: var(--white);
-            flex: 1;
-            max-width: 140px;
+            padding: 0 10px;
+            min-height: 32px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            font: 600 12px/1 var(--font-ui);
+            background: var(--surface);
+            color: var(--text);
+            flex: 1 1 140px;
+            min-width: 120px;
+            max-width: none;
         }
         .map-sidebar-filters {
+            flex: 0 0 auto;
             padding: 10px 16px;
             display: flex;
             gap: 8px;
-            border-bottom: 1px solid var(--gray-200);
-            background: var(--white);
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
         }
         .map-sidebar-filters select {
             flex: 1;
@@ -1173,7 +1037,8 @@
             background: var(--white);
         }
         .map-job-list {
-            flex: 1;
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
             padding: 8px;
         }
@@ -1268,9 +1133,27 @@
             color: var(--primary);
             margin-left: auto;
         }
+        .map-job-nopin {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #fef3c7;
+            color: #92400e;
+            cursor: help;
+        }
+        .map-job-item.no-pin .map-job-number {
+            opacity: 0.4;
+        }
         .map-area {
-            flex: 1;
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
             position: relative;
+        }
+        .map-area > #googleMap {
+            width: 100%;
+            height: 100%;
         }
         .map-loading {
             position: absolute;
@@ -1286,15 +1169,18 @@
             .map-container {
                 flex-direction: column;
                 height: auto;
+                min-height: 700px;
             }
             .map-sidebar {
                 width: 100%;
-                max-height: 300px;
+                flex: 0 0 320px;
+                max-height: 320px;
                 border-right: none;
-                border-bottom: 1px solid var(--gray-200);
+                border-bottom: 1px solid var(--line);
             }
             .map-area {
-                height: 400px;
+                flex: 1 1 auto;
+                min-height: 400px;
             }
         }
 
@@ -1318,8 +1204,8 @@
         .form-row textarea { resize: vertical; min-height: 60px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) {
-            .job-card { grid-template-columns: 28px 36px 1fr; gap: 12px; }
-            .job-meta, .job-actions { display: none; }
+            .job-row { grid-template-columns: 28px 36px 1fr 90px; gap: 12px; }
+            .job-row .job-assignment, .job-row .job-actions { display: none; }
             .modal { width: 95%; margin: 0 10px; }
             .form-grid { grid-template-columns: 1fr; }
             .route-summary { flex-direction: column; text-align: center; }
@@ -1339,11 +1225,11 @@
         </div>
         <div class="topbar-actions">
             <div class="topbar-search-wrap" id="search-container"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off"><div class="search-dropdown" id="search-dropdown"></div></div>
-            <a href="import-scheduling.html" class="btn btn-secondary">
+            <a href="import-scheduling.html" class="btn btn-secondary btn-sm" title="Import schedule">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Import
             </a>
-            <a href="new-job.html" class="btn btn-primary">
+            <a href="new-job.html" class="btn btn-primary btn-sm" title="Add a new job">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Job
             </a>
@@ -1352,6 +1238,14 @@
         </div>
     </div>
     <div class="page-content">
+        <!-- Page Header (no longer sticky — primary actions live in the topbar above) -->
+        <div class="page-header">
+            <div>
+                <h2 class="page-title">Schedule</h2>
+                <p class="page-subtitle">Today&rsquo;s work, route, and crew assignments</p>
+            </div>
+        </div>
+
         <!-- Date Navigation with Week View Toggle -->
         <div class="date-nav-container">
             <div class="date-nav">
@@ -1476,12 +1370,14 @@
         <!-- Day View Job List -->
         <div id="dayView">
             <div id="timeSlotView" style="display:none;"></div>
-            <div class="select-all-row" id="selectAllRow" style="display:none;">
-                <input type="checkbox" id="selectAllDayCheckbox" onchange="toggleSelectAllDay()">
-                <label for="selectAllDayCheckbox">Select All</label>
-                <span id="selectAllCount" style="color:var(--gray-400);font-size:12px;"></span>
+            <div class="list-card">
+                <div class="select-all-row" id="selectAllRow" style="display:none;">
+                    <input type="checkbox" id="selectAllDayCheckbox" onchange="toggleSelectAllDay()">
+                    <label for="selectAllDayCheckbox">Select All</label>
+                    <span id="selectAllCount" style="color:var(--muted);font-size:12px;margin-left:auto;"></span>
+                </div>
+                <div id="jobsList"><div class="loading-state"><div class="loading-spinner"></div>Loading jobs...</div></div>
             </div>
-            <div id="jobsList"><div class="loading-state"><div class="loading-spinner"></div>Loading jobs...</div></div>
         </div>
 
         <!-- Map View Container (hidden by default) -->
@@ -1499,12 +1395,14 @@
                             <button class="btn btn-sm btn-secondary" onclick="clearMapSelection()" title="Clear selection">Clear</button>
                         </div>
                         <div class="bulk-actions-bar" id="mapBulkActions" style="display:none;">
-                            <span id="mapSelectedCount">0</span> selected
-                            <select id="bulkCrewSelect" class="bulk-crew-select">
-                                <option value="">Assign Crew...</option>
-                            </select>
-                            <button class="btn btn-sm btn-primary" onclick="bulkAssignCrew()">Apply</button>
-                            <button class="btn btn-sm btn-success" onclick="bulkCompleteJobs()">Complete</button>
+                            <div class="selected-count-line"><span id="mapSelectedCount">0</span> selected</div>
+                            <div class="bulk-actions-controls">
+                                <select id="bulkCrewSelect" class="bulk-crew-select">
+                                    <option value="">Assign Crew...</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" onclick="bulkAssignCrew()">Apply</button>
+                                <button class="btn btn-sm btn-success" onclick="bulkCompleteJobs()">Complete</button>
+                            </div>
                         </div>
                     </div>
                     <div class="map-sidebar-filters">
@@ -1514,6 +1412,10 @@
                         <button class="btn btn-sm btn-secondary" onclick="optimizeCrewRoute()" id="optimizeCrewBtn" style="display:none;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                             Optimize This Crew
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="fixMapPins()" id="fixPinsBtn" style="display:none;" title="Re-run backend geocoding for jobs missing map pins on this date.">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                            <span id="fixPinsBtnLabel">Fix Map Pins</span>
                         </button>
                     </div>
                     <div class="map-job-list" id="mapJobList">
@@ -1711,23 +1613,26 @@ function changeDate(dir) {
     }
     selectedDate = d.toISOString().split('T')[0];
     document.getElementById('dateInput').value = selectedDate;
-    document.getElementById('addDate').value = selectedDate;
+    var addDateEl = document.getElementById('addDate');
+    if (addDateEl) addDateEl.value = selectedDate;
     updateDayLabel();
-    if (currentView === 'month') {
-        loadMonthView();
-    } else if (currentView === 'week') {
-        loadWeekJobs();
-    } else {
-        loadJobs();
-    }
+    if (currentView === 'month') loadMonthView();
+    else if (currentView === 'week') loadWeekJobs();
+    else if (currentView === 'map') initMapView();
+    else loadJobs();
 }
 
 function goToday() {
     selectedDate = new Date().toISOString().split('T')[0];
     document.getElementById('dateInput').value = selectedDate;
-    document.getElementById('addDate').value = selectedDate;
-    updateDayLabel(); 
-    loadJobs();
+    var addDateEl = document.getElementById('addDate');
+    if (addDateEl) addDateEl.value = selectedDate;
+    updateDayLabel();
+    // Refresh the loader for whichever view is currently active
+    if (currentView === 'week') loadWeekJobs();
+    else if (currentView === 'month') loadMonthView();
+    else if (currentView === 'map') initMapView();
+    else loadJobs();
 }
 
 function setView(view) {
@@ -1960,43 +1865,36 @@ function renderJobs() {
         const crewClass = j.crew_assigned ? '' : 'unassigned';
         
         const isChecked = selectedJobIds.has(j.id);
+        const statusLabel = (j.status || 'pending').replace('_', ' ');
+        const isUnassigned = !j.crew_assigned;
         return `
-            <div class="job-card ${statusClass}" data-id="${j.id}">
-                <div class="job-checkbox" onclick="event.stopPropagation()">
+            <div class="job-row ${statusClass}" data-id="${j.id}">
+                <div class="job-check" onclick="event.stopPropagation()">
                     <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobSelect(${j.id})">
                 </div>
-                <div class="job-order">${j.route_order || (i + 1)}</div>
-                <div class="job-info">
-                    <h4>${esc(j.customer_name)}</h4>
-                    <div class="addr">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        <a href="${mapUrl}" target="_blank" onclick="event.stopPropagation()">${esc(j.address)}</a>
-                    </div>
-                    <div class="service-tags">
-                        <span class="service-tag ${tagClass}">${esc(j.service_type)}</span>
+                <div class="job-seq">${j.route_order || (i + 1)}</div>
+                <div class="job-main">
+                    <div class="job-customer">${esc(j.customer_name)}</div>
+                    <div class="job-tags">
+                        <span class="tag ${tagClass}">${esc(j.service_type)}</span>
                     </div>
                 </div>
-                <div class="job-meta">
-                    <div class="job-price">${j.service_price ? '$' + parseFloat(j.service_price).toFixed(0) : '—'}</div>
-                    <div class="job-crew ${crewClass}">${esc(j.crew_assigned || 'Unassigned')}</div>
+                <div class="job-address">
+                    <a href="${mapUrl}" target="_blank" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none">${esc(j.address)}</a>
                 </div>
-                <div class="job-actions">
-                    ${j.status !== 'completed' ? `
-                        <button class="job-action-btn action-complete" onclick="event.stopPropagation();completeJob(${j.id})" title="Mark Complete">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                        </button>
-                    ` : ''}
-                    <button class="job-action-btn action-map" onclick="event.stopPropagation();window.open('${mapUrl}','_blank')" title="Open in Maps">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    </button>
+                <div class="job-price">${j.service_price ? '$' + parseFloat(j.service_price).toFixed(0) : '—'}</div>
+                <div class="job-assignment">
+                    <span class="assignment-pill ${isUnassigned ? 'unassigned' : ''}"><span class="dot"></span>${esc(j.crew_assigned || 'Unassigned')}</span>
                 </div>
-                <span class="status-pill status-${j.status}">${(j.status || 'pending').replace('_', ' ')}</span>
+                <div class="job-status">
+                    <span class="status-pill ${j.status === 'completed' ? 'success' : j.status === 'in_progress' ? 'info' : j.status === 'cancelled' ? 'danger' : 'warning'}">${statusLabel}</span>
+                </div>
             </div>
         `;
     }).join('');
-    
+
     // Add click handlers
-    document.querySelectorAll('.job-card').forEach(card => {
+    document.querySelectorAll('.job-row').forEach(card => {
         card.addEventListener('click', () => openPanel(parseInt(card.dataset.id)));
     });
 
@@ -2261,7 +2159,7 @@ async function submitJobCompletion() {
         loadJobs();
 
         // Offer to create invoice for completed job
-        const job = jobs.find(j => j.id == currentCompleteJobId);
+        const job = allJobs.find(j => j.id == currentCompleteJobId);
         if (job) {
             setTimeout(() => {
                 if (confirm(`Job completed! Create an invoice for ${job.customer_name} ($${parseFloat(job.service_price || 0).toFixed(2)})?`)) {
@@ -2317,9 +2215,9 @@ function toggleSelectAllDay() {
         filtered.forEach(j => selectedJobIds.delete(j.id));
     }
     // Re-render checkboxes
-    document.querySelectorAll('.job-card').forEach(card => {
+    document.querySelectorAll('.job-row').forEach(card => {
         const jobId = parseInt(card.dataset.id);
-        const checkbox = card.querySelector('.job-checkbox input');
+        const checkbox = card.querySelector('.job-check input');
         if (checkbox) checkbox.checked = selectedJobIds.has(jobId);
     });
     updateBulkBar();
@@ -2385,24 +2283,60 @@ function showToast(m) { const t=document.getElementById('toast');t.textContent=m
 function esc(s) { return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; }
 
 // Optimize Route using Google Maps Directions API
+// Optimizes ONLY the jobs the user is currently looking at (or has selected),
+// not every job for the day. Builds a forward route, no return-to-origin loop.
 async function optimizeRoute() {
     const optimizeBtn = document.querySelector('.route-actions button');
     const originalText = optimizeBtn.innerHTML;
-    const crewFilterValue = document.getElementById('crewFilter').value;
+
+    // Build the payload from the current view's state of the world.
+    // - In map view: prefer mapSelectedJobs > mapFilteredJobs; use #mapCrewFilter.
+    // - In day/list view: prefer selectedJobIds > currently filtered list; use #crewFilter.
+    let payload = { date: selectedDate };
+    let visibleJobs = [];
+
+    if (currentView === 'map') {
+        const mapCrewEl = document.getElementById('mapCrewFilter');
+        const mapCrewValue = mapCrewEl ? mapCrewEl.value : '';
+        if (mapCrewValue && mapCrewValue !== 'unassigned') payload.crew = mapCrewValue;
+        if (mapSelectedJobs && mapSelectedJobs.size > 0) {
+            payload.jobIds = [...mapSelectedJobs];
+        } else {
+            visibleJobs = (typeof mapFilteredJobs !== 'undefined' && mapFilteredJobs.length)
+                ? mapFilteredJobs
+                : allJobs;
+            payload.jobIds = visibleJobs.map(j => j.id);
+        }
+    } else {
+        const crewValue = (document.getElementById('crewFilter') || {}).value || '';
+        if (crewValue) payload.crew = crewValue;
+        if (selectedJobIds && selectedJobIds.size > 0) {
+            payload.jobIds = [...selectedJobIds];
+        } else {
+            // Same filter logic as renderJobs(): status, crew, search
+            const status = (document.getElementById('statusFilter') || {}).value || '';
+            const search = ((document.getElementById('searchInput') || {}).value || '').toLowerCase();
+            visibleJobs = allJobs.filter(j => {
+                if (status && j.status !== status) return false;
+                if (crewValue && j.crew_assigned !== crewValue) return false;
+                if (search) {
+                    const s = (j.customer_name + ' ' + j.address + ' ' + j.service_type).toLowerCase();
+                    if (!s.includes(search)) return false;
+                }
+                return true;
+            });
+            payload.jobIds = visibleJobs.map(j => j.id);
+        }
+    }
+
+    if (!payload.jobIds || payload.jobIds.length < 2) {
+        showToast('Need at least 2 jobs in the current view to optimize.');
+        return;
+    }
 
     try {
-        // Show loading state
         optimizeBtn.innerHTML = '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg> Optimizing...';
         optimizeBtn.disabled = true;
-
-        const payload = {
-            date: selectedDate,
-            startAddress: null // Uses default office address
-        };
-        // If a specific crew is selected, only optimize that crew's jobs
-        if (crewFilterValue) {
-            payload.crew = crewFilterValue;
-        }
 
         const response = await fetch('/api/jobs/optimize-route', {
             method: 'POST',
@@ -2419,12 +2353,13 @@ async function optimizeRoute() {
         
         // Show success with stats if available
         if (data.stats) {
+            const skipNote = data.stats.skipped ? ` (${data.stats.skipped} skipped — missing address)` : '';
             if (data.stats.totalDistance && data.stats.totalDriveTime) {
-                showToast(`Route optimized! ${data.stats.totalStops} stops, ${data.stats.totalDistance}, ~${data.stats.totalDriveTime} drive time`);
+                showToast(`Route optimized! ${data.stats.totalStops} stops, ${data.stats.totalDistance}, ~${data.stats.totalDriveTime} drive time${skipNote}`);
             } else if (data.stats.batches) {
-                showToast(`Route optimized! ${data.stats.totalStops} stops in ${data.stats.batches} batches`);
+                showToast(`Route optimized! ${data.stats.totalStops} stops in ${data.stats.batches} batches${skipNote}`);
             } else {
-                showToast(`Route optimized! ${data.stats.totalStops} stops`);
+                showToast(`Route optimized! ${data.stats.totalStops} stops${skipNote}`);
             }
         } else {
             showToast(data.message || 'Route optimized successfully!');
@@ -2432,7 +2367,23 @@ async function optimizeRoute() {
         
         // Reload jobs to show new order
         await loadJobs();
-        
+
+        // If we're in map view, the map renders from mapFilteredJobs (a separate
+        // state slice) — refresh it from the new allJobs so markers and the
+        // map-side list reflect the optimized order.
+        if (currentView === 'map') {
+            const mapCrewFilter = document.getElementById('mapCrewFilter');
+            if (mapCrewFilter) {
+                // filterMapJobs() recomputes mapFilteredJobs from allJobs, then
+                // calls renderMapJobList() and updateMapMarkers() for us.
+                filterMapJobs();
+            } else {
+                mapFilteredJobs = [...allJobs];
+                renderMapJobList();
+                updateMapMarkers();
+            }
+        }
+
     } catch (error) {
         console.error('Optimize route error:', error);
         showToast('Failed to optimize route. Check console for details.');
@@ -2606,9 +2557,10 @@ async function initMapView() {
 
 function initGoogleMap() {
     const mapEl = document.getElementById('googleMap');
-    
-    // Check if Google Maps API is loaded
-    if (typeof google === 'undefined' || !google.maps) {
+
+    // Map view requires google.maps + drawing (lasso) + geometry (polygon containment)
+    const ready = typeof google !== 'undefined' && google.maps && google.maps.drawing && google.maps.geometry;
+    if (!ready) {
         mapEl.innerHTML = `
             <div class="map-loading">
                 <div style="text-align:center;">
@@ -2617,7 +2569,6 @@ function initGoogleMap() {
                 </div>
             </div>
         `;
-        // Try loading Google Maps API
         loadGoogleMapsAPI();
         return;
     }
@@ -2784,158 +2735,201 @@ function clearMapSelection() {
     document.getElementById('selectAllJobs').checked = false;
 }
 
+// ─── Google Maps loader — single code path, always loads required libs ──
+let _mapsLoadPromise = null;
 function loadGoogleMapsAPI() {
-    // Get API key from a meta tag or environment
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_API_KEY || ''}&callback=onGoogleMapsLoaded`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    if (_mapsLoadPromise) return _mapsLoadPromise;
+    if (typeof google !== 'undefined' && google.maps && google.maps.drawing && google.maps.geometry) {
+        _mapsLoadPromise = Promise.resolve();
+        return _mapsLoadPromise;
+    }
+    _mapsLoadPromise = new Promise((resolve, reject) => {
+        const start = (key) => {
+            if (!key) { console.error('Maps API key not configured'); reject(new Error('No maps key')); return; }
+            window.GOOGLE_MAPS_API_KEY = key;
+            // Use a single global callback; drawing + geometry are required for lasso + polygon containment
+            window.__onGoogleMapsLoaded = () => { _mapsLoadPromise && resolve(); onGoogleMapsLoaded(); };
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=drawing,geometry&callback=__onGoogleMapsLoaded`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        };
+        if (window.GOOGLE_MAPS_API_KEY) start(window.GOOGLE_MAPS_API_KEY);
+        else fetch('/api/config/maps-key').then(r => r.json()).then(d => start(d.key)).catch(reject);
+    });
+    return _mapsLoadPromise;
 }
 
 function onGoogleMapsLoaded() {
     initGoogleMap();
 }
 
-let markerGeneration = 0; // Track marker updates to prevent stale callbacks
-
+// Map pins are rendered EXCLUSIVELY from job.lat/job.lng written by the
+// backend (POST /api/dispatch/geocode). The frontend never geocodes.
+// This guarantees the optimizer and the displayed markers always operate
+// on the same coordinate set, and a page refresh can never change pin
+// placement unless the backend data changed.
 function updateMapMarkers() {
     if (!map) return;
-    
-    // Increment generation to invalidate any pending geocode callbacks
-    markerGeneration++;
-    const currentGeneration = markerGeneration;
-    
+
     // Clear existing markers
-    markers.forEach(m => {
-        if (m.marker) {
-            m.marker.setMap(null);
-        }
-    });
+    markers.forEach(m => { if (m.marker) m.marker.setMap(null); });
     markers = [];
-    
-    if (mapFilteredJobs.length === 0) {
-        return;
-    }
-    
+
+    // Refresh the "Fix Map Pins" button visibility every time we redraw.
+    updateFixPinsButton();
+
+    if (mapFilteredJobs.length === 0) return;
+
     const bounds = new google.maps.LatLngBounds();
-    const geocoder = new google.maps.Geocoder();
-    let processedCount = 0;
-    
-    // Process jobs in batches to avoid rate limits
-    const BATCH_SIZE = 10;
-    const BATCH_DELAY = 500; // ms between batches
-    
-    function processBatch(startIndex) {
-        const endIndex = Math.min(startIndex + BATCH_SIZE, mapFilteredJobs.length);
-        
-        for (let i = startIndex; i < endIndex; i++) {
-            const job = mapFilteredJobs[i];
-            const index = i;
-            
-            // Build full address
-            let fullAddress = job.address || '';
-            if (fullAddress && !/^\d/.test(fullAddress.trim())) {
-                const streetMatch = job.customer_name.match(/\d+\s+[\w\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Circle|Cir|Place|Pl)/i);
-                if (streetMatch) {
-                    fullAddress = streetMatch[0] + ', ' + fullAddress;
-                }
-            }
-            
-            // Create marker data object
-            const markerData = { job, fullAddress, index };
-            markers.push(markerData);
-            
-            // Geocode with delay
-            setTimeout(() => {
-                // Skip if this is from an old generation (filter changed)
-                if (currentGeneration !== markerGeneration) return;
-                
-                geocodeAndPlaceMarker(markerData, bounds, geocoder, currentGeneration);
-                processedCount++;
-                
-                // Fit bounds after all markers are placed
-                if (processedCount === mapFilteredJobs.length && currentGeneration === markerGeneration) {
-                    setTimeout(() => {
-                        if (bounds.getNorthEast() && bounds.getSouthWest()) {
-                            map.fitBounds(bounds);
-                            if (map.getZoom() > 15) map.setZoom(15);
-                        }
-                    }, 500);
-                }
-            }, (i - startIndex) * 100); // Stagger within batch
+    mapFilteredJobs.forEach((job, index) => {
+        const fullAddress = buildFullAddress(job);
+        const markerData = { job, fullAddress, index };
+        markers.push(markerData);
+
+        const lat = parseFloat(job.lat);
+        const lng = parseFloat(job.lng);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            placeMarkerAtPosition(markerData, new google.maps.LatLng(lat, lng), bounds);
         }
-        
-        // Process next batch
-        if (endIndex < mapFilteredJobs.length) {
-            setTimeout(() => {
-                // Skip if generation changed
-                if (currentGeneration !== markerGeneration) return;
-                processBatch(endIndex);
-            }, BATCH_DELAY);
-        }
-    }
-    
-    if (mapFilteredJobs.length > 0) {
-        processBatch(0);
+        // else: no stored coords → no pin. The sidebar list shows a
+        // "No map pin" badge and the "Fix Map Pins" button can re-run
+        // backend geocoding for the visible date.
+    });
+    fitMapBounds(bounds);
+}
+
+// Display string for popups. NEVER fed to a client-side geocoder — the
+// frontend no longer geocodes. Prefers the backend-derived street address.
+function buildFullAddress(job) {
+    return (job.geocode_address || job.address || '').trim();
+}
+
+function fitMapBounds(bounds) {
+    if (bounds.getNorthEast && bounds.getNorthEast() && bounds.getSouthWest()) {
+        map.fitBounds(bounds);
+        if (map.getZoom() > 15) map.setZoom(15);
     }
 }
 
-function geocodeAndPlaceMarker(markerData, bounds, geocoder, generation) {
+// Show "Fix Map Pins" whenever there are visible jobs that could benefit
+// from re-geocoding: either they have no stored coords yet, OR their
+// stored coords are flagged as low-quality (city/failed/no_street). Jobs
+// without any usable street-level address are not actionable here — the
+// customer record needs a street first — but they're still counted in
+// "needs attention" so the dispatcher sees the badge in the sidebar list.
+function updateFixPinsButton() {
+    const btn = document.getElementById('fixPinsBtn');
+    if (!btn) return;
+    // Always show when on map view with at least one visible job, since
+    // the user might want to force-repair stale coords even when every
+    // job has a pin. The (N) count reflects definitely-actionable jobs.
+    if (mapFilteredJobs.length === 0) { btn.style.display = 'none'; return; }
+    const actionable = mapFilteredJobs.filter(j => {
+        const hasCoords = !isNaN(parseFloat(j.lat)) && !isNaN(parseFloat(j.lng));
+        const lowQuality = j.geocode_quality && ['city', 'failed', 'no_street', 'ambiguous'].includes(j.geocode_quality);
+        return (!hasCoords || lowQuality) && j.has_street_address === true;
+    });
+    btn.style.display = '';
+    const label = document.getElementById('fixPinsBtnLabel');
+    if (label) label.textContent = actionable.length > 0
+        ? `Fix Map Pins (${actionable.length})`
+        : 'Refresh Map Pins';
+}
+
+// Calls POST /api/dispatch/geocode (the only coord writer) with the
+// strongest repair payload: explicit visible jobIds + force + cleanup.
+//   - jobIds: scopes the work to exactly the jobs on screen
+//   - force:  wipes stored lat/lng for every targeted job before
+//             re-geocoding, so legacy stale coords cannot survive
+//   - cleanup: triggers duplicate-cluster detection on the date scope
+//             (catches city-center clusters that don't have geocode_quality
+//             flagged — the original "all jobs collapse to one pin" cause)
+async function fixMapPins() {
+    const btn = document.getElementById('fixPinsBtn');
+    const label = document.getElementById('fixPinsBtnLabel');
+    if (btn) btn.disabled = true;
+    const originalText = label ? label.textContent : '';
+    if (label) label.textContent = 'Geocoding…';
+    try {
+        const visibleIds = mapFilteredJobs.map(j => j.id).filter(Number.isFinite);
+        const res = await fetch('/api/dispatch/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: selectedDate,
+                jobIds: visibleIds,
+                cleanup: true,
+                force: true,
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Geocode failed');
+        const parts = [];
+        const totalCleared = (data.forceCleared || 0) + (data.suspiciousCleared || 0) + (data.cleared || 0);
+        if (totalCleared) parts.push(`${totalCleared} stale coord${totalCleared === 1 ? '' : 's'} cleared`);
+        if (data.suspiciousCleared) parts.push(`${data.suspiciousCleared} pre-pass cluster${data.suspiciousCleared === 1 ? '' : 's'} reset`);
+        parts.push(`${data.geocoded || 0} pin${data.geocoded === 1 ? '' : 's'} added`);
+        if (data.ambiguousCleared) parts.push(`${data.ambiguousCleared} ambiguous coord${data.ambiguousCleared === 1 ? '' : 's'} rejected`);
+        if (data.skippedNoStreet) parts.push(`${data.skippedNoStreet} skipped (no street address)`);
+        showToast(parts.join(' · '));
+        // Re-fetch /api/jobs (refreshes lat/lng + has_street_address +
+        // geocode_quality) and re-render the map from the new payload.
+        await loadJobs();
+        if (document.getElementById('mapCrewFilter')) {
+            filterMapJobs();
+        } else {
+            mapFilteredJobs = [...allJobs];
+            renderMapJobList();
+            updateMapMarkers();
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Geocoding failed: ' + (e.message || e));
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = originalText || 'Fix Map Pins';
+    }
+}
+
+// Build + attach a marker at a known position (used for stored-coord path).
+function placeMarkerAtPosition(markerData, pos, bounds) {
     const { job, fullAddress, index } = markerData;
     const isSelected = mapSelectedJobs.has(job.id);
     const isCompleted = job.status === 'completed';
-    
-    geocoder.geocode({ address: fullAddress }, (results, status) => {
-        // Skip if generation changed (filter was changed while geocoding)
-        if (generation !== markerGeneration) return;
-        
-        if (status === 'OK' && results[0]) {
-            const pos = results[0].geometry.location;
-            
-            const marker = new google.maps.Marker({
-                map: map,
-                position: pos,
-                title: job.customer_name,
-                label: {
-                    text: String(index + 1),
-                    color: '#ffffff',
-                    fontSize: '10px',
-                    fontWeight: 'bold'
-                },
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 12,
-                    fillColor: isCompleted ? '#059669' : (isSelected ? '#d97706' : '#2e403d'),
-                    fillOpacity: 1,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 2
-                }
-            });
-            
-            bounds.extend(pos);
-            markerData.marker = marker;
-            
-            // Info window on click
-            marker.addListener('click', () => {
-                const content = `
-                    <div style="padding:8px;min-width:200px;">
-                        <strong style="font-size:14px;">${esc(job.customer_name)}</strong>
-                        <p style="margin:4px 0;color:#666;font-size:12px;">${esc(fullAddress)}</p>
-                        <p style="margin:4px 0;font-size:12px;"><strong>${esc(job.service_type)}</strong> - $${parseFloat(job.service_price || 0).toFixed(0)}</p>
-                        <p style="margin:4px 0;font-size:11px;color:#888;">Crew: ${job.crew_assigned || 'Unassigned'}</p>
-                        <div style="margin-top:8px;">
-                            <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddress)}" target="_blank" style="color:#2e403d;font-size:12px;">Get Directions →</a>
-                        </div>
-                    </div>
-                `;
-                infoWindow.setContent(content);
-                infoWindow.open(map, marker);
-                highlightMapJob(job.id);
-            });
-        } else {
-            console.log('Geocode failed for:', fullAddress, status);
-        }
+    const marker = new google.maps.Marker({
+        map,
+        position: pos,
+        title: job.customer_name,
+        label: { text: String(index + 1), color: '#ffffff', fontSize: '10px', fontWeight: 'bold' },
+        icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: isCompleted ? '#059669' : (isSelected ? '#d97706' : '#2e403d'),
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+        },
+    });
+    bounds.extend(pos);
+    markerData.marker = marker;
+    marker.addListener('click', () => {
+        const content = `
+            <div style="padding:8px;min-width:200px;">
+                <strong style="font-size:14px;">${esc(job.customer_name)}</strong>
+                <p style="margin:4px 0;color:#666;font-size:12px;">${esc(fullAddress)}</p>
+                <p style="margin:4px 0;font-size:12px;"><strong>${esc(job.service_type)}</strong> - $${parseFloat(job.service_price || 0).toFixed(0)}</p>
+                <p style="margin:4px 0;font-size:11px;color:#888;">Crew: ${job.crew_assigned || 'Unassigned'}</p>
+                <div style="margin-top:8px;">
+                    <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fullAddress)}" target="_blank" style="color:#2e403d;font-size:12px;">Get Directions →</a>
+                </div>
+            </div>
+        `;
+        infoWindow.setContent(content);
+        infoWindow.open(map, marker);
+        highlightMapJob(job.id);
     });
 }
 
@@ -2951,9 +2945,16 @@ function renderMapJobList() {
         const isSelected = mapSelectedJobs.has(job.id);
         const isCompleted = job.status === 'completed';
         const crewClass = job.crew_assigned ? '' : 'unassigned';
-        
+        // A job has no trusted map pin when it has no stored coords AND no
+        // street-level address that could be safely geocoded.
+        const hasStored = !isNaN(parseFloat(job.lat)) && !isNaN(parseFloat(job.lng));
+        const noPin = !hasStored && job.has_street_address !== true;
+        const noPinBadge = noPin
+            ? `<span class="map-job-nopin" title="Address is missing a street number — add one to place this job on the map.">No map pin</span>`
+            : '';
+
         return `
-            <div class="map-job-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''}" 
+            <div class="map-job-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''} ${noPin ? 'no-pin' : ''}"
                  data-id="${job.id}" onclick="toggleMapJobSelect(${job.id})">
                 <div class="map-job-checkbox" onclick="event.stopPropagation()">
                     <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleMapJobSelect(${job.id})">
@@ -2965,6 +2966,7 @@ function renderMapJobList() {
                     <div class="map-job-meta">
                         <span class="map-job-crew ${crewClass}">${esc(job.crew_assigned || 'Unassigned')}</span>
                         <span class="map-job-price">$${parseFloat(job.service_price || 0).toFixed(0)}</span>
+                        ${noPinBadge}
                     </div>
                 </div>
             </div>
@@ -3107,41 +3109,53 @@ async function bulkCompleteJobs() {
 
 async function optimizeCrewRoute() {
     const crewFilter = document.getElementById('mapCrewFilter').value;
-    
+
     if (!crewFilter) {
         showToast('Select a crew first');
         return;
     }
-    
+
+    // Optimize either the user's selection (if any) or the visible crew jobs.
+    const visible = (typeof mapFilteredJobs !== 'undefined' && mapFilteredJobs.length) ? mapFilteredJobs : [];
+    const jobIds = (mapSelectedJobs && mapSelectedJobs.size > 0)
+        ? [...mapSelectedJobs]
+        : visible.map(j => j.id);
+
+    if (jobIds.length < 2) {
+        showToast('Need at least 2 jobs in the current crew filter to optimize.');
+        return;
+    }
+
     const optimizeBtn = document.getElementById('optimizeCrewBtn');
     const originalText = optimizeBtn.innerHTML;
-    
+
     try {
         optimizeBtn.innerHTML = '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/></svg> Optimizing...';
         optimizeBtn.disabled = true;
-        
+
+        const payload = { date: selectedDate, jobIds };
+        if (crewFilter !== 'unassigned') payload.crew = crewFilter;
+
         const response = await fetch('/api/jobs/optimize-route', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                date: selectedDate,
-                crew: crewFilter === 'unassigned' ? null : crewFilter
-            })
+            body: JSON.stringify(payload)
         });
-        
+
         const data = await response.json();
-        
+
         if (!data.success) {
             showToast('Error: ' + (data.error || 'Failed to optimize'));
             return;
         }
-        
-        showToast(data.message || 'Route optimized!');
-        
-        // Reload and refresh
+
+        const skipNote = (data.stats && data.stats.skipped) ? ` (${data.stats.skipped} skipped — missing address)` : '';
+        showToast((data.message || 'Route optimized!') + skipNote);
+
+        // Reload and refresh map state with new optimized order
         await loadJobs();
         filterMapJobs();
-        
+
     } catch (error) {
         showToast('Failed to optimize route');
     } finally {
@@ -3650,22 +3664,12 @@ document.addEventListener('keydown', e => { if (e.key==='Escape') { closePanel()
 document.addEventListener('DOMContentLoaded', init);
 </script>
 
-<!-- Load Google Maps API -->
+<!-- Google Maps is loaded lazily on first use via loadGoogleMapsAPI() — see init script above -->
 <script>
-    // Fetch API key from server and load Google Maps
-    fetch('/api/config/maps-key')
-        .then(r => r.json())
-        .then(data => {
-            if (data.key) {
-                window.GOOGLE_MAPS_API_KEY = data.key;
-                const script = document.createElement('script');
-                script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=drawing,geometry&callback=onGoogleMapsLoaded`;
-                script.async = true;
-                script.defer = true;
-                document.head.appendChild(script);
-            }
-        })
-        .catch(err => console.error('Failed to load Maps API key:', err));
+    // Pre-warm the API key so map view loads instantly when first opened
+    fetch('/api/config/maps-key').then(r => r.json()).then(d => {
+        if (d.key) window.GOOGLE_MAPS_API_KEY = d.key;
+    }).catch(() => {});
     
     // Fallback callback if Maps loads without our handler
     window.onGoogleMapsLoaded = function() {

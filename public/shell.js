@@ -39,26 +39,43 @@
   };
 
   // ── Navigation Definition ───────────────────────────────────
-  // Jobber-style navigation: focused, clean, workflow-driven
-  var NAV = [
-    { href: 'index.html', icon: 'home', label: 'Home', perm: 'home' },
-    { href: 'scheduling.html', icon: 'calendar', label: 'Schedule', perm: 'schedule' },
-    { href: 'dispatch.html', icon: 'dispatch', label: 'Dispatch', perm: 'dispatch' },
-    { href: 'route-sheet.html', icon: 'dispatch', label: 'Route Sheet', perm: 'dispatch' },
-    { href: 'customers.html', icon: 'clients', label: 'Clients', perm: 'clients' },
-    { href: 'work-requests.html', icon: 'comms', label: 'Requests', perm: 'requests' },
-    { href: 'quotes.html', icon: 'quotes', label: 'Quotes', perm: 'quotes' },
-    { href: 'invoices.html', icon: 'invoices', label: 'Invoices', perm: 'invoices' },
-    { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' },
-    'divider',
-    { href: 'communications.html', icon: 'comms', label: 'Marketing', perm: 'marketing' },
-    { href: 'reports.html', icon: 'reports', label: 'Reports', perm: 'reports' },
-    { href: 'kpi.html', icon: 'kpi', label: 'Insights', perm: 'insights' },
-    { href: 'crew.html', icon: 'crew', label: 'Crew', perm: 'crew' },
-    { href: 'reviews.html', icon: 'kpi', label: 'Reviews', perm: 'marketing' },
-    { href: 'ai-conversations.html', icon: 'comms', label: 'AI Texts', perm: 'marketing' },
-    { href: 'settings.html', icon: 'settings', label: 'Settings', perm: 'settings' }
+  // Grouped navigation: 8 sections, calmer surface, fewer top-level destinations
+  var NAV_GROUPS = [
+    { label: 'Overview', items: [
+      { href: 'index.html', icon: 'home', label: 'Home', perm: 'home' }
+    ]},
+    { label: 'Sales', items: [
+      { href: 'quotes.html', icon: 'quotes', label: 'Leads & Quotes', perm: 'quotes' },
+      { href: 'work-requests.html', icon: 'comms', label: 'Requests', perm: 'requests' }
+    ]},
+    { label: 'Customers', items: [
+      { href: 'customers.html', icon: 'clients', label: 'Clients', perm: 'clients' }
+    ]},
+    { label: 'Operations', items: [
+      { href: 'scheduling.html', icon: 'calendar', label: 'Schedule', perm: 'schedule' },
+      { href: 'dispatch.html', icon: 'dispatch', label: 'Dispatch', perm: 'dispatch' },
+      { href: 'crew.html', icon: 'crew', label: 'Crew', perm: 'crew' }
+    ]},
+    { label: 'Billing', items: [
+      { href: 'invoices.html', icon: 'invoices', label: 'Invoices', perm: 'invoices' },
+      { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' }
+    ]},
+    { label: 'Communications', items: [
+      { href: 'communications.html', icon: 'comms', label: 'Marketing', perm: 'marketing' }
+    ]},
+    { label: 'Intelligence', items: [
+      { href: 'kpi.html', icon: 'kpi', label: 'Insights', perm: 'insights' },
+      { href: 'reports.html', icon: 'reports', label: 'Reports', perm: 'reports' },
+      { href: 'reviews.html', icon: 'kpi', label: 'Reviews', perm: 'marketing' }
+    ]},
+    { label: 'Admin', items: [
+      { href: 'settings.html', icon: 'settings', label: 'Settings', perm: 'settings' }
+    ]}
   ];
+
+  // Flat list for backward compat with permission-checking elsewhere
+  var NAV = [];
+  NAV_GROUPS.forEach(function(g) { g.items.forEach(function(it) { NAV.push(it); }); });
 
   // ── Employee Permissions ────────────────────────────────────
   var isEmployee = localStorage.getItem('isEmployee') === 'true';
@@ -221,21 +238,23 @@
     }
     html += '</div>';
 
-    // Nav items
+    // Nav items — grouped by domain
     html += '<nav class="sidebar-nav">';
-    for (var i = 0; i < NAV.length; i++) {
-      var item = NAV[i];
-      if (item === 'divider') {
-        html += '<div class="sidebar-nav-divider"></div>';
-        continue;
+    for (var g = 0; g < NAV_GROUPS.length; g++) {
+      var group = NAV_GROUPS[g];
+      // Filter items the employee has no access to
+      var visibleItems = group.items.filter(function(it) { return !it.perm || hasPageAccess(it.perm); });
+      if (visibleItems.length === 0) continue;
+
+      html += '<div class="nav-group-label">' + group.label + '</div>';
+      for (var i = 0; i < visibleItems.length; i++) {
+        var item = visibleItems[i];
+        var active = isParentActive(item);
+        html += '<a href="' + item.href + '" class="nav-item' + (active ? ' active' : '') + '">';
+        html += svg(item.icon);
+        html += '<span>' + item.label + '</span>';
+        html += '</a>';
       }
-      // Skip pages the employee has no access to
-      if (item.perm && !hasPageAccess(item.perm)) continue;
-      var active = isParentActive(item);
-      html += '<a href="' + item.href + '" class="nav-item' + (active ? ' active' : '') + '">';
-      html += svg(item.icon);
-      html += '<span>' + item.label + '</span>';
-      html += '</a>';
     }
     html += '</nav>';
 
@@ -367,7 +386,6 @@
         return; // Can't inject without structure
       }
     }
-    // Ensure main has the right class for margin-left
     if (!mainEl.classList.contains('main')) {
       mainEl.classList.add('main');
     }
@@ -377,7 +395,15 @@
     aside.className = 'sidebar';
     aside.id = 'sidebar';
     aside.innerHTML = buildSidebar();
-    document.body.insertBefore(aside, mainEl);
+
+    // Wrap sidebar + main in .app-shell grid container so the legacy
+    // `<div class="main">` on every page doesn't need to change.
+    var shell = document.createElement('div');
+    shell.className = 'app-shell';
+    shell.id = 'app-shell';
+    mainEl.parentNode.insertBefore(shell, mainEl);
+    shell.appendChild(aside);
+    shell.appendChild(mainEl);
 
     // Inject topbar if missing
     var topbar = mainEl.querySelector('.topbar');
@@ -390,7 +416,10 @@
 
     // Restore sidebar state
     var collapsed = localStorage.getItem('yd_sidebar_collapsed') === 'true';
-    if (collapsed) aside.classList.add('collapsed');
+    if (collapsed) {
+      aside.classList.add('collapsed');
+      shell.classList.add('sidebar-collapsed');
+    }
 
     initShellEvents();
   }
@@ -399,12 +428,14 @@
   function initShellEvents() {
     var sidebar = document.getElementById('sidebar');
 
-    // Collapse toggle
+    // Collapse toggle — toggle both sidebar and parent .app-shell so the grid resizes
     var collapseBtn = document.getElementById('shell-collapse-btn');
     if (collapseBtn) {
       collapseBtn.addEventListener('click', function() {
-        sidebar.classList.toggle('collapsed');
-        localStorage.setItem('yd_sidebar_collapsed', sidebar.classList.contains('collapsed'));
+        var isCollapsed = sidebar.classList.toggle('collapsed');
+        var shell = document.getElementById('app-shell');
+        if (shell) shell.classList.toggle('sidebar-collapsed', isCollapsed);
+        localStorage.setItem('yd_sidebar_collapsed', isCollapsed);
       });
     }
 

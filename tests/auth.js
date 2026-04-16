@@ -26,7 +26,7 @@ function adminToken() {
 }
 
 function employeeToken() {
-  return jwt.sign({ id: 2, email: 'emp@test.com', isAdmin: true, isEmployee: true, role: 'employee', name: 'Test Employee', permissions: [] }, JWT_SECRET, { expiresIn: '1h' });
+  return jwt.sign({ id: 2, email: 'emp@test.com', isAdmin: false, isEmployee: true, role: 'employee', name: 'Test Employee', permissions: [] }, JWT_SECRET, { expiresIn: '1h' });
 }
 
 function expiredToken() {
@@ -105,6 +105,21 @@ function auth(token) {
   await test('Admin → GET /api/quickbooks/status', `${BASE}/api/quickbooks/status`, auth(adminToken()), 200);
   await test('Admin → GET /api/auth/me', `${BASE}/api/auth/me`, auth(adminToken()), 200);
 
+  // ─── Token shape assertions ──────────────────────────
+  console.log('\n── Token shape (admin vs employee claims) ──');
+  {
+    const adminMe = await fetch(`${BASE}/api/auth/me`, auth(adminToken())).then(r => r.json());
+    const adminOk = adminMe.success && adminMe.user.isAdmin === true && !adminMe.user.isEmployee;
+    if (adminOk) { passed++; console.log('  ✅ Admin /auth/me: isAdmin=true, isEmployee absent/false'); }
+    else { failed++; console.log('  ❌ Admin /auth/me shape wrong:', JSON.stringify(adminMe.user)); }
+  }
+  {
+    const empMe = await fetch(`${BASE}/api/auth/me`, auth(employeeToken())).then(r => r.json());
+    const empOk = empMe.success && empMe.user.isAdmin === false && empMe.user.isEmployee === true;
+    if (empOk) { passed++; console.log('  ✅ Employee /auth/me: isAdmin=false, isEmployee=true'); }
+    else { failed++; console.log('  ❌ Employee /auth/me shape wrong:', JSON.stringify(empMe.user)); }
+  }
+
   // ─── Employee access ─────────────────────────────────
   console.log('\n── Employee access (normal routes allowed) ──');
   await test('Employee → GET /api/customers', `${BASE}/api/customers`, auth(employeeToken()), 200);
@@ -136,6 +151,10 @@ function auth(token) {
 
   // ─── Password change ────────────────────────────────
   console.log('\n── Password change validation ──');
+  await test('Employee cannot change admin passwords', `${BASE}/api/auth/change-password`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${employeeToken()}` },
+    body: JSON.stringify({ current_password: 'oldpass', new_password: 'newpass123' })
+  }, 403);
   await test('Change password without current', `${BASE}/api/auth/change-password`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
     body: JSON.stringify({ new_password: 'newpass123' })

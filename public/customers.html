@@ -7,173 +7,48 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
     <style>
-        /* ─── Stats Row ─────────────────────────────────────── */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 28px;
-        }
+        /* Stats / cards / status pills now defined in shared.css.
+           Only page-specific overrides remain here. */
+        .stats-row { margin-bottom: var(--space-5); }
 
-        .stat-card {
-            background: var(--white);
-            border-radius: 12px;
-            padding: 20px;
-            transition: all 0.15s ease;
-            cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
+        .icon-blue { background: var(--info-bg); color: var(--info); }
+        .icon-amber { background: var(--warning-bg); color: var(--warning); }
+        .icon-green { background: var(--success-bg); color: var(--success); }
+        .icon-purple { background: var(--surface-soft); color: var(--brand-soft); }
 
-        .stat-card:hover {
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-            transform: translateY(-2px);
-        }
-
-        .stat-card .stat-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .stat-card .stat-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-500);
-        }
-
-        .stat-card .stat-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .stat-card .stat-icon svg { width: 18px; height: 18px; }
-
-        .stat-card .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--gray-700);
-            line-height: 1;
-        }
-
-        .stat-card .stat-footer {
-            margin-top: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .stat-card .trend {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            padding: 2px 7px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .trend.up { background: var(--green-bg); color: var(--green); }
-        .trend.down { background: var(--red-bg); color: var(--red); }
-        .trend.flat { background: var(--gray-100); color: var(--gray-500); }
-
-        .stat-card .trend-label {
-            color: var(--gray-400);
-            font-size: 12px;
-        }
-
-        .icon-blue { background: var(--blue-bg); color: var(--blue); }
-        .icon-amber { background: var(--amber-bg); color: var(--amber); }
-        .icon-green { background: var(--green-bg); color: var(--green); }
-        .icon-purple { background: var(--purple-bg); color: var(--purple); }
-
-        /* ─── Table Styles ────────────────────────────────────── */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        /* Table styles tightened */
+        table { width: 100%; border-collapse: collapse; }
         th {
-            padding: 10px 16px;
+            padding: 12px 18px;
             text-align: left;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--gray-400);
+            font: 700 11px/1.4 var(--font-ui);
+            color: var(--muted);
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            background: var(--gray-50);
-            border-bottom: 1px solid var(--gray-100);
+            letter-spacing: 0.08em;
+            background: var(--surface-soft);
+            border-bottom: 1px solid var(--line);
         }
-
         td {
-            padding: 14px 16px;
-            font-size: 13px;
-            border-bottom: 1px solid var(--gray-100);
+            padding: 14px 18px;
+            font: 500 14px/1.4 var(--font-ui);
+            color: var(--text);
+            border-bottom: 1px solid var(--line);
         }
-
         tr:last-child td { border-bottom: none; }
+        tbody tr { transition: background 0.15s ease; }
+        tbody tr:hover td { background: var(--surface-soft); }
 
-        tbody tr {
-            transition: background 0.15s ease;
-        }
+        .td-name { font-weight: 700; color: var(--text-strong); }
+        .td-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .td-phone a { color: var(--text); text-decoration: none; }
+        .td-phone a:hover { color: var(--brand-deep); }
 
-        tbody tr:hover td { background: var(--gray-50); }
-
-        .td-name {
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        .td-sub {
-            font-size: 12px;
-            color: var(--gray-400);
-            margin-top: 1px;
-        }
-
-        .td-phone a {
-            color: var(--gray-600);
-            text-decoration: none;
-            transition: all 0.15s ease;
-        }
-
-        .td-phone a:hover { color: var(--primary); }
-
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-
-        .status-pill::before {
-            content: '';
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-        }
-
-        .status-new { background: var(--blue-bg); color: var(--blue); }
-        .status-new::before { background: var(--blue); }
-        .status-contacted { background: var(--amber-bg); color: var(--amber); }
-        .status-contacted::before { background: var(--amber); }
-        .status-quoted { background: var(--purple-bg); color: var(--purple); }
-        .status-quoted::before { background: var(--purple); }
-        .status-scheduled { background: var(--green-bg); color: var(--green); }
-        .status-scheduled::before { background: var(--green); }
-        .status-completed { background: var(--green-bg); color: var(--green); }
-        .status-completed::before { background: var(--green); }
-        .status-cancelled { background: var(--red-bg); color: var(--red); }
-        .status-cancelled::before { background: var(--red); }
+        /* Status pill base from shared.css; page-specific status colors */
+        .status-new       { background: var(--info-bg);    color: var(--info);    }
+        .status-contacted { background: var(--warning-bg); color: var(--warning); }
+        .status-quoted    { background: var(--surface-soft); color: var(--brand-soft); }
+        .status-scheduled { background: var(--success-bg); color: var(--success); }
+        .status-cancelled { background: var(--danger-bg);  color: var(--danger);  }
 
         .row-actions {
             display: flex;
@@ -181,31 +56,25 @@
         }
 
         .row-btn {
-            padding: 6px 12px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            background: var(--white);
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-600);
+            min-height: 32px;
+            padding: 0 12px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            font: 600 12px/1 var(--font-ui);
+            color: var(--text);
             cursor: pointer;
-            font-family: inherit;
-            transition: all 0.15s;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
-
         .row-btn:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-            transition: all 0.15s ease;
+            background: var(--surface-soft);
+            border-color: var(--line-strong);
+            color: var(--brand-deep);
         }
-
-        .row-btn.delete {
-            color: var(--red);
-        }
-
+        .row-btn.delete { color: var(--danger); }
         .row-btn.delete:hover {
-            border-color: var(--red);
-            background: var(--red-bg);
+            border-color: var(--danger);
+            background: var(--danger-bg);
         }
 
         .loading-state {
@@ -233,121 +102,121 @@
             box-shadow: 0 0 0 3px rgba(22,163,74,0.1);
         }
 
-        .status-processed { background: var(--amber-bg); color: var(--amber); }
-        .status-processed::before { background: var(--amber); }
-        .status-pending { background: var(--amber-bg); color: var(--amber); }
-        .status-pending::before { background: var(--amber); }
-        .status-in_progress { background: var(--blue-bg); color: var(--blue); }
-        .status-in_progress::before { background: var(--blue); }
-        .status-skipped { background: var(--gray-100); color: var(--gray-500); }
-        .status-skipped::before { background: var(--gray-400); }
-        .status-active { background: var(--green-bg); color: var(--green); }
-        .status-active::before { background: var(--green); }
-        .status-inactive { background: var(--red-bg); color: var(--red); }
-        .status-inactive::before { background: var(--red); }
-        .icon-red { background: var(--red-bg); color: var(--red); }
+        .status-processed { background: var(--warning-bg); color: var(--warning); }
+        .status-active    { background: var(--success-bg); color: var(--success); }
+        .status-inactive  { background: var(--surface-muted); color: var(--muted); }
+        .icon-red         { background: var(--danger-bg); color: var(--danger); }
 
-        .pagination { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-top: 1px solid var(--gray-100); font-size: 13px; color: var(--gray-500); }
-        .pagination button { padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: 6px; background: var(--white); font-family: inherit; font-size: 13px; cursor: pointer; transition: all 0.15s ease; }
-        .pagination button:hover { background: var(--gray-50); }
+        .pagination {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: var(--space-4) var(--space-5);
+            border-top: 1px solid var(--line);
+            font: 500 13px/1.4 var(--font-ui);
+            color: var(--muted);
+        }
+        .pagination button {
+            min-height: 32px;
+            padding: 0 14px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            font: 600 13px/1 var(--font-ui);
+            color: var(--text);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .pagination button:hover { background: var(--surface-soft); }
         .pagination button:disabled { opacity: 0.4; cursor: default; }
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--gray-100); color: var(--gray-600); margin: 1px; }
+
+        /* Inline tag — use shared .tag base; override here only for table density */
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font: 700 11px/1.4 var(--font-ui);
+            background: var(--surface-soft);
+            color: var(--muted);
+            margin: 1px;
+        }
 
         .type-pill {
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 5px;
-            font-size: 11px;
-            font-weight: 600;
-            background: var(--purple-bg);
-            color: var(--purple);
+            padding: 3px 10px;
+            border-radius: 999px;
+            font: 700 11px/1.4 var(--font-ui);
+            background: var(--surface-soft);
+            color: var(--brand-soft);
         }
-        .type-pill.type-customer { background: var(--green-bg); color: var(--green); }
-        .type-pill.type-lead { background: var(--purple-bg); color: var(--purple); }
+        .type-pill.type-customer { background: var(--success-bg); color: var(--success); }
+        .type-pill.type-lead { background: var(--info-bg); color: var(--info); }
 
         .pipeline-tab {
-            padding: 6px 16px;
-            border-radius: 8px;
+            min-height: 36px;
+            padding: 0 16px;
+            border-radius: var(--radius-sm);
             border: none;
             background: transparent;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--gray-500);
+            font: 700 13px/1 var(--font-ui);
+            color: var(--muted);
             cursor: pointer;
-            transition: all 0.15s;
-            font-family: inherit;
+            transition: background 0.15s, color 0.15s;
         }
-        .pipeline-tab:hover { background: var(--gray-100); color: var(--gray-700); }
-        .pipeline-tab.active { background: var(--primary); color: var(--white); }
+        .pipeline-tab:hover { background: var(--surface-soft); color: var(--text); }
+        .pipeline-tab.active { background: var(--brand-deep); color: var(--surface); }
 
+        /* Use the dashboard-card pattern from shared.css for the list */
         .table-card {
-            background: var(--white);
-            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow-sm);
         }
 
         .table-toolbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-100);
+            padding: var(--space-4) var(--space-5);
+            border-bottom: 1px solid var(--line);
+            gap: var(--space-3);
+            flex-wrap: wrap;
         }
 
         .table-toolbar-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: var(--space-3);
             flex-wrap: wrap;
         }
 
         .table-toolbar h3 {
-            font-size: 15px;
-            font-weight: 700;
+            font: 700 16px/1 var(--font-ui);
+            color: var(--text-strong);
+            margin-right: var(--space-2);
         }
 
+        /* filter-select inherits .control from shared.css; add the chevron */
         .filter-select {
-            padding: 6px 28px 6px 10px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--gray-600);
-            background: var(--white);
-            cursor: pointer;
             appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%239ca09c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%237b8681' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 8px center;
+            background-position: right 14px center;
+            padding-right: 36px;
+            cursor: pointer;
         }
 
+        /* search-input picks up shared .control base */
         .search-input {
-            padding: 6px 10px 6px 32px;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--gray-600);
-            width: 200px;
-            background: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='7' stroke='%239ca09c' stroke-width='2'/%3E%3Cpath d='M16 16L20 20' stroke='%239ca09c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 10px center;
+            min-width: 240px;
         }
 
-        /* ─── Responsive ────────────────────────────────────── */
         @media (max-width: 1024px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
         }
-
         @media (max-width: 768px) {
             .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
-            .stat-card { padding: 16px; }
-            .stat-card .stat-value { font-size: 24px; }
-            .table-toolbar {
-                flex-direction: column;
-                gap: 10px;
-                align-items: stretch;
-            }
-            .table-toolbar-left { flex-wrap: wrap; }
+            .table-toolbar { flex-direction: column; gap: 10px; align-items: stretch; }
             .search-input { width: 100%; }
         }
     </style>
@@ -378,14 +247,24 @@
         </div>
     </div>
 
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="customers.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Clients</a>
-        <a href="properties.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Properties</a>
-    </div>
-
     <div class="page-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2 class="page-title">Clients</h2>
+                <p class="page-subtitle">Customer records, leads, and pipeline</p>
+            </div>
+            <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                <a href="properties.html" class="btn btn-secondary">Properties</a>
+                <a href="new-customer.html" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Client
+                </a>
+            </div>
+        </div>
+
         <!-- Pipeline Tabs -->
-        <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--white);border-radius:10px;padding:4px;border:1px solid var(--gray-200);width:fit-content">
+        <div style="display:flex;gap:4px;margin-bottom:var(--space-5);background:var(--surface);border-radius:var(--radius-md);padding:4px;border:1px solid var(--line);width:fit-content">
             <button class="pipeline-tab active" onclick="setPipelineTab('')" id="tabAll">All</button>
             <button class="pipeline-tab" onclick="setPipelineTab('customer')" id="tabCustomers">Customers <span id="tabCustomerCount" style="font-size:11px;opacity:0.7"></span></button>
             <button class="pipeline-tab" onclick="setPipelineTab('lead')" id="tabLeads">Leads <span id="tabLeadCount" style="font-size:11px;opacity:0.7"></span></button>

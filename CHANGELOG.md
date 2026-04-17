@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-04-17
+
+### Tax Transfer Payment Reconciliation
+- Fixed payment tax reconstruction to allocate against the taxed line-item gross total when available instead of the full invoice total
+- This prevents non-taxable invoice surcharges and fee-style adjustments from understating backend reconstructed tax on Tax Transfers
+
 ## 2026-04-15
 
 ### Startup Schema Extraction

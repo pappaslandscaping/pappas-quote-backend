@@ -51,16 +51,42 @@ function chooseFallbackInvoiceMatch(candidates = [], extractedInvoiceDate) {
   return choosePreferredInvoiceMatch(dateLikeCandidates.length ? dateLikeCandidates : candidates);
 }
 
-function computeTaxPortionCollected({ amount, tip_amount, invoice_total, invoice_tax_amount }) {
+function deriveInvoiceTaxableGrossTotal(invoiceLike = {}) {
+  const explicit = Number(
+    invoiceLike?.invoice_taxable_gross_total
+    ?? invoiceLike?.external_metadata?.invoice_taxable_gross_total
+  ) || 0;
+  if (explicit > 0) return roundMoney(explicit);
+
+  const items = Array.isArray(invoiceLike?.line_items) ? invoiceLike.line_items : [];
+  const taxedGross = items.reduce((sum, item) => {
+    const taxPercent = Number(item?.tax_percent) || 0;
+    if (taxPercent <= 0) return sum;
+    return sum + (Number(item?.line_total) || 0);
+  }, 0);
+  if (taxedGross > 0) return roundMoney(taxedGross);
+
+  return 0;
+}
+
+function computeTaxPortionCollected({
+  amount,
+  tip_amount,
+  invoice_total,
+  invoice_tax_amount,
+  invoice_taxable_gross_total,
+}) {
   const grossAmount = Number(amount) || 0;
   const tipAmount = Number(tip_amount) || 0;
   const invoiceTotal = Number(invoice_total) || 0;
   const invoiceTaxAmount = Number(invoice_tax_amount) || 0;
-  if (invoiceTotal <= 0 || invoiceTaxAmount <= 0) return 0;
+  const taxedGrossTotal = Number(invoice_taxable_gross_total) || 0;
+  const allocationTotal = taxedGrossTotal > 0 ? taxedGrossTotal : invoiceTotal;
+  if (allocationTotal <= 0 || invoiceTaxAmount <= 0) return 0;
 
   const appliedAmount = Math.max(grossAmount - tipAmount, 0);
-  const cappedAppliedAmount = Math.min(appliedAmount, invoiceTotal);
-  return roundMoney((cappedAppliedAmount / invoiceTotal) * invoiceTaxAmount);
+  const cappedAppliedAmount = Math.min(appliedAmount, allocationTotal);
+  return roundMoney((cappedAppliedAmount / allocationTotal) * invoiceTaxAmount);
 }
 
 function compareInvoiceCandidates(a, b) {
@@ -96,7 +122,7 @@ async function loadInvoiceMatches(pool, invoiceNumbers = []) {
   if (cleaned.length) {
     const result = await pool.query(
       `SELECT id, invoice_number, customer_id, customer_name, total, tax_amount,
-              external_source, external_invoice_id, external_metadata, imported_at, updated_at, created_at
+              line_items, external_source, external_invoice_id, external_metadata, imported_at, updated_at, created_at
          FROM invoices
         WHERE invoice_number = ANY($1::text[])
         ORDER BY invoice_number ASC`,
@@ -128,7 +154,7 @@ async function loadInvoiceMatches(pool, invoiceNumbers = []) {
   const fallbackNames = Array.from(new Set(fallbackPayments.map((payment) => normalizeCustomerName(payment.customer_name)).filter(Boolean)));
   const fallbackResult = await pool.query(
     `SELECT id, invoice_number, customer_id, customer_name, total, tax_amount,
-            external_source, external_invoice_id, external_metadata, imported_at, updated_at, created_at
+            line_items, external_source, external_invoice_id, external_metadata, imported_at, updated_at, created_at
        FROM invoices
       WHERE external_source = 'copilotcrm'
         AND created_at::date = ANY($1::date[])
@@ -158,6 +184,7 @@ async function loadInvoiceMatches(pool, invoiceNumbers = []) {
 
 function buildCopilotPaymentRecord(payment, invoiceMatch) {
   const invoiceNumber = String(payment.extracted_invoice_number || '').trim() || null;
+  const invoiceTaxableGrossTotal = deriveInvoiceTaxableGrossTotal(invoiceMatch);
   const externalMetadata = {
     ...(payment.external_metadata || {}),
     extracted_invoice_number: invoiceNumber,
@@ -166,6 +193,7 @@ function buildCopilotPaymentRecord(payment, invoiceMatch) {
     matched_invoice_id: invoiceMatch?.id || null,
     matched_invoice_number: invoiceMatch?.invoice_number || null,
     matched_invoice_source: invoiceMatch?.external_source || null,
+    invoice_taxable_gross_total: invoiceTaxableGrossTotal || null,
   };
 
   return {
@@ -189,11 +217,13 @@ function buildCopilotPaymentRecord(payment, invoiceMatch) {
     extracted_invoice_date: payment.extracted_invoice_date || null,
     invoice_total: Number(invoiceMatch?.total) || 0,
     invoice_tax_amount: Number(invoiceMatch?.tax_amount) || 0,
+    invoice_taxable_gross_total: invoiceTaxableGrossTotal,
     tax_portion_collected: computeTaxPortionCollected({
       amount: payment.amount,
       tip_amount: payment.tip_amount,
       invoice_total: invoiceMatch?.total,
       invoice_tax_amount: invoiceMatch?.tax_amount,
+      invoice_taxable_gross_total: invoiceTaxableGrossTotal,
     }),
   };
 }
@@ -358,29 +388,35 @@ async function upsertCopilotPayments({ pool, payments = [] }) {
 }
 
 function hydratePaymentRecord(record) {
+  const taxableGrossTotal = deriveInvoiceTaxableGrossTotal(record);
   const hydrated = {
     ...record,
     amount: roundMoney(record.amount),
     tip_amount: roundMoney(record.tip_amount),
     invoice_total: roundMoney(record.invoice_total),
     invoice_tax_amount: roundMoney(record.invoice_tax_amount),
+    invoice_taxable_gross_total: taxableGrossTotal,
   };
   hydrated.applied_amount = roundMoney(
     Math.min(
       Math.max((Number(hydrated.amount) || 0) - (Number(hydrated.tip_amount) || 0), 0),
-      Number(hydrated.invoice_total) || 0
+      taxableGrossTotal || Number(hydrated.invoice_total) || 0
     )
   );
   hydrated.tax_portion_collected = roundMoney(
     record.tax_portion_collected != null
       ? record.tax_portion_collected
-      : computeTaxPortionCollected(hydrated)
+      : computeTaxPortionCollected({
+        ...hydrated,
+        invoice_taxable_gross_total: taxableGrossTotal,
+      })
   );
   return hydrated;
 }
 
 module.exports = {
   roundMoney,
+  deriveInvoiceTaxableGrossTotal,
   computeTaxPortionCollected,
   choosePreferredInvoiceMatch,
   chooseFallbackInvoiceMatch,

@@ -65,13 +65,29 @@ router.get('/api/sent-quotes', async (req, res) => {
 
     const [result, countsResult] = await Promise.all([
       pool.query(query, values),
-      pool.query(`SELECT status, COUNT(*) as count FROM sent_quotes GROUP BY status`)
+      pool.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'draft')::int AS draft,
+          COUNT(*) FILTER (WHERE status = 'sent')::int AS sent,
+          COUNT(*) FILTER (WHERE status = 'viewed')::int AS viewed,
+          COUNT(*) FILTER (WHERE status = 'signed')::int AS signed,
+          COUNT(*) FILTER (WHERE status = 'declined')::int AS declined,
+          COUNT(*) FILTER (WHERE status = 'changes_requested')::int AS changes_requested,
+          COUNT(*) FILTER (WHERE status = 'signed' AND contract_signed_at IS NULL)::int AS pending_signatures
+        FROM sent_quotes
+      `)
     ]);
-    const counts = { total: 0, draft: 0, sent: 0, viewed: 0, signed: 0, declined: 0 };
-    countsResult.rows.forEach(row => {
-      counts[row.status] = parseInt(row.count);
-      counts.total += parseInt(row.count);
-    });
+    const counts = countsResult.rows[0] || {
+      total: 0,
+      draft: 0,
+      sent: 0,
+      viewed: 0,
+      signed: 0,
+      declined: 0,
+      changes_requested: 0,
+      pending_signatures: 0,
+    };
 
     res.json({ success: true, quotes: result.rows, counts });
   } catch (error) {

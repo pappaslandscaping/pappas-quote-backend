@@ -1534,11 +1534,16 @@
     });
 
     document.addEventListener('DOMContentLoaded', function() {
+        const params = new URLSearchParams(window.location.search);
+        const statusParam = params.get('status');
+        if (statusParam) {
+            const statusFilter = document.getElementById('statusFilter');
+            if (statusFilter) statusFilter.value = statusParam;
+        }
         loadStats();
         loadInvoices();
         loadAging();
 
-        const params = new URLSearchParams(window.location.search);
         if (params.get('create') === 'true') {
             openCreateModal();
             setTimeout(() => {

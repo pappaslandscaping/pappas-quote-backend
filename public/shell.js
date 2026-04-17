@@ -58,6 +58,7 @@
     ]},
     { label: 'Billing', items: [
       { href: 'invoices.html', icon: 'invoices', label: 'Invoices', perm: 'invoices' },
+      { href: 'payments.html', icon: 'payments', label: 'Payments', perm: 'invoices' },
       { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' },
       { href: 'tax-transfers.html', icon: 'reports', label: 'Tax Transfers', perm: 'reports' }
     ]},
@@ -109,7 +110,6 @@
 
   // Pages accessible from parent pages (not in sidebar)
   // - sent-quotes.html, quote-generator.html, quote-calculator.html → from Quotes page
-  // - payments.html → from Invoices page
   // - time-tracking.html → from Crew page
   // - communications.html, templates.html, campaigns.html, automations.html → from Settings
   // - pipeline.html → from Reports/Insights
@@ -170,7 +170,6 @@
     'new-job.html': 'scheduling.html',
     'invoice-detail.html': 'invoices.html',
     'new-invoice.html': 'invoices.html',
-    'payments.html': 'invoices.html',
     'time-tracking.html': 'crew.html',
     'timeclock-calculator.html': 'crew.html',
     'pipeline.html': 'kpi.html',

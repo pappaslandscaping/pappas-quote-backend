@@ -1454,15 +1454,17 @@ router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
          p.paid_at,
          p.created_at,
          p.source_date_raw,
-         p.external_source,
-         p.external_payment_key,
-         p.external_metadata,
-         p.imported_at,
-         i.invoice_number,
-         i.total AS invoice_total,
-         i.tax_amount AS invoice_tax_amount
-       FROM payments p
-       LEFT JOIN invoices i ON p.invoice_id = i.id
+       p.external_source,
+       p.external_payment_key,
+       p.external_metadata,
+       p.imported_at,
+       i.invoice_number,
+       i.external_source AS invoice_external_source,
+       i.external_invoice_id,
+       i.total AS invoice_total,
+       i.tax_amount AS invoice_tax_amount
+     FROM payments p
+     LEFT JOIN invoices i ON p.invoice_id = i.id
        WHERE COALESCE(p.paid_at, p.created_at) >= $1::date
          AND COALESCE(p.paid_at, p.created_at) < ($2::date + INTERVAL '1 day')
          AND COALESCE(p.external_source, 'database') = $3
@@ -1470,7 +1472,13 @@ router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
       [start_date, end_date, source]
     );
 
-    const payments = result.rows.map(hydratePaymentRecord);
+    const payments = result.rows.map((row) => ({
+      ...hydratePaymentRecord(row),
+      display_invoice_number: getDisplayInvoiceNumberForPaymentRow({
+        ...row,
+        external_source: row.invoice_external_source || row.external_source,
+      }),
+    }));
     const summary = payments.reduce((acc, payment) => {
       acc.payment_count += 1;
       acc.gross_collected = roundMoney(acc.gross_collected + payment.amount);

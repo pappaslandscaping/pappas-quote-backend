@@ -59,6 +59,15 @@ const fixtureHtml = `
           <td>$297.00 for Invoice #10096</td>
           <td></td>
         </tr>
+        <tr>
+          <td></td>
+          <td>Page Total:</td>
+          <td>$1,333.80</td>
+          <td>$10.00</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
       </tbody>
     </table>
     <ul class="pagination">

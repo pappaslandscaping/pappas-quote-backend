@@ -88,7 +88,6 @@ function formatCopilotSyncError(error, fallback) {
   if (!message) return fallback;
   return message.replace(/\s+/g, ' ').slice(0, 300);
 }
-
 function normalizeCount(value) {
   const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
   return Number.isFinite(parsed) ? parsed : 0;

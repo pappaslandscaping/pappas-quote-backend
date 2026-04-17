@@ -1376,16 +1376,15 @@ router.get('/api/copilot/payment-review', authenticateToken, async (req, res) =>
       ...hydratePaymentRecord(row),
       payment_date: row.paid_at || row.created_at || null,
     }));
-    const unresolvedInvoiceNumbers = Array.from(new Set(
-      hydrated
-        .filter((payment) => !payment.invoice_id)
-        .map((payment) => getExtractedInvoiceNumberForPayment(payment))
-        .filter(Boolean)
-    ));
-    const invoiceMatches = await loadInvoiceMatches(
-      pool,
-      unresolvedInvoiceNumbers
-    );
+    const unresolvedPayments = hydrated
+      .filter((payment) => !payment.invoice_id)
+      .map((payment) => ({
+        extracted_invoice_number: getExtractedInvoiceNumberForPayment(payment),
+        extracted_invoice_date: payment.extracted_invoice_date || payment.external_metadata?.extracted_invoice_date || null,
+        customer_name: payment.customer_name || null,
+      }))
+      .filter((payment) => payment.extracted_invoice_number);
+    const invoiceMatches = await loadInvoiceMatches(pool, unresolvedPayments);
 
     const reviewed = hydrated.map((payment) => {
       const extractedInvoiceNumber = getExtractedInvoiceNumberForPayment(payment);

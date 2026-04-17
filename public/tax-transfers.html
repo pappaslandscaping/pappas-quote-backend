@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tax Transfers - YardDesk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .hero-copy h2 {
+            font-size: 28px;
+            line-height: 1.1;
+            color: var(--gray-800);
+            margin-bottom: 8px;
+        }
+        .hero-copy p {
+            max-width: 760px;
+            color: var(--gray-500);
+            font-size: 14px;
+        }
+        .hero-steps {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .hero-step {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 14px;
+        }
+        .hero-step-kicker {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-bottom: 8px;
+        }
+        .hero-step strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--gray-800);
+            font-size: 14px;
+        }
+        .hero-step p {
+            max-width: none;
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .hero-badges {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            font-size: 12px;
+            color: var(--gray-600);
+            font-weight: 600;
+        }
+        .hero-badge strong {
+            color: var(--gray-800);
+        }
+        .panel {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            margin-bottom: 20px;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.2fr auto auto auto;
+            gap: 12px;
+            align-items: end;
+        }
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .field input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--gray-300);
+            font: inherit;
+            background: #fff;
+            color: var(--gray-800);
+        }
+        .field input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.12);
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 10px;
+            border: 1px solid var(--gray-300);
+            background: #fff;
+            color: var(--gray-700);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn:hover:not(:disabled) {
+            border-color: var(--gray-400);
+            transform: translateY(-1px);
+        }
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: wait;
+            transform: none;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .btn-secondary {
+            background: var(--gray-50);
+        }
+        .meta-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+        .meta-note {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .meta-status {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+        }
+        .meta-status.loading {
+            color: var(--primary);
+        }
+        .meta-status.success {
+            color: #166534;
+        }
+        .meta-status.error {
+            color: #b91c1c;
+        }
+        .meta-status.warn {
+            color: #92400e;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .summary-card {
+            background: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 18px;
+        }
+        .summary-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-bottom: 8px;
+        }
+        .summary-value {
+            font-size: 30px;
+            line-height: 1;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .summary-sub {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        .summary-card.variance-positive .summary-value {
+            color: #b45309;
+        }
+        .summary-card.variance-negative .summary-value {
+            color: #b91c1c;
+        }
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .section-head h3 {
+            font-size: 16px;
+            color: var(--gray-800);
+        }
+        .section-head .sub {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+        thead th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: left;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        tbody td {
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+            color: var(--gray-700);
+            vertical-align: top;
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        tbody tr.row-button {
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+        tbody tr.row-button:hover {
+            background: var(--gray-50);
+        }
+        tbody tr.row-button.selected {
+            background: #eef4ef;
+        }
+        .money {
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .variance-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .variance-pill.good {
+            color: #166534;
+            background: #ecfdf5;
+        }
+        .variance-pill.warn {
+            color: #92400e;
+            background: #fffbeb;
+        }
+        .source-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            background: var(--gray-50);
+            color: var(--gray-600);
+            border: 1px solid var(--gray-200);
+        }
+        .callout {
+            display: flex;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8faf8;
+            border: 1px solid var(--gray-200);
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: 18px;
+        }
+        .callout strong {
+            color: var(--gray-800);
+        }
+        .callout.warning {
+            background: #fffbeb;
+            border-color: #fcd34d;
+        }
+        .split-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+        }
+        .empty-state {
+            padding: 36px 18px;
+            text-align: center;
+            color: var(--gray-500);
+            font-size: 14px;
+        }
+        .status-inline {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-left: 8px;
+        }
+        .detail-cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .detail-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .detail-card-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .detail-card-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .inline-note {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        .inline-note strong {
+            color: var(--gray-700);
+        }
+        .helper-line {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 8px;
+        }
+        @media (max-width: 1180px) {
+            .controls-grid,
+            .summary-grid,
+            .split-grid,
+            .hero-steps {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+<main class="main">
+    <div class="page-content">
+        <section class="hero">
+            <div class="hero-copy">
+                <h2>Daily Tax Transfer Reconciliation</h2>
+                <p>
+                    Recommended transfer amounts come from <strong>Copilot Tax Summary collected</strong>.
+                    Backend payment tax is shown only as a reconciliation cross-check against linked payments.
+                </p>
+                <div class="hero-badges">
+                    <div class="hero-badge"><strong>Source of truth:</strong> Copilot collected tax</div>
+                    <div class="hero-badge"><strong>Cross-check:</strong> linked payment tax only</div>
+                    <div class="hero-badge"><strong>Out of scope:</strong> no transfer automation</div>
+                </div>
+                <div class="hero-steps">
+                    <div class="hero-step">
+                        <div class="hero-step-kicker">Step 1</div>
+                        <strong>Run sync before trusting today</strong>
+                        <p>Refresh Copilot Tax Summary first. Sync payments when you want the reconciliation variance to reflect the latest linked payments.</p>
+                    </div>
+                    <div class="hero-step">
+                        <div class="hero-step-kicker">Step 2</div>
+                        <strong>Use Recommended Transfer</strong>
+                        <p>This amount comes from Copilot collected tax and is the number to move, not the backend reconstructed tax.</p>
+                    </div>
+                    <div class="hero-step">
+                        <div class="hero-step-kicker">Step 3</div>
+                        <strong>Investigate variance</strong>
+                        <p>Click a day in the table to inspect linked and unresolved payment records that explain any difference.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="controls-grid">
+                <div class="field">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="field">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+                <button class="btn btn-primary" id="loadBtn" type="button" onclick="loadReport()">Load Report</button>
+                <button class="btn btn-secondary" id="syncTaxBtn" type="button" onclick="syncTaxSummary()">Sync Tax Summary</button>
+                <button class="btn btn-secondary" id="syncPaymentsBtn" type="button" onclick="syncPayments()">Sync Payments</button>
+            </div>
+            <div class="meta-line">
+                <div class="meta-note" id="freshnessNote">Choose a date range and load the report.</div>
+                <div class="meta-status" id="syncStatus">Idle</div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="callout">
+                <div>ℹ️</div>
+                <div>
+                    <strong>How to read this page:</strong>
+                    the recommended transfer amount is the Copilot collected tax snapshot for each day.
+                    Backend reconstructed tax is for reconciliation only and should not override Copilot.
+                </div>
+            </div>
+            <div class="callout warning">
+                <div>⚠️</div>
+                <div>
+                    <strong>Important:</strong> if you have not run sync for today yet, the recommendation may still reflect the last stored snapshot instead of the latest Copilot collected tax.
+                </div>
+            </div>
+            <div class="summary-grid" id="summaryGrid">
+                <div class="summary-card">
+                    <div class="summary-label">Recommended Transfer</div>
+                    <div class="summary-value" id="sumRecommended">$0.00</div>
+                    <div class="summary-sub">Sum of Copilot collected tax for the selected range</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Copilot Collected Tax</div>
+                    <div class="summary-value" id="sumCopilot">$0.00</div>
+                    <div class="summary-sub">Primary source of truth</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Backend Reconstructed Tax</div>
+                    <div class="summary-value" id="sumBackend">$0.00</div>
+                    <div class="summary-sub">From linked payment tax reconstruction</div>
+                </div>
+                <div class="summary-card" id="varianceCard">
+                    <div class="summary-label">Variance</div>
+                    <div class="summary-value" id="sumVariance">$0.00</div>
+                    <div class="summary-sub">Copilot collected tax minus backend reconstructed tax</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="split-grid">
+            <div class="panel">
+                <div class="section-head">
+                    <div>
+                        <h3>Daily Transfer Recommendations</h3>
+                        <div class="sub">Historical day-by-day view for the selected date range.</div>
+                        <div class="helper-line">Click any day to load the reconciliation detail on the right.</div>
+                    </div>
+                    <div class="sub" id="tableMeta">No data loaded</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Recommended</th>
+                                <th>Copilot Tax</th>
+                                <th>Backend Tax</th>
+                                <th>Variance</th>
+                                <th>Source</th>
+                                <th>Snapshot As Of</th>
+                            </tr>
+                        </thead>
+                        <tbody id="daysBody">
+                            <tr><td colspan="7" class="empty-state">Load a date range to view daily tax transfer recommendations.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="section-head">
+                    <div>
+                        <h3>Payment Reconciliation Detail</h3>
+                        <div class="sub">Optional drill-down using real payment records for the selected day.</div>
+                    </div>
+                    <div class="sub" id="detailMeta">Select a day</div>
+                </div>
+                <div class="detail-cards">
+                    <div class="detail-card">
+                        <div class="detail-card-label">Payments</div>
+                        <div class="detail-card-value" id="detailPayments">0</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-card-label">Linked</div>
+                        <div class="detail-card-value" id="detailLinked">0</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-card-label">Unresolved</div>
+                        <div class="detail-card-value" id="detailUnresolved">0</div>
+                    </div>
+                </div>
+                <div class="callout" style="margin-bottom:14px;">
+                    <div>↳</div>
+                    <div>
+                        This drill-down is for reconciliation. It helps explain the variance, but it does not replace the Copilot collected-tax recommendation.
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Payer</th>
+                                <th>Invoice</th>
+                                <th>Applied</th>
+                                <th>Tax Portion</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailBody">
+                            <tr><td colspan="5" class="empty-state">Select a day in the table to inspect payment-level reconciliation.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<script>
+    const money = (value) => Number(value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    const shortDate = (value) => value ? new Date(value + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    const longDateTime = (value) => value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+    const fmtSource = (value) => {
+        switch (value) {
+            case 'copilotcrm':
+            case 'live_copilot':
+                return 'Live Copilot';
+            case 'persisted_copilot_snapshot':
+                return 'Stored Copilot snapshot';
+            case 'database_fallback':
+                return 'Database fallback';
+            case 'missing_copilot_snapshot':
+                return 'Missing Copilot snapshot';
+            default:
+                return value || '—';
+        }
+    };
+
+    let currentReport = null;
+    let selectedDay = null;
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function setDefaultDates() {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 6);
+        document.getElementById('startDate').value = start.toISOString().slice(0, 10);
+        document.getElementById('endDate').value = end.toISOString().slice(0, 10);
+    }
+
+    function setBusy(buttonId, isBusy, label) {
+        const btn = document.getElementById(buttonId);
+        if (!btn) return;
+        if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+        btn.disabled = isBusy;
+        btn.textContent = isBusy ? label : btn.dataset.label;
+    }
+
+    function setSyncStatus(message, tone) {
+        const el = document.getElementById('syncStatus');
+        el.textContent = message;
+        el.classList.remove('loading', 'success', 'error', 'warn');
+        if (tone) el.classList.add(tone);
+    }
+
+    function getRange() {
+        return {
+            start_date: document.getElementById('startDate').value,
+            end_date: document.getElementById('endDate').value
+        };
+    }
+
+    function isValidRange(range) {
+        return range.start_date && range.end_date && range.start_date <= range.end_date;
+    }
+
+    function renderSummary(summary) {
+        document.getElementById('sumRecommended').textContent = money(summary?.recommended_transfer_amount);
+        document.getElementById('sumCopilot').textContent = money(summary?.copilot_collected_tax);
+        document.getElementById('sumBackend').textContent = money(summary?.backend_reconstructed_tax);
+        document.getElementById('sumVariance').textContent = money(summary?.variance);
+
+        const varianceCard = document.getElementById('varianceCard');
+        varianceCard.classList.remove('variance-positive', 'variance-negative');
+        const variance = Number(summary?.variance || 0);
+        if (variance > 0.009) varianceCard.classList.add('variance-positive');
+        else if (variance < -0.009) varianceCard.classList.add('variance-negative');
+    }
+
+    function renderDays(days) {
+        const body = document.getElementById('daysBody');
+        const meta = document.getElementById('tableMeta');
+        if (!Array.isArray(days) || !days.length) {
+            body.innerHTML = '<tr><td colspan="7" class="empty-state">No report rows found for this date range.</td></tr>';
+            meta.textContent = '0 days';
+            return;
+        }
+
+        meta.textContent = `${days.length} day${days.length === 1 ? '' : 's'} loaded`;
+        body.innerHTML = days.map((day) => {
+            const variance = Number(day.variance || 0);
+            const varianceClass = Math.abs(variance) < 0.01 ? 'good' : 'warn';
+            const selectedClass = selectedDay === day.date ? ' selected' : '';
+            return `
+                <tr class="row-button${selectedClass}" onclick="selectDay('${day.date}')">
+                    <td><strong>${shortDate(day.date)}</strong></td>
+                    <td class="money">${money(day.recommended_transfer_amount)}</td>
+                    <td class="money">${money(day.copilot_collected_tax)}</td>
+                    <td class="money">${money(day.backend_reconstructed_tax)}</td>
+                    <td><span class="variance-pill ${varianceClass}">${money(day.variance)}</span></td>
+                    <td><span class="source-pill">${fmtSource(day.source)}</span></td>
+                    <td>${longDateTime(day.snapshot_as_of)}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderFreshness(days, range) {
+        const note = document.getElementById('freshnessNote');
+        if (!days || !days.length) {
+            note.textContent = 'No tax-transfer data is loaded for the selected range yet.';
+            return;
+        }
+        const latest = days
+            .map((day) => day.snapshot_as_of)
+            .filter(Boolean)
+            .sort()
+            .slice(-1)[0];
+        const sources = Array.from(new Set(days.map((day) => fmtSource(day.source))));
+        note.textContent = `Showing ${shortDate(range.start_date)} through ${shortDate(range.end_date)}. Latest snapshot: ${longDateTime(latest)}. Sources: ${sources.join(', ')}.`;
+    }
+
+    async function loadReport() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            setSyncStatus('Choose a valid date range where the start date is not after the end date.', 'error');
+            return;
+        }
+
+        setBusy('loadBtn', true, 'Loading…');
+        document.getElementById('daysBody').innerHTML = '<tr><td colspan="7" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
+        setSyncStatus('Loading tax transfer report…', 'loading');
+        try {
+            const params = new URLSearchParams(range);
+            const res = await fetch('/api/reports/tax-transfer-daily?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load report');
+
+            currentReport = data;
+            renderSummary(data.summary || {});
+            renderDays(data.days || []);
+            renderFreshness(data.days || [], range);
+            setSyncStatus('Report loaded.', 'success');
+
+            if (data.days && data.days.length) {
+                const dateToSelect = selectedDay && data.days.some((day) => day.date === selectedDay)
+                    ? selectedDay
+                    : data.days[0].date;
+                await selectDay(dateToSelect);
+            } else {
+                resetDetail();
+            }
+        } catch (error) {
+            setSyncStatus(`Load failed: ${error.message}`, 'error');
+            document.getElementById('daysBody').innerHTML = `<tr><td colspan="7" class="empty-state">Unable to load the tax transfer report. ${escapeHtml(error.message)}</td></tr>`;
+            resetDetail();
+        } finally {
+            setBusy('loadBtn', false);
+        }
+    }
+
+    async function syncTaxSummary() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            setSyncStatus('Choose a valid date range before syncing Tax Summary.', 'error');
+            return;
+        }
+        setBusy('syncTaxBtn', true, 'Syncing…');
+        setSyncStatus('Refreshing Copilot Tax Summary snapshots…', 'loading');
+        try {
+            const res = await fetch('/api/copilot/tax-summary/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...range, force: true })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync tax summary');
+            setSyncStatus(`Tax Summary synced for ${data.count || 0} day${data.count === 1 ? '' : 's'}.`, 'success');
+            await loadReport();
+        } catch (error) {
+            setSyncStatus(`Tax Summary sync failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('syncTaxBtn', false);
+        }
+    }
+
+    async function syncPayments() {
+        setBusy('syncPaymentsBtn', true, 'Syncing…');
+        setSyncStatus('Refreshing Copilot payment records…', 'loading');
+        try {
+            const res = await fetch('/api/copilot/payments/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: true, pageSize: 100, maxPages: 25 })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync payments');
+            setSyncStatus(`Payments synced: ${data.sync?.inserted || 0} inserted, ${data.sync?.updated || 0} updated, ${data.sync?.unresolved || 0} unresolved.`, 'success');
+            if (currentReport) await loadReport();
+        } catch (error) {
+            setSyncStatus(`Payments sync failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('syncPaymentsBtn', false);
+        }
+    }
+
+    function resetDetail() {
+        selectedDay = null;
+        document.getElementById('detailMeta').textContent = 'Select a day';
+        document.getElementById('detailPayments').textContent = '0';
+        document.getElementById('detailLinked').textContent = '0';
+        document.getElementById('detailUnresolved').textContent = '0';
+        document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Select a day in the table to inspect payment-level reconciliation.</td></tr>';
+    }
+
+    async function selectDay(date) {
+        selectedDay = date;
+        if (currentReport?.days) renderDays(currentReport.days);
+        document.getElementById('detailMeta').textContent = `Loading ${shortDate(date)}…`;
+        document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Loading payment reconciliation detail…</td></tr>';
+        try {
+            const params = new URLSearchParams({
+                start_date: date,
+                end_date: date,
+                source: 'copilotcrm'
+            });
+            const res = await fetch('/api/reports/tax-sweep?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load payment reconciliation detail');
+
+            document.getElementById('detailMeta').textContent = `Payment reconciliation for ${shortDate(date)}`;
+            document.getElementById('detailPayments').textContent = String(data.summary?.payment_count || 0);
+            document.getElementById('detailLinked').textContent = String(data.summary?.linked_count || 0);
+            document.getElementById('detailUnresolved').textContent = String(data.summary?.unresolved_count || 0);
+
+            const payments = data.payments || [];
+            document.getElementById('detailBody').innerHTML = payments.length
+                ? payments.map((payment) => `
+                    <tr>
+                        <td>
+                            <strong>${escapeHtml(payment.customer_name || 'Unknown payer')}</strong>
+                            <div class="inline-note">${escapeHtml(payment.method || 'Method unknown')}${payment.details ? ' • ' + escapeHtml(payment.details) : ''}</div>
+                        </td>
+                        <td>${escapeHtml(payment.invoice_number || 'Unresolved')}</td>
+                        <td class="money">${money(payment.applied_amount)}</td>
+                        <td class="money">${money(payment.tax_portion_collected)}</td>
+                        <td>${payment.invoice_id ? '<span class="source-pill">Linked</span>' : '<span class="source-pill">Unresolved</span>'}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="5" class="empty-state">No Copilot-backed payment records were found for this day.</td></tr>';
+        } catch (error) {
+            document.getElementById('detailMeta').textContent = `Detail load failed for ${shortDate(date)}`;
+            document.getElementById('detailBody').innerHTML = `<tr><td colspan="5" class="empty-state">Unable to load payment reconciliation detail. ${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        setDefaultDates();
+        loadReport();
+    });
+</script>
+</body>
+</html>

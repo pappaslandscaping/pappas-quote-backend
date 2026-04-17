@@ -10,6 +10,11 @@
 - Added a protected daily tax-transfer freshness sync endpoint for Copilot payments and Copilot Tax Summary collected snapshots
 - Added persisted automation status plus same-day freshness indicators and failure messaging on the Tax Transfers page
 
+### Copilot Payment Review
+- Added a read-only Copilot payment review section to Tax Transfer Reconciliation for inspecting unresolved payment rows by date range
+- Added `GET /api/copilot/payment-review` to explain linkage failures without changing Copilot Tax Summary recommendation behavior
+- Added a Reports quick link to Tax Transfer Reconciliation so the review flow is easier to reach
+
 ## 2026-04-15
 
 ### Startup Schema Extraction

@@ -41,6 +41,9 @@ const {
   roundMoney,
   upsertCopilotPayments,
   hydratePaymentRecord,
+  loadInvoiceMatches,
+  getExtractedInvoiceNumberForPayment,
+  describeCopilotPaymentLinkage,
 } = require('../scripts/import-copilot-payments');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
@@ -1321,6 +1324,110 @@ router.get('/api/payment-records', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Payment records API error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/copilot/payment-review - Read-only Copilot payment linkage review
+router.get('/api/copilot/payment-review', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    const unresolvedOnly = String(req.query.unresolved_only || 'true') !== 'false';
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+         p.id,
+         p.payment_id,
+         p.invoice_id,
+         p.customer_id,
+         p.customer_name,
+         p.amount,
+         p.tip_amount,
+         p.method,
+         p.status,
+         p.details,
+         p.notes,
+         p.paid_at,
+         p.created_at,
+         p.source_date_raw,
+         p.external_source,
+         p.external_payment_key,
+         p.external_metadata,
+         p.imported_at,
+         i.invoice_number,
+         i.total AS invoice_total,
+         i.tax_amount AS invoice_tax_amount,
+         i.external_source AS invoice_external_source,
+         i.external_invoice_id
+       FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       WHERE COALESCE(p.external_source, 'database') = 'copilotcrm'
+         AND COALESCE(p.paid_at, p.created_at) >= $1::date
+         AND COALESCE(p.paid_at, p.created_at) < ($2::date + INTERVAL '1 day')
+       ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC`,
+      [startDate, endDate]
+    );
+
+    const hydrated = result.rows.map((row) => ({
+      ...hydratePaymentRecord(row),
+      payment_date: row.paid_at || row.created_at || null,
+    }));
+    const unresolvedInvoiceNumbers = Array.from(new Set(
+      hydrated
+        .filter((payment) => !payment.invoice_id)
+        .map((payment) => getExtractedInvoiceNumberForPayment(payment))
+        .filter(Boolean)
+    ));
+    const invoiceMatches = await loadInvoiceMatches(
+      pool,
+      unresolvedInvoiceNumbers
+    );
+
+    const reviewed = hydrated.map((payment) => {
+      const extractedInvoiceNumber = getExtractedInvoiceNumberForPayment(payment);
+      const invoiceMatch = !payment.invoice_id && extractedInvoiceNumber
+        ? invoiceMatches.get(extractedInvoiceNumber) || null
+        : null;
+      const linkage = describeCopilotPaymentLinkage(payment, invoiceMatch);
+      return {
+        ...payment,
+        ...linkage,
+        current_invoice_match_id: invoiceMatch?.id || null,
+        current_invoice_match_number: invoiceMatch?.invoice_number || null,
+        current_invoice_match_source: invoiceMatch?.external_source || null,
+      };
+    });
+
+    const summary = reviewed.reduce((acc, payment) => {
+      acc.total_rows += 1;
+      if (payment.link_status === 'linked') acc.linked_count += 1;
+      else acc.unresolved_count += 1;
+      return acc;
+    }, {
+      total_rows: 0,
+      linked_count: 0,
+      unresolved_count: 0,
+    });
+
+    const payments = unresolvedOnly
+      ? reviewed.filter((payment) => payment.link_status === 'unresolved')
+      : reviewed;
+
+    res.json({
+      success: true,
+      start_date: startDate,
+      end_date: endDate,
+      unresolved_only: unresolvedOnly,
+      total: payments.length,
+      summary,
+      payments,
+    });
+  } catch (error) {
+    console.error('Copilot payment review API error:', error);
     serverError(res, error);
   }
 });

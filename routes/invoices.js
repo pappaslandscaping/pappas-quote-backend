@@ -257,8 +257,10 @@ async function computeBackendReconstructedTaxForDay(date) {
     `SELECT
        p.amount,
        p.tip_amount,
+       p.external_metadata,
        i.total AS invoice_total,
-       i.tax_amount AS invoice_tax_amount
+       i.tax_amount AS invoice_tax_amount,
+       i.line_items
      FROM payments p
      LEFT JOIN invoices i ON p.invoice_id = i.id
      WHERE COALESCE(p.paid_at, p.created_at) >= $1::date
@@ -267,12 +269,8 @@ async function computeBackendReconstructedTaxForDay(date) {
     [date]
   );
   return roundMoney(result.rows.reduce((sum, row) => {
-    const appliedAmount = Math.min(
-      Math.max((Number(row.amount) || 0) - (Number(row.tip_amount) || 0), 0),
-      Number(row.invoice_total) || 0
-    );
-    if ((Number(row.invoice_total) || 0) <= 0 || (Number(row.invoice_tax_amount) || 0) <= 0) return sum;
-    return sum + ((appliedAmount / Number(row.invoice_total)) * Number(row.invoice_tax_amount));
+    const hydrated = hydratePaymentRecord(row);
+    return sum + (Number(hydrated.tax_portion_collected) || 0);
   }, 0));
 }
 

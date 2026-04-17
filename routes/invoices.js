@@ -565,7 +565,22 @@ router.get('/api/invoices', async (req, res) => {
              LEFT JOIN customers c ON i.customer_id = c.id`;
     const params = [];
     const where = [];
-    if (status) { params.push(status); where.push(`i.status = $${params.length}`); }
+    if (status) {
+      if (status === 'overdue') {
+        where.push(`COALESCE(i.total, 0) > COALESCE(i.amount_paid, 0)`);
+        where.push(`(
+          COALESCE(LOWER(TRIM(i.status)), '') = 'overdue'
+          OR (
+            COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending', '')
+            AND i.due_date IS NOT NULL
+            AND i.due_date < CURRENT_DATE
+          )
+        )`);
+      } else {
+        params.push(status);
+        where.push(`i.status = $${params.length}`);
+      }
+    }
     if (customer_id) { params.push(customer_id); where.push(`i.customer_id = $${params.length}`); }
     // Hide blank placeholder drafts (no customer name + no money + no
     // line items). They were dominating the top of the list and making

@@ -157,7 +157,7 @@
                 </div>
                 <div class="attention-item-count urgent" id="attn-overdue">—</div>
               </a>
-              <a class="attention-item" href="sent-quotes.html?status=signed">
+              <a class="attention-item" href="sent-quotes.html?status=pending_signature">
                 <div>
                   <p class="attention-item-meta">Sales</p>
                   <p class="attention-item-title">Pending signatures</p>
@@ -171,14 +171,14 @@
                 </div>
                 <div class="attention-item-count" id="attn-changes">—</div>
               </a>
-              <a class="attention-item" href="dispatch.html">
+              <a class="attention-item" id="attn-unassigned-link" href="scheduling.html">
                 <div>
                   <p class="attention-item-meta">Operations</p>
                   <p class="attention-item-title">Unassigned jobs today</p>
                 </div>
                 <div class="attention-item-count" id="attn-unassigned">—</div>
               </a>
-              <a class="attention-item" href="work-requests.html">
+              <a class="attention-item" href="work-requests.html?status=open">
                 <div>
                   <p class="attention-item-meta">Inbox</p>
                   <p class="attention-item-title">Work requests open</p>
@@ -474,35 +474,55 @@ async function loadOperations() {
   setText('ops-week-jobs', weekCount);
   setText('ops-crews', crewCount);
   setText('ops-unassigned', num(unassigned));
-  setText('attn-unassigned', num(unassigned));
 }
 
 // ── Attention rail ──────────────────────────────────────────
 async function loadAttention() {
-  var [requests, sentQuotes, invStats] = await Promise.all([
-    getJson('/api/quotes?limit=500'),
-    getJson('/api/sent-quotes?limit=500'),
+  var today = new Date().toISOString().slice(0, 10);
+  var [workRequestStats, sentQuotes, invStatsResponse, todayJobs] = await Promise.all([
+    getJson('/api/work-requests/stats'),
+    getJson('/api/sent-quotes?limit=1'),
     getJson('/api/invoices/stats'),
+    getJson('/api/jobs?date=' + today),
   ]);
 
+  var workStats = workRequestStats && (workRequestStats.stats || workRequestStats);
   var openReqs = 0;
-  if (requests && Array.isArray(requests.quotes)) {
-    requests.quotes.forEach(function(r) {
-      if (r.status !== 'closed' && r.status !== 'won' && r.status !== 'lost') openReqs++;
-    });
+  if (workStats) {
+    openReqs = Number(workStats.pending || 0) + Number(workStats.in_progress || 0);
   }
-  var awaitingSig = 0, changesReq = 0;
-  if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+
+  var sentQuoteCounts = sentQuotes && sentQuotes.counts;
+  var hasSentQuoteCounts = !!(
+    sentQuoteCounts &&
+    Object.prototype.hasOwnProperty.call(sentQuoteCounts, 'pending_signatures') &&
+    Object.prototype.hasOwnProperty.call(sentQuoteCounts, 'changes_requested')
+  );
+  var awaitingSig = Number(sentQuoteCounts && sentQuoteCounts.pending_signatures || 0);
+  var changesReq = Number(sentQuoteCounts && sentQuoteCounts.changes_requested || 0);
+  if (!hasSentQuoteCounts && sentQuotes && Array.isArray(sentQuotes.quotes)) {
     sentQuotes.quotes.forEach(function(q) {
-      if (['sent', 'viewed', 'signed'].indexOf(q.status) >= 0 && !q.contract_signed_at) awaitingSig++;
+      if (q.status === 'signed' && !q.contract_signed_at) awaitingSig++;
       if (q.status === 'changes_requested') changesReq++;
     });
   }
-  var overdue = invStats && (invStats.overdue_count || invStats.overdue || 0);
+  var invStats = invStatsResponse && (invStatsResponse.stats || invStatsResponse);
+  var overdue = Number(invStats && invStats.overdue || 0);
+  var unassignedToday = 0;
+  if (todayJobs && Array.isArray(todayJobs.jobs)) {
+    todayJobs.jobs.forEach(function(j) {
+      if (!j.crew_assigned && j.status !== 'completed' && j.status !== 'cancelled') unassignedToday++;
+    });
+  }
   setText('attn-overdue', num(overdue));
   setText('attn-signatures', num(awaitingSig));
   setText('attn-changes', num(changesReq));
+  setText('attn-unassigned', num(unassignedToday));
   setText('attn-requests', num(openReqs));
+  var unassignedLink = document.getElementById('attn-unassigned-link');
+  if (unassignedLink) {
+    unassignedLink.href = 'scheduling.html?date=' + today + '&crew=unassigned';
+  }
 }
 
 // ── Recent activity ─────────────────────────────────────────

@@ -9498,10 +9498,15 @@ app.get('/api/work-requests', async (req, res) => {
     let p = 1, cp = 1;
 
     if (status) {
-      query += ` AND sr.status = $${p++}`;
-      countQuery += ` AND status = $${cp++}`;
-      params.push(status);
-      countParams.push(status);
+      if (status === 'open') {
+        query += ` AND sr.status NOT IN ('completed', 'cancelled')`;
+        countQuery += ` AND status NOT IN ('completed', 'cancelled')`;
+      } else {
+        query += ` AND sr.status = $${p++}`;
+        countQuery += ` AND status = $${cp++}`;
+        params.push(status);
+        countParams.push(status);
+      }
     }
     if (search) {
       query += ` AND (c.name ILIKE $${p} OR sr.service_type ILIKE $${p} OR sr.description ILIKE $${p})`;

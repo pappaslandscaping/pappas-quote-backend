@@ -47,8 +47,15 @@ router.get('/api/sent-quotes', async (req, res) => {
     let p = 1;
 
     if (status) {
-      query += ` AND sq.status = $${p++}`;
-      values.push(status);
+      if (status === 'pending_signature') {
+        query += ` AND sq.contract_signed_at IS NULL
+                   AND sq.status IN ('sent', 'viewed')
+                   AND COALESCE(sq.notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+        `;
+      } else {
+        query += ` AND sq.status = $${p++}`;
+        values.push(status);
+      }
     }
     if (quote_type) {
       query += ` AND sq.quote_type = $${p++}`;
@@ -65,13 +72,35 @@ router.get('/api/sent-quotes', async (req, res) => {
 
     const [result, countsResult] = await Promise.all([
       pool.query(query, values),
-      pool.query(`SELECT status, COUNT(*) as count FROM sent_quotes GROUP BY status`)
+      pool.query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'draft')::int AS draft,
+          COUNT(*) FILTER (WHERE status = 'sent')::int AS sent,
+          COUNT(*) FILTER (WHERE status = 'viewed')::int AS viewed,
+          COUNT(*) FILTER (WHERE status = 'signed')::int AS signed,
+          COUNT(*) FILTER (WHERE status = 'contracted')::int AS contracted,
+          COUNT(*) FILTER (WHERE status = 'declined')::int AS declined,
+          COUNT(*) FILTER (WHERE status = 'changes_requested')::int AS changes_requested,
+          COUNT(*) FILTER (
+            WHERE contract_signed_at IS NULL
+              AND status IN ('sent', 'viewed')
+              AND COALESCE(notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+          )::int AS pending_signatures
+        FROM sent_quotes
+      `)
     ]);
-    const counts = { total: 0, draft: 0, sent: 0, viewed: 0, signed: 0, declined: 0 };
-    countsResult.rows.forEach(row => {
-      counts[row.status] = parseInt(row.count);
-      counts.total += parseInt(row.count);
-    });
+    const counts = countsResult.rows[0] || {
+      total: 0,
+      draft: 0,
+      sent: 0,
+      viewed: 0,
+      signed: 0,
+      contracted: 0,
+      declined: 0,
+      changes_requested: 0,
+      pending_signatures: 0,
+    };
 
     res.json({ success: true, quotes: result.rows, counts });
   } catch (error) {

@@ -14,7 +14,7 @@
               receivables module instead of loose tiles on the page. ── */
         .aging-strip {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 0;
         }
         .aging-bucket {
@@ -53,13 +53,14 @@
         .aging-bucket.warn    .aging-bucket-label::before { background: var(--warning); }
         .aging-bucket.danger  .aging-bucket-label::before { background: var(--danger); }
         @media (max-width: 900px) {
-            .aging-strip { grid-template-columns: repeat(3, 1fr); }
-            .aging-bucket:nth-child(4) { border-left: 0; }
-        }
-        @media (max-width: 600px) {
             .aging-strip { grid-template-columns: repeat(2, 1fr); }
             .aging-bucket { border-left: 0; border-top: 1px solid var(--line); }
             .aging-bucket:nth-child(-n+2) { border-top: 0; }
+        }
+        @media (max-width: 600px) {
+            .aging-strip { grid-template-columns: 1fr; }
+            .aging-bucket { border-left: 0; border-top: 1px solid var(--line); }
+            .aging-bucket:first-child { border-top: 0; }
         }
 
         /* ── Invoice list — grid rows in the same idiom as job-row. ── */
@@ -515,14 +516,9 @@
             </div>
             <div class="aging-strip" id="agingGrid">
                 <div class="aging-bucket current">
-                    <div class="aging-bucket-label">Current</div>
-                    <div class="aging-bucket-value" id="agingCurrent">$0</div>
-                    <div class="aging-bucket-count" id="agingCurrentCount">0 invoices</div>
-                </div>
-                <div class="aging-bucket">
-                    <div class="aging-bucket-label">1–30 Days</div>
-                    <div class="aging-bucket-value" id="aging1_30">$0</div>
-                    <div class="aging-bucket-count" id="aging1_30Count">0 invoices</div>
+                    <div class="aging-bucket-label">Within 30 Days</div>
+                    <div class="aging-bucket-value" id="agingWithin30">$0</div>
+                    <div class="aging-bucket-count" id="agingWithin30Count">0 invoices</div>
                 </div>
                 <div class="aging-bucket warn">
                     <div class="aging-bucket-label">31–60 Days</div>
@@ -1306,10 +1302,8 @@
             const f = n => formatCurrency(n || 0);
             const c = (n) => n + ' invoice' + (n !== 1 ? 's' : '');
 
-            document.getElementById('agingCurrent').textContent = f(b.current.total);
-            document.getElementById('agingCurrentCount').textContent = c(b.current.count);
-            document.getElementById('aging1_30').textContent = f(b['1_30'].total);
-            document.getElementById('aging1_30Count').textContent = c(b['1_30'].count);
+            document.getElementById('agingWithin30').textContent = f(b.within_30.total);
+            document.getElementById('agingWithin30Count').textContent = c(b.within_30.count);
             document.getElementById('aging31_60').textContent = f(b['31_60'].total);
             document.getElementById('aging31_60Count').textContent = c(b['31_60'].count);
             document.getElementById('aging61_90').textContent = f(b['61_90'].total);

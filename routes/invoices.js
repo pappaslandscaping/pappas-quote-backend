@@ -13,6 +13,7 @@ const {
   isOutstandingInvoice,
   cleanStatusValue,
 } = require('../lib/invoice-status');
+const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
   const router = express.Router();
@@ -119,6 +120,115 @@ function calculateAgingDays(inv, referenceDate = new Date()) {
   const anchorDate = parseAgingAnchorDate(inv, referenceDate);
   const today = startOfDay(referenceDate) || new Date();
   return Math.floor((today - anchorDate) / (1000 * 60 * 60 * 24));
+}
+
+function initAgingBuckets() {
+  return {
+    within_30: { count: 0, total: 0, invoices: [] },
+    '31_60': { count: 0, total: 0, invoices: [] },
+    '61_90': { count: 0, total: 0, invoices: [] },
+    '90_plus': { count: 0, total: 0, invoices: [] },
+  };
+}
+
+function getAgingBucketKey(daysAged) {
+  if (daysAged <= 30) return 'within_30';
+  if (daysAged <= 60) return '31_60';
+  if (daysAged <= 90) return '61_90';
+  return '90_plus';
+}
+
+function calculateDaysFromInvoiceDate(invoiceDate, referenceDate = new Date()) {
+  const invoiceDay = startOfDay(invoiceDate ? new Date(invoiceDate) : null);
+  if (!invoiceDay) return null;
+  const today = startOfDay(referenceDate) || new Date();
+  return Math.max(0, Math.floor((today - invoiceDay) / (1000 * 60 * 60 * 24)));
+}
+
+function parseFallbackAgingDays(inv, referenceDate = new Date()) {
+  const rawStatus = cleanStatusValue(inv.raw_status).toLowerCase();
+  if (
+    inv.external_source === 'copilotcrm' &&
+    !inv.due_date &&
+    (rawStatus.includes('past due') || rawStatus.includes('overdue') || cleanStatusValue(inv.status).toLowerCase() === 'overdue')
+  ) {
+    const invoiceAge = calculateDaysFromInvoiceDate(inv.created_at, referenceDate);
+    if (Number.isFinite(invoiceAge)) return invoiceAge;
+  }
+  return Math.max(0, calculateAgingDays(inv, referenceDate));
+}
+
+async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {}) {
+  if (typeof getCopilotToken !== 'function') return null;
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) return null;
+
+  const buckets = initAgingBuckets();
+  const now = new Date();
+  const seenIds = new Set();
+  const seenPageLeads = new Set();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const formData = new URLSearchParams();
+    formData.append('pagination[]', `p=${page}`);
+    formData.append('pagination[]', `iop=${pageSize}`);
+    formData.append('pagination[]', 'sort=datedesc');
+
+    const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': tokenInfo.cookieHeader,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData.toString(),
+    });
+
+    if (!copilotRes.ok) break;
+    const payload = await copilotRes.json();
+    const rows = parseInvoiceListHtml(payload.html || '');
+    if (!rows.length) break;
+
+    const pageLeadId = rows[0].external_invoice_id || rows[0].invoice_number || `page-${page}`;
+    if (seenPageLeads.has(pageLeadId)) break;
+    seenPageLeads.add(pageLeadId);
+
+    for (const row of rows) {
+      const id = String(row.external_invoice_id || row.invoice_number || '');
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+
+      const totalDue = parseFloat(row.total_due || 0) || 0;
+      if (totalDue <= 0) continue;
+
+      const daysAged = calculateDaysFromInvoiceDate(row.invoice_date, now);
+      if (!Number.isFinite(daysAged)) continue;
+
+      const bucket = getAgingBucketKey(daysAged);
+      buckets[bucket].count += 1;
+      buckets[bucket].total += totalDue;
+      buckets[bucket].invoices.push({
+        external_invoice_id: row.external_invoice_id || null,
+        invoice_number: row.invoice_number || null,
+        customer_name: row.customer_name || null,
+        balance: totalDue,
+        days_overdue: daysAged,
+        status: row.status || null,
+      });
+    }
+
+    if (rows.length < pageSize) break;
+  }
+
+  return {
+    success: true,
+    source: 'copilot',
+    as_of: now.toISOString(),
+    buckets,
+  };
 }
 
 function deriveDbAccountStanding(rows) {
@@ -463,31 +573,32 @@ router.get('/api/invoices/stats', async (req, res) => {
 // GET /api/invoices/aging - Aging AR (must be before :id route)
 router.get('/api/invoices/aging', async (req, res) => {
   try {
+    try {
+      const copilotAging = await fetchCopilotAgingBuckets();
+      if (copilotAging?.buckets) {
+        return res.json(copilotAging);
+      }
+    } catch (error) {
+      console.error('Error fetching Copilot aging buckets:', error);
+    }
+
     const result = await pool.query(`
       SELECT id, invoice_number, customer_name, total, amount_paid, due_date, created_at, terms,
-             status, sent_status, external_metadata
+             status, sent_status, external_source, external_metadata,
+             external_metadata->>'raw_status' AS raw_status
       FROM invoices
-      WHERE total > COALESCE(amount_paid, 0) AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')
+      WHERE total > COALESCE(amount_paid, 0)
+        AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')
+        AND (external_source = 'copilotcrm' OR external_invoice_id IS NOT NULL)
     `);
     const now = new Date();
-    const buckets = {
-      current: { count: 0, total: 0, invoices: [] },
-      '1_30': { count: 0, total: 0, invoices: [] },
-      '31_60': { count: 0, total: 0, invoices: [] },
-      '61_90': { count: 0, total: 0, invoices: [] },
-      '90_plus': { count: 0, total: 0, invoices: [] }
-    };
+    const buckets = initAgingBuckets();
     result.rows.forEach(inv => {
       const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
       if (!isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) return;
       const balance = outstandingBalance(inv);
-      const daysOverdue = calculateAgingDays(inv, now);
-      let bucket;
-      if (daysOverdue <= 0) bucket = 'current';
-      else if (daysOverdue <= 30) bucket = '1_30';
-      else if (daysOverdue <= 60) bucket = '31_60';
-      else if (daysOverdue <= 90) bucket = '61_90';
-      else bucket = '90_plus';
+      const daysOverdue = parseFallbackAgingDays(inv, now);
+      const bucket = getAgingBucketKey(daysOverdue);
       buckets[bucket].count++;
       buckets[bucket].total += balance;
       buckets[bucket].invoices.push({
@@ -495,11 +606,11 @@ router.get('/api/invoices/aging', async (req, res) => {
         invoice_number: inv.invoice_number,
         customer_name: inv.customer_name,
         balance,
-        days_overdue: Math.max(0, daysOverdue),
+        days_overdue: daysOverdue,
         status: effectiveStatus,
       });
     });
-    res.json({ success: true, buckets });
+    res.json({ success: true, source: 'database_fallback', as_of: now.toISOString(), buckets });
   } catch (error) {
     console.error('Error fetching aging data:', error);
     serverError(res, error);

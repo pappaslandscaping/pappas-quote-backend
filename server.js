@@ -10660,6 +10660,12 @@ function getRevenueSnapshotExpiry(snapshot, currentWindow) {
     : 0;
 }
 
+function isRevenueSnapshotForWindow(snapshot, window) {
+  return !!snapshot
+    && snapshot.period_start === window.start
+    && snapshot.period_end === window.end;
+}
+
 async function readPersistedCopilotRevenueSnapshot(window) {
   try {
     const result = await pool.query(
@@ -10670,7 +10676,7 @@ async function readPersistedCopilotRevenueSnapshot(window) {
     );
     if (!result.rows[0]?.value) return null;
     const parsed = normalizeCopilotRevenueSnapshot(JSON.parse(result.rows[0].value), 'copilot_snapshot');
-    if (!parsed || parsed.period_start !== window.start) return null;
+    if (!parsed || !isRevenueSnapshotForWindow(parsed, window)) return null;
     return parsed;
   } catch (error) {
     return null;
@@ -10693,6 +10699,9 @@ async function persistCopilotRevenueSnapshot(snapshot) {
 async function fetchCopilotCollectedRevenueSnapshot() {
   const window = getCopilotRevenueWindow();
   const nowMs = Date.now();
+  const sameWindowCachedRevenue = isRevenueSnapshotForWindow(cachedCopilotRevenue?.value, window)
+    ? cachedCopilotRevenue?.value
+    : null;
 
   if (!cachedCopilotRevenue) {
     const persisted = await readPersistedCopilotRevenueSnapshot(window);
@@ -10708,12 +10717,12 @@ async function fetchCopilotCollectedRevenueSnapshot() {
     return cachedCopilotRevenue.value;
   }
   if (cachedCopilotRevenuePromise) {
-    return cachedCopilotRevenue ? cachedCopilotRevenue.value : cachedCopilotRevenuePromise;
+    return sameWindowCachedRevenue || cachedCopilotRevenuePromise;
   }
 
   const refreshPromise = (async () => {
     const tokenInfo = await getCopilotToken();
-    if (!tokenInfo?.cookieHeader) return cachedCopilotRevenue?.value || null;
+    if (!tokenInfo?.cookieHeader) return sameWindowCachedRevenue || null;
 
     const reportUrl = `https://secure.copilotcrm.com/reports/revenue-by-crew/?sdate=${window.start}&edate=${window.end}&crew_id=0&type=collected`;
     const response = await fetch(reportUrl, {
@@ -10724,7 +10733,7 @@ async function fetchCopilotCollectedRevenueSnapshot() {
     });
 
     if (!response.ok) {
-      return cachedCopilotRevenue?.value || null;
+      return sameWindowCachedRevenue || null;
     }
 
     const html = await response.text();
@@ -10734,7 +10743,7 @@ async function fetchCopilotCollectedRevenueSnapshot() {
         periodStart: window.start,
         periodEnd: window.end,
       });
-      return cachedCopilotRevenue?.value || null;
+      return sameWindowCachedRevenue || null;
     }
 
     const value = normalizeCopilotRevenueSnapshot({

@@ -86,17 +86,7 @@ function getDisplayInvoiceNumberForPaymentRow(row) {
 function formatCopilotSyncError(error, fallback) {
   const message = String(error?.message || '').trim();
   if (!message) return fallback;
-  if (
-    /copilotcrm authentication is not configured/i.test(message)
-    || /copilot .* returned \d+/i.test(message)
-    || /table not found/i.test(message)
-    || /unable to parse copilot/i.test(message)
-    || /date range must be/i.test(message)
-    || /start_date and end_date are required/i.test(message)
-  ) {
-    return message;
-  }
-  return fallback;
+  return message.replace(/\s+/g, ' ').slice(0, 300);
 }
 
 function normalizeCount(value) {

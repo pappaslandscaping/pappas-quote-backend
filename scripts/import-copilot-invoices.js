@@ -144,6 +144,10 @@ function toDbValuesFromDetail(detail, customerId) {
     raw_status:          detail.raw_status          || null,
     total_due:           detail.total_due           ?? null,
     terms_raw:           detail.terms               || null,
+    detail_synced_at:    new Date().toISOString(),
+    detail_line_item_count: Array.isArray(detail.line_items) ? detail.line_items.length : 0,
+    detail_parse_warning: detail.parse_diagnostics?.warning || null,
+    detail_parse_diagnostics: detail.parse_diagnostics || null,
   };
   return {
     external_invoice_id: detail.external_invoice_id || null,

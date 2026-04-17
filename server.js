@@ -10563,7 +10563,15 @@ async function fetchCopilotInvoiceDetail({ cookieHeader, viewPath, externalInvoi
   }
 
   const html = await detailRes.text();
-  return parseInvoiceDetailHtml(html);
+  const detail = parseInvoiceDetailHtml(html);
+  if ((detail.parse_diagnostics?.description_row_count || 0) > 0 && (!detail.line_items || detail.line_items.length === 0)) {
+    console.warn('Copilot detail parsed without line items', {
+      externalInvoiceId: externalInvoiceId || null,
+      detailPath,
+      diagnostics: detail.parse_diagnostics,
+    });
+  }
+  return detail;
 }
 
 async function syncCopilotInvoices({
@@ -10573,7 +10581,7 @@ async function syncCopilotInvoices({
   invoiceStatuses = [],
   sort = 'datedesc',
   detailMode = 'missing',
-  detailLimit = 40,
+  detailLimit = 0,
 } = {}) {
   await ensureCopilotSyncTables(pool);
   const tokenInfo = await getCopilotToken();
@@ -10629,22 +10637,24 @@ async function syncCopilotInvoices({
         .map(id => String(id));
 
       if (externalIds.length) {
-        const missingDetail = await pool.query(
-          `SELECT external_invoice_id
+        const detailParams = [externalIds];
+        let detailQuery = `SELECT external_invoice_id
              FROM invoices
             WHERE external_source = 'copilotcrm'
               AND external_invoice_id = ANY($1::text[])
               AND (
+                COALESCE(external_metadata->>'detail_synced_at', '') = ''
+                OR
                 jsonb_array_length(COALESCE(line_items, '[]'::jsonb)) = 0
-                OR due_date IS NULL
-                OR sent_status IS NULL
-                OR terms IS NULL
-                OR notes IS NULL
+                OR customer_name LIKE '%@%'
+                OR COALESCE(external_metadata->>'detail_parse_warning', '') <> ''
               )
-            ORDER BY created_at DESC NULLS LAST
-            LIMIT $2`,
-          [externalIds, Number(detailLimit) || 40]
-        );
+            ORDER BY created_at DESC NULLS LAST`;
+        if (Number(detailLimit) > 0) {
+          detailParams.push(Number(detailLimit));
+          detailQuery += ` LIMIT $2`;
+        }
+        const missingDetail = await pool.query(detailQuery, detailParams);
         candidates = missingDetail.rows
           .map(row => rowByExternalId.get(String(row.external_invoice_id || '')))
           .filter(Boolean);
@@ -10731,7 +10741,7 @@ app.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) => {
       maxPages: Number(req.body.maxPages || 150),
       linkCustomers: req.body.linkCustomers !== false,
       detailMode: req.body.detailMode || 'missing',
-      detailLimit: Number(req.body.detailLimit || 40),
+      detailLimit: Number(req.body.detailLimit || 0),
     });
     res.json(result);
   } catch (error) {
@@ -10785,6 +10795,8 @@ app.get('/api/cron/copilot-invoices-sync', async (req, res) => {
       maxPages: Number(req.query.maxPages || 150),
       linkCustomers: req.query.linkCustomers !== 'false',
       minDaysRemaining: Number(req.query.minDaysRemaining || 1),
+      detailMode: req.query.detailMode || 'missing',
+      detailLimit: Number(req.query.detailLimit || 40),
     });
     res.json({ success: true, trigger: 'cron', ...result, timestamp: new Date().toISOString() });
   } catch (error) {

@@ -114,15 +114,29 @@ function collectLabelValues($) {
   return out;
 }
 
-// Index a line-item header row to a column map. Returns indices for known
-// columns, or -1 when missing.
-function indexLineItemColumns($table) {
-  const headers = [];
-  $table.find('thead th').each((i, th) => {
-    headers.push(clean(cheerio.load('<x>' + (th.children ? '' : '') + '</x>') ? '' : '')); // unused; keep cheerio happy
-  });
-  // Simpler: just iterate via $:
-  return null;
+function parseDescriptionCell($td) {
+  const $clone = $td.clone();
+  const detailsText = clean($clone.find('small').text()) || null;
+  $clone.find('small').remove();
+
+  const mainText = clean($clone.text());
+  const headingText = clean($td.find('span').first().text()) || null;
+  const dateMatch = mainText.match(/^([A-Z][a-z]{2}\s+\d{2},\s+\d{4})\s+(.+)$/);
+
+  const service_date = dateMatch ? parseDate(dateMatch[1]) : null;
+  const description = headingText || (dateMatch ? clean(dateMatch[2]) : mainText) || null;
+
+  return { service_date, description, detailsText };
+}
+
+function buildParseDiagnostics($, line_items) {
+  return {
+    description_table_count: $('.table--description').length,
+    description_row_count: $('.table--description tbody tr').length,
+    subtotal_table_count: $('.table--sub-total').length,
+    customer_link_count: $('a[href*="/customers/details/"]').length,
+    line_item_count: Array.isArray(line_items) ? line_items.length : 0,
+  };
 }
 
 // ── Main parser ────────────────────────────────────────────────
@@ -202,7 +216,7 @@ function parseInvoiceDetailHtml(html) {
 
   // ── Property info (mostly informational) ─────────────────
   const property_name = clean($('.property-name, .property_name').first().text()) || null;
-  const property_address = clean($('.property-address, .property_address').first().text()) || customer_address || null;
+  let property_address = clean($('.property-address, .property_address').first().text()) || customer_address || null;
 
   // ── Line items ───────────────────────────────────────────
   const line_items = [];
@@ -226,11 +240,20 @@ function parseInvoiceDetailHtml(html) {
     $itemTable.find('tbody tr').each((_, tr) => {
       const $tds = $(tr).find('td');
       if ($tds.length === 0) return;
+      if ($tds.length === 1) {
+        const singleText = clean($tds.eq(0).text());
+        const propertyMatch = singleText.match(/^Property Address:\s*(.+)$/i);
+        if (propertyMatch && !property_address) {
+          property_address = clean(propertyMatch[1]);
+        }
+        return;
+      }
       const cell = (i) => (i >= 0 && i < $tds.length) ? clean($tds.eq(i).text()) : '';
+      const parsedDescription = parseDescriptionCell($tds.eq(colOrFallback('description', 1)));
       // Positional fallback when no header (date, description, rate, qty, hours, tax, total)
       const item = {
-        service_date:    parseDate(cell(colOrFallback('date', 0))),
-        description:     cell(colOrFallback('description', 1)),
+        service_date:    colByLabel.date != null ? parseDate(cell(colOrFallback('date', 0))) : parsedDescription.service_date,
+        description:     parsedDescription.description,
         rate:            parseMoney(cell(colOrFallback('rate', 2))),
         quantity:        parseNumber(cell(colOrFallback('quantity', 3))),
         budgeted_hours:  parseNumber(cell(colOrFallback('budgeted_hours', 4))),
@@ -306,6 +329,10 @@ function parseInvoiceDetailHtml(html) {
 
   // ── Crew (informational) ─────────────────────────────────
   const crew = clean($('.invoice-crew, .crew-name').first().text()) || null;
+  const parse_diagnostics = buildParseDiagnostics($, line_items);
+  if (parse_diagnostics.description_row_count > 0 && line_items.length === 0) {
+    parse_diagnostics.warning = 'description_table_present_but_no_line_items_parsed';
+  }
 
   return {
     external_invoice_id,
@@ -331,6 +358,7 @@ function parseInvoiceDetailHtml(html) {
     raw_status: rawStatus,
     sent_status,
     status,
+    parse_diagnostics,
   };
 }
 

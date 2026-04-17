@@ -210,6 +210,77 @@ it('survives a stripped-down detail page that only carries totals + line items',
   assert.strictEqual(d.line_items[0].description, 'Service');
 });
 
+it('parses live-like Copilot detail rows where the service date is embedded in the description cell', () => {
+  const liveLike = `
+    <html>
+      <head><title>Invoice detail</title></head>
+      <body>
+        <input type="hidden" id="inv_id" value="2664261">
+        <table class="table table--description copilot-table">
+          <thead>
+            <tr class="headers">
+              <th width="50%">Description</th>
+              <th width="10%">Cost/Rate</th>
+              <th width="10%">Qty/Hr</th>
+              <th width="10%">Budgeted Hours</th>
+              <th width="10%">Taxes %</th>
+              <th width="10%" class="last">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="6">
+                <strong><small>Property Address: 6154 Sylvia Drive Brook Park OH, 44142</small></strong>
+              </td>
+            </tr>
+            <tr>
+              <td class="desc">
+                Apr 06, 2026
+                <span>Mowing (Monthly)</span>
+                <br>
+                <small class="text-muted"><ol><li>Mowing details</li></ol></small>
+              </td>
+              <td class="cash"><small class="property">Cost/Rate:</small> 48.00</td>
+              <td class="qty"><small class="property">Qty/Hr:</small> 1</td>
+              <td class="bh"><small class="property">Budgeted Hours:</small> 0.25</td>
+              <td class="qty"><small class="property">Taxes %</small> 8.000</td>
+              <td class="cash"><small class="property">Total</small> 51.84</td>
+            </tr>
+            <tr>
+              <td class="desc">
+                Apr 13, 2026
+                <span>Mowing (Bi-Weekly)</span>
+                <br>
+                <small class="text-muted"></small>
+              </td>
+              <td class="cash"><small class="property">Cost/Rate:</small> 49.00</td>
+              <td class="qty"><small class="property">Qty/Hr:</small> 1</td>
+              <td class="bh"><small class="property">Budgeted Hours:</small> 0.25</td>
+              <td class="qty"><small class="property">Taxes %</small> 8.000</td>
+              <td class="cash"><small class="property">Total</small> 52.92</td>
+            </tr>
+          </tbody>
+        </table>
+        <table class="table table--sub-total mb-0">
+          <tbody>
+            <tr><td>Subtotal</td><td>97.00</td></tr>
+            <tr><td>Tax</td><td>7.76</td></tr>
+            <tr><td>Total</td><td>104.76</td></tr>
+          </tbody>
+        </table>
+      </body>
+    </html>`;
+  const d = parseInvoiceDetailHtml(liveLike);
+  assert.strictEqual(d.property_address, '6154 Sylvia Drive Brook Park OH, 44142');
+  assert.strictEqual(d.line_items.length, 2);
+  assert.strictEqual(d.line_items[0].service_date, '2026-04-06');
+  assert.strictEqual(d.line_items[0].description, 'Mowing (Monthly)');
+  assert.strictEqual(d.line_items[0].rate, 48);
+  assert.strictEqual(d.line_items[1].service_date, '2026-04-13');
+  assert.strictEqual(d.line_items[1].description, 'Mowing (Bi-Weekly)');
+  assert.strictEqual(d.parse_diagnostics.warning, undefined);
+});
+
 if (failures > 0) {
   console.error(`\n${failures} test(s) failed.`);
   process.exit(1);

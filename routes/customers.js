@@ -847,7 +847,7 @@ router.get('/api/customers/:id/jobs', async (req, res) => {
     const customerName = c.name || ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
 
     const jobsResult = await pool.query(
-      `SELECT id, job_date, customer_name, service_type, service_price, address, status, completed_at, crew_assigned
+      `SELECT id, job_date, job_date AS scheduled_date, customer_name, service_type, service_price, address, status, completed_at, crew_assigned
        FROM scheduled_jobs
        WHERE customer_id = $1
          OR LOWER(customer_name) = LOWER($2)

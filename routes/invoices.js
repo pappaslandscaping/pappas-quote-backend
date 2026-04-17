@@ -19,8 +19,11 @@ module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, 
   const router = express.Router();
 
 let cachedCopilotStanding = null;
+let cachedCopilotAging = null;
+let cachedCopilotAgingPromise = null;
 const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
+const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -159,6 +162,15 @@ function parseFallbackAgingDays(inv, referenceDate = new Date()) {
 }
 
 async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {}) {
+  const nowMs = Date.now();
+  if (cachedCopilotAging && cachedCopilotAging.expiresAt > nowMs) {
+    return cachedCopilotAging.value;
+  }
+  if (cachedCopilotAgingPromise) {
+    return cachedCopilotAging ? cachedCopilotAging.value : cachedCopilotAgingPromise;
+  }
+
+  const refreshPromise = (async () => {
   if (typeof getCopilotToken !== 'function') return null;
 
   const tokenInfo = await getCopilotToken();
@@ -203,6 +215,7 @@ async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {})
 
       const totalDue = parseFloat(row.total_due || 0) || 0;
       if (totalDue <= 0) continue;
+      if (!isOutstandingInvoice(row.status, row.total ?? totalDue, row.amount_paid ?? 0)) continue;
 
       const daysAged = calculateDaysFromInvoiceDate(row.invoice_date, now);
       if (!Number.isFinite(daysAged)) continue;
@@ -223,12 +236,31 @@ async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {})
     if (rows.length < pageSize) break;
   }
 
-  return {
+  const value = {
     success: true,
     source: 'copilot',
     as_of: now.toISOString(),
     buckets,
   };
+  cachedCopilotAging = {
+    value,
+    expiresAt: nowMs + COPILOT_AGING_CACHE_TTL_MS,
+  };
+  return value;
+  })();
+  cachedCopilotAgingPromise = refreshPromise.finally(() => {
+    cachedCopilotAgingPromise = null;
+  });
+
+  try {
+    if (cachedCopilotAging) {
+      return cachedCopilotAging.value;
+    }
+    return await cachedCopilotAgingPromise;
+  } catch (error) {
+    if (cachedCopilotAging) return cachedCopilotAging.value;
+    throw error;
+  }
 }
 
 function deriveDbAccountStanding(rows) {

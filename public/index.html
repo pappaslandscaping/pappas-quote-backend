@@ -283,7 +283,7 @@ async function loadHeroSubtitle() {
 }
 
 // ── Top metrics ─────────────────────────────────────────────
-async function loadStats() {
+async function loadStatCards() {
   var storageKey = 'homeDashboardTopCards';
 
   function readSnapshot() {
@@ -317,49 +317,64 @@ async function loadStats() {
   var cached = readSnapshot();
   renderSnapshot(cached);
 
-  var settled = await Promise.allSettled([
-    getJson('/api/finance/summary'),
-    getJson('/api/invoices/stats'),
-    getJson('/api/customers/stats'),
-    getJson('/api/sent-quotes?limit=500'),
-  ]);
-
-  function valueAt(index) {
-    return settled[index] && settled[index].status === 'fulfilled' ? settled[index].value : null;
+  function updateSnapshot(partial) {
+    var nextSnapshot = Object.assign({}, readSnapshot() || cached || {}, partial || {});
+    if (renderSnapshot(nextSnapshot)) {
+      writeSnapshot(nextSnapshot);
+      cached = nextSnapshot;
+    }
   }
 
-  var finance = valueAt(0);
-  var invStatsResponse = valueAt(1);
-  var custStatsResponse = valueAt(2);
-  var sentQuotes = valueAt(3);
+  function withFallback(promise, onSuccess) {
+    return promise.then(function(value) {
+      if (value) onSuccess(value);
+      return value;
+    }).catch(function() {
+      return null;
+    });
+  }
 
-  var invStats = invStatsResponse && (invStatsResponse.stats || invStatsResponse);
-  var custStats = custStatsResponse && (custStatsResponse.stats || custStatsResponse);
-  var nextSnapshot = Object.assign({}, cached || {});
+  withFallback(getJson('/api/finance/summary'), function(finance) {
+    var partial = {};
+    var revenue = finance && finance.thisMonth && finance.thisMonth.revenue;
+    if (hasNumber(revenue)) partial.revenue = Number(revenue);
+    var outstanding = finance && finance.outstanding && finance.outstanding.totalOutstanding;
+    if (hasNumber(outstanding)) partial.outstanding = Number(outstanding);
+    updateSnapshot(partial);
+  });
 
-  var revenue = finance && finance.thisMonth && finance.thisMonth.revenue;
-  if (revenue == null && invStats) revenue = invStats.paidThisMonth;
-  if (hasNumber(revenue)) nextSnapshot.revenue = Number(revenue);
+  withFallback(getJson('/api/invoices/stats'), function(invStatsResponse) {
+    var invStats = invStatsResponse && (invStatsResponse.stats || invStatsResponse);
+    if (!invStats) return;
+    var partial = {};
+    if (!hasNumber((readSnapshot() || {}).revenue) && hasNumber(invStats.paidThisMonth)) {
+      partial.revenue = Number(invStats.paidThisMonth);
+    }
+    var currentOutstanding = (readSnapshot() || {}).outstanding;
+    if ((!hasNumber(currentOutstanding) || Number(currentOutstanding) <= 0) && hasNumber(invStats.outstanding) && Number(invStats.outstanding) > 0) {
+      partial.outstanding = Number(invStats.outstanding);
+    }
+    updateSnapshot(partial);
+  });
 
-  var outstanding = finance && finance.outstanding && finance.outstanding.totalOutstanding;
-  if (outstanding == null && invStats) outstanding = invStats.outstanding;
-  if (hasNumber(outstanding)) nextSnapshot.outstanding = Number(outstanding);
+  withFallback(getJson('/api/customers/stats'), function(custStatsResponse) {
+    var custStats = custStatsResponse && (custStatsResponse.stats || custStatsResponse);
+    var clients = custStats && (custStats.active != null ? custStats.active : (custStats.total_active != null ? custStats.total_active : custStats.total));
+    if (hasNumber(clients)) updateSnapshot({ clients: Number(clients) });
+  });
 
-  if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+  withFallback(getJson('/api/sent-quotes?limit=500'), function(sentQuotes) {
+    if (!sentQuotes || !Array.isArray(sentQuotes.quotes)) return;
     var pipeline = 0;
     sentQuotes.quotes.forEach(function(q) {
       if (q.status && ['sent', 'viewed', 'pending', 'changes_requested'].indexOf(q.status) >= 0) {
         pipeline += parseFloat(q.total) || 0;
       }
     });
-    nextSnapshot.pipeline = pipeline;
-  }
-
-  var clients = custStats && (custStats.active != null ? custStats.active : (custStats.total_active != null ? custStats.total_active : custStats.total));
-  if (hasNumber(clients)) nextSnapshot.clients = Number(clients);
-
-  if (renderSnapshot(nextSnapshot)) writeSnapshot(nextSnapshot);
+    updateSnapshot({ pipeline: pipeline });
+  });
 }
+var loadStats = loadStatCards;
 
 // ── Sales pulse ─────────────────────────────────────────────
 async function loadSalesPulse() {
@@ -476,7 +491,7 @@ async function loadActivity() {
 
 // ── Kick everything off ─────────────────────────────────────
 loadHeroSubtitle();
-loadStats();
+loadStatCards();
 loadSalesPulse();
 loadOperations();
 loadAttention();

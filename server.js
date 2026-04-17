@@ -22,6 +22,10 @@ const {
   parseCopilotRouteHtml,
 } = require('./services/copilot/client');
 const {
+  normalizeStoredInvoiceStatus,
+  isOutstandingInvoice,
+} = require('./lib/invoice-status');
+const {
   ADMIN_USERS_TABLE,
   hashPassword,
   ensureCopilotSyncTables,
@@ -7108,15 +7112,14 @@ app.get('/api/finance/summary', async (req, res) => {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
     const thisYearStart = new Date(now.getFullYear(), 0, 1).toISOString();
 
-    const [paidMonth, paidLastMonth, paidYear, expMonth, expLastMonth, expYear, outstanding, overdue, byService, monthly] = await Promise.all([
+    const [paidMonth, paidLastMonth, paidYear, expMonth, expLastMonth, expYear, financeInvoices, byService, monthly] = await Promise.all([
       pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1", [thisMonthStart]),
       pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1 AND paid_at < $2", [lastMonthStart, thisMonthStart]),
       pool.query("SELECT COALESCE(SUM(total),0) as amt FROM invoices WHERE status='paid' AND paid_at >= $1", [thisYearStart]),
       pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1", [thisMonthStart]),
       pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1 AND expense_date < $2", [lastMonthStart, thisMonthStart]),
       pool.query("SELECT COALESCE(SUM(amount),0) as amt FROM expenses WHERE expense_date >= $1", [thisYearStart]),
-      pool.query("SELECT COALESCE(SUM(total - amount_paid),0) as amt FROM invoices WHERE status IN ('sent','viewed')"),
-      pool.query("SELECT COUNT(*) as cnt FROM invoices WHERE status IN ('sent','viewed') AND due_date < CURRENT_DATE"),
+      pool.query("SELECT status, total, amount_paid, due_date FROM invoices"),
       pool.query(`SELECT COALESCE(li->>'description','Other') as name, SUM((li->>'amount')::numeric) as revenue
         FROM invoices, jsonb_array_elements(line_items) li WHERE status='paid' AND paid_at >= $1
         GROUP BY name ORDER BY revenue DESC`, [thisYearStart]),
@@ -7155,6 +7158,23 @@ app.get('/api/finance/summary', async (req, res) => {
     const expensesMonth = parseFloat(expMonth.rows[0].amt);
     const revenueLastMonth = parseFloat(paidLastMonth.rows[0].amt);
     const expensesLastMonth = parseFloat(expLastMonth.rows[0].amt);
+    let totalOutstanding = 0;
+    let overdueCount = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    financeInvoices.rows.forEach((inv) => {
+      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+      if (!isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) return;
+      const balance = Math.max(0, (parseFloat(inv.total) || 0) - (parseFloat(inv.amount_paid) || 0));
+      totalOutstanding += balance;
+      if (inv.due_date) {
+        const due = new Date(inv.due_date);
+        if (!Number.isNaN(due.getTime())) {
+          due.setHours(0, 0, 0, 0);
+          if (due < today) overdueCount += 1;
+        }
+      }
+    });
 
     res.json({
       thisMonth: { revenue: revenueMonth, expenses: expensesMonth },
@@ -7173,8 +7193,8 @@ app.get('/api/finance/summary', async (req, res) => {
       monthlyExpenses: monthlyExpensesArr,
       serviceBreakdown: byService.rows,
       outstanding: {
-        totalOutstanding: parseFloat(outstanding.rows[0].amt),
-        overdueCount: parseInt(overdue.rows[0].cnt)
+        totalOutstanding: Number(totalOutstanding.toFixed(2)),
+        overdueCount
       }
     });
   } catch (error) {

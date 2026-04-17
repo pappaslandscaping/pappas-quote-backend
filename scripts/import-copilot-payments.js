@@ -140,52 +140,71 @@ async function upsertCopilotPayments({ pool, payments = [] }) {
       : null;
     const prepared = buildCopilotPaymentRecord(payment, invoiceMatch);
 
-    const upsertResult = await pool.query(
-      `INSERT INTO payments (
-         payment_id, invoice_id, customer_id, customer_name, amount, tip_amount, method,
-         status, details, notes, paid_at, source_date_raw,
-         external_source, external_payment_key, external_metadata, imported_at
-       ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7,
-         $8, $9, $10, $11, $12,
-         $13, $14, $15, $16
+    const writeParams = [
+      prepared.payment_id,
+      prepared.invoice_id,
+      prepared.customer_id,
+      prepared.customer_name,
+      prepared.amount,
+      prepared.tip_amount,
+      prepared.method,
+      prepared.status,
+      prepared.details,
+      prepared.notes,
+      prepared.paid_at,
+      prepared.source_date_raw,
+      prepared.external_source,
+      prepared.external_payment_key,
+      JSON.stringify(prepared.external_metadata),
+      prepared.imported_at,
+    ];
+
+    const updateResult = await pool.query(
+      `WITH target AS (
+         SELECT id
+           FROM payments
+          WHERE external_source = $13
+            AND external_payment_key = $14
+          ORDER BY id DESC
+          LIMIT 1
        )
-       ON CONFLICT (external_source, external_payment_key) DO UPDATE SET
-         payment_id = EXCLUDED.payment_id,
-         invoice_id = EXCLUDED.invoice_id,
-         customer_id = EXCLUDED.customer_id,
-         customer_name = EXCLUDED.customer_name,
-         amount = EXCLUDED.amount,
-         tip_amount = EXCLUDED.tip_amount,
-         method = EXCLUDED.method,
-         status = EXCLUDED.status,
-         details = EXCLUDED.details,
-         notes = EXCLUDED.notes,
-         paid_at = EXCLUDED.paid_at,
-         source_date_raw = EXCLUDED.source_date_raw,
-         external_metadata = EXCLUDED.external_metadata,
-         imported_at = EXCLUDED.imported_at,
-         updated_at = NOW()
-       RETURNING id, invoice_id`,
-      [
-        prepared.payment_id,
-        prepared.invoice_id,
-        prepared.customer_id,
-        prepared.customer_name,
-        prepared.amount,
-        prepared.tip_amount,
-        prepared.method,
-        prepared.status,
-        prepared.details,
-        prepared.notes,
-        prepared.paid_at,
-        prepared.source_date_raw,
-        prepared.external_source,
-        prepared.external_payment_key,
-        JSON.stringify(prepared.external_metadata),
-        prepared.imported_at,
-      ]
+       UPDATE payments p
+          SET payment_id = $1,
+              invoice_id = $2,
+              customer_id = $3,
+              customer_name = $4,
+              amount = $5,
+              tip_amount = $6,
+              method = $7,
+              status = $8,
+              details = $9,
+              notes = $10,
+              paid_at = $11,
+              source_date_raw = $12,
+              external_metadata = $15,
+              imported_at = $16,
+              updated_at = NOW()
+         FROM target
+        WHERE p.id = target.id
+       RETURNING p.id, p.invoice_id`,
+      writeParams
     );
+
+    const upsertResult = updateResult.rows.length
+      ? updateResult
+      : await pool.query(
+          `INSERT INTO payments (
+             payment_id, invoice_id, customer_id, customer_name, amount, tip_amount, method,
+             status, details, notes, paid_at, source_date_raw,
+             external_source, external_payment_key, external_metadata, imported_at
+           ) VALUES (
+             $1, $2, $3, $4, $5, $6, $7,
+             $8, $9, $10, $11, $12,
+             $13, $14, $15, $16
+           )
+           RETURNING id, invoice_id`,
+          writeParams
+        );
 
     if (existingKeys.has(prepared.external_payment_key)) summary.updated += 1;
     else summary.inserted += 1;

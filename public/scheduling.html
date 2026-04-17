@@ -1560,11 +1560,15 @@ let selectedDate = new Date().toISOString().split('T')[0];
 let currentView = 'day';
 let selectedJobs = new Set();
 let selectedJobIds = new Set();
+let initialStatusFilter = '';
+let initialCrewFilter = '';
 
 async function init() {
     // Check for date in URL params
     const urlParams = new URLSearchParams(window.location.search);
     const dateParam = urlParams.get('date');
+    initialStatusFilter = urlParams.get('status') || '';
+    initialCrewFilter = urlParams.get('crew') || '';
     if (dateParam) {
         selectedDate = dateParam;
     }
@@ -1763,6 +1767,10 @@ async function loadJobs() {
         const cs = document.getElementById('crewFilter');
         const cv = cs.value;
         cs.innerHTML = '<option value="">All Crews</option>';
+        const unassignedOption = document.createElement('option');
+        unassignedOption.value = 'unassigned';
+        unassignedOption.textContent = 'Unassigned';
+        cs.appendChild(unassignedOption);
         // Build crew options from allCrews (fetched from /api/crews) with job counts from stats
         const crewCounts = s.byCrew || {};
         if (allCrews && allCrews.length > 0) {
@@ -1777,7 +1785,13 @@ async function loadJobs() {
             // Fallback: use stats data if allCrews not loaded yet
             Object.keys(s.byCrew).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c + ' (' + s.byCrew[c] + ')'; cs.appendChild(o); });
         }
-        cs.value = cv;
+        cs.value = initialCrewFilter || cv;
+        initialCrewFilter = '';
+        if (initialStatusFilter) {
+            const statusFilter = document.getElementById('statusFilter');
+            if (statusFilter) statusFilter.value = initialStatusFilter;
+            initialStatusFilter = '';
+        }
         renderJobs();
     } catch (e) { console.error(e); document.getElementById('jobsList').innerHTML = '<div class="empty-state"><p>Failed to load jobs</p></div>'; }
 }
@@ -1789,7 +1803,9 @@ function renderJobs() {
     
     let filtered = allJobs.filter(j => {
         if (status && j.status !== status) return false;
-        if (crew && j.crew_assigned !== crew) return false;
+        if (crew === 'unassigned') {
+            if (j.crew_assigned) return false;
+        } else if (crew && j.crew_assigned !== crew) return false;
         if (search) {
             const searchStr = `${j.customer_name} ${j.address} ${j.service_type}`.toLowerCase();
             if (!searchStr.includes(search)) return false;
@@ -2202,7 +2218,9 @@ function toggleSelectAllDay() {
     const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
     const filtered = allJobs.filter(j => {
         if (status && j.status !== status) return false;
-        if (crew && j.crew_assigned !== crew) return false;
+        if (crew === 'unassigned') {
+            if (j.crew_assigned) return false;
+        } else if (crew && j.crew_assigned !== crew) return false;
         if (search) {
             const searchStr = `${j.customer_name} ${j.address} ${j.service_type}`.toLowerCase();
             if (!searchStr.includes(search)) return false;
@@ -2230,7 +2248,9 @@ function updateSelectAllState(filtered) {
         const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
         filtered = allJobs.filter(j => {
             if (status && j.status !== status) return false;
-            if (crew && j.crew_assigned !== crew) return false;
+            if (crew === 'unassigned') {
+                if (j.crew_assigned) return false;
+            } else if (crew && j.crew_assigned !== crew) return false;
             if (search) {
                 const searchStr = `${j.customer_name} ${j.address} ${j.service_type}`.toLowerCase();
                 if (!searchStr.includes(search)) return false;
@@ -2318,7 +2338,9 @@ async function optimizeRoute() {
             const search = ((document.getElementById('searchInput') || {}).value || '').toLowerCase();
             visibleJobs = allJobs.filter(j => {
                 if (status && j.status !== status) return false;
-                if (crewValue && j.crew_assigned !== crewValue) return false;
+                if (crewValue === 'unassigned') {
+                    if (j.crew_assigned) return false;
+                } else if (crewValue && j.crew_assigned !== crewValue) return false;
                 if (search) {
                     const s = (j.customer_name + ' ' + j.address + ' ' + j.service_type).toLowerCase();
                     if (!s.includes(search)) return false;
@@ -2400,7 +2422,9 @@ function printRoute() {
     const crew = document.getElementById('crewFilter').value;
     let filtered = allJobs.filter(j => {
         if (status && j.status !== status) return false;
-        if (crew && j.crew_assigned !== crew) return false;
+        if (crew === 'unassigned') {
+            if (j.crew_assigned) return false;
+        } else if (crew && j.crew_assigned !== crew) return false;
         return true;
     });
     

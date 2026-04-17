@@ -1251,6 +1251,15 @@
             el.innerHTML = '<div class="search-empty">Search failed. Please try again.</div>';
         }
     }
+    function applyInitialFiltersFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const status = params.get('status');
+        if (!status) return;
+        currentStatus = status;
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.status === status);
+        });
+    }
     document.addEventListener('DOMContentLoaded', initUniversalSearch);
 
     // ─── Event Counts (resend/edit tracking) ───────────────
@@ -1326,6 +1335,7 @@
 
     // Initial load
     (async () => {
+        applyInitialFiltersFromUrl();
         await Promise.all([loadViewCounts(), loadEventCounts()]);
         loadQuotes();
     })();

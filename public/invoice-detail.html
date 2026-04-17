@@ -80,6 +80,8 @@
             font-size: 12px; font-weight: 600; text-transform: capitalize;
         }
         .status-badge.draft { background: var(--gray-100); color: var(--gray-500); }
+        .status-badge.pending { background: var(--amber-bg); color: var(--amber); }
+        .status-badge.partial { background: #fff7ed; color: #c2410c; }
         .status-badge.sent { background: var(--blue-bg); color: var(--blue); }
         .status-badge.viewed { background: var(--amber-bg); color: var(--amber); }
         .status-badge.paid { background: var(--green-bg); color: var(--green); }
@@ -159,6 +161,15 @@
         .payment-entry:last-child { border-bottom: none; }
         .payment-entry .method { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: var(--gray-100); font-size: 11px; font-weight: 600; color: var(--gray-600); }
         .payment-entry .amount { font-weight: 700; color: var(--green); }
+        .payment-entry-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .payment-status {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .payment-status.completed { background: var(--green-bg); color: var(--green); }
+        .payment-status.pending { background: var(--amber-bg); color: var(--amber); }
+        .payment-status.failed { background: var(--red-bg); color: var(--red); }
 
         /* Pay Link */
         .pay-link-box {
@@ -253,6 +264,11 @@
         .history-event.paid::before { background: var(--green); }
         .history-event.reminder::before { background: #8b5cf6; }
         .history-event.overdue::before { background: var(--red); }
+        .history-event.payment-pending::before { background: var(--amber); }
+        .history-event.payment-failed::before { background: var(--red); }
+        .history-event.email-failed::before { background: var(--red); }
+        .history-event.receipt::before { background: var(--green); }
+        .history-event.notice::before { background: var(--forest-light); }
         .history-event-badge {
             display: inline-flex; padding: 2px 8px; border-radius: 4px;
             font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
@@ -263,6 +279,11 @@
         .history-event-badge.paid { background: var(--green-bg); color: var(--green); }
         .history-event-badge.reminder { background: #f5f3ff; color: #8b5cf6; }
         .history-event-badge.overdue { background: var(--red-bg); color: var(--red); }
+        .history-event-badge.payment-pending { background: var(--amber-bg); color: var(--amber); }
+        .history-event-badge.payment-failed,
+        .history-event-badge.email-failed { background: var(--red-bg); color: var(--red); }
+        .history-event-badge.receipt { background: var(--green-bg); color: var(--green); }
+        .history-event-badge.notice { background: #eef2f2; color: var(--forest-light); }
         .history-event-title { font-size: 13px; font-weight: 500; color: var(--gray-700); margin-top: 4px; }
         .history-event-detail { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
         .history-event-date { font-size: 11px; color: var(--gray-400); margin-left: 8px; }
@@ -471,6 +492,8 @@
             const notes = inv.notes || '';
             const terms = inv.terms || (inv.external_metadata && inv.external_metadata.terms_raw) || '';
             const qbId = inv.qb_invoice_id;
+            const statusLabel = humanizeLabel(status);
+            const sentStatusLabel = humanizeLabel(sentStatus);
 
             let lineItems = inv.line_items || [];
             if (typeof lineItems === 'string') {
@@ -614,9 +637,9 @@
                         <h3>Invoice Info</h3>
                         <div class="detail-field">
                             <div class="label">Status</div>
-                            <div class="value"><span class="status-badge ${status}">${status}</span></div>
+                            <div class="value"><span class="status-badge ${status}">${esc(statusLabel)}</span></div>
                         </div>
-                        ${sentStatus ? `<div class="detail-field"><div class="label">Sending</div><div class="value">${esc(sentStatus)}</div></div>` : ''}
+                        ${sentStatus ? `<div class="detail-field"><div class="label">Sending</div><div class="value">${esc(sentStatusLabel)}</div></div>` : ''}
                         <div class="detail-field">
                             <div class="label">Invoice #</div>
                             <div class="value">${esc(invNum)}</div>
@@ -643,8 +666,11 @@
                             <div class="payment-entry">
                                 <div>
                                     <span class="method">${{'card':'💳 Card','credit_card':'💳 Credit Card','debit_card':'💳 Debit Card','ach':'🏦 ACH','apple_pay':'🍎 Apple Pay','cash':'💵 Cash','check':'📝 Check','venmo':'Venmo','zelle':'Zelle','money_order':'📝 Money Order'}[p.method] || '💰 ' + (p.method || 'Payment')}</span>
-                                    ${p.card_last4 ? '<span style="font-size:11px;color:var(--gray-400);margin-left:4px;">•••• ' + p.card_last4 + '</span>' : ''}
-                                    ${p.square_receipt_url ? '<a href="' + p.square_receipt_url + '" target="_blank" style="font-size:11px;color:var(--blue);margin-left:8px;">Receipt</a>' : ''}
+                                    <div class="payment-entry-meta">
+                                        <span class="payment-status ${paymentStatusClass(p.status)}">${esc(paymentStatusLabel(p.status))}</span>
+                                        ${p.card_last4 ? '<span style="font-size:11px;color:var(--gray-400);">•••• ' + esc(p.card_last4) + '</span>' : ''}
+                                        ${p.square_receipt_url ? '<a href="' + p.square_receipt_url + '" target="_blank" style="font-size:11px;color:var(--blue);">Receipt</a>' : ''}
+                                    </div>
                                 </div>
                                 <div style="text-align:right;">
                                     <div class="amount">${formatCurrency(p.amount)}</div>
@@ -751,7 +777,43 @@
             return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         }
 
+        function humanizeLabel(value) {
+            return String(value || '')
+                .trim()
+                .replace(/[_-]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .split(' ')
+                .filter(Boolean)
+                .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(' ');
+        }
+
+        function paymentStatusClass(status) {
+            const normalized = String(status || '').trim().toLowerCase();
+            if (normalized === 'pending') return 'pending';
+            if (normalized === 'failed') return 'failed';
+            return 'completed';
+        }
+
+        function paymentStatusLabel(status) {
+            const normalized = String(status || '').trim().toLowerCase();
+            if (normalized === 'pending') return 'Pending';
+            if (normalized === 'failed') return 'Failed';
+            return 'Completed';
+        }
+
         function buildInvoiceHistory(inv) {
+            if (Array.isArray(inv.history_events) && inv.history_events.length > 0) {
+                return inv.history_events.map(e => `
+                    <div class="history-event ${esc(e.type || 'created')}">
+                        <span class="history-event-badge ${esc(e.type || 'created')}">${esc(e.badge || 'Update')}</span>
+                        <span class="history-event-date">${formatDateTime(e.date)}</span>
+                        <div class="history-event-title">${esc(e.title || '')}</div>
+                        ${e.detail ? `<div class="history-event-detail">${esc(e.detail)}</div>` : ''}
+                    </div>
+                `).join('');
+            }
+
             const events = [];
 
             // Created

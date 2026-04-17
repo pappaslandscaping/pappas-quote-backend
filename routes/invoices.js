@@ -24,6 +24,7 @@ const {
   normalizeAgingSnapshot,
   getAgingSnapshotExpiry,
 } = require('../lib/copilot-aging');
+const { buildInvoiceHistoryEvents } = require('../lib/invoice-history');
 const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
@@ -564,7 +565,22 @@ router.get('/api/invoices', async (req, res) => {
              LEFT JOIN customers c ON i.customer_id = c.id`;
     const params = [];
     const where = [];
-    if (status) { params.push(status); where.push(`i.status = $${params.length}`); }
+    if (status) {
+      if (status === 'overdue') {
+        where.push(`COALESCE(i.total, 0) > COALESCE(i.amount_paid, 0)`);
+        where.push(`(
+          COALESCE(LOWER(TRIM(i.status)), '') = 'overdue'
+          OR (
+            COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending', '')
+            AND i.due_date IS NOT NULL
+            AND i.due_date < CURRENT_DATE
+          )
+        )`);
+      } else {
+        params.push(status);
+        where.push(`i.status = $${params.length}`);
+      }
+    }
     if (customer_id) { params.push(customer_id); where.push(`i.customer_id = $${params.length}`); }
     // Hide blank placeholder drafts (no customer name + no money + no
     // line items). They were dominating the top of the list and making
@@ -701,7 +717,7 @@ router.get('/api/invoices/aging', async (req, res) => {
         status: effectiveStatus,
       });
     });
-    console.info('Invoice aging source', {
+    console.warn('Invoice aging fallback', {
       source: DATABASE_FALLBACK_SOURCE,
       asOf: now.toISOString(),
     });
@@ -761,11 +777,25 @@ router.get('/api/invoices/:id', async (req, res) => {
     // Fetch payment history
     try {
       const payments = await pool.query(
-        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC',
+        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY COALESCE(paid_at, created_at) DESC, id DESC',
         [inv.id]
       );
       inv.payment_history = payments.rows;
     } catch(e) { inv.payment_history = []; }
+    try {
+      const emailLog = await pool.query(
+        `SELECT id, recipient_email, subject, email_type, status, error_message, sent_at
+           FROM email_log
+          WHERE invoice_id = $1
+          ORDER BY sent_at DESC, id DESC`,
+        [inv.id]
+      );
+      inv.email_history = emailLog.rows;
+    } catch (e) { inv.email_history = []; }
+    inv.history_events = buildInvoiceHistoryEvents(inv, {
+      payments: inv.payment_history,
+      emailLog: inv.email_history,
+    });
     res.json({ success: true, invoice: inv });
   } catch (error) {
     serverError(res, error);

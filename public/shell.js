@@ -533,7 +533,7 @@
 
     Promise.all([
       fetch('/api/invoices?status=sent&limit=10').then(function(r) { return r.json(); }).catch(function() { return { invoices: [] }; }),
-      fetch('/api/work-requests?status=new&limit=5').then(function(r) { return r.json(); }).catch(function() { return { requests: [] }; }),
+      fetch('/api/work-requests?limit=5').then(function(r) { return r.json(); }).catch(function() { return { requests: [] }; }),
       fetch('/api/jobs?date=' + today + '&limit=5').then(function(r) { return r.json(); }).catch(function() { return { jobs: [] }; })
     ]).then(function(results) {
       var items = [];
@@ -548,8 +548,8 @@
       });
 
       (results[1].requests || []).forEach(function(r) {
-        items.push({ icon: '\uD83D\uDCCB', text: 'New request from ' + escapeHtml(r.customer_name || r.name || 'Unknown'),
-          sub: escapeHtml(r.service_type || r.description || '').slice(0, 60), href: 'work-requests.html' });
+        items.push({ icon: '\uD83D\uDCCB', text: 'Work request from ' + escapeHtml(r.customer_name || r.name || 'Unknown'),
+          sub: escapeHtml(r.work_requested || r.service_type || r.description || '').slice(0, 60), href: 'work-requests.html' });
       });
 
       (results[2].jobs || []).forEach(function(j) {

@@ -55,6 +55,42 @@ const fixtureHtml = `
 </html>
 `;
 
+const alternateHeaderFixtureHtml = `
+<html>
+  <body>
+    <h1>Sales Tax Report</h1>
+    <table>
+      <tr>
+        <th>Rate</th>
+        <th>Sales</th>
+        <th>Taxable Sales</th>
+        <th>Discount</th>
+        <th>Sales Tax</th>
+      </tr>
+      <tr>
+        <td>8.00%</td>
+        <td>$500.00</td>
+        <td>$400.00</td>
+        <td>$5.00</td>
+        <td>$32.00</td>
+      </tr>
+      <tr>
+        <td>Total</td>
+        <td>$500.00</td>
+        <td>$400.00</td>
+        <td>$5.00</td>
+        <td>$32.00</td>
+      </tr>
+    </table>
+    <table>
+      <tr><th></th><th>Amount</th></tr>
+      <tr><td>Processing Fees</td><td>$1.25</td></tr>
+      <tr><td>Tips</td><td>$3.50</td></tr>
+    </table>
+  </body>
+</html>
+`;
+
 it('parses Tax Summary collected rows and totals', () => {
   const parsed = parseCopilotTaxSummaryHtml(fixtureHtml, {
     startDate: '2026-04-17',
@@ -72,6 +108,22 @@ it('parses Tax Summary collected rows and totals', () => {
   assert.strictEqual(parsed.tax_amount, 88);
   assert.strictEqual(parsed.processing_fees, 3.4);
   assert.strictEqual(parsed.tips, 12);
+});
+
+it('parses alternate live-like Tax Summary headers and ignores total rows', () => {
+  const parsed = parseCopilotTaxSummaryHtml(alternateHeaderFixtureHtml, {
+    startDate: '2026-04-17',
+    endDate: '2026-04-17',
+    basis: 'collected',
+    pageUrl: '/reports/tax/?type=collected&sdate=2026-04-17&edate=2026-04-17',
+  });
+  assert.strictEqual(parsed.rows.length, 1);
+  assert.strictEqual(parsed.total_sales, 500);
+  assert.strictEqual(parsed.taxable_amount, 400);
+  assert.strictEqual(parsed.discount, 5);
+  assert.strictEqual(parsed.tax_amount, 32);
+  assert.strictEqual(parsed.processing_fees, 1.25);
+  assert.strictEqual(parsed.tips, 3.5);
 });
 
 it('flags a missing Tax Summary table as a parser warning instead of a valid zero snapshot', () => {

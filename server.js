@@ -10611,8 +10611,40 @@ function extractTableRowAmounts($, row) {
   return { rowText, cellTexts, amounts };
 }
 
+function extractRevenueByCrewTableTotal($) {
+  const reportTable = $('table').toArray().find((table) => {
+    const headers = $(table).find('thead tr').first().find('th,td').toArray()
+      .map((cell) => $(cell).text().replace(/\s+/g, ' ').trim());
+    if (!headers.length) return false;
+    const hasCrewColumn = /^crew$/i.test(headers[0] || '');
+    const hasTotalColumn = headers.some((text) => /^total$/i.test(text));
+    if (!hasCrewColumn || !hasTotalColumn) return false;
+
+    return $(table).find('tbody tr').toArray().some((row) => {
+      const firstCell = $(row).find('td,th').first().text().replace(/\s+/g, ' ').trim();
+      return /^total$/i.test(firstCell);
+    });
+  });
+
+  if (!reportTable) return null;
+
+  const totalRow = $(reportTable).find('tbody tr').toArray().find((row) => {
+    const firstCell = $(row).find('td,th').first().text().replace(/\s+/g, ' ').trim();
+    return /^total$/i.test(firstCell);
+  });
+  if (!totalRow) return null;
+
+  const { amounts } = extractTableRowAmounts($, totalRow);
+  const positiveAmounts = amounts.filter((value) => value > 0);
+  if (!positiveAmounts.length) return null;
+  return Math.max(...positiveAmounts);
+}
+
 function extractCopilotRevenueReportTotal(html) {
   const $ = cheerio.load(html || '');
+  const directReportTableTotal = extractRevenueByCrewTableTotal($);
+  if (Number.isFinite(directReportTableTotal)) return directReportTableTotal;
+
   const rows = $('table tr, .grand-total, .summary-row, .report-total').toArray()
     .map((row) => extractTableRowAmounts($, row))
     .filter((row) => row.rowText && row.amounts.length);

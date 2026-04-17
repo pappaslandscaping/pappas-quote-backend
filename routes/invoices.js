@@ -18,6 +18,8 @@ module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, 
   const router = express.Router();
 
 let cachedCopilotStanding = null;
+const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
+const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -30,16 +32,101 @@ function normalizeCount(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function parseStandingCount(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function hasValidStandingShape(standing) {
+  if (!standing || typeof standing !== 'object') return false;
+  return ACCOUNT_STANDING_KEYS.every((key) => Number.isFinite(Number(standing[key])));
+}
+
+function normalizeStandingSnapshot(standing, source) {
+  if (!hasValidStandingShape(standing)) return null;
+  const normalized = { source, as_of: standing.as_of || new Date().toISOString() };
+  for (const key of ACCOUNT_STANDING_KEYS) normalized[key] = parseStandingCount(standing[key]);
+  return normalized;
+}
+
+async function readPersistedCopilotStanding() {
+  try {
+    const result = await pool.query(
+      `SELECT value
+         FROM copilot_sync_settings
+        WHERE key = $1`,
+      [COPILOT_STANDING_SNAPSHOT_KEY]
+    );
+    if (!result.rows[0]?.value) return null;
+    return normalizeStandingSnapshot(JSON.parse(result.rows[0].value), 'copilot_snapshot');
+  } catch (error) {
+    return null;
+  }
+}
+
+async function persistCopilotStanding(standing) {
+  const normalized = normalizeStandingSnapshot(standing, 'copilot');
+  if (!normalized) return;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_STANDING_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+}
+
+function usesInvoiceDateAsDueDate(terms) {
+  const normalized = cleanStatusValue(terms).toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('due upon receipt') ||
+    normalized.includes('due on receipt') ||
+    normalized.includes('payable upon receipt') ||
+    normalized.includes('payment due upon receipt') ||
+    normalized.includes('payment due on receipt')
+  );
+}
+
+function startOfDay(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
+function parseAgingAnchorDate(inv, referenceDate = new Date()) {
+  const dueDate = startOfDay(inv.due_date ? new Date(inv.due_date) : null);
+  if (dueDate) return dueDate;
+
+  if (usesInvoiceDateAsDueDate(inv.terms)) {
+    const invoiceDate = startOfDay(inv.created_at ? new Date(inv.created_at) : null);
+    if (invoiceDate) return invoiceDate;
+  }
+
+  return startOfDay(referenceDate);
+}
+
+function calculateAgingDays(inv, referenceDate = new Date()) {
+  const anchorDate = parseAgingAnchorDate(inv, referenceDate);
+  const today = startOfDay(referenceDate) || new Date();
+  return Math.floor((today - anchorDate) / (1000 * 60 * 60 * 24));
+}
+
 function deriveDbAccountStanding(rows) {
   const standing = { total: 0, outstanding: 0, paid: 0, past_due: 0, credit: 0 };
   const creditCustomers = new Set();
+  const now = new Date();
 
   for (const inv of rows || []) {
     const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+    const balance = outstandingBalance(inv);
+    const daysAged = calculateAgingDays(inv, now);
     standing.total += 1;
     if (['pending', 'partial', 'sent', 'overdue'].includes(effectiveStatus)) standing.outstanding += 1;
     if (effectiveStatus === 'paid') standing.paid += 1;
-    if (effectiveStatus === 'overdue') standing.past_due += 1;
+    if (balance > 0 && daysAged > 0 && !['paid', 'void', 'draft'].includes(effectiveStatus)) standing.past_due += 1;
 
     const creditAvailable = parseFloat(inv.credit_available || 0);
     if (creditAvailable > 0) {
@@ -114,7 +201,8 @@ async function fetchCopilotCreditCount(cookieHeader, { pageSize = 100, maxPages 
 }
 
 async function fetchCopilotAccountStanding() {
-  if (typeof getCopilotToken !== 'function') return null;
+  const persistedStanding = await readPersistedCopilotStanding();
+  if (typeof getCopilotToken !== 'function') return persistedStanding;
 
   const now = Date.now();
   if (cachedCopilotStanding && cachedCopilotStanding.expiresAt > now) {
@@ -122,7 +210,7 @@ async function fetchCopilotAccountStanding() {
   }
 
   const tokenInfo = await getCopilotToken();
-  if (!tokenInfo?.cookieHeader) return null;
+  if (!tokenInfo?.cookieHeader) return persistedStanding;
 
   const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices', {
     headers: {
@@ -130,7 +218,7 @@ async function fetchCopilotAccountStanding() {
       'Referer': 'https://secure.copilotcrm.com/',
     },
   });
-  if (!copilotRes.ok) return null;
+  if (!copilotRes.ok) return persistedStanding;
 
   const html = await copilotRes.text();
   const $ = cheerio.load(html);
@@ -141,18 +229,33 @@ async function fetchCopilotAccountStanding() {
     if (!title) return;
     pillValues[title] = value;
   });
+  if (Object.keys(pillValues).length === 0) return persistedStanding;
 
-  const value = {
+  let credit = 0;
+  if (Object.prototype.hasOwnProperty.call(pillValues, 'credit')) {
+    credit = pillValues.credit;
+  } else {
+    try {
+      credit = await fetchCopilotCreditCount(tokenInfo.cookieHeader);
+    } catch (error) {
+      credit = parseStandingCount(persistedStanding?.credit);
+    }
+  }
+
+  const value = normalizeStandingSnapshot({
     source: 'copilot',
     as_of: new Date().toISOString(),
     total: pillValues.total || 0,
     outstanding: pillValues.outstanding || 0,
     paid: pillValues.paid || 0,
     past_due: pillValues['past due'] || 0,
-    credit: Object.prototype.hasOwnProperty.call(pillValues, 'credit')
-      ? pillValues.credit
-      : await fetchCopilotCreditCount(tokenInfo.cookieHeader),
-  };
+    credit,
+  }, 'copilot');
+  if (!value) return persistedStanding;
+
+  await persistCopilotStanding(value).catch((error) => {
+    console.error('Error persisting Copilot account standing:', error);
+  });
 
   cachedCopilotStanding = {
     value,
@@ -300,7 +403,7 @@ router.get('/api/invoices', async (req, res) => {
 router.get('/api/invoices/stats', async (req, res) => {
   try {
     const all = await pool.query(`
-      SELECT status, total, amount_paid, due_date, paid_at,
+      SELECT status, total, amount_paid, due_date, paid_at, created_at, terms,
              customer_id, customer_name, customer_email,
              external_metadata->>'copilot_customer_id' AS copilot_customer_id,
              COALESCE((external_metadata->>'credit_available')::numeric, 0) AS credit_available
@@ -352,7 +455,8 @@ router.get('/api/invoices/stats', async (req, res) => {
 router.get('/api/invoices/aging', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, status, sent_status, external_metadata
+      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, created_at, terms,
+             status, sent_status, external_metadata
       FROM invoices
       WHERE total > COALESCE(amount_paid, 0) AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')
     `);
@@ -368,8 +472,7 @@ router.get('/api/invoices/aging', async (req, res) => {
       const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
       if (!isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) return;
       const balance = outstandingBalance(inv);
-      const due = inv.due_date ? new Date(inv.due_date) : now;
-      const daysOverdue = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+      const daysOverdue = calculateAgingDays(inv, now);
       let bucket;
       if (daysOverdue <= 0) bucket = 'current';
       else if (daysOverdue <= 30) bucket = '1_30';
@@ -378,7 +481,14 @@ router.get('/api/invoices/aging', async (req, res) => {
       else bucket = '90_plus';
       buckets[bucket].count++;
       buckets[bucket].total += balance;
-      buckets[bucket].invoices.push({ id: inv.id, invoice_number: inv.invoice_number, customer_name: inv.customer_name, balance, days_overdue: Math.max(0, daysOverdue), status: effectiveStatus });
+      buckets[bucket].invoices.push({
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        customer_name: inv.customer_name,
+        balance,
+        days_overdue: Math.max(0, daysOverdue),
+        status: effectiveStatus,
+      });
     });
     res.json({ success: true, buckets });
   } catch (error) {

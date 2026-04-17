@@ -949,6 +949,11 @@
         const storageKey = 'invoiceAccountStanding';
         const standingKeys = ['past_due', 'outstanding', 'credit', 'paid'];
         const hasStandingShape = (value) => !!value && standingKeys.every((key) => Number.isFinite(Number(value[key])));
+        const isMeaningfulStanding = (value) => {
+            if (!hasStandingShape(value)) return false;
+            if (Number(value.total || 0) > 0) return true;
+            return standingKeys.some((key) => Number(value[key] || 0) > 0);
+        };
         const readStoredStanding = () => {
             try {
                 const raw = localStorage.getItem(storageKey);
@@ -957,10 +962,28 @@
                 return null;
             }
         };
-        const renderStanding = (standing) => {
+        const setStandingSource = (standing, overrideText) => {
+            const standingSourceSub = document.getElementById('standingSourceSub');
+            if (!standingSourceSub) return;
+            if (overrideText) {
+                standingSourceSub.textContent = overrideText;
+                return;
+            }
+            const source = standing?.source === 'copilot'
+                ? 'Copilot live Account Standing'
+                : standing?.source === 'copilot_snapshot'
+                    ? 'Copilot snapshot fallback'
+                    : standing?.source === 'database'
+                        ? 'database fallback'
+                        : 'Copilot Account Standing';
+            standingSourceSub.textContent = source;
+        };
+        const renderStanding = (standing, { persist = true } = {}) => {
             if (!hasStandingShape(standing)) return false;
             try {
-                localStorage.setItem(storageKey, JSON.stringify(standing));
+                if (persist && isMeaningfulStanding(standing)) {
+                    localStorage.setItem(storageKey, JSON.stringify(standing));
+                }
             } catch (_) {}
             document.getElementById('pastDueStat').textContent = Number(standing.past_due).toLocaleString('en-US');
             document.getElementById('outstandingStat').textContent = Number(standing.outstanding).toLocaleString('en-US');
@@ -968,40 +991,43 @@
             document.getElementById('paidStat').textContent = Number(standing.paid).toLocaleString('en-US');
             return true;
         };
+        const storedStanding = readStoredStanding();
+
+        if (isMeaningfulStanding(storedStanding)) {
+            renderStanding(storedStanding, { persist: false });
+            setStandingSource({ source: 'copilot_snapshot' });
+        }
 
         try {
-            const response = await fetch(`${API_BASE}/invoices/stats`);
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null;
+            const response = await fetch(`${API_BASE}/invoices/stats`, controller ? { signal: controller.signal } : undefined);
+            if (timeoutId) clearTimeout(timeoutId);
             const data = await response.json();
             const stats = data.stats || data;
             const standing = stats.account_standing || stats.accountStanding || {};
             const fallbackStanding = stats.account_standing_fallback || {};
-            const storedStanding = readStoredStanding();
-            const resolvedStanding = hasStandingShape(standing)
+            const resolvedStanding = isMeaningfulStanding(standing)
                 ? standing
-                : hasStandingShape(fallbackStanding)
-                    ? fallbackStanding
-                    : hasStandingShape(storedStanding)
-                        ? storedStanding
-                        : null;
+                : isMeaningfulStanding(storedStanding)
+                    ? storedStanding
+                    : isMeaningfulStanding(fallbackStanding)
+                        ? fallbackStanding
+                        : hasStandingShape(standing)
+                            ? standing
+                            : hasStandingShape(storedStanding)
+                                ? storedStanding
+                                : hasStandingShape(fallbackStanding)
+                                    ? fallbackStanding
+                                    : null;
 
-            renderStanding(resolvedStanding);
-
-            const standingSourceSub = document.getElementById('standingSourceSub');
-            if (standingSourceSub) {
-                const source = resolvedStanding?.source === 'copilot'
-                    ? 'Copilot live Account Standing'
-                    : resolvedStanding?.source === 'copilot_snapshot'
-                        ? 'Copilot snapshot fallback'
-                        : resolvedStanding?.source === 'database'
-                            ? 'database fallback'
-                            : 'Copilot Account Standing';
-                standingSourceSub.textContent = source;
+            if (renderStanding(resolvedStanding)) {
+                setStandingSource(resolvedStanding);
             }
         } catch (error) {
             console.error('Error loading stats:', error);
-            if (renderStanding(readStoredStanding())) {
-                const standingSourceSub = document.getElementById('standingSourceSub');
-                if (standingSourceSub) standingSourceSub.textContent = 'Copilot snapshot fallback';
+            if (renderStanding(storedStanding, { persist: false })) {
+                setStandingSource(null, 'Copilot snapshot fallback');
             }
         }
     }

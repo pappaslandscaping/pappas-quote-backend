@@ -99,6 +99,39 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 
 ---
 
+## Daily Tax Transfer Freshness Sync
+
+This app now exposes a dedicated cron-safe endpoint for keeping the Tax Transfers page fresh without moving money:
+
+- Endpoint: `POST /api/cron/tax-transfer-freshness-sync`
+- Compatibility fallback for simple schedulers that cannot send `POST`: `GET /api/cron/tax-transfer-freshness-sync`
+- Auth: prefer `x-cron-secret: $CRON_SECRET`; `?key=$CRON_SECRET` is supported for basic schedulers
+- Default scope: sync Copilot payments plus Copilot Tax Summary `collected` for `today + 1 day back`
+- Time zone: `America/New_York`
+
+Recommended schedule:
+
+- Send a daily `POST` at `15 20 * * *` in `America/New_York`
+- Reason: it refreshes same-day tax reporting after most business-day payments have landed, while manual sync buttons remain available for intraday updates
+
+Optional query/body overrides:
+
+- `daysBack`: `0-7` (default `1`)
+- `pageSize`: payment page size (default `100`)
+- `maxPages`: payment page fetch cap (default `25`)
+- `force=false`: reuse cached data instead of forcing live refresh
+
+Operational requirements:
+
+- `CRON_SECRET` must be configured
+- Valid Copilot auth must already exist in `copilot_sync_settings` (`copilot_cookies` or `copilot_token`)
+- The endpoint returns non-2xx on auth failure, missing `CRON_SECRET`, degraded runs, and failed runs so external scheduler alerting can key off the HTTP status
+- No bank transfer or payout automation is performed by this endpoint; it only refreshes reporting inputs and stores run status
+
+The Tax Transfers UI reads the stored run status and same-day freshness timestamps from this job, including partial-failure details.
+
+---
+
 ## Startup Behavior
 
 On `npm start`, the server:

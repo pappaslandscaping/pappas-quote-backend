@@ -6,6 +6,10 @@
 - Fixed payment tax reconstruction to allocate against the taxed line-item gross total when available instead of the full invoice total
 - This prevents non-taxable invoice surcharges and fee-style adjustments from understating backend reconstructed tax on Tax Transfers
 
+### Daily Tax Transfer Freshness Sync
+- Added a protected daily tax-transfer freshness sync endpoint for Copilot payments and Copilot Tax Summary collected snapshots
+- Added persisted automation status plus same-day freshness indicators and failure messaging on the Tax Transfers page
+
 ## 2026-04-15
 
 ### Startup Schema Extraction

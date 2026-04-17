@@ -51,9 +51,11 @@ let cachedCopilotAging = null;
 let cachedCopilotAgingPromise = null;
 let cachedCopilotPayments = null;
 let cachedCopilotTaxSummaries = new Map();
+const BUSINESS_TIME_ZONE = 'America/New_York';
 const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
 const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
 const COPILOT_PAYMENTS_SNAPSHOT_KEY = 'copilot_payments_snapshot';
+const COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY = 'copilot_tax_transfer_freshness_status';
 const COPILOT_TAX_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -102,6 +104,30 @@ function buildTaxSummaryCacheKey({ startDate, endDate, basis = 'collected' }) {
   return `${basis}:${startDate}:${endDate}`;
 }
 
+function isoDateInTimeZone(value = new Date(), timeZone = BUSINESS_TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(value);
+}
+
+function shiftIsoDate(isoDate, days) {
+  const cursor = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(cursor.getTime())) return isoDate;
+  cursor.setUTCDate(cursor.getUTCDate() + Number(days || 0));
+  return cursor.toISOString().slice(0, 10);
+}
+
+function timestampFallsOnBusinessDate(timestamp, isoDate, timeZone = BUSINESS_TIME_ZONE) {
+  if (!timestamp || !isoDate) return false;
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return isoDateInTimeZone(parsed, timeZone) === isoDate;
+}
+
 function eachDayInclusive(startDate, endDate) {
   const dates = [];
   const cursor = new Date(`${startDate}T00:00:00Z`);
@@ -111,6 +137,66 @@ function eachDayInclusive(startDate, endDate) {
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return dates;
+}
+
+function buildTaxTransferFreshnessWindow({ now = new Date(), daysBack = 1, timeZone = BUSINESS_TIME_ZONE } = {}) {
+  const boundedDaysBack = Math.max(0, Number(daysBack) || 0);
+  const today = isoDateInTimeZone(now, timeZone);
+  return {
+    time_zone: timeZone,
+    days_back: boundedDaysBack,
+    today,
+    start_date: shiftIsoDate(today, -boundedDaysBack),
+    end_date: today,
+  };
+}
+
+function readCronSecret(req) {
+  return req.get('x-cron-secret') || req.query.key || req.query.token || req.body?.key || req.body?.token || '';
+}
+
+function assertCronSecret(req, res) {
+  const configuredSecret = process.env.CRON_SECRET || process.env.CRON_API_KEY || '';
+  if (!configuredSecret) {
+    res.status(503).json({ success: false, error: 'CRON_SECRET is not configured' });
+    return false;
+  }
+  if (readCronSecret(req) === configuredSecret) return true;
+  res.status(401).json({ success: false, error: 'Invalid cron secret' });
+  return false;
+}
+
+function readBoundedInt(rawValue, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+async function writeTaxTransferFreshnessStatus(status) {
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY, JSON.stringify(status)]
+  );
+}
+
+async function readTaxTransferFreshnessStatus() {
+  const result = await pool.query(
+    `SELECT value
+       FROM copilot_sync_settings
+      WHERE key = $1`,
+    [COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY]
+  );
+  if (!result.rows[0]?.value) return null;
+  try {
+    return JSON.parse(result.rows[0].value);
+  } catch (error) {
+    console.error('Invalid stored tax transfer freshness status JSON:', error);
+    return null;
+  }
 }
 
 async function readPersistedTaxSummarySnapshot({ startDate, endDate, basis = 'collected' }) {
@@ -364,6 +450,208 @@ async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25, for
   };
 
   return normalized;
+}
+
+async function syncCopilotPaymentsRecords({ pageSize = 100, maxPages = 25, forceRefresh = false } = {}) {
+  const snapshot = await fetchCopilotPaymentsSnapshot({ pageSize, maxPages, forceRefresh });
+  const syncResult = await upsertCopilotPayments({
+    pool,
+    payments: snapshot.payments,
+  });
+
+  return {
+    source: snapshot.source,
+    as_of: snapshot.as_of,
+    total: snapshot.total,
+    pages: Math.ceil((snapshot.total || snapshot.payments.length || 0) / Math.max(1, Number(pageSize) || 100)),
+    sync: {
+      total: syncResult.total,
+      inserted: syncResult.inserted,
+      updated: syncResult.updated,
+      linked: syncResult.linked,
+      unresolved: syncResult.unresolved,
+    },
+    unresolved: syncResult.payments.filter((payment) => payment.link_status === 'unresolved'),
+  };
+}
+
+async function syncCopilotTaxSummarySnapshots({ startDate, endDate, basis = 'collected', forceRefresh = false } = {}) {
+  if (!startDate || !endDate) {
+    throw new Error('start_date and end_date are required');
+  }
+
+  const dates = eachDayInclusive(startDate, endDate);
+  if (dates.length > 31) {
+    throw new Error('date range must be 31 days or fewer');
+  }
+
+  const snapshots = [];
+  for (const date of dates) {
+    const snapshot = await fetchCopilotTaxSummarySnapshot({
+      startDate: date,
+      endDate: date,
+      basis,
+      forceRefresh,
+    });
+    snapshots.push({
+      date,
+      source: snapshot.source,
+      snapshot_as_of: snapshot.as_of,
+      total_sales: snapshot.total_sales,
+      taxable_amount: snapshot.taxable_amount,
+      discount: snapshot.discount,
+      tax_amount: snapshot.tax_amount,
+      processing_fees: snapshot.processing_fees,
+      tips: snapshot.tips,
+      row_count: snapshot.rows.length,
+    });
+  }
+
+  return {
+    basis,
+    start_date: startDate,
+    end_date: endDate,
+    count: snapshots.length,
+    snapshots,
+  };
+}
+
+async function fetchTaxTransferFreshnessSnapshot(today) {
+  const [automation, latestPaymentsImport, latestTodayTaxSummary] = await Promise.all([
+    readTaxTransferFreshnessStatus(),
+    pool.query(
+      `SELECT MAX(imported_at) AS last_imported_at
+         FROM payments
+        WHERE COALESCE(external_source, 'database') = 'copilotcrm'`
+    ),
+    pool.query(
+      `SELECT imported_at, updated_at, tax_amount, total_sales
+         FROM copilot_tax_summary_snapshots
+        WHERE external_source = 'copilotcrm'
+          AND basis = 'collected'
+          AND start_date = $1
+          AND end_date = $1
+        ORDER BY imported_at DESC NULLS LAST, updated_at DESC NULLS LAST
+        LIMIT 1`,
+      [today]
+    ),
+  ]);
+
+  const paymentsImportedAt = latestPaymentsImport.rows[0]?.last_imported_at || null;
+  const taxSummaryRow = latestTodayTaxSummary.rows[0] || null;
+  const taxSummaryImportedAt = taxSummaryRow?.imported_at || taxSummaryRow?.updated_at || null;
+
+  return {
+    success: true,
+    time_zone: BUSINESS_TIME_ZONE,
+    today,
+    automation: automation || {
+      status: 'never_run',
+      last_attempt_at: null,
+      last_success_at: null,
+      last_error: null,
+      components: null,
+    },
+    freshness: {
+      payments_last_imported_at: paymentsImportedAt,
+      payments_fresh_today: timestampFallsOnBusinessDate(paymentsImportedAt, today),
+      today_tax_summary_last_imported_at: taxSummaryImportedAt,
+      today_tax_summary_fresh: timestampFallsOnBusinessDate(taxSummaryImportedAt, today),
+      today_tax_summary_tax_amount: taxSummaryRow ? Number(taxSummaryRow.tax_amount) || 0 : 0,
+      today_tax_summary_total_sales: taxSummaryRow ? Number(taxSummaryRow.total_sales) || 0 : 0,
+    },
+  };
+}
+
+async function runTaxTransferFreshnessSync({
+  daysBack = 1,
+  pageSize = 100,
+  maxPages = 25,
+  forceRefresh = true,
+  trigger = 'cron',
+} = {}) {
+  const previousStatus = await readTaxTransferFreshnessStatus();
+  const startedAt = new Date().toISOString();
+  const window = buildTaxTransferFreshnessWindow({ daysBack });
+
+  const taxSummary = {
+    status: 'pending',
+    basis: 'collected',
+    start_date: window.start_date,
+    end_date: window.end_date,
+    count: 0,
+    error: null,
+  };
+  const payments = {
+    status: 'pending',
+    pages: 0,
+    total: 0,
+    sync: null,
+    error: null,
+  };
+
+  try {
+    const taxSummaryResult = await syncCopilotTaxSummarySnapshots({
+      startDate: window.start_date,
+      endDate: window.end_date,
+      basis: 'collected',
+      forceRefresh,
+    });
+    taxSummary.status = 'success';
+    taxSummary.count = taxSummaryResult.count;
+    taxSummary.snapshots = taxSummaryResult.snapshots;
+  } catch (error) {
+    taxSummary.status = 'failed';
+    taxSummary.error = formatCopilotSyncError(error, 'Copilot tax summary sync failed');
+  }
+
+  try {
+    const paymentsResult = await syncCopilotPaymentsRecords({
+      pageSize,
+      maxPages,
+      forceRefresh,
+    });
+    payments.status = 'success';
+    payments.pages = paymentsResult.pages;
+    payments.total = paymentsResult.total;
+    payments.sync = paymentsResult.sync;
+    payments.as_of = paymentsResult.as_of;
+  } catch (error) {
+    payments.status = 'failed';
+    payments.error = formatCopilotSyncError(error, 'Copilot payments sync failed');
+  }
+
+  const completedAt = new Date().toISOString();
+  const componentStatuses = [taxSummary.status, payments.status];
+  const overallStatus = componentStatuses.every((status) => status === 'success')
+    ? 'success'
+    : componentStatuses.every((status) => status === 'failed')
+      ? 'failed'
+      : 'degraded';
+  const lastError = [taxSummary.error, payments.error].filter(Boolean).join(' | ') || null;
+
+  const statusPayload = {
+    status: overallStatus,
+    trigger,
+    time_zone: window.time_zone,
+    days_back: window.days_back,
+    start_date: window.start_date,
+    end_date: window.end_date,
+    today: window.today,
+    last_attempt_at: startedAt,
+    completed_at: completedAt,
+    last_success_at: overallStatus === 'success'
+      ? completedAt
+      : previousStatus?.last_success_at || null,
+    last_error: lastError,
+    components: {
+      tax_summary: taxSummary,
+      payments,
+    },
+  };
+
+  await writeTaxTransferFreshnessStatus(statusPayload);
+  return statusPayload;
 }
 
 function buildPaymentRecordWhere({ search, year, month, source, linked } = {}, params) {
@@ -884,30 +1172,14 @@ router.get('/api/payments', async (req, res) => {
 // POST /api/copilot/payments/sync - Sync live Copilot payments into payment records
 router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) => {
   try {
-    const snapshot = await fetchCopilotPaymentsSnapshot({
+    const result = await syncCopilotPaymentsRecords({
       pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
       maxPages: Number(req.body?.maxPages || req.query.maxPages || 25),
       forceRefresh: req.body?.force !== false && req.query.force !== 'false',
     });
-    const syncResult = await upsertCopilotPayments({
-      pool,
-      payments: snapshot.payments,
-    });
-
     res.json({
       success: true,
-      source: snapshot.source,
-      as_of: snapshot.as_of,
-      total: snapshot.total,
-      pages: Math.ceil((snapshot.total || snapshot.payments.length || 0) / Math.max(1, Number(req.body?.pageSize || req.query.pageSize || 100))),
-      sync: {
-        total: syncResult.total,
-        inserted: syncResult.inserted,
-        updated: syncResult.updated,
-        linked: syncResult.linked,
-        unresolved: syncResult.unresolved,
-      },
-      unresolved: syncResult.payments.filter((payment) => payment.link_status === 'unresolved'),
+      ...result,
     });
   } catch (error) {
     console.error('Copilot payments sync error:', error);
@@ -917,6 +1189,65 @@ router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) =>
     });
   }
 });
+
+// GET /api/reports/tax-transfer-freshness-status - Automation and same-day freshness state
+router.get('/api/reports/tax-transfer-freshness-status', authenticateToken, async (req, res) => {
+  try {
+    const today = isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE);
+    const status = await fetchTaxTransferFreshnessSnapshot(today);
+    res.json(status);
+  } catch (error) {
+    console.error('Tax transfer freshness status error:', error);
+    serverError(res, error);
+  }
+});
+
+async function handleTaxTransferFreshnessCron(req, res) {
+  if (!assertCronSecret(req, res)) return;
+
+  try {
+    const daysBack = readBoundedInt(req.body?.daysBack ?? req.query.daysBack, 1, { min: 0, max: 7 });
+    const pageSize = readBoundedInt(req.body?.pageSize ?? req.query.pageSize, 100, { min: 1, max: 250 });
+    const maxPages = readBoundedInt(req.body?.maxPages ?? req.query.maxPages, 25, { min: 1, max: 150 });
+    const forceRefresh = req.body?.force !== false && req.query.force !== 'false';
+
+    const result = await runTaxTransferFreshnessSync({
+      daysBack,
+      pageSize,
+      maxPages,
+      forceRefresh,
+      trigger: 'cron',
+    });
+
+    const responseBody = {
+      success: result.status === 'success',
+      ...result,
+    };
+    if (result.status === 'success') {
+      return res.json(responseBody);
+    }
+    return res.status(500).json(responseBody);
+  } catch (error) {
+    const statusPayload = {
+      status: 'failed',
+      trigger: 'cron',
+      time_zone: BUSINESS_TIME_ZONE,
+      last_attempt_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      last_success_at: (await readTaxTransferFreshnessStatus())?.last_success_at || null,
+      last_error: formatCopilotSyncError(error, 'Tax transfer freshness sync failed'),
+      components: null,
+    };
+    await writeTaxTransferFreshnessStatus(statusPayload).catch(() => {});
+    res.status(500).json({
+      success: false,
+      ...statusPayload,
+    });
+  }
+}
+
+router.post('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCron);
+router.get('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCron);
 
 // GET /api/payment-records - True payment records joined to invoices
 router.get('/api/payment-records', authenticateToken, async (req, res) => {
@@ -1061,53 +1392,25 @@ router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
 // POST /api/copilot/tax-summary/sync - Persist daily Copilot Tax Summary collected snapshots
 router.post('/api/copilot/tax-summary/sync', authenticateToken, async (req, res) => {
   try {
-    const basis = 'collected';
     const startDate = String(req.body?.start_date || req.query.start_date || '').trim();
     const endDate = String(req.body?.end_date || req.query.end_date || startDate).trim();
-    if (!startDate || !endDate) {
-      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
-    }
-
-    const dates = eachDayInclusive(startDate, endDate);
-    if (dates.length > 31) {
-      return res.status(400).json({ success: false, error: 'date range must be 31 days or fewer' });
-    }
-
-    const snapshots = [];
-    for (const date of dates) {
-      const snapshot = await fetchCopilotTaxSummarySnapshot({
-        startDate: date,
-        endDate: date,
-        basis,
-        forceRefresh: req.body?.force !== false && req.query.force !== 'false',
-      });
-      snapshots.push({
-        date,
-        source: snapshot.source,
-        snapshot_as_of: snapshot.as_of,
-        total_sales: snapshot.total_sales,
-        taxable_amount: snapshot.taxable_amount,
-        discount: snapshot.discount,
-        tax_amount: snapshot.tax_amount,
-        processing_fees: snapshot.processing_fees,
-        tips: snapshot.tips,
-        row_count: snapshot.rows.length,
-      });
-    }
-
+    const result = await syncCopilotTaxSummarySnapshots({
+      startDate,
+      endDate,
+      basis: 'collected',
+      forceRefresh: req.body?.force !== false && req.query.force !== 'false',
+    });
     res.json({
       success: true,
-      basis,
-      start_date: startDate,
-      end_date: endDate,
-      count: snapshots.length,
-      snapshots,
+      ...result,
     });
   } catch (error) {
     console.error('Copilot tax summary sync error:', error);
-    res.status(500).json({
+    const message = formatCopilotSyncError(error, 'Copilot tax summary sync failed');
+    const statusCode = /start_date and end_date are required|date range must be 31 days or fewer/i.test(message) ? 400 : 500;
+    res.status(statusCode).json({
       success: false,
-      error: formatCopilotSyncError(error, 'Copilot tax summary sync failed'),
+      error: message,
     });
   }
 });

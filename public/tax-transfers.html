@@ -452,6 +452,48 @@
             color: var(--gray-500);
             margin-top: 8px;
         }
+        .review-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .toggle-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--gray-200);
+            background: var(--gray-50);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+        .toggle-chip input {
+            accent-color: var(--primary);
+        }
+        .review-meta {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-bottom: 14px;
+        }
+        .status-pill-linked {
+            background: #ecfdf5;
+            color: #166534;
+            border-color: #bbf7d0;
+        }
+        .status-pill-unresolved {
+            background: #fffbeb;
+            color: #92400e;
+            border-color: #fcd34d;
+        }
+        .details-cell {
+            min-width: 280px;
+        }
+        .reason-text {
+            min-width: 260px;
+        }
         @media (max-width: 1180px) {
             .controls-grid,
             .status-grid,
@@ -677,6 +719,46 @@
             </div>
         </section>
 
+        <section class="panel">
+            <div class="section-head">
+                <div>
+                    <h3>Copilot Payment Review</h3>
+                    <div class="sub">Read-only review of Copilot payment rows in the selected date range.</div>
+                </div>
+                <div class="review-toolbar">
+                    <label class="toggle-chip">
+                        <input type="checkbox" id="unresolvedOnlyToggle" checked onchange="loadPaymentReview()">
+                        Unresolved only
+                    </label>
+                    <span class="source-pill" id="reviewCount">0 unresolved rows</span>
+                </div>
+            </div>
+            <div class="callout">
+                <div>↳</div>
+                <div>
+                    Use this table to inspect payment rows that are missing an invoice link. It helps explain reconciliation variance without changing the Copilot collected-tax recommendation.
+                </div>
+            </div>
+            <div class="review-meta" id="reviewMeta">Choose a date range and load the report to inspect Copilot payment rows.</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Payment Date</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Details</th>
+                            <th>Extracted Invoice</th>
+                            <th>Linkage</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reviewBody">
+                        <tr><td colspan="7" class="empty-state">Load the report to inspect Copilot payment linkage.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 </main>
 
@@ -993,12 +1075,14 @@
         const range = getRange();
         if (!isValidRange(range)) {
             setSyncStatus('Choose a valid date range where the start date is not after the end date.', 'error');
+            resetPaymentReview('Choose a valid date range to inspect Copilot payment rows.');
             return;
         }
 
         setBusy('loadBtn', true, 'Loading…');
         document.getElementById('daysBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
         setSyncStatus('Loading tax transfer report…', 'loading');
+        loadPaymentReview();
         try {
             const params = new URLSearchParams(range);
             const res = await fetch('/api/reports/tax-transfer-daily?' + params.toString());
@@ -1080,6 +1164,82 @@
         document.getElementById('detailLinked').textContent = '0';
         document.getElementById('detailUnresolved').textContent = '0';
         document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Select a day in the table to inspect payment-level reconciliation.</td></tr>';
+    }
+
+    function resetPaymentReview(message) {
+        document.getElementById('reviewCount').textContent = '0 unresolved rows';
+        document.getElementById('reviewMeta').textContent = message || 'Choose a date range and load the report to inspect Copilot payment rows.';
+        document.getElementById('reviewBody').innerHTML = '<tr><td colspan="7" class="empty-state">Load the report to inspect Copilot payment linkage.</td></tr>';
+    }
+
+    function renderPaymentReview(data) {
+        const totalRows = Number(data.summary?.total_rows || 0);
+        const unresolvedRows = Number(data.summary?.unresolved_count || 0);
+        const linkedRows = Number(data.summary?.linked_count || 0);
+        const payments = Array.isArray(data.payments) ? data.payments : [];
+        const unresolvedOnly = Boolean(data.unresolved_only);
+
+        document.getElementById('reviewCount').textContent = `${unresolvedRows} unresolved row${unresolvedRows === 1 ? '' : 's'}`;
+        document.getElementById('reviewMeta').textContent = unresolvedOnly
+            ? `Showing ${payments.length} unresolved Copilot payment row${payments.length === 1 ? '' : 's'} from ${shortDate(data.start_date)} through ${shortDate(data.end_date)}. ${linkedRows} linked row${linkedRows === 1 ? '' : 's'} are hidden by the filter.`
+            : `Showing ${totalRows} Copilot payment row${totalRows === 1 ? '' : 's'} from ${shortDate(data.start_date)} through ${shortDate(data.end_date)}. ${unresolvedRows} unresolved, ${linkedRows} linked.`;
+
+        document.getElementById('reviewBody').innerHTML = payments.length
+            ? payments.map((payment) => {
+                const isLinked = payment.link_status === 'linked';
+                const statusClass = isLinked ? 'status-pill-linked' : 'status-pill-unresolved';
+                const details = payment.details || payment.notes || '—';
+                const notes = payment.notes && payment.notes !== payment.details ? `<div class="inline-note">Notes: ${escapeHtml(payment.notes)}</div>` : '';
+                const linkageNote = payment.current_invoice_match_number && !isLinked
+                    ? `<div class="inline-note">Current local match: ${escapeHtml(payment.current_invoice_match_number)}</div>`
+                    : '';
+                return `
+                    <tr>
+                        <td>${shortDate(String(payment.payment_date || '').slice(0, 10))}</td>
+                        <td><strong>${escapeHtml(payment.customer_name || 'Unknown customer')}</strong></td>
+                        <td class="money">${money(payment.amount)}</td>
+                        <td>${escapeHtml(payment.method || 'Unknown')}</td>
+                        <td class="details-cell">
+                            <div>${escapeHtml(details)}</div>
+                            ${notes}
+                        </td>
+                        <td>${escapeHtml(payment.extracted_invoice_number || '—')}</td>
+                        <td class="reason-text">
+                            <span class="source-pill ${statusClass}">${isLinked ? 'Linked' : 'Unresolved'}</span>
+                            <div class="inline-note" style="margin-top:8px;">${escapeHtml(payment.link_failure_reason || 'Linked successfully.')}</div>
+                            ${linkageNote}
+                        </td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="7" class="empty-state">No Copilot payment rows matched the current review filters.</td></tr>';
+    }
+
+    async function loadPaymentReview() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            resetPaymentReview('Choose a valid date range to inspect Copilot payment rows.');
+            return;
+        }
+
+        document.getElementById('reviewMeta').textContent = `Loading Copilot payment review for ${shortDate(range.start_date)} through ${shortDate(range.end_date)}…`;
+        document.getElementById('reviewBody').innerHTML = '<tr><td colspan="7" class="empty-state">Loading Copilot payment linkage…</td></tr>';
+
+        try {
+            const params = new URLSearchParams({
+                start_date: range.start_date,
+                end_date: range.end_date,
+                unresolved_only: document.getElementById('unresolvedOnlyToggle').checked ? 'true' : 'false',
+            });
+            const res = await fetch('/api/copilot/payment-review?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load Copilot payment review');
+            renderPaymentReview(data);
+        } catch (error) {
+            document.getElementById('reviewCount').textContent = 'Review unavailable';
+            document.getElementById('reviewMeta').textContent = `Unable to load Copilot payment review. ${error.message}`;
+            document.getElementById('reviewBody').innerHTML = `<tr><td colspan="7" class="empty-state">Unable to load Copilot payment linkage. ${escapeHtml(error.message)}</td></tr>`;
+        }
     }
 
     async function selectDay(date) {

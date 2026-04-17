@@ -80,7 +80,7 @@ function buildCopilotPaymentRecord(payment, invoiceMatch) {
   };
 
   return {
-    payment_id: `copilot:${payment.external_payment_key}`,
+    payment_id: null,
     invoice_id: invoiceMatch?.id || null,
     customer_id: invoiceMatch?.customer_id || null,
     customer_name: payment.customer_name || invoiceMatch?.customer_name || null,

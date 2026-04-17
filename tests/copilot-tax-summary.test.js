@@ -74,6 +74,16 @@ it('parses Tax Summary collected rows and totals', () => {
   assert.strictEqual(parsed.tips, 12);
 });
 
+it('flags a missing Tax Summary table as a parser warning instead of a valid zero snapshot', () => {
+  const parsed = parseCopilotTaxSummaryHtml('<html><body><h1>Sign In</h1></body></html>', {
+    startDate: '2026-04-17',
+    endDate: '2026-04-17',
+    basis: 'collected',
+  });
+  assert.strictEqual(parsed.rows.length, 0);
+  assert.strictEqual(parsed.parser_warning, 'Tax Summary table not found');
+});
+
 it('normalizes daily tax summary snapshots into persisted/report shape', () => {
   const parsed = parseCopilotTaxSummaryHtml(fixtureHtml, {
     startDate: '2026-04-17',

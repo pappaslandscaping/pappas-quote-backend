@@ -75,6 +75,12 @@ it('parses Copilot payments rows, totals, and trailing-slash pagination', () => 
   assert.deepStrictEqual(parsed.page_paths, ['/finances/payments?p=2&iop=100']);
 });
 
+it('flags missing payments tables as parser warnings instead of a valid empty snapshot', () => {
+  const parsed = parseCopilotPaymentsHtml('<html><body><h1>Login</h1></body></html>', 'https://secure.copilotcrm.com/finances/payments');
+  assert.strictEqual(parsed.payments.length, 0);
+  assert.strictEqual(parsed.parser_warning, 'Payments table not found');
+});
+
 it('extracts invoice linkage from details and preserves fields', () => {
   const parsed = parseCopilotPaymentsHtml(fixtureHtml, 'https://secure.copilotcrm.com/finances/payments');
   const first = parsed.payments[0];
@@ -167,6 +173,7 @@ it('builds linked payment reconciliation rows and hydrates computed fields', () 
     ...prepared,
     id: 9,
   });
+  assert.strictEqual(prepared.payment_id, null);
   assert.strictEqual(prepared.invoice_id, 42);
   assert.strictEqual(prepared.tax_portion_collected, 62.21);
   assert.strictEqual(hydrated.applied_amount, 1036.8);

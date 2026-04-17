@@ -209,6 +209,9 @@ async function fetchCopilotTaxSummarySnapshot({ startDate, endDate, basis = 'col
     basis,
     pageUrl: `${COPILOT_TAX_SUMMARY_BASE_PATH}?type=${basis}&sdate=${startDate}&edate=${endDate}`,
   });
+  if (parsed?.parser_warning) {
+    throw new Error(parsed.parser_warning);
+  }
   const normalized = normalizeTaxSummarySnapshot({
     ...parsed,
     as_of: new Date().toISOString(),
@@ -300,6 +303,9 @@ async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25, for
 
     const html = await copilotRes.text();
     const parsed = parseCopilotPaymentsHtml(html, url);
+    if (parsed?.parser_warning) {
+      throw new Error(parsed.parser_warning);
+    }
     if (total == null && Number.isFinite(Number(parsed.total))) {
       total = Number(parsed.total);
     }

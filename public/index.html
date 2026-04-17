@@ -350,7 +350,8 @@ async function loadStatCards() {
     if (!hasNumber((readSnapshot() || {}).revenue) && hasNumber(invStats.paidThisMonth)) {
       partial.revenue = Number(invStats.paidThisMonth);
     }
-    if (!hasNumber((readSnapshot() || {}).outstanding) && hasNumber(invStats.outstanding)) {
+    var currentOutstanding = (readSnapshot() || {}).outstanding;
+    if ((!hasNumber(currentOutstanding) || Number(currentOutstanding) <= 0) && hasNumber(invStats.outstanding) && Number(invStats.outstanding) > 0) {
       partial.outstanding = Number(invStats.outstanding);
     }
     updateSnapshot(partial);

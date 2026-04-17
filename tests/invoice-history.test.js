@@ -109,6 +109,40 @@ it('falls back to paid_at when there is no payment row history', () => {
   assert.ok(paidEvent.title.includes('$48.60'));
 });
 
+it('does not add synthetic sent/reminder events when email_log already recorded failed attempts', () => {
+  const events = buildInvoiceHistoryEvents({
+    invoice_number: '10500',
+    customer_email: 'customer@example.com',
+    created_at: '2026-04-01T12:00:00Z',
+    sent_at: '2026-04-02T13:00:00Z',
+    reminder_sent_at: '2026-04-03T14:00:00Z',
+    reminder_count: 1,
+  }, {
+    emailLog: [
+      {
+        email_type: 'invoice',
+        status: 'failed',
+        recipient_email: 'customer@example.com',
+        sent_at: '2026-04-02T13:00:10Z',
+      },
+      {
+        email_type: 'invoice_reminder',
+        status: 'failed',
+        recipient_email: 'customer@example.com',
+        sent_at: '2026-04-03T14:00:10Z',
+      },
+    ],
+  });
+
+  const sentLikeEvents = events.filter(event => event.badge === 'Sent' || event.badge === 'Sent by Email');
+  const reminderLikeEvents = events.filter(event => event.badge === 'Reminder Sent');
+  const failedEvents = events.filter(event => event.badge === 'Email Failed' || event.badge === 'Reminder Failed');
+
+  assert.strictEqual(sentLikeEvents.length, 0);
+  assert.strictEqual(reminderLikeEvents.length, 0);
+  assert.strictEqual(failedEvents.length, 2);
+});
+
 if (failures > 0) {
   process.exitCode = 1;
 } else {

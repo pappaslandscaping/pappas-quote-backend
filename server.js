@@ -10734,6 +10734,45 @@ function assertCronSecret(req, res) {
   return false;
 }
 
+function readBoundedInt(rawValue, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+async function runCopilotInvoiceRepair(req, res) {
+  if (!assertCronSecret(req, res)) return;
+  try {
+    const detailLimit = readBoundedInt(req.body?.detailLimit ?? req.query.detailLimit, 40, { min: 1, max: 500 });
+    const maxPages = readBoundedInt(req.body?.maxPages ?? req.query.maxPages, 25, { min: 1, max: 150 });
+    const pageSize = readBoundedInt(req.body?.pageSize ?? req.query.pageSize, 100, { min: 1, max: 250 });
+
+    const result = await syncCopilotInvoices({
+      pageSize,
+      maxPages,
+      linkCustomers: req.body?.linkCustomers !== false && req.query.linkCustomers !== 'false',
+      detailMode: 'missing',
+      detailLimit,
+    });
+
+    res.json({
+      success: true,
+      trigger: 'cron-repair',
+      detail: {
+        total: result.detail?.total || 0,
+        updated: result.detail?.updated || 0,
+        errors: result.detail?.errors || 0,
+      },
+      pageSize,
+      maxPages,
+      detailLimit,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    serverError(res, error, 'CopilotCRM cron invoice repair failed');
+  }
+}
+
 app.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) => {
   try {
     const result = await syncCopilotInvoices({
@@ -10802,6 +10841,14 @@ app.get('/api/cron/copilot-invoices-sync', async (req, res) => {
   } catch (error) {
     serverError(res, error, 'CopilotCRM cron invoice sync failed');
   }
+});
+
+app.post('/api/cron/copilot-invoices-repair', async (req, res) => {
+  await runCopilotInvoiceRepair(req, res);
+});
+
+app.get('/api/cron/copilot-invoices-repair', async (req, res) => {
+  await runCopilotInvoiceRepair(req, res);
 });
 
 // ═══════════════════════════════════════════════════════════════

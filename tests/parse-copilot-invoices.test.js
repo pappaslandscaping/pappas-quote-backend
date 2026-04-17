@@ -271,7 +271,6 @@ it('splits name and email when Copilot puts both inside the same customer link',
   assert.strictEqual(r[0].customer_name, 'Henrietta Pattantyus');
   assert.strictEqual(r[0].customer_email, 'henrijeff12@gmail.com');
 });
-
 it('preserves a not-sent pending invoice as pending instead of sent', () => {
   const fragment = `
     <tr id="invoice_10448">
@@ -290,6 +289,7 @@ it('preserves a not-sent pending invoice as pending instead of sent', () => {
     </tr>`;
   const r = parseInvoiceListHtml(fragment);
   assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].invoice_number, '10448');
   assert.strictEqual(r[0].status, 'pending');
   assert.strictEqual(r[0].sent_status, 'not sent');
 });

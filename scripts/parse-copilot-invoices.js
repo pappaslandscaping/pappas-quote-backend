@@ -101,7 +101,6 @@ function parseCustomerCell($, $custCell, $custAnchor) {
 
   return { customer_name, customer_email };
 }
-
 function mapStatus(rawStatus, amountPaid, total, sentStatus) {
   return normalizeCopilotInvoiceStatus({
     rawStatus,

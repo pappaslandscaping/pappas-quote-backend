@@ -47,8 +47,15 @@ router.get('/api/sent-quotes', async (req, res) => {
     let p = 1;
 
     if (status) {
-      query += ` AND sq.status = $${p++}`;
-      values.push(status);
+      if (status === 'pending_signature') {
+        query += ` AND sq.contract_signed_at IS NULL
+                   AND sq.status IN ('sent', 'viewed')
+                   AND COALESCE(sq.notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+        `;
+      } else {
+        query += ` AND sq.status = $${p++}`;
+        values.push(status);
+      }
     }
     if (quote_type) {
       query += ` AND sq.quote_type = $${p++}`;
@@ -72,9 +79,14 @@ router.get('/api/sent-quotes', async (req, res) => {
           COUNT(*) FILTER (WHERE status = 'sent')::int AS sent,
           COUNT(*) FILTER (WHERE status = 'viewed')::int AS viewed,
           COUNT(*) FILTER (WHERE status = 'signed')::int AS signed,
+          COUNT(*) FILTER (WHERE status = 'contracted')::int AS contracted,
           COUNT(*) FILTER (WHERE status = 'declined')::int AS declined,
           COUNT(*) FILTER (WHERE status = 'changes_requested')::int AS changes_requested,
-          COUNT(*) FILTER (WHERE status = 'signed' AND contract_signed_at IS NULL)::int AS pending_signatures
+          COUNT(*) FILTER (
+            WHERE contract_signed_at IS NULL
+              AND status IN ('sent', 'viewed')
+              AND COALESCE(notes, '') ILIKE 'Auto-created from CopilotCRM estimate #%'
+          )::int AS pending_signatures
         FROM sent_quotes
       `)
     ]);
@@ -84,6 +96,7 @@ router.get('/api/sent-quotes', async (req, res) => {
       sent: 0,
       viewed: 0,
       signed: 0,
+      contracted: 0,
       declined: 0,
       changes_requested: 0,
       pending_signatures: 0,

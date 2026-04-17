@@ -284,37 +284,81 @@ async function loadHeroSubtitle() {
 
 // ── Top metrics ─────────────────────────────────────────────
 async function loadStats() {
-  var [finance, invStats, custStats, sentQuotes] = await Promise.all([
+  var storageKey = 'homeDashboardTopCards';
+
+  function readSnapshot() {
+    try {
+      var raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeSnapshot(snapshot) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(snapshot));
+    } catch (_) {}
+  }
+
+  function hasNumber(value) {
+    return Number.isFinite(Number(value));
+  }
+
+  function renderSnapshot(snapshot) {
+    if (!snapshot) return false;
+    if (hasNumber(snapshot.revenue)) setText('stat-revenue', money(snapshot.revenue));
+    if (hasNumber(snapshot.outstanding)) setText('stat-outstanding', money(snapshot.outstanding));
+    if (hasNumber(snapshot.pipeline)) setText('stat-pipeline', money(snapshot.pipeline));
+    if (hasNumber(snapshot.clients)) setText('stat-clients', num(snapshot.clients));
+    return true;
+  }
+
+  var cached = readSnapshot();
+  renderSnapshot(cached);
+
+  var settled = await Promise.allSettled([
     getJson('/api/finance/summary'),
     getJson('/api/invoices/stats'),
     getJson('/api/customers/stats'),
     getJson('/api/sent-quotes?limit=500'),
   ]);
 
-  // Revenue this month
-  var revenue = finance && (finance.paid_this_month || finance.revenue_this_month);
-  if (revenue == null && invStats) revenue = invStats.paid_this_month || 0;
-  setText('stat-revenue', revenue != null ? money(revenue) : '—');
+  function valueAt(index) {
+    return settled[index] && settled[index].status === 'fulfilled' ? settled[index].value : null;
+  }
 
-  // Outstanding
-  var outstanding = invStats && (invStats.total_outstanding || invStats.outstanding || invStats.balance_due);
-  if (outstanding == null && finance) outstanding = finance.outstanding;
-  setText('stat-outstanding', outstanding != null ? money(outstanding) : '—');
+  var finance = valueAt(0);
+  var invStatsResponse = valueAt(1);
+  var custStatsResponse = valueAt(2);
+  var sentQuotes = valueAt(3);
 
-  // Pipeline value (sum of unsigned sent_quotes)
-  var pipeline = 0;
+  var invStats = invStatsResponse && (invStatsResponse.stats || invStatsResponse);
+  var custStats = custStatsResponse && (custStatsResponse.stats || custStatsResponse);
+  var nextSnapshot = Object.assign({}, cached || {});
+
+  var revenue = finance && finance.thisMonth && finance.thisMonth.revenue;
+  if (revenue == null && invStats) revenue = invStats.paidThisMonth;
+  if (hasNumber(revenue)) nextSnapshot.revenue = Number(revenue);
+
+  var outstanding = finance && finance.outstanding && finance.outstanding.totalOutstanding;
+  if (outstanding == null && invStats) outstanding = invStats.outstanding;
+  if (hasNumber(outstanding)) nextSnapshot.outstanding = Number(outstanding);
+
   if (sentQuotes && Array.isArray(sentQuotes.quotes)) {
+    var pipeline = 0;
     sentQuotes.quotes.forEach(function(q) {
       if (q.status && ['sent', 'viewed', 'pending', 'changes_requested'].indexOf(q.status) >= 0) {
         pipeline += parseFloat(q.total) || 0;
       }
     });
+    nextSnapshot.pipeline = pipeline;
   }
-  setText('stat-pipeline', money(pipeline));
 
-  // Active clients
-  var clients = custStats && (custStats.total_active || custStats.active || custStats.total);
-  setText('stat-clients', clients != null ? num(clients) : '—');
+  var clients = custStats && (custStats.active != null ? custStats.active : (custStats.total_active != null ? custStats.total_active : custStats.total));
+  if (hasNumber(clients)) nextSnapshot.clients = Number(clients);
+
+  if (renderSnapshot(nextSnapshot)) writeSnapshot(nextSnapshot);
 }
 
 // ── Sales pulse ─────────────────────────────────────────────

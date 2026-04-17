@@ -6,6 +6,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const cheerio = require('cheerio');
 const { validate, schemas } = require('../lib/validate');
 const {
   normalizeStoredInvoiceStatus,
@@ -13,13 +14,152 @@ const {
   cleanStatusValue,
 } = require('../lib/invoice-status');
 
-module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME }) {
+module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
   const router = express.Router();
+
+let cachedCopilotStanding = null;
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
   const paid = parseFloat(inv.amount_paid) || 0;
   return Math.max(0, total - paid);
+}
+
+function normalizeCount(value) {
+  const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function deriveDbAccountStanding(rows) {
+  const standing = { total: 0, outstanding: 0, paid: 0, past_due: 0, credit: 0 };
+  const creditCustomers = new Set();
+
+  for (const inv of rows || []) {
+    const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+    standing.total += 1;
+    if (['pending', 'partial', 'sent', 'overdue'].includes(effectiveStatus)) standing.outstanding += 1;
+    if (effectiveStatus === 'paid') standing.paid += 1;
+    if (effectiveStatus === 'overdue') standing.past_due += 1;
+
+    const creditAvailable = parseFloat(inv.credit_available || 0);
+    if (creditAvailable > 0) {
+      const customerKey = String(
+        inv.copilot_customer_id ||
+        inv.customer_id ||
+        inv.customer_email ||
+        inv.customer_name ||
+        inv.id
+      );
+      creditCustomers.add(customerKey);
+    }
+  }
+
+  standing.credit = creditCustomers.size;
+  return standing;
+}
+
+async function fetchCopilotCreditCount(cookieHeader, { pageSize = 100, maxPages = 150 } = {}) {
+  const creditedCustomers = new Set();
+  const seenFirstIds = new Set();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const formData = new URLSearchParams();
+    formData.append('pagination[]', `p=${page}`);
+    formData.append('pagination[]', `iop=${pageSize}`);
+    formData.append('pagination[]', 'sort=datedesc');
+
+    const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookieHeader,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData.toString(),
+    });
+
+    if (!copilotRes.ok) break;
+    const data = await copilotRes.json();
+    const html = data.html || '';
+    const rows = [];
+    const $ = cheerio.load(html);
+    $('tbody tr').each((_, row) => {
+      const tds = $(row).find('td');
+      if (tds.length < 12) return;
+      const invoiceNumber = tds.eq(0).text().replace(/\s+/g, ' ').trim();
+      const firstLink = $(row).find('a[href*="/finances/invoices/view/"]').first();
+      const firstId = firstLink.attr('href')?.match(/\/view\/(\d+)/)?.[1] || invoiceNumber;
+      rows.push({
+        firstId,
+        customerKey: $(row).find('a[href*="/customers/details/"]').first().attr('href')?.match(/\/details\/(\d+)/)?.[1]
+          || tds.eq(2).text().replace(/\s+/g, ' ').trim(),
+        creditAvailable: parseFloat((tds.eq(9).text() || '').replace(/[^0-9.-]/g, '')) || 0,
+      });
+    });
+
+    if (!rows.length) break;
+    if (rows[0].firstId && seenFirstIds.has(rows[0].firstId)) break;
+    if (rows[0].firstId) seenFirstIds.add(rows[0].firstId);
+
+    rows.forEach(row => {
+      if (row.creditAvailable > 0 && row.customerKey) creditedCustomers.add(String(row.customerKey));
+    });
+
+    if (rows.length < pageSize) break;
+  }
+
+  return creditedCustomers.size;
+}
+
+async function fetchCopilotAccountStanding() {
+  if (typeof getCopilotToken !== 'function') return null;
+
+  const now = Date.now();
+  if (cachedCopilotStanding && cachedCopilotStanding.expiresAt > now) {
+    return cachedCopilotStanding.value;
+  }
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) return null;
+
+  const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices', {
+    headers: {
+      'Cookie': tokenInfo.cookieHeader,
+      'Referer': 'https://secure.copilotcrm.com/',
+    },
+  });
+  if (!copilotRes.ok) return null;
+
+  const html = await copilotRes.text();
+  const $ = cheerio.load(html);
+  const pillValues = {};
+  $('.page-stat-pill').each((_, pill) => {
+    const title = $(pill).find('.page-stat-title').text().replace(/\s+/g, ' ').trim().toLowerCase();
+    const value = normalizeCount($(pill).find('.page-stat-value').text());
+    if (!title) return;
+    pillValues[title] = value;
+  });
+
+  const value = {
+    source: 'copilot',
+    as_of: new Date().toISOString(),
+    total: pillValues.total || 0,
+    outstanding: pillValues.outstanding || 0,
+    paid: pillValues.paid || 0,
+    past_due: pillValues['past due'] || 0,
+    credit: Object.prototype.hasOwnProperty.call(pillValues, 'credit')
+      ? pillValues.credit
+      : await fetchCopilotCreditCount(tokenInfo.cookieHeader),
+  };
+
+  cachedCopilotStanding = {
+    value,
+    expiresAt: now + (60 * 1000),
+  };
+
+  return value;
 }
 
 // GET /api/payments - List received payments (paid/partial invoices)
@@ -159,7 +299,13 @@ router.get('/api/invoices', async (req, res) => {
 // GET /api/invoices/stats - Invoice statistics
 router.get('/api/invoices/stats', async (req, res) => {
   try {
-    const all = await pool.query('SELECT status, total, amount_paid, due_date, paid_at FROM invoices');
+    const all = await pool.query(`
+      SELECT status, total, amount_paid, due_date, paid_at,
+             customer_id, customer_name, customer_email,
+             external_metadata->>'copilot_customer_id' AS copilot_customer_id,
+             COALESCE((external_metadata->>'credit_available')::numeric, 0) AS credit_available
+      FROM invoices
+    `);
     const now = new Date();
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     let stats = { total: 0, draft: 0, pending: 0, partial: 0, sent: 0, paid: 0, overdue: 0, void: 0,
@@ -181,6 +327,20 @@ router.get('/api/invoices/stats', async (req, res) => {
         stats.overdueAmount += balance;
       }
     });
+    const fallbackStanding = {
+      ...deriveDbAccountStanding(all.rows),
+      source: 'database',
+      as_of: new Date().toISOString(),
+    };
+    let accountStanding = fallbackStanding;
+    try {
+      const copilotStanding = await fetchCopilotAccountStanding();
+      if (copilotStanding) accountStanding = copilotStanding;
+    } catch (error) {
+      console.error('Error fetching Copilot account standing:', error);
+    }
+    stats.account_standing = accountStanding;
+    stats.account_standing_fallback = fallbackStanding;
     res.json({ success: true, stats });
   } catch (error) {
     console.error('Error fetching invoice stats:', error);

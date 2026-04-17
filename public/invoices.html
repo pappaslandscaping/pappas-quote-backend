@@ -475,35 +475,35 @@
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-label">Total Outstanding</span>
+                    <span class="stat-label">Past Due</span>
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
                 </div>
-                <div class="stat-value" id="outstandingStat">$0</div>
-                <div class="stat-sub">across open invoices</div>
+                <div class="stat-value" id="pastDueStat">0</div>
+                <div class="stat-sub">Copilot Account Standing</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-label">Overdue</span>
+                    <span class="stat-label">Outstanding</span>
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
                 </div>
-                <div class="stat-value" id="overdueStat">$0</div>
-                <div class="stat-sub">past due date</div>
+                <div class="stat-value" id="outstandingStat">0</div>
+                <div class="stat-sub">Copilot Account Standing</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-label">Awaiting Payment</span>
+                    <span class="stat-label">Credit</span>
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
                 </div>
-                <div class="stat-value" id="awaitingStat">$0</div>
-                <div class="stat-sub">pending, partial, and current sent invoices</div>
+                <div class="stat-value" id="creditStat">0</div>
+                <div class="stat-sub">customers with available credit</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
-                    <span class="stat-label">Paid This Month</span>
+                    <span class="stat-label">Paid</span>
                     <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
                 </div>
-                <div class="stat-value" id="paidMonthStat">$0</div>
-                <div class="stat-sub" id="totalRevenueSub">total revenue $0</div>
+                <div class="stat-value" id="paidStat">0</div>
+                <div class="stat-sub" id="standingSourceSub">Copilot Account Standing</div>
             </div>
         </div>
 
@@ -950,17 +950,26 @@
             const response = await fetch(`${API_BASE}/invoices/stats`);
             const data = await response.json();
             const stats = data.stats || data;
+            const standing = stats.account_standing || stats.accountStanding || {};
+            const fallbackStanding = stats.account_standing_fallback || {};
 
-            const outstanding = parseFloat(stats.outstanding || 0);
-            const overdue = parseFloat(stats.overdueAmount || stats.overdue || 0);
-            const awaiting = Math.max(0, outstanding - overdue);
+            const valueOrFallback = (key) => {
+                const raw = standing[key];
+                if (Number.isFinite(Number(raw))) return Number(raw);
+                const fb = fallbackStanding[key];
+                return Number.isFinite(Number(fb)) ? Number(fb) : 0;
+            };
 
-            document.getElementById('outstandingStat').textContent = formatCurrency(outstanding);
-            document.getElementById('overdueStat').textContent = formatCurrency(overdue);
-            document.getElementById('awaitingStat').textContent = formatCurrency(awaiting);
-            document.getElementById('paidMonthStat').textContent = formatCurrency(stats.paidThisMonth || 0);
-            const totalRevSub = document.getElementById('totalRevenueSub');
-            if (totalRevSub) totalRevSub.textContent = `total revenue ${formatCurrency(stats.totalRevenue || 0)}`;
+            document.getElementById('pastDueStat').textContent = valueOrFallback('past_due').toLocaleString('en-US');
+            document.getElementById('outstandingStat').textContent = valueOrFallback('outstanding').toLocaleString('en-US');
+            document.getElementById('creditStat').textContent = valueOrFallback('credit').toLocaleString('en-US');
+            document.getElementById('paidStat').textContent = valueOrFallback('paid').toLocaleString('en-US');
+
+            const standingSourceSub = document.getElementById('standingSourceSub');
+            if (standingSourceSub) {
+                const source = standing.source === 'copilot' ? 'Copilot live Account Standing' : 'database fallback';
+                standingSourceSub.textContent = source;
+            }
         } catch (error) {
             console.error('Error loading stats:', error);
         }

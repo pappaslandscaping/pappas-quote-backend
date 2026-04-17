@@ -2614,7 +2614,7 @@ const invoiceRoutes = require('./routes/invoices')({
   pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken,
   nextInvoiceNumber,
   squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError,
-  NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME,
+  NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken,
 });
 app.use(invoiceRoutes);
 

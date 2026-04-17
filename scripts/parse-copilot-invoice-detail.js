@@ -114,6 +114,20 @@ function collectLabelValues($) {
   return out;
 }
 
+function parseActivityPaidAt($) {
+  const paymentDates = [];
+  $('table.copilot-table tr').each((_, tr) => {
+    const $cells = $(tr).find('td');
+    if ($cells.length < 2) return;
+    const activityText = clean($cells.eq(0).text()).toLowerCase();
+    if (!activityText.includes('payment made')) return;
+    const parsedDate = parseDate($cells.eq(1).text());
+    if (parsedDate) paymentDates.push(parsedDate);
+  });
+  if (!paymentDates.length) return null;
+  return paymentDates.sort().at(-1);
+}
+
 function parseDescriptionCell($td) {
   const $clone = $td.clone();
   const detailsText = clean($clone.find('small').text()) || null;
@@ -305,7 +319,7 @@ function parseInvoiceDetailHtml(html) {
     clean($('.invoice-paid-date, .paid-date, .inv-paid-date').first().text()) ||
     pick(labelValues, 'paid date', 'payment date', 'date paid')
   );
-  const paid_at = parseDate(paidAtRaw);
+  const paid_at = parseDate(paidAtRaw) || parseActivityPaidAt($);
 
   // ── Notes + terms ────────────────────────────────────────
   const notes = clean($('.inv-notes-container').first().text()) || null;

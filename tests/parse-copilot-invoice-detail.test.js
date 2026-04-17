@@ -327,6 +327,32 @@ it('inherits the public invoice number from the list row when detail falls back 
   assert.strictEqual(merged.line_items[0].service_date, '2025-10-06');
 });
 
+it('derives paid_at from Copilot activity history when the detail page lacks a paid_at field', () => {
+  const paidFixture = `
+    <html>
+      <body>
+        <input type="hidden" id="inv_id" value="2160138">
+        <table class="table--description">
+          <tbody>
+            <tr><td>Oct 06, 2025</td><td>Mowing (Weekly)</td><td>$39</td><td>1</td><td>0.17</td><td>8%</td><td>$42.12</td></tr>
+          </tbody>
+        </table>
+        <table class="table--sub-total">
+          <tr><td>Total</td><td>$42.12</td></tr>
+          <tr><td>Amount Paid</td><td>$42.12</td></tr>
+          <tr><td>Total Due</td><td>$0.00</td></tr>
+        </table>
+        <table class="table copilot-table">
+          <tr><td>Payment Made by Mary Mertens via Customer Portal for 42.12</td><td>Nov 12, 2025 4:25 pm</td></tr>
+          <tr><td>Viewed by You</td><td>Nov 12, 2025 4:25 pm</td></tr>
+          <tr><td>Created by Timothy Pappas</td><td>Oct 06, 2025 6:09 pm</td></tr>
+        </table>
+      </body>
+    </html>`;
+  const detail = parseInvoiceDetailHtml(paidFixture);
+  assert.strictEqual(detail.paid_at, '2025-11-12');
+});
+
 if (failures > 0) {
   console.error(`\n${failures} test(s) failed.`);
   process.exit(1);

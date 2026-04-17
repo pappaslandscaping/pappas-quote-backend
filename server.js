@@ -16,7 +16,7 @@ const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('
 const { validate, schemas } = require('./lib/validate');
 const { parseInvoiceListHtml } = require('./scripts/parse-copilot-invoices');
 const { parseInvoiceDetailHtml } = require('./scripts/parse-copilot-invoice-detail');
-const { syncInvoicesToDatabase, syncInvoiceDetailsToDatabase } = require('./scripts/import-copilot-invoices');
+const { syncInvoicesToDatabase, syncInvoiceDetailsToDatabase, mergeDetailIdentityFromListRow } = require('./scripts/import-copilot-invoices');
 const {
   getCopilotToken: getCopilotTokenFromService,
   parseCopilotRouteHtml,
@@ -10674,10 +10674,11 @@ async function syncCopilotInvoices({
           viewPath: row.view_path,
           externalInvoiceId: row.external_invoice_id,
         });
-        if (!detail.sent_status && row.sent_status) detail.sent_status = row.sent_status;
-        if (!detail.raw_status && row.raw_status) detail.raw_status = row.raw_status;
-        if (!detail.status && row.status) detail.status = row.status;
-        details.push(detail);
+        const normalizedDetail = mergeDetailIdentityFromListRow(detail, row);
+        if (!normalizedDetail.sent_status && row.sent_status) normalizedDetail.sent_status = row.sent_status;
+        if (!normalizedDetail.raw_status && row.raw_status) normalizedDetail.raw_status = row.raw_status;
+        if (!normalizedDetail.status && row.status) normalizedDetail.status = row.status;
+        details.push(normalizedDetail);
       } catch (error) {
         detailResult.errors += 1;
         console.error('Copilot detail enrichment error:', error.message);

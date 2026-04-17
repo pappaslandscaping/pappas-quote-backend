@@ -10,7 +10,7 @@
 
 const assert = require('assert');
 const { parseInvoiceDetailHtml } = require('../scripts/parse-copilot-invoice-detail');
-const { toDbValuesFromDetail } = require('../scripts/import-copilot-invoices');
+const { toDbValuesFromDetail, mergeDetailIdentityFromListRow } = require('../scripts/import-copilot-invoices');
 
 let failures = 0;
 function it(name, fn) {
@@ -279,6 +279,52 @@ it('parses live-like Copilot detail rows where the service date is embedded in t
   assert.strictEqual(d.line_items[1].service_date, '2026-04-13');
   assert.strictEqual(d.line_items[1].description, 'Mowing (Bi-Weekly)');
   assert.strictEqual(d.parse_diagnostics.warning, undefined);
+});
+
+it('inherits the public invoice number from the list row when detail falls back to the internal id', () => {
+  const liveLike = `
+    <html>
+      <body>
+        <input type="hidden" id="inv_id" value="2160138">
+        <table class="table table--description copilot-table">
+          <thead>
+            <tr class="headers">
+              <th width="50%">Description</th>
+              <th width="10%">Cost/Rate</th>
+              <th width="10%">Qty/Hr</th>
+              <th width="10%">Budgeted Hours</th>
+              <th width="10%">Taxes %</th>
+              <th width="10%" class="last">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="desc">Oct 06, 2025 <span>Mowing (Weekly)</span></td>
+              <td class="cash">39.00</td>
+              <td class="qty">1</td>
+              <td class="bh">0.17</td>
+              <td class="qty">8.000</td>
+              <td class="cash">42.12</td>
+            </tr>
+          </tbody>
+        </table>
+        <table class="table--sub-total">
+          <tr><td>Total</td><td>$42.12</td></tr>
+          <tr><td>Amount Paid</td><td>$42.12</td></tr>
+          <tr><td>Total Due</td><td>$0.00</td></tr>
+        </table>
+      </body>
+    </html>`;
+  const detail = parseInvoiceDetailHtml(liveLike);
+  assert.strictEqual(detail.invoice_number, '2160138');
+
+  const merged = mergeDetailIdentityFromListRow(detail, {
+    external_invoice_id: '2160138',
+    invoice_number: '9297',
+  });
+
+  assert.strictEqual(merged.invoice_number, '9297');
+  assert.strictEqual(merged.line_items[0].service_date, '2025-10-06');
 });
 
 if (failures > 0) {

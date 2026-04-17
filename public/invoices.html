@@ -1353,9 +1353,9 @@
                 el.textContent = overrideText;
                 return;
             }
-            const source = snapshot?.source === 'copilot'
+            const source = (snapshot?.source === 'live_copilot' || snapshot?.source === 'copilot')
                 ? 'Copilot aging snapshot'
-                : snapshot?.source === 'copilot_snapshot'
+                : (snapshot?.source === 'persisted_copilot_snapshot' || snapshot?.source === 'copilot_snapshot')
                     ? 'Copilot cached snapshot'
                     : 'Receivables aging snapshot';
             const asOf = snapshot?.as_of ? new Date(snapshot.as_of) : null;

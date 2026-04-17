@@ -7184,17 +7184,21 @@ app.get('/api/finance/summary', async (req, res) => {
     }
 
     const revenueWindow = getCopilotRevenueWindow(now);
+    const hasUsableCopilotRevenue = Number.isFinite(Number(copilotRevenueSnapshot?.total))
+      && (Number(copilotRevenueSnapshot.total) > 0 || revenueMonth <= 0);
 
     res.json({
       thisMonth: {
-        revenue: Number.isFinite(Number(copilotRevenueSnapshot?.total))
+        revenue: hasUsableCopilotRevenue
           ? Number(copilotRevenueSnapshot.total)
           : revenueMonth,
         expenses: expensesMonth,
-        revenue_source: copilotRevenueSnapshot?.source || 'database',
-        revenue_as_of: copilotRevenueSnapshot?.as_of || null,
-        revenue_period_start: copilotRevenueSnapshot?.period_start || revenueWindow.start,
-        revenue_period_end: copilotRevenueSnapshot?.period_end || revenueWindow.end,
+        revenue_source: hasUsableCopilotRevenue
+          ? (copilotRevenueSnapshot?.source || 'copilot')
+          : 'database_fallback',
+        revenue_as_of: hasUsableCopilotRevenue ? (copilotRevenueSnapshot?.as_of || null) : null,
+        revenue_period_start: hasUsableCopilotRevenue ? (copilotRevenueSnapshot?.period_start || revenueWindow.start) : revenueWindow.start,
+        revenue_period_end: hasUsableCopilotRevenue ? (copilotRevenueSnapshot?.period_end || revenueWindow.end) : revenueWindow.end,
       },
       lastMonth: { revenue: revenueLastMonth, expenses: expensesLastMonth },
       yearToDate: {
@@ -10602,29 +10606,35 @@ function extractCopilotRevenueReportTotal(html) {
   const $ = cheerio.load(html || '');
   const selectorGroups = [
     'tfoot tr',
-    'table tr',
     '.grand-total',
     '.summary-row',
     '.report-total',
   ];
 
   for (const selector of selectorGroups) {
-    const candidates = [];
+    const positiveCandidates = [];
+    const zeroCandidates = [];
     $(selector).each((_, row) => {
       const text = $(row).text().replace(/\s+/g, ' ').trim();
-      if (!text || !/(grand total|total collected|^total$)/i.test(text)) return;
-      const lastCellValue = parseCurrencyAmount($(row).find('td,th').last().text());
-      if (Number.isFinite(lastCellValue)) candidates.push(lastCellValue);
-      candidates.push(...extractCurrencyValues(text));
+      if (!text || !/(grand total|total collected|collected total)/i.test(text)) return;
+      const rowValues = [
+        parseCurrencyAmount($(row).find('td,th').last().text()),
+        ...extractCurrencyValues(text),
+      ].filter((value) => Number.isFinite(value));
+      rowValues.forEach((value) => {
+        if (value > 0) positiveCandidates.push(value);
+        else zeroCandidates.push(value);
+      });
     });
-    if (candidates.length) return candidates[candidates.length - 1];
+    if (positiveCandidates.length) return Math.max(...positiveCandidates);
+    if (zeroCandidates.length) return 0;
   }
 
   const pageText = $('body').text().replace(/\s+/g, ' ').trim();
   const regexes = [
     /Grand Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
     /Total Collected[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
-    /Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
+    /Collected Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
   ];
   for (const regex of regexes) {
     const match = pageText.match(regex);

@@ -256,10 +256,10 @@ async function getJson(url) {
 
 // ── Hero subtitle: live operating context ───────────────────
 async function loadHeroSubtitle() {
-  var [today, sentQuotes, requests] = await Promise.all([
+  var [today, sentQuotes, requestStats] = await Promise.all([
     getJson('/api/jobs?date=' + new Date().toISOString().slice(0, 10)),
     getJson('/api/sent-quotes?limit=500'),
-    getJson('/api/work-requests?status=pending'),
+    getJson('/api/work-requests/stats'),
   ]);
 
   var jobsToday = today && Array.isArray(today.jobs) ? today.jobs.length : 0;
@@ -272,8 +272,10 @@ async function loadHeroSubtitle() {
   }
 
   var openRequests = 0;
-  if (requests && Array.isArray(requests.requests)) openRequests = requests.requests.length;
-  else if (requests && requests.total != null) openRequests = requests.total;
+  var workStats = requestStats && (requestStats.stats || requestStats);
+  if (workStats) {
+    openRequests = Number(workStats.open_total || workStats.total || 0);
+  }
 
   var bits = [];
   bits.push(jobsToday + ' job' + (jobsToday === 1 ? '' : 's') + ' scheduled today');
@@ -489,7 +491,7 @@ async function loadAttention() {
   var workStats = workRequestStats && (workRequestStats.stats || workRequestStats);
   var openReqs = 0;
   if (workStats) {
-    openReqs = Number(workStats.pending || 0) + Number(workStats.in_progress || 0);
+    openReqs = Number(workStats.open_total || workStats.total || 0);
   }
 
   var sentQuoteCounts = sentQuotes && sentQuotes.counts;

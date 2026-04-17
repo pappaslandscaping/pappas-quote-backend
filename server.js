@@ -28,6 +28,7 @@ const {
 const {
   LIVE_COPILOT_SOURCE,
   PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+  DATABASE_FALLBACK_SOURCE,
   getCopilotRevenueWindow,
   extractCopilotRevenueReportTotal,
   normalizeCopilotRevenueSnapshot,
@@ -35,6 +36,13 @@ const {
   isRevenueSnapshotForWindow,
   buildRevenueMetric,
 } = require('./lib/copilot-finance');
+const {
+  COPILOT_WORK_REQUESTS_BASE_PATH,
+  parseCopilotWorkRequestsHtml,
+  buildCopilotWorkRequestStats,
+  normalizeCopilotWorkRequestsSnapshot,
+  getWorkRequestsSnapshotExpiry,
+} = require('./lib/copilot-work-requests');
 const {
   ADMIN_USERS_TABLE,
   hashPassword,
@@ -9461,6 +9469,257 @@ app.get('/api/test-quote-pdf/:id', async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 runStartupMigrations(pool);
 
+let cachedCopilotWorkRequests = null;
+let cachedCopilotWorkRequestsPromise = null;
+const COPILOT_WORK_REQUESTS_SNAPSHOT_KEY = 'copilot_work_requests_snapshot';
+const COPILOT_WORK_REQUESTS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function readPersistedCopilotWorkRequestsSnapshot() {
+  try {
+    const result = await pool.query(
+      `SELECT value
+         FROM copilot_sync_settings
+        WHERE key = $1`,
+      [COPILOT_WORK_REQUESTS_SNAPSHOT_KEY]
+    );
+    if (!result.rows[0]?.value) return null;
+    return normalizeCopilotWorkRequestsSnapshot(
+      JSON.parse(result.rows[0].value),
+      PERSISTED_COPILOT_SNAPSHOT_SOURCE
+    );
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function persistCopilotWorkRequestsSnapshot(snapshot) {
+  const normalized = normalizeCopilotWorkRequestsSnapshot(snapshot, LIVE_COPILOT_SOURCE);
+  if (!normalized) return;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_WORK_REQUESTS_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+}
+
+function applyWorkRequestFilters(snapshot, { search, source, limit, offset } = {}) {
+  let requests = Array.isArray(snapshot?.requests) ? [...snapshot.requests] : [];
+  const normalizedSearch = String(search || '').trim().toLowerCase();
+  const normalizedSource = String(source || '').trim().toLowerCase();
+
+  if (normalizedSource) {
+    requests = requests.filter((request) => String(request.source || '').trim().toLowerCase() === normalizedSource);
+  }
+  if (normalizedSearch) {
+    requests = requests.filter((request) => {
+      const haystack = [
+        request.customer_name,
+        request.customer_phone,
+        request.customer_email,
+        request.customer_address,
+        request.preferred_work_date_raw,
+        request.work_requested,
+        request.source,
+      ].join(' ').toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }
+
+  const total = requests.length;
+  const start = Math.max(0, parseInt(offset || 0, 10) || 0);
+  const pageSize = Math.max(1, parseInt(limit || 50, 10) || 50);
+  return {
+    ...snapshot,
+    total,
+    requests: requests.slice(start, start + pageSize),
+    stats: buildCopilotWorkRequestStats(requests),
+  };
+}
+
+async function fetchCopilotWorkRequestsSnapshot() {
+  const nowMs = Date.now();
+  if (!cachedCopilotWorkRequests) {
+    const persisted = await readPersistedCopilotWorkRequestsSnapshot();
+    if (persisted) {
+      cachedCopilotWorkRequests = {
+        value: persisted,
+        expiresAt: getWorkRequestsSnapshotExpiry(persisted, COPILOT_WORK_REQUESTS_CACHE_TTL_MS),
+      };
+    }
+  }
+
+  if (cachedCopilotWorkRequests?.expiresAt > nowMs) {
+    return cachedCopilotWorkRequests.value;
+  }
+  if (cachedCopilotWorkRequestsPromise) {
+    return cachedCopilotWorkRequests ? cachedCopilotWorkRequests.value : cachedCopilotWorkRequestsPromise;
+  }
+
+  const refreshPromise = (async () => {
+    const tokenInfo = await getCopilotToken();
+    if (!tokenInfo?.cookieHeader) return null;
+
+    const baseUrl = `https://secure.copilotcrm.com${COPILOT_WORK_REQUESTS_BASE_PATH}`;
+    const queue = [baseUrl];
+    const visited = new Set();
+    const seenIds = new Set();
+    const allRequests = [];
+    let total = null;
+    let pagesFetched = 0;
+
+    while (queue.length && pagesFetched < 10) {
+      const url = queue.shift();
+      if (!url || visited.has(url)) continue;
+      visited.add(url);
+      pagesFetched += 1;
+
+      const copilotRes = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Cookie': tokenInfo.cookieHeader,
+          'Origin': 'https://secure.copilotcrm.com',
+          'Referer': `https://secure.copilotcrm.com${COPILOT_WORK_REQUESTS_BASE_PATH}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
+      if (!copilotRes.ok) {
+        throw new Error(`Copilot work requests returned ${copilotRes.status}`);
+      }
+
+      const html = await copilotRes.text();
+      const parsed = parseCopilotWorkRequestsHtml(html, url);
+      if (total == null && Number.isFinite(Number(parsed.total))) {
+        total = Number(parsed.total);
+      }
+
+      parsed.requests.forEach((request) => {
+        if (seenIds.has(request.id)) return;
+        seenIds.add(request.id);
+        allRequests.push(request);
+      });
+
+      parsed.page_paths.forEach((pagePath) => {
+        const absolute = pagePath.startsWith('http')
+          ? pagePath
+          : `https://secure.copilotcrm.com${pagePath}`;
+        if (!visited.has(absolute)) queue.push(absolute);
+      });
+
+      if (total && allRequests.length >= total) break;
+    }
+
+    const normalized = normalizeCopilotWorkRequestsSnapshot({
+      as_of: new Date().toISOString(),
+      total: total || allRequests.length,
+      requests: allRequests,
+    }, LIVE_COPILOT_SOURCE);
+
+    if (!normalized) return null;
+
+    await persistCopilotWorkRequestsSnapshot(normalized).catch((error) => {
+      console.error('Error persisting Copilot work requests snapshot:', error);
+    });
+
+    cachedCopilotWorkRequests = {
+      value: normalized,
+      expiresAt: Date.now() + COPILOT_WORK_REQUESTS_CACHE_TTL_MS,
+    };
+    return normalized;
+  })();
+
+  cachedCopilotWorkRequestsPromise = refreshPromise.finally(() => {
+    cachedCopilotWorkRequestsPromise = null;
+  });
+
+  try {
+    if (cachedCopilotWorkRequests) return cachedCopilotWorkRequests.value;
+    return await cachedCopilotWorkRequestsPromise;
+  } catch (error) {
+    if (cachedCopilotWorkRequests) return cachedCopilotWorkRequests.value;
+    throw error;
+  }
+}
+
+async function fetchLocalWorkRequestStats() {
+  const result = await pool.query(`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status NOT IN ('completed', 'cancelled'))::int AS open_total,
+      COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+      COUNT(*) FILTER (WHERE status = 'in-progress')::int AS in_progress,
+      COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+      COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
+    FROM service_requests
+  `);
+  return {
+    success: true,
+    source: DATABASE_FALLBACK_SOURCE,
+    as_of: new Date().toISOString(),
+    mode: 'database',
+    stats: result.rows[0],
+  };
+}
+
+async function fetchLocalWorkRequests({ status, search, limit = 50, offset = 0 } = {}) {
+  let query = `
+    SELECT sr.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.street as customer_address
+    FROM service_requests sr
+    LEFT JOIN customers c ON sr.customer_id = c.id
+    WHERE 1=1
+  `;
+  let countQuery = `
+    SELECT COUNT(*)
+    FROM service_requests sr
+    LEFT JOIN customers c ON sr.customer_id = c.id
+    WHERE 1=1
+  `;
+  const params = [];
+  const countParams = [];
+  let p = 1;
+  let cp = 1;
+
+  if (status) {
+    if (status === 'open') {
+      query += ` AND sr.status NOT IN ('completed', 'cancelled')`;
+      countQuery += ` AND sr.status NOT IN ('completed', 'cancelled')`;
+    } else {
+      query += ` AND sr.status = $${p++}`;
+      countQuery += ` AND sr.status = $${cp++}`;
+      params.push(status);
+      countParams.push(status);
+    }
+  }
+  if (search) {
+    query += ` AND (c.name ILIKE $${p} OR sr.service_type ILIKE $${p} OR sr.description ILIKE $${p})`;
+    countQuery += ` AND (c.name ILIKE $${cp} OR sr.service_type ILIKE $${cp} OR sr.description ILIKE $${cp})`;
+    params.push(`%${search}%`);
+    countParams.push(`%${search}%`);
+    p += 1;
+    cp += 1;
+  }
+
+  query += ` ORDER BY sr.created_at DESC LIMIT $${p++} OFFSET $${p}`;
+  params.push(limit, offset);
+
+  const [result, countResult] = await Promise.all([
+    pool.query(query, params),
+    pool.query(countQuery, countParams),
+  ]);
+
+  return {
+    success: true,
+    source: DATABASE_FALLBACK_SOURCE,
+    as_of: new Date().toISOString(),
+    mode: 'database',
+    requests: result.rows,
+    total: parseInt(countResult.rows[0].count, 10) || 0,
+  };
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // ═══ WORK REQUESTS ENDPOINTS ══════════════════════════════
@@ -9468,16 +9727,23 @@ runStartupMigrations(pool);
 
 app.get('/api/work-requests/stats', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT
-        COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
-        COUNT(*) FILTER (WHERE status = 'in-progress')::int AS in_progress,
-        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
-        COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
-      FROM service_requests
-    `);
-    res.json({ success: true, stats: result.rows[0] });
+    try {
+      const snapshot = await fetchCopilotWorkRequestsSnapshot();
+      if (snapshot?.requests) {
+        return res.json({
+          success: true,
+          source: snapshot.source,
+          as_of: snapshot.as_of,
+          mode: snapshot.mode,
+          stats: snapshot.stats,
+        });
+      }
+    } catch (error) {
+      console.error('Copilot work requests stats error:', error);
+    }
+
+    const fallback = await fetchLocalWorkRequestStats();
+    res.json(fallback);
   } catch (error) {
     console.error('Work requests stats error:', error);
     serverError(res, error);
@@ -9486,44 +9752,37 @@ app.get('/api/work-requests/stats', async (req, res) => {
 
 app.get('/api/work-requests', async (req, res) => {
   try {
-    const { status, search, limit = 50, offset = 0 } = req.query;
-    let query = `
-      SELECT sr.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.street as customer_address
-      FROM service_requests sr
-      LEFT JOIN customers c ON sr.customer_id = c.id
-      WHERE 1=1
-    `;
-    let countQuery = 'SELECT COUNT(*) FROM service_requests WHERE 1=1';
-    const params = [], countParams = [];
-    let p = 1, cp = 1;
+    const { status, source, search, limit = 50, offset = 0 } = req.query;
 
-    if (status) {
-      if (status === 'open') {
-        query += ` AND sr.status NOT IN ('completed', 'cancelled')`;
-        countQuery += ` AND status NOT IN ('completed', 'cancelled')`;
-      } else {
-        query += ` AND sr.status = $${p++}`;
-        countQuery += ` AND status = $${cp++}`;
-        params.push(status);
-        countParams.push(status);
+    try {
+      const snapshot = await fetchCopilotWorkRequestsSnapshot();
+      if (snapshot?.requests) {
+        const filtered = applyWorkRequestFilters(snapshot, {
+          search,
+          source,
+          limit,
+          offset,
+        });
+        return res.json({
+          success: true,
+          source: filtered.source,
+          as_of: filtered.as_of,
+          mode: filtered.mode,
+          requests: filtered.requests,
+          total: filtered.total,
+          stats: filtered.stats,
+          filters: {
+            source: source || null,
+            status: status || null,
+          },
+        });
       }
-    }
-    if (search) {
-      query += ` AND (c.name ILIKE $${p} OR sr.service_type ILIKE $${p} OR sr.description ILIKE $${p})`;
-      countQuery += ` AND (service_type ILIKE $${cp} OR description ILIKE $${cp})`;
-      params.push(`%${search}%`);
-      countParams.push(`%${search}%`);
-      p++; cp++;
+    } catch (error) {
+      console.error('Copilot work requests list error:', error);
     }
 
-    query += ` ORDER BY sr.created_at DESC LIMIT $${p++} OFFSET $${p}`;
-    params.push(limit, offset);
-
-    const [result, countResult] = await Promise.all([
-      pool.query(query, params),
-      pool.query(countQuery, countParams)
-    ]);
-    res.json({ success: true, requests: result.rows, total: parseInt(countResult.rows[0].count) });
+    const fallback = await fetchLocalWorkRequests({ status, search, limit, offset });
+    res.json(fallback);
   } catch (error) {
     console.error('Work requests error:', error);
     serverError(res, error);
@@ -9532,6 +9791,22 @@ app.get('/api/work-requests', async (req, res) => {
 
 app.get('/api/work-requests/:id', async (req, res) => {
   try {
+    try {
+      const snapshot = await fetchCopilotWorkRequestsSnapshot();
+      const request = snapshot?.requests?.find((row) => String(row.id) === String(req.params.id));
+      if (request) {
+        return res.json({
+          success: true,
+          source: snapshot.source,
+          as_of: snapshot.as_of,
+          mode: snapshot.mode,
+          request,
+        });
+      }
+    } catch (error) {
+      console.error('Copilot work request detail error:', error);
+    }
+
     const result = await pool.query(`
       SELECT sr.*, c.name as customer_name, c.email as customer_email, c.phone as customer_phone, c.street as customer_address
       FROM service_requests sr
@@ -9545,6 +9820,14 @@ app.get('/api/work-requests/:id', async (req, res) => {
 
 app.put('/api/work-requests/:id', async (req, res) => {
   try {
+    const snapshot = await fetchCopilotWorkRequestsSnapshot().catch(() => null);
+    if (snapshot?.requests?.some((row) => String(row.id) === String(req.params.id))) {
+      return res.status(400).json({
+        success: false,
+        error: 'Copilot-backed work requests are read-only in the app. Update them in CopilotCRM.',
+      });
+    }
+
     const { status, admin_notes } = req.body;
     const sets = ['updated_at = CURRENT_TIMESTAMP'];
     const vals = [];

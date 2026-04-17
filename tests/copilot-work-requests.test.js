@@ -58,6 +58,7 @@ const fixtureHtml = `
     </table>
     <ul class="pagination">
       <li><a href="/customers/work_requests?page=2">2</a></li>
+      <li><a href="/customers/work_requests/?p=3&iop=100">3</a></li>
     </ul>
   </body>
 </html>
@@ -67,7 +68,10 @@ it('parses Copilot work request rows and total', () => {
   const parsed = parseCopilotWorkRequestsHtml(fixtureHtml, 'https://secure.copilotcrm.com/customers/work_requests');
   assert.strictEqual(parsed.total, 165);
   assert.strictEqual(parsed.requests.length, 2);
-  assert.deepStrictEqual(parsed.page_paths, ['/customers/work_requests?page=2']);
+  assert.deepStrictEqual(parsed.page_paths, [
+    '/customers/work_requests?page=2',
+    '/customers/work_requests?p=3&iop=100',
+  ]);
 });
 
 it('maps canonical fields from Copilot rows', () => {

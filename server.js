@@ -9666,7 +9666,12 @@ async function fetchLocalWorkRequests({ status, search, limit = 50, offset = 0 }
     LEFT JOIN customers c ON sr.customer_id = c.id
     WHERE 1=1
   `;
-  let countQuery = 'SELECT COUNT(*) FROM service_requests WHERE 1=1';
+  let countQuery = `
+    SELECT COUNT(*)
+    FROM service_requests sr
+    LEFT JOIN customers c ON sr.customer_id = c.id
+    WHERE 1=1
+  `;
   const params = [];
   const countParams = [];
   let p = 1;
@@ -9675,17 +9680,17 @@ async function fetchLocalWorkRequests({ status, search, limit = 50, offset = 0 }
   if (status) {
     if (status === 'open') {
       query += ` AND sr.status NOT IN ('completed', 'cancelled')`;
-      countQuery += ` AND status NOT IN ('completed', 'cancelled')`;
+      countQuery += ` AND sr.status NOT IN ('completed', 'cancelled')`;
     } else {
       query += ` AND sr.status = $${p++}`;
-      countQuery += ` AND status = $${cp++}`;
+      countQuery += ` AND sr.status = $${cp++}`;
       params.push(status);
       countParams.push(status);
     }
   }
   if (search) {
     query += ` AND (c.name ILIKE $${p} OR sr.service_type ILIKE $${p} OR sr.description ILIKE $${p})`;
-    countQuery += ` AND (service_type ILIKE $${cp} OR description ILIKE $${cp})`;
+    countQuery += ` AND (c.name ILIKE $${cp} OR sr.service_type ILIKE $${cp} OR sr.description ILIKE $${cp})`;
     params.push(`%${search}%`);
     countParams.push(`%${search}%`);
     p += 1;

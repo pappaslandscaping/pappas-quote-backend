@@ -19,6 +19,8 @@ const {
   normalizeCopilotSentStatus,
 } = require('../lib/invoice-status');
 
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/i;
+
 // ── Helpers ────────────────────────────────────────────────────
 function clean(text) {
   return (text || '')
@@ -60,6 +62,45 @@ function looksLikeDateLabel(value) {
     || /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
+function extractEmail(text) {
+  const match = clean(text).match(EMAIL_RE);
+  return match ? clean(match[0]) : null;
+}
+
+function htmlLinesToText(html) {
+  return String(html || '')
+    .split(/<br\s*\/?>/i)
+    .map((segment) => clean(cheerio.load(`<x>${segment}</x>`)('x').text()))
+    .filter(Boolean);
+}
+
+function stripEmailFromText(text, email) {
+  if (!text) return '';
+  if (!email) return clean(text);
+  return clean(String(text).replace(email, ' '));
+}
+
+function parseCustomerCell($, $custCell, $custAnchor) {
+  const $source = $custAnchor && $custAnchor.length ? $custAnchor : $custCell;
+  const sourceHtml = $source && $source.length ? ($source.html() || '') : '';
+  const sourceText = $source && $source.length ? $source.text() : ($custCell ? $custCell.text() : '');
+  const cellText = $custCell && $custCell.length ? $custCell.text() : sourceText;
+  const lines = htmlLinesToText(sourceHtml);
+  const explicitMailto = $custCell.find('a[href^="mailto:"]').first();
+  const customer_email = explicitMailto.length
+    ? clean(explicitMailto.attr('href').replace(/^mailto:/i, ''))
+    : (lines.map(extractEmail).find(Boolean) || extractEmail(sourceText) || extractEmail(cellText));
+
+  const nameCandidates = lines
+    .map((line) => stripEmailFromText(line, customer_email))
+    .filter(Boolean);
+  const customer_name = nameCandidates[0]
+    || stripEmailFromText(sourceText, customer_email)
+    || stripEmailFromText(cellText, customer_email)
+    || null;
+
+  return { customer_name, customer_email };
+}
 function mapStatus(rawStatus, amountPaid, total, sentStatus) {
   return normalizeCopilotInvoiceStatus({
     rawStatus,
@@ -176,16 +217,10 @@ function parseInvoiceListHtml(htmlOrPayload) {
       const $custCell = cell(idx.customer);
       if ($custCell) {
         const $custAnchor = $custCell.find('a[href*="/customers/details/"]').first();
-        row.customer_name = clean($custAnchor.length ? $custAnchor.text() : $custCell.find('a').first().text() || $custCell.text());
+        const parsedCustomer = parseCustomerCell($, $custCell, $custAnchor);
+        row.customer_name = parsedCustomer.customer_name;
         row.copilot_customer_id = extractIdFromHref($custAnchor.attr('href'), '/customers/details');
-        // Email: try mailto: link first, then a plain email pattern in cell text.
-        const $mailto = $custCell.find('a[href^="mailto:"]').first();
-        if ($mailto.length) {
-          row.customer_email = clean($mailto.attr('href').replace(/^mailto:/i, ''));
-        } else {
-          const m = $custCell.text().match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
-          row.customer_email = m ? m[0] : null;
-        }
+        row.customer_email = parsedCustomer.customer_email;
       }
 
       // Property cell: name + address. Copilot tends to show the property
@@ -230,5 +265,5 @@ function parseInvoiceListHtml(htmlOrPayload) {
 module.exports = {
   parseInvoiceListHtml,
   // exported for tests
-  _internal: { clean, parseMoney, parseDate, mapStatus, extractIdFromHref },
+  _internal: { clean, parseMoney, parseDate, mapStatus, extractIdFromHref, extractEmail, parseCustomerCell },
 };

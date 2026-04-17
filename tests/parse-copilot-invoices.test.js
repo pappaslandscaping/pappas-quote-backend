@@ -217,6 +217,60 @@ it('does not store a date label in invoice_number when the invoice cell is misal
   assert.strictEqual(r[0].view_path, '/finances/invoices/view/777');
 });
 
+it('splits name and email when Copilot puts both inside the same customer link', () => {
+  const fragment = `
+    <table>
+      <thead>
+        <tr>
+          <th>Ignore</th>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th>Customer</th>
+          <th>Ignore</th>
+          <th>Property</th>
+          <th>Address</th>
+          <th>Crew</th>
+          <th>Tax</th>
+          <th>Total</th>
+          <th>Due</th>
+          <th>Paid</th>
+          <th>Credit</th>
+          <th>Status</th>
+          <th>Sent</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id="2664261">
+          <td><input type="checkbox" value="2664261"></td>
+          <td><a href="/finances/invoices/view/2664261">10252</a></td>
+          <td>Apr 06, 2026</td>
+          <td>
+            <a href="/customers/details/1053980">
+              Henrietta Pattantyus
+              <br>
+              henrijeff12@gmail.com
+            </a>
+          </td>
+          <td></td>
+          <td><p>6154 Sylvia Drive</p></td>
+          <td><p>6154 Sylvia Drive Brook Park, OH 44142 US</p></td>
+          <td>Tim Mowing Crew, Tim Mowing Crew</td>
+          <td>$7.76</td>
+          <td>$104.76</td>
+          <td>$104.76</td>
+          <td>$0.00</td>
+          <td>$0.00</td>
+          <td>Pending</td>
+          <td><span class="badge badge-danger">Not Sent</span></td>
+        </tr>
+      </tbody>
+    </table>`;
+  const r = parseInvoiceListHtml(fragment);
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].invoice_number, '10252');
+  assert.strictEqual(r[0].customer_name, 'Henrietta Pattantyus');
+  assert.strictEqual(r[0].customer_email, 'henrijeff12@gmail.com');
+});
 it('preserves a not-sent pending invoice as pending instead of sent', () => {
   const fragment = `
     <tr id="invoice_10448">

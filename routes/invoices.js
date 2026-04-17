@@ -29,6 +29,12 @@ const {
   parseCopilotPaymentsHtml,
   normalizeCopilotPaymentsSnapshot,
 } = require('../lib/copilot-payments');
+const {
+  COPILOT_TAX_SUMMARY_BASE_PATH,
+  parseCopilotTaxSummaryHtml,
+  normalizeTaxSummarySnapshot,
+  buildDailyTaxRecommendation,
+} = require('../lib/copilot-tax-summary');
 const { buildInvoiceHistoryEvents } = require('../lib/invoice-history');
 const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
 const {
@@ -44,9 +50,11 @@ let cachedCopilotStanding = null;
 let cachedCopilotAging = null;
 let cachedCopilotAgingPromise = null;
 let cachedCopilotPayments = null;
+let cachedCopilotTaxSummaries = new Map();
 const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
 const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
 const COPILOT_PAYMENTS_SNAPSHOT_KEY = 'copilot_payments_snapshot';
+const COPILOT_TAX_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
 const COPILOT_PAYMENTS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -65,6 +73,181 @@ function normalizeCount(value) {
 function parseStandingCount(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildTaxSummaryCacheKey({ startDate, endDate, basis = 'collected' }) {
+  return `${basis}:${startDate}:${endDate}`;
+}
+
+function eachDayInclusive(startDate, endDate) {
+  const dates = [];
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  while (!Number.isNaN(cursor.getTime()) && cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+async function readPersistedTaxSummarySnapshot({ startDate, endDate, basis = 'collected' }) {
+  const result = await pool.query(
+    `SELECT *
+       FROM copilot_tax_summary_snapshots
+      WHERE external_source = 'copilotcrm'
+        AND basis = $1
+        AND start_date = $2
+        AND end_date = $3
+      LIMIT 1`,
+    [basis, startDate, endDate]
+  );
+  if (!result.rows[0]) return null;
+  return normalizeTaxSummarySnapshot({
+    source: PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+    as_of: result.rows[0].imported_at || result.rows[0].updated_at,
+    basis: result.rows[0].basis,
+    start_date: result.rows[0].start_date?.toISOString
+      ? result.rows[0].start_date.toISOString().slice(0, 10)
+      : String(result.rows[0].start_date),
+    end_date: result.rows[0].end_date?.toISOString
+      ? result.rows[0].end_date.toISOString().slice(0, 10)
+      : String(result.rows[0].end_date),
+    rows: result.rows[0].rows || [],
+    total_sales: result.rows[0].total_sales,
+    taxable_amount: result.rows[0].taxable_amount,
+    discount: result.rows[0].discount,
+    tax_amount: result.rows[0].tax_amount,
+    processing_fees: result.rows[0].processing_fees,
+    tips: result.rows[0].tips,
+    external_metadata: result.rows[0].external_metadata || {},
+  }, PERSISTED_COPILOT_SNAPSHOT_SOURCE);
+}
+
+async function persistTaxSummarySnapshot(snapshot) {
+  const normalized = normalizeTaxSummarySnapshot(snapshot, LIVE_COPILOT_SOURCE);
+  if (!normalized) return null;
+  await pool.query(
+    `INSERT INTO copilot_tax_summary_snapshots (
+       external_source, basis, start_date, end_date, rows,
+       total_sales, taxable_amount, discount, tax_amount,
+       processing_fees, tips, external_metadata, imported_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, $5,
+       $6, $7, $8, $9,
+       $10, $11, $12, NOW(), NOW()
+     )
+     ON CONFLICT (external_source, basis, start_date, end_date) DO UPDATE SET
+       rows = EXCLUDED.rows,
+       total_sales = EXCLUDED.total_sales,
+       taxable_amount = EXCLUDED.taxable_amount,
+       discount = EXCLUDED.discount,
+       tax_amount = EXCLUDED.tax_amount,
+       processing_fees = EXCLUDED.processing_fees,
+       tips = EXCLUDED.tips,
+       external_metadata = EXCLUDED.external_metadata,
+       imported_at = NOW(),
+       updated_at = NOW()`,
+    [
+      LIVE_COPILOT_SOURCE,
+      normalized.basis,
+      normalized.start_date,
+      normalized.end_date,
+      JSON.stringify(normalized.rows),
+      normalized.total_sales,
+      normalized.taxable_amount,
+      normalized.discount,
+      normalized.tax_amount,
+      normalized.processing_fees,
+      normalized.tips,
+      JSON.stringify(normalized.external_metadata || {}),
+    ]
+  );
+  return normalized;
+}
+
+async function fetchCopilotTaxSummarySnapshot({ startDate, endDate, basis = 'collected', forceRefresh = false } = {}) {
+  const cacheKey = buildTaxSummaryCacheKey({ startDate, endDate, basis });
+  const cached = cachedCopilotTaxSummaries.get(cacheKey);
+  if (!forceRefresh && cached?.expiresAt > Date.now()) return cached.value;
+
+  if (!forceRefresh) {
+    const persisted = await readPersistedTaxSummarySnapshot({ startDate, endDate, basis }).catch(() => null);
+    if (persisted) {
+      cachedCopilotTaxSummaries.set(cacheKey, {
+        value: persisted,
+        expiresAt: Date.now() + COPILOT_TAX_SUMMARY_CACHE_TTL_MS,
+      });
+      return persisted;
+    }
+  }
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
+
+  const url = new URL(`https://secure.copilotcrm.com${COPILOT_TAX_SUMMARY_BASE_PATH}`);
+  url.searchParams.set('type', basis);
+  url.searchParams.set('sdate', startDate);
+  url.searchParams.set('edate', endDate);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Cookie: tokenInfo.cookieHeader,
+      Origin: 'https://secure.copilotcrm.com',
+      Referer: `https://secure.copilotcrm.com${COPILOT_TAX_SUMMARY_BASE_PATH}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Copilot tax summary returned ${response.status}`);
+  }
+
+  const html = await response.text();
+  const parsed = parseCopilotTaxSummaryHtml(html, {
+    startDate,
+    endDate,
+    basis,
+    pageUrl: `${COPILOT_TAX_SUMMARY_BASE_PATH}?type=${basis}&sdate=${startDate}&edate=${endDate}`,
+  });
+  const normalized = normalizeTaxSummarySnapshot({
+    ...parsed,
+    as_of: new Date().toISOString(),
+    basis,
+    start_date: startDate,
+    end_date: endDate,
+  }, LIVE_COPILOT_SOURCE);
+  if (!normalized) throw new Error('Unable to parse Copilot Tax Summary');
+
+  await persistTaxSummarySnapshot(normalized);
+  cachedCopilotTaxSummaries.set(cacheKey, {
+    value: normalized,
+    expiresAt: Date.now() + COPILOT_TAX_SUMMARY_CACHE_TTL_MS,
+  });
+  return normalized;
+}
+
+async function computeBackendReconstructedTaxForDay(date) {
+  const result = await pool.query(
+    `SELECT
+       p.amount,
+       p.tip_amount,
+       i.total AS invoice_total,
+       i.tax_amount AS invoice_tax_amount
+     FROM payments p
+     LEFT JOIN invoices i ON p.invoice_id = i.id
+     WHERE COALESCE(p.paid_at, p.created_at) >= $1::date
+       AND COALESCE(p.paid_at, p.created_at) < ($1::date + INTERVAL '1 day')
+       AND p.invoice_id IS NOT NULL`,
+    [date]
+  );
+  return roundMoney(result.rows.reduce((sum, row) => {
+    const appliedAmount = Math.min(
+      Math.max((Number(row.amount) || 0) - (Number(row.tip_amount) || 0), 0),
+      Number(row.invoice_total) || 0
+    );
+    if ((Number(row.invoice_total) || 0) <= 0 || (Number(row.invoice_tax_amount) || 0) <= 0) return sum;
+    return sum + ((appliedAmount / Number(row.invoice_total)) * Number(row.invoice_tax_amount));
+  }, 0));
 }
 
 async function persistCopilotPaymentsSnapshot(snapshot) {
@@ -832,6 +1015,144 @@ router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Tax sweep report error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/copilot/tax-summary/sync - Persist daily Copilot Tax Summary collected snapshots
+router.post('/api/copilot/tax-summary/sync', authenticateToken, async (req, res) => {
+  try {
+    const basis = 'collected';
+    const startDate = String(req.body?.start_date || req.query.start_date || '').trim();
+    const endDate = String(req.body?.end_date || req.query.end_date || startDate).trim();
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const dates = eachDayInclusive(startDate, endDate);
+    if (dates.length > 31) {
+      return res.status(400).json({ success: false, error: 'date range must be 31 days or fewer' });
+    }
+
+    const snapshots = [];
+    for (const date of dates) {
+      const snapshot = await fetchCopilotTaxSummarySnapshot({
+        startDate: date,
+        endDate: date,
+        basis,
+        forceRefresh: req.body?.force === true || req.query.force === 'true',
+      });
+      snapshots.push({
+        date,
+        source: snapshot.source,
+        snapshot_as_of: snapshot.as_of,
+        total_sales: snapshot.total_sales,
+        taxable_amount: snapshot.taxable_amount,
+        discount: snapshot.discount,
+        tax_amount: snapshot.tax_amount,
+        processing_fees: snapshot.processing_fees,
+        tips: snapshot.tips,
+        row_count: snapshot.rows.length,
+      });
+    }
+
+    res.json({
+      success: true,
+      basis,
+      start_date: startDate,
+      end_date: endDate,
+      count: snapshots.length,
+      snapshots,
+    });
+  } catch (error) {
+    console.error('Copilot tax summary sync error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/reports/tax-transfer-daily - Daily Copilot-vs-backend tax reconciliation
+router.get('/api/reports/tax-transfer-daily', authenticateToken, async (req, res) => {
+  try {
+    const basis = 'collected';
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const dates = eachDayInclusive(startDate, endDate);
+    if (dates.length > 31) {
+      return res.status(400).json({ success: false, error: 'date range must be 31 days or fewer' });
+    }
+
+    const days = [];
+    for (const date of dates) {
+      let snapshot = await readPersistedTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+      if (!snapshot) {
+        snapshot = await fetchCopilotTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+      }
+      if (!snapshot) {
+        days.push({
+          date,
+          recommended_transfer_amount: 0,
+          copilot_collected_tax: 0,
+          backend_reconstructed_tax: await computeBackendReconstructedTaxForDay(date),
+          variance: 0,
+          source: 'missing_copilot_snapshot',
+          snapshot_as_of: null,
+          total_sales: 0,
+          taxable_amount: 0,
+          discount: 0,
+          processing_fees: 0,
+          tips: 0,
+          tax_rows: [],
+        });
+        continue;
+      }
+
+      const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
+      const recommendation = buildDailyTaxRecommendation({
+        snapshot,
+        backendReconstructedTax,
+      });
+
+      days.push({
+        date,
+        ...recommendation,
+        source: snapshot.source,
+        snapshot_as_of: snapshot.as_of,
+        total_sales: snapshot.total_sales,
+        taxable_amount: snapshot.taxable_amount,
+        discount: snapshot.discount,
+        processing_fees: snapshot.processing_fees,
+        tips: snapshot.tips,
+        tax_rows: snapshot.rows,
+      });
+    }
+
+    const summary = days.reduce((acc, day) => {
+      acc.recommended_transfer_amount = roundMoney(acc.recommended_transfer_amount + (day.recommended_transfer_amount || 0));
+      acc.copilot_collected_tax = roundMoney(acc.copilot_collected_tax + (day.copilot_collected_tax || 0));
+      acc.backend_reconstructed_tax = roundMoney(acc.backend_reconstructed_tax + (day.backend_reconstructed_tax || 0));
+      acc.variance = roundMoney(acc.variance + (day.variance || 0));
+      return acc;
+    }, {
+      recommended_transfer_amount: 0,
+      copilot_collected_tax: 0,
+      backend_reconstructed_tax: 0,
+      variance: 0,
+    });
+
+    res.json({
+      success: true,
+      basis,
+      start_date: startDate,
+      end_date: endDate,
+      days,
+      summary,
+    });
+  } catch (error) {
+    console.error('Tax transfer daily report error:', error);
     serverError(res, error);
   }
 });

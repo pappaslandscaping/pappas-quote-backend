@@ -264,9 +264,9 @@ async function persistCopilotPaymentsSnapshot(snapshot) {
   return normalized;
 }
 
-async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25 } = {}) {
+async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25, forceRefresh = false } = {}) {
   const now = Date.now();
-  if (cachedCopilotPayments?.expiresAt > now) return cachedCopilotPayments.value;
+  if (!forceRefresh && cachedCopilotPayments?.expiresAt > now) return cachedCopilotPayments.value;
 
   const tokenInfo = await getCopilotToken();
   if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
@@ -852,6 +852,7 @@ router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) =>
     const snapshot = await fetchCopilotPaymentsSnapshot({
       pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
       maxPages: Number(req.body?.maxPages || req.query.maxPages || 25),
+      forceRefresh: req.body?.force !== false && req.query.force !== 'false',
     });
     const syncResult = await upsertCopilotPayments({
       pool,
@@ -1040,7 +1041,7 @@ router.post('/api/copilot/tax-summary/sync', authenticateToken, async (req, res)
         startDate: date,
         endDate: date,
         basis,
-        forceRefresh: req.body?.force === true || req.query.force === 'true',
+        forceRefresh: req.body?.force !== false && req.query.force !== 'false',
       });
       snapshots.push({
         date,
@@ -1092,12 +1093,14 @@ router.get('/api/reports/tax-transfer-daily', authenticateToken, async (req, res
         snapshot = await fetchCopilotTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
       }
       if (!snapshot) {
+        const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
+        const recommendation = buildDailyTaxRecommendation({
+          snapshot: { tax_amount: 0 },
+          backendReconstructedTax,
+        });
         days.push({
           date,
-          recommended_transfer_amount: 0,
-          copilot_collected_tax: 0,
-          backend_reconstructed_tax: await computeBackendReconstructedTaxForDay(date),
-          variance: 0,
+          ...recommendation,
           source: 'missing_copilot_snapshot',
           snapshot_as_of: null,
           total_sales: 0,

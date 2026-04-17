@@ -96,8 +96,7 @@ it('builds a stable hashed external payment key when no explicit identifier exis
     amount: 297,
     tipAmount: 10,
     method: 'ACH',
-    details: '$297.00 for Invoice #10096',
-    notes: '',
+    extractedInvoiceNumber: '10096',
   });
   const second = buildExternalPaymentKey({
     dateText: 'Apr 16, 2026',
@@ -105,8 +104,7 @@ it('builds a stable hashed external payment key when no explicit identifier exis
     amount: 297,
     tipAmount: 10,
     method: 'ACH',
-    details: '$297.00 for Invoice #10096',
-    notes: '',
+    extractedInvoiceNumber: '10096',
   });
   assert.strictEqual(first, second);
   assert.ok(first.startsWith('hash:'));

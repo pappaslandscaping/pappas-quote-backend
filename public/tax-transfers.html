@@ -1082,6 +1082,7 @@
         setBusy('loadBtn', true, 'Loading…');
         document.getElementById('daysBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
         setSyncStatus('Loading tax transfer report…', 'loading');
+        loadPaymentReview();
         try {
             const params = new URLSearchParams(range);
             const res = await fetch('/api/reports/tax-transfer-daily?' + params.toString());
@@ -1092,7 +1093,6 @@
             renderSummary(data.summary || {});
             renderDays(data.days || []);
             renderFreshness(data.days || [], range);
-            loadPaymentReview();
             setSyncStatus('Report loaded.', 'success');
 
             if (data.days && data.days.length) {

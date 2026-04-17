@@ -1,3 +1,5 @@
+const { extractInvoiceNumberFromDetails } = require('../lib/copilot-payments');
+
 function roundMoney(value) {
   const normalized = Number(value) || 0;
   return Math.round(normalized * 100) / 100;
@@ -25,6 +27,19 @@ function normalizeCustomerName(value) {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+function toIsoDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10);
+  return parsed.toISOString().slice(0, 10);
 }
 
 function chooseFallbackInvoiceMatch(candidates = [], extractedInvoiceDate) {
@@ -123,7 +138,7 @@ async function loadInvoiceMatches(pool, invoiceNumbers = []) {
 
   const fallbackGrouped = new Map();
   fallbackResult.rows.forEach((row) => {
-    const key = `${normalizeCustomerName(row.customer_name)}|${String(row.created_at).slice(0, 10)}`;
+    const key = `${normalizeCustomerName(row.customer_name)}|${toIsoDate(row.created_at)}`;
     if (!fallbackGrouped.has(key)) fallbackGrouped.set(key, []);
     fallbackGrouped.get(key).push(row);
   });
@@ -180,6 +195,44 @@ function buildCopilotPaymentRecord(payment, invoiceMatch) {
       invoice_total: invoiceMatch?.total,
       invoice_tax_amount: invoiceMatch?.tax_amount,
     }),
+  };
+}
+
+function getExtractedInvoiceNumberForPayment(payment) {
+  const metadataInvoiceNumber = String(payment?.external_metadata?.extracted_invoice_number || '').trim();
+  if (metadataInvoiceNumber) return metadataInvoiceNumber;
+  const explicitInvoiceNumber = String(payment?.extracted_invoice_number || '').trim();
+  if (explicitInvoiceNumber) return explicitInvoiceNumber;
+  return extractInvoiceNumberFromDetails(payment?.details || '');
+}
+
+function describeCopilotPaymentLinkage(payment, invoiceMatch = null) {
+  const extractedInvoiceNumber = getExtractedInvoiceNumberForPayment(payment);
+  if (payment?.invoice_id) {
+    return {
+      link_status: 'linked',
+      extracted_invoice_number: extractedInvoiceNumber,
+      link_failure_reason: null,
+    };
+  }
+  if (!extractedInvoiceNumber) {
+    return {
+      link_status: 'unresolved',
+      extracted_invoice_number: null,
+      link_failure_reason: 'No invoice number found in Copilot payment details.',
+    };
+  }
+  if (!invoiceMatch) {
+    return {
+      link_status: 'unresolved',
+      extracted_invoice_number: extractedInvoiceNumber,
+      link_failure_reason: `Invoice #${extractedInvoiceNumber} was not found in YardDesk.`,
+    };
+  }
+  return {
+    link_status: 'unresolved',
+    extracted_invoice_number: extractedInvoiceNumber,
+    link_failure_reason: `Invoice #${extractedInvoiceNumber} exists in YardDesk, but this payment row is still unresolved.`,
   };
 }
 
@@ -333,6 +386,8 @@ module.exports = {
   chooseFallbackInvoiceMatch,
   loadInvoiceMatches,
   buildCopilotPaymentRecord,
+  getExtractedInvoiceNumberForPayment,
+  describeCopilotPaymentLinkage,
   upsertCopilotPayments,
   hydratePaymentRecord,
 };

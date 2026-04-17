@@ -10,6 +10,8 @@ const {
   choosePreferredInvoiceMatch,
   chooseFallbackInvoiceMatch,
   buildCopilotPaymentRecord,
+  getExtractedInvoiceNumberForPayment,
+  describeCopilotPaymentLinkage,
   hydratePaymentRecord,
 } = require('../scripts/import-copilot-payments');
 
@@ -215,6 +217,58 @@ it('prefers a date-like fallback invoice match for older bad imports', () => {
     { id: 2, invoice_number: 'Sep 19, 2025', external_source: 'copilotcrm', imported_at: '2026-04-17T00:00:00Z', updated_at: '2026-04-17T00:00:00Z' },
   ], '2025-09-19');
   assert.strictEqual(chosen.id, 2);
+});
+
+it('prefers stored extracted invoice numbers over reparsing details', () => {
+  assert.strictEqual(
+    getExtractedInvoiceNumberForPayment({
+      details: '$172.80 for Invoice #10239',
+      external_metadata: { extracted_invoice_number: '10470' },
+    }),
+    '10470'
+  );
+});
+
+it('describes unresolved payments missing invoice numbers', () => {
+  const linkage = describeCopilotPaymentLinkage({
+    invoice_id: null,
+    details: 'Paid in full',
+    external_metadata: {},
+  });
+  assert.deepStrictEqual(linkage, {
+    link_status: 'unresolved',
+    extracted_invoice_number: null,
+    link_failure_reason: 'No invoice number found in Copilot payment details.',
+  });
+});
+
+it('describes unresolved payments whose invoice does not exist locally', () => {
+  const linkage = describeCopilotPaymentLinkage({
+    invoice_id: null,
+    details: '$172.80 for Invoice #10239',
+    external_metadata: {},
+  });
+  assert.deepStrictEqual(linkage, {
+    link_status: 'unresolved',
+    extracted_invoice_number: '10239',
+    link_failure_reason: 'Invoice #10239 was not found in YardDesk.',
+  });
+});
+
+it('describes stale unresolved payments when the invoice exists locally', () => {
+  const linkage = describeCopilotPaymentLinkage({
+    invoice_id: null,
+    details: '$172.80 for Invoice #10239',
+    external_metadata: {},
+  }, {
+    id: 77,
+    invoice_number: '10239',
+  });
+  assert.deepStrictEqual(linkage, {
+    link_status: 'unresolved',
+    extracted_invoice_number: '10239',
+    link_failure_reason: 'Invoice #10239 exists in YardDesk, but this payment row is still unresolved.',
+  });
 });
 
 if (failures > 0) {

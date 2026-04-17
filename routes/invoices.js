@@ -13,6 +13,17 @@ const {
   isOutstandingInvoice,
   cleanStatusValue,
 } = require('../lib/invoice-status');
+const {
+  LIVE_COPILOT_SOURCE,
+  PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+  DATABASE_FALLBACK_SOURCE,
+} = require('../lib/copilot-metric-sources');
+const {
+  AGING_BUCKET_KEYS,
+  hasValidAgingBuckets,
+  normalizeAgingSnapshot,
+  getAgingSnapshotExpiry,
+} = require('../lib/copilot-aging');
 const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
@@ -25,7 +36,6 @@ const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
 const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
-const AGING_BUCKET_KEYS = ['within_30', '31_60', '61_90', '90_plus'];
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -136,42 +146,6 @@ function initAgingBuckets() {
   };
 }
 
-function hasValidAgingBuckets(buckets) {
-  if (!buckets || typeof buckets !== 'object') return false;
-  return AGING_BUCKET_KEYS.every((key) => {
-    const bucket = buckets[key];
-    return bucket
-      && Number.isFinite(Number(bucket.count))
-      && Number.isFinite(Number(bucket.total))
-      && Array.isArray(bucket.invoices);
-  });
-}
-
-function normalizeAgingSnapshot(snapshot, sourceOverride) {
-  if (!snapshot || typeof snapshot !== 'object' || !hasValidAgingBuckets(snapshot.buckets)) return null;
-  const buckets = {};
-  for (const key of AGING_BUCKET_KEYS) {
-    const bucket = snapshot.buckets[key];
-    buckets[key] = {
-      count: Number(bucket.count) || 0,
-      total: Number(bucket.total) || 0,
-      invoices: Array.isArray(bucket.invoices) ? bucket.invoices : [],
-    };
-  }
-  return {
-    success: true,
-    source: sourceOverride || snapshot.source || 'copilot',
-    as_of: snapshot.as_of || new Date().toISOString(),
-    buckets,
-  };
-}
-
-function getAgingSnapshotExpiry(snapshot) {
-  const asOfMs = snapshot?.as_of ? new Date(snapshot.as_of).getTime() : NaN;
-  if (!Number.isFinite(asOfMs)) return 0;
-  return asOfMs + COPILOT_AGING_CACHE_TTL_MS;
-}
-
 async function readPersistedCopilotAging() {
   try {
     const result = await pool.query(
@@ -181,14 +155,17 @@ async function readPersistedCopilotAging() {
       [COPILOT_AGING_SNAPSHOT_KEY]
     );
     if (!result.rows[0]?.value) return null;
-    return normalizeAgingSnapshot(JSON.parse(result.rows[0].value), 'copilot_snapshot');
+    return normalizeAgingSnapshot(
+      JSON.parse(result.rows[0].value),
+      PERSISTED_COPILOT_SNAPSHOT_SOURCE
+    );
   } catch (error) {
     return null;
   }
 }
 
 async function persistCopilotAging(snapshot) {
-  const normalized = normalizeAgingSnapshot(snapshot, 'copilot');
+  const normalized = normalizeAgingSnapshot(snapshot, LIVE_COPILOT_SOURCE);
   if (!normalized) return;
   await pool.query(
     `INSERT INTO copilot_sync_settings (key, value, updated_at)
@@ -313,7 +290,7 @@ async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {})
 
   const value = {
     success: true,
-    source: 'copilot',
+    source: LIVE_COPILOT_SOURCE,
     as_of: now.toISOString(),
     buckets,
   };
@@ -686,6 +663,10 @@ router.get('/api/invoices/aging', async (req, res) => {
     try {
       const copilotAging = await fetchCopilotAgingBuckets();
       if (copilotAging?.buckets) {
+        console.info('Invoice aging source', {
+          source: copilotAging.source,
+          asOf: copilotAging.as_of,
+        });
         return res.json(copilotAging);
       }
     } catch (error) {
@@ -720,7 +701,11 @@ router.get('/api/invoices/aging', async (req, res) => {
         status: effectiveStatus,
       });
     });
-    res.json({ success: true, source: 'database_fallback', as_of: now.toISOString(), buckets });
+    console.info('Invoice aging source', {
+      source: DATABASE_FALLBACK_SOURCE,
+      asOf: now.toISOString(),
+    });
+    res.json({ success: true, source: DATABASE_FALLBACK_SOURCE, as_of: now.toISOString(), buckets });
   } catch (error) {
     console.error('Error fetching aging data:', error);
     serverError(res, error);

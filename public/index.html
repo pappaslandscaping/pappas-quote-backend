@@ -49,7 +49,7 @@
         <article class="dashboard-card stat-card">
           <p class="stat-card-label">Revenue This Month</p>
           <h2 class="stat-card-value" id="stat-revenue"><span class="skeleton">$0</span></h2>
-          <p class="stat-card-meta">collected to date</p>
+          <p class="stat-card-meta" id="stat-revenue-meta">collected to date</p>
         </article>
         <article class="dashboard-card stat-card">
           <p class="stat-card-label">Outstanding</p>
@@ -285,6 +285,7 @@ async function loadHeroSubtitle() {
 // ── Top metrics ─────────────────────────────────────────────
 async function loadStatCards() {
   var storageKey = 'homeDashboardTopCards';
+  var revenueMetaEl = document.getElementById('stat-revenue-meta');
 
   function readSnapshot() {
     try {
@@ -305,12 +306,44 @@ async function loadStatCards() {
     return Number.isFinite(Number(value));
   }
 
+  function formatAsOf(value) {
+    if (!value) return null;
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  }
+
+  function renderRevenueMeta(snapshot) {
+    if (!revenueMetaEl) return;
+    var source = snapshot && snapshot.revenue_source;
+    var asOfText = formatAsOf(snapshot && snapshot.revenue_as_of);
+    if (source === 'live_copilot' || source === 'copilot') {
+      revenueMetaEl.textContent = asOfText ? ('collected to date • Copilot as of ' + asOfText) : 'collected to date • Copilot live';
+      return;
+    }
+    if (source === 'persisted_copilot_snapshot' || source === 'copilot_snapshot') {
+      revenueMetaEl.textContent = asOfText ? ('collected to date • Copilot snapshot as of ' + asOfText) : 'collected to date • Copilot snapshot';
+      return;
+    }
+    if (source === 'database_fallback') {
+      revenueMetaEl.textContent = 'collected to date • database fallback';
+      return;
+    }
+    revenueMetaEl.textContent = 'collected to date';
+  }
+
   function renderSnapshot(snapshot) {
     if (!snapshot) return false;
     if (hasNumber(snapshot.revenue)) setText('stat-revenue', money(snapshot.revenue));
     if (hasNumber(snapshot.outstanding)) setText('stat-outstanding', money(snapshot.outstanding));
     if (hasNumber(snapshot.pipeline)) setText('stat-pipeline', money(snapshot.pipeline));
     if (hasNumber(snapshot.clients)) setText('stat-clients', num(snapshot.clients));
+    renderRevenueMeta(snapshot);
     return true;
   }
 
@@ -337,7 +370,11 @@ async function loadStatCards() {
   withFallback(getJson('/api/finance/summary'), function(finance) {
     var partial = {};
     var revenue = finance && finance.thisMonth && finance.thisMonth.revenue;
-    if (hasNumber(revenue)) partial.revenue = Number(revenue);
+    if (hasNumber(revenue)) {
+      partial.revenue = Number(revenue);
+      partial.revenue_source = finance.thisMonth.revenue_source || null;
+      partial.revenue_as_of = finance.thisMonth.revenue_as_of || null;
+    }
     var outstanding = finance && finance.outstanding && finance.outstanding.totalOutstanding;
     if (hasNumber(outstanding)) partial.outstanding = Number(outstanding);
     updateSnapshot(partial);

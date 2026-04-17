@@ -36,6 +36,14 @@
             color: var(--text-strong);
             letter-spacing: -0.01em;
         }
+        .aging-bucket-value.loading,
+        .aging-bucket-count.loading {
+            color: var(--muted);
+        }
+        .aging-bucket-value.loading {
+            font-size: 14px;
+            letter-spacing: 0;
+        }
         .aging-bucket-count {
             font: 500 12px/1.4 var(--font-ui);
             color: var(--muted);
@@ -517,23 +525,23 @@
             <div class="aging-strip" id="agingGrid">
                 <div class="aging-bucket current">
                     <div class="aging-bucket-label">Within 30 Days</div>
-                    <div class="aging-bucket-value" id="agingWithin30">$0</div>
-                    <div class="aging-bucket-count" id="agingWithin30Count">0 invoices</div>
+                    <div class="aging-bucket-value loading" id="agingWithin30">Loading…</div>
+                    <div class="aging-bucket-count loading" id="agingWithin30Count">Fetching aging…</div>
                 </div>
                 <div class="aging-bucket warn">
                     <div class="aging-bucket-label">31–60 Days</div>
-                    <div class="aging-bucket-value" id="aging31_60">$0</div>
-                    <div class="aging-bucket-count" id="aging31_60Count">0 invoices</div>
+                    <div class="aging-bucket-value loading" id="aging31_60">Loading…</div>
+                    <div class="aging-bucket-count loading" id="aging31_60Count">Fetching aging…</div>
                 </div>
                 <div class="aging-bucket warn">
                     <div class="aging-bucket-label">61–90 Days</div>
-                    <div class="aging-bucket-value" id="aging61_90">$0</div>
-                    <div class="aging-bucket-count" id="aging61_90Count">0 invoices</div>
+                    <div class="aging-bucket-value loading" id="aging61_90">Loading…</div>
+                    <div class="aging-bucket-count loading" id="aging61_90Count">Fetching aging…</div>
                 </div>
                 <div class="aging-bucket danger">
                     <div class="aging-bucket-label">90+ Days</div>
-                    <div class="aging-bucket-value" id="aging90_plus">$0</div>
-                    <div class="aging-bucket-count" id="aging90_plusCount">0 invoices</div>
+                    <div class="aging-bucket-value loading" id="aging90_plus">Loading…</div>
+                    <div class="aging-bucket-count loading" id="aging90_plusCount">Fetching aging…</div>
                 </div>
             </div>
         </div>
@@ -1310,6 +1318,19 @@
 
     async function loadAging() {
         try {
+            [
+                'agingWithin30',
+                'agingWithin30Count',
+                'aging31_60',
+                'aging31_60Count',
+                'aging61_90',
+                'aging61_90Count',
+                'aging90_plus',
+                'aging90_plusCount',
+            ].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('loading');
+            });
             const res = await fetch(`${API_BASE}/invoices/aging`);
             const data = await res.json();
             if (!data.success) return;
@@ -1325,6 +1346,19 @@
             document.getElementById('aging61_90Count').textContent = c(b['61_90'].count);
             document.getElementById('aging90_plus').textContent = f(b['90_plus'].total);
             document.getElementById('aging90_plusCount').textContent = c(b['90_plus'].count);
+            [
+                'agingWithin30',
+                'agingWithin30Count',
+                'aging31_60',
+                'aging31_60Count',
+                'aging61_90',
+                'aging61_90Count',
+                'aging90_plus',
+                'aging90_plusCount',
+            ].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('loading');
+            });
         } catch (e) {
             console.error('Error loading aging:', e);
         }

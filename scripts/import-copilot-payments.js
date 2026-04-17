@@ -3,6 +3,39 @@ function roundMoney(value) {
   return Math.round(normalized * 100) / 100;
 }
 
+function isDateLikeInvoiceLabel(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  return /^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$/.test(s)
+    || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+    || /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function formatDateLikeInvoiceLabel(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const parsed = new Date(`${raw}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', timeZone: 'UTC' });
+}
+
+function normalizeCustomerName(value) {
+  return String(value || '')
+    .replace(/^(customer|payer|payee)\s*:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function chooseFallbackInvoiceMatch(candidates = [], extractedInvoiceDate) {
+  if (!Array.isArray(candidates) || !candidates.length) return null;
+  const targetDateLabel = formatDateLikeInvoiceLabel(extractedInvoiceDate);
+  const dateLikeCandidates = targetDateLabel
+    ? candidates.filter((candidate) => isDateLikeInvoiceLabel(candidate.invoice_number) && String(candidate.invoice_number).trim() === targetDateLabel)
+    : [];
+  return choosePreferredInvoiceMatch(dateLikeCandidates.length ? dateLikeCandidates : candidates);
+}
+
 function computeTaxPortionCollected({ amount, tip_amount, invoice_total, invoice_tax_amount }) {
   const grossAmount = Number(amount) || 0;
   const tipAmount = Number(tip_amount) || 0;
@@ -37,34 +70,74 @@ function choosePreferredInvoiceMatch(candidates = []) {
 }
 
 async function loadInvoiceMatches(pool, invoiceNumbers = []) {
+  const payments = Array.isArray(invoiceNumbers) ? invoiceNumbers : [];
   const cleaned = Array.from(new Set(
-    invoiceNumbers
-      .map((value) => String(value || '').trim())
+    payments
+      .map((payment) => String(payment?.extracted_invoice_number || '').trim())
       .filter(Boolean)
   ));
   const matches = new Map();
-  if (!cleaned.length) return matches;
 
-  const result = await pool.query(
+  if (cleaned.length) {
+    const result = await pool.query(
+      `SELECT id, invoice_number, customer_id, customer_name, total, tax_amount,
+              external_source, external_invoice_id, external_metadata, imported_at, updated_at, created_at
+         FROM invoices
+        WHERE invoice_number = ANY($1::text[])
+        ORDER BY invoice_number ASC`,
+      [cleaned]
+    );
+
+    const grouped = new Map();
+    result.rows.forEach((row) => {
+      const key = String(row.invoice_number || '').trim();
+      if (!key) return;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(row);
+    });
+
+    grouped.forEach((candidates, invoiceNumber) => {
+      matches.set(invoiceNumber, choosePreferredInvoiceMatch(candidates));
+    });
+  }
+
+  const fallbackPayments = payments.filter((payment) => {
+    const invoiceNumber = String(payment?.extracted_invoice_number || '').trim();
+    const invoiceDate = String(payment?.extracted_invoice_date || '').trim();
+    const customerName = normalizeCustomerName(payment?.customer_name);
+    return invoiceNumber && !matches.has(invoiceNumber) && invoiceDate && customerName;
+  });
+  if (!fallbackPayments.length) return matches;
+
+  const fallbackDates = Array.from(new Set(fallbackPayments.map((payment) => String(payment.extracted_invoice_date).trim())));
+  const fallbackNames = Array.from(new Set(fallbackPayments.map((payment) => normalizeCustomerName(payment.customer_name)).filter(Boolean)));
+  const fallbackResult = await pool.query(
     `SELECT id, invoice_number, customer_id, customer_name, total, tax_amount,
-            external_source, external_invoice_id, external_metadata, imported_at, updated_at
+            external_source, external_invoice_id, external_metadata, imported_at, updated_at, created_at
        FROM invoices
-      WHERE invoice_number = ANY($1::text[])
-      ORDER BY invoice_number ASC`,
-    [cleaned]
+      WHERE external_source = 'copilotcrm'
+        AND created_at::date = ANY($1::date[])
+        AND lower(trim(customer_name)) = ANY($2::text[])`,
+    [fallbackDates, fallbackNames]
   );
 
-  const grouped = new Map();
-  result.rows.forEach((row) => {
-    const key = String(row.invoice_number || '').trim();
-    if (!key) return;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(row);
+  const fallbackGrouped = new Map();
+  fallbackResult.rows.forEach((row) => {
+    const key = `${normalizeCustomerName(row.customer_name)}|${String(row.created_at).slice(0, 10)}`;
+    if (!fallbackGrouped.has(key)) fallbackGrouped.set(key, []);
+    fallbackGrouped.get(key).push(row);
   });
 
-  grouped.forEach((candidates, invoiceNumber) => {
-    matches.set(invoiceNumber, choosePreferredInvoiceMatch(candidates));
+  fallbackPayments.forEach((payment) => {
+    const key = `${normalizeCustomerName(payment.customer_name)}|${String(payment.extracted_invoice_date).trim()}`;
+    const candidates = fallbackGrouped.get(key) || [];
+    if (!candidates.length) return;
+
+    const preferred = chooseFallbackInvoiceMatch(candidates, payment.extracted_invoice_date);
+    if (!preferred) return;
+    matches.set(String(payment.extracted_invoice_number).trim(), preferred);
   });
+
   return matches;
 }
 
@@ -73,6 +146,7 @@ function buildCopilotPaymentRecord(payment, invoiceMatch) {
   const externalMetadata = {
     ...(payment.external_metadata || {}),
     extracted_invoice_number: invoiceNumber,
+    extracted_invoice_date: payment.extracted_invoice_date || null,
     invoice_match_status: invoiceMatch ? 'linked' : 'unresolved',
     matched_invoice_id: invoiceMatch?.id || null,
     matched_invoice_number: invoiceMatch?.invoice_number || null,
@@ -97,6 +171,7 @@ function buildCopilotPaymentRecord(payment, invoiceMatch) {
     external_metadata: externalMetadata,
     imported_at: new Date().toISOString(),
     extracted_invoice_number: invoiceNumber,
+    extracted_invoice_date: payment.extracted_invoice_date || null,
     invoice_total: Number(invoiceMatch?.total) || 0,
     invoice_tax_amount: Number(invoiceMatch?.tax_amount) || 0,
     tax_portion_collected: computeTaxPortionCollected({
@@ -114,7 +189,7 @@ async function upsertCopilotPayments({ pool, payments = [] }) {
     : [];
   const invoiceMatches = await loadInvoiceMatches(
     pool,
-    normalizedPayments.map((payment) => payment.extracted_invoice_number)
+    normalizedPayments
   );
   const existingKeysResult = await pool.query(
     `SELECT external_payment_key
@@ -255,6 +330,7 @@ module.exports = {
   roundMoney,
   computeTaxPortionCollected,
   choosePreferredInvoiceMatch,
+  chooseFallbackInvoiceMatch,
   loadInvoiceMatches,
   buildCopilotPaymentRecord,
   upsertCopilotPayments,

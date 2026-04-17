@@ -2,11 +2,13 @@ const assert = require('assert');
 const {
   parseCopilotPaymentsHtml,
   extractInvoiceNumberFromDetails,
+  extractInvoiceDateFromDetails,
   buildExternalPaymentKey,
 } = require('../lib/copilot-payments');
 const {
   computeTaxPortionCollected,
   choosePreferredInvoiceMatch,
+  chooseFallbackInvoiceMatch,
   buildCopilotPaymentRecord,
   hydratePaymentRecord,
 } = require('../scripts/import-copilot-payments');
@@ -100,6 +102,7 @@ it('extracts invoice linkage from details and preserves fields', () => {
   assert.strictEqual(first.details, '$1,036.80 for Invoice #10470');
   assert.strictEqual(first.notes, 'Paid online');
   assert.strictEqual(first.extracted_invoice_number, '10470');
+  assert.strictEqual(first.extracted_invoice_date, null);
   assert.strictEqual(first.external_payment_key, 'row:payment_10470');
   assert.strictEqual(first.external_metadata.payment_path, '/finances/payments/view/abc123');
 });
@@ -192,6 +195,26 @@ it('builds linked payment reconciliation rows and hydrates computed fields', () 
 it('extracts invoice numbers directly from details strings', () => {
   assert.strictEqual(extractInvoiceNumberFromDetails('$172.80 for Invoice #10239'), '10239');
   assert.strictEqual(extractInvoiceNumberFromDetails('Paid in full'), null);
+});
+
+it('extracts invoice dates directly from payment details strings', () => {
+  assert.strictEqual(
+    extractInvoiceDateFromDetails('$9.60 for Invoice #9835 Sep 19, 2025 Payment Added Apr 16, 2026 9:14 pm by Theresa Pappas (Linda Scamaldo)'),
+    '2025-09-19'
+  );
+  assert.strictEqual(
+    extractInvoiceDateFromDetails('$297.00 for Invoice #10096 Mar 20, 2026 Invoice#10096'),
+    '2026-03-20'
+  );
+  assert.strictEqual(extractInvoiceDateFromDetails('Paid in full'), null);
+});
+
+it('prefers a date-like fallback invoice match for older bad imports', () => {
+  const chosen = chooseFallbackInvoiceMatch([
+    { id: 1, invoice_number: '9239', external_source: 'copilotcrm', imported_at: '2026-04-17T00:00:00Z', updated_at: '2026-04-17T00:00:00Z' },
+    { id: 2, invoice_number: 'Sep 19, 2025', external_source: 'copilotcrm', imported_at: '2026-04-17T00:00:00Z', updated_at: '2026-04-17T00:00:00Z' },
+  ], '2025-09-19');
+  assert.strictEqual(chosen.id, 2);
 });
 
 if (failures > 0) {

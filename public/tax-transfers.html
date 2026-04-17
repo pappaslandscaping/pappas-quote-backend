@@ -599,6 +599,18 @@
             .replace(/'/g, '&#39;');
     }
 
+    function paymentDetailNote(payment) {
+        const meta = payment && payment.external_metadata && typeof payment.external_metadata === 'object'
+            ? payment.external_metadata
+            : {};
+        const bits = [];
+        if (payment.method) bits.push(escapeHtml(payment.method));
+        const invoiceRef = payment.invoice_number || meta.extracted_invoice_number || null;
+        if (invoiceRef) bits.push(`Copilot ref #${escapeHtml(invoiceRef)}`);
+        if (meta.extracted_invoice_date) bits.push(escapeHtml(shortDate(meta.extracted_invoice_date)));
+        return bits.length ? `<div class="inline-note">${bits.join(' • ')}</div>` : '';
+    }
+
     function setDefaultDates() {
         const end = new Date();
         const start = new Date();
@@ -808,9 +820,9 @@
                     <tr>
                         <td>
                             <strong>${escapeHtml(payment.customer_name || 'Unknown payer')}</strong>
-                            <div class="inline-note">${escapeHtml(payment.method || 'Method unknown')}${payment.details ? ' • ' + escapeHtml(payment.details) : ''}</div>
+                            ${paymentDetailNote(payment)}
                         </td>
-                        <td>${escapeHtml(payment.invoice_number || 'Unresolved')}</td>
+                        <td>${escapeHtml(payment.invoice_number || payment.external_metadata?.extracted_invoice_number || 'Unresolved')}</td>
                         <td class="money">${money(payment.applied_amount)}</td>
                         <td class="money">${money(payment.tax_portion_collected)}</td>
                         <td>${payment.invoice_id ? '<span class="source-pill">Linked</span>' : '<span class="source-pill">Unresolved</span>'}</td>

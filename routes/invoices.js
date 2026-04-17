@@ -65,6 +65,29 @@ function outstandingBalance(inv) {
   return Math.max(0, total - paid);
 }
 
+function isDateLikeInvoiceLabel(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  return /^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$/.test(s)
+    || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+    || /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function getDisplayInvoiceNumberForPaymentRow(row) {
+  const invoiceNumber = String(row?.invoice_number || '').trim();
+  if (invoiceNumber && !isDateLikeInvoiceLabel(invoiceNumber)) return invoiceNumber;
+  const externalInvoiceId = String(row?.external_invoice_id || '').trim();
+  if (String(row?.external_source || '').trim().toLowerCase() === 'copilotcrm' && externalInvoiceId) {
+    return externalInvoiceId;
+  }
+  return null;
+}
+
+function formatCopilotSyncError(error, fallback) {
+  const message = String(error?.message || '').trim();
+  if (!message) return fallback;
+  return message.replace(/\s+/g, ' ').slice(0, 300);
+}
 function normalizeCount(value) {
   const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -882,7 +905,10 @@ router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) =>
     });
   } catch (error) {
     console.error('Copilot payments sync error:', error);
-    serverError(res, error);
+    res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Copilot payments sync failed'),
+    });
   }
 });
 
@@ -1073,7 +1099,10 @@ router.post('/api/copilot/tax-summary/sync', authenticateToken, async (req, res)
     });
   } catch (error) {
     console.error('Copilot tax summary sync error:', error);
-    serverError(res, error);
+    res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Copilot tax summary sync failed'),
+    });
   }
 });
 

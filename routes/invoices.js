@@ -42,6 +42,13 @@ function hasValidStandingShape(standing) {
   return ACCOUNT_STANDING_KEYS.every((key) => Number.isFinite(Number(standing[key])));
 }
 
+function isMeaningfulStanding(standing) {
+  if (!hasValidStandingShape(standing)) return false;
+  const total = parseStandingCount(standing.total);
+  if (total > 0) return true;
+  return ACCOUNT_STANDING_KEYS.some((key) => parseStandingCount(standing[key]) > 0);
+}
+
 function normalizeStandingSnapshot(standing, source) {
   if (!hasValidStandingShape(standing)) return null;
   const normalized = { source, as_of: standing.as_of || new Date().toISOString() };
@@ -66,7 +73,7 @@ async function readPersistedCopilotStanding() {
 
 async function persistCopilotStanding(standing) {
   const normalized = normalizeStandingSnapshot(standing, 'copilot');
-  if (!normalized) return;
+  if (!normalized || !isMeaningfulStanding(normalized)) return;
   await pool.query(
     `INSERT INTO copilot_sync_settings (key, value, updated_at)
      VALUES ($1, $2, NOW())
@@ -123,9 +130,10 @@ function deriveDbAccountStanding(rows) {
     const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
     const balance = outstandingBalance(inv);
     const daysAged = calculateAgingDays(inv, now);
+    const isOutstanding = isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid);
     standing.total += 1;
-    if (['pending', 'partial', 'sent', 'overdue'].includes(effectiveStatus)) standing.outstanding += 1;
-    if (effectiveStatus === 'paid') standing.paid += 1;
+    if (isOutstanding) standing.outstanding += 1;
+    if (!isOutstanding && balance <= 0 && !['void', 'draft'].includes(effectiveStatus)) standing.paid += 1;
     if (balance > 0 && daysAged > 0 && !['paid', 'void', 'draft'].includes(effectiveStatus)) standing.past_due += 1;
 
     const creditAvailable = parseFloat(inv.credit_available || 0);
@@ -252,6 +260,7 @@ async function fetchCopilotAccountStanding() {
     credit,
   }, 'copilot');
   if (!value) return persistedStanding;
+  if (!isMeaningfulStanding(value) && isMeaningfulStanding(persistedStanding)) return persistedStanding;
 
   await persistCopilotStanding(value).catch((error) => {
     console.error('Error persisting Copilot account standing:', error);

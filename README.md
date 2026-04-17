@@ -39,6 +39,7 @@ cp .env.example .env
 
 - `DATABASE_URL`
 - `JWT_SECRET`
+- `CRON_SECRET`
 
 You can also omit `DATABASE_URL` if Railway provides:
 
@@ -80,7 +81,7 @@ See [.env.example](/Users/theresapappas/Documents/New project/pappas-quote-backe
 
 Key groups:
 
-- Core: `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV`, `PORT`
+- Core: `DATABASE_URL`, `JWT_SECRET`, `CRON_SECRET`, `NODE_ENV`, `PORT`
 - App URLs: `BASE_URL`, `EMAIL_ASSETS_URL`
 - Notifications: `NOTIFICATION_EMAIL`, Twilio credentials
 - Payments: Square and Stripe credentials

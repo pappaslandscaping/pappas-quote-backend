@@ -36,6 +36,7 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/yarddesk` |
 | `JWT_SECRET` | Signs auth tokens | Random 64+ char string |
+| `CRON_SECRET` | Protects cron-only sync/repair endpoints | Random 32+ char string |
 | `ADMIN_PASSWORD` | Default password for seeded admin accounts | Set on first deploy, change after |
 
 ### Required for core features

@@ -24,6 +24,7 @@ const {
   normalizeAgingSnapshot,
   getAgingSnapshotExpiry,
 } = require('../lib/copilot-aging');
+const { buildInvoiceHistoryEvents } = require('../lib/invoice-history');
 const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
@@ -761,11 +762,25 @@ router.get('/api/invoices/:id', async (req, res) => {
     // Fetch payment history
     try {
       const payments = await pool.query(
-        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC',
+        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY COALESCE(paid_at, created_at) DESC, id DESC',
         [inv.id]
       );
       inv.payment_history = payments.rows;
     } catch(e) { inv.payment_history = []; }
+    try {
+      const emailLog = await pool.query(
+        `SELECT id, recipient_email, subject, email_type, status, error_message, sent_at
+           FROM email_log
+          WHERE invoice_id = $1
+          ORDER BY sent_at DESC, id DESC`,
+        [inv.id]
+      );
+      inv.email_history = emailLog.rows;
+    } catch (e) { inv.email_history = []; }
+    inv.history_events = buildInvoiceHistoryEvents(inv, {
+      payments: inv.payment_history,
+      emailLog: inv.email_history,
+    });
     res.json({ success: true, invoice: inv });
   } catch (error) {
     serverError(res, error);

@@ -6,6 +6,7 @@ const {
   buildExternalPaymentKey,
 } = require('../lib/copilot-payments');
 const {
+  deriveInvoiceTaxableGrossTotal,
   computeTaxPortionCollected,
   choosePreferredInvoiceMatch,
   chooseFallbackInvoiceMatch,
@@ -152,6 +153,37 @@ it('computes tax portion collected with tips excluded and invoice total cap appl
   );
 });
 
+it('derives taxable gross totals from taxed line items when available', () => {
+  assert.strictEqual(
+    deriveInvoiceTaxableGrossTotal({
+      line_items: [
+        { line_total: 216, tax_percent: 8 },
+        { line_total: 6.76, tax_percent: 0 },
+      ],
+    }),
+    216
+  );
+  assert.strictEqual(
+    deriveInvoiceTaxableGrossTotal({
+      external_metadata: { invoice_taxable_gross_total: 297 },
+    }),
+    297
+  );
+});
+
+it('uses taxable gross totals instead of fee-inflated invoice totals when reconstructing tax', () => {
+  assert.strictEqual(
+    computeTaxPortionCollected({
+      amount: 216,
+      tip_amount: 0,
+      invoice_total: 222.76,
+      invoice_tax_amount: 16,
+      invoice_taxable_gross_total: 216,
+    }),
+    16
+  );
+});
+
 it('prefers Copilot-linked invoices when duplicates exist', () => {
   const preferred = choosePreferredInvoiceMatch([
     { id: 1, invoice_number: '10470', external_source: null, imported_at: null, updated_at: '2026-04-15T12:00:00Z' },
@@ -181,6 +213,9 @@ it('builds linked payment reconciliation rows and hydrates computed fields', () 
     customer_name: 'Carol Horner',
     total: 1036.8,
     tax_amount: 62.21,
+    line_items: [
+      { line_total: 1036.8, tax_percent: 8 },
+    ],
     external_source: 'copilotcrm',
   });
   const hydrated = hydratePaymentRecord({
@@ -190,8 +225,21 @@ it('builds linked payment reconciliation rows and hydrates computed fields', () 
   assert.strictEqual(prepared.payment_id, null);
   assert.strictEqual(prepared.invoice_id, 42);
   assert.strictEqual(prepared.tax_portion_collected, 62.21);
+  assert.strictEqual(prepared.external_metadata.invoice_taxable_gross_total, 1036.8);
   assert.strictEqual(hydrated.applied_amount, 1036.8);
   assert.strictEqual(hydrated.tax_portion_collected, 62.21);
+});
+
+it('hydrates card payments against taxable gross totals instead of full invoice totals', () => {
+  const hydrated = hydratePaymentRecord({
+    amount: 216,
+    tip_amount: 0,
+    invoice_total: 222.76,
+    invoice_tax_amount: 16,
+    external_metadata: { invoice_taxable_gross_total: 216 },
+  });
+  assert.strictEqual(hydrated.applied_amount, 216);
+  assert.strictEqual(hydrated.tax_portion_collected, 16);
 });
 
 it('extracts invoice numbers directly from details strings', () => {

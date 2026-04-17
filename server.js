@@ -6903,7 +6903,7 @@ app.get('/api/portal/:token/dashboard', async (req, res) => {
     );
 
     const jobsResult = await pool.query(
-      `SELECT id, job_date, service_type, address, status, service_price
+      `SELECT id, job_date, job_date AS scheduled_date, service_type, address, status, service_price
        FROM scheduled_jobs WHERE customer_id = $1 AND status != 'completed'
        ORDER BY job_date ASC LIMIT 5`,
       [customer_id]
@@ -8681,7 +8681,10 @@ app.get('/api/customers/:id/timeline', async (req, res) => {
     // Jobs
     try {
       const jobs = await pool.query(
-        `SELECT id, service_type, service_price, status, scheduled_date, created_at FROM scheduled_jobs WHERE customer_name = $1 ORDER BY COALESCE(scheduled_date, created_at) DESC LIMIT 15`,
+        `SELECT id, service_type, service_price, status, job_date, job_date AS scheduled_date, created_at
+         FROM scheduled_jobs
+         WHERE customer_name = $1
+         ORDER BY COALESCE(job_date, created_at) DESC LIMIT 15`,
         [custName]
       );
       jobs.rows.forEach(j => events.push({

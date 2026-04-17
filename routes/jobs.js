@@ -1923,7 +1923,7 @@ router.get('/api/crews/:id/performance', async (req, res) => {
       SELECT COUNT(*) as total_jobs,
         COUNT(*) FILTER (WHERE status = 'completed') as completed_jobs,
         COALESCE(SUM(service_price) FILTER (WHERE status = 'completed'), 0) as total_revenue,
-        COUNT(*) FILTER (WHERE status = 'completed' AND scheduled_date >= NOW() - INTERVAL '30 days') as completed_last_30
+        COUNT(*) FILTER (WHERE status = 'completed' AND job_date >= NOW() - INTERVAL '30 days') as completed_last_30
       FROM scheduled_jobs WHERE crew_assigned = $1
     `, [crewName]);
     const s = stats.rows[0];
@@ -1952,9 +1952,9 @@ router.get('/api/crews/:id/schedule', async (req, res) => {
     if (crew.rows.length === 0) return res.status(404).json({ success: false, error: 'Crew not found' });
     const crewName = crew.rows[0].name;
     const jobs = await pool.query(`
-      SELECT id, customer_name, service_type, service_price, address, scheduled_date, status
-      FROM scheduled_jobs WHERE crew_assigned = $1 AND scheduled_date >= CURRENT_DATE
-      ORDER BY scheduled_date ASC LIMIT 20
+      SELECT id, customer_name, service_type, service_price, address, job_date, job_date AS scheduled_date, status
+      FROM scheduled_jobs WHERE crew_assigned = $1 AND job_date >= CURRENT_DATE
+      ORDER BY job_date ASC LIMIT 20
     `, [crewName]);
     res.json({ success: true, jobs: jobs.rows });
   } catch (error) {

@@ -519,7 +519,10 @@
         <!-- Receivables Aging -->
         <div class="list-card" style="margin-bottom: var(--space-5);">
             <div class="list-card-head">
-                <h3>Receivables Aging</h3>
+                <div>
+                    <h3>Receivables Aging</h3>
+                    <div class="card-subtitle" id="agingSourceSub">Loading latest Copilot aging…</div>
+                </div>
                 <a class="card-link" href="reports.html">View Reports</a>
             </div>
             <div class="aging-strip" id="agingGrid">
@@ -1317,27 +1320,53 @@
     }
 
     async function loadAging() {
-        try {
-            [
-                'agingWithin30',
-                'agingWithin30Count',
-                'aging31_60',
-                'aging31_60Count',
-                'aging61_90',
-                'aging61_90Count',
-                'aging90_plus',
-                'aging90_plusCount',
-            ].forEach((id) => {
-                const el = document.getElementById(id);
-                if (el) el.classList.add('loading');
+        const storageKey = 'invoiceAgingSnapshot';
+        const bucketKeys = ['within_30', '31_60', '61_90', '90_plus'];
+        const hasValidSnapshot = (value) => {
+            if (!value || typeof value !== 'object' || !value.buckets) return false;
+            return bucketKeys.every((key) => {
+                const bucket = value.buckets[key];
+                return bucket
+                    && Number.isFinite(Number(bucket.count))
+                    && Number.isFinite(Number(bucket.total));
             });
-            const res = await fetch(`${API_BASE}/invoices/aging`);
-            const data = await res.json();
-            if (!data.success) return;
-            const b = data.buckets;
-            const f = n => formatCurrency(n || 0);
-            const c = (n) => n + ' invoice' + (n !== 1 ? 's' : '');
-
+        };
+        const readSnapshot = () => {
+            try {
+                const raw = localStorage.getItem(storageKey);
+                return raw ? JSON.parse(raw) : null;
+            } catch (_) {
+                return null;
+            }
+        };
+        const writeSnapshot = (snapshot) => {
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(snapshot));
+            } catch (_) {}
+        };
+        const f = n => formatCurrency(n || 0);
+        const c = (n) => n + ' invoice' + (n !== 1 ? 's' : '');
+        const setAgingSubtitle = (snapshot, overrideText) => {
+            const el = document.getElementById('agingSourceSub');
+            if (!el) return;
+            if (overrideText) {
+                el.textContent = overrideText;
+                return;
+            }
+            const source = snapshot?.source === 'copilot'
+                ? 'Copilot aging snapshot'
+                : snapshot?.source === 'copilot_snapshot'
+                    ? 'Copilot cached snapshot'
+                    : 'Receivables aging snapshot';
+            const asOf = snapshot?.as_of ? new Date(snapshot.as_of) : null;
+            const asOfText = asOf && !Number.isNaN(asOf.getTime())
+                ? asOf.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                : null;
+            el.textContent = asOfText ? `${source} as of ${asOfText}` : source;
+        };
+        const renderSnapshot = (snapshot, { persist = true } = {}) => {
+            if (!hasValidSnapshot(snapshot)) return false;
+            const b = snapshot.buckets;
             document.getElementById('agingWithin30').textContent = f(b.within_30.total);
             document.getElementById('agingWithin30Count').textContent = c(b.within_30.count);
             document.getElementById('aging31_60').textContent = f(b['31_60'].total);
@@ -1359,8 +1388,38 @@
                 const el = document.getElementById(id);
                 if (el) el.classList.remove('loading');
             });
+            setAgingSubtitle(snapshot);
+            if (persist) writeSnapshot(snapshot);
+            return true;
+        };
+
+        const storedSnapshot = readSnapshot();
+        if (hasValidSnapshot(storedSnapshot)) {
+            renderSnapshot(storedSnapshot, { persist: false });
+        }
+
+        try {
+            [
+                'agingWithin30',
+                'agingWithin30Count',
+                'aging31_60',
+                'aging31_60Count',
+                'aging61_90',
+                'aging61_90Count',
+                'aging90_plus',
+                'aging90_plusCount',
+            ].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('loading');
+            });
+            const res = await fetch(`${API_BASE}/invoices/aging`);
+            const data = await res.json();
+            if (!data.success || !renderSnapshot(data)) return;
         } catch (e) {
             console.error('Error loading aging:', e);
+            if (hasValidSnapshot(storedSnapshot)) {
+                setAgingSubtitle(storedSnapshot, 'Copilot cached snapshot');
+            }
         }
     }
 

@@ -570,7 +570,7 @@ router.get('/api/invoices', async (req, res) => {
         where.push(`(
           COALESCE(LOWER(TRIM(i.status)), '') = 'overdue'
           OR (
-            COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending')
+            COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending', '')
             AND i.due_date IS NOT NULL
             AND i.due_date < CURRENT_DATE
           )

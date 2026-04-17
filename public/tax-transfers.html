@@ -900,6 +900,35 @@
         }
     }
 
+    function renderAutomationStatusUnavailable(message) {
+        currentFreshnessStatus = null;
+        setPill('automationPill', 'Unavailable', 'error');
+        document.getElementById('automationValue').textContent = 'Status unavailable';
+        document.getElementById('automationSub').textContent = message || 'Unable to load freshness status.';
+
+        setPill('taxFreshnessPill', 'Unknown', 'muted');
+        document.getElementById('taxFreshnessValue').textContent = 'Status unavailable';
+        document.getElementById('taxFreshnessSub').textContent = 'Freshness could not be loaded, so today\'s Copilot tax snapshot state is unknown.';
+
+        setPill('paymentsFreshnessPill', 'Unknown', 'muted');
+        document.getElementById('paymentsFreshnessValue').textContent = 'Status unavailable';
+        document.getElementById('paymentsFreshnessSub').textContent = 'Freshness could not be loaded, so Copilot payment import recency is unknown.';
+
+        setPill('scopePill', 'Unknown', 'muted');
+        document.getElementById('scopeValue').textContent = 'Status unavailable';
+        document.getElementById('scopeSub').textContent = 'Automation scope is unavailable until the freshness endpoint responds again.';
+
+        const alert = document.getElementById('automationAlert');
+        alert.classList.add('hidden');
+        alert.classList.remove('warning', 'error');
+        document.getElementById('automationAlertText').textContent = '';
+
+        if (currentReport?.days) {
+            renderDays(currentReport.days);
+            renderFreshness(currentReport.days, getRange());
+        }
+    }
+
     async function loadFreshnessStatus() {
         try {
             const res = await fetch('/api/reports/tax-transfer-freshness-status');
@@ -907,9 +936,7 @@
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load freshness status');
             renderAutomationStatus(data);
         } catch (error) {
-            setPill('automationPill', 'Unavailable', 'error');
-            document.getElementById('automationValue').textContent = 'Status unavailable';
-            document.getElementById('automationSub').textContent = error.message;
+            renderAutomationStatusUnavailable(error.message);
         }
     }
 

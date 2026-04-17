@@ -155,13 +155,23 @@ function readCronSecret(req) {
   return req.get('x-cron-secret') || req.query.key || req.query.token || req.body?.key || req.body?.token || '';
 }
 
+function secretsEqual(provided, expected) {
+  const expectedString = String(expected || '');
+  const providedString = String(provided || '');
+  if (!expectedString || !providedString) return false;
+  const expectedBuffer = Buffer.from(expectedString);
+  const providedBuffer = Buffer.from(providedString);
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+  return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
 function assertCronSecret(req, res) {
   const configuredSecret = process.env.CRON_SECRET || process.env.CRON_API_KEY || '';
   if (!configuredSecret) {
     res.status(503).json({ success: false, error: 'CRON_SECRET is not configured' });
     return false;
   }
-  if (readCronSecret(req) === configuredSecret) return true;
+  if (secretsEqual(readCronSecret(req), configuredSecret)) return true;
   res.status(401).json({ success: false, error: 'Invalid cron secret' });
   return false;
 }

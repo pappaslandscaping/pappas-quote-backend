@@ -140,6 +140,41 @@ it('rejects the cron endpoint when the cron secret is invalid', async () => {
   }
 });
 
+it('accepts the GET cron fallback when the query key matches the cron secret', async () => {
+  const previousSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'expected-secret';
+  const storedStatuses = [];
+  const pool = createPool(async (sql, params) => {
+    if (sql.includes('SELECT value') && sql.includes('FROM copilot_sync_settings')) {
+      return { rows: [] };
+    }
+    if (sql.includes('INSERT INTO copilot_sync_settings')) {
+      storedStatuses.push(JSON.parse(params[1]));
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected SQL in GET cron test: ${sql}`);
+  });
+
+  try {
+    const router = createRouter({
+      pool,
+      getCopilotToken: async () => null,
+    });
+    const res = await invokeRoute(router, '/api/cron/tax-transfer-freshness-sync', 'get', {
+      query: { key: 'expected-secret' },
+    });
+
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
+    assert.strictEqual(res.body.status, 'failed');
+    assert.strictEqual(storedStatuses.length, 1);
+    assert.strictEqual(storedStatuses[0].status, 'failed');
+  } finally {
+    if (previousSecret == null) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = previousSecret;
+  }
+});
+
 it('returns failed status for a valid cron request when both sync components fail', async () => {
   const previousSecret = process.env.CRON_SECRET;
   process.env.CRON_SECRET = 'expected-secret';

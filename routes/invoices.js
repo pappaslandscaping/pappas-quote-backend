@@ -22,8 +22,10 @@ let cachedCopilotStanding = null;
 let cachedCopilotAging = null;
 let cachedCopilotAgingPromise = null;
 const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
+const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
+const AGING_BUCKET_KEYS = ['within_30', '31_60', '61_90', '90_plus'];
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -134,6 +136,70 @@ function initAgingBuckets() {
   };
 }
 
+function hasValidAgingBuckets(buckets) {
+  if (!buckets || typeof buckets !== 'object') return false;
+  return AGING_BUCKET_KEYS.every((key) => {
+    const bucket = buckets[key];
+    return bucket
+      && Number.isFinite(Number(bucket.count))
+      && Number.isFinite(Number(bucket.total))
+      && Array.isArray(bucket.invoices);
+  });
+}
+
+function normalizeAgingSnapshot(snapshot, sourceOverride) {
+  if (!snapshot || typeof snapshot !== 'object' || !hasValidAgingBuckets(snapshot.buckets)) return null;
+  const buckets = {};
+  for (const key of AGING_BUCKET_KEYS) {
+    const bucket = snapshot.buckets[key];
+    buckets[key] = {
+      count: Number(bucket.count) || 0,
+      total: Number(bucket.total) || 0,
+      invoices: Array.isArray(bucket.invoices) ? bucket.invoices : [],
+    };
+  }
+  return {
+    success: true,
+    source: sourceOverride || snapshot.source || 'copilot',
+    as_of: snapshot.as_of || new Date().toISOString(),
+    buckets,
+  };
+}
+
+function getAgingSnapshotExpiry(snapshot) {
+  const asOfMs = snapshot?.as_of ? new Date(snapshot.as_of).getTime() : NaN;
+  if (!Number.isFinite(asOfMs)) return 0;
+  return asOfMs + COPILOT_AGING_CACHE_TTL_MS;
+}
+
+async function readPersistedCopilotAging() {
+  try {
+    const result = await pool.query(
+      `SELECT value
+         FROM copilot_sync_settings
+        WHERE key = $1`,
+      [COPILOT_AGING_SNAPSHOT_KEY]
+    );
+    if (!result.rows[0]?.value) return null;
+    return normalizeAgingSnapshot(JSON.parse(result.rows[0].value), 'copilot_snapshot');
+  } catch (error) {
+    return null;
+  }
+}
+
+async function persistCopilotAging(snapshot) {
+  const normalized = normalizeAgingSnapshot(snapshot, 'copilot');
+  if (!normalized) return;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_AGING_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+}
+
 function getAgingBucketKey(daysAged) {
   if (daysAged <= 30) return 'within_30';
   if (daysAged <= 60) return '31_60';
@@ -163,7 +229,16 @@ function parseFallbackAgingDays(inv, referenceDate = new Date()) {
 
 async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {}) {
   const nowMs = Date.now();
-  if (cachedCopilotAging && cachedCopilotAging.expiresAt > nowMs) {
+  if (!cachedCopilotAging) {
+    const persistedSnapshot = await readPersistedCopilotAging();
+    if (persistedSnapshot) {
+      cachedCopilotAging = {
+        value: persistedSnapshot,
+        expiresAt: getAgingSnapshotExpiry(persistedSnapshot),
+      };
+    }
+  }
+  if (cachedCopilotAging?.expiresAt > nowMs) {
     return cachedCopilotAging.value;
   }
   if (cachedCopilotAgingPromise) {
@@ -242,9 +317,12 @@ async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {})
     as_of: now.toISOString(),
     buckets,
   };
+  await persistCopilotAging(value).catch((error) => {
+    console.error('Error persisting Copilot aging snapshot:', error);
+  });
   cachedCopilotAging = {
     value,
-    expiresAt: nowMs + COPILOT_AGING_CACHE_TTL_MS,
+    expiresAt: Date.now() + COPILOT_AGING_CACHE_TTL_MS,
   };
   return value;
   })();

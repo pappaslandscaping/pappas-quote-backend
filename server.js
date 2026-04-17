@@ -7176,8 +7176,26 @@ app.get('/api/finance/summary', async (req, res) => {
       }
     });
 
+    let copilotRevenueSnapshot = null;
+    try {
+      copilotRevenueSnapshot = await fetchCopilotCollectedRevenueSnapshot();
+    } catch (error) {
+      console.error('Error fetching Copilot collected revenue snapshot:', error);
+    }
+
+    const revenueWindow = getCopilotRevenueWindow(now);
+
     res.json({
-      thisMonth: { revenue: revenueMonth, expenses: expensesMonth },
+      thisMonth: {
+        revenue: Number.isFinite(Number(copilotRevenueSnapshot?.total))
+          ? Number(copilotRevenueSnapshot.total)
+          : revenueMonth,
+        expenses: expensesMonth,
+        revenue_source: copilotRevenueSnapshot?.source || 'database',
+        revenue_as_of: copilotRevenueSnapshot?.as_of || null,
+        revenue_period_start: copilotRevenueSnapshot?.period_start || revenueWindow.start,
+        revenue_period_end: copilotRevenueSnapshot?.period_end || revenueWindow.end,
+      },
       lastMonth: { revenue: revenueLastMonth, expenses: expensesLastMonth },
       yearToDate: {
         revenue: parseFloat(paidYear.rows[0].amt),
@@ -10541,6 +10559,218 @@ function extractCopilotInvoiceTotalCount(html) {
   if (!match) return null;
   const total = parseInt(match[3], 10);
   return Number.isFinite(total) ? total : null;
+}
+
+const COPILOT_REVENUE_SNAPSHOT_KEY = 'copilot_revenue_this_month_collected';
+const COPILOT_REVENUE_CACHE_TTL_MS = 5 * 60 * 1000;
+let cachedCopilotRevenue = null;
+let cachedCopilotRevenuePromise = null;
+
+function formatEasternDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const mapped = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+  return `${mapped.year}-${mapped.month}-${mapped.day}`;
+}
+
+function getCopilotRevenueWindow(now = new Date()) {
+  const end = formatEasternDate(now);
+  const [year, month] = end.split('-');
+  return {
+    start: `${year}-${month}-01`,
+    end,
+  };
+}
+
+function parseCurrencyAmount(value) {
+  const normalized = String(value || '').replace(/[^0-9.-]/g, '');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractCurrencyValues(text) {
+  return (String(text || '').match(/-?\$?\d[\d,]*\.\d{2}/g) || [])
+    .map(parseCurrencyAmount)
+    .filter((value) => Number.isFinite(value));
+}
+
+function extractCopilotRevenueReportTotal(html) {
+  const $ = cheerio.load(html || '');
+  const selectorGroups = [
+    'tfoot tr',
+    'table tr',
+    '.grand-total',
+    '.summary-row',
+    '.report-total',
+  ];
+
+  for (const selector of selectorGroups) {
+    const candidates = [];
+    $(selector).each((_, row) => {
+      const text = $(row).text().replace(/\s+/g, ' ').trim();
+      if (!text || !/(grand total|total collected|^total$)/i.test(text)) return;
+      const lastCellValue = parseCurrencyAmount($(row).find('td,th').last().text());
+      if (Number.isFinite(lastCellValue)) candidates.push(lastCellValue);
+      candidates.push(...extractCurrencyValues(text));
+    });
+    if (candidates.length) return candidates[candidates.length - 1];
+  }
+
+  const pageText = $('body').text().replace(/\s+/g, ' ').trim();
+  const regexes = [
+    /Grand Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
+    /Total Collected[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
+    /Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
+  ];
+  for (const regex of regexes) {
+    const match = pageText.match(regex);
+    if (match) {
+      const amount = parseCurrencyAmount(match[1]);
+      if (Number.isFinite(amount)) return amount;
+    }
+  }
+
+  return null;
+}
+
+function normalizeCopilotRevenueSnapshot(snapshot, sourceOverride) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const total = Number(snapshot.total);
+  if (!Number.isFinite(total)) return null;
+  return {
+    source: sourceOverride || snapshot.source || 'copilot',
+    as_of: snapshot.as_of || new Date().toISOString(),
+    period_start: snapshot.period_start,
+    period_end: snapshot.period_end,
+    total,
+    type: 'collected',
+  };
+}
+
+function getRevenueSnapshotExpiry(snapshot, currentWindow) {
+  if (!snapshot) return 0;
+  const asOfMs = snapshot.as_of ? new Date(snapshot.as_of).getTime() : NaN;
+  if (!Number.isFinite(asOfMs)) return 0;
+  return snapshot.period_end === currentWindow.end
+    ? asOfMs + COPILOT_REVENUE_CACHE_TTL_MS
+    : 0;
+}
+
+function isRevenueSnapshotForWindow(snapshot, window) {
+  return !!snapshot
+    && snapshot.period_start === window.start
+    && snapshot.period_end === window.end;
+}
+
+async function readPersistedCopilotRevenueSnapshot(window) {
+  try {
+    const result = await pool.query(
+      `SELECT value
+         FROM copilot_sync_settings
+        WHERE key = $1`,
+      [COPILOT_REVENUE_SNAPSHOT_KEY]
+    );
+    if (!result.rows[0]?.value) return null;
+    const parsed = normalizeCopilotRevenueSnapshot(JSON.parse(result.rows[0].value), 'copilot_snapshot');
+    if (!parsed || !isRevenueSnapshotForWindow(parsed, window)) return null;
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function persistCopilotRevenueSnapshot(snapshot) {
+  const normalized = normalizeCopilotRevenueSnapshot(snapshot, 'copilot');
+  if (!normalized) return;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_REVENUE_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+}
+
+async function fetchCopilotCollectedRevenueSnapshot() {
+  const window = getCopilotRevenueWindow();
+  const nowMs = Date.now();
+  const sameWindowCachedRevenue = isRevenueSnapshotForWindow(cachedCopilotRevenue?.value, window)
+    ? cachedCopilotRevenue?.value
+    : null;
+
+  if (!cachedCopilotRevenue) {
+    const persisted = await readPersistedCopilotRevenueSnapshot(window);
+    if (persisted) {
+      cachedCopilotRevenue = {
+        value: persisted,
+        expiresAt: getRevenueSnapshotExpiry(persisted, window),
+      };
+    }
+  }
+
+  if (cachedCopilotRevenue?.expiresAt > nowMs) {
+    return cachedCopilotRevenue.value;
+  }
+  if (cachedCopilotRevenuePromise) {
+    return sameWindowCachedRevenue || cachedCopilotRevenuePromise;
+  }
+
+  const refreshPromise = (async () => {
+    const tokenInfo = await getCopilotToken();
+    if (!tokenInfo?.cookieHeader) return sameWindowCachedRevenue || null;
+
+    const reportUrl = `https://secure.copilotcrm.com/reports/revenue-by-crew/?sdate=${window.start}&edate=${window.end}&crew_id=0&type=collected`;
+    const response = await fetch(reportUrl, {
+      headers: {
+        'Cookie': tokenInfo.cookieHeader,
+        'Referer': 'https://secure.copilotcrm.com/reports/revenue-by-crew',
+      },
+    });
+
+    if (!response.ok) {
+      return sameWindowCachedRevenue || null;
+    }
+
+    const html = await response.text();
+    const total = extractCopilotRevenueReportTotal(html);
+    if (!Number.isFinite(total)) {
+      console.warn('Unable to parse Copilot revenue by crew total', {
+        periodStart: window.start,
+        periodEnd: window.end,
+      });
+      return sameWindowCachedRevenue || null;
+    }
+
+    const value = normalizeCopilotRevenueSnapshot({
+      source: 'copilot',
+      as_of: new Date().toISOString(),
+      period_start: window.start,
+      period_end: window.end,
+      total,
+    }, 'copilot');
+    await persistCopilotRevenueSnapshot(value).catch((error) => {
+      console.error('Error persisting Copilot revenue snapshot:', error);
+    });
+    cachedCopilotRevenue = {
+      value,
+      expiresAt: Date.now() + COPILOT_REVENUE_CACHE_TTL_MS,
+    };
+    return value;
+  })();
+
+  cachedCopilotRevenuePromise = refreshPromise.finally(() => {
+    cachedCopilotRevenuePromise = null;
+  });
+
+  if (cachedCopilotRevenue) {
+    return cachedCopilotRevenue.value;
+  }
+  return cachedCopilotRevenuePromise;
 }
 
 async function fetchCopilotInvoicePage({ cookieHeader, page = 1, pageSize = 100, sort = 'datedesc', invoiceStatuses = [] } = {}) {

@@ -222,6 +222,68 @@
         .summary-card.variance-negative .summary-value {
             color: #b91c1c;
         }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .status-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 16px;
+        }
+        .status-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-card-value {
+            margin-top: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .status-card-sub {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--gray-500);
+            line-height: 1.45;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid var(--gray-200);
+            background: var(--gray-50);
+            color: var(--gray-600);
+            white-space: nowrap;
+        }
+        .status-pill.success {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+        .status-pill.warn {
+            background: #fffbeb;
+            border-color: #fcd34d;
+            color: #92400e;
+        }
+        .status-pill.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+        .status-pill.muted {
+            background: var(--gray-50);
+            border-color: var(--gray-200);
+            color: var(--gray-600);
+        }
         .section-head {
             display: flex;
             justify-content: space-between;
@@ -329,6 +391,13 @@
             background: #fffbeb;
             border-color: #fcd34d;
         }
+        .callout.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+        .callout.hidden {
+            display: none;
+        }
         .split-grid {
             display: grid;
             grid-template-columns: 1.15fr 0.85fr;
@@ -385,6 +454,7 @@
         }
         @media (max-width: 1180px) {
             .controls-grid,
+            .status-grid,
             .summary-grid,
             .split-grid,
             .hero-steps {
@@ -450,6 +520,47 @@
         </section>
 
         <section class="panel">
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Automation</div>
+                        <span class="status-pill muted" id="automationPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="automationValue">No automated run recorded</div>
+                    <div class="status-card-sub" id="automationSub">The daily freshness sync has not completed successfully yet.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Tax Summary Today</div>
+                        <span class="status-pill muted" id="taxFreshnessPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="taxFreshnessValue">No same-day snapshot</div>
+                    <div class="status-card-sub" id="taxFreshnessSub">Copilot collected-tax freshness for today.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Payments Sync</div>
+                        <span class="status-pill muted" id="paymentsFreshnessPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="paymentsFreshnessValue">No same-day payment import</div>
+                    <div class="status-card-sub" id="paymentsFreshnessSub">Copilot payment import freshness for reconciliation.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Automation Scope</div>
+                        <span class="status-pill muted" id="scopePill">Daily</span>
+                    </div>
+                    <div class="status-card-value" id="scopeValue">Today + 1 day back</div>
+                    <div class="status-card-sub" id="scopeSub">Backend-triggered sync scope in America/New_York.</div>
+                </div>
+            </div>
+            <div class="callout hidden" id="automationAlert" style="margin-top:18px;margin-bottom:0;">
+                <div id="automationAlertIcon">⚠️</div>
+                <div id="automationAlertText"></div>
+            </div>
+        </section>
+
+        <section class="panel">
             <div class="callout">
                 <div>ℹ️</div>
                 <div>
@@ -508,11 +619,12 @@
                                 <th>Backend Tax</th>
                                 <th>Variance</th>
                                 <th>Source</th>
+                                <th>Freshness</th>
                                 <th>Snapshot As Of</th>
                             </tr>
                         </thead>
                         <tbody id="daysBody">
-                            <tr><td colspan="7" class="empty-state">Load a date range to view daily tax transfer recommendations.</td></tr>
+                            <tr><td colspan="8" class="empty-state">Load a date range to view daily tax transfer recommendations.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -564,6 +676,7 @@
                 </div>
             </div>
         </section>
+
     </div>
 </main>
 
@@ -588,6 +701,7 @@
     };
 
     let currentReport = null;
+    let currentFreshnessStatus = null;
     let selectedDay = null;
 
     function escapeHtml(value) {
@@ -634,6 +748,14 @@
         if (tone) el.classList.add(tone);
     }
 
+    function setPill(id, label, tone) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = label;
+        el.classList.remove('success', 'warn', 'error', 'muted');
+        el.classList.add(tone || 'muted');
+    }
+
     function getRange() {
         return {
             start_date: document.getElementById('startDate').value,
@@ -658,11 +780,171 @@
         else if (variance < -0.009) varianceCard.classList.add('variance-negative');
     }
 
+    function isIsoDateInRange(date, startDate, endDate) {
+        return Boolean(date && startDate && endDate && date >= startDate && date <= endDate);
+    }
+
+    function describeDayFreshness(day) {
+        const today = currentFreshnessStatus?.today || null;
+        const freshToday = Boolean(currentFreshnessStatus?.freshness?.today_tax_summary_fresh);
+        const taxSync = currentFreshnessStatus?.automation?.components?.tax_summary || null;
+        const inLatestTaxSyncWindow = taxSync?.status === 'success'
+            && isIsoDateInRange(day?.date, taxSync?.start_date, taxSync?.end_date);
+        if (day?.source === 'missing_copilot_snapshot') {
+            return { label: day?.date === today ? 'Missing today' : 'Missing', tone: 'error' };
+        }
+        if (day?.date === today) {
+            return freshToday
+                ? { label: 'Synced today', tone: 'success' }
+                : { label: 'Not synced today', tone: 'warn' };
+        }
+        if (inLatestTaxSyncWindow) {
+            return { label: 'In daily sync window', tone: 'success' };
+        }
+        if (day?.source === 'live_copilot' || day?.source === 'copilotcrm') {
+            return { label: 'Live fetch', tone: 'success' };
+        }
+        if (day?.source === 'persisted_copilot_snapshot') {
+            return { label: 'Stored snapshot', tone: 'muted' };
+        }
+        if (day?.source === 'database_fallback') {
+            return { label: 'Fallback', tone: 'warn' };
+        }
+        return { label: 'Unknown', tone: 'muted' };
+    }
+
+    function renderAutomationStatus(status) {
+        currentFreshnessStatus = status;
+
+        const automation = status?.automation || {};
+        const freshness = status?.freshness || {};
+        const scopeDays = Number.isFinite(Number(automation.days_back)) ? Number(automation.days_back) : 1;
+
+        if (automation.status === 'success') {
+            setPill('automationPill', 'Healthy', 'success');
+            document.getElementById('automationValue').textContent = `Last success ${longDateTime(automation.last_success_at)}`;
+            document.getElementById('automationSub').textContent = 'Daily backend sync completed for both tax summary and Copilot payments.';
+        } else if (automation.status === 'degraded') {
+            setPill('automationPill', 'Needs attention', 'warn');
+            document.getElementById('automationValue').textContent = `Last attempt ${longDateTime(automation.last_attempt_at)}`;
+            document.getElementById('automationSub').textContent = automation.last_error || 'One freshness sync step failed. Review the stored error below.';
+        } else if (automation.status === 'failed') {
+            setPill('automationPill', 'Failed', 'error');
+            document.getElementById('automationValue').textContent = `Last failure ${longDateTime(automation.last_attempt_at)}`;
+            document.getElementById('automationSub').textContent = automation.last_error || 'The automated freshness sync failed before completion.';
+        } else {
+            setPill('automationPill', 'Not run', 'muted');
+            document.getElementById('automationValue').textContent = 'No automated run recorded';
+            document.getElementById('automationSub').textContent = 'Configure the cron endpoint to keep same-day snapshots fresh automatically.';
+        }
+
+        if (freshness.today_tax_summary_fresh) {
+            setPill('taxFreshnessPill', 'Synced today', 'success');
+            document.getElementById('taxFreshnessValue').textContent = `Last sync ${longDateTime(freshness.today_tax_summary_last_imported_at)}`;
+            document.getElementById('taxFreshnessSub').textContent = 'Same-business-day Copilot collected-tax snapshot captured. This is not a live current reading between syncs.';
+        } else if (freshness.today_tax_summary_last_imported_at) {
+            setPill('taxFreshnessPill', 'Not synced today', 'warn');
+            document.getElementById('taxFreshnessValue').textContent = `Last sync ${longDateTime(freshness.today_tax_summary_last_imported_at)}`;
+            document.getElementById('taxFreshnessSub').textContent = 'A stored Copilot tax snapshot exists, but today has not been refreshed yet in America/New_York.';
+        } else {
+            setPill('taxFreshnessPill', 'Missing today', 'error');
+            document.getElementById('taxFreshnessValue').textContent = 'No today snapshot';
+            document.getElementById('taxFreshnessSub').textContent = 'Today does not have a stored Copilot collected-tax snapshot yet.';
+        }
+
+        if (freshness.payments_fresh_today) {
+            setPill('paymentsFreshnessPill', 'Synced today', 'success');
+            document.getElementById('paymentsFreshnessValue').textContent = `Last import ${longDateTime(freshness.payments_last_imported_at)}`;
+            document.getElementById('paymentsFreshnessSub').textContent = 'Reconciliation detail includes a same-business-day Copilot payment import. New payments after that import will not appear yet.';
+        } else if (freshness.payments_last_imported_at) {
+            setPill('paymentsFreshnessPill', 'Not synced today', 'warn');
+            document.getElementById('paymentsFreshnessValue').textContent = `Last import ${longDateTime(freshness.payments_last_imported_at)}`;
+            document.getElementById('paymentsFreshnessSub').textContent = 'Recommended transfer is still valid, but payment-based variance may lag until the next import.';
+        } else {
+            setPill('paymentsFreshnessPill', 'Missing', 'error');
+            document.getElementById('paymentsFreshnessValue').textContent = 'No Copilot payment import';
+            document.getElementById('paymentsFreshnessSub').textContent = 'Payment reconciliation has not been populated from Copilot yet.';
+        }
+
+        setPill('scopePill', 'Daily', 'muted');
+        document.getElementById('scopeValue').textContent = `Today + ${scopeDays} day${scopeDays === 1 ? '' : 's'} back`;
+        document.getElementById('scopeSub').textContent = `Automation sync window in ${status?.time_zone || 'America/New_York'}. Manual buttons still allow ad hoc refreshes.`;
+
+        const alert = document.getElementById('automationAlert');
+        const alertText = document.getElementById('automationAlertText');
+        const alertIcon = document.getElementById('automationAlertIcon');
+        alert.classList.remove('warning', 'error');
+        if (automation.status === 'failed') {
+            alert.classList.remove('hidden');
+            alert.classList.add('error');
+            alertIcon.textContent = '⛔';
+            alertText.textContent = `Automated freshness sync failed. ${automation.last_error || 'Check Copilot auth and cron configuration.'}`;
+        } else if (automation.status === 'degraded') {
+            alert.classList.remove('hidden');
+            alert.classList.add('warning');
+            alertIcon.textContent = '⚠️';
+            alertText.textContent = `Automated freshness sync completed with errors. ${automation.last_error || 'At least one component did not finish cleanly.'}`;
+        } else if (!freshness.today_tax_summary_fresh) {
+            alert.classList.remove('hidden');
+            alert.classList.add('warning');
+            alertIcon.textContent = '⚠️';
+            alertText.textContent = 'Today’s Copilot tax summary is not fresh yet. Use the manual sync button if you need an updated same-day recommendation before the next scheduled run.';
+        } else {
+            alert.classList.add('hidden');
+            alertText.textContent = '';
+        }
+
+        if (currentReport?.days) {
+            renderDays(currentReport.days);
+            renderFreshness(currentReport.days, getRange());
+        }
+    }
+
+    function renderAutomationStatusUnavailable(message) {
+        currentFreshnessStatus = null;
+        setPill('automationPill', 'Unavailable', 'error');
+        document.getElementById('automationValue').textContent = 'Status unavailable';
+        document.getElementById('automationSub').textContent = message || 'Unable to load freshness status.';
+
+        setPill('taxFreshnessPill', 'Unknown', 'muted');
+        document.getElementById('taxFreshnessValue').textContent = 'Status unavailable';
+        document.getElementById('taxFreshnessSub').textContent = 'Freshness could not be loaded, so today\'s Copilot tax snapshot state is unknown.';
+
+        setPill('paymentsFreshnessPill', 'Unknown', 'muted');
+        document.getElementById('paymentsFreshnessValue').textContent = 'Status unavailable';
+        document.getElementById('paymentsFreshnessSub').textContent = 'Freshness could not be loaded, so Copilot payment import recency is unknown.';
+
+        setPill('scopePill', 'Unknown', 'muted');
+        document.getElementById('scopeValue').textContent = 'Status unavailable';
+        document.getElementById('scopeSub').textContent = 'Automation scope is unavailable until the freshness endpoint responds again.';
+
+        const alert = document.getElementById('automationAlert');
+        alert.classList.add('hidden');
+        alert.classList.remove('warning', 'error');
+        document.getElementById('automationAlertText').textContent = '';
+
+        if (currentReport?.days) {
+            renderDays(currentReport.days);
+            renderFreshness(currentReport.days, getRange());
+        }
+    }
+
+    async function loadFreshnessStatus() {
+        try {
+            const res = await fetch('/api/reports/tax-transfer-freshness-status');
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load freshness status');
+            renderAutomationStatus(data);
+        } catch (error) {
+            renderAutomationStatusUnavailable(error.message);
+        }
+    }
+
     function renderDays(days) {
         const body = document.getElementById('daysBody');
         const meta = document.getElementById('tableMeta');
         if (!Array.isArray(days) || !days.length) {
-            body.innerHTML = '<tr><td colspan="7" class="empty-state">No report rows found for this date range.</td></tr>';
+            body.innerHTML = '<tr><td colspan="8" class="empty-state">No report rows found for this date range.</td></tr>';
             meta.textContent = '0 days';
             return;
         }
@@ -672,6 +954,7 @@
             const variance = Number(day.variance || 0);
             const varianceClass = Math.abs(variance) < 0.01 ? 'good' : 'warn';
             const selectedClass = selectedDay === day.date ? ' selected' : '';
+            const freshness = describeDayFreshness(day);
             return `
                 <tr class="row-button${selectedClass}" onclick="selectDay('${day.date}')">
                     <td><strong>${shortDate(day.date)}</strong></td>
@@ -680,6 +963,7 @@
                     <td class="money">${money(day.backend_reconstructed_tax)}</td>
                     <td><span class="variance-pill ${varianceClass}">${money(day.variance)}</span></td>
                     <td><span class="source-pill">${fmtSource(day.source)}</span></td>
+                    <td><span class="status-pill ${freshness.tone}">${freshness.label}</span></td>
                     <td>${longDateTime(day.snapshot_as_of)}</td>
                 </tr>
             `;
@@ -698,7 +982,11 @@
             .sort()
             .slice(-1)[0];
         const sources = Array.from(new Set(days.map((day) => fmtSource(day.source))));
-        note.textContent = `Showing ${shortDate(range.start_date)} through ${shortDate(range.end_date)}. Latest snapshot: ${longDateTime(latest)}. Sources: ${sources.join(', ')}.`;
+        const automation = currentFreshnessStatus?.automation;
+        const automationNote = automation?.last_success_at
+            ? ` Automation last full success: ${longDateTime(automation.last_success_at)}.`
+            : '';
+        note.textContent = `Showing ${shortDate(range.start_date)} through ${shortDate(range.end_date)}. Latest snapshot: ${longDateTime(latest)}. Sources: ${sources.join(', ')}.${automationNote}`;
     }
 
     async function loadReport() {
@@ -709,7 +997,7 @@
         }
 
         setBusy('loadBtn', true, 'Loading…');
-        document.getElementById('daysBody').innerHTML = '<tr><td colspan="7" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
+        document.getElementById('daysBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
         setSyncStatus('Loading tax transfer report…', 'loading');
         try {
             const params = new URLSearchParams(range);
@@ -733,7 +1021,7 @@
             }
         } catch (error) {
             setSyncStatus(`Load failed: ${error.message}`, 'error');
-            document.getElementById('daysBody').innerHTML = `<tr><td colspan="7" class="empty-state">Unable to load the tax transfer report. ${escapeHtml(error.message)}</td></tr>`;
+            document.getElementById('daysBody').innerHTML = `<tr><td colspan="8" class="empty-state">Unable to load the tax transfer report. ${escapeHtml(error.message)}</td></tr>`;
             resetDetail();
         } finally {
             setBusy('loadBtn', false);
@@ -757,7 +1045,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync tax summary');
             setSyncStatus(`Tax Summary synced for ${data.count || 0} day${data.count === 1 ? '' : 's'}.`, 'success');
-            await loadReport();
+            await Promise.all([loadFreshnessStatus(), loadReport()]);
         } catch (error) {
             setSyncStatus(`Tax Summary sync failed: ${error.message}`, 'error');
         } finally {
@@ -777,7 +1065,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync payments');
             setSyncStatus(`Payments synced: ${data.sync?.inserted || 0} inserted, ${data.sync?.updated || 0} updated, ${data.sync?.unresolved || 0} unresolved.`, 'success');
-            if (currentReport) await loadReport();
+            await Promise.all([loadFreshnessStatus(), currentReport ? loadReport() : Promise.resolve()]);
         } catch (error) {
             setSyncStatus(`Payments sync failed: ${error.message}`, 'error');
         } finally {
@@ -835,9 +1123,9 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         setDefaultDates();
-        loadReport();
+        await Promise.all([loadFreshnessStatus(), loadReport()]);
     });
 </script>
 </body>

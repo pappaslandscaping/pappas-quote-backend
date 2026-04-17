@@ -24,8 +24,18 @@ const {
   normalizeAgingSnapshot,
   getAgingSnapshotExpiry,
 } = require('../lib/copilot-aging');
+const {
+  COPILOT_PAYMENTS_BASE_PATH,
+  parseCopilotPaymentsHtml,
+  normalizeCopilotPaymentsSnapshot,
+} = require('../lib/copilot-payments');
 const { buildInvoiceHistoryEvents } = require('../lib/invoice-history');
 const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
+const {
+  roundMoney,
+  upsertCopilotPayments,
+  hydratePaymentRecord,
+} = require('../scripts/import-copilot-payments');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
   const router = express.Router();
@@ -33,10 +43,13 @@ module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, 
 let cachedCopilotStanding = null;
 let cachedCopilotAging = null;
 let cachedCopilotAgingPromise = null;
+let cachedCopilotPayments = null;
 const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
 const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
+const COPILOT_PAYMENTS_SNAPSHOT_KEY = 'copilot_payments_snapshot';
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
+const COPILOT_PAYMENTS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -52,6 +65,123 @@ function normalizeCount(value) {
 function parseStandingCount(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function persistCopilotPaymentsSnapshot(snapshot) {
+  const normalized = normalizeCopilotPaymentsSnapshot(snapshot, LIVE_COPILOT_SOURCE);
+  if (!normalized) return null;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_PAYMENTS_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+  return normalized;
+}
+
+async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25 } = {}) {
+  const now = Date.now();
+  if (cachedCopilotPayments?.expiresAt > now) return cachedCopilotPayments.value;
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
+
+  const baseUrl = `https://secure.copilotcrm.com${COPILOT_PAYMENTS_BASE_PATH}?p=1&iop=${Math.max(1, Number(pageSize) || 100)}`;
+  const queue = [baseUrl];
+  const visited = new Set();
+  const seenKeys = new Set();
+  const payments = [];
+  let total = null;
+  let pagesFetched = 0;
+
+  while (queue.length && pagesFetched < Math.max(1, Number(maxPages) || 25)) {
+    const url = queue.shift();
+    if (!url || visited.has(url)) continue;
+    visited.add(url);
+    pagesFetched += 1;
+
+    const copilotRes = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Cookie: tokenInfo.cookieHeader,
+        Origin: 'https://secure.copilotcrm.com',
+        Referer: `https://secure.copilotcrm.com${COPILOT_PAYMENTS_BASE_PATH}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    if (!copilotRes.ok) {
+      throw new Error(`Copilot payments returned ${copilotRes.status}`);
+    }
+
+    const html = await copilotRes.text();
+    const parsed = parseCopilotPaymentsHtml(html, url);
+    if (total == null && Number.isFinite(Number(parsed.total))) {
+      total = Number(parsed.total);
+    }
+
+    parsed.payments.forEach((payment) => {
+      if (seenKeys.has(payment.external_payment_key)) return;
+      seenKeys.add(payment.external_payment_key);
+      payments.push(payment);
+    });
+
+    parsed.page_paths.forEach((pagePath) => {
+      const absolute = pagePath.startsWith('http')
+        ? pagePath
+        : `https://secure.copilotcrm.com${pagePath}`;
+      if (!visited.has(absolute)) queue.push(absolute);
+    });
+
+    if (total && payments.length >= total) break;
+  }
+
+  const normalized = normalizeCopilotPaymentsSnapshot({
+    as_of: new Date().toISOString(),
+    total: total || payments.length,
+    payments,
+  }, LIVE_COPILOT_SOURCE);
+  if (!normalized) throw new Error('Unable to parse Copilot payments');
+
+  await persistCopilotPaymentsSnapshot(normalized).catch((error) => {
+    console.error('Error persisting Copilot payments snapshot:', error);
+  });
+
+  cachedCopilotPayments = {
+    value: normalized,
+    expiresAt: Date.now() + COPILOT_PAYMENTS_CACHE_TTL_MS,
+  };
+
+  return normalized;
+}
+
+function buildPaymentRecordWhere({ search, year, month, source, linked } = {}, params) {
+  const where = [];
+  if (search) {
+    params.push(`%${search}%`);
+    where.push(`(
+      COALESCE(p.customer_name, '') ILIKE $${params.length}
+      OR COALESCE(i.invoice_number, '') ILIKE $${params.length}
+      OR COALESCE(p.details, '') ILIKE $${params.length}
+      OR COALESCE(p.notes, '') ILIKE $${params.length}
+    )`);
+  }
+  if (year) {
+    params.push(parseInt(year, 10));
+    where.push(`EXTRACT(YEAR FROM COALESCE(p.paid_at, p.created_at)) = $${params.length}`);
+  }
+  if (month) {
+    params.push(parseInt(month, 10));
+    where.push(`EXTRACT(MONTH FROM COALESCE(p.paid_at, p.created_at)) = $${params.length}`);
+  }
+  if (source) {
+    params.push(String(source));
+    where.push(`COALESCE(p.external_source, 'database') = $${params.length}`);
+  }
+  if (linked === 'true') where.push('p.invoice_id IS NOT NULL');
+  if (linked === 'false') where.push('p.invoice_id IS NULL');
+  return where;
 }
 
 function hasValidStandingShape(standing) {
@@ -530,6 +660,179 @@ router.get('/api/payments', async (req, res) => {
   } catch (e) {
     console.error('Payments API error:', e);
     serverError(res, e);
+  }
+});
+
+// POST /api/copilot/payments/sync - Sync live Copilot payments into payment records
+router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) => {
+  try {
+    const snapshot = await fetchCopilotPaymentsSnapshot({
+      pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
+      maxPages: Number(req.body?.maxPages || req.query.maxPages || 25),
+    });
+    const syncResult = await upsertCopilotPayments({
+      pool,
+      payments: snapshot.payments,
+    });
+
+    res.json({
+      success: true,
+      source: snapshot.source,
+      as_of: snapshot.as_of,
+      total: snapshot.total,
+      pages: Math.ceil((snapshot.total || snapshot.payments.length || 0) / Math.max(1, Number(req.body?.pageSize || req.query.pageSize || 100))),
+      sync: {
+        total: syncResult.total,
+        inserted: syncResult.inserted,
+        updated: syncResult.updated,
+        linked: syncResult.linked,
+        unresolved: syncResult.unresolved,
+      },
+      unresolved: syncResult.payments.filter((payment) => payment.link_status === 'unresolved'),
+    });
+  } catch (error) {
+    console.error('Copilot payments sync error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/payment-records - True payment records joined to invoices
+router.get('/api/payment-records', authenticateToken, async (req, res) => {
+  try {
+    const { search, year, month, source, linked, limit = 200, offset = 0 } = req.query;
+    const params = [];
+    const where = buildPaymentRecordWhere({ search, year, month, source, linked }, params);
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    params.push(parseInt(limit, 10));
+    params.push(parseInt(offset, 10));
+
+    const selectSql = `
+      SELECT
+        p.id,
+        p.payment_id,
+        p.invoice_id,
+        p.customer_id,
+        p.customer_name,
+        p.amount,
+        p.tip_amount,
+        p.method,
+        p.status,
+        p.details,
+        p.notes,
+        p.paid_at,
+        p.created_at,
+        p.source_date_raw,
+        p.external_source,
+        p.external_payment_key,
+        p.external_metadata,
+        p.imported_at,
+        i.invoice_number,
+        i.total AS invoice_total,
+        i.tax_amount AS invoice_tax_amount,
+        i.external_source AS invoice_external_source,
+        i.external_invoice_id
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id = i.id
+      ${whereClause}
+      ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
+
+    const [rowsResult, countResult] = await Promise.all([
+      pool.query(selectSql, params),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+           FROM payments p
+           LEFT JOIN invoices i ON p.invoice_id = i.id
+           ${whereClause}`,
+        params.slice(0, -2)
+      ),
+    ]);
+
+    const payments = rowsResult.rows.map(hydratePaymentRecord);
+    res.json({
+      success: true,
+      payments,
+      total: countResult.rows[0]?.count || 0,
+    });
+  } catch (error) {
+    console.error('Payment records API error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/reports/tax-sweep - Reconciliation report from payment records only
+router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
+  try {
+    const { start_date, end_date, source = 'copilotcrm' } = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+         p.id,
+         p.payment_id,
+         p.invoice_id,
+         p.customer_name,
+         p.amount,
+         p.tip_amount,
+         p.method,
+         p.status,
+         p.details,
+         p.notes,
+         p.paid_at,
+         p.created_at,
+         p.source_date_raw,
+         p.external_source,
+         p.external_payment_key,
+         p.external_metadata,
+         p.imported_at,
+         i.invoice_number,
+         i.total AS invoice_total,
+         i.tax_amount AS invoice_tax_amount
+       FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       WHERE COALESCE(p.paid_at, p.created_at) >= $1::date
+         AND COALESCE(p.paid_at, p.created_at) < ($2::date + INTERVAL '1 day')
+         AND COALESCE(p.external_source, 'database') = $3
+       ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC`,
+      [start_date, end_date, source]
+    );
+
+    const payments = result.rows.map(hydratePaymentRecord);
+    const summary = payments.reduce((acc, payment) => {
+      acc.payment_count += 1;
+      acc.gross_collected = roundMoney(acc.gross_collected + payment.amount);
+      acc.tip_amount = roundMoney(acc.tip_amount + payment.tip_amount);
+      acc.applied_amount = roundMoney(acc.applied_amount + payment.applied_amount);
+      acc.tax_portion_collected = roundMoney(acc.tax_portion_collected + payment.tax_portion_collected);
+      if (payment.invoice_id) acc.linked_count += 1;
+      else acc.unresolved_count += 1;
+      return acc;
+    }, {
+      payment_count: 0,
+      linked_count: 0,
+      unresolved_count: 0,
+      gross_collected: 0,
+      tip_amount: 0,
+      applied_amount: 0,
+      tax_portion_collected: 0,
+    });
+
+    res.json({
+      success: true,
+      mode: 'reconciliation_only',
+      start_date,
+      end_date,
+      source,
+      summary,
+      payments,
+    });
+  } catch (error) {
+    console.error('Tax sweep report error:', error);
+    serverError(res, error);
   }
 });
 

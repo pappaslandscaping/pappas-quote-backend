@@ -7198,12 +7198,17 @@ app.get('/api/finance/summary', async (req, res) => {
       revenueMonth,
       now,
     });
-    console.info('Finance summary revenue source', {
+    const revenueSourceLog = {
       source: revenueSummary.revenue_source,
       asOf: revenueSummary.revenue_as_of,
       periodStart: revenueSummary.revenue_period_start,
       periodEnd: revenueSummary.revenue_period_end,
-    });
+    };
+    if (revenueSummary.revenue_source === 'database_fallback') {
+      console.warn('Finance summary revenue fallback', revenueSourceLog);
+    } else {
+      console.info('Finance summary revenue source', revenueSourceLog);
+    }
 
     res.json({
       thisMonth: {

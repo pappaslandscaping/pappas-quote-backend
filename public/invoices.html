@@ -1357,7 +1357,9 @@
                 ? 'Copilot aging snapshot'
                 : (snapshot?.source === 'persisted_copilot_snapshot' || snapshot?.source === 'copilot_snapshot')
                     ? 'Copilot cached snapshot'
-                    : 'Receivables aging snapshot';
+                    : snapshot?.source === 'database_fallback'
+                        ? 'Receivables aging database fallback'
+                        : 'Receivables aging snapshot';
             const asOf = snapshot?.as_of ? new Date(snapshot.as_of) : null;
             const asOfText = asOf && !Number.isNaN(asOf.getTime())
                 ? asOf.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })

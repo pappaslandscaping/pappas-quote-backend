@@ -10602,39 +10602,42 @@ function extractCurrencyValues(text) {
     .filter((value) => Number.isFinite(value));
 }
 
+function extractTableRowAmounts($, row) {
+  const cellTexts = $(row).find('td,th').toArray().map((cell) => $(cell).text().replace(/\s+/g, ' ').trim());
+  const rowText = cellTexts.join(' | ').trim();
+  const amounts = cellTexts
+    .flatMap((text) => extractCurrencyValues(text))
+    .filter((value) => Number.isFinite(value));
+  return { rowText, cellTexts, amounts };
+}
+
 function extractCopilotRevenueReportTotal(html) {
   const $ = cheerio.load(html || '');
-  const selectorGroups = [
-    'tfoot tr',
-    '.grand-total',
-    '.summary-row',
-    '.report-total',
-  ];
+  const rows = $('table tr, .grand-total, .summary-row, .report-total').toArray()
+    .map((row) => extractTableRowAmounts($, row))
+    .filter((row) => row.rowText && row.amounts.length);
 
-  for (const selector of selectorGroups) {
-    const positiveCandidates = [];
-    const zeroCandidates = [];
-    $(selector).each((_, row) => {
-      const text = $(row).text().replace(/\s+/g, ' ').trim();
-      if (!text || !/(grand total|total collected|collected total)/i.test(text)) return;
-      const rowValues = [
-        parseCurrencyAmount($(row).find('td,th').last().text()),
-        ...extractCurrencyValues(text),
-      ].filter((value) => Number.isFinite(value));
-      rowValues.forEach((value) => {
-        if (value > 0) positiveCandidates.push(value);
-        else zeroCandidates.push(value);
-      });
-    });
-    if (positiveCandidates.length) return Math.max(...positiveCandidates);
-    if (zeroCandidates.length) return 0;
-  }
+  const explicitTotalRows = rows.filter((row) => /(grand total|total collected|collected total)/i.test(row.rowText));
+  const positiveExplicit = explicitTotalRows.flatMap((row) => row.amounts.filter((value) => value > 0));
+  if (positiveExplicit.length) return Math.max(...positiveExplicit);
+  if (explicitTotalRows.some((row) => row.amounts.some((value) => value === 0))) return 0;
+
+  const footerRows = $('tfoot tr').toArray()
+    .map((row) => extractTableRowAmounts($, row))
+    .filter((row) => row.rowText && row.amounts.length);
+  const positiveFooter = footerRows.flatMap((row) => row.amounts.filter((value) => value > 0));
+  if (positiveFooter.length) return Math.max(...positiveFooter);
+
+  const bottomRows = rows.slice(-8).filter((row) => row.amounts.length >= 2);
+  const positiveBottom = bottomRows.flatMap((row) => row.amounts.filter((value) => value > 0));
+  if (positiveBottom.length) return Math.max(...positiveBottom);
 
   const pageText = $('body').text().replace(/\s+/g, ' ').trim();
   const regexes = [
     /Grand Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
     /Total Collected[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
     /Collected Total[^$0-9-]*\$?([0-9,]+\.\d{2})/i,
+    /Revenue by Crew[\s\S]{0,400}\$?([0-9,]+\.\d{2})/i,
   ];
   for (const regex of regexes) {
     const match = pageText.match(regex);

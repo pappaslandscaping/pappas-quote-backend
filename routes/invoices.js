@@ -65,6 +65,40 @@ function outstandingBalance(inv) {
   return Math.max(0, total - paid);
 }
 
+function isDateLikeInvoiceLabel(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  return /^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$/.test(s)
+    || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+    || /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function getDisplayInvoiceNumberForPaymentRow(row) {
+  const invoiceNumber = String(row?.invoice_number || '').trim();
+  if (invoiceNumber && !isDateLikeInvoiceLabel(invoiceNumber)) return invoiceNumber;
+  const externalInvoiceId = String(row?.external_invoice_id || '').trim();
+  if (String(row?.external_source || '').trim().toLowerCase() === 'copilotcrm' && externalInvoiceId) {
+    return externalInvoiceId;
+  }
+  return null;
+}
+
+function formatCopilotSyncError(error, fallback) {
+  const message = String(error?.message || '').trim();
+  if (!message) return fallback;
+  if (
+    /copilotcrm authentication is not configured/i.test(message)
+    || /copilot .* returned \d+/i.test(message)
+    || /table not found/i.test(message)
+    || /unable to parse copilot/i.test(message)
+    || /date range must be/i.test(message)
+    || /start_date and end_date are required/i.test(message)
+  ) {
+    return message;
+  }
+  return fallback;
+}
+
 function normalizeCount(value) {
   const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -818,10 +852,13 @@ router.get('/api/payments', async (req, res) => {
 
     const [result, countResult, monthly] = await Promise.all([
       pool.query(
-        `SELECT id, invoice_number, customer_id, customer_name, customer_email,
-                total, amount_paid, status, paid_at, due_date, created_at, qb_invoice_id, payment_token
+        `SELECT id, invoice_number, external_source, external_invoice_id,
+                customer_id, customer_name, customer_email,
+                total, amount_paid, status, paid_at, due_date, created_at, updated_at,
+                COALESCE(paid_at, updated_at, created_at) AS payment_date,
+                qb_invoice_id, payment_token
          FROM invoices ${whereClause}
-         ORDER BY COALESCE(paid_at, updated_at) DESC
+         ORDER BY COALESCE(paid_at, updated_at, created_at) DESC, id DESC
          LIMIT $${p} OFFSET $${p+1}`,
         params
       ),
@@ -839,9 +876,14 @@ router.get('/api/payments', async (req, res) => {
       `)
     ]);
 
+    const payments = result.rows.map((row) => ({
+      ...row,
+      display_invoice_number: getDisplayInvoiceNumberForPaymentRow(row),
+    }));
+
     res.json({
       success: true,
-      payments: result.rows,
+      payments,
       total: parseInt(countResult.rows[0].cnt),
       totalReceived: parseFloat(countResult.rows[0].total_received),
       monthly: monthly.rows
@@ -882,7 +924,10 @@ router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) =>
     });
   } catch (error) {
     console.error('Copilot payments sync error:', error);
-    serverError(res, error);
+    res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Copilot payments sync failed'),
+    });
   }
 });
 
@@ -1073,7 +1118,10 @@ router.post('/api/copilot/tax-summary/sync', authenticateToken, async (req, res)
     });
   } catch (error) {
     console.error('Copilot tax summary sync error:', error);
-    serverError(res, error);
+    res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Copilot tax summary sync failed'),
+    });
   }
 });
 

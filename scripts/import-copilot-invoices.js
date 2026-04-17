@@ -172,6 +172,29 @@ function toDbValuesFromDetail(detail, customerId) {
   };
 }
 
+function mergeDetailIdentityFromListRow(detail, row) {
+  const merged = { ...(detail || {}) };
+  const listExternalId = row?.external_invoice_id ? String(row.external_invoice_id) : null;
+  const listInvoiceNumber = row?.invoice_number ? String(row.invoice_number) : null;
+
+  if (listExternalId && !merged.external_invoice_id) {
+    merged.external_invoice_id = listExternalId;
+  }
+
+  if (
+    listInvoiceNumber &&
+    (
+      !merged.invoice_number ||
+      String(merged.invoice_number) === String(merged.external_invoice_id || '') ||
+      (listExternalId && String(merged.invoice_number) === listExternalId)
+    )
+  ) {
+    merged.invoice_number = listInvoiceNumber;
+  }
+
+  return merged;
+}
+
 // Two-stage match: first by (external_source, external_invoice_id), then by
 // invoice_number alone. If neither finds a row, INSERT a new one.
 //
@@ -451,4 +474,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { toDbValues, toDbValuesFromDetail, upsert, syncInvoicesToDatabase, syncInvoiceDetailsToDatabase };
+module.exports = { toDbValues, toDbValuesFromDetail, mergeDetailIdentityFromListRow, upsert, syncInvoicesToDatabase, syncInvoiceDetailsToDatabase };

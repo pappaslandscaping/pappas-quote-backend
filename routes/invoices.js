@@ -701,7 +701,7 @@ router.get('/api/invoices/aging', async (req, res) => {
         status: effectiveStatus,
       });
     });
-    console.info('Invoice aging source', {
+    console.warn('Invoice aging fallback', {
       source: DATABASE_FALLBACK_SOURCE,
       asOf: now.toISOString(),
     });

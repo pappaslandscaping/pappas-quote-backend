@@ -94,6 +94,7 @@ Key groups:
 - Production SSL behavior is controlled in the server database pool config.
 - The server now uses the same startup schema path as the CLI scripts, so app boot and manual bootstrap share one code path.
 - A `Dockerfile` is included for containerized deployment.
+- For Copilot-backed finance troubleshooting, see [`FINANCE_METRICS_RUNBOOK.md`](./FINANCE_METRICS_RUNBOOK.md).
 
 ## Immediate Improvement Priorities
 

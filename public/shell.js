@@ -58,7 +58,8 @@
     ]},
     { label: 'Billing', items: [
       { href: 'invoices.html', icon: 'invoices', label: 'Invoices', perm: 'invoices' },
-      { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' }
+      { href: 'expenses.html', icon: 'expenses', label: 'Expenses', perm: 'expenses' },
+      { href: 'tax-transfers.html', icon: 'reports', label: 'Tax Transfers', perm: 'reports' }
     ]},
     { label: 'Communications', items: [
       { href: 'communications.html', icon: 'comms', label: 'Marketing', perm: 'marketing' }
@@ -297,6 +298,7 @@
       'invoice-detail.html': 'Invoice Details',
       'new-invoice.html': 'New Invoice',
       'payments.html': 'Payments',
+      'tax-transfers.html': 'Tax Transfers',
       'expenses.html': 'Expenses',
       'reports.html': 'Reports',
       'crew.html': 'Crew',

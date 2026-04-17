@@ -946,32 +946,63 @@
     }
 
     async function loadStats() {
+        const storageKey = 'invoiceAccountStanding';
+        const standingKeys = ['past_due', 'outstanding', 'credit', 'paid'];
+        const hasStandingShape = (value) => !!value && standingKeys.every((key) => Number.isFinite(Number(value[key])));
+        const readStoredStanding = () => {
+            try {
+                const raw = localStorage.getItem(storageKey);
+                return raw ? JSON.parse(raw) : null;
+            } catch (_) {
+                return null;
+            }
+        };
+        const renderStanding = (standing) => {
+            if (!hasStandingShape(standing)) return false;
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(standing));
+            } catch (_) {}
+            document.getElementById('pastDueStat').textContent = Number(standing.past_due).toLocaleString('en-US');
+            document.getElementById('outstandingStat').textContent = Number(standing.outstanding).toLocaleString('en-US');
+            document.getElementById('creditStat').textContent = Number(standing.credit).toLocaleString('en-US');
+            document.getElementById('paidStat').textContent = Number(standing.paid).toLocaleString('en-US');
+            return true;
+        };
+
         try {
             const response = await fetch(`${API_BASE}/invoices/stats`);
             const data = await response.json();
             const stats = data.stats || data;
             const standing = stats.account_standing || stats.accountStanding || {};
             const fallbackStanding = stats.account_standing_fallback || {};
+            const storedStanding = readStoredStanding();
+            const resolvedStanding = hasStandingShape(standing)
+                ? standing
+                : hasStandingShape(fallbackStanding)
+                    ? fallbackStanding
+                    : hasStandingShape(storedStanding)
+                        ? storedStanding
+                        : null;
 
-            const valueOrFallback = (key) => {
-                const raw = standing[key];
-                if (Number.isFinite(Number(raw))) return Number(raw);
-                const fb = fallbackStanding[key];
-                return Number.isFinite(Number(fb)) ? Number(fb) : 0;
-            };
-
-            document.getElementById('pastDueStat').textContent = valueOrFallback('past_due').toLocaleString('en-US');
-            document.getElementById('outstandingStat').textContent = valueOrFallback('outstanding').toLocaleString('en-US');
-            document.getElementById('creditStat').textContent = valueOrFallback('credit').toLocaleString('en-US');
-            document.getElementById('paidStat').textContent = valueOrFallback('paid').toLocaleString('en-US');
+            renderStanding(resolvedStanding);
 
             const standingSourceSub = document.getElementById('standingSourceSub');
             if (standingSourceSub) {
-                const source = standing.source === 'copilot' ? 'Copilot live Account Standing' : 'database fallback';
+                const source = resolvedStanding?.source === 'copilot'
+                    ? 'Copilot live Account Standing'
+                    : resolvedStanding?.source === 'copilot_snapshot'
+                        ? 'Copilot snapshot fallback'
+                        : resolvedStanding?.source === 'database'
+                            ? 'database fallback'
+                            : 'Copilot Account Standing';
                 standingSourceSub.textContent = source;
             }
         } catch (error) {
             console.error('Error loading stats:', error);
+            if (renderStanding(readStoredStanding())) {
+                const standingSourceSub = document.getElementById('standingSourceSub');
+                if (standingSourceSub) standingSourceSub.textContent = 'Copilot snapshot fallback';
+            }
         }
     }
 

@@ -61,6 +61,7 @@ const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
 const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
 const COPILOT_PAYMENTS_SNAPSHOT_KEY = 'copilot_payments_snapshot';
 const COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY = 'copilot_tax_transfer_freshness_status';
+const COPILOT_TAX_TRANSFER_INSTRUCTION_STATUS_KEY = 'copilot_tax_transfer_instruction_status';
 const COPILOT_TAX_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -82,6 +83,18 @@ const TAX_TRANSFER_EXPORT_EXCEPTION_FILTERS = new Set([
   'canceled',
   'recommendation_changed_after_submission',
 ]);
+const TAX_TRANSFER_FRESHNESS_SCHEDULE = {
+  hour: 20,
+  minute: 15,
+  cron_expression: '15 20 * * *',
+  label: '8:15 PM ET',
+};
+const TAX_TRANSFER_INSTRUCTION_SCHEDULE = {
+  hour: 20,
+  minute: 25,
+  cron_expression: '25 20 * * *',
+  label: '8:25 PM ET',
+};
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -270,6 +283,99 @@ async function readTaxTransferFreshnessStatus() {
     console.error('Invalid stored tax transfer freshness status JSON:', error);
     return null;
   }
+}
+
+async function writeTaxTransferInstructionStatus(status) {
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_TAX_TRANSFER_INSTRUCTION_STATUS_KEY, JSON.stringify(status)]
+  );
+}
+
+async function readTaxTransferInstructionStatus() {
+  const result = await pool.query(
+    `SELECT value
+       FROM copilot_sync_settings
+      WHERE key = $1`,
+    [COPILOT_TAX_TRANSFER_INSTRUCTION_STATUS_KEY]
+  );
+  if (!result.rows[0]?.value) return null;
+  try {
+    return JSON.parse(result.rows[0].value);
+  } catch (error) {
+    console.error('Invalid stored tax transfer instruction status JSON:', error);
+    return null;
+  }
+}
+
+function formatScheduledRunLabel(isoDate, hour, minute) {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? isoDate
+    : date.toLocaleDateString('en-US', {
+      timeZone: 'UTC',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  const timeSeed = new Date(`1970-01-01T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00Z`);
+  const timeLabel = timeSeed.toLocaleTimeString('en-US', {
+    timeZone: 'UTC',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateLabel}, ${timeLabel} ET`;
+}
+
+function buildNextExpectedRun(schedule, { now = new Date(), timeZone = BUSINESS_TIME_ZONE } = {}) {
+  const today = isoDateInTimeZone(now, timeZone);
+  const parts = businessTimeParts(now, timeZone);
+  const currentMinutes = (parts.hour * 60) + parts.minute;
+  const targetMinutes = (schedule.hour * 60) + schedule.minute;
+  const date = currentMinutes < targetMinutes ? today : shiftIsoDate(today, 1);
+  return {
+    date,
+    label: formatScheduledRunLabel(date, schedule.hour, schedule.minute),
+    time_zone: timeZone,
+    cron_expression: schedule.cron_expression,
+  };
+}
+
+function buildInstructionAutomationStatus({
+  previousStatus,
+  trigger,
+  taxDate,
+  startedAt,
+  completedAt,
+  result = null,
+  error = null,
+}) {
+  const succeeded = !error;
+  const normalizedError = error ? formatCopilotSyncError(error, 'Tax transfer instruction generation failed') : null;
+  const instructionId = Number(result?.instruction?.id) || null;
+  return {
+    status: succeeded ? 'success' : 'failed',
+    trigger: trigger || 'manual',
+    time_zone: BUSINESS_TIME_ZONE,
+    tax_date: taxDate || null,
+    action: result?.action || null,
+    instruction_id: instructionId,
+    last_attempt_at: startedAt,
+    completed_at: completedAt,
+    last_success_at: succeeded ? completedAt : previousStatus?.last_success_at || null,
+    last_success_trigger: succeeded ? (trigger || 'manual') : previousStatus?.last_success_trigger || null,
+    last_success_action: succeeded ? (result?.action || null) : previousStatus?.last_success_action || null,
+    last_success_instruction_id: succeeded ? instructionId : previousStatus?.last_success_instruction_id || null,
+    last_failure_at: succeeded ? previousStatus?.last_failure_at || null : completedAt,
+    last_failure_trigger: succeeded ? previousStatus?.last_failure_trigger || null : (trigger || 'manual'),
+    last_failure_error: succeeded ? previousStatus?.last_failure_error || null : normalizedError,
+    last_error: normalizedError,
+  };
 }
 
 async function readPersistedTaxSummarySnapshot({ startDate, endDate, basis = 'collected' }) {
@@ -591,8 +697,9 @@ async function syncCopilotTaxSummarySnapshots({ startDate, endDate, basis = 'col
 }
 
 async function fetchTaxTransferFreshnessSnapshot(today) {
-  const [automation, latestPaymentsImport, latestTodayTaxSummary] = await Promise.all([
+  const [automation, instructionAutomation, latestPaymentsImport, latestTodayTaxSummary] = await Promise.all([
     readTaxTransferFreshnessStatus(),
+    readTaxTransferInstructionStatus(),
     pool.query(
       `SELECT MAX(imported_at) AS last_imported_at
          FROM payments
@@ -623,8 +730,33 @@ async function fetchTaxTransferFreshnessSnapshot(today) {
       status: 'never_run',
       last_attempt_at: null,
       last_success_at: null,
+      last_success_trigger: null,
+      last_failure_at: null,
+      last_failure_trigger: null,
+      last_failure_error: null,
       last_error: null,
       components: null,
+    },
+    instruction_automation: instructionAutomation || {
+      status: 'never_run',
+      trigger: null,
+      tax_date: null,
+      action: null,
+      instruction_id: null,
+      last_attempt_at: null,
+      completed_at: null,
+      last_success_at: null,
+      last_success_trigger: null,
+      last_success_action: null,
+      last_success_instruction_id: null,
+      last_failure_at: null,
+      last_failure_trigger: null,
+      last_failure_error: null,
+      last_error: null,
+    },
+    next_expected_runs: {
+      freshness_sync: buildNextExpectedRun(TAX_TRANSFER_FRESHNESS_SCHEDULE),
+      instruction_generation: buildNextExpectedRun(TAX_TRANSFER_INSTRUCTION_SCHEDULE),
     },
     freshness: {
       payments_last_imported_at: paymentsImportedAt,
@@ -717,6 +849,18 @@ async function runTaxTransferFreshnessSync({
     last_success_at: overallStatus === 'success'
       ? completedAt
       : previousStatus?.last_success_at || null,
+    last_success_trigger: overallStatus === 'success'
+      ? trigger
+      : previousStatus?.last_success_trigger || null,
+    last_failure_at: overallStatus === 'success'
+      ? previousStatus?.last_failure_at || null
+      : completedAt,
+    last_failure_trigger: overallStatus === 'success'
+      ? previousStatus?.last_failure_trigger || null
+      : trigger,
+    last_failure_error: overallStatus === 'success'
+      ? previousStatus?.last_failure_error || null
+      : lastError,
     last_error: lastError,
     components: {
       tax_summary: taxSummary,
@@ -1996,13 +2140,24 @@ router.get('/api/tax-transfer-instructions/export', authenticateToken, async (re
 // POST /api/tax-transfer-instructions/generate - Generate or refresh yesterday's transfer instruction
 router.post('/api/tax-transfer-instructions/generate', authenticateToken, async (req, res) => {
   if (!assertHumanAdminUser(req, res)) return;
+  const startedAt = new Date().toISOString();
   try {
     const requestedTaxDate = String(req.body?.tax_date || req.query.tax_date || '').trim();
     const taxDate = requestedTaxDate || shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+    const previousStatus = await readTaxTransferInstructionStatus();
     const result = await withOptionalTransaction(pool, (db) => generateTransferInstructionForDate({
       db,
       taxDate,
       trigger: 'manual',
+    }));
+    const completedAt = new Date().toISOString();
+    await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+      previousStatus,
+      trigger: 'manual',
+      taxDate,
+      startedAt,
+      completedAt,
+      result,
     }));
     res.json({
       success: true,
@@ -2010,6 +2165,22 @@ router.post('/api/tax-transfer-instructions/generate', authenticateToken, async 
     });
   } catch (error) {
     console.error('Tax transfer instruction generate error:', error);
+    const completedAt = new Date().toISOString();
+    try {
+      const previousStatus = await readTaxTransferInstructionStatus();
+      const requestedTaxDate = String(req.body?.tax_date || req.query.tax_date || '').trim();
+      const taxDate = requestedTaxDate || shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+      await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+        previousStatus,
+        trigger: 'manual',
+        taxDate,
+        startedAt,
+        completedAt,
+        error,
+      }));
+    } catch (statusError) {
+      console.error('Tax transfer instruction status persistence error:', statusError);
+    }
     serverError(res, error);
   }
 });
@@ -2154,14 +2325,21 @@ async function handleTaxTransferFreshnessCron(req, res) {
     }
     return res.status(500).json(responseBody);
   } catch (error) {
+    const previousStatus = await readTaxTransferFreshnessStatus();
+    const completedAt = new Date().toISOString();
+    const formattedError = formatCopilotSyncError(error, 'Tax transfer freshness sync failed');
     const statusPayload = {
       status: 'failed',
       trigger: 'cron',
       time_zone: BUSINESS_TIME_ZONE,
-      last_attempt_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      last_success_at: (await readTaxTransferFreshnessStatus())?.last_success_at || null,
-      last_error: formatCopilotSyncError(error, 'Tax transfer freshness sync failed'),
+      last_attempt_at: completedAt,
+      completed_at: completedAt,
+      last_success_at: previousStatus?.last_success_at || null,
+      last_success_trigger: previousStatus?.last_success_trigger || null,
+      last_failure_at: completedAt,
+      last_failure_trigger: 'cron',
+      last_failure_error: formattedError,
+      last_error: formattedError,
       components: null,
     };
     await writeTaxTransferFreshnessStatus(statusPayload).catch(() => {});
@@ -2177,12 +2355,23 @@ router.get('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCr
 
 async function handleTaxTransferInstructionCron(req, res) {
   if (!assertCronSecret(req, res)) return;
+  const startedAt = new Date().toISOString();
+  const taxDate = shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
   try {
-    const taxDate = shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+    const previousStatus = await readTaxTransferInstructionStatus();
     const result = await withOptionalTransaction(pool, (db) => generateTransferInstructionForDate({
       db,
       taxDate,
       trigger: 'cron',
+    }));
+    const completedAt = new Date().toISOString();
+    await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+      previousStatus,
+      trigger: 'cron',
+      taxDate,
+      startedAt,
+      completedAt,
+      result,
     }));
     return res.json({
       success: true,
@@ -2190,6 +2379,20 @@ async function handleTaxTransferInstructionCron(req, res) {
     });
   } catch (error) {
     console.error('Tax transfer instruction cron error:', error);
+    const completedAt = new Date().toISOString();
+    try {
+      const previousStatus = await readTaxTransferInstructionStatus();
+      await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+        previousStatus,
+        trigger: 'cron',
+        taxDate,
+        startedAt,
+        completedAt,
+        error,
+      }));
+    } catch (statusError) {
+      console.error('Tax transfer instruction cron status persistence error:', statusError);
+    }
     return res.status(500).json({
       success: false,
       error: formatCopilotSyncError(error, 'Tax transfer instruction generation failed'),

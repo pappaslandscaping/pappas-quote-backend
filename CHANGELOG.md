@@ -2,6 +2,10 @@
 
 ## 2026-04-17
 
+### Tax Transfers Automation Health
+- Added a read-only automation health panel on Tax Transfers showing the latest freshness-sync and transfer-instruction runs, last failures, next expected scheduled run times, and whether the most recent run was manual or scheduled
+- Persisted transfer-instruction generation run history in the same snapshot-settings store used for freshness status so failed cron/manual runs remain visible on the dashboard
+
 ### Payments Display Normalization
 - Payments now prefer customer-facing invoice references from normalized invoice metadata instead of falling back to raw Copilot internal invoice ids
 - Legacy Copilot-linked rows with bad placeholder invoice labels now show `—` unless a real customer-facing invoice number is available

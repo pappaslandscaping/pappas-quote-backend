@@ -10,6 +10,7 @@ const cheerio = require('cheerio');
 const COPILOT_API_BASE = 'https://api.copilotcrm.com';
 const COPILOT_WEB_BASE = 'https://secure.copilotcrm.com';
 const COPILOT_ROUTE_LIST_PATH = '/scheduler/all/list';
+const COPILOT_SCHEDULE_GRID_DAY_PATH = '/scheduler/grid/day/';
 
 /**
  * Read stored cookies/token from copilot_sync_settings.
@@ -102,6 +103,103 @@ function parseCopilotRouteHtml(html, employeesArray) {
   return jobs;
 }
 
+function parseCopilotScheduleCrewCell($cell) {
+  const crewLabel = $cell.find('span.row-crew-label');
+  if (crewLabel.length > 0) {
+    const crewName = crewLabel.contents().filter(function () {
+      return this.nodeType === 3;
+    }).first().text().trim();
+    const employeesText = crewLabel.find('small').text().trim();
+    return {
+      crew_name: crewName || null,
+      employees: employeesText || null,
+    };
+  }
+
+  const text = $cell.text().replace(/\s+/g, ' ').trim();
+  return {
+    crew_name: text || null,
+    employees: null,
+  };
+}
+
+function parseCopilotScheduleGridDayHtml(html) {
+  const $ = cheerio.load(html);
+  const noEventsFound = /No Events Found/i.test(html);
+  const gridTable = $('table.copilot-table.table--with-hide-options').first();
+  if (!gridTable.length) {
+    if (noEventsFound) return [];
+    throw new Error('Copilot Schedule grid table not found');
+  }
+
+  const jobs = [];
+  gridTable.find('tbody tr[data-row-event-id]').each((_, row) => {
+    const $row = $(row);
+    const eventId = String($row.attr('data-row-event-id') || '').trim();
+    if (!eventId) return;
+
+    const cells = $row.find('td');
+    if (cells.length < 16) return;
+
+    const titleCell = cells.eq(2);
+    const crewCell = cells.eq(3);
+    const customerCell = cells.eq(4);
+    const propertyCell = cells.eq(5);
+    const addressCell = cells.eq(6);
+    const typeCell = cells.eq(7);
+    const invoiceableCell = cells.eq(8);
+    const frequencyCell = cells.eq(9);
+    const lastServicedCell = cells.eq(10);
+    const statusCell = cells.eq(11);
+    const visitNotesCell = cells.eq(12);
+    const trackedTimeCell = cells.eq(13);
+    const bhCell = cells.eq(14);
+    const visitTotalCell = cells.eq(15);
+
+    const customerLink = customerCell.find('a').first();
+    const propertyLink = propertyCell.find('a').first();
+    const titleLink = titleCell.find('a.getEventDetails').first();
+
+    const customerHref = customerLink.attr('href') || '';
+    const customerIdMatch = customerHref.match(/\/customers\/details\/(\d+)/);
+    const propertyHref = propertyLink.attr('href') || '';
+    const propertyIdMatch = propertyHref.match(/\/assets\/details\/edit\/(\d+)/);
+    const crewInfo = parseCopilotScheduleCrewCell(crewCell);
+    const statusLabel = statusCell.find('span.status-label').first().text().trim();
+    const invoiceLink = statusCell.find('a').first();
+
+    jobs.push({
+      event_id: eventId,
+      job_id: titleLink.attr('data-id') || eventId,
+      customer_id: customerIdMatch ? customerIdMatch[1] : null,
+      customer_name: customerLink.text().trim() || customerCell.text().replace(/\s+/g, ' ').trim(),
+      property_id: propertyIdMatch ? propertyIdMatch[1] : null,
+      property_name: propertyLink.text().trim() || propertyCell.text().replace(/\s+/g, ' ').trim(),
+      crew_name: crewInfo.crew_name,
+      employees: crewInfo.employees,
+      address: addressCell.text().replace(/\s+/g, ' ').trim() || null,
+      status: statusLabel || statusCell.text().replace(/\s+/g, ' ').trim() || null,
+      invoice_number: invoiceLink.text().trim() || null,
+      invoiceable: invoiceableCell.text().replace(/\s+/g, ' ').trim() || null,
+      visit_total: visitTotalCell.text().replace(/\s+/g, ' ').trim() || null,
+      job_title: titleLink.text().trim() || titleCell.text().replace(/\s+/g, ' ').trim() || null,
+      stop_order: null,
+      service_date_text: cells.eq(1).text().replace(/\s+/g, ' ').trim() || null,
+      event_type: typeCell.text().replace(/\s+/g, ' ').trim() || null,
+      frequency: frequencyCell.text().replace(/\s+/g, ' ').trim() || null,
+      last_serviced: lastServicedCell.text().replace(/\s+/g, ' ').trim() || null,
+      visit_notes: visitNotesCell.text().replace(/\s+/g, ' ').trim() || null,
+      tracked_time: trackedTimeCell.text().replace(/\s+/g, ' ').trim() || null,
+      budgeted_hours: bhCell.text().replace(/\s+/g, ' ').trim() || null,
+      raw_data: {
+        source_surface: 'schedule_grid',
+      },
+    });
+  });
+
+  return jobs;
+}
+
 function formatCopilotRouteDate(dateStr) {
   const date = new Date(`${dateStr}T00:00:00`);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -161,8 +259,57 @@ async function fetchCopilotRouteJobsForDate({
 
   return {
     sync_date: syncDate,
+    source_surface: 'route_day',
     raw: data,
     jobs: parseCopilotRouteHtml(data.html || '', data.employees || []),
+  };
+}
+
+async function fetchCopilotScheduleGridJobsForDate({
+  cookieHeader,
+  syncDate,
+  fetchImpl = fetch,
+} = {}) {
+  if (!cookieHeader) throw new Error('CopilotCRM cookies are required');
+  if (!syncDate) throw new Error('syncDate is required');
+
+  const url = new URL(`${COPILOT_WEB_BASE}${COPILOT_SCHEDULE_GRID_DAY_PATH}`);
+  url.searchParams.set('d', syncDate);
+
+  const response = await fetchImpl(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Cookie': cookieHeader,
+      'Origin': COPILOT_WEB_BASE,
+      'Referer': `${COPILOT_WEB_BASE}/scheduler/grid/day/`,
+      'User-Agent': 'Mozilla/5.0',
+      'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+    },
+  });
+
+  const html = await response.text();
+  if (!response.ok) {
+    throw new Error(`Copilot Schedule grid returned ${response.status}: ${html.substring(0, 200)}`);
+  }
+  if (!html || response.url.includes('/login')) {
+    throw new Error('Copilot Schedule grid did not return an authenticated HTML page');
+  }
+
+  const jobs = parseCopilotScheduleGridDayHtml(html);
+  const noEventsFound = /No Events Found/i.test(html);
+  if (jobs.length === 0 && !noEventsFound) {
+    throw new Error(`Copilot Schedule grid parse mismatch for ${syncDate}`);
+  }
+
+  return {
+    sync_date: syncDate,
+    source_surface: 'schedule_grid',
+    raw: {
+      html_length: html.length,
+      no_events_found: noEventsFound,
+      url: response.url,
+    },
+    jobs,
   };
 }
 
@@ -190,10 +337,13 @@ module.exports = {
   COPILOT_API_BASE,
   COPILOT_WEB_BASE,
   COPILOT_ROUTE_LIST_PATH,
+  COPILOT_SCHEDULE_GRID_DAY_PATH,
   formatCopilotRouteDate,
   buildCopilotRouteFormData,
   fetchCopilotRouteJobsForDate,
+  fetchCopilotScheduleGridJobsForDate,
   getCopilotToken,
+  parseCopilotScheduleGridDayHtml,
   parseCopilotRouteHtml,
   loginWithCredentials,
 };

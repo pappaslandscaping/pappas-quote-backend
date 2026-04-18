@@ -1,10 +1,14 @@
 const {
-  fetchCopilotRouteJobsForDate,
+  fetchCopilotScheduleGridJobsForDate,
   getCopilotToken,
 } = require('./client');
 
 const COPILOT_SOURCE_SYSTEM = 'copilot';
 const SCHEDULE_SOURCE_KIND = 'live_schedule';
+const ROUTE_DAY_SOURCE_SURFACE = 'route_day';
+const SCHEDULE_GRID_SOURCE_SURFACE = 'schedule_grid';
+const ROUTE_MIRROR_TABLE = 'copilot_live_jobs';
+const SCHEDULE_MIRROR_TABLE = 'copilot_schedule_live_jobs';
 const LIVE_JOB_FETCH_TIMEOUT_MS = 12 * 1000;
 
 const LIVE_JOB_STATUS_MAP = new Map([
@@ -114,6 +118,7 @@ function normalizeResolvedRow(row) {
       ? row.service_date.toISOString().slice(0, 10)
       : row.service_date,
     source_system: COPILOT_SOURCE_SYSTEM,
+    source_surface: row.source_surface || null,
     source: {
       event_id: row.source_event_id,
       synced_at: row.source_synced_at,
@@ -127,6 +132,7 @@ function normalizeResolvedRow(row) {
       employees_text: row.source_employees_text || null,
       stop_order: row.source_stop_order ?? null,
       address: row.address_raw || null,
+      surface: row.source_surface || null,
     },
     overlay: {
       exists: overlayExists,
@@ -172,13 +178,21 @@ function normalizeResolvedRow(row) {
   };
 }
 
-async function fetchResolvedLiveJobs(pool, {
+function resolveMirrorTableName(mirrorTable) {
+  if (mirrorTable === ROUTE_MIRROR_TABLE || mirrorTable === SCHEDULE_MIRROR_TABLE) {
+    return mirrorTable;
+  }
+  throw new Error(`Unsupported Copilot mirror table: ${mirrorTable}`);
+}
+
+async function fetchResolvedJobsFromMirrorTable(pool, mirrorTable, {
   date,
   startDate,
   endDate,
   includeDeleted = false,
   jobKeys,
 } = {}) {
+  const resolvedMirrorTable = resolveMirrorTableName(mirrorTable);
   const params = [];
   const where = [`clj.source_system = '${COPILOT_SOURCE_SYSTEM}'`];
   let paramIndex = 1;
@@ -231,7 +245,7 @@ async function fetchResolvedLiveJobs(pool, {
        dpi.print_note,
        dpi.updated_at AS dispatch_updated_at,
        dpi.updated_by_name AS dispatch_updated_by_name
-     FROM copilot_live_jobs clj
+     FROM ${resolvedMirrorTable} clj
      LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
      LEFT JOIN dispatch_plan_items dpi ON dpi.job_key = clj.job_key
      WHERE ${where.join(' AND ')}
@@ -245,14 +259,25 @@ async function fetchResolvedLiveJobs(pool, {
   return result.rows.map(normalizeResolvedRow);
 }
 
+async function fetchResolvedLiveJobs(pool, options = {}) {
+  return fetchResolvedJobsFromMirrorTable(pool, ROUTE_MIRROR_TABLE, options);
+}
+
 async function fetchResolvedLiveJob(pool, jobKey, { includeDeleted = true } = {}) {
   const jobs = await fetchResolvedLiveJobs(pool, { jobKeys: [jobKey], includeDeleted });
   return jobs[0] || null;
 }
 
-async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new Date() }) {
+async function upsertJobsIntoMirrorTable(pool, mirrorTable, {
+  serviceDate,
+  jobs,
+  syncedAt = new Date(),
+  sourceSurface,
+}) {
+  const resolvedMirrorTable = resolveMirrorTableName(mirrorTable);
   if (!serviceDate) throw new Error('serviceDate is required');
   if (!Array.isArray(jobs)) throw new Error('jobs must be an array');
+  if (!sourceSurface) throw new Error('sourceSurface is required');
 
   const eventIds = [];
   let inserted = 0;
@@ -265,9 +290,10 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
     eventIds.push(sourceEventId);
 
     const result = await pool.query(
-      `INSERT INTO copilot_live_jobs (
+      `INSERT INTO ${resolvedMirrorTable} (
          job_key,
          source_system,
+         source_surface,
          service_date,
          source_event_id,
          source_customer_id,
@@ -285,9 +311,10 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
          first_seen_at,
          last_seen_at
        ) VALUES (
-         $1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, NULL, NOW(), NOW()
+         $1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, NULL, NOW(), NOW()
        )
        ON CONFLICT (job_key) DO UPDATE SET
+         source_surface = EXCLUDED.source_surface,
          source_customer_id = EXCLUDED.source_customer_id,
          customer_name = EXCLUDED.customer_name,
          job_title = EXCLUDED.job_title,
@@ -305,6 +332,7 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
       [
         buildCopilotJobKey(serviceDate, sourceEventId),
         COPILOT_SOURCE_SYSTEM,
+        sourceSurface,
         serviceDate,
         sourceEventId,
         job.customer_id || null,
@@ -316,7 +344,10 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
         job.employees || null,
         job.stop_order ?? null,
         job.address || null,
-        JSON.stringify(job.raw_data || job),
+        JSON.stringify({
+          ...(job.raw_data || {}),
+          source_surface: sourceSurface,
+        }),
         syncedAt,
       ]
     );
@@ -328,7 +359,7 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
   let markedDeleted = 0;
   if (eventIds.length > 0) {
     const deletedResult = await pool.query(
-      `UPDATE copilot_live_jobs
+      `UPDATE ${resolvedMirrorTable}
           SET source_deleted_at = $3,
               source_synced_at = $3
         WHERE source_system = $1
@@ -340,7 +371,7 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
     markedDeleted = deletedResult.rowCount || 0;
   } else {
     const deletedResult = await pool.query(
-      `UPDATE copilot_live_jobs
+      `UPDATE ${resolvedMirrorTable}
           SET source_deleted_at = $3,
               source_synced_at = $3
         WHERE source_system = $1
@@ -358,6 +389,15 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
     updated,
     marked_deleted: markedDeleted,
   };
+}
+
+async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new Date() }) {
+  return upsertJobsIntoMirrorTable(pool, ROUTE_MIRROR_TABLE, {
+    serviceDate,
+    jobs,
+    syncedAt,
+    sourceSurface: ROUTE_DAY_SOURCE_SURFACE,
+  });
 }
 
 function mapResolvedLiveJobToScheduleJob(job) {
@@ -378,6 +418,7 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
   return {
     id: job.job_key,
     source_system: COPILOT_SOURCE_SYSTEM,
+    source_surface: job.source_surface || SCHEDULE_GRID_SOURCE_SURFACE,
     source_kind: SCHEDULE_SOURCE_KIND,
     freshness_source: freshnessSource,
     fetched_at: effectiveFetchedAt,
@@ -494,13 +535,6 @@ function buildAggregateFreshness(perDate = []) {
   };
 }
 
-function detectLiveParseMismatch(liveResult, syncDate) {
-  const expectedCount = Number.parseInt(liveResult?.raw?.totalEventCount, 10);
-  if (Number.isFinite(expectedCount) && expectedCount > 0 && (liveResult?.jobs || []).length === 0) {
-    throw new Error(`Copilot parse mismatch for ${syncDate}: expected ${expectedCount} jobs but parsed 0`);
-  }
-}
-
 async function fetchLiveCopilotScheduleDate({
   poolClient,
   syncDate,
@@ -511,17 +545,17 @@ async function fetchLiveCopilotScheduleDate({
   if (!cookieHeader) throw new Error('No CopilotCRM cookies configured');
 
   const liveResult = await withTimeout(
-    fetchCopilotRouteJobsForDate({ cookieHeader, syncDate, fetchImpl }),
+    fetchCopilotScheduleGridJobsForDate({ cookieHeader, syncDate, fetchImpl }),
     timeoutMs,
     `Copilot live schedule timed out for ${syncDate}`
   );
-  detectLiveParseMismatch(liveResult, syncDate);
 
   const fetchedAt = new Date().toISOString();
-  await upsertCopilotLiveJobs(poolClient, {
+  await upsertJobsIntoMirrorTable(poolClient, SCHEDULE_MIRROR_TABLE, {
     serviceDate: syncDate,
     jobs: liveResult.jobs || [],
     syncedAt: new Date(fetchedAt),
+    sourceSurface: SCHEDULE_GRID_SOURCE_SURFACE,
   });
 
   return {
@@ -574,7 +608,7 @@ async function getCopilotLiveJobs({
     }
   }
 
-  const resolvedJobs = await fetchResolvedLiveJobs(poolClient, {
+  const resolvedJobs = await fetchResolvedJobsFromMirrorTable(poolClient, SCHEDULE_MIRROR_TABLE, {
     startDate: resolvedStartDate,
     endDate: resolvedEndDate,
     includeDeleted: false,

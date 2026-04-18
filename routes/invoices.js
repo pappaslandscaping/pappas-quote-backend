@@ -69,6 +69,8 @@ const TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES = ['pending_approval', 'approved
 const TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT = 'chase_business_checking';
 const TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT = 'huntington_tax';
 const TAX_TRANSFER_INSTRUCTION_METHOD = 'chase_linked_external_transfer';
+const TAX_TRANSFER_ALERT_CUTOFF_HOUR = 12;
+const TAX_TRANSFER_ALERT_CUTOFF_MINUTE = 0;
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -135,6 +137,33 @@ function shiftIsoDate(isoDate, days) {
   if (Number.isNaN(cursor.getTime())) return isoDate;
   cursor.setUTCDate(cursor.getUTCDate() + Number(days || 0));
   return cursor.toISOString().slice(0, 10);
+}
+
+function businessTimeParts(value = new Date(), timeZone = BUSINESS_TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(value);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0);
+  return {
+    hour: Number.isFinite(hour) ? hour : 0,
+    minute: Number.isFinite(minute) ? minute : 0,
+  };
+}
+
+function isAtOrAfterBusinessCutoff(value = new Date(), {
+  cutoffHour = TAX_TRANSFER_ALERT_CUTOFF_HOUR,
+  cutoffMinute = TAX_TRANSFER_ALERT_CUTOFF_MINUTE,
+  timeZone = BUSINESS_TIME_ZONE,
+} = {}) {
+  const parts = businessTimeParts(value, timeZone);
+  const currentMinutes = (parts.hour * 60) + parts.minute;
+  const cutoffMinutes = (cutoffHour * 60) + cutoffMinute;
+  return currentMinutes >= cutoffMinutes;
 }
 
 function timestampFallsOnBusinessDate(timestamp, isoDate, timeZone = BUSINESS_TIME_ZONE) {
@@ -1060,6 +1089,74 @@ async function buildYesterdayTransferInstructionStatus() {
   };
 }
 
+async function buildYesterdayTransferInstructionAlert(now = new Date()) {
+  const status = await buildYesterdayTransferInstructionStatus();
+  const afterCutoff = isAtOrAfterBusinessCutoff(now, { timeZone: BUSINESS_TIME_ZONE });
+  const cutoffLabel = '12:00 PM';
+  const alert = {
+    success: true,
+    time_zone: BUSINESS_TIME_ZONE,
+    cutoff_time_label: cutoffLabel,
+    cutoff_passed: afterCutoff,
+    tax_date: status.tax_date,
+    today_business_date: status.today_business_date,
+    instruction_id: status.instruction?.id || null,
+    instruction_status: status.instruction?.status || null,
+    ui_state: status.ui_state,
+    alert_state: 'missing_instruction',
+    tone: afterCutoff ? 'error' : 'warn',
+    title: 'Missing yesterday instruction',
+    message: 'Yesterday has a tax transfer recommendation, but no transfer instruction has been generated yet.',
+  };
+
+  if (status.ui_state === 'submitted' || status.ui_state === 'submitted_recommendation_changed') {
+    alert.alert_state = 'submitted';
+    alert.tone = 'success';
+    alert.title = 'Yesterday transfer submitted';
+    alert.message = status.ui_state === 'submitted_recommendation_changed'
+      ? 'Yesterday was submitted in Chase, but the current recommendation now differs from the submitted amount.'
+      : 'Yesterday was recorded as submitted in Chase.';
+    return alert;
+  }
+
+  if (status.ui_state === 'approved') {
+    alert.alert_state = 'approved_not_submitted';
+    alert.tone = afterCutoff ? 'error' : 'warn';
+    alert.title = afterCutoff ? 'Approved but not submitted' : 'Approved but not submitted yet';
+    alert.message = afterCutoff
+      ? `Yesterday was approved, but the manual Chase transfer has not been recorded as submitted by the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`
+      : `Yesterday is approved and waiting for the manual Chase transfer to be submitted before the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`;
+    return alert;
+  }
+
+  if (status.ui_state === 'pending_approval') {
+    alert.alert_state = 'awaiting_approval';
+    alert.tone = afterCutoff ? 'error' : 'warn';
+    alert.title = afterCutoff ? 'Awaiting approval past cutoff' : 'Awaiting approval';
+    alert.message = afterCutoff
+      ? `Yesterday's transfer instruction is still waiting for approval after the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`
+      : `Yesterday's transfer instruction still needs approval before the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`;
+    return alert;
+  }
+
+  if (status.ui_state === 'no_transfer_required') {
+    alert.alert_state = 'submitted';
+    alert.tone = 'success';
+    alert.title = 'No transfer required';
+    alert.message = 'Yesterday\'s recommended tax transfer is $0.00, so no Chase submission is required.';
+    return alert;
+  }
+
+  if (status.ui_state === 'blocked_missing_recommendation') {
+    alert.message = afterCutoff
+      ? `Yesterday is still missing a snapshot-backed recommendation and no instruction exists after the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`
+      : `Yesterday is missing a snapshot-backed recommendation, so no transfer instruction could be generated before the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`;
+    return alert;
+  }
+
+  return alert;
+}
+
 function buildPaymentRecordWhere({ search, year, month, source, linked } = {}, params) {
   const where = [];
   if (search) {
@@ -1615,6 +1712,17 @@ router.get('/api/tax-transfer-instructions/yesterday-status', authenticateToken,
     res.json(status);
   } catch (error) {
     console.error('Tax transfer yesterday-status error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions/yesterday-alert - Cutoff-aware operational alert for yesterday
+router.get('/api/tax-transfer-instructions/yesterday-alert', authenticateToken, async (_req, res) => {
+  try {
+    const alert = await buildYesterdayTransferInstructionAlert();
+    res.json(alert);
+  } catch (error) {
+    console.error('Tax transfer yesterday-alert error:', error);
     serverError(res, error);
   }
 });

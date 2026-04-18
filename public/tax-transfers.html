@@ -395,8 +395,22 @@
             background: #fef2f2;
             border-color: #fecaca;
         }
+        .callout.success {
+            background: #ecfdf5;
+            border-color: #86efac;
+        }
         .callout.hidden {
             display: none;
+        }
+        .callout-content {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .callout-meta {
+            font-size: 12px;
+            color: var(--gray-500);
         }
         .split-grid {
             display: grid;
@@ -639,6 +653,14 @@
         </section>
 
         <section class="panel">
+            <div class="callout hidden" id="instructionAlert">
+                <div id="instructionAlertIcon">⚠️</div>
+                <div class="callout-content">
+                    <strong id="instructionAlertTitle">Checking yesterday instruction</strong>
+                    <div id="instructionAlertText">Checking the current operational status for yesterday&apos;s manual Chase transfer.</div>
+                    <div class="callout-meta" id="instructionAlertMeta"></div>
+                </div>
+            </div>
             <div class="section-head">
                 <div>
                     <h3>Yesterday's Transfer Instruction</h3>
@@ -876,6 +898,7 @@
     let currentFreshnessStatus = null;
     let selectedDay = null;
     let currentYesterdayInstructionStatus = null;
+    let currentYesterdayInstructionAlert = null;
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -1148,6 +1171,43 @@
         document.getElementById('cancelInstructionBtn').disabled = true;
     }
 
+    function resetTransferInstructionAlert(message) {
+        currentYesterdayInstructionAlert = null;
+        const alert = document.getElementById('instructionAlert');
+        alert.classList.remove('hidden', 'warning', 'error', 'success');
+        alert.classList.add('error');
+        document.getElementById('instructionAlertIcon').textContent = '⚠️';
+        document.getElementById('instructionAlertTitle').textContent = 'Instruction alert unavailable';
+        document.getElementById('instructionAlertText').textContent = message || 'Yesterday\'s transfer instruction alert could not be loaded.';
+        document.getElementById('instructionAlertMeta').textContent = 'Refresh the page or retry after the instruction endpoints are available again.';
+    }
+
+    function renderTransferInstructionAlert(data) {
+        currentYesterdayInstructionAlert = data;
+        const alert = document.getElementById('instructionAlert');
+        alert.classList.remove('hidden', 'warning', 'error', 'success');
+        const tone = data.tone === 'success'
+            ? 'success'
+            : data.tone === 'error'
+                ? 'error'
+                : 'warning';
+        alert.classList.add(tone);
+        document.getElementById('instructionAlertIcon').textContent = data.alert_state === 'submitted' ? '✓' : tone === 'error' ? '⚠️' : '↳';
+        document.getElementById('instructionAlertTitle').textContent = data.title || 'Yesterday instruction status';
+        document.getElementById('instructionAlertText').textContent = data.message || 'Yesterday instruction status is available below.';
+
+        const metaBits = [];
+        if (data.tax_date) metaBits.push(`Yesterday tax date ${shortDate(data.tax_date)}`);
+        if (data.cutoff_time_label && data.time_zone) {
+            metaBits.push(`Cutoff ${data.cutoff_time_label} ${data.time_zone}`);
+            metaBits.push(data.cutoff_passed ? 'Cutoff passed' : 'Before cutoff');
+        }
+        if (data.instruction_status) {
+            metaBits.push(`Workflow status ${describeInstructionStatus(data.instruction_status).label}`);
+        }
+        document.getElementById('instructionAlertMeta').textContent = metaBits.join(' • ');
+    }
+
     function renderTransferInstructionStatus(data) {
         currentYesterdayInstructionStatus = data;
         const instruction = data.instruction || null;
@@ -1250,6 +1310,17 @@
             : '<tr><td colspan="8" class="empty-state">No transfer instructions matched the current date range.</td></tr>';
     }
 
+    async function loadTransferInstructionAlert() {
+        try {
+            const res = await fetch('/api/tax-transfer-instructions/yesterday-alert');
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load yesterday instruction alert');
+            renderTransferInstructionAlert(data);
+        } catch (error) {
+            resetTransferInstructionAlert(`Unable to load yesterday's instruction alert. ${error.message}`);
+        }
+    }
+
     async function loadTransferInstructionStatus() {
         document.getElementById('instructionStatusMeta').textContent = 'Loading yesterday\'s instruction…';
         try {
@@ -1293,7 +1364,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to generate transfer instruction');
             setSyncStatus(`Transfer instruction result: ${data.action.replace(/_/g, ' ')}.`, 'success');
-            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
         } catch (error) {
             setSyncStatus(`Transfer instruction generation failed: ${error.message}`, 'error');
         } finally {
@@ -1314,7 +1385,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to approve transfer instruction');
             setSyncStatus('Transfer instruction approved for manual Chase submission.', 'success');
-            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
         } catch (error) {
             setSyncStatus(`Approve failed: ${error.message}`, 'error');
         } finally {
@@ -1340,7 +1411,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to mark transfer instruction submitted');
             setSyncStatus('Recorded manual Chase submission.', 'success');
-            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
         } catch (error) {
             setSyncStatus(`Submit failed: ${error.message}`, 'error');
         } finally {
@@ -1364,7 +1435,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to cancel transfer instruction');
             setSyncStatus('Transfer instruction canceled.', 'success');
-            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
         } catch (error) {
             setSyncStatus(`Cancel failed: ${error.message}`, 'error');
         } finally {
@@ -1444,6 +1515,7 @@
         setBusy('loadBtn', true, 'Loading…');
         document.getElementById('daysBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
         setSyncStatus('Loading tax transfer report…', 'loading');
+        loadTransferInstructionAlert();
         loadPaymentReview();
         loadTransferInstructionHistory();
         try {
@@ -1492,7 +1564,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync tax summary');
             setSyncStatus(`Tax Summary synced for ${data.count || 0} day${data.count === 1 ? '' : 's'}.`, 'success');
-            await Promise.all([loadFreshnessStatus(), loadTransferInstructionStatus(), loadReport()]);
+            await Promise.all([loadFreshnessStatus(), loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadReport()]);
         } catch (error) {
             setSyncStatus(`Tax Summary sync failed: ${error.message}`, 'error');
         } finally {
@@ -1512,7 +1584,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync payments');
             setSyncStatus(`Payments synced: ${data.sync?.inserted || 0} inserted, ${data.sync?.updated || 0} updated, ${data.sync?.unresolved || 0} unresolved.`, 'success');
-            await Promise.all([loadFreshnessStatus(), loadTransferInstructionStatus(), currentReport ? loadReport() : Promise.resolve()]);
+            await Promise.all([loadFreshnessStatus(), loadTransferInstructionAlert(), loadTransferInstructionStatus(), currentReport ? loadReport() : Promise.resolve()]);
         } catch (error) {
             setSyncStatus(`Payments sync failed: ${error.message}`, 'error');
         } finally {
@@ -1648,7 +1720,7 @@
 
     document.addEventListener('DOMContentLoaded', async function() {
         setDefaultDates();
-        await Promise.all([loadFreshnessStatus(), loadTransferInstructionStatus(), loadReport()]);
+        await Promise.all([loadFreshnessStatus(), loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadReport()]);
     });
 </script>
 </body>

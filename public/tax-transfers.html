@@ -14,7 +14,7 @@
             justify-content: space-between;
             align-items: flex-start;
             gap: 24px;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
             flex-wrap: wrap;
         }
         .hero-copy h2 {
@@ -28,57 +28,10 @@
             color: var(--gray-500);
             font-size: 14px;
         }
-        .hero-steps {
-            margin-top: 16px;
-            display: grid;
-            grid-template-columns: repeat(3, minmax(180px, 1fr));
-            gap: 12px;
-        }
-        .hero-step {
-            background: #fff;
-            border: 1px solid var(--gray-200);
-            border-radius: 14px;
-            padding: 14px;
-        }
-        .hero-step-kicker {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            font-weight: 700;
-            color: var(--gray-500);
-            margin-bottom: 8px;
-        }
-        .hero-step strong {
-            display: block;
-            margin-bottom: 4px;
-            color: var(--gray-800);
-            font-size: 14px;
-        }
-        .hero-step p {
-            max-width: none;
-            font-size: 13px;
-            color: var(--gray-500);
-        }
-        .hero-badges {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 14px;
-        }
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: var(--gray-50);
-            border: 1px solid var(--gray-200);
+        .hero-kicker {
             font-size: 12px;
-            color: var(--gray-600);
-            font-weight: 600;
-        }
-        .hero-badge strong {
-            color: var(--gray-800);
+            color: var(--gray-500);
+            margin-top: 10px;
         }
         .panel {
             background: #fff;
@@ -226,6 +179,10 @@
             display: grid;
             grid-template-columns: repeat(4, minmax(180px, 1fr));
             gap: 16px;
+        }
+        .status-grid.compact .status-card {
+            padding: 14px;
+            background: var(--gray-50);
         }
         .status-card {
             background: #fff;
@@ -398,6 +355,9 @@
         .callout.success {
             background: #ecfdf5;
             border-color: #86efac;
+        }
+        .callout.tight {
+            margin-bottom: 12px;
         }
         .callout.hidden {
             display: none;
@@ -610,8 +570,7 @@
             .status-grid,
             .summary-grid,
             .split-grid,
-            .instruction-grid,
-            .hero-steps {
+            .instruction-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -628,28 +587,7 @@
                     Recommended transfer amounts come from <strong>Copilot Tax Summary collected</strong>.
                     Backend payment tax is shown only as a reconciliation cross-check against linked payments.
                 </p>
-                <div class="hero-badges">
-                    <div class="hero-badge"><strong>Source of truth:</strong> Copilot collected tax</div>
-                    <div class="hero-badge"><strong>Cross-check:</strong> linked payment tax only</div>
-                    <div class="hero-badge"><strong>Out of scope:</strong> no transfer automation</div>
-                </div>
-                <div class="hero-steps">
-                    <div class="hero-step">
-                        <div class="hero-step-kicker">Step 1</div>
-                        <strong>Run sync before trusting today</strong>
-                        <p>Refresh Copilot Tax Summary first. Sync payments when you want the reconciliation variance to reflect the latest linked payments.</p>
-                    </div>
-                    <div class="hero-step">
-                        <div class="hero-step-kicker">Step 2</div>
-                        <strong>Use Recommended Transfer</strong>
-                        <p>This amount comes from Copilot collected tax and is the number to move, not the backend reconstructed tax.</p>
-                    </div>
-                    <div class="hero-step">
-                        <div class="hero-step-kicker">Step 3</div>
-                        <strong>Investigate variance</strong>
-                        <p>Click a day in the table to inspect linked and unresolved payment records that explain any difference.</p>
-                    </div>
-                </div>
+                <div class="hero-kicker">Use Copilot collected tax as the amount to move. Use backend reconstruction only to inspect variance.</div>
             </div>
         </section>
 
@@ -676,57 +614,23 @@
         <section class="panel">
             <div class="section-head">
                 <div>
-                    <h3>Automation Health</h3>
-                    <div class="sub">Read-only run history for the two scheduled tax-transfer jobs in America/New_York.</div>
+                    <h3>Status</h3>
+                    <div class="sub">Freshness, automation, and yesterday instruction alerting for the current workflow.</div>
                 </div>
             </div>
-            <div class="callout">
-                <div>ℹ️</div>
-                <div>
-                    Scheduled automation should refresh Copilot tax data at 8:15 PM ET and generate yesterday&apos;s transfer instruction at 8:25 PM ET.
-                    Manual actions are still allowed, but this panel shows whether the latest run came from the scheduler or a person.
+            <div class="callout hidden tight" id="automationAlert" style="margin-bottom:12px;">
+                <div id="automationAlertIcon">⚠️</div>
+                <div id="automationAlertText"></div>
+            </div>
+            <div class="callout hidden tight" id="instructionAlert">
+                <div id="instructionAlertIcon">⚠️</div>
+                <div class="callout-content">
+                    <strong id="instructionAlertTitle">Checking yesterday instruction</strong>
+                    <div id="instructionAlertText">Checking the current operational status for yesterday&apos;s manual Chase transfer.</div>
+                    <div class="callout-meta" id="instructionAlertMeta"></div>
                 </div>
             </div>
-            <div class="status-grid">
-                <div class="status-card">
-                    <div class="status-card-header">
-                        <div class="summary-label">Freshness Sync Run</div>
-                        <span class="status-pill muted" id="freshnessRunPill">Unknown</span>
-                    </div>
-                    <div class="status-card-value" id="freshnessRunValue">No run recorded</div>
-                    <div class="status-card-sub" id="freshnessRunSub">This scheduled job refreshes Copilot Tax Summary and Copilot payments for Tax Transfers.</div>
-                    <div class="history-meta" id="freshnessRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
-                </div>
-                <div class="status-card">
-                    <div class="status-card-header">
-                        <div class="summary-label">Instruction Generation Run</div>
-                        <span class="status-pill muted" id="instructionRunPill">Unknown</span>
-                    </div>
-                    <div class="status-card-value" id="instructionRunValue">No run recorded</div>
-                    <div class="status-card-sub" id="instructionRunSub">This scheduled job generates yesterday&apos;s Chase-to-Huntington transfer instruction using Copilot collected tax.</div>
-                    <div class="history-meta" id="instructionRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
-                </div>
-                <div class="status-card">
-                    <div class="status-card-header">
-                        <div class="summary-label">Next Freshness Sync</div>
-                        <span class="status-pill muted" id="nextFreshnessPill">Scheduled</span>
-                    </div>
-                    <div class="status-card-value" id="nextFreshnessValue">Unknown</div>
-                    <div class="status-card-sub" id="nextFreshnessSub">Expected scheduler target for the daily freshness refresh.</div>
-                </div>
-                <div class="status-card">
-                    <div class="status-card-header">
-                        <div class="summary-label">Next Instruction Run</div>
-                        <span class="status-pill muted" id="nextInstructionPill">Scheduled</span>
-                    </div>
-                    <div class="status-card-value" id="nextInstructionValue">Unknown</div>
-                    <div class="status-card-sub" id="nextInstructionSub">Expected scheduler target for daily transfer-instruction generation.</div>
-                </div>
-            </div>
-        </section>
-
-        <section class="panel">
-            <div class="status-grid">
+            <div class="status-grid compact">
                 <div class="status-card">
                     <div class="status-card-header">
                         <div class="summary-label">Automation</div>
@@ -760,33 +664,57 @@
                     <div class="status-card-sub" id="scopeSub">Backend-triggered sync scope in America/New_York.</div>
                 </div>
             </div>
-            <div class="callout hidden" id="automationAlert" style="margin-top:18px;margin-bottom:0;">
-                <div id="automationAlertIcon">⚠️</div>
-                <div id="automationAlertText"></div>
-            </div>
+            <details class="disclosure">
+                <summary>Automation details</summary>
+                <div class="disclosure-body">
+                    <div class="helper-line" style="margin-top:0;margin-bottom:14px;">Read-only run history for the two scheduled tax-transfer jobs in America/New_York.</div>
+                    <div class="status-grid">
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Freshness Sync Run</div>
+                                <span class="status-pill muted" id="freshnessRunPill">Unknown</span>
+                            </div>
+                            <div class="status-card-value" id="freshnessRunValue">No run recorded</div>
+                            <div class="status-card-sub" id="freshnessRunSub">This scheduled job refreshes Copilot Tax Summary and Copilot payments for Tax Transfers.</div>
+                            <div class="history-meta" id="freshnessRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Instruction Generation Run</div>
+                                <span class="status-pill muted" id="instructionRunPill">Unknown</span>
+                            </div>
+                            <div class="status-card-value" id="instructionRunValue">No run recorded</div>
+                            <div class="status-card-sub" id="instructionRunSub">This scheduled job generates yesterday&apos;s Chase-to-Huntington transfer instruction using Copilot collected tax.</div>
+                            <div class="history-meta" id="instructionRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Next Freshness Sync</div>
+                                <span class="status-pill muted" id="nextFreshnessPill">Scheduled</span>
+                            </div>
+                            <div class="status-card-value" id="nextFreshnessValue">Unknown</div>
+                            <div class="status-card-sub" id="nextFreshnessSub">Expected scheduler target for the daily freshness refresh.</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Next Instruction Run</div>
+                                <span class="status-pill muted" id="nextInstructionPill">Scheduled</span>
+                            </div>
+                            <div class="status-card-value" id="nextInstructionValue">Unknown</div>
+                            <div class="status-card-sub" id="nextInstructionSub">Expected scheduler target for daily transfer-instruction generation.</div>
+                        </div>
+                    </div>
+                </div>
+            </details>
         </section>
 
         <section class="panel">
-            <div class="callout hidden" id="instructionAlert">
-                <div id="instructionAlertIcon">⚠️</div>
-                <div class="callout-content">
-                    <strong id="instructionAlertTitle">Checking yesterday instruction</strong>
-                    <div id="instructionAlertText">Checking the current operational status for yesterday&apos;s manual Chase transfer.</div>
-                    <div class="callout-meta" id="instructionAlertMeta"></div>
-                </div>
-            </div>
             <div class="section-head">
                 <div>
                     <h3>Yesterday's Transfer Instruction</h3>
                     <div class="sub">Approval workflow only. Chase submission still happens manually outside YardDesk.</div>
                 </div>
                 <div class="sub" id="instructionStatusMeta">Loading yesterday&apos;s instruction…</div>
-            </div>
-            <div class="callout">
-                <div>↳</div>
-                <div>
-                    Generated from Copilot collected tax. Approval and Chase submission are tracked here, but the bank transfer itself is still performed manually in Chase.
-                </div>
             </div>
             <div class="instruction-grid">
                 <div class="instruction-card">
@@ -806,59 +734,50 @@
                 <button class="btn btn-secondary" id="submitInstructionBtn" type="button" onclick="markTransferInstructionSubmitted()">Mark Submitted in Chase</button>
                 <button class="btn btn-secondary" id="cancelInstructionBtn" type="button" onclick="cancelTransferInstruction()">Cancel Instruction</button>
             </div>
-            <div class="history-toolbar">
-                <div class="history-meta" id="instructionHistoryMeta">Choose a date range and load the report to inspect transfer instruction history.</div>
-                <div class="history-export-controls">
-                    <select id="instructionExportFilter">
-                        <option value="all">All instruction rows</option>
-                        <option value="exceptions">Exceptions only</option>
-                        <option value="missing_instruction">Missing instruction</option>
-                        <option value="pending_approval">Pending approval</option>
-                        <option value="approved_not_submitted">Approved not submitted</option>
-                        <option value="submitted_after_cutoff">Submitted after cutoff</option>
-                        <option value="superseded">Superseded</option>
-                        <option value="canceled">Canceled</option>
-                        <option value="recommendation_changed_after_submission">Recommendation changed after submission</option>
-                    </select>
-                    <button class="btn btn-secondary" id="exportInstructionBtn" type="button" onclick="downloadTransferInstructionExport()">Export CSV</button>
+            <details class="disclosure">
+                <summary>Instruction history</summary>
+                <div class="disclosure-body">
+                    <div class="history-toolbar">
+                        <div class="history-meta" id="instructionHistoryMeta">Choose a date range and load the report to inspect transfer instruction history.</div>
+                        <div class="history-export-controls">
+                            <select id="instructionExportFilter">
+                                <option value="all">All instruction rows</option>
+                                <option value="exceptions">Exceptions only</option>
+                                <option value="missing_instruction">Missing instruction</option>
+                                <option value="pending_approval">Pending approval</option>
+                                <option value="approved_not_submitted">Approved not submitted</option>
+                                <option value="submitted_after_cutoff">Submitted after cutoff</option>
+                                <option value="superseded">Superseded</option>
+                                <option value="canceled">Canceled</option>
+                                <option value="recommendation_changed_after_submission">Recommendation changed after submission</option>
+                            </select>
+                            <button class="btn btn-secondary" id="exportInstructionBtn" type="button" onclick="downloadTransferInstructionExport()">Export CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tax Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Recommendation As Of</th>
+                                    <th>Generated</th>
+                                    <th>Approved</th>
+                                    <th>Submitted</th>
+                                    <th>Bank Ref</th>
+                                </tr>
+                            </thead>
+                            <tbody id="instructionHistoryBody">
+                                <tr><td colspan="8" class="empty-state">Load the report to inspect transfer instruction history.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Tax Date</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Recommendation As Of</th>
-                            <th>Generated</th>
-                            <th>Approved</th>
-                            <th>Submitted</th>
-                            <th>Bank Ref</th>
-                        </tr>
-                    </thead>
-                    <tbody id="instructionHistoryBody">
-                        <tr><td colspan="8" class="empty-state">Load the report to inspect transfer instruction history.</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            </details>
         </section>
 
         <section class="panel">
-            <div class="callout">
-                <div>ℹ️</div>
-                <div>
-                    <strong>How to read this page:</strong>
-                    the recommended transfer amount is the Copilot collected tax snapshot for each day.
-                    Backend reconstructed tax is for reconciliation only and should not override Copilot.
-                </div>
-            </div>
-            <div class="callout warning">
-                <div>⚠️</div>
-                <div>
-                    <strong>Important:</strong> if you have not run sync for today yet, the recommendation may still reflect the last stored snapshot instead of the latest Copilot collected tax.
-                </div>
-            </div>
             <div class="summary-grid" id="summaryGrid">
                 <div class="summary-card">
                     <div class="summary-label">Recommended Transfer</div>
@@ -939,7 +858,7 @@
                         <div class="detail-card-value" id="detailUnresolved">0</div>
                     </div>
                 </div>
-                <div class="callout" style="margin-bottom:14px;">
+                <div class="callout tight" style="margin-bottom:14px;">
                     <div>↳</div>
                     <div>
                         This drill-down is for reconciliation. It helps explain the variance, but it does not replace the Copilot collected-tax recommendation.
@@ -969,44 +888,46 @@
         </section>
 
         <section class="panel">
-            <div class="section-head">
-                <div>
-                    <h3>Copilot Payment Review</h3>
-                    <div class="sub">Read-only review of Copilot payment rows in the selected date range.</div>
+            <details class="disclosure">
+                <summary>Advanced reconciliation</summary>
+                <div class="disclosure-body">
+                    <div class="section-head">
+                        <div>
+                            <h3>Copilot Payment Review</h3>
+                            <div class="sub">Read-only review of Copilot payment rows in the selected date range.</div>
+                        </div>
+                        <div class="review-toolbar">
+                            <label class="toggle-chip">
+                                <input type="checkbox" id="unresolvedOnlyToggle" checked onchange="loadPaymentReview()">
+                                Unresolved only
+                            </label>
+                            <span class="source-pill" id="reviewCount">0 unresolved rows</span>
+                        </div>
+                    </div>
+                    <div class="helper-line" style="margin-top:0;margin-bottom:14px;">
+                        Use this table to inspect payment rows that are missing an invoice link. It helps explain reconciliation variance without changing the Copilot collected-tax recommendation.
+                    </div>
+                    <div class="review-meta" id="reviewMeta">Choose a date range and load the report to inspect Copilot payment rows.</div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Payment Date</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Details</th>
+                                    <th>Extracted Invoice</th>
+                                    <th>Linkage</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reviewBody">
+                                <tr><td colspan="7" class="empty-state">Load the report to inspect Copilot payment linkage.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="review-toolbar">
-                    <label class="toggle-chip">
-                        <input type="checkbox" id="unresolvedOnlyToggle" checked onchange="loadPaymentReview()">
-                        Unresolved only
-                    </label>
-                    <span class="source-pill" id="reviewCount">0 unresolved rows</span>
-                </div>
-            </div>
-            <div class="callout">
-                <div>↳</div>
-                <div>
-                    Use this table to inspect payment rows that are missing an invoice link. It helps explain reconciliation variance without changing the Copilot collected-tax recommendation.
-                </div>
-            </div>
-            <div class="review-meta" id="reviewMeta">Choose a date range and load the report to inspect Copilot payment rows.</div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Payment Date</th>
-                            <th>Customer</th>
-                            <th>Amount</th>
-                            <th>Method</th>
-                            <th>Details</th>
-                            <th>Extracted Invoice</th>
-                            <th>Linkage</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reviewBody">
-                        <tr><td colspan="7" class="empty-state">Load the report to inspect Copilot payment linkage.</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            </details>
         </section>
     </div>
 </main>

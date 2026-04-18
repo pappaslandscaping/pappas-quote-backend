@@ -290,6 +290,91 @@ it('reports same-day freshness from stored automation and snapshot timestamps', 
   }
 });
 
+it('excludes leaked Copilot summary rows from tax-sweep reconciliation counts', async () => {
+  const pool = createPool(async (sql, params) => {
+    if (sql.includes('FROM payments p') && sql.includes('LEFT JOIN invoices i ON p.invoice_id = i.id')) {
+      assert.deepStrictEqual(params, ['2026-04-17', '2026-04-17', 'copilotcrm']);
+      return {
+        rows: [
+          {
+            id: 1,
+            payment_id: null,
+            invoice_id: 42,
+            customer_name: 'Carol Horner',
+            amount: 1036.8,
+            tip_amount: 0,
+            method: 'Card',
+            status: 'completed',
+            details: '$1,036.80 for Invoice #10470',
+            notes: 'Paid online',
+            paid_at: '2026-04-17T15:00:00.000Z',
+            created_at: '2026-04-17T15:00:00.000Z',
+            source_date_raw: 'Apr 17, 2026',
+            external_source: 'copilotcrm',
+            external_payment_key: 'row:payment_10470',
+            external_metadata: {
+              raw_payer_payee: 'Carol Horner',
+              raw_date: 'Apr 17, 2026',
+              raw_details: '$1,036.80 for Invoice #10470',
+            },
+            imported_at: '2026-04-17T15:05:00.000Z',
+            invoice_number: '10470',
+            invoice_total: 1036.8,
+            invoice_tax_amount: 76.8,
+            line_items: [{ line_total: 1036.8, tax_percent: 8 }],
+          },
+          {
+            id: 2,
+            payment_id: null,
+            invoice_id: null,
+            customer_name: 'Page Total:',
+            amount: 1036.8,
+            tip_amount: 0,
+            method: null,
+            status: 'completed',
+            details: null,
+            notes: null,
+            paid_at: null,
+            created_at: '2026-04-17T15:05:00.000Z',
+            source_date_raw: null,
+            external_source: 'copilotcrm',
+            external_payment_key: 'hash:summary',
+            external_metadata: {
+              raw_payer_payee: 'Page Total:',
+              raw_date: '',
+              raw_details: '',
+              raw_notes: '',
+            },
+            imported_at: '2026-04-17T15:05:00.000Z',
+            invoice_number: null,
+            invoice_total: null,
+            invoice_tax_amount: null,
+          },
+        ],
+      };
+    }
+    throw new Error(`Unexpected SQL in tax-sweep filter test: ${sql}`);
+  });
+
+  const router = createRouter({ pool });
+  const res = await invokeRoute(router, '/api/reports/tax-sweep', 'get', {
+    query: {
+      start_date: '2026-04-17',
+      end_date: '2026-04-17',
+      source: 'copilotcrm',
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.success, true);
+  assert.strictEqual(res.body.summary.payment_count, 1);
+  assert.strictEqual(res.body.summary.linked_count, 1);
+  assert.strictEqual(res.body.summary.unresolved_count, 0);
+  assert.strictEqual(res.body.summary.tax_portion_collected, 76.8);
+  assert.strictEqual(res.body.payments.length, 1);
+  assert.strictEqual(res.body.payments[0].customer_name, 'Carol Horner');
+});
+
 (async () => {
   console.log('tax-transfer-freshness-routes');
   for (const { name, fn } of tests) {

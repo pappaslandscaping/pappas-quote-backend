@@ -18,6 +18,7 @@
 ### Daily Tax Transfer Freshness Sync
 - Added a protected daily tax-transfer freshness sync endpoint for Copilot payments and Copilot Tax Summary collected snapshots
 - Added persisted automation status plus same-day freshness indicators and failure messaging on the Tax Transfers page
+- Excluded leaked Copilot `Page Total` footer rows from Tax Transfers reconciliation and added cleanup on payments sync
 
 ### Copilot Payment Review
 - Added a read-only Copilot payment review section to Tax Transfer Reconciliation for inspecting unresolved payment rows by date range

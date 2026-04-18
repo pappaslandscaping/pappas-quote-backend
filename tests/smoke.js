@@ -99,6 +99,7 @@ const endpoints = [
   ['POST', `/api/jobs/${FAKE_ID}/expenses`, {}],
   ['POST', '/api/jobs/optimize-route', { job_ids: [] }],
   ['PATCH', `/api/jobs/${FAKE_ID}`, { status: 'scheduled' }],
+  ['PATCH', `/api/jobs/${FAKE_ID}/status`, { status: 'in_progress' }],
   ['PATCH', `/api/jobs/${FAKE_ID}/complete`, {}],
   ['PATCH', `/api/jobs/${FAKE_ID}/pipeline`, { status: 'scheduled' }],
   ['PATCH', `/api/jobs/${FAKE_ID}/recurring`, {}],

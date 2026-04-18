@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-04-18
+
+### Dispatch Execution Status Workflow Foundation
+- Added additive dispatch execution fields on `scheduled_jobs` for started/completed metadata, proof-of-work coordinates, last-status tracking, and dispatch issue flags
+- Added a canonical job status transition workflow with support for `pending`, `in_progress`, `completed`, `skipped`, and `cancelled`
+- Added `PATCH /api/jobs/:id/status` for dispatch/crew status updates without changing existing board UI behavior
+- Expanded `PATCH /api/jobs/:id/complete` to persist crew proof-of-work fields already being sent while preserving the existing invoice side effects and direct pending-to-completed flow
+
 ## 2026-04-17
 
 ### Tax Transfers Automation Health

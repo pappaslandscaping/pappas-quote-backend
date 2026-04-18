@@ -7,7 +7,314 @@
 const express = require('express');
 const { validate, schemas } = require('../lib/validate');
 
-module.exports = function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumber, upload }) {
+const VALID_JOB_STATUSES = new Set(['pending', 'in_progress', 'completed', 'skipped', 'cancelled']);
+
+class JobStatusTransitionError extends Error {
+  constructor(message, statusCode = 400) {
+    super(message);
+    this.name = 'JobStatusTransitionError';
+    this.statusCode = statusCode;
+  }
+}
+
+function normalizeJobStatus(status) {
+  if (typeof status !== 'string') return null;
+  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (normalized === 'done') return 'completed';
+  if (normalized === 'canceled') return 'cancelled';
+  if (VALID_JOB_STATUSES.has(normalized)) return normalized;
+  return null;
+}
+
+function validateJobStatusTransition(currentStatus, nextStatus) {
+  if (!nextStatus) return;
+  if (currentStatus === nextStatus) {
+    if (currentStatus === 'in_progress' || currentStatus === 'completed') return;
+    throw new JobStatusTransitionError(`Status ${currentStatus} cannot be updated in place`);
+  }
+
+  const allowedTransitions = {
+    pending: new Set(['in_progress', 'completed', 'skipped', 'cancelled']),
+    in_progress: new Set(['completed', 'skipped', 'cancelled']),
+    completed: new Set([]),
+    skipped: new Set([]),
+    cancelled: new Set([]),
+  };
+
+  if (!allowedTransitions[currentStatus]?.has(nextStatus)) {
+    throw new JobStatusTransitionError(`Invalid status transition from ${currentStatus} to ${nextStatus}`);
+  }
+}
+
+async function calculateInvoiceTax({ poolClient, customerId, propertyId, lineItems }) {
+  try {
+    if (customerId) {
+      const cust = await poolClient.query('SELECT tax_exempt FROM customers WHERE id = $1', [customerId]);
+      if (cust.rows[0] && cust.rows[0].tax_exempt) {
+        const subtotal = lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        return {
+          lineItems: lineItems.map(item => ({ ...item, tax: 0, taxRate: 0 })),
+          subtotal,
+          taxAmount: 0,
+          total: subtotal,
+          effectiveRate: 0,
+        };
+      }
+    }
+
+    let propertyTaxRate = null;
+    if (propertyId) {
+      const prop = await poolClient.query('SELECT county_tax, city_tax, state_tax FROM properties WHERE id = $1', [propertyId]);
+      if (prop.rows[0]) {
+        const row = prop.rows[0];
+        if (row.county_tax !== null || row.city_tax !== null || row.state_tax !== null) {
+          propertyTaxRate = (parseFloat(row.county_tax) || 0) + (parseFloat(row.city_tax) || 0) + (parseFloat(row.state_tax) || 0);
+        }
+      }
+    }
+
+    let defaultRate = 0;
+    const settingsResult = await poolClient.query("SELECT value FROM business_settings WHERE key = 'tax_defaults'");
+    if (settingsResult.rows[0]) defaultRate = parseFloat(settingsResult.rows[0].value.default_rate) || 0;
+
+    let taxTotal = 0;
+    let subtotal = 0;
+    const processedItems = lineItems.map(item => {
+      const amount = parseFloat(item.amount) || 0;
+      subtotal += amount;
+
+      if (item.taxable === false) return { ...item, tax: 0, taxRate: 0 };
+
+      if (propertyTaxRate !== null) {
+        const tax = Math.round(amount * propertyTaxRate) / 100;
+        taxTotal += tax;
+        return { ...item, tax, taxRate: propertyTaxRate };
+      }
+
+      if (item.service_tax_rate !== undefined && item.service_tax_rate !== null && parseFloat(item.service_tax_rate) > 0) {
+        const rate = parseFloat(item.service_tax_rate);
+        const tax = Math.round(amount * rate) / 100;
+        taxTotal += tax;
+        return { ...item, tax, taxRate: rate };
+      }
+
+      const tax = Math.round(amount * defaultRate) / 100;
+      taxTotal += tax;
+      return { ...item, tax, taxRate: defaultRate };
+    });
+
+    const taxAmount = Math.round(taxTotal * 100) / 100;
+    return {
+      lineItems: processedItems,
+      subtotal,
+      taxAmount,
+      total: subtotal + taxAmount,
+      effectiveRate: subtotal > 0 ? Math.round((taxTotal / subtotal) * 10000) / 100 : 0,
+    };
+  } catch (error) {
+    console.error('Tax calculation error:', error);
+    const subtotal = lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    return { lineItems, subtotal, taxAmount: 0, total: subtotal, effectiveRate: 0 };
+  }
+}
+
+async function applyCompletedJobInvoiceSideEffects(completedJob, {
+  poolClient,
+  calculateTaxFn = calculateInvoiceTax,
+  nextInvoiceNumberFn,
+} = {}) {
+  const custId = completedJob.customer_id;
+  const custName = completedJob.customer_name;
+  if (!custId) return;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+  const existingInv = await poolClient.query(
+    `SELECT id, line_items, subtotal, tax_rate, tax_amount, total FROM invoices
+     WHERE customer_id = $1 AND status = 'draft'
+     AND created_at >= $2 AND created_at <= ($3::date + interval '1 day')
+     ORDER BY created_at DESC LIMIT 1`,
+    [custId, monthStart, monthEnd]
+  );
+
+  const propertyId = completedJob.property_id || null;
+  let propertyName = null;
+  if (propertyId) {
+    const propRow = await poolClient.query('SELECT property_name, street FROM properties WHERE id = $1', [propertyId]);
+    if (propRow.rows[0]) propertyName = propRow.rows[0].property_name || propRow.rows[0].street || null;
+  }
+
+  const newItem = {
+    name: completedJob.service_type || 'Service',
+    description: 'Job #' + completedJob.id + (completedJob.job_date ? ' - ' + new Date(completedJob.job_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''),
+    quantity: 1,
+    rate: parseFloat(completedJob.service_price) || 0,
+    amount: parseFloat(completedJob.service_price) || 0,
+    service_date: completedJob.completed_at ? new Date(completedJob.completed_at).toISOString().split('T')[0] : (completedJob.job_date ? new Date(completedJob.job_date).toISOString().split('T')[0] : null),
+    property_name: propertyName,
+  };
+
+  if (existingInv.rows.length > 0) {
+    const inv = existingInv.rows[0];
+    let items = inv.line_items || [];
+    if (typeof items === 'string') items = JSON.parse(items);
+    items.push(newItem);
+    const taxResult = await calculateTaxFn({ poolClient, customerId: custId, propertyId, lineItems: items });
+
+    await poolClient.query(
+      `UPDATE invoices SET line_items = $1, subtotal = $2, tax_amount = $3, total = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`,
+      [JSON.stringify(taxResult.lineItems), taxResult.subtotal, taxResult.taxAmount, taxResult.total, inv.id]
+    );
+    await poolClient.query('UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2', [inv.id, completedJob.id]);
+    return;
+  }
+
+  const custRow = await poolClient.query('SELECT email, address FROM customers WHERE id = $1', [custId]);
+  const custEmail = custRow.rows[0]?.email || '';
+  const custAddress = custRow.rows[0]?.address || completedJob.address || '';
+  const invNum = await nextInvoiceNumberFn();
+  const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const taxResult = await calculateTaxFn({ poolClient, customerId: custId, propertyId, lineItems: [newItem] });
+
+  const invResult = await poolClient.query(
+    `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, customer_address, job_id, status, subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
+     VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, 0, $8, $9, $10, $11, $12) RETURNING id`,
+    [invNum, custId, custName, custEmail, custAddress, completedJob.id, taxResult.subtotal, taxResult.taxAmount, taxResult.total, dueDate.toISOString().split('T')[0],
+      'Monthly invoice - ' + now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      JSON.stringify(taxResult.lineItems)]
+  );
+  await poolClient.query('UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2', [invResult.rows[0].id, completedJob.id]);
+}
+
+async function transitionScheduledJobStatus({
+  jobId,
+  nextStatus,
+  actorName = null,
+  source = 'system',
+  completionNotes,
+  completionPhotos,
+  completionLat,
+  completionLng,
+  dispatchIssue,
+  dispatchIssueReason,
+  poolClient,
+  invoiceSideEffectFn,
+} = {}) {
+  const normalizedStatus = nextStatus === undefined ? undefined : normalizeJobStatus(nextStatus);
+  if (nextStatus !== undefined && !normalizedStatus) {
+    throw new JobStatusTransitionError('Invalid status value');
+  }
+
+  const hasIssueUpdate = dispatchIssue !== undefined;
+  if (normalizedStatus === undefined && !hasIssueUpdate) {
+    throw new JobStatusTransitionError('status or dispatch_issue is required');
+  }
+
+  const currentResult = await poolClient.query('SELECT * FROM scheduled_jobs WHERE id = $1', [jobId]);
+  if (currentResult.rows.length === 0) {
+    throw new JobStatusTransitionError('Job not found', 404);
+  }
+
+  const currentJob = currentResult.rows[0];
+  const currentStatus = normalizeJobStatus(currentJob.status) || 'pending';
+  validateJobStatusTransition(currentStatus, normalizedStatus);
+
+  const sets = [];
+  const vals = [];
+  let idx = 1;
+  const statusWillChange = normalizedStatus !== undefined && normalizedStatus !== currentStatus;
+  const touchesCompletion = normalizedStatus === 'completed' || currentStatus === 'completed';
+  const statusActor = actorName || currentJob.last_status_by || null;
+  const statusSource = source || currentJob.last_status_source || 'system';
+
+  if (statusWillChange) {
+    sets.push(`status = $${idx++}`);
+    vals.push(normalizedStatus);
+    sets.push('last_status_at = CURRENT_TIMESTAMP');
+    sets.push(`last_status_by = $${idx++}`);
+    vals.push(statusActor);
+    sets.push(`last_status_source = $${idx++}`);
+    vals.push(statusSource);
+  }
+
+  if (normalizedStatus === 'in_progress') {
+    sets.push('started_at = COALESCE(started_at, CURRENT_TIMESTAMP)');
+    if (actorName) {
+      sets.push(`started_by = COALESCE(started_by, $${idx++})`);
+      vals.push(actorName);
+    }
+  }
+
+  if (touchesCompletion) {
+    sets.push('completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)');
+    if (actorName) {
+      sets.push(`completed_by = $${idx++}`);
+      vals.push(actorName);
+    }
+    if (completionNotes !== undefined) {
+      sets.push(`completion_notes = COALESCE($${idx++}, completion_notes)`);
+      vals.push(completionNotes || null);
+    }
+    if (completionPhotos !== undefined) {
+      sets.push(`completion_photos = COALESCE($${idx++}::jsonb, completion_photos)`);
+      vals.push(completionPhotos == null ? null : JSON.stringify(completionPhotos));
+    }
+    if (completionLat !== undefined) {
+      sets.push(`completion_lat = COALESCE($${idx++}, completion_lat)`);
+      vals.push(completionLat ?? null);
+    }
+    if (completionLng !== undefined) {
+      sets.push(`completion_lng = COALESCE($${idx++}, completion_lng)`);
+      vals.push(completionLng ?? null);
+    }
+  }
+
+  if (hasIssueUpdate) {
+    if (dispatchIssue) {
+      sets.push(`dispatch_issue = $${idx++}`);
+      vals.push(true);
+      sets.push(`dispatch_issue_reason = COALESCE($${idx++}, dispatch_issue_reason)`);
+      vals.push(dispatchIssueReason || null);
+      sets.push('dispatch_issue_reported_at = CURRENT_TIMESTAMP');
+      sets.push(`dispatch_issue_reported_by = COALESCE($${idx++}, dispatch_issue_reported_by)`);
+      vals.push(actorName || null);
+    } else {
+      sets.push(`dispatch_issue = $${idx++}`);
+      vals.push(false);
+      sets.push('dispatch_issue_reason = NULL');
+      sets.push('dispatch_issue_reported_at = NULL');
+      sets.push('dispatch_issue_reported_by = NULL');
+    }
+  }
+
+  if (sets.length === 0) {
+    return currentJob;
+  }
+
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  vals.push(jobId);
+  const updateResult = await poolClient.query(
+    `UPDATE scheduled_jobs SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+    vals
+  );
+  const updatedJob = updateResult.rows[0];
+
+  if (statusWillChange && normalizedStatus === 'completed') {
+    try {
+      await invoiceSideEffectFn(updatedJob, { poolClient });
+    } catch (autoInvErr) {
+      console.error('Auto-invoice error (non-fatal):', autoInvErr.message);
+    }
+    const refreshedResult = await poolClient.query('SELECT * FROM scheduled_jobs WHERE id = $1', [jobId]);
+    return refreshedResult.rows[0] || updatedJob;
+  }
+
+  return updatedJob;
+}
+
+function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumber, upload }) {
   const router = express.Router();
 
   // Haversine distance (for route optimization)
@@ -797,93 +1104,70 @@ router.patch('/api/jobs/:id', async (req, res) => {
 
 router.patch('/api/jobs/:id/complete', async (req, res) => {
   try {
-    const { completion_notes } = req.body;
-    const result = await pool.query(
-      `UPDATE scheduled_jobs SET status = 'completed', completed_at = CURRENT_TIMESTAMP, completion_notes = COALESCE($2, completion_notes), updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
-      [req.params.id, completion_notes || null]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Job not found' });
+    if (!/^\d+$/.test(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid job ID' });
     }
 
-    // --- Auto-add completed job to monthly invoice ---
-    try {
-      const completedJob = result.rows[0];
-      const custId = completedJob.customer_id;
-      const custName = completedJob.customer_name;
+    const actorName = req.body.actor_name || req.body.completed_by || null;
+    const job = await transitionScheduledJobStatus({
+      jobId: req.params.id,
+      nextStatus: 'completed',
+      actorName,
+      source: req.body.source || 'api',
+      completionNotes: req.body.completion_notes,
+      completionPhotos: req.body.completion_photos,
+      completionLat: req.body.completion_lat,
+      completionLng: req.body.completion_lng,
+      dispatchIssue: req.body.dispatch_issue,
+      dispatchIssueReason: req.body.dispatch_issue_reason,
+      poolClient: pool,
+      invoiceSideEffectFn: (completedJob, { poolClient }) => applyCompletedJobInvoiceSideEffects(completedJob, {
+        poolClient,
+        nextInvoiceNumberFn: nextInvoiceNumber,
+      }),
+    });
 
-      if (custId) {
-        // Find current month boundaries
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    res.json({ success: true, job });
+  } catch (error) {
+    if (error instanceof JobStatusTransitionError) {
+      return res.status(error.statusCode).json({ success: false, error: error.message });
+    }
+    serverError(res, error, 'Job completion failed');
+  }
+});
 
-        // Look for existing draft invoice for this customer in this month
-        const existingInv = await pool.query(
-          `SELECT id, line_items, subtotal, tax_rate, tax_amount, total FROM invoices
-           WHERE customer_id = $1 AND status = 'draft'
-           AND created_at >= $2 AND created_at <= ($3::date + interval '1 day')
-           ORDER BY created_at DESC LIMIT 1`,
-          [custId, monthStart, monthEnd]
-        );
-
-        const propertyId = completedJob.property_id || null;
-        let propertyName = null;
-        if (propertyId) {
-          const propRow = await pool.query('SELECT property_name, street FROM properties WHERE id = $1', [propertyId]);
-          if (propRow.rows[0]) propertyName = propRow.rows[0].property_name || propRow.rows[0].street || null;
-        }
-
-        const newItem = {
-          name: completedJob.service_type || 'Service',
-          description: 'Job #' + completedJob.id + (completedJob.job_date ? ' - ' + new Date(completedJob.job_date).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : ''),
-          quantity: 1,
-          rate: parseFloat(completedJob.service_price) || 0,
-          amount: parseFloat(completedJob.service_price) || 0,
-          service_date: completedJob.completed_at ? new Date(completedJob.completed_at).toISOString().split('T')[0] : (completedJob.job_date ? new Date(completedJob.job_date).toISOString().split('T')[0] : null),
-          property_name: propertyName
-        };
-
-        if (existingInv.rows.length > 0) {
-          // Add line item to existing draft invoice
-          const inv = existingInv.rows[0];
-          let items = inv.line_items || [];
-          if (typeof items === 'string') items = JSON.parse(items);
-          items.push(newItem);
-          const taxResult = await calculateTax(custId, propertyId, items);
-
-          await pool.query(
-            `UPDATE invoices SET line_items = $1, subtotal = $2, tax_amount = $3, total = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`,
-            [JSON.stringify(taxResult.lineItems), taxResult.subtotal, taxResult.taxAmount, taxResult.total, inv.id]
-          );
-          await pool.query(`UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2`, [inv.id, completedJob.id]);
-        } else {
-          // Create new monthly draft invoice
-          const custRow = await pool.query(`SELECT email, address FROM customers WHERE id = $1`, [custId]);
-          const custEmail = custRow.rows[0]?.email || '';
-          const custAddress = custRow.rows[0]?.address || completedJob.address || '';
-
-          const invNum = await nextInvoiceNumber();
-          const dueDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // End of current month
-          const taxResult = await calculateTax(custId, propertyId, [newItem]);
-
-          const invResult = await pool.query(
-            `INSERT INTO invoices (invoice_number, customer_id, customer_name, customer_email, customer_address, job_id, status, subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
-             VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, 0, $8, $9, $10, $11, $12) RETURNING id`,
-            [invNum, custId, custName, custEmail, custAddress, completedJob.id, taxResult.subtotal, taxResult.taxAmount, taxResult.total, dueDate.toISOString().split('T')[0],
-             'Monthly invoice - ' + now.toLocaleDateString('en-US', {month:'long', year:'numeric'}),
-             JSON.stringify(taxResult.lineItems)]
-          );
-          await pool.query(`UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2`, [invResult.rows[0].id, completedJob.id]);
-        }
-      }
-    } catch (autoInvErr) {
-      console.error('Auto-invoice error (non-fatal):', autoInvErr.message);
+router.patch('/api/jobs/:id/status', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid job ID' });
     }
 
-    res.json({ success: true, job: result.rows[0] });
-  } catch (error) { serverError(res, error); }
+    const actorName = req.body.actor_name || req.body.completed_by || null;
+    const job = await transitionScheduledJobStatus({
+      jobId: req.params.id,
+      nextStatus: req.body.status,
+      actorName,
+      source: req.body.source || 'api',
+      completionNotes: req.body.completion_notes,
+      completionPhotos: req.body.completion_photos,
+      completionLat: req.body.completion_lat,
+      completionLng: req.body.completion_lng,
+      dispatchIssue: req.body.dispatch_issue,
+      dispatchIssueReason: req.body.dispatch_issue_reason,
+      poolClient: pool,
+      invoiceSideEffectFn: (completedJob, { poolClient }) => applyCompletedJobInvoiceSideEffects(completedJob, {
+        poolClient,
+        nextInvoiceNumberFn: nextInvoiceNumber,
+      }),
+    });
+
+    res.json({ success: true, job });
+  } catch (error) {
+    if (error instanceof JobStatusTransitionError) {
+      return res.status(error.statusCode).json({ success: false, error: error.message });
+    }
+    serverError(res, error, 'Job status transition failed');
+  }
 });
 
 router.patch('/api/jobs/reorder', async (req, res) => {
@@ -2022,4 +2306,14 @@ router.post('/api/dispatch-templates/quick-dispatch', async (req, res) => {
 });
 
   return router;
+}
+
+module.exports = createJobRoutes;
+module.exports.__testables = {
+  JobStatusTransitionError,
+  normalizeJobStatus,
+  validateJobStatusTransition,
+  transitionScheduledJobStatus,
+  applyCompletedJobInvoiceSideEffects,
+  calculateInvoiceTax,
 };

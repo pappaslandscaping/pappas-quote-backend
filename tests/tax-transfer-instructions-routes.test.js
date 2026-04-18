@@ -302,6 +302,48 @@ const ADMIN_USER = {
   isAdmin: true,
 };
 
+function buildInstructionRow(overrides = {}) {
+  return {
+    id: 1,
+    tax_date: '2026-04-17',
+    instruction_date: '2026-04-18',
+    source_account_code: 'chase_business_checking',
+    destination_account_code: 'huntington_tax',
+    transfer_method: 'chase_linked_external_transfer',
+    amount_cents: 1842,
+    currency: 'USD',
+    recommendation_source: 'copilot_collected_tax',
+    recommendation_as_of: '2026-04-17T20:15:00.000Z',
+    tax_summary_snapshot_source: 'persisted_copilot_snapshot',
+    backend_reconstructed_tax_cents: 0,
+    variance_cents: 1842,
+    status: 'pending_approval',
+    memo: 'Daily sales tax transfer for 2026-04-17',
+    generation_trigger: 'manual',
+    approved_at: null,
+    approved_by_user_id: null,
+    approved_by_name: null,
+    approved_by_email: null,
+    submitted_at: null,
+    submitted_by_user_id: null,
+    submitted_by_name: null,
+    submitted_by_email: null,
+    bank_confirmation_ref: null,
+    submission_note: null,
+    canceled_at: null,
+    canceled_by_user_id: null,
+    canceled_by_name: null,
+    canceled_by_email: null,
+    cancellation_reason: null,
+    superseded_at: null,
+    superseded_by_instruction_id: null,
+    superseded_reason: null,
+    created_at: '2026-04-18T00:05:00.000Z',
+    updated_at: '2026-04-18T00:05:00.000Z',
+    ...overrides,
+  };
+}
+
 it('returns no_instruction for yesterday when a recommendation exists but no instruction has been generated', async () => {
   const pool = createInstructionPool({
     snapshots: {
@@ -317,6 +359,163 @@ it('returns no_instruction for yesterday when a recommendation exists but no ins
   assert.strictEqual(res.body.tax_date, '2026-04-16');
   assert.strictEqual(res.body.ui_state, 'no_instruction');
   assert.strictEqual(res.body.recommendation.recommended_transfer_amount, 18.42);
+});
+
+it('returns a before-cutoff missing-instruction alert when yesterday has a recommendation but no instruction', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 18.42),
+    },
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T15:30:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.tax_date, '2026-04-17');
+  assert.strictEqual(res.body.ui_state, 'no_instruction');
+  assert.strictEqual(res.body.alert_state, 'missing_instruction');
+  assert.strictEqual(res.body.tone, 'warn');
+  assert.strictEqual(res.body.cutoff_passed, false);
+});
+
+it('treats exactly 12:00 PM America/New_York as after cutoff for pending instructions', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 18.42),
+    },
+    instructions: [
+      buildInstructionRow(),
+    ],
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T16:00:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.alert_state, 'awaiting_approval');
+  assert.strictEqual(res.body.tone, 'error');
+  assert.strictEqual(res.body.cutoff_passed, true);
+});
+
+it('stays snapshot-only and returns an after-cutoff missing alert when yesterday has no persisted recommendation', async () => {
+  const pool = createInstructionPool();
+  const router = createRouter({
+    pool,
+    getCopilotToken: async () => {
+      throw new Error('should not attempt live fetch');
+    },
+  });
+
+  const res = await withMockNow('2026-04-18T16:05:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.ui_state, 'blocked_missing_recommendation');
+  assert.strictEqual(res.body.alert_state, 'missing_instruction');
+  assert.strictEqual(res.body.tone, 'error');
+  assert.strictEqual(res.body.cutoff_passed, true);
+});
+
+it('returns an awaiting-approval alert after cutoff for pending instructions', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 18.42),
+    },
+    instructions: [
+      buildInstructionRow(),
+    ],
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T16:05:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.ui_state, 'pending_approval');
+  assert.strictEqual(res.body.alert_state, 'awaiting_approval');
+  assert.strictEqual(res.body.tone, 'error');
+  assert.strictEqual(res.body.instruction_status, 'pending_approval');
+});
+
+it('returns an approved-but-not-submitted alert before cutoff for approved instructions', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 18.42),
+    },
+    instructions: [
+      buildInstructionRow({
+        status: 'approved',
+        approved_at: '2026-04-18T00:06:00.000Z',
+        approved_by_user_id: 7,
+        approved_by_name: 'Admin User',
+        approved_by_email: 'admin@example.com',
+        updated_at: '2026-04-18T00:06:00.000Z',
+      }),
+    ],
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T15:30:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.ui_state, 'approved');
+  assert.strictEqual(res.body.alert_state, 'approved_not_submitted');
+  assert.strictEqual(res.body.tone, 'warn');
+  assert.strictEqual(res.body.cutoff_passed, false);
+});
+
+it('returns a submitted alert after cutoff for submitted instructions', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 18.42),
+    },
+    instructions: [
+      buildInstructionRow({
+        status: 'submitted',
+        approved_at: '2026-04-18T00:06:00.000Z',
+        approved_by_user_id: 7,
+        approved_by_name: 'Admin User',
+        approved_by_email: 'admin@example.com',
+        submitted_at: '2026-04-18T00:07:00.000Z',
+        submitted_by_user_id: 7,
+        submitted_by_name: 'Admin User',
+        submitted_by_email: 'admin@example.com',
+        bank_confirmation_ref: 'CHASE-99',
+        updated_at: '2026-04-18T00:07:00.000Z',
+      }),
+    ],
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T16:05:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.ui_state, 'submitted');
+  assert.strictEqual(res.body.alert_state, 'submitted');
+  assert.strictEqual(res.body.tone, 'success');
+  assert.strictEqual(res.body.instruction_status, 'submitted');
+});
+
+it('returns a success alert when yesterday requires no transfer', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 0),
+    },
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T15:30:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/yesterday-alert', 'get'));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.ui_state, 'no_transfer_required');
+  assert.strictEqual(res.body.alert_state, 'submitted');
+  assert.strictEqual(res.body.tone, 'success');
 });
 
 it('generates one pending instruction and is idempotent when the amount has not changed', async () => {

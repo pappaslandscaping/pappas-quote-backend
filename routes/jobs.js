@@ -7,7 +7,10 @@
 const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
-const { getCopilotToken, parseCopilotRouteHtml } = require('../services/copilot/client');
+const {
+  getCopilotToken,
+  fetchCopilotRouteJobsForDate,
+} = require('../services/copilot/client');
 
 const VALID_JOB_STATUSES = new Set(['pending', 'in_progress', 'completed', 'skipped', 'cancelled']);
 const COPILOT_SYNCABLE_STATUSES = new Map([
@@ -57,11 +60,6 @@ function normalizeCopilotExecutionStatus(status) {
   return COPILOT_SYNCABLE_STATUSES.get(normalized) || null;
 }
 
-function formatCopilotDate(dateStr) {
-  const date = new Date(`${dateStr}T00:00:00`);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function isValidIsoDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -97,6 +95,163 @@ function toJsonArray(value) {
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined);
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+    if (char === '"' && !inQuotes) inQuotes = true;
+    else if (char === '"' && inQuotes) {
+      if (nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = false;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function normalizeCopilotLinkText(value) {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ');
+  return normalized || null;
+}
+
+function normalizeCopilotLinkAddress(value) {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\s+/g, ' ');
+  return normalized || null;
+}
+
+function normalizeCopilotLinkMoney(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const numeric = Number.parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(numeric)) return null;
+  return numeric.toFixed(2);
+}
+
+function buildCopilotImportMatchFingerprint({
+  job_date,
+  customer_name,
+  service_type,
+  address,
+  service_price,
+} = {}) {
+  return {
+    job_date: isValidIsoDate(job_date) ? job_date : null,
+    customer_name: normalizeCopilotLinkText(customer_name),
+    service_type: normalizeCopilotLinkText(service_type),
+    address: normalizeCopilotLinkAddress(address),
+    service_price: normalizeCopilotLinkMoney(service_price),
+  };
+}
+
+function buildCopilotSyncJobFingerprint(row = {}) {
+  return {
+    job_date: isValidIsoDate(row.sync_date) ? row.sync_date : null,
+    customer_name: normalizeCopilotLinkText(row.customer_name),
+    service_type: normalizeCopilotLinkText(row.job_title),
+    address: normalizeCopilotLinkAddress(row.address),
+    service_price: normalizeCopilotLinkMoney(row.visit_total),
+  };
+}
+
+function findStrictCopilotImportCandidates(importRow, copilotRows = []) {
+  const importFingerprint = buildCopilotImportMatchFingerprint(importRow);
+  return (copilotRows || []).filter((row) => {
+    const candidateFingerprint = buildCopilotSyncJobFingerprint(row);
+    if (!importFingerprint.job_date || candidateFingerprint.job_date !== importFingerprint.job_date) return false;
+    if (!importFingerprint.customer_name || candidateFingerprint.customer_name !== importFingerprint.customer_name) return false;
+    if (!importFingerprint.service_type || candidateFingerprint.service_type !== importFingerprint.service_type) return false;
+    if (!importFingerprint.address || candidateFingerprint.address !== importFingerprint.address) return false;
+    if (importFingerprint.service_price && candidateFingerprint.service_price && candidateFingerprint.service_price !== importFingerprint.service_price) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function planCopilotImportLinkage(importRows = [], copilotRowsByDate = new Map()) {
+  const candidateRowsByImportIndex = new Map();
+  const importIndicesByVisitId = new Map();
+  const diagnostics = [];
+  const summary = {
+    attempted: importRows.length,
+    linkable: 0,
+    unmatched: 0,
+    ambiguous: 0,
+  };
+
+  importRows.forEach((row, index) => {
+    const copilotRows = copilotRowsByDate.get(row.job_date) || [];
+    const candidates = findStrictCopilotImportCandidates(row, copilotRows);
+    candidateRowsByImportIndex.set(index, candidates);
+    for (const candidate of candidates) {
+      const visitId = candidate.event_id || null;
+      if (!visitId) continue;
+      if (!importIndicesByVisitId.has(visitId)) importIndicesByVisitId.set(visitId, []);
+      importIndicesByVisitId.get(visitId).push(index);
+    }
+  });
+
+  const plan = importRows.map((row, index) => {
+    const candidates = candidateRowsByImportIndex.get(index) || [];
+    const base = {
+      row_index: index + 1,
+      job_date: row.job_date || null,
+      customer_name: row.customer_name || null,
+      service_type: row.service_type || null,
+      address: row.address || null,
+      service_price: row.service_price ?? null,
+      candidate_visit_ids: candidates.map((candidate) => candidate.event_id).filter(Boolean),
+      candidate_count: candidates.length,
+    };
+
+    if (candidates.length === 0) {
+      summary.unmatched += 1;
+      diagnostics.push({ ...base, status: 'unmatched', reason: 'no_strict_match' });
+      return { status: 'unmatched', reason: 'no_strict_match', candidate: null, ...base };
+    }
+
+    if (candidates.length > 1) {
+      summary.ambiguous += 1;
+      diagnostics.push({ ...base, status: 'ambiguous', reason: 'multiple_copilot_candidates' });
+      return { status: 'ambiguous', reason: 'multiple_copilot_candidates', candidate: null, ...base };
+    }
+
+    const candidate = candidates[0];
+    const importMatches = importIndicesByVisitId.get(candidate.event_id) || [];
+    if (importMatches.length > 1) {
+      summary.ambiguous += 1;
+      diagnostics.push({ ...base, status: 'ambiguous', reason: 'multiple_import_rows_match_same_visit' });
+      return { status: 'ambiguous', reason: 'multiple_import_rows_match_same_visit', candidate: null, ...base };
+    }
+
+    summary.linkable += 1;
+    return { status: 'linkable', reason: null, candidate, ...base };
+  });
+
+  return { plan, summary, diagnostics };
 }
 
 function stableStringify(value) {
@@ -240,48 +395,11 @@ async function fetchCopilotDispatchExecutionRecords({
 
   const records = [];
   for (const syncDate of eachDateInRange(dateFrom, dateTo)) {
-    const formData = new URLSearchParams();
-    const formattedDate = formatCopilotDate(syncDate);
-    formData.append('accessFrom', 'route');
-    formData.append('bs4', '1');
-    formData.append('sDate', formattedDate);
-    formData.append('eDate', formattedDate);
-    formData.append('optimizationFlag', '1');
-    formData.append('count', '-1');
-    for (const type of ['1', '2', '3', '4', '5', '0']) {
-      formData.append('evtypes_route[]', type);
-    }
-    formData.append('isdate', '0');
-    formData.append('sdate', formattedDate);
-    formData.append('edate', formattedDate);
-    formData.append('erec', 'all');
-    formData.append('estatus', 'any');
-    formData.append('esort', '');
-    formData.append('einvstatus', 'any');
-
-    const response = await fetchImpl('https://secure.copilotcrm.com/scheduler/all/list', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': tokenInfo.cookieHeader,
-        'Origin': 'https://secure.copilotcrm.com',
-        'Referer': 'https://secure.copilotcrm.com/',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: formData.toString(),
+    const { jobs } = await fetchCopilotRouteJobsForDate({
+      cookieHeader: tokenInfo.cookieHeader,
+      syncDate,
+      fetchImpl,
     });
-
-    if (!response.ok) {
-      const errBody = await response.text().catch(() => '');
-      throw new Error(`CopilotCRM returned ${response.status}: ${errBody.substring(0, 200)}`);
-    }
-
-    const data = await response.json();
-    if (data.status !== undefined && data.status !== 1 && data.status !== '1' && data.status !== true) {
-      throw new Error(`CopilotCRM returned non-success status: ${data.status}`);
-    }
-
-    const jobs = parseCopilotRouteHtml(data.html || '', data.employees || []);
     for (const job of jobs) {
       records.push({
         visit_id: job.event_id,
@@ -407,6 +525,189 @@ async function syncCopilotDispatchExecutionRecords({
   }
 
   return summary;
+}
+
+async function persistCopilotSyncJobs({
+  syncDate,
+  jobs,
+  poolClient,
+} = {}) {
+  const summary = { inserted: 0, updated: 0 };
+  for (const job of jobs || []) {
+    const result = await poolClient.query(
+      `INSERT INTO copilot_sync_jobs (sync_date, event_id, customer_name, customer_id, crew_name, employees, address, status, visit_total, job_title, stop_order, raw_data, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+       ON CONFLICT (sync_date, event_id) DO UPDATE SET
+         customer_name = EXCLUDED.customer_name,
+         customer_id = EXCLUDED.customer_id,
+         crew_name = EXCLUDED.crew_name,
+         employees = EXCLUDED.employees,
+         address = EXCLUDED.address,
+         status = EXCLUDED.status,
+         visit_total = EXCLUDED.visit_total,
+         job_title = EXCLUDED.job_title,
+         stop_order = EXCLUDED.stop_order,
+         raw_data = EXCLUDED.raw_data,
+         synced_at = NOW()
+       RETURNING (xmax = 0) AS is_insert`,
+      [
+        syncDate,
+        job.event_id,
+        job.customer_name,
+        job.customer_id,
+        job.crew_name,
+        job.employees,
+        job.address,
+        job.status,
+        job.visit_total,
+        job.job_title,
+        job.stop_order,
+        JSON.stringify(job),
+      ]
+    );
+    if (result.rows[0]?.is_insert) summary.inserted += 1;
+    else summary.updated += 1;
+  }
+  return summary;
+}
+
+async function hydrateCopilotScheduleDates({
+  syncDates,
+  poolClient,
+  fetchImpl = fetch,
+  logger = console,
+} = {}) {
+  const summary = {
+    attempted: Array.isArray(syncDates) ? syncDates.length : 0,
+    hydrated_dates: 0,
+    fetched: 0,
+    inserted: 0,
+    updated: 0,
+    failed_dates: [],
+    skipped: false,
+    reason: null,
+  };
+  const rowsByDate = new Map();
+
+  if (!Array.isArray(syncDates) || syncDates.length === 0) {
+    summary.skipped = true;
+    summary.reason = 'no_dates';
+    return { rowsByDate, summary };
+  }
+
+  const tokenInfo = await getCopilotToken(poolClient);
+  if (!tokenInfo || !tokenInfo.cookieHeader) {
+    summary.skipped = true;
+    summary.reason = 'missing_copilot_cookies';
+    logger.warn('[import-scheduling] Copilot linkage skipped: no CopilotCRM cookies configured');
+    return { rowsByDate, summary };
+  }
+
+  for (const syncDate of syncDates) {
+    try {
+      const { jobs } = await fetchCopilotRouteJobsForDate({
+        cookieHeader: tokenInfo.cookieHeader,
+        syncDate,
+        fetchImpl,
+      });
+      const jobsForDate = (jobs || []).map((job) => ({
+        ...job,
+        sync_date: isValidIsoDate(job?.sync_date) ? job.sync_date : syncDate,
+      }));
+      rowsByDate.set(syncDate, jobsForDate);
+      summary.hydrated_dates += 1;
+      summary.fetched += jobsForDate.length;
+      const persisted = await persistCopilotSyncJobs({ syncDate, jobs: jobsForDate, poolClient });
+      summary.inserted += persisted.inserted;
+      summary.updated += persisted.updated;
+    } catch (error) {
+      summary.failed_dates.push({ sync_date: syncDate, error: error.message });
+      logger.warn(`[import-scheduling] Copilot hydration failed for ${syncDate}: ${error.message}`);
+    }
+  }
+
+  return { rowsByDate, summary };
+}
+
+async function applyCopilotImportLinkage({
+  scheduledJobId,
+  currentJob,
+  linkagePlan,
+  poolClient,
+  logger = console,
+} = {}) {
+  const result = {
+    status: linkagePlan?.status || 'unmatched',
+    reason: linkagePlan?.reason || null,
+    copilot_visit_id: null,
+    copilot_job_id: null,
+  };
+
+  if (!linkagePlan || linkagePlan.status !== 'linkable' || !linkagePlan.candidate?.event_id) {
+    return result;
+  }
+
+  const visitId = linkagePlan.candidate.event_id;
+  const explicitJobId = toNullableString(firstDefined(
+    linkagePlan.candidate.job_id,
+    linkagePlan.candidate.raw_data?.job_id,
+    linkagePlan.candidate.raw_data?.copilot_job_id,
+    linkagePlan.candidate.raw_data?.external_job_id
+  ));
+
+  if (currentJob?.copilot_visit_id && currentJob.copilot_visit_id !== visitId) {
+    logger.warn(`[import-scheduling] Job ${scheduledJobId} already linked to Copilot visit ${currentJob.copilot_visit_id}; skipping ${visitId}`);
+    return {
+      status: 'conflict',
+      reason: 'job_already_linked_to_different_visit',
+      copilot_visit_id: currentJob.copilot_visit_id,
+      copilot_job_id: currentJob.copilot_job_id || null,
+    };
+  }
+
+  const existingByVisit = await poolClient.query(
+    'SELECT id FROM scheduled_jobs WHERE copilot_visit_id = $1 AND id <> $2 LIMIT 1',
+    [visitId, scheduledJobId]
+  );
+  if (existingByVisit.rows[0]) {
+    logger.warn(`[import-scheduling] Copilot visit ${visitId} already linked to scheduled_jobs.id=${existingByVisit.rows[0].id}; skipping job ${scheduledJobId}`);
+    return {
+      status: 'conflict',
+      reason: 'visit_already_linked_elsewhere',
+      copilot_visit_id: null,
+      copilot_job_id: null,
+    };
+  }
+
+  if (currentJob?.copilot_visit_id === visitId) {
+    return {
+      status: 'already_linked',
+      reason: null,
+      copilot_visit_id: visitId,
+      copilot_job_id: currentJob.copilot_job_id || explicitJobId || null,
+    };
+  }
+
+  const values = [visitId];
+  const sets = ['copilot_visit_id = $1'];
+  let parameterIndex = 2;
+  if (explicitJobId) {
+    sets.push(`copilot_job_id = COALESCE(copilot_job_id, $${parameterIndex})`);
+    values.push(explicitJobId);
+    parameterIndex += 1;
+  }
+  values.push(scheduledJobId);
+  await poolClient.query(
+    `UPDATE scheduled_jobs SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${parameterIndex}`,
+    values
+  );
+  logger.log(`[import-scheduling] Linked scheduled_jobs.id=${scheduledJobId} to Copilot visit ${visitId}`);
+  return {
+    status: 'linked',
+    reason: null,
+    copilot_visit_id: visitId,
+    copilot_job_id: explicitJobId,
+  };
 }
 
 function validateJobStatusTransition(currentStatus, nextStatus) {
@@ -697,7 +998,7 @@ async function transitionScheduledJobStatus({
   return updatedJob;
 }
 
-function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumber, upload }) {
+function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumber, upload, fetchImpl = fetch }) {
   const router = express.Router();
 
   // Haversine distance (for route optimization)
@@ -1836,6 +2137,7 @@ router.post('/api/import-scheduling', upload.single('csvfile'), async (req, res)
         const values = parseCSVLine(line);
         const job = {};
         headers.forEach((h, idx) => { job[h] = values[idx] || ''; });
+        job.__row_index = i;
         jobs.push(job);
       } catch (e) {}
     }
@@ -1862,19 +2164,62 @@ router.post('/api/import-scheduling', upload.single('csvfile'), async (req, res)
       return { name: nameAndStreet.trim(), address: cityStateZip };
     }
     
-    let imported = 0, updated = 0, skipped = 0;
-    const importedJobs = [];
+    let skipped = 0;
+    const importRows = [];
     for (const job of jobs) {
+      const jobDate = parseDate(job['Date of Service']);
+      if (!jobDate) {
+        skipped += 1;
+        continue;
+      }
+      const { name, address } = parseNameAddress(job['Name / Details']);
+      const rawTitle = job['Title'] || 'Service';
+      const crewMatch = rawTitle.match(/^(.+?)\s{1,2}(\w+\s+(?:Mowing|Cleanup|Lawn|Landscape|Plow|Snow)\s+Crew)$/i);
+      importRows.push({
+        source_row: job.__row_index || null,
+        job_date: jobDate,
+        customer_name: name,
+        address,
+        raw_title: rawTitle.trim(),
+        service_type: crewMatch ? crewMatch[1].trim() : rawTitle.trim(),
+        crew_assigned: crewMatch ? crewMatch[2].trim() : null,
+        service_price: parseFloat((job['Visit Total'] || '0').replace(/[^0-9.]/g, '')) || 0,
+      });
+    }
+
+    const uniqueSyncDates = [...new Set(importRows.map((row) => row.job_date).filter(isValidIsoDate))].sort();
+    const copilotHydration = await hydrateCopilotScheduleDates({
+      syncDates: uniqueSyncDates,
+      poolClient: pool,
+      fetchImpl,
+    });
+    const linkagePlan = planCopilotImportLinkage(importRows, copilotHydration.rowsByDate);
+    for (const diagnostic of linkagePlan.diagnostics) {
+      console.warn(
+        `[import-scheduling] Copilot linkage ${diagnostic.status} for row ${diagnostic.row_index} (${diagnostic.job_date} ${diagnostic.customer_name || 'Unknown'}): ${diagnostic.reason}`
+      );
+    }
+
+    let imported = 0, updated = 0;
+    const importedJobs = [];
+    const linkageSummary = {
+      attempted: linkagePlan.summary.attempted,
+      linked: 0,
+      already_linked: 0,
+      unmatched: 0,
+      ambiguous: 0,
+      conflict: 0,
+    };
+    const linkageDiagnostics = [];
+
+    for (const [rowIndex, row] of importRows.entries()) {
       try {
-        const jobDate = parseDate(job['Date of Service']);
-        if (!jobDate) { skipped++; continue; }
-        const { name, address } = parseNameAddress(job['Name / Details']);
-        const rawTitle = job['Title'] || 'Service';
-        // Extract crew name from title (e.g. "Spring Cleanup Rob Mowing Crew" -> service: "Spring Cleanup", crew: "Rob Mowing Crew")
-        const crewMatch = rawTitle.match(/^(.+?)\s{1,2}(\w+\s+(?:Mowing|Cleanup|Lawn|Landscape|Plow|Snow)\s+Crew)$/i);
-        const serviceType = crewMatch ? crewMatch[1].trim() : rawTitle.trim();
-        const crewAssigned = crewMatch ? crewMatch[2].trim() : null;
-        const price = parseFloat((job['Visit Total'] || '0').replace(/[^0-9.]/g, '')) || 0;
+        const jobDate = row.job_date;
+        const name = row.customer_name;
+        const address = row.address;
+        const serviceType = row.service_type;
+        const crewAssigned = row.crew_assigned;
+        const price = row.service_price;
 
         // Try to match customer by name
         const nameParts = name.split(' ');
@@ -1896,16 +2241,51 @@ router.post('/api/import-scheduling', upload.single('csvfile'), async (req, res)
         }
 
         // Check for existing by date + customer (ignore old service_type with crew name)
-        const existing = await pool.query('SELECT id FROM scheduled_jobs WHERE job_date = $1 AND customer_name = $2', [jobDate, name]);
+        const existing = await pool.query(
+          'SELECT id, copilot_visit_id, copilot_job_id FROM scheduled_jobs WHERE job_date = $1 AND customer_name = $2',
+          [jobDate, name]
+        );
         let jobId;
+        let currentJobRow = null;
         if (existing.rows.length > 0) {
           jobId = existing.rows[0].id;
+          currentJobRow = existing.rows[0];
           await pool.query('UPDATE scheduled_jobs SET address = $1, service_price = $2, customer_id = COALESCE($3, customer_id), service_type = $4, crew_assigned = COALESCE($5, crew_assigned) WHERE id = $6', [address, price, customerId, serviceType, crewAssigned, jobId]);
           updated++;
         } else {
-          const insertResult = await pool.query('INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, status, crew_assigned) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id', [jobDate, name, customerId, serviceType, price, address, 'pending', crewAssigned]);
+          const insertResult = await pool.query(
+            'INSERT INTO scheduled_jobs (job_date, customer_name, customer_id, service_type, service_price, address, status, crew_assigned) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, copilot_visit_id, copilot_job_id',
+            [jobDate, name, customerId, serviceType, price, address, 'pending', crewAssigned]
+          );
           jobId = insertResult.rows[0].id;
+          currentJobRow = insertResult.rows[0];
           imported++;
+        }
+
+        const rowPlan = linkagePlan.plan[rowIndex];
+        const linkageResult = await applyCopilotImportLinkage({
+          scheduledJobId: jobId,
+          currentJob: currentJobRow,
+          linkagePlan: rowPlan,
+          poolClient: pool,
+        });
+        if (linkageResult.status === 'linked') linkageSummary.linked += 1;
+        else if (linkageResult.status === 'already_linked') linkageSummary.already_linked += 1;
+        else if (linkageResult.status === 'conflict') linkageSummary.conflict += 1;
+        else if (linkageResult.status === 'ambiguous') linkageSummary.ambiguous += 1;
+        else linkageSummary.unmatched += 1;
+
+        if (linkageResult.status !== 'linked' && linkageResult.status !== 'already_linked') {
+          linkageDiagnostics.push({
+            row_index: rowPlan?.row_index || row.source_row || null,
+            job_date: jobDate,
+            customer_name: name,
+            service_type: serviceType,
+            address,
+            status: linkageResult.status,
+            reason: linkageResult.reason,
+            candidate_visit_ids: rowPlan?.candidate_visit_ids || [],
+          });
         }
 
         importedJobs.push({
@@ -1916,11 +2296,25 @@ router.post('/api/import-scheduling', upload.single('csvfile'), async (req, res)
           service_type: serviceType,
           service_price: price,
           address,
-          phone: customerMobile || customerPhone || null
+          phone: customerMobile || customerPhone || null,
+          copilot_visit_id: linkageResult.copilot_visit_id,
+          copilot_job_id: linkageResult.copilot_job_id,
+          copilot_linkage_status: linkageResult.status,
+          copilot_linkage_reason: linkageResult.reason,
         });
       } catch (e) { skipped++; }
     }
-    res.json({ success: true, message: 'Import complete', stats: { total: jobs.length, imported, updated, skipped }, jobs: importedJobs });
+    res.json({
+      success: true,
+      message: 'Import complete',
+      stats: { total: jobs.length, imported, updated, skipped },
+      copilot_hydration: copilotHydration.summary,
+      copilot_linkage: {
+        ...linkageSummary,
+        diagnostics: linkageDiagnostics,
+      },
+      jobs: importedJobs,
+    });
   } catch (error) { serverError(res, error); }
 });
 
@@ -2738,6 +3132,13 @@ module.exports.__testables = {
   JobStatusTransitionError,
   normalizeJobStatus,
   normalizeCopilotExecutionStatus,
+  normalizeCopilotLinkText,
+  normalizeCopilotLinkAddress,
+  normalizeCopilotLinkMoney,
+  buildCopilotImportMatchFingerprint,
+  buildCopilotSyncJobFingerprint,
+  findStrictCopilotImportCandidates,
+  planCopilotImportLinkage,
   mapCopilotExecutionMirror,
   hashCopilotExecutionPayload,
   canonicalizeCopilotExecutionMirror,
@@ -2745,6 +3146,9 @@ module.exports.__testables = {
   findScheduledJobForCopilotMirror,
   syncCopilotDispatchExecutionRecords,
   fetchCopilotDispatchExecutionRecords,
+  persistCopilotSyncJobs,
+  hydrateCopilotScheduleDates,
+  applyCopilotImportLinkage,
   validateJobStatusTransition,
   transitionScheduledJobStatus,
   applyCompletedJobInvoiceSideEffects,

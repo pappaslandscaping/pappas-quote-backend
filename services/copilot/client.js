@@ -9,6 +9,7 @@ const cheerio = require('cheerio');
 
 const COPILOT_API_BASE = 'https://api.copilotcrm.com';
 const COPILOT_WEB_BASE = 'https://secure.copilotcrm.com';
+const COPILOT_ROUTE_LIST_PATH = '/scheduler/all/list';
 
 /**
  * Read stored cookies/token from copilot_sync_settings.
@@ -51,6 +52,7 @@ function parseCopilotRouteHtml(html, employeesArray) {
   $('tr[data-row-event-id]').each((i, row) => {
     const $row = $(row);
     const eventId = $row.attr('data-row-event-id');
+    const jobId = $row.attr('data-row-job-id') || $row.attr('data-job-id') || null;
 
     // Customer name + ID from link
     const customerLink = $row.find('td.column-3 a');
@@ -83,6 +85,7 @@ function parseCopilotRouteHtml(html, employeesArray) {
 
     if (eventId && customerName) {
       jobs.push({
+        job_id: jobId,
         event_id: eventId,
         customer_id: customerId,
         customer_name: customerName,
@@ -97,6 +100,70 @@ function parseCopilotRouteHtml(html, employeesArray) {
     }
   });
   return jobs;
+}
+
+function formatCopilotRouteDate(dateStr) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function buildCopilotRouteFormData(dateStr) {
+  const formattedDate = formatCopilotRouteDate(dateStr);
+  const formData = new URLSearchParams();
+  formData.append('accessFrom', 'route');
+  formData.append('bs4', '1');
+  formData.append('sDate', formattedDate);
+  formData.append('eDate', formattedDate);
+  formData.append('optimizationFlag', '1');
+  formData.append('count', '-1');
+  for (const type of ['1', '2', '3', '4', '5', '0']) {
+    formData.append('evtypes_route[]', type);
+  }
+  formData.append('isdate', '0');
+  formData.append('sdate', formattedDate);
+  formData.append('edate', formattedDate);
+  formData.append('erec', 'all');
+  formData.append('estatus', 'any');
+  formData.append('esort', '');
+  formData.append('einvstatus', 'any');
+  return formData;
+}
+
+async function fetchCopilotRouteJobsForDate({
+  cookieHeader,
+  syncDate,
+  fetchImpl = fetch,
+} = {}) {
+  if (!cookieHeader) throw new Error('CopilotCRM cookies are required');
+  if (!syncDate) throw new Error('syncDate is required');
+
+  const response = await fetchImpl(`${COPILOT_WEB_BASE}${COPILOT_ROUTE_LIST_PATH}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookieHeader,
+      'Origin': COPILOT_WEB_BASE,
+      'Referer': `${COPILOT_WEB_BASE}/`,
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: buildCopilotRouteFormData(syncDate).toString(),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => '');
+    throw new Error(`CopilotCRM returned ${response.status}: ${errBody.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  if (data.status !== undefined && data.status !== 1 && data.status !== '1' && data.status !== true) {
+    throw new Error(`CopilotCRM returned non-success status: ${data.status}`);
+  }
+
+  return {
+    sync_date: syncDate,
+    raw: data,
+    jobs: parseCopilotRouteHtml(data.html || '', data.employees || []),
+  };
 }
 
 /**
@@ -122,6 +189,10 @@ async function loginWithCredentials(username, password) {
 module.exports = {
   COPILOT_API_BASE,
   COPILOT_WEB_BASE,
+  COPILOT_ROUTE_LIST_PATH,
+  formatCopilotRouteDate,
+  buildCopilotRouteFormData,
+  fetchCopilotRouteJobsForDate,
   getCopilotToken,
   parseCopilotRouteHtml,
   loginWithCredentials,

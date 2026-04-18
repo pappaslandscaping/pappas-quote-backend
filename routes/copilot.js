@@ -5,6 +5,7 @@
 
 const express = require('express');
 const { getCopilotToken, parseCopilotRouteHtml } = require('../services/copilot/client');
+const { upsertCopilotLiveJobs } = require('../services/copilot/live-jobs');
 
 module.exports = function createCopilotRoutes({ pool, serverError, authenticateToken }) {
   const router = express.Router();
@@ -122,6 +123,20 @@ router.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       else updated++;
     }
 
+    let liveMirror = null;
+    if (startDate === endDate) {
+      liveMirror = await upsertCopilotLiveJobs(pool, {
+        serviceDate: startDate,
+        jobs,
+        syncedAt: new Date(),
+      });
+    } else {
+      liveMirror = {
+        skipped: true,
+        reason: 'multi_date_range_sync_not_supported_for_live_mirror',
+      };
+    }
+
     const response = {
       success: true,
       startDate,
@@ -130,7 +145,8 @@ router.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       inserted,
       updated,
       totalEventCount: expectedCount,
-      overallVisitTotal: data.overallVisitTotal || null
+      overallVisitTotal: data.overallVisitTotal || null,
+      liveMirror,
     };
     if (tokenWarning) response.tokenWarning = tokenWarning;
     if (debug) {

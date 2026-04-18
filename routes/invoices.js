@@ -79,12 +79,19 @@ function isDateLikeInvoiceLabel(value) {
 }
 
 function getDisplayInvoiceNumberForPaymentRow(row) {
+  const metadata = row?.external_metadata && typeof row.external_metadata === 'object'
+    ? row.external_metadata
+    : {};
+  const metadataInvoiceNumber = String(
+    metadata.extracted_invoice_number
+    || metadata.display_invoice_number
+    || metadata.source_invoice_number
+    || ''
+  ).trim();
+  if (metadataInvoiceNumber && !isDateLikeInvoiceLabel(metadataInvoiceNumber)) return metadataInvoiceNumber;
+
   const invoiceNumber = String(row?.invoice_number || '').trim();
   if (invoiceNumber && !isDateLikeInvoiceLabel(invoiceNumber)) return invoiceNumber;
-  const externalInvoiceId = String(row?.external_invoice_id || '').trim();
-  if (String(row?.external_source || '').trim().toLowerCase() === 'copilotcrm' && externalInvoiceId) {
-    return externalInvoiceId;
-  }
   return null;
 }
 
@@ -1140,7 +1147,7 @@ router.get('/api/payments', async (req, res) => {
 
     const [result, countResult, monthly] = await Promise.all([
       pool.query(
-        `SELECT id, invoice_number, external_source, external_invoice_id,
+        `SELECT id, invoice_number, external_source, external_invoice_id, external_metadata,
                 customer_id, customer_name, customer_email,
                 total, amount_paid, status, paid_at, due_date, created_at, updated_at,
                 COALESCE(paid_at, updated_at, created_at) AS payment_date,

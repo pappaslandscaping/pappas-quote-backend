@@ -2,6 +2,10 @@
 
 ## 2026-04-17
 
+### Payments Display Normalization
+- Payments now prefer customer-facing invoice references from normalized invoice metadata instead of falling back to raw Copilot internal invoice ids
+- Legacy Copilot-linked rows with bad placeholder invoice labels now show `—` unless a real customer-facing invoice number is available
+
 ### Tax Transfer Payment Reconciliation
 - Fixed payment tax reconstruction to allocate against the taxed line-item gross total when available instead of the full invoice total
 - This prevents non-taxable invoice surcharges and fee-style adjustments from understating backend reconstructed tax on Tax Transfers

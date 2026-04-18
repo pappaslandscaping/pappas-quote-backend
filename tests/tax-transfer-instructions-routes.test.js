@@ -36,7 +36,7 @@ function makeResponse() {
   };
 }
 
-function buildSnapshotRow(date, taxAmount) {
+function buildSnapshotRow(date, taxAmount, overrides = {}) {
   return {
     external_source: 'copilotcrm',
     basis: 'collected',
@@ -52,6 +52,7 @@ function buildSnapshotRow(date, taxAmount) {
     external_metadata: {},
     imported_at: `${date}T20:15:00.000Z`,
     updated_at: `${date}T20:15:00.000Z`,
+    ...overrides,
   };
 }
 
@@ -77,10 +78,10 @@ function createInstructionPool({ snapshots = {}, instructions = [] } = {}) {
     if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [] };
 
     if (text.includes('FROM copilot_tax_summary_snapshots')) {
-      if (text.includes('start_date >= $2::date')) {
-        const [basis, startDate, endDate] = params;
+      if (text.includes('start_date >= $3::date')) {
+        const [sources, basis, startDate, endDate] = params;
         const rows = Object.entries(snapshots)
-          .filter(([date, row]) => row.basis === basis && date >= startDate && date <= endDate)
+          .filter(([date, row]) => sources.includes(row.external_source) && row.basis === basis && date >= startDate && date <= endDate)
           .sort(([left], [right]) => right.localeCompare(left))
           .map(([, row]) => ({
             start_date: row.start_date,
@@ -91,8 +92,9 @@ function createInstructionPool({ snapshots = {}, instructions = [] } = {}) {
           }));
         return { rows };
       }
-      const startDate = params[1] || params[0];
+      const [sources, _basis, startDate] = params;
       const row = snapshots[startDate];
+      if (!row || !sources.includes(row.external_source)) return { rows: [] };
       return { rows: row ? [row] : [] };
     }
 
@@ -784,6 +786,30 @@ it('skips generation when yesterday has no Copilot collected-tax snapshot', asyn
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.action, 'skipped_missing_recommendation');
   assert.strictEqual(pool.state.instructions.length, 0);
+});
+
+it('generates from a persisted live_copilot tax summary snapshot without requiring a live fetch', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-16': buildSnapshotRow('2026-04-16', 18.42, {
+        external_source: 'live_copilot',
+      }),
+    },
+  });
+  const router = createRouter({
+    pool,
+    getCopilotToken: async () => {
+      throw new Error('should not attempt live fetch');
+    },
+  });
+
+  const res = await withMockNow('2026-04-18T01:30:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.action, 'created');
+  assert.strictEqual(res.body.recommendation.tax_summary_snapshot_source, 'persisted_copilot_snapshot');
+  assert.strictEqual(pool.state.instructions.length, 1);
 });
 
 it('reports submitted_recommendation_changed without replacing a submitted row', async () => {

@@ -2,6 +2,10 @@
 
 ## 2026-04-18
 
+### Tax Transfer Instruction Snapshot Lookup Fix
+- Fixed transfer-instruction generation and yesterday-status reads to recognize persisted Copilot tax summary snapshots stored under the current `live_copilot` source
+- This keeps snapshot-backed instruction generation aligned with the same persisted recommendation rows used after Tax Summary sync, without changing transfer math or recommendation source of truth
+
 ### Dispatch Execution Status Workflow Foundation
 - Added additive dispatch execution fields on `scheduled_jobs` for started/completed metadata, proof-of-work coordinates, last-status tracking, and dispatch issue flags
 - Added a canonical job status transition workflow with support for `pending`, `in_progress`, `completed`, `skipped`, and `cancelled`

@@ -95,6 +95,10 @@ const TAX_TRANSFER_INSTRUCTION_SCHEDULE = {
   cron_expression: '25 20 * * *',
   label: '8:25 PM ET',
 };
+const COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES = [
+  LIVE_COPILOT_SOURCE,
+  'copilotcrm',
+];
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -382,12 +386,13 @@ async function readPersistedTaxSummarySnapshot({ startDate, endDate, basis = 'co
   const result = await pool.query(
     `SELECT *
        FROM copilot_tax_summary_snapshots
-      WHERE external_source = 'copilotcrm'
-        AND basis = $1
-        AND start_date = $2
-        AND end_date = $3
+      WHERE external_source = ANY($1::text[])
+        AND basis = $2
+        AND start_date = $3
+        AND end_date = $4
+      ORDER BY imported_at DESC NULLS LAST, updated_at DESC NULLS LAST
       LIMIT 1`,
-    [basis, startDate, endDate]
+    [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, basis, startDate, endDate]
   );
   if (!result.rows[0]) return null;
   return normalizeTaxSummarySnapshot({
@@ -708,13 +713,13 @@ async function fetchTaxTransferFreshnessSnapshot(today) {
     pool.query(
       `SELECT imported_at, updated_at, tax_amount, total_sales
          FROM copilot_tax_summary_snapshots
-        WHERE external_source = 'copilotcrm'
+        WHERE external_source = ANY($1::text[])
           AND basis = 'collected'
-          AND start_date = $1
-          AND end_date = $1
+          AND start_date = $2
+          AND end_date = $2
         ORDER BY imported_at DESC NULLS LAST, updated_at DESC NULLS LAST
         LIMIT 1`,
-      [today]
+      [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, today]
     ),
   ]);
 
@@ -1042,17 +1047,18 @@ async function listPersistedTaxSummaryRecommendationsForRange({ startDate, endDa
   const result = await pool.query(
     `SELECT start_date, end_date, tax_amount, imported_at, updated_at
        FROM copilot_tax_summary_snapshots
-      WHERE external_source = 'copilotcrm'
-        AND basis = $1
-        AND start_date >= $2::date
-        AND start_date <= $3::date
+      WHERE external_source = ANY($1::text[])
+        AND basis = $2
+        AND start_date >= $3::date
+        AND start_date <= $4::date
         AND start_date = end_date
-      ORDER BY start_date DESC`,
-    [basis, startDate, endDate]
+      ORDER BY start_date DESC, imported_at DESC NULLS LAST, updated_at DESC NULLS LAST`,
+    [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, basis, startDate, endDate]
   );
   const recommendationsByDate = new Map();
   result.rows.forEach((row) => {
     const taxDate = normalizeIsoDateValue(row.start_date);
+    if (recommendationsByDate.has(taxDate)) return;
     const amount = roundMoney(Number(row.tax_amount) || 0);
     recommendationsByDate.set(taxDate, {
       tax_date: taxDate,

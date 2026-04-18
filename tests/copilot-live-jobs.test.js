@@ -15,40 +15,111 @@ const {
 describe('copilot live jobs service', () => {
   const scheduleGridHtml = `
     <table class="copilot-table table--with-hide-options">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Date</th>
+          <th>Title</th>
+          <th>Crew / Employees</th>
+          <th>Name</th>
+          <th>Property</th>
+          <th>Address</th>
+          <th>Type</th>
+          <th>Invoiceable</th>
+          <th>Frequency</th>
+          <th>Last Serviced</th>
+          <th>Status</th>
+          <th>Visit Notes</th>
+          <th>Tracked Time</th>
+          <th>BH</th>
+          <th>Visit Total</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         <tr data-row-event-id="501" data-row-job-id="job-501">
+          <td><input type="checkbox" value="501"></td>
           <td>Apr 17, 2026</td>
           <td>Spring Cleanup</td>
           <td><span>Jobs Crew</span><small>Tim, Rob</small></td>
           <td><a href="/customers/view/9001">Jane Smith</a></td>
-          <td>Home</td>
+          <td>123 Main St</td>
           <td>123 Main St, Lakewood, OH</td>
           <td>Visit</td>
           <td>Invoiced</td>
           <td>Weekly</td>
           <td>Apr 10, 2026</td>
-          <td>Closed</td>
+          <td><span class="status-label green">Closed</span><br><a href="/finances/invoices/view/2736729">#10471</a></td>
           <td>Gate code</td>
           <td>01:05</td>
           <td>1.0</td>
           <td>$600.00</td>
+          <td></td>
         </tr>
         <tr data-row-event-id="502" data-row-job-id="job-502">
+          <td><input type="checkbox" value="502"></td>
           <td>Apr 17, 2026</td>
           <td>Mulch Refresh</td>
           <td><span>Mulch Crew</span><small>Ash, Eli</small></td>
           <td><a href="/customers/view/9002">John Doe</a></td>
-          <td>Office</td>
+          <td>45 Elm St</td>
           <td>45 Elm St, Rocky River, OH</td>
           <td>Visit</td>
           <td>Ready</td>
           <td>One-time</td>
           <td></td>
-          <td>Scheduled</td>
+          <td><span class="status-label red">Open</span></td>
           <td></td>
           <td>00:00</td>
           <td>2.5</td>
           <td>$250.00</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+  const singleRowScheduleGridHtml = `
+    <table class="copilot-table table--with-hide-options">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Date</th>
+          <th>Title</th>
+          <th>Crew / Employees</th>
+          <th>Name</th>
+          <th>Property</th>
+          <th>Address</th>
+          <th>Type</th>
+          <th>Invoiceable</th>
+          <th>Frequency</th>
+          <th>Last Serviced</th>
+          <th>Status</th>
+          <th>Visit Notes</th>
+          <th>Tracked Time</th>
+          <th>BH</th>
+          <th>Visit Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-row-event-id="501" data-row-job-id="job-501">
+          <td><input type="checkbox" value="501"></td>
+          <td>Apr 17, 2026</td>
+          <td>Spring Cleanup</td>
+          <td><span>Jobs Crew</span><small>Tim, Rob</small></td>
+          <td><a href="/customers/view/9001">Jane Smith</a></td>
+          <td>123 Main St</td>
+          <td>123 Main St, Lakewood, OH</td>
+          <td>Visit</td>
+          <td>Invoiced</td>
+          <td>Weekly</td>
+          <td>Apr 10, 2026</td>
+          <td><span class="status-label green">Closed</span><br><a href="/finances/invoices/view/2736729">#10471</a></td>
+          <td>Gate code</td>
+          <td>01:05</td>
+          <td>1.0</td>
+          <td>$600.00</td>
+          <td></td>
         </tr>
       </tbody>
     </table>
@@ -104,7 +175,7 @@ describe('copilot live jobs service', () => {
       dispatch_updated_by_name: 'Theresa',
     });
 
-    expect(resolved).toEqual({
+    expect(resolved).toMatchObject({
       job_key: 'copilot:2026-04-18:88',
       service_date: '2026-04-18',
       source_system: 'copilot',
@@ -236,6 +307,17 @@ describe('copilot live jobs service', () => {
         status: 'Closed',
         visit_total: '$600.00',
         job_title: 'Spring Cleanup',
+        raw_data: expect.objectContaining({
+          service_date_label: 'Apr 17, 2026',
+          property_name: '123 Main St',
+          event_type: 'Visit',
+          invoiceable: 'Invoiced',
+          frequency: 'Weekly',
+          last_serviced: 'Apr 10, 2026',
+          notes: 'Gate code',
+          tracked_time: '01:05',
+          budgeted_hours: '1.0',
+        }),
       }),
       expect.objectContaining({
         job_id: 'job-502',
@@ -289,6 +371,17 @@ describe('copilot live jobs service', () => {
       source_employees_text: 'Tim, Rob',
       source_stop_order: 3,
       address_raw: '123 Main St, Lakewood OH',
+      raw_payload: {
+        raw_data: {
+          property_name: '123 Main St',
+          event_type: 'Visit',
+          invoiceable: 'Invoiced',
+          frequency: 'Weekly',
+          last_serviced: 'Apr 10, 2026',
+          tracked_time: '01:05',
+          budgeted_hours: '1.0',
+        },
+      },
       overlay_job_key: 'copilot:2026-04-18:visit-101',
       review_state: 'reviewed',
       office_note: 'Gate code on file',
@@ -334,14 +427,21 @@ describe('copilot live jobs service', () => {
       address: '123 Main St, Lakewood OH',
       service_type: 'Spring Cleanup',
       service_title: 'Spring Cleanup',
+      service_frequency: 'Weekly',
+      property_name: '123 Main St',
+      copilot_event_type: 'Visit',
+      copilot_invoiceable_status: 'Invoiced',
       service_price: 120.5,
       crew_assigned: 'Crew A',
       crew_name: 'Crew A',
       crew_members_text: 'Tim, Rob',
       status: 'in_progress',
       status_raw: 'Started',
+      last_serviced: 'Apr 10, 2026',
       route_order: 2,
       stop_order: 2,
+      tracked_time: '01:05',
+      budgeted_hours: '1.0',
       special_notes: 'Gate code on file',
       lat: 41.4767,
       lng: -81.8123,
@@ -359,7 +459,7 @@ describe('copilot live jobs service', () => {
     };
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => scheduleGridHtml.split('</tr>')[0] + '</tr></tbody></table>',
+      text: async () => singleRowScheduleGridHtml,
     });
 
     const result = await fetchLiveCopilotScheduleDate({
@@ -406,6 +506,17 @@ describe('copilot live jobs service', () => {
             source_employees_text: 'Tim, Rob',
             source_stop_order: null,
             address_raw: '123 Main St, Lakewood, OH',
+            raw_payload: {
+              raw_data: {
+                property_name: '123 Main St',
+                event_type: 'Visit',
+                invoiceable: 'Invoiced',
+                frequency: 'Weekly',
+                last_serviced: 'Apr 10, 2026',
+                tracked_time: '01:05',
+                budgeted_hours: '1.0',
+              },
+            },
             overlay_job_key: null,
             review_state: null,
             office_note: null,
@@ -433,7 +544,7 @@ describe('copilot live jobs service', () => {
     };
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => scheduleGridHtml.split('</tr>')[0] + '</tr></tbody></table>',
+      text: async () => singleRowScheduleGridHtml,
     });
 
     const result = await getCopilotLiveJobs({
@@ -443,6 +554,20 @@ describe('copilot live jobs service', () => {
     });
 
     expect(result.jobs).toHaveLength(1);
+    expect(result.jobs[0]).toMatchObject({
+      customer_name: 'Jane Smith',
+      service_type: 'Spring Cleanup',
+      service_title: 'Spring Cleanup',
+      crew_name: 'Jobs Crew',
+      crew_members_text: 'Tim, Rob',
+      status: 'completed',
+      status_raw: 'Closed',
+      service_price: 600,
+      service_frequency: 'Weekly',
+      property_name: '123 Main St',
+      copilot_event_type: 'Visit',
+      copilot_invoiceable_status: 'Invoiced',
+    });
     expect(result.freshness.per_date).toEqual([
       expect.objectContaining({
         date: '2026-04-17',

@@ -71,6 +71,17 @@ const TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT = 'huntington_tax';
 const TAX_TRANSFER_INSTRUCTION_METHOD = 'chase_linked_external_transfer';
 const TAX_TRANSFER_ALERT_CUTOFF_HOUR = 12;
 const TAX_TRANSFER_ALERT_CUTOFF_MINUTE = 0;
+const TAX_TRANSFER_EXPORT_EXCEPTION_FILTERS = new Set([
+  'all',
+  'exceptions',
+  'missing_instruction',
+  'pending_approval',
+  'approved_not_submitted',
+  'submitted_after_cutoff',
+  'superseded',
+  'canceled',
+  'recommendation_changed_after_submission',
+]);
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -137,6 +148,13 @@ function shiftIsoDate(isoDate, days) {
   if (Number.isNaN(cursor.getTime())) return isoDate;
   cursor.setUTCDate(cursor.getUTCDate() + Number(days || 0));
   return cursor.toISOString().slice(0, 10);
+}
+
+function normalizeIsoDateValue(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (typeof value.toISOString === 'function') return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
 }
 
 function businessTimeParts(value = new Date(), timeZone = BUSINESS_TIME_ZONE) {
@@ -876,6 +894,34 @@ async function fetchCurrentTransferInstructionForTaxDate(db, taxDate) {
   return result.rows[0] || null;
 }
 
+async function listPersistedTaxSummaryRecommendationsForRange({ startDate, endDate, basis = 'collected' }) {
+  const result = await pool.query(
+    `SELECT start_date, end_date, tax_amount, imported_at, updated_at
+       FROM copilot_tax_summary_snapshots
+      WHERE external_source = 'copilotcrm'
+        AND basis = $1
+        AND start_date >= $2::date
+        AND start_date <= $3::date
+        AND start_date = end_date
+      ORDER BY start_date DESC`,
+    [basis, startDate, endDate]
+  );
+  const recommendationsByDate = new Map();
+  result.rows.forEach((row) => {
+    const taxDate = normalizeIsoDateValue(row.start_date);
+    const amount = roundMoney(Number(row.tax_amount) || 0);
+    recommendationsByDate.set(taxDate, {
+      tax_date: taxDate,
+      snapshot_available: true,
+      recommended_transfer_amount: amount,
+      recommended_transfer_amount_cents: moneyToCents(amount),
+      recommendation_as_of: row.imported_at || row.updated_at || null,
+      tax_summary_snapshot_source: PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+    });
+  });
+  return recommendationsByDate;
+}
+
 async function listTransferInstructionsForRange(db, startDate, endDate) {
   const result = await db.query(
     `SELECT *
@@ -886,6 +932,175 @@ async function listTransferInstructionsForRange(db, startDate, endDate) {
     [startDate, endDate]
   );
   return result.rows.map(mapTaxTransferInstructionRow);
+}
+
+function listTransferInstructionExceptionStates({ instruction, recommendation }) {
+  const states = [];
+
+  if (!instruction) {
+    if (recommendation?.snapshot_available
+      && recommendation?.recommendation_as_of
+      && (Number(recommendation.recommended_transfer_amount_cents) || 0) > 0) {
+      states.push('missing_instruction');
+    }
+    return states;
+  }
+
+  switch (instruction.status) {
+    case 'pending_approval':
+      states.push('pending_approval');
+      break;
+    case 'approved':
+      states.push('approved_not_submitted');
+      break;
+    case 'superseded':
+      states.push('superseded');
+      break;
+    case 'canceled':
+      states.push('canceled');
+      break;
+    default:
+      break;
+  }
+
+  if (instruction.status === 'submitted') {
+    const submittedAt = instruction.submitted_at ? new Date(instruction.submitted_at) : null;
+    if (submittedAt && !Number.isNaN(submittedAt.getTime())) {
+      const submittedBusinessDate = isoDateInTimeZone(submittedAt, BUSINESS_TIME_ZONE);
+      const afterCutoff = isAtOrAfterBusinessCutoff(submittedAt, { timeZone: BUSINESS_TIME_ZONE });
+      if (submittedBusinessDate > instruction.instruction_date
+        || (submittedBusinessDate === instruction.instruction_date && afterCutoff)) {
+        states.push('submitted_after_cutoff');
+      }
+    }
+    if (recommendation?.snapshot_available
+      && recommendation?.recommendation_as_of
+      && instruction.amount_cents !== (Number(recommendation.recommended_transfer_amount_cents) || 0)) {
+      states.push('recommendation_changed_after_submission');
+    }
+  }
+
+  return Array.from(new Set(states));
+}
+
+function matchesTransferInstructionExceptionFilter(states, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'exceptions') return states.length > 0;
+  return states.includes(filter);
+}
+
+function buildTransferInstructionExportRecord({ taxDate, instruction, recommendation, exceptionStates }) {
+  const record = instruction || {};
+  const amount = instruction
+    ? Number(instruction.amount || 0)
+    : Number(recommendation?.recommended_transfer_amount || 0);
+  return {
+    tax_date: taxDate,
+    amount: roundMoney(amount).toFixed(2),
+    status: instruction ? String(instruction.status || '') : 'missing',
+    recommendation_as_of: recommendation?.recommendation_as_of || '',
+    approved_by: record.approved_by_name || record.approved_by_email || '',
+    approved_at: record.approved_at || '',
+    submitted_by: record.submitted_by_name || record.submitted_by_email || '',
+    submitted_at: record.submitted_at || '',
+    bank_confirmation_ref: record.bank_confirmation_ref || '',
+    superseded_reason: record.superseded_reason || '',
+    cancellation_reason: record.cancellation_reason || '',
+    exception_state: exceptionStates.length ? exceptionStates.join('|') : 'none',
+    source_account: record.source_account_code || TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT,
+    destination_account: record.destination_account_code || TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT,
+    transfer_method: record.transfer_method || TAX_TRANSFER_INSTRUCTION_METHOD,
+  };
+}
+
+function csvEscape(value) {
+  const stringValue = value == null ? '' : String(value);
+  if (!/[",\n]/.test(stringValue)) return stringValue;
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function buildTransferInstructionCsv(rows) {
+  const columns = [
+    'tax_date',
+    'amount',
+    'status',
+    'recommendation_as_of',
+    'approved_by',
+    'approved_at',
+    'submitted_by',
+    'submitted_at',
+    'bank_confirmation_ref',
+    'superseded_reason',
+    'cancellation_reason',
+    'exception_state',
+    'source_account',
+    'destination_account',
+    'transfer_method',
+  ];
+  const header = columns.join(',');
+  const lines = rows.map((row) => columns.map((column) => csvEscape(row[column])).join(','));
+  return `${header}\n${lines.join('\n')}`;
+}
+
+async function buildTransferInstructionExportRows({ startDate, endDate, exceptionFilter = 'all' }) {
+  const [instructions, recommendationsByDate] = await Promise.all([
+    listTransferInstructionsForRange(pool, startDate, endDate),
+    listPersistedTaxSummaryRecommendationsForRange({ startDate, endDate }),
+  ]);
+
+  const currentInstructionByDate = new Map();
+  instructions.forEach((instruction) => {
+    if (instruction.is_current_for_tax_date && !currentInstructionByDate.has(instruction.tax_date)) {
+      currentInstructionByDate.set(instruction.tax_date, instruction);
+    }
+  });
+
+  const exportRows = instructions.map((instruction) => {
+    const recommendation = recommendationsByDate.get(instruction.tax_date) || null;
+    const exceptionStates = listTransferInstructionExceptionStates({ instruction, recommendation });
+    return {
+      sort_tax_date: instruction.tax_date,
+      sort_created_at: instruction.created_at || '',
+      sort_id: Number(instruction.id) || 0,
+      row: buildTransferInstructionExportRecord({
+        taxDate: instruction.tax_date,
+        instruction,
+        recommendation,
+        exceptionStates,
+      }),
+      exceptionStates,
+    };
+  });
+
+  eachDayInclusive(startDate, endDate).forEach((taxDate) => {
+    const recommendation = recommendationsByDate.get(taxDate) || null;
+    if (currentInstructionByDate.has(taxDate)) return;
+    const exceptionStates = listTransferInstructionExceptionStates({ instruction: null, recommendation });
+    if (!exceptionStates.length) return;
+    exportRows.push({
+      sort_tax_date: taxDate,
+      sort_created_at: '',
+      sort_id: -1,
+      row: buildTransferInstructionExportRecord({
+        taxDate,
+        instruction: null,
+        recommendation,
+        exceptionStates,
+      }),
+      exceptionStates,
+    });
+  });
+
+  return exportRows
+    .filter((entry) => matchesTransferInstructionExceptionFilter(entry.exceptionStates, exceptionFilter))
+    .sort((a, b) => {
+      const dateCmp = String(b.sort_tax_date || '').localeCompare(String(a.sort_tax_date || ''));
+      if (dateCmp) return dateCmp;
+      const createdCmp = String(b.sort_created_at || '').localeCompare(String(a.sort_created_at || ''));
+      if (createdCmp) return createdCmp;
+      return (Number(b.sort_id) || 0) - (Number(a.sort_id) || 0);
+    })
+    .map((entry) => entry.row);
 }
 
 async function createTransferInstructionRow(db, {
@@ -1745,6 +1960,35 @@ router.get('/api/tax-transfer-instructions', authenticateToken, async (req, res)
     });
   } catch (error) {
     console.error('Tax transfer instructions list error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions/export - CSV export for transfer operations review
+router.get('/api/tax-transfer-instructions/export', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    const exceptionFilter = String(req.query.exception_filter || 'all').trim() || 'all';
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+    if (!TAX_TRANSFER_EXPORT_EXCEPTION_FILTERS.has(exceptionFilter)) {
+      return res.status(400).json({ success: false, error: 'Invalid exception_filter' });
+    }
+
+    const rows = await buildTransferInstructionExportRows({
+      startDate,
+      endDate,
+      exceptionFilter,
+    });
+    const csv = buildTransferInstructionCsv(rows);
+    const filename = `tax-transfer-instructions-${startDate}-through-${endDate}-${exceptionFilter}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Tax transfer instructions export error:', error);
     serverError(res, error);
   }
 });

@@ -12,11 +12,24 @@ function makeResponse() {
   return {
     statusCode: 200,
     body: null,
+    headers: {},
     status(code) {
       this.statusCode = code;
       return this;
     },
+    setHeader(name, value) {
+      this.headers[name.toLowerCase()] = value;
+      return this;
+    },
+    set(name, value) {
+      this.headers[String(name).toLowerCase()] = value;
+      return this;
+    },
     json(payload) {
+      this.body = payload;
+      return this;
+    },
+    send(payload) {
       this.body = payload;
       return this;
     },
@@ -63,6 +76,20 @@ function createInstructionPool({ snapshots = {}, instructions = [] } = {}) {
     if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [] };
 
     if (text.includes('FROM copilot_tax_summary_snapshots')) {
+      if (text.includes('start_date >= $2::date')) {
+        const [basis, startDate, endDate] = params;
+        const rows = Object.entries(snapshots)
+          .filter(([date, row]) => row.basis === basis && date >= startDate && date <= endDate)
+          .sort(([left], [right]) => right.localeCompare(left))
+          .map(([, row]) => ({
+            start_date: row.start_date,
+            end_date: row.end_date,
+            tax_amount: row.tax_amount,
+            imported_at: row.imported_at,
+            updated_at: row.updated_at,
+          }));
+        return { rows };
+      }
       const startDate = params[1] || params[0];
       const row = snapshots[startDate];
       return { rows: row ? [row] : [] };
@@ -516,6 +543,113 @@ it('returns a success alert when yesterday requires no transfer', async () => {
   assert.strictEqual(res.body.ui_state, 'no_transfer_required');
   assert.strictEqual(res.body.alert_state, 'submitted');
   assert.strictEqual(res.body.tone, 'success');
+});
+
+it('exports missing instructions as csv without attempting a live Copilot fetch', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-17': buildSnapshotRow('2026-04-17', 18.42),
+    },
+  });
+  const router = createRouter({
+    pool,
+    getCopilotToken: async () => {
+      throw new Error('should not attempt live fetch');
+    },
+  });
+
+  const res = await invokeRoute(router, '/api/tax-transfer-instructions/export', 'get', {
+    query: {
+      start_date: '2026-04-17',
+      end_date: '2026-04-17',
+      exception_filter: 'missing_instruction',
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.headers['content-type'], 'text/csv; charset=utf-8');
+  assert.ok(String(res.headers['content-disposition']).includes('tax-transfer-instructions-2026-04-17-through-2026-04-17-missing_instruction.csv'));
+  assert.ok(String(res.body).includes('tax_date,amount,status,recommendation_as_of'));
+  assert.ok(String(res.body).includes('2026-04-17,18.42,missing'));
+  assert.ok(String(res.body).includes('missing_instruction'));
+});
+
+it('exports exception-focused csv rows for late submitted, superseded, canceled, and recommendation-changed instructions', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-12': buildSnapshotRow('2026-04-12', 14.10),
+      '2026-04-13': buildSnapshotRow('2026-04-13', 15.25),
+      '2026-04-14': buildSnapshotRow('2026-04-14', 16.75),
+      '2026-04-15': buildSnapshotRow('2026-04-15', 18.42),
+    },
+    instructions: [
+      buildInstructionRow({
+        id: 41,
+        tax_date: '2026-04-15',
+        instruction_date: '2026-04-16',
+        status: 'submitted',
+        approved_at: '2026-04-16T13:30:00.000Z',
+        approved_by_name: 'Ops Admin',
+        submitted_at: '2026-04-16T16:30:00.000Z',
+        submitted_by_name: 'Ops Admin',
+        bank_confirmation_ref: 'CHASE-LATE',
+        updated_at: '2026-04-16T16:30:00.000Z',
+      }),
+      buildInstructionRow({
+        id: 42,
+        tax_date: '2026-04-14',
+        instruction_date: '2026-04-15',
+        amount_cents: 1200,
+        status: 'submitted',
+        approved_at: '2026-04-15T13:30:00.000Z',
+        approved_by_name: 'Ops Admin',
+        submitted_at: '2026-04-15T14:00:00.000Z',
+        submitted_by_name: 'Ops Admin',
+        bank_confirmation_ref: 'CHASE-CHANGE',
+        updated_at: '2026-04-15T14:00:00.000Z',
+      }),
+      buildInstructionRow({
+        id: 43,
+        tax_date: '2026-04-13',
+        instruction_date: '2026-04-14',
+        status: 'superseded',
+        superseded_reason: 'recommendation_changed_before_submission',
+        superseded_by_instruction_id: 99,
+        superseded_at: '2026-04-14T13:00:00.000Z',
+        updated_at: '2026-04-14T13:00:00.000Z',
+      }),
+      buildInstructionRow({
+        id: 44,
+        tax_date: '2026-04-12',
+        instruction_date: '2026-04-13',
+        status: 'canceled',
+        cancellation_reason: 'Duplicate instruction',
+        canceled_at: '2026-04-13T14:00:00.000Z',
+        canceled_by_name: 'Ops Admin',
+        updated_at: '2026-04-13T14:00:00.000Z',
+      }),
+    ],
+  });
+  const router = createRouter({ pool });
+
+  const res = await invokeRoute(router, '/api/tax-transfer-instructions/export', 'get', {
+    query: {
+      start_date: '2026-04-12',
+      end_date: '2026-04-15',
+      exception_filter: 'exceptions',
+    },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  const csv = String(res.body);
+  assert.ok(csv.includes('2026-04-15,18.42,submitted'));
+  assert.ok(csv.includes('submitted_after_cutoff'));
+  assert.ok(csv.includes('2026-04-14,12.00,submitted'));
+  assert.ok(csv.includes('recommendation_changed_after_submission'));
+  assert.ok(csv.includes('2026-04-13,18.42,superseded'));
+  assert.ok(csv.includes('recommendation_changed_before_submission'));
+  assert.ok(csv.includes('2026-04-12,18.42,canceled'));
+  assert.ok(csv.includes('Duplicate instruction'));
 });
 
 it('generates one pending instruction and is idempotent when the amount has not changed', async () => {

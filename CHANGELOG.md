@@ -11,6 +11,7 @@
 - Added approval-only instruction generation, history, and audit fields without changing Copilot collected-tax recommendation logic
 - Added cron-safe instruction generation that reads persisted Copilot tax snapshots only and never initiates bank transfers directly
 - Added cutoff-aware Yesterday instruction alerts on Tax Transfers so missing, unapproved, and unsubmitted Chase steps are obvious before and after the Eastern-time deadline
+- Added CSV export and exception reporting for transfer operations so accounting and ops can review missing, late, superseded, canceled, and changed-submission instruction states outside the page
 
 ### Tax Transfer Payment Reconciliation
 - Fixed payment tax reconstruction to allocate against the taxed line-item gross total when available instead of the full invoice total

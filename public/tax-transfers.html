@@ -522,10 +522,32 @@
             flex-wrap: wrap;
             margin-bottom: 16px;
         }
+        .history-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .history-export-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .history-export-controls select {
+            min-width: 220px;
+            padding: 9px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--gray-200);
+            background: #fff;
+            color: var(--gray-700);
+            font: inherit;
+        }
         .history-meta {
             font-size: 13px;
             color: var(--gray-500);
-            margin-bottom: 14px;
         }
         .status-pill-linked {
             background: #ecfdf5;
@@ -692,7 +714,23 @@
                 <button class="btn btn-secondary" id="submitInstructionBtn" type="button" onclick="markTransferInstructionSubmitted()">Mark Submitted in Chase</button>
                 <button class="btn btn-secondary" id="cancelInstructionBtn" type="button" onclick="cancelTransferInstruction()">Cancel Instruction</button>
             </div>
-            <div class="history-meta" id="instructionHistoryMeta">Choose a date range and load the report to inspect transfer instruction history.</div>
+            <div class="history-toolbar">
+                <div class="history-meta" id="instructionHistoryMeta">Choose a date range and load the report to inspect transfer instruction history.</div>
+                <div class="history-export-controls">
+                    <select id="instructionExportFilter">
+                        <option value="all">All instruction rows</option>
+                        <option value="exceptions">Exceptions only</option>
+                        <option value="missing_instruction">Missing instruction</option>
+                        <option value="pending_approval">Pending approval</option>
+                        <option value="approved_not_submitted">Approved not submitted</option>
+                        <option value="submitted_after_cutoff">Submitted after cutoff</option>
+                        <option value="superseded">Superseded</option>
+                        <option value="canceled">Canceled</option>
+                        <option value="recommendation_changed_after_submission">Recommendation changed after submission</option>
+                    </select>
+                    <button class="btn btn-secondary" id="exportInstructionBtn" type="button" onclick="downloadTransferInstructionExport()">Export CSV</button>
+                </div>
+            </div>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -1350,6 +1388,46 @@
         } catch (error) {
             document.getElementById('instructionHistoryMeta').textContent = `Unable to load transfer instruction history. ${error.message}`;
             document.getElementById('instructionHistoryBody').innerHTML = `<tr><td colspan="8" class="empty-state">Unable to load transfer instruction history. ${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    async function downloadTransferInstructionExport() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            setSyncStatus('Choose a valid date range before exporting transfer instructions.', 'error');
+            return;
+        }
+        const exceptionFilter = document.getElementById('instructionExportFilter').value || 'all';
+        setBusy('exportInstructionBtn', true, 'Exporting…');
+        try {
+            const params = new URLSearchParams({
+                ...range,
+                exception_filter: exceptionFilter,
+            });
+            const url = '/api/tax-transfer-instructions/export?' + params.toString();
+            const res = await fetch(url);
+            if (!res.ok) {
+                let message = 'Unable to export transfer instructions';
+                try {
+                    const data = await res.json();
+                    message = data.error || message;
+                } catch (_error) {}
+                throw new Error(message);
+            }
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = `tax-transfer-instructions-${range.start_date}-through-${range.end_date}-${exceptionFilter}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+            setSyncStatus('Transfer instruction export started.', 'success');
+        } catch (error) {
+            setSyncStatus(`Transfer instruction export failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('exportInstructionBtn', false);
         }
     }
 

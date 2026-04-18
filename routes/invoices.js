@@ -63,6 +63,10 @@ const COPILOT_TAX_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
 const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
 const COPILOT_PAYMENTS_CACHE_TTL_MS = 5 * 60 * 1000;
+const TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES = ['pending_approval', 'approved', 'submitted'];
+const TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT = 'chase_business_checking';
+const TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT = 'huntington_tax';
+const TAX_TRANSFER_INSTRUCTION_METHOD = 'chase_linked_external_transfer';
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -674,6 +678,385 @@ async function runTaxTransferFreshnessSync({
   return statusPayload;
 }
 
+function moneyToCents(value) {
+  return Math.round((Number(value) || 0) * 100);
+}
+
+function centsToMoney(value) {
+  return roundMoney((Number(value) || 0) / 100);
+}
+
+function normalizeIsoDate(value) {
+  if (!value) return null;
+  return value?.toISOString ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
+function isHumanAdminUser(user) {
+  if (!user || user.isEmployee === true || user.isServiceToken === true) return false;
+  return Boolean(
+    user.isAdmin === true
+    || user.accountType === 'admin'
+    || user.role === 'admin'
+    || user.role === 'owner'
+  );
+}
+
+function assertHumanAdminUser(req, res) {
+  if (isHumanAdminUser(req.user)) return true;
+  res.status(403).json({ success: false, error: 'Human admin access required' });
+  return false;
+}
+
+function buildInstructionActor(user) {
+  return {
+    id: Number.isFinite(Number(user?.id)) ? Number(user.id) : null,
+    name: String(user?.name || '').trim() || null,
+    email: String(user?.email || '').trim() || null,
+  };
+}
+
+function mapTaxTransferInstructionRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    tax_date: normalizeIsoDate(row.tax_date),
+    instruction_date: normalizeIsoDate(row.instruction_date),
+    source_account_code: row.source_account_code,
+    destination_account_code: row.destination_account_code,
+    transfer_method: row.transfer_method,
+    amount_cents: Number(row.amount_cents) || 0,
+    amount: centsToMoney(row.amount_cents),
+    currency: row.currency,
+    recommendation_source: row.recommendation_source,
+    recommendation_as_of: row.recommendation_as_of,
+    tax_summary_snapshot_source: row.tax_summary_snapshot_source,
+    backend_reconstructed_tax_cents: Number(row.backend_reconstructed_tax_cents) || 0,
+    backend_reconstructed_tax: centsToMoney(row.backend_reconstructed_tax_cents),
+    variance_cents: Number(row.variance_cents) || 0,
+    variance: centsToMoney(row.variance_cents),
+    status: row.status,
+    memo: row.memo,
+    generation_trigger: row.generation_trigger,
+    approved_at: row.approved_at,
+    approved_by_user_id: row.approved_by_user_id,
+    approved_by_name: row.approved_by_name,
+    approved_by_email: row.approved_by_email,
+    submitted_at: row.submitted_at,
+    submitted_by_user_id: row.submitted_by_user_id,
+    submitted_by_name: row.submitted_by_name,
+    submitted_by_email: row.submitted_by_email,
+    bank_confirmation_ref: row.bank_confirmation_ref,
+    submission_note: row.submission_note,
+    canceled_at: row.canceled_at,
+    canceled_by_user_id: row.canceled_by_user_id,
+    canceled_by_name: row.canceled_by_name,
+    canceled_by_email: row.canceled_by_email,
+    cancellation_reason: row.cancellation_reason,
+    superseded_at: row.superseded_at,
+    superseded_by_instruction_id: row.superseded_by_instruction_id,
+    superseded_reason: row.superseded_reason,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    is_current_for_tax_date: TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES.includes(String(row.status || '').trim()),
+  };
+}
+
+async function withOptionalTransaction(db, fn) {
+  if (typeof db.connect !== 'function') {
+    return fn(db);
+  }
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    if (typeof client.release === 'function') client.release();
+  }
+}
+
+function buildTaxTransferRecommendationPayload({ date, snapshot, recommendation, source, snapshotAsOf }) {
+  const recommendedTransferAmount = roundMoney(Number(recommendation?.recommended_transfer_amount) || 0);
+  const backendReconstructedTax = roundMoney(Number(recommendation?.backend_reconstructed_tax) || 0);
+  const variance = roundMoney(Number(recommendation?.variance) || 0);
+  return {
+    tax_date: date,
+    snapshot_available: Boolean(snapshot),
+    recommended_transfer_amount: recommendedTransferAmount,
+    recommended_transfer_amount_cents: moneyToCents(recommendedTransferAmount),
+    recommendation_source: 'copilot_collected_tax',
+    recommendation_as_of: snapshotAsOf || null,
+    tax_summary_snapshot_source: source,
+    backend_reconstructed_tax: backendReconstructedTax,
+    backend_reconstructed_tax_cents: moneyToCents(backendReconstructedTax),
+    variance,
+    variance_cents: moneyToCents(variance),
+  };
+}
+
+async function fetchDailyTaxTransferRecommendation(date, { allowLiveFetch = false } = {}) {
+  const basis = 'collected';
+  let snapshot = await readPersistedTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+  if (!snapshot && allowLiveFetch) {
+    snapshot = await fetchCopilotTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+  }
+  const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
+  const recommendation = buildDailyTaxRecommendation({
+    snapshot: snapshot || { tax_amount: 0 },
+    backendReconstructedTax,
+  });
+  return buildTaxTransferRecommendationPayload({
+    date,
+    snapshot,
+    recommendation,
+    source: snapshot?.source || 'missing_copilot_snapshot',
+    snapshotAsOf: snapshot?.as_of || null,
+  });
+}
+
+async function fetchTransferInstructionById(db, id) {
+  const result = await db.query(
+    `SELECT *
+       FROM tax_transfer_instructions
+      WHERE id = $1
+      LIMIT 1`,
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
+async function fetchCurrentTransferInstructionForTaxDate(db, taxDate) {
+  const result = await db.query(
+    `SELECT *
+       FROM tax_transfer_instructions
+      WHERE tax_date = $1
+        AND status = ANY($2::text[])
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1`,
+    [taxDate, TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES]
+  );
+  return result.rows[0] || null;
+}
+
+async function listTransferInstructionsForRange(db, startDate, endDate) {
+  const result = await db.query(
+    `SELECT *
+       FROM tax_transfer_instructions
+      WHERE tax_date >= $1::date
+        AND tax_date <= $2::date
+      ORDER BY tax_date DESC, created_at DESC, id DESC`,
+    [startDate, endDate]
+  );
+  return result.rows.map(mapTaxTransferInstructionRow);
+}
+
+async function createTransferInstructionRow(db, {
+  taxDate,
+  instructionDate,
+  amountCents,
+  recommendationAsOf,
+  taxSummarySnapshotSource,
+  backendReconstructedTaxCents,
+  varianceCents,
+  generationTrigger,
+}) {
+  const result = await db.query(
+    `INSERT INTO tax_transfer_instructions (
+       tax_date,
+       instruction_date,
+       source_account_code,
+       destination_account_code,
+       transfer_method,
+       amount_cents,
+       currency,
+       recommendation_source,
+       recommendation_as_of,
+       tax_summary_snapshot_source,
+       backend_reconstructed_tax_cents,
+       variance_cents,
+       status,
+       memo,
+       generation_trigger
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6, 'USD', 'copilot_collected_tax', $7, $8, $9, $10, 'pending_approval', $11, $12
+     )
+     RETURNING *`,
+    [
+      taxDate,
+      instructionDate,
+      TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT,
+      TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT,
+      TAX_TRANSFER_INSTRUCTION_METHOD,
+      amountCents,
+      recommendationAsOf,
+      taxSummarySnapshotSource,
+      backendReconstructedTaxCents,
+      varianceCents,
+      `Daily sales tax transfer for ${taxDate}`,
+      generationTrigger,
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function generateTransferInstructionForDate({
+  db,
+  taxDate,
+  trigger = 'manual',
+}) {
+  const instructionDate = isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE);
+  const recommendation = await fetchDailyTaxTransferRecommendation(taxDate);
+  const currentInstruction = await fetchCurrentTransferInstructionForTaxDate(db, taxDate);
+  const amountCents = Number(recommendation.recommended_transfer_amount_cents) || 0;
+
+  if (!recommendation.snapshot_available || !recommendation.recommendation_as_of) {
+    return {
+      action: 'skipped_missing_recommendation',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: currentInstruction ? mapTaxTransferInstructionRow(currentInstruction) : null,
+    };
+  }
+
+  if (amountCents <= 0) {
+    return {
+      action: 'skipped_no_transfer_required',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: currentInstruction ? mapTaxTransferInstructionRow(currentInstruction) : null,
+    };
+  }
+
+  if (currentInstruction?.status === 'submitted') {
+    return {
+      action: 'blocked_submitted_exists',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: mapTaxTransferInstructionRow(currentInstruction),
+    };
+  }
+
+  if (currentInstruction && Number(currentInstruction.amount_cents) === amountCents) {
+    const updated = await db.query(
+      `UPDATE tax_transfer_instructions
+          SET recommendation_as_of = $2,
+              tax_summary_snapshot_source = $3,
+              backend_reconstructed_tax_cents = $4,
+              variance_cents = $5,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [
+        currentInstruction.id,
+        recommendation.recommendation_as_of,
+        recommendation.tax_summary_snapshot_source,
+        recommendation.backend_reconstructed_tax_cents,
+        recommendation.variance_cents,
+      ]
+    );
+    return {
+      action: 'unchanged',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: mapTaxTransferInstructionRow(updated.rows[0] || currentInstruction),
+    };
+  }
+
+  if (currentInstruction && (currentInstruction.status === 'pending_approval' || currentInstruction.status === 'approved')) {
+    const inserted = await createTransferInstructionRow(db, {
+      taxDate,
+      instructionDate,
+      amountCents,
+      recommendationAsOf: recommendation.recommendation_as_of,
+      taxSummarySnapshotSource: recommendation.tax_summary_snapshot_source,
+      backendReconstructedTaxCents: recommendation.backend_reconstructed_tax_cents,
+      varianceCents: recommendation.variance_cents,
+      generationTrigger: trigger,
+    });
+    const superseded = await db.query(
+      `UPDATE tax_transfer_instructions
+          SET status = 'superseded',
+              superseded_at = NOW(),
+              superseded_by_instruction_id = $2,
+              superseded_reason = 'recommendation_changed_before_submission',
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [currentInstruction.id, inserted.id]
+    );
+    return {
+      action: 'superseded_and_created',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: mapTaxTransferInstructionRow(inserted),
+      superseded_instruction: mapTaxTransferInstructionRow(superseded.rows[0] || currentInstruction),
+    };
+  }
+
+  const inserted = await createTransferInstructionRow(db, {
+    taxDate,
+    instructionDate,
+    amountCents,
+    recommendationAsOf: recommendation.recommendation_as_of,
+    taxSummarySnapshotSource: recommendation.tax_summary_snapshot_source,
+    backendReconstructedTaxCents: recommendation.backend_reconstructed_tax_cents,
+    varianceCents: recommendation.variance_cents,
+    generationTrigger: trigger,
+  });
+  return {
+    action: 'created',
+    tax_date: taxDate,
+    instruction_date: instructionDate,
+    recommendation,
+    instruction: mapTaxTransferInstructionRow(inserted),
+  };
+}
+
+async function buildYesterdayTransferInstructionStatus() {
+  const todayBusinessDate = isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE);
+  const taxDate = shiftIsoDate(todayBusinessDate, -1);
+  const recommendation = await fetchDailyTaxTransferRecommendation(taxDate);
+  const instructionRow = await fetchCurrentTransferInstructionForTaxDate(pool, taxDate);
+  const instruction = mapTaxTransferInstructionRow(instructionRow);
+
+  let uiState = 'no_instruction';
+  if (instruction && instruction.status === 'submitted'
+    && recommendation.snapshot_available
+    && recommendation.recommendation_as_of
+    && instruction.amount_cents !== (Number(recommendation.recommended_transfer_amount_cents) || 0)) {
+    uiState = 'submitted_recommendation_changed';
+  } else if (instruction) {
+    uiState = instruction.status;
+  } else if (!recommendation.snapshot_available || !recommendation.recommendation_as_of) {
+    uiState = 'blocked_missing_recommendation';
+  } else if ((Number(recommendation.recommended_transfer_amount_cents) || 0) <= 0) {
+    uiState = 'no_transfer_required';
+  } else {
+    uiState = 'no_instruction';
+  }
+
+  return {
+    success: true,
+    time_zone: BUSINESS_TIME_ZONE,
+    today_business_date: todayBusinessDate,
+    tax_date: taxDate,
+    recommendation,
+    instruction,
+    ui_state: uiState,
+  };
+}
+
 function buildPaymentRecordWhere({ search, year, month, source, linked } = {}, params) {
   const where = [];
   if (search) {
@@ -1222,6 +1605,174 @@ router.get('/api/reports/tax-transfer-freshness-status', authenticateToken, asyn
   }
 });
 
+// GET /api/tax-transfer-instructions/yesterday-status - Current transfer instruction state for yesterday
+router.get('/api/tax-transfer-instructions/yesterday-status', authenticateToken, async (_req, res) => {
+  try {
+    const status = await buildYesterdayTransferInstructionStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Tax transfer yesterday-status error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions - History for the selected date range
+router.get('/api/tax-transfer-instructions', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+    const instructions = await listTransferInstructionsForRange(pool, startDate, endDate);
+    res.json({
+      success: true,
+      start_date: startDate,
+      end_date: endDate,
+      total: instructions.length,
+      instructions,
+    });
+  } catch (error) {
+    console.error('Tax transfer instructions list error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/generate - Generate or refresh yesterday's transfer instruction
+router.post('/api/tax-transfer-instructions/generate', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const requestedTaxDate = String(req.body?.tax_date || req.query.tax_date || '').trim();
+    const taxDate = requestedTaxDate || shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+    const result = await withOptionalTransaction(pool, (db) => generateTransferInstructionForDate({
+      db,
+      taxDate,
+      trigger: 'manual',
+    }));
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Tax transfer instruction generate error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/:id/approve - Human approval for Chase submission
+router.post('/api/tax-transfer-instructions/:id/approve', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const instructionId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid instruction id is required' });
+    }
+    const actor = buildInstructionActor(req.user);
+    const result = await withOptionalTransaction(pool, async (db) => {
+      const current = await fetchTransferInstructionById(db, instructionId);
+      if (!current) return { statusCode: 404, payload: { success: false, error: 'Instruction not found' } };
+      if (current.status !== 'pending_approval') {
+        return { statusCode: 409, payload: { success: false, error: 'Only pending instructions can be approved' } };
+      }
+      const updated = await db.query(
+        `UPDATE tax_transfer_instructions
+            SET status = 'approved',
+                approved_at = NOW(),
+                approved_by_user_id = $2,
+                approved_by_name = $3,
+                approved_by_email = $4,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [instructionId, actor.id, actor.name, actor.email]
+      );
+      return { statusCode: 200, payload: { success: true, instruction: mapTaxTransferInstructionRow(updated.rows[0]) } };
+    });
+    return res.status(result.statusCode).json(result.payload);
+  } catch (error) {
+    console.error('Tax transfer instruction approve error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/:id/submit - Record manual Chase submission
+router.post('/api/tax-transfer-instructions/:id/submit', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const instructionId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid instruction id is required' });
+    }
+    const actor = buildInstructionActor(req.user);
+    const bankConfirmationRef = String(req.body?.bank_confirmation_ref || '').trim() || null;
+    const submissionNote = String(req.body?.submission_note || '').trim() || null;
+    const result = await withOptionalTransaction(pool, async (db) => {
+      const current = await fetchTransferInstructionById(db, instructionId);
+      if (!current) return { statusCode: 404, payload: { success: false, error: 'Instruction not found' } };
+      if (current.status !== 'approved') {
+        return { statusCode: 409, payload: { success: false, error: 'Only approved instructions can be marked submitted' } };
+      }
+      const updated = await db.query(
+        `UPDATE tax_transfer_instructions
+            SET status = 'submitted',
+                submitted_at = NOW(),
+                submitted_by_user_id = $2,
+                submitted_by_name = $3,
+                submitted_by_email = $4,
+                bank_confirmation_ref = $5,
+                submission_note = $6,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [instructionId, actor.id, actor.name, actor.email, bankConfirmationRef, submissionNote]
+      );
+      return { statusCode: 200, payload: { success: true, instruction: mapTaxTransferInstructionRow(updated.rows[0]) } };
+    });
+    return res.status(result.statusCode).json(result.payload);
+  } catch (error) {
+    console.error('Tax transfer instruction submit error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/:id/cancel - Cancel an unsubmitted instruction
+router.post('/api/tax-transfer-instructions/:id/cancel', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const instructionId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid instruction id is required' });
+    }
+    const actor = buildInstructionActor(req.user);
+    const cancellationReason = String(req.body?.cancellation_reason || '').trim() || null;
+    const result = await withOptionalTransaction(pool, async (db) => {
+      const current = await fetchTransferInstructionById(db, instructionId);
+      if (!current) return { statusCode: 404, payload: { success: false, error: 'Instruction not found' } };
+      if (!['pending_approval', 'approved'].includes(current.status)) {
+        return { statusCode: 409, payload: { success: false, error: 'Only pending or approved instructions can be canceled' } };
+      }
+      const updated = await db.query(
+        `UPDATE tax_transfer_instructions
+            SET status = 'canceled',
+                canceled_at = NOW(),
+                canceled_by_user_id = $2,
+                canceled_by_name = $3,
+                canceled_by_email = $4,
+                cancellation_reason = $5,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [instructionId, actor.id, actor.name, actor.email, cancellationReason]
+      );
+      return { statusCode: 200, payload: { success: true, instruction: mapTaxTransferInstructionRow(updated.rows[0]) } };
+    });
+    return res.status(result.statusCode).json(result.payload);
+  } catch (error) {
+    console.error('Tax transfer instruction cancel error:', error);
+    serverError(res, error);
+  }
+});
+
 async function handleTaxTransferFreshnessCron(req, res) {
   if (!assertCronSecret(req, res)) return;
 
@@ -1268,6 +1819,31 @@ async function handleTaxTransferFreshnessCron(req, res) {
 
 router.post('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCron);
 router.get('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCron);
+
+async function handleTaxTransferInstructionCron(req, res) {
+  if (!assertCronSecret(req, res)) return;
+  try {
+    const taxDate = shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+    const result = await withOptionalTransaction(pool, (db) => generateTransferInstructionForDate({
+      db,
+      taxDate,
+      trigger: 'cron',
+    }));
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Tax transfer instruction cron error:', error);
+    return res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Tax transfer instruction generation failed'),
+    });
+  }
+}
+
+router.post('/api/cron/tax-transfer-instructions/generate', handleTaxTransferInstructionCron);
+router.get('/api/cron/tax-transfer-instructions/generate', handleTaxTransferInstructionCron);
 
 // GET /api/payment-records - True payment records joined to invoices
 router.get('/api/payment-records', authenticateToken, async (req, res) => {

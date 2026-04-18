@@ -478,6 +478,41 @@
             color: var(--gray-500);
             margin-bottom: 14px;
         }
+        .instruction-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .instruction-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .instruction-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-800);
+            line-height: 1.1;
+        }
+        .instruction-meta {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--gray-500);
+            line-height: 1.5;
+        }
+        .instruction-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .history-meta {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-bottom: 14px;
+        }
         .status-pill-linked {
             background: #ecfdf5;
             color: #166534;
@@ -499,6 +534,7 @@
             .status-grid,
             .summary-grid,
             .split-grid,
+            .instruction-grid,
             .hero-steps {
                 grid-template-columns: 1fr;
             }
@@ -599,6 +635,60 @@
             <div class="callout hidden" id="automationAlert" style="margin-top:18px;margin-bottom:0;">
                 <div id="automationAlertIcon">⚠️</div>
                 <div id="automationAlertText"></div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-head">
+                <div>
+                    <h3>Yesterday's Transfer Instruction</h3>
+                    <div class="sub">Approval workflow only. Chase submission still happens manually outside YardDesk.</div>
+                </div>
+                <div class="sub" id="instructionStatusMeta">Loading yesterday&apos;s instruction…</div>
+            </div>
+            <div class="callout">
+                <div>↳</div>
+                <div>
+                    Generated from Copilot collected tax. Approval and Chase submission are tracked here, but the bank transfer itself is still performed manually in Chase.
+                </div>
+            </div>
+            <div class="instruction-grid">
+                <div class="instruction-card">
+                    <div class="detail-card-label">Instruction</div>
+                    <div class="instruction-value" id="instructionAmount">$0.00</div>
+                    <div class="instruction-meta" id="instructionMeta">No instruction loaded yet.</div>
+                </div>
+                <div class="instruction-card">
+                    <div class="detail-card-label">Status</div>
+                    <div><span class="status-pill muted" id="instructionStatusPill">Unknown</span></div>
+                    <div class="instruction-meta" id="instructionStatusDetail">Loading current approval status…</div>
+                </div>
+            </div>
+            <div class="instruction-actions">
+                <button class="btn btn-primary" id="generateInstructionBtn" type="button" onclick="generateTransferInstruction()">Generate Instruction</button>
+                <button class="btn btn-secondary" id="approveInstructionBtn" type="button" onclick="approveTransferInstruction()">Approve for Chase Submission</button>
+                <button class="btn btn-secondary" id="submitInstructionBtn" type="button" onclick="markTransferInstructionSubmitted()">Mark Submitted in Chase</button>
+                <button class="btn btn-secondary" id="cancelInstructionBtn" type="button" onclick="cancelTransferInstruction()">Cancel Instruction</button>
+            </div>
+            <div class="history-meta" id="instructionHistoryMeta">Choose a date range and load the report to inspect transfer instruction history.</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tax Date</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Recommendation As Of</th>
+                            <th>Generated</th>
+                            <th>Approved</th>
+                            <th>Submitted</th>
+                            <th>Bank Ref</th>
+                        </tr>
+                    </thead>
+                    <tbody id="instructionHistoryBody">
+                        <tr><td colspan="8" class="empty-state">Load the report to inspect transfer instruction history.</td></tr>
+                    </tbody>
+                </table>
             </div>
         </section>
 
@@ -785,6 +875,7 @@
     let currentReport = null;
     let currentFreshnessStatus = null;
     let selectedDay = null;
+    let currentYesterdayInstructionStatus = null;
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -793,6 +884,39 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    function describeInstructionStatus(status) {
+        switch (status) {
+            case 'pending_approval':
+                return { label: 'Pending approval', tone: 'warn' };
+            case 'approved':
+                return { label: 'Approved', tone: 'success' };
+            case 'submitted':
+                return { label: 'Submitted', tone: 'success' };
+            case 'superseded':
+                return { label: 'Superseded', tone: 'muted' };
+            case 'canceled':
+                return { label: 'Canceled', tone: 'muted' };
+            default:
+                return { label: 'Unknown', tone: 'muted' };
+        }
+    }
+
+    function formatInstructionAccount(code) {
+        switch (code) {
+            case 'chase_business_checking':
+                return 'Chase';
+            case 'huntington_tax':
+                return 'Huntington';
+            default:
+                return code || '—';
+        }
+    }
+
+    function formatInstructionMethod(code) {
+        if (code === 'chase_linked_external_transfer') return 'Linked external transfer';
+        return code || '—';
     }
 
     function paymentDetailNote(payment) {
@@ -1011,6 +1135,243 @@
         }
     }
 
+    function resetTransferInstructionStatus(message) {
+        currentYesterdayInstructionStatus = null;
+        setPill('instructionStatusPill', 'Unknown', 'muted');
+        document.getElementById('instructionAmount').textContent = '$0.00';
+        document.getElementById('instructionMeta').textContent = message || 'No instruction loaded yet.';
+        document.getElementById('instructionStatusMeta').textContent = 'Instruction unavailable';
+        document.getElementById('instructionStatusDetail').textContent = message || 'Unable to load yesterday\'s transfer instruction.';
+        document.getElementById('generateInstructionBtn').disabled = false;
+        document.getElementById('approveInstructionBtn').disabled = true;
+        document.getElementById('submitInstructionBtn').disabled = true;
+        document.getElementById('cancelInstructionBtn').disabled = true;
+    }
+
+    function renderTransferInstructionStatus(data) {
+        currentYesterdayInstructionStatus = data;
+        const instruction = data.instruction || null;
+        const recommendation = data.recommendation || null;
+        const activeStatus = instruction ? describeInstructionStatus(instruction.status) : describeInstructionStatus(null);
+
+        document.getElementById('instructionStatusMeta').textContent = `Yesterday in ${data.time_zone || 'America/New_York'}: ${shortDate(data.tax_date)}`;
+        document.getElementById('instructionAmount').textContent = recommendation ? money(recommendation.recommended_transfer_amount) : '$0.00';
+
+        let meta = `Tax date ${shortDate(data.tax_date)}. Source ${formatInstructionAccount(instruction?.source_account_code || 'chase_business_checking')} to ${formatInstructionAccount(instruction?.destination_account_code || 'huntington_tax')}.`;
+        if (instruction) {
+            meta += ` Generated ${longDateTime(instruction.created_at)} via ${escapeHtml(instruction.generation_trigger || 'manual')}.`;
+        } else if (recommendation?.recommendation_as_of) {
+            meta += ` Recommendation as of ${longDateTime(recommendation.recommendation_as_of)}.`;
+        }
+        document.getElementById('instructionMeta').textContent = meta;
+
+        if (!instruction) {
+            if (data.ui_state === 'blocked_missing_recommendation') {
+                setPill('instructionStatusPill', 'Recommendation missing', 'error');
+                document.getElementById('instructionStatusDetail').textContent = 'No Copilot collected-tax snapshot is available for yesterday, so no instruction can be generated yet.';
+            } else if (data.ui_state === 'no_transfer_required') {
+                setPill('instructionStatusPill', 'No transfer required', 'muted');
+                document.getElementById('instructionStatusDetail').textContent = 'Yesterday\'s recommended transfer is $0.00, so no instruction is needed.';
+            } else {
+                setPill('instructionStatusPill', 'No instruction', 'warn');
+                document.getElementById('instructionStatusDetail').textContent = 'A recommendation exists for yesterday, but an instruction has not been generated yet.';
+            }
+        } else if (data.ui_state === 'submitted_recommendation_changed') {
+            setPill('instructionStatusPill', 'Submitted changed', 'warn');
+            document.getElementById('instructionStatusDetail').textContent = `Submitted in Chase, but the current recommendation now differs from the recorded submitted amount of ${money(instruction.amount)}.`;
+        } else {
+            setPill('instructionStatusPill', activeStatus.label, activeStatus.tone);
+            const detailBits = [
+                `${formatInstructionMethod(instruction.transfer_method)} from ${formatInstructionAccount(instruction.source_account_code)} to ${formatInstructionAccount(instruction.destination_account_code)}.`,
+            ];
+            if (instruction.approved_at) {
+                detailBits.push(`Approved ${longDateTime(instruction.approved_at)}${instruction.approved_by_name ? ` by ${instruction.approved_by_name}` : ''}.`);
+            }
+            if (instruction.submitted_at) {
+                detailBits.push(`Submitted ${longDateTime(instruction.submitted_at)}${instruction.submitted_by_name ? ` by ${instruction.submitted_by_name}` : ''}.`);
+            }
+            if (instruction.bank_confirmation_ref) {
+                detailBits.push(`Chase ref ${instruction.bank_confirmation_ref}.`);
+            }
+            if (instruction.superseded_by_instruction_id) {
+                detailBits.push(`Replaced by instruction #${instruction.superseded_by_instruction_id}.`);
+            }
+            if (instruction.cancellation_reason) {
+                detailBits.push(`Canceled: ${instruction.cancellation_reason}.`);
+            }
+            document.getElementById('instructionStatusDetail').textContent = detailBits.join(' ');
+        }
+
+        const canGenerate = data.ui_state === 'no_instruction'
+            || data.ui_state === 'blocked_missing_recommendation'
+            || data.ui_state === 'no_transfer_required'
+            || data.ui_state === 'submitted_recommendation_changed';
+        document.getElementById('generateInstructionBtn').disabled = !canGenerate;
+        document.getElementById('approveInstructionBtn').disabled = !(instruction && instruction.status === 'pending_approval');
+        document.getElementById('submitInstructionBtn').disabled = !(instruction && instruction.status === 'approved');
+        document.getElementById('cancelInstructionBtn').disabled = !(instruction && (instruction.status === 'pending_approval' || instruction.status === 'approved'));
+    }
+
+    function resetTransferInstructionHistory(message) {
+        document.getElementById('instructionHistoryMeta').textContent = message || 'Choose a date range and load the report to inspect transfer instruction history.';
+        document.getElementById('instructionHistoryBody').innerHTML = '<tr><td colspan="8" class="empty-state">Load the report to inspect transfer instruction history.</td></tr>';
+    }
+
+    function renderTransferInstructionHistory(data) {
+        const instructions = Array.isArray(data.instructions) ? data.instructions : [];
+        document.getElementById('instructionHistoryMeta').textContent = `Showing ${instructions.length} instruction row${instructions.length === 1 ? '' : 's'} from ${shortDate(data.start_date)} through ${shortDate(data.end_date)}.`;
+        document.getElementById('instructionHistoryBody').innerHTML = instructions.length
+            ? instructions.map((instruction) => {
+                const status = describeInstructionStatus(instruction.status);
+                const approved = instruction.approved_at
+                    ? `${longDateTime(instruction.approved_at)}${instruction.approved_by_name ? `<div class="inline-note">${escapeHtml(instruction.approved_by_name)}</div>` : ''}`
+                    : '—';
+                const submitted = instruction.submitted_at
+                    ? `${longDateTime(instruction.submitted_at)}${instruction.submitted_by_name ? `<div class="inline-note">${escapeHtml(instruction.submitted_by_name)}</div>` : ''}`
+                    : '—';
+                const statusNote = instruction.superseded_by_instruction_id
+                    ? `<div class="inline-note">Replaced by #${escapeHtml(instruction.superseded_by_instruction_id)}</div>`
+                    : instruction.cancellation_reason
+                        ? `<div class="inline-note">${escapeHtml(instruction.cancellation_reason)}</div>`
+                        : '';
+                return `
+                    <tr>
+                        <td><strong>${shortDate(instruction.tax_date)}</strong></td>
+                        <td class="money">${money(instruction.amount)}</td>
+                        <td><span class="status-pill ${status.tone}">${status.label}</span>${statusNote}</td>
+                        <td>${longDateTime(instruction.recommendation_as_of)}</td>
+                        <td>${longDateTime(instruction.created_at)}</td>
+                        <td>${approved}</td>
+                        <td>${submitted}</td>
+                        <td>${escapeHtml(instruction.bank_confirmation_ref || '—')}</td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="8" class="empty-state">No transfer instructions matched the current date range.</td></tr>';
+    }
+
+    async function loadTransferInstructionStatus() {
+        document.getElementById('instructionStatusMeta').textContent = 'Loading yesterday\'s instruction…';
+        try {
+            const res = await fetch('/api/tax-transfer-instructions/yesterday-status');
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load yesterday\'s transfer instruction');
+            renderTransferInstructionStatus(data);
+        } catch (error) {
+            resetTransferInstructionStatus(`Unable to load yesterday's transfer instruction. ${error.message}`);
+        }
+    }
+
+    async function loadTransferInstructionHistory() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            resetTransferInstructionHistory('Choose a valid date range to inspect transfer instruction history.');
+            return;
+        }
+        document.getElementById('instructionHistoryMeta').textContent = `Loading transfer instructions for ${shortDate(range.start_date)} through ${shortDate(range.end_date)}…`;
+        document.getElementById('instructionHistoryBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading transfer instruction history…</td></tr>';
+        try {
+            const params = new URLSearchParams(range);
+            const res = await fetch('/api/tax-transfer-instructions?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load transfer instruction history');
+            renderTransferInstructionHistory(data);
+        } catch (error) {
+            document.getElementById('instructionHistoryMeta').textContent = `Unable to load transfer instruction history. ${error.message}`;
+            document.getElementById('instructionHistoryBody').innerHTML = `<tr><td colspan="8" class="empty-state">Unable to load transfer instruction history. ${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    async function generateTransferInstruction() {
+        setBusy('generateInstructionBtn', true, 'Generating…');
+        try {
+            const res = await fetch('/api/tax-transfer-instructions/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to generate transfer instruction');
+            setSyncStatus(`Transfer instruction result: ${data.action.replace(/_/g, ' ')}.`, 'success');
+            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Transfer instruction generation failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('generateInstructionBtn', false);
+        }
+    }
+
+    async function approveTransferInstruction() {
+        const instructionId = currentYesterdayInstructionStatus?.instruction?.id;
+        if (!instructionId) return;
+        setBusy('approveInstructionBtn', true, 'Approving…');
+        try {
+            const res = await fetch(`/api/tax-transfer-instructions/${instructionId}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to approve transfer instruction');
+            setSyncStatus('Transfer instruction approved for manual Chase submission.', 'success');
+            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Approve failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('approveInstructionBtn', false);
+        }
+    }
+
+    async function markTransferInstructionSubmitted() {
+        const instructionId = currentYesterdayInstructionStatus?.instruction?.id;
+        if (!instructionId) return;
+        const bankConfirmationRef = window.prompt('Optional Chase confirmation/reference:', currentYesterdayInstructionStatus?.instruction?.bank_confirmation_ref || '') || '';
+        const submissionNote = window.prompt('Optional submission note:', currentYesterdayInstructionStatus?.instruction?.submission_note || '') || '';
+        setBusy('submitInstructionBtn', true, 'Saving…');
+        try {
+            const res = await fetch(`/api/tax-transfer-instructions/${instructionId}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bank_confirmation_ref: bankConfirmationRef.trim(),
+                    submission_note: submissionNote.trim(),
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to mark transfer instruction submitted');
+            setSyncStatus('Recorded manual Chase submission.', 'success');
+            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Submit failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('submitInstructionBtn', false);
+        }
+    }
+
+    async function cancelTransferInstruction() {
+        const instructionId = currentYesterdayInstructionStatus?.instruction?.id;
+        if (!instructionId) return;
+        const cancellationReason = window.prompt('Optional cancellation reason:', currentYesterdayInstructionStatus?.instruction?.cancellation_reason || '') || '';
+        setBusy('cancelInstructionBtn', true, 'Canceling…');
+        try {
+            const res = await fetch(`/api/tax-transfer-instructions/${instructionId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cancellation_reason: cancellationReason.trim(),
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to cancel transfer instruction');
+            setSyncStatus('Transfer instruction canceled.', 'success');
+            await Promise.all([loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Cancel failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('cancelInstructionBtn', false);
+        }
+    }
+
     async function loadFreshnessStatus() {
         try {
             const res = await fetch('/api/reports/tax-transfer-freshness-status');
@@ -1076,6 +1437,7 @@
         if (!isValidRange(range)) {
             setSyncStatus('Choose a valid date range where the start date is not after the end date.', 'error');
             resetPaymentReview('Choose a valid date range to inspect Copilot payment rows.');
+            resetTransferInstructionHistory('Choose a valid date range to inspect transfer instruction history.');
             return;
         }
 
@@ -1083,6 +1445,7 @@
         document.getElementById('daysBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
         setSyncStatus('Loading tax transfer report…', 'loading');
         loadPaymentReview();
+        loadTransferInstructionHistory();
         try {
             const params = new URLSearchParams(range);
             const res = await fetch('/api/reports/tax-transfer-daily?' + params.toString());
@@ -1129,7 +1492,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync tax summary');
             setSyncStatus(`Tax Summary synced for ${data.count || 0} day${data.count === 1 ? '' : 's'}.`, 'success');
-            await Promise.all([loadFreshnessStatus(), loadReport()]);
+            await Promise.all([loadFreshnessStatus(), loadTransferInstructionStatus(), loadReport()]);
         } catch (error) {
             setSyncStatus(`Tax Summary sync failed: ${error.message}`, 'error');
         } finally {
@@ -1149,7 +1512,7 @@
             const data = await res.json();
             if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync payments');
             setSyncStatus(`Payments synced: ${data.sync?.inserted || 0} inserted, ${data.sync?.updated || 0} updated, ${data.sync?.unresolved || 0} unresolved.`, 'success');
-            await Promise.all([loadFreshnessStatus(), currentReport ? loadReport() : Promise.resolve()]);
+            await Promise.all([loadFreshnessStatus(), loadTransferInstructionStatus(), currentReport ? loadReport() : Promise.resolve()]);
         } catch (error) {
             setSyncStatus(`Payments sync failed: ${error.message}`, 'error');
         } finally {
@@ -1285,7 +1648,7 @@
 
     document.addEventListener('DOMContentLoaded', async function() {
         setDefaultDates();
-        await Promise.all([loadFreshnessStatus(), loadReport()]);
+        await Promise.all([loadFreshnessStatus(), loadTransferInstructionStatus(), loadReport()]);
     });
 </script>
 </body>

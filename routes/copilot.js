@@ -5,13 +5,30 @@
 
 const express = require('express');
 const { getCopilotToken, parseCopilotRouteHtml } = require('../services/copilot/client');
-const { upsertCopilotLiveJobs } = require('../services/copilot/live-jobs');
+const { getCopilotLiveJobs, upsertCopilotLiveJobs } = require('../services/copilot/live-jobs');
 
 module.exports = function createCopilotRoutes({ pool, serverError, authenticateToken }) {
   const router = express.Router();
 
-router.post('/api/copilot/sync', authenticateToken, async (req, res) => {
-  try {
+  router.get('/api/copilot/live-jobs', authenticateToken, async (req, res) => {
+    try {
+      const payload = await getCopilotLiveJobs({
+        poolClient: pool,
+        date: req.query.date || null,
+        startDate: req.query.start_date || null,
+        endDate: req.query.end_date || null,
+      });
+      res.json({
+        success: true,
+        ...payload,
+      });
+    } catch (error) {
+      serverError(res, error, 'Copilot live jobs fetch failed');
+    }
+  });
+
+  router.post('/api/copilot/sync', authenticateToken, async (req, res) => {
+    try {
 
     // Date range — defaults to today
     const today = new Date().toISOString().slice(0, 10);
@@ -161,11 +178,11 @@ router.post('/api/copilot/sync', authenticateToken, async (req, res) => {
       };
     }
 
-    res.json(response);
-  } catch (error) {
-    serverError(res, error, 'CopilotCRM sync failed');
-  }
-});
+      res.json(response);
+    } catch (error) {
+      serverError(res, error, 'CopilotCRM sync failed');
+    }
+  });
 
 // GET/POST CopilotCRM settings — view and update auth cookies
 router.get('/api/copilot/settings', authenticateToken, async (req, res) => {

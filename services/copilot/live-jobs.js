@@ -1,5 +1,5 @@
 const {
-  fetchCopilotRouteJobsForDate,
+  fetchCopilotScheduleGridJobsForDate,
   getCopilotToken,
 } = require('./client');
 
@@ -495,9 +495,10 @@ function buildAggregateFreshness(perDate = []) {
 }
 
 function detectLiveParseMismatch(liveResult, syncDate) {
-  const expectedCount = Number.parseInt(liveResult?.raw?.totalEventCount, 10);
-  if (Number.isFinite(expectedCount) && expectedCount > 0 && (liveResult?.jobs || []).length === 0) {
-    throw new Error(`Copilot parse mismatch for ${syncDate}: expected ${expectedCount} jobs but parsed 0`);
+  const jobCount = Array.isArray(liveResult?.jobs) ? liveResult.jobs.length : 0;
+  const noEventsFound = !!liveResult?.diagnostics?.no_events_found;
+  if (jobCount === 0 && !noEventsFound) {
+    throw new Error(`Copilot schedule grid/day parse mismatch for ${syncDate}: parsed 0 jobs without an explicit no-events marker`);
   }
 }
 
@@ -511,7 +512,7 @@ async function fetchLiveCopilotScheduleDate({
   if (!cookieHeader) throw new Error('No CopilotCRM cookies configured');
 
   const liveResult = await withTimeout(
-    fetchCopilotRouteJobsForDate({ cookieHeader, syncDate, fetchImpl }),
+    fetchCopilotScheduleGridJobsForDate({ cookieHeader, syncDate, fetchImpl }),
     timeoutMs,
     `Copilot live schedule timed out for ${syncDate}`
   );
@@ -527,8 +528,10 @@ async function fetchLiveCopilotScheduleDate({
   return {
     date: syncDate,
     source: 'live',
+    source_surface: liveResult.source_surface || 'schedule_grid',
     fetched_at: fetchedAt,
     error: null,
+    diagnostics: liveResult.diagnostics || null,
   };
 }
 
@@ -603,8 +606,10 @@ async function getCopilotLiveJobs({
       perDate.push({
         date: syncDate,
         source: 'live',
+        source_surface: liveAttempt.source_surface || 'schedule_grid',
         fetched_at: liveAttempt.fetched_at,
         error: null,
+        diagnostics: liveAttempt.diagnostics || null,
       });
       continue;
     }
@@ -624,8 +629,10 @@ async function getCopilotLiveJobs({
       perDate.push({
         date: syncDate,
         source: 'mirror',
+        source_surface: liveAttempt?.source_surface || null,
         fetched_at: mirrorFetchedAt,
         error: liveAttempt?.error ? liveAttempt.error.message : null,
+        diagnostics: liveAttempt?.diagnostics || null,
       });
       continue;
     }
@@ -637,8 +644,10 @@ async function getCopilotLiveJobs({
     perDate.push({
       date: syncDate,
       source: 'live',
+      source_surface: liveAttempt?.source_surface || 'schedule_grid',
       fetched_at: liveAttempt?.fetched_at || null,
       error: null,
+      diagnostics: liveAttempt?.diagnostics || null,
     });
   }
 

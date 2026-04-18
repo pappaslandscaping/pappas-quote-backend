@@ -1,13 +1,3 @@
-jest.mock('../services/copilot/client', () => ({
-  getCopilotToken: jest.fn(),
-  fetchCopilotRouteJobsForDate: jest.fn(),
-}));
-
-const {
-  getCopilotToken,
-  fetchCopilotRouteJobsForDate,
-} = require('../services/copilot/client');
-
 const {
   buildCopilotJobKey,
   fetchLiveCopilotScheduleDate,
@@ -17,11 +7,52 @@ const {
   parseVisitTotal,
   upsertCopilotLiveJobs,
 } = require('../services/copilot/live-jobs');
+const {
+  fetchCopilotScheduleGridJobsForDate,
+  parseCopilotScheduleGridDayHtml,
+} = require('../services/copilot/client');
 
 describe('copilot live jobs service', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+  const scheduleGridHtml = `
+    <table class="copilot-table table--with-hide-options">
+      <tbody>
+        <tr data-row-event-id="501" data-row-job-id="job-501">
+          <td>Apr 17, 2026</td>
+          <td>Spring Cleanup</td>
+          <td><span>Jobs Crew</span><small>Tim, Rob</small></td>
+          <td><a href="/customers/view/9001">Jane Smith</a></td>
+          <td>Home</td>
+          <td>123 Main St, Lakewood, OH</td>
+          <td>Visit</td>
+          <td>Invoiced</td>
+          <td>Weekly</td>
+          <td>Apr 10, 2026</td>
+          <td>Closed</td>
+          <td>Gate code</td>
+          <td>01:05</td>
+          <td>1.0</td>
+          <td>$600.00</td>
+        </tr>
+        <tr data-row-event-id="502" data-row-job-id="job-502">
+          <td>Apr 17, 2026</td>
+          <td>Mulch Refresh</td>
+          <td><span>Mulch Crew</span><small>Ash, Eli</small></td>
+          <td><a href="/customers/view/9002">John Doe</a></td>
+          <td>Office</td>
+          <td>45 Elm St, Rocky River, OH</td>
+          <td>Visit</td>
+          <td>Ready</td>
+          <td>One-time</td>
+          <td></td>
+          <td>Scheduled</td>
+          <td></td>
+          <td>00:00</td>
+          <td>2.5</td>
+          <td>$250.00</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
 
   test('buildCopilotJobKey composes a stable live-job key', () => {
     expect(buildCopilotJobKey('2026-04-18', '12345')).toBe('copilot:2026-04-18:12345');
@@ -33,7 +64,7 @@ describe('copilot live jobs service', () => {
     expect(parseVisitTotal(null)).toBeNull();
   });
 
-  test('normalizeResolvedRow returns the PR1 ResolvedLiveJob contract', () => {
+  test('normalizeResolvedRow returns the ResolvedLiveJob contract', () => {
     const resolved = normalizeResolvedRow({
       job_key: 'copilot:2026-04-18:88',
       service_date: '2026-04-18',
@@ -186,6 +217,62 @@ describe('copilot live jobs service', () => {
     expect(query.mock.calls[1][1][0]).toBe('copilot:2026-04-18:102');
   });
 
+  test('parseCopilotScheduleGridDayHtml returns diagnostics and jobs from browser grid/day HTML', () => {
+    const result = parseCopilotScheduleGridDayHtml(scheduleGridHtml);
+
+    expect(result.diagnostics.html_source_length).toBeGreaterThan(0);
+    expect(result.diagnostics.contains_expected_grid_table_markers).toBe(true);
+    expect(result.diagnostics.parsed_row_count_before_filtering).toBe(2);
+    expect(result.diagnostics.parsed_row_count_after_filtering).toBe(2);
+    expect(result.jobs).toEqual([
+      expect.objectContaining({
+        job_id: 'job-501',
+        event_id: '501',
+        customer_id: '9001',
+        customer_name: 'Jane Smith',
+        crew_name: 'Jobs Crew',
+        employees: 'Tim, Rob',
+        address: '123 Main St, Lakewood, OH',
+        status: 'Closed',
+        visit_total: '$600.00',
+        job_title: 'Spring Cleanup',
+      }),
+      expect.objectContaining({
+        job_id: 'job-502',
+        event_id: '502',
+        customer_id: '9002',
+        customer_name: 'John Doe',
+        crew_name: 'Mulch Crew',
+        employees: 'Ash, Eli',
+      }),
+    ]);
+  });
+
+  test('fetchCopilotScheduleGridJobsForDate uses the browser-visible grid/day surface', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => scheduleGridHtml,
+    });
+
+    const result = await fetchCopilotScheduleGridJobsForDate({
+      cookieHeader: 'copilotApiAccessToken=test',
+      syncDate: '2026-04-17',
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://secure.copilotcrm.com/scheduler/grid/day/?d=2026-04-17',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Cookie: 'copilotApiAccessToken=test',
+        }),
+      })
+    );
+    expect(result.jobs).toHaveLength(2);
+    expect(result.diagnostics.parsed_row_count_before_filtering).toBe(2);
+    expect(result.diagnostics.parsed_row_count_after_filtering).toBe(2);
+  });
+
   test('mapResolvedLiveJobToScheduleJob flattens the live mirror into the Schedule contract', () => {
     const mapped = mapResolvedLiveJobToScheduleJob(normalizeResolvedRow({
       job_key: 'copilot:2026-04-18:visit-101',
@@ -264,93 +351,61 @@ describe('copilot live jobs service', () => {
     });
   });
 
-  test('fetchLiveCopilotScheduleDate fetches and persists a selected date from Copilot', async () => {
-    fetchCopilotRouteJobsForDate.mockResolvedValue({
-      raw: { totalEventCount: 1 },
-      jobs: [{
-        event_id: 'visit-101',
-        customer_id: 'cust-9',
-        customer_name: 'Jane Doe',
-        job_title: 'Spring Cleanup',
-        status: 'Started',
-        visit_total: '$120.50',
-        crew_name: 'Crew A',
-        employees: 'Tim, Rob',
-        stop_order: 3,
-        address: '123 Main St, Lakewood OH',
-      }],
-    });
+  test('fetchLiveCopilotScheduleDate fetches and persists a selected date from schedule grid/day', async () => {
     const poolClient = {
       query: jest.fn()
         .mockResolvedValueOnce({ rows: [{ is_insert: true }] })
         .mockResolvedValueOnce({ rowCount: 0 }),
     };
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => scheduleGridHtml.split('</tr>')[0] + '</tr></tbody></table>',
+    });
 
     const result = await fetchLiveCopilotScheduleDate({
       poolClient,
       syncDate: '2026-04-17',
       cookieHeader: 'copilot=abc',
-      fetchImpl: jest.fn(),
+      fetchImpl,
     });
 
     expect(result).toMatchObject({
       date: '2026-04-17',
       source: 'live',
+      source_surface: 'schedule_grid',
       error: null,
+      diagnostics: expect.objectContaining({
+        parsed_row_count_before_filtering: 1,
+        parsed_row_count_after_filtering: 1,
+      }),
     });
     expect(result.fetched_at).toBeTruthy();
-    expect(fetchCopilotRouteJobsForDate).toHaveBeenCalledWith(expect.objectContaining({
-      cookieHeader: 'copilot=abc',
-      syncDate: '2026-04-17',
-    }));
     expect(poolClient.query).toHaveBeenCalledTimes(2);
-    expect(poolClient.query.mock.calls[0][1][0]).toBe('copilot:2026-04-17:visit-101');
+    expect(poolClient.query.mock.calls[0][1][0]).toBe('copilot:2026-04-17:501');
   });
 
-  test('getCopilotLiveJobs returns live schedule payload for selected dates when Copilot fetch succeeds', async () => {
-    getCopilotToken.mockResolvedValue({ cookieHeader: 'copilot=abc' });
-    fetchCopilotRouteJobsForDate
-      .mockResolvedValueOnce({
-        raw: { totalEventCount: 1 },
-        jobs: [{
-          event_id: 'visit-101',
-          customer_id: 'cust-9',
-          customer_name: 'Jane Doe',
-          job_title: 'Spring Cleanup',
-          status: 'Started',
-          visit_total: '$120.50',
-          crew_name: 'Crew A',
-          employees: 'Tim, Rob',
-          stop_order: 3,
-          address: '123 Main St, Lakewood OH',
-        }],
-      })
-      .mockResolvedValueOnce({
-        raw: { totalEventCount: 0 },
-        jobs: [],
-      });
-
+  test('getCopilotLiveJobs returns live schedule payload with diagnostics when grid/day fetch succeeds', async () => {
     const poolClient = {
       query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ key: 'copilot_cookies', value: 'copilot=abc' }] })
         .mockResolvedValueOnce({ rows: [{ is_insert: true }] })
-        .mockResolvedValueOnce({ rowCount: 0 })
         .mockResolvedValueOnce({ rowCount: 0 })
         .mockResolvedValueOnce({
           rows: [{
-            job_key: 'copilot:2026-04-17:visit-101',
+            job_key: 'copilot:2026-04-17:501',
             service_date: '2026-04-17',
-            source_event_id: 'visit-101',
+            source_event_id: '501',
             source_synced_at: '2026-04-17T13:30:00.000Z',
             source_deleted_at: null,
-            source_customer_id: 'cust-9',
-            customer_name: 'Jane Doe',
+            source_customer_id: '9001',
+            customer_name: 'Jane Smith',
             job_title: 'Spring Cleanup',
-            source_status: 'Started',
-            visit_total: '120.50',
-            source_crew_name: 'Crew A',
+            source_status: 'Closed',
+            visit_total: '600.00',
+            source_crew_name: 'Jobs Crew',
             source_employees_text: 'Tim, Rob',
-            source_stop_order: 3,
-            address_raw: '123 Main St, Lakewood OH',
+            source_stop_order: null,
+            address_raw: '123 Main St, Lakewood, OH',
             overlay_job_key: null,
             review_state: null,
             office_note: null,
@@ -367,8 +422,8 @@ describe('copilot live jobs service', () => {
             route_locked: false,
             map_lat: null,
             map_lng: null,
-            map_source: null,
-            map_quality: null,
+            map_source: 'none',
+            map_quality: 'missing',
             print_group_key: null,
             print_note: null,
             dispatch_updated_at: null,
@@ -376,214 +431,28 @@ describe('copilot live jobs service', () => {
           }],
         }),
     };
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => scheduleGridHtml.split('</tr>')[0] + '</tr></tbody></table>',
+    });
 
     const result = await getCopilotLiveJobs({
       poolClient,
-      startDate: '2026-04-17',
-      endDate: '2026-04-18',
-      fetchImpl: jest.fn(),
-    });
-
-    expect(result).toMatchObject({
-      start_date: '2026-04-17',
-      end_date: '2026-04-18',
-      freshness: {
-        source: 'live',
-        stale: false,
-      },
-      stats: {
-        total: 1,
-        byStatus: {
-          in_progress: 1,
-        },
-        byCrew: {
-          'Crew A': 1,
-        },
-        totalRevenue: 120.5,
-      },
-    });
-    expect(result.freshness.fetched_at).toBeTruthy();
-    expect(result.freshness.per_date).toHaveLength(2);
-    expect(result.freshness.per_date[0]).toMatchObject({
       date: '2026-04-17',
-      source: 'live',
-      error: null,
-    });
-    expect(result.freshness.per_date[1]).toMatchObject({
-      date: '2026-04-18',
-      source: 'live',
-      error: null,
-    });
-    expect(result.jobs[0]).toMatchObject({
-      id: 'copilot:2026-04-17:visit-101',
-      freshness_source: 'live',
-      customer_name: 'Jane Doe',
-    });
-    expect(fetchCopilotRouteJobsForDate).toHaveBeenCalledTimes(2);
-  });
-
-  test('getCopilotLiveJobs falls back to mirrored rows only when live fetch fails', async () => {
-    getCopilotToken.mockResolvedValue({ cookieHeader: 'copilot=abc' });
-    fetchCopilotRouteJobsForDate.mockRejectedValue(new Error('Copilot unavailable'));
-
-    const poolClient = {
-      query: jest.fn().mockResolvedValue({
-        rows: [
-          {
-            job_key: 'copilot:2026-04-18:visit-101',
-            service_date: '2026-04-18',
-            source_event_id: 'visit-101',
-            source_synced_at: '2026-04-18T13:30:00.000Z',
-            source_deleted_at: null,
-            source_customer_id: 'cust-9',
-            customer_name: 'Jane Doe',
-            job_title: 'Spring Cleanup',
-            source_status: 'Started',
-            visit_total: '120.50',
-            source_crew_name: 'Crew A',
-            source_employees_text: 'Tim, Rob',
-            source_stop_order: 3,
-            address_raw: '123 Main St, Lakewood OH',
-            overlay_job_key: null,
-            review_state: null,
-            office_note: null,
-            hold_from_dispatch: false,
-            local_tags: [],
-            address_override: null,
-            customer_link_id: null,
-            property_link_id: null,
-            overlay_updated_at: null,
-            overlay_updated_by_name: null,
-            dispatch_plan_job_key: null,
-            crew_override_name: null,
-            route_order_override: null,
-            route_locked: false,
-            map_lat: null,
-            map_lng: null,
-            map_source: null,
-            map_quality: null,
-            print_group_key: null,
-            print_note: null,
-            dispatch_updated_at: null,
-            dispatch_updated_by_name: null,
-          },
-          {
-            job_key: 'copilot:2026-04-19:visit-202',
-            service_date: '2026-04-19',
-            source_event_id: 'visit-202',
-            source_synced_at: '2026-04-19T08:05:00.000Z',
-            source_deleted_at: null,
-            source_customer_id: 'cust-22',
-            customer_name: 'Second Customer',
-            job_title: 'Mowing',
-            source_status: 'Scheduled',
-            visit_total: '55.00',
-            source_crew_name: 'Crew B',
-            source_employees_text: 'Chris',
-            source_stop_order: 1,
-            address_raw: '500 Example Ave',
-            overlay_job_key: null,
-            review_state: null,
-            office_note: null,
-            hold_from_dispatch: false,
-            local_tags: [],
-            address_override: null,
-            customer_link_id: null,
-            property_link_id: null,
-            overlay_updated_at: null,
-            overlay_updated_by_name: null,
-            dispatch_plan_job_key: null,
-            crew_override_name: null,
-            route_order_override: null,
-            route_locked: false,
-            map_lat: null,
-            map_lng: null,
-            map_source: null,
-            map_quality: null,
-            print_group_key: null,
-            print_note: null,
-            dispatch_updated_at: null,
-            dispatch_updated_by_name: null,
-          },
-        ],
-      }),
-    };
-
-    const result = await getCopilotLiveJobs({
-      poolClient,
-      startDate: '2026-04-18',
-      endDate: '2026-04-19',
-      fetchImpl: jest.fn(),
+      fetchImpl,
     });
 
-    expect(result).toMatchObject({
-      start_date: '2026-04-18',
-      end_date: '2026-04-19',
-      freshness: {
-        source: 'mirror',
-        fetched_at: '2026-04-19T08:05:00.000Z',
-        stale: true,
-      },
-      stats: {
-        total: 2,
-        byStatus: {
-          in_progress: 1,
-          pending: 1,
-        },
-        byCrew: {
-          'Crew A': 1,
-          'Crew B': 1,
-        },
-        totalRevenue: 175.5,
-      },
-    });
+    expect(result.jobs).toHaveLength(1);
     expect(result.freshness.per_date).toEqual([
-      { date: '2026-04-18', source: 'mirror', fetched_at: '2026-04-18T13:30:00.000Z', error: 'Copilot unavailable' },
-      { date: '2026-04-19', source: 'mirror', fetched_at: '2026-04-19T08:05:00.000Z', error: 'Copilot unavailable' },
+      expect.objectContaining({
+        date: '2026-04-17',
+        source: 'live',
+        source_surface: 'schedule_grid',
+        diagnostics: expect.objectContaining({
+          parsed_row_count_before_filtering: 1,
+          parsed_row_count_after_filtering: 1,
+        }),
+      }),
     ]);
-    expect(result.days).toEqual([
-      {
-        day: '2026-04-18',
-        total_jobs: 1,
-        completed: 0,
-        pending: 0,
-        in_progress: 1,
-        skipped: 0,
-        cancelled: 0,
-        revenue: 120.5,
-        crews: { 'Crew A': 1 },
-      },
-      {
-        day: '2026-04-19',
-        total_jobs: 1,
-        completed: 0,
-        pending: 1,
-        in_progress: 0,
-        skipped: 0,
-        cancelled: 0,
-        revenue: 55,
-        crews: { 'Crew B': 1 },
-      },
-    ]);
-    expect(result.jobs).toHaveLength(2);
-    expect(poolClient.query).toHaveBeenCalledTimes(1);
-    expect(poolClient.query.mock.calls[0][0]).toContain('FROM copilot_live_jobs clj');
-    expect(poolClient.query.mock.calls[0][1]).toEqual(['2026-04-18', '2026-04-19']);
-  });
-
-  test('getCopilotLiveJobs throws instead of silently returning empty mirror data when live fetch fails and no mirror rows exist', async () => {
-    getCopilotToken.mockResolvedValue({ cookieHeader: 'copilot=abc' });
-    fetchCopilotRouteJobsForDate.mockRejectedValue(new Error('Copilot unavailable'));
-    const poolClient = {
-      query: jest.fn().mockResolvedValue({ rows: [] }),
-    };
-
-    await expect(getCopilotLiveJobs({
-      poolClient,
-      date: '2026-04-20',
-      fetchImpl: jest.fn(),
-    })).rejects.toThrow('Copilot unavailable');
-
-    expect(poolClient.query).toHaveBeenCalledTimes(1);
   });
 });

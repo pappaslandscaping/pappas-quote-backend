@@ -8,6 +8,11 @@
 - Added `PATCH /api/jobs/:id/status` for dispatch/crew status updates without changing existing board UI behavior
 - Expanded `PATCH /api/jobs/:id/complete` to persist crew proof-of-work fields already being sent while preserving the existing invoice side effects and direct pending-to-completed flow
 
+### Copilot Dispatch Execution Sync Mirror
+- Added additive `copilot_*` mirror and provenance columns on `scheduled_jobs` so Copilot-authored execution state can be mirrored without changing YardDesk’s canonical execution or billing fields
+- Added a protected manual `POST /api/copilot/dispatch-execution/sync` endpoint that fetches Copilot route status data, applies exact visit/job matching, supports `dry_run` and `force`, and updates only Copilot mirror fields
+- Added stale-event and unchanged-payload hash protections so older or identical Copilot execution payloads are skipped instead of rewriting local rows
+
 ## 2026-04-17
 
 ### Tax Transfers Automation Health

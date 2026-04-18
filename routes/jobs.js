@@ -5,9 +5,29 @@
 // ═══════════════════════════════════════════════════════════
 
 const express = require('express');
+const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
+const { getCopilotToken, parseCopilotRouteHtml } = require('../services/copilot/client');
 
 const VALID_JOB_STATUSES = new Set(['pending', 'in_progress', 'completed', 'skipped', 'cancelled']);
+const COPILOT_SYNCABLE_STATUSES = new Map([
+  ['scheduled', 'pending'],
+  ['assigned', 'pending'],
+  ['not_started', 'pending'],
+  ['pending', 'pending'],
+  ['en_route', 'in_progress'],
+  ['started', 'in_progress'],
+  ['active', 'in_progress'],
+  ['in_progress', 'in_progress'],
+  ['in-progress', 'in_progress'],
+  ['completed', 'completed'],
+  ['closed', 'completed'],
+  ['skipped', 'skipped'],
+  ['unable_to_complete', 'skipped'],
+  ['no_access', 'skipped'],
+  ['cancelled', 'cancelled'],
+  ['canceled', 'cancelled'],
+]);
 
 class JobStatusTransitionError extends Error {
   constructor(message, statusCode = 400) {
@@ -24,6 +44,369 @@ function normalizeJobStatus(status) {
   if (normalized === 'canceled') return 'cancelled';
   if (VALID_JOB_STATUSES.has(normalized)) return normalized;
   return null;
+}
+
+function hasCopilotDispatchSyncAccess(user) {
+  if (!user || user.isEmployee) return false;
+  return !!(user.isAdmin || user.role === 'admin' || user.accountType === 'admin' || user.isServiceToken);
+}
+
+function normalizeCopilotExecutionStatus(status) {
+  if (typeof status !== 'string') return null;
+  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return COPILOT_SYNCABLE_STATUSES.get(normalized) || null;
+}
+
+function formatCopilotDate(dateStr) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function isValidIsoDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function toIsoTimestamp(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
+
+function toNullableString(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const stringValue = String(value).trim();
+  return stringValue || null;
+}
+
+function toNullableDecimal(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toJsonArray(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) return value;
+  return [value];
+}
+
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined);
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashCopilotExecutionPayload(payload) {
+  return crypto.createHash('sha256').update(stableStringify(payload)).digest('hex');
+}
+
+function canonicalizeCopilotExecutionMirror(mirror) {
+  const payload = {};
+  for (const [key, value] of Object.entries(mirror)) {
+    if (value !== undefined) payload[key] = value;
+  }
+  return payload;
+}
+
+function mapCopilotExecutionMirror(rawRecord = {}) {
+  const mirror = {
+    copilot_job_id: toNullableString(firstDefined(
+      rawRecord.job_id,
+      rawRecord.copilot_job_id,
+      rawRecord.external_job_id
+    )),
+    copilot_visit_id: toNullableString(firstDefined(
+      rawRecord.visit_id,
+      rawRecord.copilot_visit_id,
+      rawRecord.event_id,
+      rawRecord.external_visit_id
+    )),
+    copilot_assigned_crew_name: toNullableString(firstDefined(
+      rawRecord.assigned_crew_name,
+      rawRecord.copilot_assigned_crew_name,
+      rawRecord.crew_name
+    )),
+    copilot_execution_status_raw: toNullableString(firstDefined(
+      rawRecord.execution_status_raw,
+      rawRecord.copilot_execution_status_raw,
+      rawRecord.status
+    )),
+    copilot_execution_reason: toNullableString(firstDefined(
+      rawRecord.execution_reason,
+      rawRecord.copilot_execution_reason,
+      rawRecord.status_reason,
+      rawRecord.skip_reason,
+      rawRecord.reason
+    )),
+    copilot_started_at: toIsoTimestamp(firstDefined(
+      rawRecord.started_at,
+      rawRecord.copilot_started_at,
+      rawRecord.start_time
+    )),
+    copilot_started_by: toNullableString(firstDefined(
+      rawRecord.started_by,
+      rawRecord.copilot_started_by,
+      rawRecord.start_actor,
+      rawRecord.start_technician
+    )),
+    copilot_completed_at: toIsoTimestamp(firstDefined(
+      rawRecord.completed_at,
+      rawRecord.copilot_completed_at,
+      rawRecord.closed_at,
+      rawRecord.completion_time
+    )),
+    copilot_completed_by: toNullableString(firstDefined(
+      rawRecord.completed_by,
+      rawRecord.copilot_completed_by,
+      rawRecord.closed_by,
+      rawRecord.completion_actor
+    )),
+    copilot_completion_notes: toNullableString(firstDefined(
+      rawRecord.completion_notes,
+      rawRecord.copilot_completion_notes,
+      rawRecord.notes,
+      rawRecord.close_notes
+    )),
+    copilot_completion_photos: toJsonArray(firstDefined(
+      rawRecord.completion_photos,
+      rawRecord.copilot_completion_photos,
+      rawRecord.photos,
+      rawRecord.media_urls
+    )),
+    copilot_completion_lat: toNullableDecimal(firstDefined(
+      rawRecord.completion_lat,
+      rawRecord.copilot_completion_lat,
+      rawRecord.gps_lat
+    )),
+    copilot_completion_lng: toNullableDecimal(firstDefined(
+      rawRecord.completion_lng,
+      rawRecord.copilot_completion_lng,
+      rawRecord.gps_lng
+    )),
+    copilot_event_updated_at: toIsoTimestamp(firstDefined(
+      rawRecord.event_updated_at,
+      rawRecord.copilot_event_updated_at,
+      rawRecord.updated_at,
+      rawRecord.last_updated_at
+    )),
+    copilot_execution_locked: true,
+  };
+
+  const normalizedStatus = normalizeCopilotExecutionStatus(firstDefined(
+    rawRecord.execution_status,
+    rawRecord.copilot_execution_status,
+    mirror.copilot_execution_status_raw
+  ));
+  if (normalizedStatus !== null) {
+    mirror.copilot_execution_status = normalizedStatus;
+  }
+
+  return mirror;
+}
+
+function* eachDateInRange(dateFrom, dateTo) {
+  const cursor = new Date(`${dateFrom}T00:00:00`);
+  const end = new Date(`${dateTo}T00:00:00`);
+  while (cursor <= end) {
+    yield cursor.toISOString().slice(0, 10);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+}
+
+async function fetchCopilotDispatchExecutionRecords({
+  poolClient,
+  dateFrom,
+  dateTo,
+  fetchImpl = fetch,
+} = {}) {
+  const tokenInfo = await getCopilotToken(poolClient);
+  if (!tokenInfo || !tokenInfo.cookieHeader) {
+    throw new Error('No CopilotCRM cookies configured.');
+  }
+
+  const records = [];
+  for (const syncDate of eachDateInRange(dateFrom, dateTo)) {
+    const formData = new URLSearchParams();
+    const formattedDate = formatCopilotDate(syncDate);
+    formData.append('accessFrom', 'route');
+    formData.append('bs4', '1');
+    formData.append('sDate', formattedDate);
+    formData.append('eDate', formattedDate);
+    formData.append('optimizationFlag', '1');
+    formData.append('count', '-1');
+    for (const type of ['1', '2', '3', '4', '5', '0']) {
+      formData.append('evtypes_route[]', type);
+    }
+    formData.append('isdate', '0');
+    formData.append('sdate', formattedDate);
+    formData.append('edate', formattedDate);
+    formData.append('erec', 'all');
+    formData.append('estatus', 'any');
+    formData.append('esort', '');
+    formData.append('einvstatus', 'any');
+
+    const response = await fetchImpl('https://secure.copilotcrm.com/scheduler/all/list', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': tokenInfo.cookieHeader,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`CopilotCRM returned ${response.status}: ${errBody.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+    if (data.status !== undefined && data.status !== 1 && data.status !== '1' && data.status !== true) {
+      throw new Error(`CopilotCRM returned non-success status: ${data.status}`);
+    }
+
+    const jobs = parseCopilotRouteHtml(data.html || '', data.employees || []);
+    for (const job of jobs) {
+      records.push({
+        visit_id: job.event_id,
+        assigned_crew_name: job.crew_name,
+        execution_status_raw: job.status,
+        job_date: syncDate,
+      });
+    }
+  }
+
+  return records;
+}
+
+async function findScheduledJobForCopilotMirror({ mirror, jobDate, poolClient }) {
+  if (mirror.copilot_visit_id) {
+    const byVisit = await poolClient.query(
+      'SELECT * FROM scheduled_jobs WHERE copilot_visit_id = $1 ORDER BY id ASC LIMIT 1',
+      [mirror.copilot_visit_id]
+    );
+    if (byVisit.rows[0]) return byVisit.rows[0];
+  }
+
+  if (mirror.copilot_job_id && jobDate) {
+    const byJob = await poolClient.query(
+      'SELECT * FROM scheduled_jobs WHERE copilot_job_id = $1 AND job_date = $2 ORDER BY id ASC LIMIT 1',
+      [mirror.copilot_job_id, jobDate]
+    );
+    if (byJob.rows[0]) return byJob.rows[0];
+  }
+
+  return null;
+}
+
+async function updateScheduledJobCopilotMirror({
+  jobId,
+  mirror,
+  payloadHash,
+  syncedAt,
+  poolClient,
+} = {}) {
+  const sets = [];
+  const values = [];
+  let index = 1;
+
+  for (const [column, value] of Object.entries(mirror)) {
+    if (value === undefined) continue;
+    if (column === 'copilot_completion_photos') {
+      sets.push(`${column} = $${index++}::jsonb`);
+      values.push(value === null ? null : JSON.stringify(value));
+      continue;
+    }
+    sets.push(`${column} = $${index++}`);
+    values.push(value);
+  }
+
+  sets.push(`copilot_payload_hash = $${index++}`);
+  values.push(payloadHash);
+  sets.push(`copilot_last_synced_at = $${index++}`);
+  values.push(syncedAt);
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+
+  values.push(jobId);
+  const result = await poolClient.query(
+    `UPDATE scheduled_jobs SET ${sets.join(', ')} WHERE id = $${index} RETURNING *`,
+    values
+  );
+  return result.rows[0];
+}
+
+async function syncCopilotDispatchExecutionRecords({
+  records,
+  poolClient,
+  dryRun = false,
+  force = false,
+  syncedAt = new Date().toISOString(),
+} = {}) {
+  const summary = {
+    fetched: Array.isArray(records) ? records.length : 0,
+    matched: 0,
+    updated: 0,
+    skipped_unmatched: 0,
+    skipped_unchanged: 0,
+    skipped_stale: 0,
+  };
+
+  for (const record of records || []) {
+    const jobDate = isValidIsoDate(record?.job_date) ? record.job_date : null;
+    const mirror = mapCopilotExecutionMirror(record);
+    const match = await findScheduledJobForCopilotMirror({ mirror, jobDate, poolClient });
+    if (!match) {
+      summary.skipped_unmatched += 1;
+      continue;
+    }
+
+    summary.matched += 1;
+    const canonicalPayload = canonicalizeCopilotExecutionMirror(mirror);
+    const payloadHash = hashCopilotExecutionPayload(canonicalPayload);
+
+    if (!force && mirror.copilot_event_updated_at && match.copilot_event_updated_at) {
+      const incomingUpdatedAt = Date.parse(mirror.copilot_event_updated_at);
+      const storedUpdatedAt = Date.parse(match.copilot_event_updated_at);
+      if (!Number.isNaN(incomingUpdatedAt) && !Number.isNaN(storedUpdatedAt) && incomingUpdatedAt < storedUpdatedAt) {
+        summary.skipped_stale += 1;
+        continue;
+      }
+    }
+
+    if (!force && match.copilot_payload_hash && match.copilot_payload_hash === payloadHash) {
+      summary.skipped_unchanged += 1;
+      continue;
+    }
+
+    summary.updated += 1;
+    if (!dryRun) {
+      await updateScheduledJobCopilotMirror({
+        jobId: match.id,
+        mirror,
+        payloadHash,
+        syncedAt,
+        poolClient,
+      });
+    }
+  }
+
+  return summary;
 }
 
 function validateJobStatusTransition(currentStatus, nextStatus) {
@@ -1170,6 +1553,48 @@ router.patch('/api/jobs/:id/status', async (req, res) => {
   }
 });
 
+router.post('/api/copilot/dispatch-execution/sync', authenticateToken, async (req, res) => {
+  try {
+    if (!hasCopilotDispatchSyncAccess(req.user)) {
+      return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const dateFrom = req.body.date_from || today;
+    const dateTo = req.body.date_to || dateFrom;
+    if (!isValidIsoDate(dateFrom) || !isValidIsoDate(dateTo)) {
+      return res.status(400).json({ success: false, error: 'date_from and date_to must be YYYY-MM-DD' });
+    }
+    if (dateFrom > dateTo) {
+      return res.status(400).json({ success: false, error: 'date_from must be on or before date_to' });
+    }
+
+    const dryRun = req.body.dry_run === true;
+    const force = req.body.force === true;
+    const records = await fetchCopilotDispatchExecutionRecords({
+      poolClient: pool,
+      dateFrom,
+      dateTo,
+    });
+    const result = await syncCopilotDispatchExecutionRecords({
+      records,
+      poolClient: pool,
+      dryRun,
+      force,
+    });
+
+    res.json({
+      success: true,
+      dry_run: dryRun,
+      date_from: dateFrom,
+      date_to: dateTo,
+      ...result,
+    });
+  } catch (error) {
+    serverError(res, error, 'Copilot dispatch execution sync failed');
+  }
+});
+
 router.patch('/api/jobs/reorder', async (req, res) => {
   try {
     const { jobs } = req.body;
@@ -2312,6 +2737,14 @@ module.exports = createJobRoutes;
 module.exports.__testables = {
   JobStatusTransitionError,
   normalizeJobStatus,
+  normalizeCopilotExecutionStatus,
+  mapCopilotExecutionMirror,
+  hashCopilotExecutionPayload,
+  canonicalizeCopilotExecutionMirror,
+  hasCopilotDispatchSyncAccess,
+  findScheduledJobForCopilotMirror,
+  syncCopilotDispatchExecutionRecords,
+  fetchCopilotDispatchExecutionRecords,
   validateJobStatusTransition,
   transitionScheduledJobStatus,
   applyCompletedJobInvoiceSideEffects,

@@ -2,6 +2,11 @@
 
 ## 2026-04-18
 
+### Live Copilot Schedule Read Model
+- Added `GET /api/copilot/live-jobs` as the Schedule-facing read path backed by the merged live Copilot mirror/resolver foundation
+- Migrated Schedule day/week/month views to the shared Copilot-backed read model with freshness metadata and a read-only YardDesk office view
+- Kept import-based scheduling flows available as explicit legacy fallback paths while preventing the primary Schedule view from acting like a second operational source of truth
+
 ### Tax Transfer Instruction Snapshot Lookup Fix
 - Fixed transfer-instruction generation and yesterday-status reads to recognize persisted Copilot tax summary snapshots stored under the current `live_copilot` source
 - This keeps snapshot-backed instruction generation aligned with the same persisted recommendation rows used after Tax Summary sync, without changing transfer math or recommendation source of truth

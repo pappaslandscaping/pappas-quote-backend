@@ -1,4 +1,24 @@
 const COPILOT_SOURCE_SYSTEM = 'copilot';
+const SCHEDULE_SOURCE_KIND = 'live_schedule';
+
+const LIVE_JOB_STATUS_MAP = new Map([
+  ['scheduled', 'pending'],
+  ['assigned', 'pending'],
+  ['not_started', 'pending'],
+  ['pending', 'pending'],
+  ['en_route', 'in_progress'],
+  ['started', 'in_progress'],
+  ['active', 'in_progress'],
+  ['in_progress', 'in_progress'],
+  ['in-progress', 'in_progress'],
+  ['completed', 'completed'],
+  ['closed', 'completed'],
+  ['skipped', 'skipped'],
+  ['unable_to_complete', 'skipped'],
+  ['no_access', 'skipped'],
+  ['cancelled', 'cancelled'],
+  ['canceled', 'cancelled'],
+]);
 
 function buildCopilotJobKey(serviceDate, sourceEventId) {
   if (!serviceDate) throw new Error('serviceDate is required');
@@ -25,6 +45,38 @@ function parseJsonArray(value) {
     }
   }
   return [];
+}
+
+function isValidIsoDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function* eachDateInRange(startDate, endDate) {
+  const cursor = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  while (cursor <= end) {
+    yield cursor.toISOString().slice(0, 10);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+}
+
+function normalizeCopilotLiveStatus(status) {
+  if (typeof status !== 'string') return 'pending';
+  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return LIVE_JOB_STATUS_MAP.get(normalized) || 'pending';
+}
+
+function normalizeScheduleAddress(address) {
+  return typeof address === 'string' ? address.trim() : '';
+}
+
+function buildScheduleGeocodeFields(address) {
+  const normalizedAddress = normalizeScheduleAddress(address);
+  const hasStreetAddress = /^\d+/.test(normalizedAddress);
+  return {
+    has_street_address: hasStreetAddress,
+    geocode_address: hasStreetAddress ? normalizedAddress : '',
+  };
 }
 
 function normalizeResolvedRow(row) {
@@ -104,7 +156,13 @@ function normalizeResolvedRow(row) {
   };
 }
 
-async function fetchResolvedLiveJobs(pool, { date, includeDeleted = false, jobKeys } = {}) {
+async function fetchResolvedLiveJobs(pool, {
+  date,
+  startDate,
+  endDate,
+  includeDeleted = false,
+  jobKeys,
+} = {}) {
   const params = [];
   const where = [`clj.source_system = '${COPILOT_SOURCE_SYSTEM}'`];
   let paramIndex = 1;
@@ -112,6 +170,15 @@ async function fetchResolvedLiveJobs(pool, { date, includeDeleted = false, jobKe
   if (date) {
     where.push(`clj.service_date = $${paramIndex++}::date`);
     params.push(date);
+  } else {
+    if (startDate) {
+      where.push(`clj.service_date >= $${paramIndex++}::date`);
+      params.push(startDate);
+    }
+    if (endDate) {
+      where.push(`clj.service_date <= $${paramIndex++}::date`);
+      params.push(endDate);
+    }
   }
 
   if (Array.isArray(jobKeys) && jobKeys.length > 0) {
@@ -277,11 +344,201 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
   };
 }
 
+function mapResolvedLiveJobToScheduleJob(job) {
+  const address = normalizeScheduleAddress(job.resolved.effective_address || job.source.address || '');
+  const geocodeFields = buildScheduleGeocodeFields(address);
+  const fetchedAt = job.source.synced_at || null;
+  const routeOrder = job.resolved.effective_route_order ?? null;
+  const mapLat = job.resolved.map_lat ?? null;
+  const mapLng = job.resolved.map_lng ?? null;
+
+  return {
+    id: job.job_key,
+    source_system: COPILOT_SOURCE_SYSTEM,
+    source_kind: SCHEDULE_SOURCE_KIND,
+    freshness_source: 'mirror',
+    fetched_at: fetchedAt,
+    is_read_only: true,
+    can_edit: false,
+    can_complete: false,
+    can_delete: false,
+    job_date: job.service_date,
+    service_date: job.service_date,
+    visit_id: job.source.event_id || null,
+    copilot_visit_id: job.source.event_id || null,
+    job_id: null,
+    copilot_job_id: null,
+    copilot_customer_id: job.source.customer_id || null,
+    customer_id: job.overlay.customer_link_id ?? null,
+    local_customer_id: job.overlay.customer_link_id ?? null,
+    customer_name: job.source.customer_name || 'Unknown',
+    phone: null,
+    email: null,
+    address,
+    service_type: job.source.job_title || 'Service',
+    service_title: job.source.job_title || 'Service',
+    service_frequency: null,
+    service_price: job.source.visit_total ?? null,
+    service_price_raw: job.source.visit_total ?? null,
+    crew_assigned: job.resolved.effective_crew_name || null,
+    crew_name: job.resolved.effective_crew_name || null,
+    crew_members_text: job.source.employees_text || null,
+    status: normalizeCopilotLiveStatus(job.source.status),
+    status_raw: job.source.status || null,
+    route_order: routeOrder,
+    stop_order: routeOrder,
+    estimated_duration: 30,
+    start_time: null,
+    end_time: null,
+    special_notes: job.overlay.office_note || null,
+    property_notes: null,
+    completion_notes: null,
+    completion_photos: [],
+    completion_lat: null,
+    completion_lng: null,
+    lat: mapLat,
+    lng: mapLng,
+    geocode_quality: job.resolved.map_quality || null,
+    overlay_review_state: job.overlay.review_state || 'new',
+    hold_from_dispatch: !!job.overlay.hold_from_dispatch,
+    source_deleted: !!job.flags.source_deleted,
+    ...geocodeFields,
+  };
+}
+
+function buildLiveJobStats(jobs = []) {
+  const byStatus = {};
+  const byCrew = {};
+  let totalRevenue = 0;
+
+  for (const job of jobs) {
+    const status = job.status || 'pending';
+    const crew = job.crew_assigned || 'Unassigned';
+    byStatus[status] = (byStatus[status] || 0) + 1;
+    byCrew[crew] = (byCrew[crew] || 0) + 1;
+    totalRevenue += Number(job.service_price) || 0;
+  }
+
+  return {
+    total: jobs.length,
+    byStatus,
+    totalRevenue,
+    byCrew,
+  };
+}
+
+function buildLiveJobDaySummaries(jobs = []) {
+  const byDay = new Map();
+
+  for (const job of jobs) {
+    const day = job.job_date;
+    if (!byDay.has(day)) {
+      byDay.set(day, {
+        day,
+        total_jobs: 0,
+        completed: 0,
+        pending: 0,
+        in_progress: 0,
+        skipped: 0,
+        cancelled: 0,
+        revenue: 0,
+        crews: {},
+      });
+    }
+
+    const summary = byDay.get(day);
+    summary.total_jobs += 1;
+    summary.revenue += Number(job.service_price) || 0;
+    summary.crews[job.crew_assigned || 'Unassigned'] = (summary.crews[job.crew_assigned || 'Unassigned'] || 0) + 1;
+    if (summary[job.status] !== undefined) summary[job.status] += 1;
+  }
+
+  return [...byDay.values()].sort((left, right) => left.day.localeCompare(right.day));
+}
+
+function buildFreshnessPerDate(jobs = [], startDate, endDate) {
+  const byDay = new Map();
+
+  for (const day of eachDateInRange(startDate, endDate)) {
+    byDay.set(day, {
+      date: day,
+      source: 'mirror',
+      fetched_at: null,
+      error: null,
+    });
+  }
+
+  for (const job of jobs) {
+    const current = byDay.get(job.job_date) || {
+      date: job.job_date,
+      source: 'mirror',
+      fetched_at: null,
+      error: null,
+    };
+    if (!current.fetched_at || (job.fetched_at && job.fetched_at > current.fetched_at)) {
+      current.fetched_at = job.fetched_at || current.fetched_at;
+    }
+    byDay.set(job.job_date, current);
+  }
+
+  return [...byDay.values()].sort((left, right) => left.date.localeCompare(right.date));
+}
+
+async function getCopilotLiveJobs({
+  poolClient,
+  date,
+  startDate,
+  endDate,
+} = {}) {
+  const resolvedStartDate = startDate || date;
+  const resolvedEndDate = endDate || date || startDate;
+
+  if (!isValidIsoDate(resolvedStartDate) || !isValidIsoDate(resolvedEndDate)) {
+    throw new Error('Provide date or start_date/end_date in YYYY-MM-DD format');
+  }
+  if (resolvedStartDate > resolvedEndDate) {
+    throw new Error('start_date cannot be after end_date');
+  }
+
+  const resolvedJobs = await fetchResolvedLiveJobs(poolClient, {
+    startDate: resolvedStartDate,
+    endDate: resolvedEndDate,
+    includeDeleted: false,
+  });
+  const jobs = resolvedJobs.map(mapResolvedLiveJobToScheduleJob);
+  const perDate = buildFreshnessPerDate(jobs, resolvedStartDate, resolvedEndDate);
+  const fetchedAt = perDate.reduce((latest, entry) => {
+    if (!entry.fetched_at) return latest;
+    return !latest || entry.fetched_at > latest ? entry.fetched_at : latest;
+  }, null);
+
+  return {
+    start_date: resolvedStartDate,
+    end_date: resolvedEndDate,
+    freshness: {
+      source: 'mirror',
+      fetched_at: fetchedAt,
+      stale: false,
+      per_date: perDate,
+    },
+    stats: buildLiveJobStats(jobs),
+    days: buildLiveJobDaySummaries(jobs),
+    jobs,
+  };
+}
+
 module.exports = {
   COPILOT_SOURCE_SYSTEM,
   buildCopilotJobKey,
+  buildLiveJobDaySummaries,
+  buildLiveJobStats,
+  buildScheduleGeocodeFields,
   fetchResolvedLiveJob,
   fetchResolvedLiveJobs,
+  getCopilotLiveJobs,
+  isValidIsoDate,
+  mapResolvedLiveJobToScheduleJob,
+  normalizeCopilotLiveStatus,
   normalizeResolvedRow,
   parseVisitTotal,
   upsertCopilotLiveJobs,

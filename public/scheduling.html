@@ -629,6 +629,41 @@
             flex-wrap: wrap;
             align-items: center;
         }
+        .live-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            background: #f0f5d9;
+            border: 1px solid #d9e6a4;
+            border-radius: 12px;
+            color: var(--forest);
+            font-size: 13px;
+        }
+        .live-banner strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 13px;
+        }
+        .live-banner-meta {
+            color: var(--gray-600);
+            font-size: 12px;
+        }
+        .legacy-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(46, 64, 61, 0.08);
+            color: var(--forest);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
         /* .search-box base defined earlier; here we set the overall width on this page */
         .search-box { min-width: 240px; flex: 1; max-width: 360px; }
         
@@ -1225,13 +1260,13 @@
         </div>
         <div class="topbar-actions">
             <div class="topbar-search-wrap" id="search-container"><div class="topbar-search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><input type="text" class="topbar-search-input" id="search-input" placeholder="Search..." autocomplete="off"><div class="search-dropdown" id="search-dropdown"></div></div>
-            <a href="import-scheduling.html" class="btn btn-secondary btn-sm" title="Import schedule">
+            <a href="import-scheduling.html" class="btn btn-secondary btn-sm" id="legacyImportBtn" title="Legacy fallback schedule import">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Import
+                Legacy Import
             </a>
-            <a href="new-job.html" class="btn btn-primary btn-sm" title="Add a new job">
+            <a href="new-job.html" class="btn btn-primary btn-sm" id="legacyAddJobBtn" title="Legacy local job creation">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Job
+                Local Job
             </a>
             <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
             <div class="topbar-avatar" title="Account">TP</div>
@@ -1244,6 +1279,13 @@
                 <h2 class="page-title">Schedule</h2>
                 <p class="page-subtitle">Today&rsquo;s work, route, and crew assignments</p>
             </div>
+        </div>
+        <div class="live-banner" id="liveScheduleBanner">
+            <div>
+                <strong>Live Copilot schedule</strong>
+                <div class="live-banner-meta" id="liveScheduleBannerMeta">Loading live schedule data…</div>
+            </div>
+            <span class="legacy-pill">Read-only in YardDesk</span>
         </div>
 
         <!-- Date Navigation with Week View Toggle -->
@@ -1339,11 +1381,11 @@
                 </div>
             </div>
             <div class="route-actions">
-                <button class="btn btn-sm btn-secondary" onclick="optimizeRoute()" title="Optimize route order">
+                <button class="btn btn-sm btn-secondary" id="optimizeRouteBtn" onclick="optimizeRoute()" title="Optimize route order">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                     Optimize Route
                 </button>
-                <button class="btn btn-sm btn-secondary" onclick="printRoute()" title="Print route sheet">
+                <button class="btn btn-sm btn-secondary" id="printRouteBtn" onclick="printRoute()" title="Print route sheet">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                     Print
                 </button>
@@ -1562,6 +1604,103 @@ let selectedJobs = new Set();
 let selectedJobIds = new Set();
 let initialStatusFilter = '';
 let initialCrewFilter = '';
+let scheduleFreshness = null;
+let scheduleReadOnly = true;
+
+function isReadOnlyJob(job) {
+    return !job || job.is_read_only !== false;
+}
+
+function liveScheduleReadOnlyMessage() {
+    return 'Schedule is read-only in YardDesk while Copilot is the live source of truth. Use CopilotCRM for scheduling or dispatch changes.';
+}
+
+function blockReadOnlyScheduleAction() {
+    if (!scheduleReadOnly) return false;
+    showToast(liveScheduleReadOnlyMessage());
+    return true;
+}
+
+function formatFreshnessTimestamp(value) {
+    if (!value) return 'unknown time';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+        ? 'unknown time'
+        : date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function updateScheduleModeUI() {
+    const addJobBtn = document.getElementById('legacyAddJobBtn');
+    const optimizeBtn = document.getElementById('optimizeRouteBtn');
+    const bulkActions = document.getElementById('bulkActions');
+    const selectAllRow = document.getElementById('selectAllRow');
+    const mapViewBtn = document.getElementById('mapViewBtn');
+    const mapBulkActions = document.getElementById('mapBulkActions');
+    const lassoBtn = document.getElementById('lassoBtn');
+    const optimizeCrewBtn = document.getElementById('optimizeCrewBtn');
+    const fixPinsBtn = document.getElementById('fixPinsBtn');
+    if (addJobBtn) addJobBtn.style.display = scheduleReadOnly ? 'none' : '';
+    if (optimizeBtn) optimizeBtn.style.display = scheduleReadOnly ? 'none' : '';
+    if (bulkActions && scheduleReadOnly) bulkActions.style.display = 'none';
+    if (selectAllRow && scheduleReadOnly) selectAllRow.style.display = 'none';
+    if (mapBulkActions && scheduleReadOnly) mapBulkActions.style.display = 'none';
+    if (lassoBtn) lassoBtn.style.display = scheduleReadOnly ? 'none' : '';
+    if (optimizeCrewBtn) optimizeCrewBtn.style.display = scheduleReadOnly ? 'none' : '';
+    if (fixPinsBtn) fixPinsBtn.style.display = scheduleReadOnly ? 'none' : '';
+    if (mapViewBtn) {
+        mapViewBtn.disabled = scheduleReadOnly;
+        mapViewBtn.title = scheduleReadOnly ? 'Map view returns with Dispatch rollout' : 'Map view';
+        mapViewBtn.style.opacity = scheduleReadOnly ? '0.55' : '';
+        mapViewBtn.style.cursor = scheduleReadOnly ? 'not-allowed' : '';
+    }
+}
+
+function updateLiveScheduleBanner(data) {
+    scheduleFreshness = data?.freshness || null;
+    const meta = document.getElementById('liveScheduleBannerMeta');
+    if (!meta) return;
+    if (!scheduleFreshness) {
+        meta.textContent = 'Live Copilot schedule metadata unavailable.';
+        return;
+    }
+    const source = String(scheduleFreshness.source || 'live').toUpperCase();
+    const fetchedAt = formatFreshnessTimestamp(scheduleFreshness.fetched_at);
+    const staleNote = scheduleFreshness.stale ? ' Using mirrored fallback.' : '';
+    meta.textContent = `${source} data · fetched ${fetchedAt}.${staleNote} Legacy import remains fallback only.`;
+}
+
+async function fetchScheduleJobs(params = {}) {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value) search.set(key, value);
+    });
+    const res = await fetch('/api/copilot/live-jobs?' + search.toString());
+    const data = await res.json();
+    if (!data.success) {
+        throw new Error(data.error || 'Failed to load live Copilot schedule');
+    }
+    scheduleReadOnly = true;
+    updateLiveScheduleBanner(data);
+    updateScheduleModeUI();
+    return data;
+}
+
+function getScheduleSummaryFromJobs(jobs = []) {
+    const byStatus = {};
+    const byCrew = {};
+    let totalRevenue = 0;
+    jobs.forEach(job => {
+        byStatus[job.status] = (byStatus[job.status] || 0) + 1;
+        byCrew[job.crew_assigned || 'Unassigned'] = (byCrew[job.crew_assigned || 'Unassigned'] || 0) + 1;
+        totalRevenue += parseFloat(job.service_price || 0) || 0;
+    });
+    return {
+        total: jobs.length,
+        byStatus,
+        byCrew,
+        totalRevenue,
+    };
+}
 
 async function init() {
     // Check for date in URL params
@@ -1640,6 +1779,10 @@ function goToday() {
 }
 
 function setView(view) {
+    if (view === 'map' && scheduleReadOnly) {
+        showToast('Map view returns with the live Dispatch rollout.');
+        return;
+    }
     currentView = view;
     document.getElementById('dayViewBtn').classList.toggle('active', view === 'day');
     document.getElementById('weekViewBtn').classList.toggle('active', view === 'week');
@@ -1686,8 +1829,7 @@ async function loadWeekJobs() {
     const endStr = endOfWeek.toISOString().split('T')[0];
     
     try {
-        const res = await fetch(`/api/jobs?start_date=${startStr}&end_date=${endStr}`);
-        const data = await res.json();
+        const data = await fetchScheduleJobs({ start_date: startStr, end_date: endStr });
         const jobs = data.jobs || [];
         
         renderWeekView(startOfWeek, jobs);
@@ -1709,11 +1851,11 @@ function renderWeekView(startOfWeek, jobs) {
         const dayJobs = jobs.filter(j => j.job_date === dateStr || j.job_date?.split('T')[0] === dateStr);
         const isToday = dateStr === today;
         const dayRevenue = dayJobs.reduce((sum, j) => sum + (parseFloat(j.service_price) || 0), 0);
+        const dropHandlers = scheduleReadOnly ? '' : ` ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${dateStr}')"`;
 
         html += `
             <div class="week-day ${isToday ? 'today' : ''}" data-date="${dateStr}"
-                 onclick="selectWeekDay('${dateStr}')"
-                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${dateStr}')">
+                 onclick="selectWeekDay('${dateStr}')"${dropHandlers}>
                 <div class="week-day-header">
                     <div class="day-name">${days[i]}</div>
                     <div class="day-num">${dayDate.getDate()}</div>
@@ -1722,10 +1864,10 @@ function renderWeekView(startOfWeek, jobs) {
                 <div class="week-day-jobs">
                     ${dayJobs.slice(0, 8).map(j => `
                         <div class="week-job ${j.status === 'completed' ? 'completed' : ''}"
-                             draggable="true" data-job-id="${j.id}" data-job-date="${dateStr}"
-                             ondragstart="handleDragStart(event, ${j.id}, '${dateStr}')"
-                             ondragend="handleDragEnd(event)"
-                             onclick="event.stopPropagation();openPanel(${j.id})">
+                             ${scheduleReadOnly ? '' : 'draggable="true"'}
+                             data-job-id="${esc(j.id)}" data-job-date="${dateStr}"
+                             ${scheduleReadOnly ? '' : `ondragstart="handleDragStart(event, ${JSON.stringify(j.id)}, '${dateStr}')" ondragend="handleDragEnd(event)"`}
+                             onclick="event.stopPropagation();openPanel(${JSON.stringify(j.id)})">
                             <div class="week-job-name">${esc(j.customer_name)}</div>
                             <div class="week-job-service">${esc(j.service_type)}</div>
                             <div class="week-job-price">$${parseFloat(j.service_price || 0).toFixed(0)}</div>
@@ -1752,14 +1894,9 @@ async function loadJobs() {
     updateBulkBar();
     updateDayLabel();
     try {
-        const [jobsRes, statsRes] = await Promise.all([
-            fetch('/api/jobs?date=' + selectedDate),
-            fetch('/api/jobs/stats?date=' + selectedDate)
-        ]);
-        const jobsData = await jobsRes.json();
-        const statsData = await statsRes.json();
-        allJobs = jobsData.jobs || [];
-        const s = statsData.stats || {};
+        const data = await fetchScheduleJobs({ date: selectedDate });
+        allJobs = data.jobs || [];
+        const s = data.stats || getScheduleSummaryFromJobs(allJobs);
         document.getElementById('statTotal').textContent = s.total || 0;
         document.getElementById('statPending').textContent = (s.byStatus && s.byStatus.pending) || 0;
         document.getElementById('statCompleted').textContent = (s.byStatus && s.byStatus.completed) || 0;
@@ -1771,20 +1908,19 @@ async function loadJobs() {
         unassignedOption.value = 'unassigned';
         unassignedOption.textContent = 'Unassigned';
         cs.appendChild(unassignedOption);
-        // Build crew options from allCrews (fetched from /api/crews) with job counts from stats
+        // Build crew options from the union of local crews and live Copilot crews.
         const crewCounts = s.byCrew || {};
-        if (allCrews && allCrews.length > 0) {
-            allCrews.forEach(c => {
-                const o = document.createElement('option');
-                o.value = c.name;
-                const count = crewCounts[c.name] || 0;
-                o.textContent = c.name + ' (' + count + ')';
-                cs.appendChild(o);
-            });
-        } else if (s.byCrew) {
-            // Fallback: use stats data if allCrews not loaded yet
-            Object.keys(s.byCrew).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c + ' (' + s.byCrew[c] + ')'; cs.appendChild(o); });
-        }
+        const crewNames = new Set((allCrews || []).map(c => c.name).filter(Boolean));
+        Object.keys(crewCounts).forEach(name => {
+            if (name && name !== 'Unassigned') crewNames.add(name);
+        });
+        [...crewNames].sort((left, right) => left.localeCompare(right)).forEach(name => {
+            const o = document.createElement('option');
+            o.value = name;
+            const count = crewCounts[name] || 0;
+            o.textContent = name + ' (' + count + ')';
+            cs.appendChild(o);
+        });
         cs.value = initialCrewFilter || cv;
         initialCrewFilter = '';
         if (initialStatusFilter) {
@@ -1880,14 +2016,11 @@ function renderJobs() {
         const statusClass = j.status === 'completed' ? 'is-completed' : (j.status === 'in_progress' ? 'is-in_progress' : '');
         const crewClass = j.crew_assigned ? '' : 'unassigned';
         
-        const isChecked = selectedJobIds.has(j.id);
         const statusLabel = (j.status || 'pending').replace('_', ' ');
         const isUnassigned = !j.crew_assigned;
         return `
             <div class="job-row ${statusClass}" data-id="${j.id}">
-                <div class="job-check" onclick="event.stopPropagation()">
-                    <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobSelect(${j.id})">
-                </div>
+                ${scheduleReadOnly ? '' : `<div class="job-check" onclick="event.stopPropagation()"><input type="checkbox" ${selectedJobIds.has(j.id) ? 'checked' : ''} onchange="toggleJobSelect(${JSON.stringify(j.id)})"></div>`}
                 <div class="job-seq">${j.route_order || (i + 1)}</div>
                 <div class="job-main">
                     <div class="job-customer">${esc(j.customer_name)}</div>
@@ -1911,12 +2044,12 @@ function renderJobs() {
 
     // Add click handlers
     document.querySelectorAll('.job-row').forEach(card => {
-        card.addEventListener('click', () => openPanel(parseInt(card.dataset.id)));
+        card.addEventListener('click', () => openPanel(card.dataset.id));
     });
 
     // Show select-all row and sync state
-    document.getElementById('selectAllRow').style.display = 'flex';
-    updateSelectAllState(filtered);
+    document.getElementById('selectAllRow').style.display = scheduleReadOnly ? 'none' : 'flex';
+    if (!scheduleReadOnly) updateSelectAllState(filtered);
 }
 
 function buildCompletionSection(j) {
@@ -1973,14 +2106,9 @@ function buildCompletionSection(j) {
 }
 
 function openPanel(id) {
-    const j = allJobs.find(x => x.id === id);
+    const j = allJobs.find(x => String(x.id) === String(id));
     if (!j) return;
-    
-    // Build crew options
-    const crewOptions = allCrews.map(c => 
-        `<option value="${esc(c.name)}" ${j.crew_assigned === c.name ? 'selected' : ''}>${esc(c.name)}</option>`
-    ).join('');
-    
+
     document.getElementById('panelBody').innerHTML =
         '<div class="panel-section"><div class="panel-section-title">Customer</div>' +
         '<div class="panel-field"><span class="panel-field-label">Name</span><span class="panel-field-value">' + esc(j.customer_name) + '</span></div>' +
@@ -1991,17 +2119,19 @@ function openPanel(id) {
         '<div class="panel-field"><span class="panel-field-label">Frequency</span><span class="panel-field-value">' + esc(j.service_frequency || '\u2014') + '</span></div>' +
         '<div class="panel-field"><span class="panel-field-label">Price</span><span class="panel-field-value">' + (j.service_price ? '$' + parseFloat(j.service_price).toFixed(2) : '\u2014') + '</span></div>' +
         '<div class="panel-field"><span class="panel-field-label">Duration</span><span class="panel-field-value">' + (j.estimated_duration || 30) + ' min</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Crew</span><select id="panelJobCrew" class="panel-select"><option value="">— Unassigned —</option>' + crewOptions + '</select></div></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Crew</span><span class="panel-field-value">' + esc(j.crew_assigned || '\u2014') + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Status</span><span class="panel-field-value">' + esc((j.status || 'pending').replace('_', ' ')) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Freshness</span><span class="panel-field-value">' + esc(j.freshness_source || (scheduleFreshness && scheduleFreshness.source) || 'live') + '</span></div></div>' +
         (j.special_notes ? '<div class="panel-section"><div class="panel-section-title">Special Notes</div><div class="panel-notes">' + esc(j.special_notes) + '</div></div>' : '') +
         (j.property_notes ? '<div class="panel-section"><div class="panel-section-title">Property Notes</div><div class="panel-notes">' + esc(j.property_notes) + '</div></div>' : '') +
+        '<div class="panel-section"><div class="panel-section-title">Source</div>' +
+        '<div class="panel-field"><span class="panel-field-label">System</span><span class="panel-field-value">Copilot</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Visit ID</span><span class="panel-field-value">' + esc(j.visit_id || '\u2014') + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Fetched</span><span class="panel-field-value">' + esc(formatFreshnessTimestamp(j.fetched_at)) + '</span></div></div>' +
         buildCompletionSection(j);
 
-    const opts = ['pending','in_progress','completed','skipped','cancelled'];
     document.getElementById('panelFooter').innerHTML =
-        '<select id="panelJobStatus">' + opts.map(o => '<option value="'+o+'"'+(j.status===o?' selected':'')+'>'+o.replace('_',' ')+'</option>').join('') + '</select>' +
-        '<button class="btn btn-primary" onclick="updateJob('+j.id+')">Update</button>' +
-        (j.status!=='completed' ? '<button class="btn btn-success" onclick="completeJob('+j.id+')">Complete</button>' : '') +
-        '<button class="btn btn-danger btn-sm" onclick="deleteJob('+j.id+')">Delete</button>';
+        '<div style="font-size:12px;color:var(--gray-500);line-height:1.5;">Live Copilot schedule jobs are read-only in YardDesk. Use CopilotCRM for scheduling and dispatch changes. Legacy import/local job flows remain fallback only.</div>';
 
 
     document.getElementById('panelOverlay').classList.add('show');
@@ -2009,10 +2139,14 @@ function openPanel(id) {
 }
 
 function closePanel() { document.getElementById('panelOverlay').classList.remove('show'); document.getElementById('detailPanel').classList.remove('open'); }
-function openAddModal() { document.getElementById('addModal').classList.add('open'); }
+function openAddModal() {
+    if (blockReadOnlyScheduleAction()) return;
+    document.getElementById('addModal').classList.add('open');
+}
 function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
 
 async function addJob() {
+    if (blockReadOnlyScheduleAction()) return;
     const job = {
         job_date: document.getElementById('addDate').value,
         customer_name: document.getElementById('addName').value,
@@ -2040,6 +2174,7 @@ async function addJob() {
 }
 
 async function updateJob(id) {
+    if (blockReadOnlyScheduleAction()) return;
     const status = document.getElementById('panelJobStatus').value;
     const crewValue = document.getElementById('panelJobCrew')?.value;
     const crew_assigned = crewValue === '' ? null : crewValue; // Empty string = unassign
@@ -2061,6 +2196,7 @@ let completePhotos = [];
 let completeLocation = null;
 
 function openCompleteModal(id) {
+    if (blockReadOnlyScheduleAction()) return;
     const job = allJobs.find(j => j.id === id);
     if (!job) return;
     
@@ -2131,6 +2267,7 @@ function removeCompletePhoto(index) {
 }
 
 async function submitJobCompletion() {
+    if (blockReadOnlyScheduleAction()) return;
     if (!currentCompleteJobId) return;
     
     const completedBy = document.getElementById('completedBy').value;
@@ -2192,16 +2329,19 @@ async function submitJobCompletion() {
 }
 
 async function completeJob(id) {
+    if (blockReadOnlyScheduleAction()) return;
     openCompleteModal(id);
 }
 
 async function deleteJob(id) {
+    if (blockReadOnlyScheduleAction()) return;
     if (!confirm('Delete this job?')) return;
     try { await fetch('/api/jobs/'+id, {method:'DELETE'}); showToast('Deleted'); closePanel(); loadJobs(); }
     catch(e) { showToast('Delete failed'); }
 }
 
 function toggleJobSelect(id) {
+    if (scheduleReadOnly) return;
     if (selectedJobIds.has(id)) {
         selectedJobIds.delete(id);
     } else {
@@ -2212,6 +2352,7 @@ function toggleJobSelect(id) {
 }
 
 function toggleSelectAllDay() {
+    if (scheduleReadOnly) return;
     const cb = document.getElementById('selectAllDayCheckbox');
     const status = document.getElementById('statusFilter').value;
     const crew = document.getElementById('crewFilter').value;
@@ -2234,7 +2375,7 @@ function toggleSelectAllDay() {
     }
     // Re-render checkboxes
     document.querySelectorAll('.job-row').forEach(card => {
-        const jobId = parseInt(card.dataset.id);
+        const jobId = card.dataset.id;
         const checkbox = card.querySelector('.job-check input');
         if (checkbox) checkbox.checked = selectedJobIds.has(jobId);
     });
@@ -2277,6 +2418,7 @@ function updateBulkBar() {
 }
 
 async function bulkDeleteJobs() {
+    if (blockReadOnlyScheduleAction()) return;
     if (selectedJobIds.size === 0) return;
     if (!confirm(`Delete ${selectedJobIds.size} selected job${selectedJobIds.size > 1 ? 's' : ''}? This cannot be undone.`)) return;
     try {
@@ -2306,6 +2448,7 @@ function esc(s) { return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 // Optimizes ONLY the jobs the user is currently looking at (or has selected),
 // not every job for the day. Builds a forward route, no return-to-origin loop.
 async function optimizeRoute() {
+    if (blockReadOnlyScheduleAction()) return;
     const optimizeBtn = document.querySelector('.route-actions button');
     const originalText = optimizeBtn.innerHTML;
 
@@ -2518,6 +2661,7 @@ function updateBulkActionsUI() {
 }
 
 async function bulkComplete() {
+    if (blockReadOnlyScheduleAction()) return;
     if (selectedJobs.size === 0) return;
     
     const promises = Array.from(selectedJobs).map(id => 
@@ -2872,6 +3016,7 @@ function updateFixPinsButton() {
 //             (catches city-center clusters that don't have geocode_quality
 //             flagged — the original "all jobs collapse to one pin" cause)
 async function fixMapPins() {
+    if (blockReadOnlyScheduleAction()) return;
     const btn = document.getElementById('fixPinsBtn');
     const label = document.getElementById('fixPinsBtnLabel');
     if (btn) btn.disabled = true;
@@ -2979,9 +3124,9 @@ function renderMapJobList() {
 
         return `
             <div class="map-job-item ${isSelected ? 'selected' : ''} ${isCompleted ? 'completed' : ''} ${noPin ? 'no-pin' : ''}"
-                 data-id="${job.id}" onclick="toggleMapJobSelect(${job.id})">
+                 data-id="${esc(job.id)}" onclick="toggleMapJobSelect(${JSON.stringify(job.id)})">
                 <div class="map-job-checkbox" onclick="event.stopPropagation()">
-                    <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleMapJobSelect(${job.id})">
+                    <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleMapJobSelect(${JSON.stringify(job.id)})">
                 </div>
                 <div class="map-job-number">${index + 1}</div>
                 <div class="map-job-details">
@@ -2999,6 +3144,7 @@ function renderMapJobList() {
 }
 
 function toggleMapJobSelect(id) {
+    if (scheduleReadOnly) return;
     if (mapSelectedJobs.has(id)) {
         mapSelectedJobs.delete(id);
     } else {
@@ -3010,6 +3156,7 @@ function toggleMapJobSelect(id) {
 }
 
 function toggleSelectAll() {
+    if (scheduleReadOnly) return;
     const selectAll = document.getElementById('selectAllJobs');
     if (selectAll.checked) {
         mapFilteredJobs.forEach(j => mapSelectedJobs.add(j.id));
@@ -3072,6 +3219,7 @@ function highlightMapJob(id) {
 }
 
 async function bulkAssignCrew() {
+    if (blockReadOnlyScheduleAction()) return;
     const crewValue = document.getElementById('bulkCrewSelect').value;
     if (!crewValue) {
         showToast('Please select a crew');
@@ -3109,6 +3257,7 @@ async function bulkAssignCrew() {
 }
 
 async function bulkCompleteJobs() {
+    if (blockReadOnlyScheduleAction()) return;
     if (mapSelectedJobs.size === 0) {
         showToast('No jobs selected');
         return;
@@ -3132,6 +3281,7 @@ async function bulkCompleteJobs() {
 }
 
 async function optimizeCrewRoute() {
+    if (blockReadOnlyScheduleAction()) return;
     const crewFilter = document.getElementById('mapCrewFilter').value;
 
     if (!crewFilter) {
@@ -3210,11 +3360,13 @@ function getCrewColorClass(crewName) {
 async function loadMonthView() {
     const d = new Date(selectedDate + 'T12:00:00');
     const monthStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const startDate = monthStr + '-01';
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    const endDate = monthStr + '-' + String(lastDay).padStart(2, '0');
     updateDayLabel();
 
     try {
-        const res = await fetch('/api/jobs/calendar-summary?month=' + monthStr);
-        const data = await res.json();
+        const data = await fetchScheduleJobs({ start_date: startDate, end_date: endDate });
         monthCalendarData = {};
         (data.days || []).forEach(day => {
             const dateStr = typeof day.day === 'string' ? day.day.split('T')[0] : day.day;
@@ -3257,7 +3409,7 @@ function renderMonthGrid(year, month) {
         html += `<div class="month-day ${isToday ? 'today' : ''} ${!isCurrentMonth ? 'other-month' : ''}"
                       data-date="${dateStr}"
                       onclick="monthDayClick('${dateStr}')"
-                      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${dateStr}')">
+                      ${scheduleReadOnly ? '' : `ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${dateStr}')"`}>
             <div class="month-day-num">
                 <span class="day-number">${cellDate.getDate()}</span>
                 ${dayData ? `<span class="month-day-revenue">$${dayData.revenue.toFixed(0)}</span>` : ''}
@@ -3364,6 +3516,7 @@ let dragJobId = null;
 let dragOriginalDate = null;
 
 function handleDragStart(e, jobId, dateStr) {
+    if (scheduleReadOnly) return;
     dragJobId = jobId;
     dragOriginalDate = dateStr;
     e.dataTransfer.setData('text/plain', jobId);
@@ -3372,11 +3525,13 @@ function handleDragStart(e, jobId, dateStr) {
 }
 
 function handleDragEnd(e) {
+    if (scheduleReadOnly) return;
     e.target.classList.remove('dragging');
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 }
 
 function handleDragOver(e) {
+    if (scheduleReadOnly) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const dayCell = e.currentTarget;
@@ -3384,10 +3539,12 @@ function handleDragOver(e) {
 }
 
 function handleDragLeave(e) {
+    if (scheduleReadOnly) return;
     e.currentTarget.classList.remove('drag-over');
 }
 
 async function handleDrop(e, newDate) {
+    if (blockReadOnlyScheduleAction()) return;
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     const jobId = parseInt(e.dataTransfer.getData('text/plain') || dragJobId);
@@ -3449,6 +3606,7 @@ function showUndoToast(jobId, oldDate, newDate) {
 }
 
 async function undoReschedule() {
+    if (blockReadOnlyScheduleAction()) return;
     const toast = document.getElementById('undoToast');
     const jobId = toast.dataset.jobId;
     const oldDate = toast.dataset.oldDate;
@@ -3506,7 +3664,7 @@ function renderTimeSlotView(jobs) {
         html += `<div class="time-slot-label">${label}</div>`;
         html += `<div class="time-slot-cell" data-hour="${hour}">`;
         slotJobs.forEach(j => {
-            html += `<div class="time-slot-job" onclick="openPanel(${j.id})">
+            html += `<div class="time-slot-job" onclick="openPanel(${JSON.stringify(j.id)})">
                 <div class="ts-name">${esc(j.customer_name)}</div>
                 <div class="ts-service">${esc(j.service_type)}${j.end_time ? ' (' + j.start_time.substring(0,5) + '-' + j.end_time.substring(0,5) + ')' : ''}</div>
             </div>`;

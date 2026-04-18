@@ -236,10 +236,33 @@ it('reports same-day freshness from stored automation and snapshot timestamps', 
       },
     },
   };
+  const instructionStatus = {
+    status: 'success',
+    trigger: 'manual',
+    tax_date: '2026-04-16',
+    action: 'created',
+    instruction_id: 14,
+    last_attempt_at: '2026-04-18T00:24:00.000Z',
+    completed_at: '2026-04-18T00:24:05.000Z',
+    last_success_at: '2026-04-18T00:24:05.000Z',
+    last_success_trigger: 'manual',
+    last_success_action: 'created',
+    last_success_instruction_id: 14,
+    last_failure_at: '2026-04-17T00:25:05.000Z',
+    last_failure_trigger: 'cron',
+    last_failure_error: 'Copilot snapshot missing',
+    last_error: null,
+  };
 
   const pool = createPool(async (sql, params) => {
     if (sql.includes('SELECT value') && sql.includes('FROM copilot_sync_settings')) {
-      return { rows: [{ value: JSON.stringify(storedStatus) }] };
+      if (params[0] === 'copilot_tax_transfer_freshness_status') {
+        return { rows: [{ value: JSON.stringify(storedStatus) }] };
+      }
+      if (params[0] === 'copilot_tax_transfer_instruction_status') {
+        return { rows: [{ value: JSON.stringify(instructionStatus) }] };
+      }
+      return { rows: [] };
     }
     if (sql.includes('SELECT MAX(imported_at) AS last_imported_at') && sql.includes('FROM payments')) {
       return { rows: [{ last_imported_at: '2026-04-17T19:45:00.000Z' }] };
@@ -281,10 +304,14 @@ it('reports same-day freshness from stored automation and snapshot timestamps', 
     assert.strictEqual(res.body.success, true);
     assert.strictEqual(res.body.today, today);
     assert.strictEqual(res.body.automation.status, 'degraded');
+    assert.strictEqual(res.body.instruction_automation.status, 'success');
+    assert.strictEqual(res.body.instruction_automation.trigger, 'manual');
     assert.strictEqual(res.body.freshness.today_tax_summary_fresh, true);
     assert.strictEqual(res.body.freshness.payments_fresh_today, true);
     assert.strictEqual(res.body.freshness.today_tax_summary_tax_amount, 18.42);
     assert.strictEqual(res.body.freshness.today_tax_summary_total_sales, 230.25);
+    assert.strictEqual(res.body.next_expected_runs.freshness_sync.label, 'Apr 17, 2026, 8:15 PM ET');
+    assert.strictEqual(res.body.next_expected_runs.instruction_generation.label, 'Apr 17, 2026, 8:25 PM ET');
   } finally {
     global.Date = RealDate;
   }

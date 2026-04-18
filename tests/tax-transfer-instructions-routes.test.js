@@ -59,6 +59,7 @@ function createInstructionPool({ snapshots = {}, instructions = [] } = {}) {
   const state = {
     instructions: instructions.map((row) => ({ ...row })),
     nextId: instructions.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1,
+    syncSettings: {},
   };
 
   function sortRows(rows) {
@@ -93,6 +94,17 @@ function createInstructionPool({ snapshots = {}, instructions = [] } = {}) {
       const startDate = params[1] || params[0];
       const row = snapshots[startDate];
       return { rows: row ? [row] : [] };
+    }
+
+    if (text.includes('SELECT value') && text.includes('FROM copilot_sync_settings')) {
+      const key = params[0];
+      const value = state.syncSettings[key];
+      return { rows: value ? [{ value: JSON.stringify(value) }] : [] };
+    }
+
+    if (text.includes('INSERT INTO copilot_sync_settings')) {
+      state.syncSettings[params[0]] = JSON.parse(params[1]);
+      return { rows: [] };
     }
 
     if (text.includes('FROM payments p') && text.includes('p.invoice_id IS NOT NULL')) {
@@ -675,6 +687,28 @@ it('generates one pending instruction and is idempotent when the amount has not 
   assert.strictEqual(pool.state.instructions[0].status, 'pending_approval');
 });
 
+it('persists manual transfer-instruction automation status after a successful generation run', async () => {
+  const pool = createInstructionPool({
+    snapshots: {
+      '2026-04-16': buildSnapshotRow('2026-04-16', 18.42),
+    },
+  });
+  const router = createRouter({ pool });
+
+  const res = await withMockNow('2026-04-18T01:30:00.000Z', () =>
+    invokeRoute(router, '/api/tax-transfer-instructions/generate', 'post', { user: ADMIN_USER }));
+
+  assert.strictEqual(res.statusCode, 200);
+  const status = pool.state.syncSettings.copilot_tax_transfer_instruction_status;
+  assert.ok(status);
+  assert.strictEqual(status.status, 'success');
+  assert.strictEqual(status.trigger, 'manual');
+  assert.strictEqual(status.tax_date, '2026-04-16');
+  assert.strictEqual(status.action, 'created');
+  assert.strictEqual(status.last_success_trigger, 'manual');
+  assert.strictEqual(status.last_failure_at, null);
+});
+
 it('supersedes an unsubmitted instruction when the recommended amount changes', async () => {
   const pool = createInstructionPool({
     snapshots: {
@@ -1031,6 +1065,43 @@ it('enforces CRON_SECRET and accepts the GET cron fallback for generation', asyn
     assert.strictEqual(valid.body.action, 'created');
     assert.strictEqual(pool.state.instructions.length, 1);
     assert.strictEqual(pool.state.instructions[0].generation_trigger, 'cron');
+    const status = pool.state.syncSettings.copilot_tax_transfer_instruction_status;
+    assert.ok(status);
+    assert.strictEqual(status.status, 'success');
+    assert.strictEqual(status.trigger, 'cron');
+    assert.strictEqual(status.last_success_trigger, 'cron');
+  } finally {
+    if (previousSecret == null) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = previousSecret;
+  }
+});
+
+it('persists failed instruction automation status when cron generation throws', async () => {
+  const previousSecret = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'expected-secret';
+  const pool = createInstructionPool();
+  const router = createRouter({
+    pool: {
+      ...pool,
+      async connect() {
+        throw new Error('snapshot lookup exploded');
+      },
+    },
+  });
+
+  try {
+    const res = await withMockNow('2026-04-18T01:30:00.000Z', () =>
+      invokeRoute(router, '/api/cron/tax-transfer-instructions/generate', 'post', {
+        headers: { 'x-cron-secret': 'expected-secret' },
+      }));
+    assert.strictEqual(res.statusCode, 500);
+    assert.strictEqual(res.body.success, false);
+    const status = pool.state.syncSettings.copilot_tax_transfer_instruction_status;
+    assert.ok(status);
+    assert.strictEqual(status.status, 'failed');
+    assert.strictEqual(status.trigger, 'cron');
+    assert.strictEqual(status.last_failure_trigger, 'cron');
+    assert.ok(status.last_failure_error.includes('snapshot lookup exploded'));
   } finally {
     if (previousSecret == null) delete process.env.CRON_SECRET;
     else process.env.CRON_SECRET = previousSecret;

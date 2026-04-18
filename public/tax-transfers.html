@@ -634,6 +634,58 @@
         </section>
 
         <section class="panel">
+            <div class="section-head">
+                <div>
+                    <h3>Automation Health</h3>
+                    <div class="sub">Read-only run history for the two scheduled tax-transfer jobs in America/New_York.</div>
+                </div>
+            </div>
+            <div class="callout">
+                <div>ℹ️</div>
+                <div>
+                    Scheduled automation should refresh Copilot tax data at 8:15 PM ET and generate yesterday&apos;s transfer instruction at 8:25 PM ET.
+                    Manual actions are still allowed, but this panel shows whether the latest run came from the scheduler or a person.
+                </div>
+            </div>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Freshness Sync Run</div>
+                        <span class="status-pill muted" id="freshnessRunPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="freshnessRunValue">No run recorded</div>
+                    <div class="status-card-sub" id="freshnessRunSub">This scheduled job refreshes Copilot Tax Summary and Copilot payments for Tax Transfers.</div>
+                    <div class="history-meta" id="freshnessRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Instruction Generation Run</div>
+                        <span class="status-pill muted" id="instructionRunPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="instructionRunValue">No run recorded</div>
+                    <div class="status-card-sub" id="instructionRunSub">This scheduled job generates yesterday&apos;s Chase-to-Huntington transfer instruction using Copilot collected tax.</div>
+                    <div class="history-meta" id="instructionRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Next Freshness Sync</div>
+                        <span class="status-pill muted" id="nextFreshnessPill">Scheduled</span>
+                    </div>
+                    <div class="status-card-value" id="nextFreshnessValue">Unknown</div>
+                    <div class="status-card-sub" id="nextFreshnessSub">Expected scheduler target for the daily freshness refresh.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Next Instruction Run</div>
+                        <span class="status-pill muted" id="nextInstructionPill">Scheduled</span>
+                    </div>
+                    <div class="status-card-value" id="nextInstructionValue">Unknown</div>
+                    <div class="status-card-sub" id="nextInstructionSub">Expected scheduler target for daily transfer-instruction generation.</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
             <div class="status-grid">
                 <div class="status-card">
                     <div class="status-card-header">
@@ -1023,6 +1075,56 @@
         el.classList.add(tone || 'muted');
     }
 
+    function formatTrigger(value) {
+        return value === 'cron' ? 'scheduled' : value === 'manual' ? 'manual' : 'unknown';
+    }
+
+    function renderAutomationJob(prefix, job, nextRun, fallbackDescription) {
+        const currentStatus = job?.status || 'never_run';
+        const recentTrigger = formatTrigger(job?.trigger);
+        if (currentStatus === 'success') {
+            setPill(`${prefix}Pill`, 'Healthy', 'success');
+            document.getElementById(`${prefix}Value`).textContent = `Last success ${longDateTime(job.last_success_at)}`;
+            document.getElementById(`${prefix}Sub`).textContent = `Most recent run completed via ${recentTrigger}${job?.action ? ` (${job.action.replace(/_/g, ' ')})` : ''}.`;
+        } else if (currentStatus === 'degraded') {
+            setPill(`${prefix}Pill`, 'Needs attention', 'warn');
+            document.getElementById(`${prefix}Value`).textContent = `Last attempt ${longDateTime(job.last_attempt_at)}`;
+            document.getElementById(`${prefix}Sub`).textContent = job?.last_error || 'The most recent run completed with one or more failed components.';
+        } else if (currentStatus === 'failed') {
+            setPill(`${prefix}Pill`, 'Failed', 'error');
+            document.getElementById(`${prefix}Value`).textContent = `Last failure ${longDateTime(job.last_failure_at || job.last_attempt_at)}`;
+            document.getElementById(`${prefix}Sub`).textContent = job?.last_failure_error || job?.last_error || 'The most recent run failed.';
+        } else if (currentStatus === 'never_run') {
+            setPill(`${prefix}Pill`, 'Not run', 'muted');
+            document.getElementById(`${prefix}Value`).textContent = 'No run recorded';
+            document.getElementById(`${prefix}Sub`).textContent = fallbackDescription;
+        } else {
+            setPill(`${prefix}Pill`, 'Unknown', 'muted');
+            document.getElementById(`${prefix}Value`).textContent = 'Run state unavailable';
+            document.getElementById(`${prefix}Sub`).textContent = fallbackDescription;
+        }
+
+        const meta = [];
+        if (job?.last_success_at) {
+            meta.push(`Last successful run: ${longDateTime(job.last_success_at)} via ${formatTrigger(job.last_success_trigger || job.trigger)}`);
+        } else {
+            meta.push('No successful run recorded yet.');
+        }
+        if (job?.last_failure_at) {
+            const failureLabel = `Last failed run: ${longDateTime(job.last_failure_at)} via ${formatTrigger(job.last_failure_trigger)}`;
+            meta.push(job?.last_failure_error ? `${failureLabel} — ${job.last_failure_error}` : failureLabel);
+        } else {
+            meta.push('No failed run recorded.');
+        }
+        document.getElementById(`${prefix}Meta`).textContent = meta.join(' ');
+
+        const nextValue = nextRun?.label || 'Unknown';
+        document.getElementById(`next${prefix === 'freshnessRun' ? 'Freshness' : 'Instruction'}Value`).textContent = nextValue;
+        document.getElementById(`next${prefix === 'freshnessRun' ? 'Freshness' : 'Instruction'}Sub`).textContent = nextRun?.cron_expression
+            ? `${nextRun.cron_expression} in ${nextRun.time_zone || 'America/New_York'}`
+            : 'Expected scheduler target unavailable.';
+    }
+
     function getRange() {
         return {
             start_date: document.getElementById('startDate').value,
@@ -1084,8 +1186,23 @@
         currentFreshnessStatus = status;
 
         const automation = status?.automation || {};
+        const instructionAutomation = status?.instruction_automation || {};
+        const nextExpectedRuns = status?.next_expected_runs || {};
         const freshness = status?.freshness || {};
         const scopeDays = Number.isFinite(Number(automation.days_back)) ? Number(automation.days_back) : 1;
+
+        renderAutomationJob(
+            'freshnessRun',
+            automation,
+            nextExpectedRuns.freshness_sync,
+            'No scheduled freshness run has been recorded yet.'
+        );
+        renderAutomationJob(
+            'instructionRun',
+            instructionAutomation,
+            nextExpectedRuns.instruction_generation,
+            'No scheduled or manual transfer-instruction generation run has been recorded yet.'
+        );
 
         if (automation.status === 'success') {
             setPill('automationPill', 'Healthy', 'success');
@@ -1169,6 +1286,21 @@
 
     function renderAutomationStatusUnavailable(message) {
         currentFreshnessStatus = null;
+        setPill('freshnessRunPill', 'Unavailable', 'error');
+        document.getElementById('freshnessRunValue').textContent = 'Status unavailable';
+        document.getElementById('freshnessRunSub').textContent = message || 'Unable to load automation run history.';
+        document.getElementById('freshnessRunMeta').textContent = 'Last successful and failed run state could not be loaded.';
+
+        setPill('instructionRunPill', 'Unavailable', 'error');
+        document.getElementById('instructionRunValue').textContent = 'Status unavailable';
+        document.getElementById('instructionRunSub').textContent = message || 'Unable to load instruction run history.';
+        document.getElementById('instructionRunMeta').textContent = 'Last successful and failed run state could not be loaded.';
+
+        document.getElementById('nextFreshnessValue').textContent = 'Unknown';
+        document.getElementById('nextFreshnessSub').textContent = 'Expected scheduler target unavailable.';
+        document.getElementById('nextInstructionValue').textContent = 'Unknown';
+        document.getElementById('nextInstructionSub').textContent = 'Expected scheduler target unavailable.';
+
         setPill('automationPill', 'Unavailable', 'error');
         document.getElementById('automationValue').textContent = 'Status unavailable';
         document.getElementById('automationSub').textContent = message || 'Unable to load freshness status.';

@@ -1,5 +1,11 @@
+const {
+  fetchCopilotRouteJobsForDate,
+  getCopilotToken,
+} = require('./client');
+
 const COPILOT_SOURCE_SYSTEM = 'copilot';
 const SCHEDULE_SOURCE_KIND = 'live_schedule';
+const LIVE_JOB_FETCH_TIMEOUT_MS = 12 * 1000;
 
 const LIVE_JOB_STATUS_MAP = new Map([
   ['scheduled', 'pending'],
@@ -64,6 +70,16 @@ function normalizeCopilotLiveStatus(status) {
   if (typeof status !== 'string') return 'pending';
   const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, '_');
   return LIVE_JOB_STATUS_MAP.get(normalized) || 'pending';
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutHandle;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timeoutHandle)),
+    new Promise((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
 }
 
 function normalizeScheduleAddress(address) {
@@ -345,9 +361,16 @@ async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new D
 }
 
 function mapResolvedLiveJobToScheduleJob(job) {
+  return mapResolvedLiveJobToScheduleJobWithFreshness(job, {});
+}
+
+function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
+  freshnessSource = 'mirror',
+  fetchedAt = null,
+} = {}) {
   const address = normalizeScheduleAddress(job.resolved.effective_address || job.source.address || '');
   const geocodeFields = buildScheduleGeocodeFields(address);
-  const fetchedAt = job.source.synced_at || null;
+  const effectiveFetchedAt = fetchedAt || job.source.synced_at || null;
   const routeOrder = job.resolved.effective_route_order ?? null;
   const mapLat = job.resolved.map_lat ?? null;
   const mapLng = job.resolved.map_lng ?? null;
@@ -356,8 +379,8 @@ function mapResolvedLiveJobToScheduleJob(job) {
     id: job.job_key,
     source_system: COPILOT_SOURCE_SYSTEM,
     source_kind: SCHEDULE_SOURCE_KIND,
-    freshness_source: 'mirror',
-    fetched_at: fetchedAt,
+    freshness_source: freshnessSource,
+    fetched_at: effectiveFetchedAt,
     is_read_only: true,
     can_edit: false,
     can_complete: false,
@@ -456,32 +479,57 @@ function buildLiveJobDaySummaries(jobs = []) {
   return [...byDay.values()].sort((left, right) => left.day.localeCompare(right.day));
 }
 
-function buildFreshnessPerDate(jobs = [], startDate, endDate) {
-  const byDay = new Map();
+function buildAggregateFreshness(perDate = []) {
+  const uniqueSources = [...new Set(perDate.map((entry) => entry.source))];
+  const fetchedAt = perDate.reduce((latest, entry) => {
+    if (!entry.fetched_at) return latest;
+    return !latest || entry.fetched_at > latest ? entry.fetched_at : latest;
+  }, null);
 
-  for (const day of eachDateInRange(startDate, endDate)) {
-    byDay.set(day, {
-      date: day,
-      source: 'mirror',
-      fetched_at: null,
-      error: null,
-    });
+  return {
+    source: uniqueSources.length === 1 ? uniqueSources[0] : 'mixed',
+    fetched_at: fetchedAt,
+    stale: uniqueSources.includes('mirror'),
+    per_date: perDate,
+  };
+}
+
+function detectLiveParseMismatch(liveResult, syncDate) {
+  const expectedCount = Number.parseInt(liveResult?.raw?.totalEventCount, 10);
+  if (Number.isFinite(expectedCount) && expectedCount > 0 && (liveResult?.jobs || []).length === 0) {
+    throw new Error(`Copilot parse mismatch for ${syncDate}: expected ${expectedCount} jobs but parsed 0`);
   }
+}
 
-  for (const job of jobs) {
-    const current = byDay.get(job.job_date) || {
-      date: job.job_date,
-      source: 'mirror',
-      fetched_at: null,
-      error: null,
-    };
-    if (!current.fetched_at || (job.fetched_at && job.fetched_at > current.fetched_at)) {
-      current.fetched_at = job.fetched_at || current.fetched_at;
-    }
-    byDay.set(job.job_date, current);
-  }
+async function fetchLiveCopilotScheduleDate({
+  poolClient,
+  syncDate,
+  cookieHeader,
+  fetchImpl = fetch,
+  timeoutMs = LIVE_JOB_FETCH_TIMEOUT_MS,
+} = {}) {
+  if (!cookieHeader) throw new Error('No CopilotCRM cookies configured');
 
-  return [...byDay.values()].sort((left, right) => left.date.localeCompare(right.date));
+  const liveResult = await withTimeout(
+    fetchCopilotRouteJobsForDate({ cookieHeader, syncDate, fetchImpl }),
+    timeoutMs,
+    `Copilot live schedule timed out for ${syncDate}`
+  );
+  detectLiveParseMismatch(liveResult, syncDate);
+
+  const fetchedAt = new Date().toISOString();
+  await upsertCopilotLiveJobs(poolClient, {
+    serviceDate: syncDate,
+    jobs: liveResult.jobs || [],
+    syncedAt: new Date(fetchedAt),
+  });
+
+  return {
+    date: syncDate,
+    source: 'live',
+    fetched_at: fetchedAt,
+    error: null,
+  };
 }
 
 async function getCopilotLiveJobs({
@@ -489,6 +537,8 @@ async function getCopilotLiveJobs({
   date,
   startDate,
   endDate,
+  fetchImpl = fetch,
+  timeoutMs = LIVE_JOB_FETCH_TIMEOUT_MS,
 } = {}) {
   const resolvedStartDate = startDate || date;
   const resolvedEndDate = endDate || date || startDate;
@@ -500,27 +550,102 @@ async function getCopilotLiveJobs({
     throw new Error('start_date cannot be after end_date');
   }
 
+  const tokenInfo = await getCopilotToken(poolClient).catch(() => null);
+  const cookieHeader = tokenInfo?.cookieHeader || null;
+  const liveAttemptByDate = new Map();
+
+  for (const syncDate of eachDateInRange(resolvedStartDate, resolvedEndDate)) {
+    try {
+      const liveAttempt = await fetchLiveCopilotScheduleDate({
+        poolClient,
+        syncDate,
+        cookieHeader,
+        fetchImpl,
+        timeoutMs,
+      });
+      liveAttemptByDate.set(syncDate, liveAttempt);
+    } catch (error) {
+      liveAttemptByDate.set(syncDate, {
+        date: syncDate,
+        source: 'mirror',
+        fetched_at: null,
+        error,
+      });
+    }
+  }
+
   const resolvedJobs = await fetchResolvedLiveJobs(poolClient, {
     startDate: resolvedStartDate,
     endDate: resolvedEndDate,
     includeDeleted: false,
   });
-  const jobs = resolvedJobs.map(mapResolvedLiveJobToScheduleJob);
-  const perDate = buildFreshnessPerDate(jobs, resolvedStartDate, resolvedEndDate);
-  const fetchedAt = perDate.reduce((latest, entry) => {
-    if (!entry.fetched_at) return latest;
-    return !latest || entry.fetched_at > latest ? entry.fetched_at : latest;
-  }, null);
+  const resolvedJobsByDate = new Map();
+  for (const job of resolvedJobs) {
+    const bucket = resolvedJobsByDate.get(job.service_date) || [];
+    bucket.push(job);
+    resolvedJobsByDate.set(job.service_date, bucket);
+  }
+
+  const jobs = [];
+  const perDate = [];
+
+  for (const syncDate of eachDateInRange(resolvedStartDate, resolvedEndDate)) {
+    const liveAttempt = liveAttemptByDate.get(syncDate);
+    const dateJobs = resolvedJobsByDate.get(syncDate) || [];
+
+    if (liveAttempt?.source === 'live') {
+      dateJobs.forEach((job) => {
+        jobs.push(mapResolvedLiveJobToScheduleJobWithFreshness(job, {
+          freshnessSource: 'live',
+          fetchedAt: liveAttempt.fetched_at,
+        }));
+      });
+      perDate.push({
+        date: syncDate,
+        source: 'live',
+        fetched_at: liveAttempt.fetched_at,
+        error: null,
+      });
+      continue;
+    }
+
+    if (dateJobs.length > 0) {
+      const mirrorFetchedAt = dateJobs.reduce((latest, job) => {
+        const value = job.source.synced_at || null;
+        if (!value) return latest;
+        return !latest || value > latest ? value : latest;
+      }, null);
+      dateJobs.forEach((job) => {
+        jobs.push(mapResolvedLiveJobToScheduleJobWithFreshness(job, {
+          freshnessSource: 'mirror',
+          fetchedAt: mirrorFetchedAt,
+        }));
+      });
+      perDate.push({
+        date: syncDate,
+        source: 'mirror',
+        fetched_at: mirrorFetchedAt,
+        error: liveAttempt?.error ? liveAttempt.error.message : null,
+      });
+      continue;
+    }
+
+    if (liveAttempt?.error) {
+      throw liveAttempt.error;
+    }
+
+    perDate.push({
+      date: syncDate,
+      source: 'live',
+      fetched_at: liveAttempt?.fetched_at || null,
+      error: null,
+    });
+  }
 
   return {
     start_date: resolvedStartDate,
     end_date: resolvedEndDate,
-    freshness: {
-      source: 'mirror',
-      fetched_at: fetchedAt,
-      stale: false,
-      per_date: perDate,
-    },
+    freshness: buildAggregateFreshness(perDate),
     stats: buildLiveJobStats(jobs),
     days: buildLiveJobDaySummaries(jobs),
     jobs,
@@ -533,8 +658,10 @@ module.exports = {
   buildLiveJobDaySummaries,
   buildLiveJobStats,
   buildScheduleGeocodeFields,
+  buildAggregateFreshness,
   fetchResolvedLiveJob,
   fetchResolvedLiveJobs,
+  fetchLiveCopilotScheduleDate,
   getCopilotLiveJobs,
   isValidIsoDate,
   mapResolvedLiveJobToScheduleJob,

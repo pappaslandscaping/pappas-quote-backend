@@ -7,7 +7,7 @@ const express = require('express');
 const { getCopilotToken, parseCopilotRouteHtml } = require('../services/copilot/client');
 const { getCopilotLiveJobs, upsertCopilotLiveJobs } = require('../services/copilot/live-jobs');
 
-module.exports = function createCopilotRoutes({ pool, serverError, authenticateToken }) {
+module.exports = function createCopilotRoutes({ pool, serverError, authenticateToken, fetchImpl = fetch }) {
   const router = express.Router();
 
   router.get('/api/copilot/live-jobs', authenticateToken, async (req, res) => {
@@ -17,6 +17,7 @@ module.exports = function createCopilotRoutes({ pool, serverError, authenticateT
         date: req.query.date || null,
         startDate: req.query.start_date || null,
         endDate: req.query.end_date || null,
+        fetchImpl,
       });
       res.json({
         success: true,

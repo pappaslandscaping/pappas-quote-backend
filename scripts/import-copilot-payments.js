@@ -29,6 +29,29 @@ function normalizeCustomerName(value) {
     .toLowerCase();
 }
 
+function normalizePageTotalLabel(value) {
+  return normalizeCustomerName(value).replace(/:$/, '');
+}
+
+function isLeakedCopilotSummaryRow(record = {}) {
+  const source = String(record?.external_source || '').trim().toLowerCase();
+  if (source !== 'copilotcrm') return false;
+
+  const externalMetadata = record?.external_metadata && typeof record.external_metadata === 'object'
+    ? record.external_metadata
+    : {};
+  const payerPayee = externalMetadata.raw_payer_payee || record.customer_name || '';
+  if (normalizePageTotalLabel(payerPayee) !== 'page total') return false;
+
+  const rawDate = String(externalMetadata.raw_date || record.source_date_raw || '').trim();
+  const details = String(externalMetadata.raw_details || record.details || '').trim();
+  const notes = String(externalMetadata.raw_notes || record.notes || '').trim();
+  const extractedInvoiceNumber = String(externalMetadata.extracted_invoice_number || record.extracted_invoice_number || '').trim();
+  const paymentPath = String(externalMetadata.payment_path || '').trim();
+
+  return !record.invoice_id && !rawDate && !details && !notes && !extractedInvoiceNumber && !paymentPath;
+}
+
 function toIsoDate(value) {
   if (!value) return null;
   if (value instanceof Date) {
@@ -387,6 +410,23 @@ async function upsertCopilotPayments({ pool, payments = [] }) {
   return summary;
 }
 
+async function deleteLeakedCopilotSummaryRows(pool) {
+  const result = await pool.query(
+    `DELETE FROM payments p
+      WHERE COALESCE(p.external_source, 'database') = 'copilotcrm'
+        AND p.invoice_id IS NULL
+        AND p.paid_at IS NULL
+        AND lower(trim(COALESCE(p.external_metadata->>'raw_payer_payee', p.customer_name, ''))) = ANY($1::text[])
+        AND COALESCE(trim(COALESCE(p.external_metadata->>'raw_date', p.source_date_raw, '')), '') = ''
+        AND COALESCE(trim(COALESCE(p.external_metadata->>'raw_details', p.details, '')), '') = ''
+        AND COALESCE(trim(COALESCE(p.external_metadata->>'raw_notes', p.notes, '')), '') = ''
+        AND COALESCE(trim(COALESCE(p.external_metadata->>'extracted_invoice_number', '')), '') = ''
+        AND COALESCE(trim(COALESCE(p.external_metadata->>'payment_path', '')), '') = ''`,
+    [['page total', 'page total:']]
+  );
+  return result.rowCount || 0;
+}
+
 function hydratePaymentRecord(record) {
   const taxableGrossTotal = deriveInvoiceTaxableGrossTotal(record);
   const hydrated = {
@@ -422,6 +462,8 @@ module.exports = {
   chooseFallbackInvoiceMatch,
   loadInvoiceMatches,
   buildCopilotPaymentRecord,
+  isLeakedCopilotSummaryRow,
+  deleteLeakedCopilotSummaryRows,
   getExtractedInvoiceNumberForPayment,
   describeCopilotPaymentLinkage,
   upsertCopilotPayments,

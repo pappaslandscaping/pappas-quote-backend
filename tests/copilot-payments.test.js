@@ -11,6 +11,7 @@ const {
   choosePreferredInvoiceMatch,
   chooseFallbackInvoiceMatch,
   buildCopilotPaymentRecord,
+  isLeakedCopilotSummaryRow,
   getExtractedInvoiceNumberForPayment,
   describeCopilotPaymentLinkage,
   hydratePaymentRecord,
@@ -257,6 +258,41 @@ it('extracts invoice dates directly from payment details strings', () => {
     '2026-03-20'
   );
   assert.strictEqual(extractInvoiceDateFromDetails('Paid in full'), null);
+});
+
+it('identifies leaked Copilot footer rows so they can be excluded from reconciliation', () => {
+  assert.strictEqual(
+    isLeakedCopilotSummaryRow({
+      external_source: 'copilotcrm',
+      customer_name: 'Page Total:',
+      source_date_raw: null,
+      details: null,
+      notes: null,
+      invoice_id: null,
+      external_metadata: {
+        raw_payer_payee: 'Page Total:',
+        raw_date: '',
+        raw_details: '',
+        raw_notes: '',
+      },
+    }),
+    true
+  );
+  assert.strictEqual(
+    isLeakedCopilotSummaryRow({
+      external_source: 'copilotcrm',
+      customer_name: 'Carol Horner',
+      source_date_raw: 'Apr 17, 2026',
+      details: '$1,036.80 for Invoice #10470',
+      invoice_id: 42,
+      external_metadata: {
+        raw_payer_payee: 'Carol Horner',
+        raw_date: 'Apr 17, 2026',
+        raw_details: '$1,036.80 for Invoice #10470',
+      },
+    }),
+    false
+  );
 });
 
 it('prefers a date-like fallback invoice match for older bad imports', () => {

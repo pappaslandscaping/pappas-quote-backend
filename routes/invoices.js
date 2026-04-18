@@ -40,10 +40,12 @@ const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
 const {
   roundMoney,
   upsertCopilotPayments,
+  deleteLeakedCopilotSummaryRows,
   hydratePaymentRecord,
   loadInvoiceMatches,
   getExtractedInvoiceNumberForPayment,
   describeCopilotPaymentLinkage,
+  isLeakedCopilotSummaryRow,
 } = require('../scripts/import-copilot-payments');
 
 module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
@@ -478,6 +480,7 @@ async function syncCopilotPaymentsRecords({ pageSize = 100, maxPages = 25, force
     pool,
     payments: snapshot.payments,
   });
+  await deleteLeakedCopilotSummaryRows(pool);
 
   return {
     source: snapshot.source,
@@ -1479,13 +1482,15 @@ router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
       [start_date, end_date, source]
     );
 
-    const payments = result.rows.map((row) => ({
-      ...hydratePaymentRecord(row),
-      display_invoice_number: getDisplayInvoiceNumberForPaymentRow({
-        ...row,
-        external_source: row.invoice_external_source || row.external_source,
-      }),
-    }));
+    const payments = result.rows
+      .map((row) => ({
+        ...hydratePaymentRecord(row),
+        display_invoice_number: getDisplayInvoiceNumberForPaymentRow({
+          ...row,
+          external_source: row.invoice_external_source || row.external_source,
+        }),
+      }))
+      .filter((payment) => !isLeakedCopilotSummaryRow(payment));
     const summary = payments.reduce((acc, payment) => {
       acc.payment_count += 1;
       acc.gross_collected = roundMoney(acc.gross_collected + payment.amount);

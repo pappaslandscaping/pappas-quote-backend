@@ -4,7 +4,12 @@
 // ═══════════════════════════════════════════════════════════
 
 const express = require('express');
-const { getCopilotToken, parseCopilotRouteHtml } = require('../services/copilot/client');
+const {
+  fetchCopilotRouteJobsForDate,
+  fetchCopilotScheduleGridJobsForDate,
+  getCopilotToken,
+  parseCopilotRouteHtml,
+} = require('../services/copilot/client');
 const { getCopilotLiveJobs, upsertCopilotLiveJobs } = require('../services/copilot/live-jobs');
 
 module.exports = function createCopilotRoutes({ pool, serverError, authenticateToken, fetchImpl = fetch }) {
@@ -25,6 +30,47 @@ module.exports = function createCopilotRoutes({ pool, serverError, authenticateT
       });
     } catch (error) {
       serverError(res, error, 'Copilot live jobs fetch failed');
+    }
+  });
+
+  router.get('/api/copilot/schedule-live-debug', authenticateToken, async (req, res) => {
+    try {
+      const syncDate = req.query.date || new Date().toISOString().slice(0, 10);
+      const tokenInfo = await getCopilotToken(pool);
+      if (!tokenInfo || !tokenInfo.cookieHeader) {
+        return res.status(500).json({
+          success: false,
+          error: 'No CopilotCRM cookies configured.',
+        });
+      }
+
+      const [routeDay, scheduleGrid] = await Promise.all([
+        fetchCopilotRouteJobsForDate({
+          cookieHeader: tokenInfo.cookieHeader,
+          syncDate,
+          fetchImpl,
+        }),
+        fetchCopilotScheduleGridJobsForDate({
+          cookieHeader: tokenInfo.cookieHeader,
+          syncDate,
+          fetchImpl,
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        date: syncDate,
+        route_day: {
+          total_jobs: routeDay.jobs.length,
+          diagnostics: routeDay.diagnostics,
+        },
+        schedule_grid_day: {
+          total_jobs: scheduleGrid.jobs.length,
+          diagnostics: scheduleGrid.diagnostics,
+        },
+      });
+    } catch (error) {
+      serverError(res, error, 'Copilot live schedule debug failed');
     }
   });
 

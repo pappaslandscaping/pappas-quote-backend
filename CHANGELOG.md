@@ -119,3 +119,5 @@
 - Built `GET /api/social-media/history` — returns recent generated posts
 - New `social_media_posts` table stores generation history
 - Chat is now fully conversational — follow-ups refine in-place, say "new post" to start fresh
+
+- - trigger Railway deploy

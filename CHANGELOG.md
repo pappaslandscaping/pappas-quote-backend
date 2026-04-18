@@ -2,6 +2,11 @@
 
 ## 2026-04-18
 
+### Live Copilot Schedule Historical Date Fetch Fix
+- Fixed `GET /api/copilot/live-jobs` so Schedule attempts a live Copilot fetch for each selected date before consulting mirrored rows
+- Mirror data is now used only when the live Copilot fetch fails or times out, and empty mirror reads no longer silently masquerade as successful live Schedule results
+- Added a parse-mismatch guard for selected-date live reads so Copilot responses that report events but parse zero jobs fail closed instead of showing misleading empty Schedule days
+
 ### Live Copilot Schedule Read Model
 - Added `GET /api/copilot/live-jobs` as the Schedule-facing read path backed by the merged live Copilot mirror/resolver foundation
 - Migrated Schedule day/week/month views to the shared Copilot-backed read model with freshness metadata and a read-only YardDesk office view

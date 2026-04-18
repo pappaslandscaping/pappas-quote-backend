@@ -88,6 +88,25 @@ function getDisplayInvoiceNumberForPaymentRow(row) {
   return null;
 }
 
+function getDisplayInvoiceReferenceForTaxSweepRow(row) {
+  const extractedInvoiceNumber = String(
+    row?.external_metadata?.extracted_invoice_number
+    || row?.extracted_invoice_number
+    || ''
+  ).trim();
+  if (extractedInvoiceNumber && !isDateLikeInvoiceLabel(extractedInvoiceNumber)) {
+    return extractedInvoiceNumber;
+  }
+
+  const invoiceNumber = String(row?.invoice_number || '').trim();
+  if (invoiceNumber && !isDateLikeInvoiceLabel(invoiceNumber)) {
+    return invoiceNumber;
+  }
+
+  if (invoiceNumber) return invoiceNumber;
+  return extractedInvoiceNumber || null;
+}
+
 function formatCopilotSyncError(error, fallback) {
   const message = String(error?.message || '').trim();
   if (!message) return fallback;
@@ -1474,10 +1493,7 @@ router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
 
     const payments = result.rows.map((row) => ({
       ...hydratePaymentRecord(row),
-      display_invoice_number: getDisplayInvoiceNumberForPaymentRow({
-        ...row,
-        external_source: row.invoice_external_source || row.external_source,
-      }),
+      display_invoice_number: getDisplayInvoiceReferenceForTaxSweepRow(row),
     }));
     const summary = payments.reduce((acc, payment) => {
       acc.payment_count += 1;

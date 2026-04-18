@@ -126,7 +126,7 @@ it('normalizes legacy linked Copilot invoice references in tax sweep detail rows
           imported_at: '2026-04-16T21:15:00.000Z',
           invoice_number: 'Sep 19, 2025',
           invoice_external_source: 'copilotcrm',
-          external_invoice_id: '9835',
+          external_invoice_id: '2329272',
           invoice_total: 120,
           invoice_tax_amount: 9.6,
         }],
@@ -150,6 +150,7 @@ it('normalizes legacy linked Copilot invoice references in tax sweep detail rows
   assert.strictEqual(res.body.payments.length, 1);
   assert.strictEqual(res.body.payments[0].invoice_number, 'Sep 19, 2025');
   assert.strictEqual(res.body.payments[0].display_invoice_number, '9835');
+  assert.notStrictEqual(res.body.payments[0].display_invoice_number, '2329272');
 });
 
 (async () => {

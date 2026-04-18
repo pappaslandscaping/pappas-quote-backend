@@ -801,7 +801,7 @@
             : {};
         const bits = [];
         if (payment.method) bits.push(escapeHtml(payment.method));
-        const invoiceRef = payment.invoice_number || meta.extracted_invoice_number || null;
+        const invoiceRef = payment.display_invoice_number || payment.invoice_number || meta.extracted_invoice_number || null;
         if (invoiceRef) bits.push(`Copilot ref #${escapeHtml(invoiceRef)}`);
         if (meta.extracted_invoice_date) bits.push(escapeHtml(shortDate(meta.extracted_invoice_date)));
         return bits.length ? `<div class="inline-note">${bits.join(' • ')}</div>` : '';
@@ -1270,7 +1270,7 @@
                             <strong>${escapeHtml(payment.customer_name || 'Unknown payer')}</strong>
                             ${paymentDetailNote(payment)}
                         </td>
-                        <td>${escapeHtml(payment.invoice_number || payment.external_metadata?.extracted_invoice_number || 'Unresolved')}</td>
+                        <td>${escapeHtml(payment.display_invoice_number || payment.invoice_number || payment.external_metadata?.extracted_invoice_number || 'Unresolved')}</td>
                         <td class="money">${money(payment.applied_amount)}</td>
                         <td class="money">${money(payment.tax_portion_collected)}</td>
                         <td>${payment.invoice_id ? '<span class="source-pill">Linked</span>' : '<span class="source-pill">Unresolved</span>'}</td>

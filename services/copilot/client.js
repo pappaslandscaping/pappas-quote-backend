@@ -182,13 +182,29 @@ function parseCopilotScheduleGridDayHtml(html) {
     const jobId = normalizeCellText($row.attr('data-row-job-id') || $row.attr('data-job-id'));
     const cells = $row.find('td');
 
-    const crewCell = parseCopilotScheduleCrewCell(cells.eq(2));
-    const customerCell = cells.eq(3);
+    // Grid/day rows include a leading checkbox column at index 0.
+    // Every business field is shifted by +1 compared to the route/day parser.
+    const dateCell = cells.eq(1);
+    const titleCell = cells.eq(2);
+    const crewCell = parseCopilotScheduleCrewCell(cells.eq(3));
+    const customerCell = cells.eq(4);
+    const propertyCell = cells.eq(5);
+    const addressCell = cells.eq(6);
+    const typeCell = cells.eq(7);
+    const invoiceableCell = cells.eq(8);
+    const frequencyCell = cells.eq(9);
+    const lastServicedCell = cells.eq(10);
+    const statusCell = cells.eq(11);
+    const notesCell = cells.eq(12);
+    const trackedTimeCell = cells.eq(13);
+    const budgetedHoursCell = cells.eq(14);
+    const visitTotalCell = cells.eq(15);
     const customerLink = customerCell.find('a').first();
     const customerName = normalizeCellText(customerLink.text() || customerCell.text());
     const customerHref = customerLink.attr('href') || '';
     const customerIdMatch = customerHref.match(/\/(\d+)(?:\/)?$/);
     const customerId = customerIdMatch ? customerIdMatch[1] : null;
+    const statusLabel = normalizeCellText(statusCell.find('.status-label').first().text());
 
     if (!eventId || !customerName) {
       return;
@@ -202,22 +218,22 @@ function parseCopilotScheduleGridDayHtml(html) {
       customer_name: customerName,
       crew_name: crewCell.crew_name || null,
       employees: crewCell.employees_text || null,
-      address: normalizeCellText(cells.eq(5).text()) || null,
-      status: normalizeCellText(cells.eq(10).text()) || null,
-      visit_total: normalizeCellText(cells.eq(14).text()) || null,
-      job_title: normalizeCellText(cells.eq(1).text()) || null,
+      address: normalizeCellText(addressCell.text()) || null,
+      status: statusLabel || normalizeCellText(statusCell.text()) || null,
+      visit_total: normalizeCellText(visitTotalCell.text()) || null,
+      job_title: normalizeCellText(titleCell.text()) || null,
       stop_order: null,
       raw_data: {
         source_surface: 'schedule_grid',
-        service_date_label: normalizeCellText(cells.eq(0).text()) || null,
-        property_name: normalizeCellText(cells.eq(4).text()) || null,
-        event_type: normalizeCellText(cells.eq(6).text()) || null,
-        invoiceable: normalizeCellText(cells.eq(7).text()) || null,
-        frequency: normalizeCellText(cells.eq(8).text()) || null,
-        last_serviced: normalizeCellText(cells.eq(9).text()) || null,
-        notes: normalizeCellText(cells.eq(11).text()) || null,
-        tracked_time: normalizeCellText(cells.eq(12).text()) || null,
-        budgeted_hours: normalizeCellText(cells.eq(13).text()) || null,
+        service_date_label: normalizeCellText(dateCell.text()) || null,
+        property_name: normalizeCellText(propertyCell.text()) || null,
+        event_type: normalizeCellText(typeCell.text()) || null,
+        invoiceable: normalizeCellText(invoiceableCell.text()) || null,
+        frequency: normalizeCellText(frequencyCell.text()) || null,
+        last_serviced: normalizeCellText(lastServicedCell.text()) || null,
+        notes: normalizeCellText(notesCell.text()) || null,
+        tracked_time: normalizeCellText(trackedTimeCell.text()) || null,
+        budgeted_hours: normalizeCellText(budgetedHoursCell.text()) || null,
       },
     });
   });

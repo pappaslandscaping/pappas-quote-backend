@@ -466,6 +466,46 @@
             color: var(--gray-500);
             margin-top: 8px;
         }
+        .helper-line.variance-helper {
+            margin-top: 14px;
+            max-width: 780px;
+            line-height: 1.5;
+        }
+        .disclosure {
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            background: #fff;
+            margin-top: 14px;
+            overflow: hidden;
+        }
+        .disclosure summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .disclosure summary::-webkit-details-marker {
+            display: none;
+        }
+        .disclosure summary::after {
+            content: '+';
+            color: var(--gray-500);
+            font-size: 18px;
+            line-height: 1;
+        }
+        .disclosure[open] summary::after {
+            content: '−';
+        }
+        .disclosure-body {
+            border-top: 1px solid var(--gray-200);
+            padding: 16px;
+        }
         .review-toolbar {
             display: flex;
             align-items: center;
@@ -841,6 +881,9 @@
                     <div class="summary-sub">Copilot collected tax minus backend reconstructed tax</div>
                 </div>
             </div>
+            <div class="helper-line variance-helper">
+                Negative variance can happen when Copilot&apos;s collected-tax basis differs from payment-level reconstruction. One common reason is Copilot netting processing fees before extracting collected tax, while backend reconstruction uses the full linked taxable gross basis.
+            </div>
         </section>
 
         <section class="split-grid">
@@ -901,6 +944,10 @@
                     <div>
                         This drill-down is for reconciliation. It helps explain the variance, but it does not replace the Copilot collected-tax recommendation.
                     </div>
+                </div>
+                <div class="callout hidden" id="detailVarianceExplanation" style="margin-bottom:14px;">
+                    <div id="detailVarianceExplanationIcon">ℹ️</div>
+                    <div id="detailVarianceExplanationText"></div>
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -1042,6 +1089,62 @@
         if (invoiceRef) bits.push(`Copilot ref #${escapeHtml(invoiceRef)}`);
         if (meta.extracted_invoice_date) bits.push(escapeHtml(shortDate(meta.extracted_invoice_date)));
         return bits.length ? `<div class="inline-note">${bits.join(' • ')}</div>` : '';
+    }
+
+    function getDayReport(date) {
+        return Array.isArray(currentReport?.days)
+            ? currentReport.days.find((day) => day.date === date) || null
+            : null;
+    }
+
+    function describeVarianceTooltip(day) {
+        const variance = Number(day?.variance || 0);
+        if (variance < -0.009 && Number(day?.processing_fees || 0) > 0) {
+            return `Negative variance may reflect Copilot netting ${money(day.processing_fees)} of processing fees before tax extraction.`;
+        }
+        if (variance < -0.009) {
+            return 'Negative variance means backend reconstructed tax is higher than Copilot collected tax for this day.';
+        }
+        if (variance > 0.009) {
+            return 'Positive variance means Copilot collected tax is higher than backend reconstructed tax for this day.';
+        }
+        return 'Copilot collected tax and backend reconstructed tax are aligned for this day.';
+    }
+
+    function renderDetailVarianceExplanation(day, detailSummary = {}) {
+        const callout = document.getElementById('detailVarianceExplanation');
+        const icon = document.getElementById('detailVarianceExplanationIcon');
+        const text = document.getElementById('detailVarianceExplanationText');
+        callout.classList.remove('warning', 'error', 'success', 'hidden');
+
+        const variance = Number(day?.variance || 0);
+        const processingFees = Number(day?.processing_fees || 0);
+        const linkedCount = Number(detailSummary?.linked_count || 0);
+
+        if (variance < -0.009 && processingFees > 0 && linkedCount > 0) {
+            callout.classList.add('warning');
+            icon.textContent = 'ℹ️';
+            text.textContent = `This negative variance likely comes from a basis mismatch: Copilot collected tax appears to net ${money(processingFees)} of processing fees before tax extraction, while backend reconstruction uses the full linked taxable gross basis from the payment and invoice link.`;
+            return;
+        }
+
+        if (variance < -0.009) {
+            callout.classList.add('warning');
+            icon.textContent = 'ℹ️';
+            text.textContent = 'This negative variance means backend reconstructed tax is higher than Copilot collected tax for the selected day because the two sides are using different reconciliation bases.';
+            return;
+        }
+
+        if (variance > 0.009) {
+            callout.classList.add('warning');
+            icon.textContent = 'ℹ️';
+            text.textContent = 'This positive variance means Copilot collected tax is higher than backend reconstructed tax for the selected day. Review linked and unresolved payment rows to see which basis is missing from the backend cross-check.';
+            return;
+        }
+
+        callout.classList.add('success');
+        icon.textContent = '✓';
+        text.textContent = 'No material variance is showing for the selected day. Copilot collected tax and backend payment reconstruction are effectively aligned.';
     }
 
     function setDefaultDates() {
@@ -1685,7 +1788,7 @@
                     <td class="money">${money(day.recommended_transfer_amount)}</td>
                     <td class="money">${money(day.copilot_collected_tax)}</td>
                     <td class="money">${money(day.backend_reconstructed_tax)}</td>
-                    <td><span class="variance-pill ${varianceClass}">${money(day.variance)}</span></td>
+                    <td><span class="variance-pill ${varianceClass}" title="${escapeHtml(describeVarianceTooltip(day))}">${money(day.variance)}</span></td>
                     <td><span class="source-pill">${fmtSource(day.source)}</span></td>
                     <td><span class="status-pill ${freshness.tone}">${freshness.label}</span></td>
                     <td>${longDateTime(day.snapshot_as_of)}</td>
@@ -1808,6 +1911,7 @@
         document.getElementById('detailPayments').textContent = '0';
         document.getElementById('detailLinked').textContent = '0';
         document.getElementById('detailUnresolved').textContent = '0';
+        document.getElementById('detailVarianceExplanation').classList.add('hidden');
         document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Select a day in the table to inspect payment-level reconciliation.</td></tr>';
     }
 
@@ -1889,8 +1993,10 @@
 
     async function selectDay(date) {
         selectedDay = date;
+        const day = getDayReport(date);
         if (currentReport?.days) renderDays(currentReport.days);
         document.getElementById('detailMeta').textContent = `Loading ${shortDate(date)}…`;
+        document.getElementById('detailVarianceExplanation').classList.add('hidden');
         document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Loading payment reconciliation detail…</td></tr>';
         try {
             const params = new URLSearchParams({
@@ -1906,6 +2012,7 @@
             document.getElementById('detailPayments').textContent = String(data.summary?.payment_count || 0);
             document.getElementById('detailLinked').textContent = String(data.summary?.linked_count || 0);
             document.getElementById('detailUnresolved').textContent = String(data.summary?.unresolved_count || 0);
+            renderDetailVarianceExplanation(day, data.summary || {});
 
             const payments = data.payments || [];
             document.getElementById('detailBody').innerHTML = payments.length

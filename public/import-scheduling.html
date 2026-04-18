@@ -40,6 +40,7 @@
         .results.success { background: #ecfdf5; border: 1px solid #6ee7b7; display: block; }
         .results.error { background: #fef2f2; border: 1px solid #fca5a5; display: block; }
         .results h3 { margin-bottom: 15px; color: var(--gray-700); }
+        .results-copy { margin-top: 16px; font-size: 14px; color: var(--gray-600); }
         .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
         .stat { background: var(--white); padding: 15px; border-radius: 8px; text-align: center; border: 1px solid var(--gray-200); }
         .stat-value { font-size: 28px; font-weight: 700; color: var(--forest); }
@@ -63,6 +64,10 @@
         .phone-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
         .phone-badge.has-phone { background: #dcfce7; color: #166534; }
         .phone-badge.no-phone { background: #fee2e2; color: #991b1b; }
+        .link-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .link-badge.linked, .link-badge.already_linked { background: #dcfce7; color: #166534; }
+        .link-badge.ambiguous { background: #fef3c7; color: #92400e; }
+        .link-badge.unmatched, .link-badge.conflict { background: #fee2e2; color: #991b1b; }
         .btn-reminder { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; text-decoration: none; }
         .btn-reminder:hover { background: #1d4ed8; }
     </style>
@@ -82,6 +87,7 @@
             <div class="instructions">
                 <strong>Expected CSV Format:</strong>
                 Export from CopilotCRM with columns: Date of Service, Title, Name / Details, Type, Status, Visit Notes, Crew Notes, Tags, Visit Total
+                <div style="margin-top:8px;">YardDesk now hydrates the matching Copilot route rows for the imported dates and links jobs only when there is exactly one strict match. Ambiguous or unmatched rows still import, but remain unlinked and are reported in the response.</div>
             </div>
 
             <form id="importForm">
@@ -107,6 +113,7 @@
                     <div class="stat"><div class="stat-value" id="statUpdated">0</div><div class="stat-label">Updated</div></div>
                     <div class="stat"><div class="stat-value" id="statSkipped">0</div><div class="stat-label">Skipped/Errors</div></div>
                 </div>
+                <div class="results-copy" id="linkageSummary"></div>
             </div>
         </div>
 
@@ -121,6 +128,7 @@
                             <th>Service</th>
                             <th>Address</th>
                             <th>Price</th>
+                            <th>Copilot Linkage</th>
                             <th>Phone Match</th>
                         </tr>
                     </thead>
@@ -198,6 +206,7 @@
                 document.getElementById('statImported').textContent = data.stats.imported;
                 document.getElementById('statUpdated').textContent = data.stats.updated || 0;
                 document.getElementById('statSkipped').textContent = data.stats.skipped;
+                renderLinkageSummary(data);
 
                 if (data.jobs && data.jobs.length > 0) {
                     renderJobsTable(data.jobs);
@@ -229,9 +238,35 @@
                 <td>${escapeHtml(job.service_type)}</td>
                 <td style="max-width:200px;font-size:13px">${escapeHtml(job.address || '-')}</td>
                 <td>$${Number(job.service_price).toFixed(2)}</td>
+                <td><span class="link-badge ${escapeHtml(job.copilot_linkage_status || 'unmatched')}">${escapeHtml(formatLinkageLabel(job.copilot_linkage_status, job.copilot_linkage_reason))}</span></td>
                 <td><span class="phone-badge ${job.phone ? 'has-phone' : 'no-phone'}">${job.phone ? 'Matched' : 'No match'}</span></td>
             </tr>
         `).join('');
+    }
+
+    function renderLinkageSummary(data) {
+        const hydration = data.copilot_hydration || {};
+        const linkage = data.copilot_linkage || {};
+        const parts = [];
+        if (hydration.skipped) {
+            parts.push('Copilot hydration skipped: ' + (hydration.reason || 'unknown reason') + '.');
+        } else {
+            parts.push(`Copilot hydration fetched ${hydration.fetched || 0} route rows across ${hydration.hydrated_dates || 0} date(s).`);
+        }
+        parts.push(`Linked ${linkage.linked || 0}, already linked ${linkage.already_linked || 0}, unmatched ${linkage.unmatched || 0}, ambiguous ${linkage.ambiguous || 0}, conflicts ${linkage.conflict || 0}.`);
+        if (Array.isArray(hydration.failed_dates) && hydration.failed_dates.length > 0) {
+            parts.push(`Hydration failed for ${hydration.failed_dates.length} date(s).`);
+        }
+        document.getElementById('linkageSummary').textContent = parts.join(' ');
+    }
+
+    function formatLinkageLabel(status, reason) {
+        if (status === 'linked') return 'Linked';
+        if (status === 'already_linked') return 'Already linked';
+        if (status === 'ambiguous') return 'Ambiguous';
+        if (status === 'conflict') return 'Conflict';
+        if (reason === 'no_strict_match') return 'Unmatched';
+        return status || 'Unmatched';
     }
 
     function escapeHtml(text) {

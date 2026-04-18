@@ -17,6 +17,11 @@
 - Added a protected manual `POST /api/copilot/dispatch-execution/sync` endpoint that fetches Copilot route status data, applies exact visit/job matching, supports `dry_run` and `force`, and updates only Copilot mirror fields
 - Added stale-event and unchanged-payload hash protections so older or identical Copilot execution payloads are skipped instead of rewriting local rows
 
+### Copilot Schedule Import Linkage
+- Added import-time Copilot route hydration for imported schedule dates so Copilot-origin CSV imports can persist the matching route snapshot into `copilot_sync_jobs` before linkage
+- Added strict deterministic schedule-import linkage that writes `copilot_visit_id` only when a CSV row has exactly one one-to-one match on service date, normalized customer name, normalized service title, normalized address, and optional exact price
+- Added import response diagnostics and operator-facing import UI messaging for linked, already-linked, unmatched, ambiguous, conflict, and hydration-failure outcomes without changing billing or canonical execution fields
+
 ## 2026-04-17
 
 ### Tax Transfers Automation Health

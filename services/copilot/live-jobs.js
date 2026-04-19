@@ -53,6 +53,19 @@ function parseJsonArray(value) {
   return [];
 }
 
+function parseJsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 function isValidIsoDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -107,6 +120,9 @@ function normalizeResolvedRow(row) {
   const mapLat = row.map_lat == null ? null : Number.parseFloat(row.map_lat);
   const mapLng = row.map_lng == null ? null : Number.parseFloat(row.map_lng);
   const sourceDeleted = !!row.source_deleted_at;
+  const rawPayload = parseJsonObject(row.raw_payload);
+  const rawData = parseJsonObject(rawPayload.raw_data);
+  const sourceSurface = rawData.source_surface || rawPayload.source_surface || null;
 
   return {
     job_key: row.job_key,
@@ -127,6 +143,16 @@ function normalizeResolvedRow(row) {
       employees_text: row.source_employees_text || null,
       stop_order: row.source_stop_order ?? null,
       address: row.address_raw || null,
+      property_name: rawData.property_name || null,
+      event_type: rawData.event_type || null,
+      invoiceable: rawData.invoiceable || null,
+      frequency: rawData.frequency || null,
+      last_serviced: rawData.last_serviced || null,
+      notes: rawData.notes || null,
+      tracked_time: rawData.tracked_time || null,
+      budgeted_hours: rawData.budgeted_hours || null,
+      service_date_label: rawData.service_date_label || null,
+      source_surface: sourceSurface,
     },
     overlay: {
       exists: overlayExists,
@@ -400,7 +426,10 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     address,
     service_type: job.source.job_title || 'Service',
     service_title: job.source.job_title || 'Service',
-    service_frequency: null,
+    service_frequency: job.source.frequency || null,
+    property_name: job.source.property_name || null,
+    copilot_event_type: job.source.event_type || null,
+    copilot_invoiceable_status: job.source.invoiceable || null,
     service_price: job.source.visit_total ?? null,
     service_price_raw: job.source.visit_total ?? null,
     crew_assigned: job.resolved.effective_crew_name || null,
@@ -408,9 +437,12 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     crew_members_text: job.source.employees_text || null,
     status: normalizeCopilotLiveStatus(job.source.status),
     status_raw: job.source.status || null,
+    last_serviced: job.source.last_serviced || null,
     route_order: routeOrder,
     stop_order: routeOrder,
     estimated_duration: 30,
+    tracked_time: job.source.tracked_time || null,
+    budgeted_hours: job.source.budgeted_hours || null,
     start_time: null,
     end_time: null,
     special_notes: job.overlay.office_note || null,

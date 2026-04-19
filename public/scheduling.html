@@ -506,8 +506,8 @@
             cursor: pointer;
             position: relative;
             margin-bottom: 0;
-            grid-template-columns: 28px 40px minmax(320px, 3fr) minmax(170px, 1.2fr) 96px 108px;
-            gap: 18px;
+            grid-template-columns: 28px 40px minmax(420px, 3.8fr) minmax(160px, 1.15fr) minmax(72px, auto) minmax(88px, auto);
+            gap: 14px;
             padding: 16px 18px;
             align-items: start;
         }
@@ -601,11 +601,13 @@
             font-size: 16px;
             letter-spacing: -0.02em;
             padding-top: 4px;
+            white-space: nowrap;
         }
         .job-row .job-status {
             justify-content: flex-end;
             align-items: flex-start;
             padding-top: 2px;
+            white-space: nowrap;
         }
         .job-row .job-status .status-pill {
             min-width: 88px;
@@ -656,10 +658,10 @@
         .job-action-btn.action-map { background: var(--gray-100); color: var(--gray-600); }
         .job-action-btn.action-map:hover { background: var(--primary); color: white; }
 
-        @media (max-width: 1240px) {
+        @media (max-width: 1120px) {
             .job-row {
-                grid-template-columns: 28px 40px minmax(240px, 2.2fr) minmax(150px, 1fr) 92px 104px;
-                gap: 14px;
+                grid-template-columns: 28px 40px minmax(280px, 2.6fr) minmax(140px, 1fr) minmax(72px, auto) 96px;
+                gap: 12px;
             }
             .job-row .job-service-line {
                 flex-wrap: wrap;

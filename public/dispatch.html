@@ -531,6 +531,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 Print Sheet
             </button>
+            <button class="btn btn-secondary no-print" onclick="exportDispatchWorkbook()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                Export Workbook
+            </button>
             <button class="btn btn-secondary no-print" onclick="openRouteTemplateLibrary()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18"/><path d="M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
                 Route Patterns
@@ -1358,6 +1362,46 @@ async function applyRouteTemplate(templateId) {
         showToast(`Applied ${data.template.name} — ${summary}${notes.length ? ` (${notes.join(', ')})` : ''}`);
         closeModal('routeTemplateLibraryModal');
         loadBoard();
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+async function exportDispatchWorkbook() {
+    if (!boardData) {
+        showToast('Dispatch board is still loading.', 'error');
+        return;
+    }
+    const visibleCrews = getVisibleCrewNames();
+    if (!visibleCrews.length) {
+        showToast('No visible crews selected for export.', 'error');
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams({
+            date: formatDate(currentDate),
+            visible_crews: visibleCrews.join(','),
+        });
+        const res = await fetch(`/api/dispatch/route-sheet-export?${params.toString()}`);
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to export route workbook');
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const datePart = formatDate(currentDate);
+        const crewPart = visibleCrews.length === 1
+            ? visibleCrews[0].replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase()
+            : 'multi-crew';
+        link.href = url;
+        link.download = `dispatch-route-sheets-${crewPart}-${datePart}.xml`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        showToast(`Exported workbook for ${visibleCrews.length === 1 ? visibleCrews[0] : `${visibleCrews.length} crews`}`);
     } catch (err) {
         showToast('Failed: ' + err.message, 'error');
     }

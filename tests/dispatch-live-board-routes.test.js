@@ -24,8 +24,21 @@ function makeResponse() {
   return {
     statusCode: 200,
     body: null,
+    headers: {},
     status(code) {
       this.statusCode = code;
+      return this;
+    },
+    setHeader(name, value) {
+      this.headers[name] = value;
+      return this;
+    },
+    type(value) {
+      this.headers['Content-Type'] = value;
+      return this;
+    },
+    send(payload) {
+      this.body = payload;
       return this;
     },
     json(payload) {
@@ -179,6 +192,86 @@ describe('dispatch live board route', () => {
       }],
       unassigned: [{ id: 'copilot:2026-04-20:45002621' }],
     });
+  });
+
+  test('exports a multi-sheet route workbook from the live visible crew set', async () => {
+    const pool = {
+      query: jest.fn().mockResolvedValueOnce({
+        rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+      }),
+    };
+    getCopilotLiveJobs.mockResolvedValue({
+      freshness: null,
+      jobs: [
+        {
+          id: 'copilot:2026-04-20:45002620',
+          job_key: 'copilot:2026-04-20:45002620',
+          source_system: 'copilot',
+          source_kind: 'live_schedule',
+          job_date: '2026-04-20',
+          service_date: '2026-04-20',
+          visit_id: '45002620',
+          customer_name: 'Angela Ziegler',
+          address: '3445 West 131st Street Cleveland OH 44111, US',
+          service_type: 'Mowing',
+          service_price: 36,
+          crew_assigned: 'Crew A',
+          route_order: 1,
+          estimated_duration: 30,
+          status: 'pending',
+          special_notes: 'No edge',
+          hold_from_dispatch: false,
+        },
+        {
+          id: 'copilot:2026-04-20:45002621',
+          job_key: 'copilot:2026-04-20:45002621',
+          source_system: 'copilot',
+          source_kind: 'live_schedule',
+          job_date: '2026-04-20',
+          service_date: '2026-04-20',
+          visit_id: '45002621',
+          customer_name: 'Unassigned Customer',
+          address: '1 Main St, Lakewood OH',
+          service_type: 'Cleanup',
+          service_price: 120,
+          crew_assigned: null,
+          route_order: null,
+          estimated_duration: 45,
+          status: 'pending',
+          hold_from_dispatch: false,
+        },
+      ],
+    });
+
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/route-sheet-export', 'get', {
+      query: {
+        date: '2026-04-20',
+        visible_crews: 'Crew A,__unassigned',
+      },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledWith(expect.objectContaining({
+      poolClient: pool,
+      date: '2026-04-20',
+      startDate: '2026-04-20',
+      endDate: '2026-04-20',
+    }));
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Content-Type']).toContain('application/vnd.ms-excel');
+    expect(res.headers['Content-Disposition']).toContain('dispatch-route-sheets-2026-04-20.xml');
+    expect(res.body).toContain('<Worksheet ss:Name="Crew A">');
+    expect(res.body).toContain('<Worksheet ss:Name="Unassigned">');
+    expect(res.body).toContain('Angela Ziegler');
+    expect(res.body).toContain('Unassigned Customer');
   });
 
   test('persists live dispatch assignment overrides by Copilot job key', async () => {

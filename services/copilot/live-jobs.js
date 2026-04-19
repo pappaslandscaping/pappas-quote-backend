@@ -461,6 +461,128 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
   };
 }
 
+function mapScheduleJobToDispatchJob(job) {
+  const normalizedId = job?.id == null ? null : String(job.id);
+  const routeOrder = job?.route_order ?? job?.stop_order ?? null;
+  const estimatedDuration = Number(job?.estimated_duration);
+  const lat = job?.lat == null ? null : Number(job.lat);
+  const lng = job?.lng == null ? null : Number(job.lng);
+
+  return {
+    id: normalizedId,
+    job_key: normalizedId,
+    source_system: job?.source_system || COPILOT_SOURCE_SYSTEM,
+    source_kind: 'live_dispatch',
+    is_read_only: true,
+    can_assign: false,
+    can_edit: false,
+    can_complete: false,
+    can_delete: false,
+    can_geocode: false,
+    can_optimize: false,
+    job_date: job?.job_date || job?.service_date || null,
+    service_date: job?.service_date || job?.job_date || null,
+    visit_id: job?.visit_id || job?.copilot_visit_id || null,
+    copilot_visit_id: job?.copilot_visit_id || job?.visit_id || null,
+    job_id: job?.job_id || null,
+    copilot_job_id: job?.copilot_job_id || null,
+    customer_id: job?.customer_id ?? null,
+    local_customer_id: job?.local_customer_id ?? null,
+    customer_name: job?.customer_name || 'Unknown',
+    phone: job?.phone || null,
+    email: job?.email || null,
+    address: normalizeScheduleAddress(job?.address || ''),
+    cust_street: null,
+    cust_city: null,
+    cust_state: null,
+    cust_zip: null,
+    service_type: job?.service_type || job?.service_title || 'Service',
+    service_title: job?.service_title || job?.service_type || 'Service',
+    service_frequency: job?.service_frequency || null,
+    service_price: job?.service_price ?? null,
+    crew_assigned: job?.crew_assigned || null,
+    crew_name: job?.crew_name || job?.crew_assigned || null,
+    crew_members_text: job?.crew_members_text || null,
+    status: normalizeCopilotLiveStatus(job?.status_raw || job?.status),
+    status_raw: job?.status_raw || job?.status || null,
+    route_order: routeOrder,
+    stop_order: routeOrder,
+    estimated_duration: Number.isFinite(estimatedDuration) ? estimatedDuration : 30,
+    special_notes: job?.special_notes || null,
+    property_notes: job?.property_notes || null,
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    geocode_quality: job?.geocode_quality || null,
+    has_street_address: !!job?.has_street_address,
+    geocode_address: job?.geocode_address || '',
+    hold_from_dispatch: !!job?.hold_from_dispatch,
+    source_deleted: !!job?.source_deleted,
+  };
+}
+
+function buildDispatchBoardPayload({
+  targetDate,
+  view = 'day',
+  jobs = [],
+  crews = [],
+  freshness = null,
+} = {}) {
+  const dispatchJobs = jobs
+    .filter((job) => !job?.hold_from_dispatch && !job?.source_deleted)
+    .map(mapScheduleJobToDispatchJob);
+
+  const crewMap = {};
+  crews.forEach((crew) => {
+    crewMap[crew.name] = {
+      id: crew.id,
+      name: crew.name,
+      members: crew.members || '',
+      color: crew.color || '#059669',
+      jobs: [],
+      totalHours: 0,
+      jobCount: 0,
+    };
+  });
+
+  const unassigned = [];
+  dispatchJobs.forEach((job) => {
+    const durationHours = (job.estimated_duration || 30) / 60;
+    if (!job.crew_assigned) {
+      unassigned.push(job);
+      return;
+    }
+
+    if (!crewMap[job.crew_assigned]) {
+      crewMap[job.crew_assigned] = {
+        id: null,
+        name: job.crew_assigned,
+        members: '',
+        color: '#6e726e',
+        jobs: [],
+        totalHours: 0,
+        jobCount: 0,
+      };
+    }
+
+    crewMap[job.crew_assigned].jobs.push(job);
+    crewMap[job.crew_assigned].totalHours += durationHours;
+    crewMap[job.crew_assigned].jobCount += 1;
+  });
+
+  return {
+    success: true,
+    date: targetDate,
+    view,
+    source_system: COPILOT_SOURCE_SYSTEM,
+    source_kind: 'live_dispatch',
+    read_only: true,
+    read_only_reason: 'Dispatch is reading the shared live Copilot-backed job set. Legacy write actions remain disabled until dispatch plan writes move onto the live model.',
+    freshness,
+    crews: Object.values(crewMap),
+    unassigned,
+  };
+}
+
 function buildLiveJobStats(jobs = []) {
   const byStatus = {};
   const byCrew = {};
@@ -696,6 +818,7 @@ async function getCopilotLiveJobs({
 module.exports = {
   COPILOT_SOURCE_SYSTEM,
   buildCopilotJobKey,
+  buildDispatchBoardPayload,
   buildLiveJobDaySummaries,
   buildLiveJobStats,
   buildScheduleGeocodeFields,
@@ -705,6 +828,7 @@ module.exports = {
   fetchLiveCopilotScheduleDate,
   getCopilotLiveJobs,
   isValidIsoDate,
+  mapScheduleJobToDispatchJob,
   mapResolvedLiveJobToScheduleJob,
   normalizeCopilotLiveStatus,
   normalizeResolvedRow,

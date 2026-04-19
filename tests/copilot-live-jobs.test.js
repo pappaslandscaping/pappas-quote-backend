@@ -1,7 +1,9 @@
 const {
+  buildDispatchBoardPayload,
   buildCopilotJobKey,
   fetchLiveCopilotScheduleDate,
   getCopilotLiveJobs,
+  mapScheduleJobToDispatchJob,
   mapResolvedLiveJobToScheduleJob,
   normalizeResolvedRow,
   parseVisitTotal,
@@ -449,6 +451,116 @@ describe('copilot live jobs service', () => {
       has_street_address: true,
       geocode_address: '123 Main St, Lakewood OH',
     });
+  });
+
+  test('mapScheduleJobToDispatchJob preserves live dispatch fields without creating local truth', () => {
+    const mapped = mapScheduleJobToDispatchJob({
+      id: 'copilot:2026-04-18:visit-101',
+      source_system: 'copilot',
+      job_date: '2026-04-18',
+      service_date: '2026-04-18',
+      visit_id: 'visit-101',
+      customer_name: 'Jane Doe',
+      address: '123 Main St, Lakewood OH',
+      service_type: 'Spring Cleanup',
+      service_frequency: 'Weekly',
+      service_price: 120.5,
+      crew_assigned: 'Crew A',
+      crew_members_text: 'Tim, Rob',
+      status: 'in_progress',
+      status_raw: 'Started',
+      route_order: 2,
+      estimated_duration: 45,
+      special_notes: 'Gate code on file',
+      lat: 41.4767,
+      lng: -81.8123,
+      geocode_quality: 'street',
+      hold_from_dispatch: false,
+    });
+
+    expect(mapped).toMatchObject({
+      id: 'copilot:2026-04-18:visit-101',
+      source_kind: 'live_dispatch',
+      is_read_only: true,
+      can_assign: false,
+      can_geocode: false,
+      job_date: '2026-04-18',
+      visit_id: 'visit-101',
+      customer_name: 'Jane Doe',
+      address: '123 Main St, Lakewood OH',
+      service_type: 'Spring Cleanup',
+      service_frequency: 'Weekly',
+      service_price: 120.5,
+      crew_assigned: 'Crew A',
+      status: 'in_progress',
+      route_order: 2,
+      estimated_duration: 45,
+      lat: 41.4767,
+      lng: -81.8123,
+      geocode_quality: 'street',
+    });
+  });
+
+  test('buildDispatchBoardPayload groups live jobs by crew and keeps held jobs out of Dispatch', () => {
+    const payload = buildDispatchBoardPayload({
+      targetDate: '2026-04-18',
+      view: 'day',
+      freshness: { source: 'live', stale: false },
+      crews: [{ id: 1, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+      jobs: [
+        {
+          id: 'copilot:2026-04-18:visit-101',
+          customer_name: 'Jane Doe',
+          address: '123 Main St',
+          service_type: 'Spring Cleanup',
+          service_price: 120.5,
+          crew_assigned: 'Crew A',
+          route_order: 2,
+          estimated_duration: 45,
+          status: 'completed',
+          lat: 41.4767,
+          lng: -81.8123,
+          geocode_quality: 'street',
+        },
+        {
+          id: 'copilot:2026-04-18:visit-102',
+          customer_name: 'John Roe',
+          address: '45 Elm St',
+          service_type: 'Mulch',
+          service_price: 250,
+          crew_assigned: null,
+          estimated_duration: 30,
+          status: 'pending',
+        },
+        {
+          id: 'copilot:2026-04-18:visit-103',
+          customer_name: 'Held Job',
+          address: '99 Oak St',
+          service_type: 'Mowing',
+          service_price: 75,
+          crew_assigned: 'Crew A',
+          hold_from_dispatch: true,
+          estimated_duration: 30,
+          status: 'pending',
+        },
+      ],
+    });
+
+    expect(payload).toMatchObject({
+      success: true,
+      source_kind: 'live_dispatch',
+      read_only: true,
+      freshness: { source: 'live', stale: false },
+    });
+    expect(payload.crews).toHaveLength(1);
+    expect(payload.crews[0]).toMatchObject({
+      name: 'Crew A',
+      jobCount: 1,
+      totalHours: 0.75,
+    });
+    expect(payload.crews[0].jobs).toHaveLength(1);
+    expect(payload.unassigned).toHaveLength(1);
+    expect(payload.unassigned[0].id).toBe('copilot:2026-04-18:visit-102');
   });
 
   test('fetchLiveCopilotScheduleDate fetches and persists a selected date from schedule grid/day', async () => {

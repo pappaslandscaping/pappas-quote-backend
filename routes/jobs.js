@@ -11,6 +11,10 @@ const {
   getCopilotToken,
   fetchCopilotRouteJobsForDate,
 } = require('../services/copilot/client');
+const {
+  buildDispatchBoardPayload,
+  getCopilotLiveJobs,
+} = require('../services/copilot/live-jobs');
 
 const VALID_JOB_STATUSES = new Set(['pending', 'in_progress', 'completed', 'skipped', 'cancelled']);
 const COPILOT_SYNCABLE_STATUSES = new Map([
@@ -2347,7 +2351,8 @@ router.get('/api/dispatch/board', async (req, res) => {
   try {
     const { date, view = 'day' } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
-    let dateCondition, params;
+    let startDate = null;
+    let endDate = null;
     if (view === 'week') {
       // Get Monday of the week
       const d = new Date(targetDate);
@@ -2356,41 +2361,28 @@ router.get('/api/dispatch/board', async (req, res) => {
       monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      dateCondition = `sj.job_date::date BETWEEN $1::date AND $2::date`;
-      params = [monday.toISOString().split('T')[0], sunday.toISOString().split('T')[0]];
+      startDate = monday.toISOString().split('T')[0];
+      endDate = sunday.toISOString().split('T')[0];
     } else {
-      dateCondition = `sj.job_date::date = $1::date`;
-      params = [targetDate];
+      startDate = targetDate;
+      endDate = targetDate;
     }
-    const jobs = await pool.query(`SELECT sj.*, sj.lat::float as lat, sj.lng::float as lng,
-       c.street AS cust_street, c.city AS cust_city, c.state AS cust_state, c.postal_code AS cust_zip
-       FROM scheduled_jobs sj
-       LEFT JOIN customers c ON sj.customer_id = c.id
-       WHERE ${dateCondition} ORDER BY sj.route_order ASC NULLS LAST, sj.customer_name`, params);
-    const crews = await pool.query('SELECT * FROM crews ORDER BY name');
 
-    // Group jobs by crew
-    const crewMap = {};
-    for (const crew of crews.rows) {
-      crewMap[crew.name] = { id: crew.id, name: crew.name, members: crew.members || '', color: crew.color || '#059669', jobs: [], totalHours: 0, jobCount: 0 };
-    }
-    const unassigned = [];
-    for (const job of jobs.rows) {
-      if (job.crew_assigned && crewMap[job.crew_assigned]) {
-        crewMap[job.crew_assigned].jobs.push(job);
-        crewMap[job.crew_assigned].totalHours += (job.estimated_duration || 30) / 60;
-        crewMap[job.crew_assigned].jobCount++;
-      } else if (job.crew_assigned) {
-        // Crew exists in job but not in crews table — create entry
-        if (!crewMap[job.crew_assigned]) crewMap[job.crew_assigned] = { id: null, name: job.crew_assigned, members: '', color: '#6e726e', jobs: [], totalHours: 0, jobCount: 0 };
-        crewMap[job.crew_assigned].jobs.push(job);
-        crewMap[job.crew_assigned].totalHours += (job.estimated_duration || 30) / 60;
-        crewMap[job.crew_assigned].jobCount++;
-      } else {
-        unassigned.push(job);
-      }
-    }
-    res.json({ success: true, date: targetDate, view, crews: Object.values(crewMap), unassigned });
+    const livePayload = await getCopilotLiveJobs({
+      poolClient: pool,
+      date: startDate === endDate ? targetDate : null,
+      startDate,
+      endDate,
+      fetchImpl,
+    });
+    const crews = await pool.query('SELECT * FROM crews ORDER BY name');
+    res.json(buildDispatchBoardPayload({
+      targetDate,
+      view,
+      jobs: livePayload.jobs || [],
+      crews: crews.rows || [],
+      freshness: livePayload.freshness || null,
+    }));
   } catch (error) { serverError(res, error); }
 });
 

@@ -1606,6 +1606,11 @@ let initialStatusFilter = '';
 let initialCrewFilter = '';
 let scheduleFreshness = null;
 let scheduleReadOnly = true;
+let scheduleRenderDiagnostics = {
+    lastLoadError: null,
+    rowErrors: [],
+    timedJobWarnings: [],
+};
 
 function isReadOnlyJob(job) {
     return !job || job.is_read_only !== false;
@@ -1667,6 +1672,70 @@ function updateLiveScheduleBanner(data) {
     const fetchedAt = formatFreshnessTimestamp(scheduleFreshness.fetched_at);
     const staleNote = scheduleFreshness.stale ? ' Using mirrored fallback.' : '';
     meta.textContent = `${source} data · fetched ${fetchedAt}.${staleNote} Legacy import remains fallback only.`;
+}
+
+function normalizeScheduleString(value, fallback = '') {
+    if (value == null) return fallback;
+    return typeof value === 'string' ? value : String(value);
+}
+
+function normalizeScheduleStatus(value) {
+    const status = normalizeScheduleString(value, 'pending').trim().toLowerCase().replace(/\s+/g, '_');
+    return status || 'pending';
+}
+
+function normalizeScheduleMoney(value) {
+    if (value == null || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const numeric = Number.parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(numeric) ? numeric : null;
+}
+
+function normalizeScheduleJobForRender(job = {}) {
+    return {
+        ...job,
+        id: job.id,
+        customer_name: normalizeScheduleString(job.customer_name, 'Unknown'),
+        address: normalizeScheduleString(job.address),
+        service_type: normalizeScheduleString(job.service_type, 'Service'),
+        crew_assigned: normalizeScheduleString(job.crew_assigned),
+        status: normalizeScheduleStatus(job.status),
+        service_price_value: normalizeScheduleMoney(job.service_price),
+        start_time: typeof job.start_time === 'string' ? job.start_time : '',
+        end_time: typeof job.end_time === 'string' ? job.end_time : '',
+    };
+}
+
+function buildScheduleMapAddress(job) {
+    const customerName = normalizeScheduleString(job.customer_name, 'Unknown');
+    let fullAddress = normalizeScheduleString(job.address);
+    if (fullAddress && !/^\d/.test(fullAddress.trim())) {
+        const streetMatch = customerName.match(/\d+\s+[\w\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Circle|Cir|Place|Pl)/i);
+        if (streetMatch) {
+            fullAddress = streetMatch[0] + ', ' + fullAddress;
+        }
+    }
+    return fullAddress;
+}
+
+function recordScheduleRenderIssue(kind, details) {
+    const normalized = {
+        kind,
+        details,
+        date: selectedDate,
+        recorded_at: new Date().toISOString(),
+    };
+    if (kind === 'row_error') {
+        scheduleRenderDiagnostics.rowErrors.push(normalized);
+        scheduleRenderDiagnostics.rowErrors = scheduleRenderDiagnostics.rowErrors.slice(-10);
+    } else if (kind === 'timed_job_warning') {
+        scheduleRenderDiagnostics.timedJobWarnings.push(normalized);
+        scheduleRenderDiagnostics.timedJobWarnings = scheduleRenderDiagnostics.timedJobWarnings.slice(-10);
+    } else if (kind === 'load_error') {
+        scheduleRenderDiagnostics.lastLoadError = normalized;
+    }
+    window.__scheduleRenderDiagnostics = scheduleRenderDiagnostics;
+    console.error('[Schedule Diagnostics]', normalized);
 }
 
 async function fetchScheduleJobs(params = {}) {
@@ -1929,7 +1998,17 @@ async function loadJobs() {
             initialStatusFilter = '';
         }
         renderJobs();
-    } catch (e) { console.error(e); document.getElementById('jobsList').innerHTML = '<div class="empty-state"><p>Failed to load jobs</p></div>'; }
+    } catch (e) {
+        recordScheduleRenderIssue('load_error', {
+            message: e?.message || String(e),
+            stack: e?.stack || null,
+        });
+        const timeSlotView = document.getElementById('timeSlotView');
+        const jobsList = document.getElementById('jobsList');
+        if (timeSlotView) timeSlotView.style.display = 'none';
+        if (jobsList) jobsList.style.display = 'block';
+        document.getElementById('jobsList').innerHTML = '<div class="empty-state"><p>Failed to load jobs</p></div>';
+    }
 }
 
 function renderJobs() {
@@ -1937,7 +2016,9 @@ function renderJobs() {
     const crew = document.getElementById('crewFilter').value;
     const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
     
-    let filtered = allJobs.filter(j => {
+    const normalizedJobs = allJobs.map(normalizeScheduleJobForRender);
+
+    let filtered = normalizedJobs.filter(j => {
         if (status && j.status !== status) return false;
         if (crew === 'unassigned') {
             if (j.crew_assigned) return false;
@@ -1993,54 +2074,78 @@ function renderJobs() {
         return;
     }
     
-    document.getElementById('jobsList').innerHTML = filtered.map((j, i) => {
-        const serviceType = (j.service_type || '').toLowerCase();
-        let tagClass = 'tag-mowing';
-        if (serviceType.includes('cleanup') || serviceType.includes('clean up') || serviceType.includes('spring')) tagClass = 'tag-cleanup';
-        else if (serviceType.includes('mulch')) tagClass = 'tag-mulch';
-        else if (serviceType.includes('fertil')) tagClass = 'tag-fertilizer';
-        else if (serviceType.includes('aerat')) tagClass = 'tag-aeration';
-        else if (serviceType.includes('snow') || serviceType.includes('plow')) tagClass = 'tag-snow';
-        
-        // Build full address - extract street from customer_name if needed
-        let fullAddress = j.address || '';
-        // Check if address doesn't have a street number (just city/state/zip)
-        if (fullAddress && !/^\d/.test(fullAddress.trim())) {
-            // Try to extract street address from customer_name (format: "Name 1234 Street Name")
-            const streetMatch = j.customer_name.match(/\d+\s+[\w\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Circle|Cir|Place|Pl)/i);
-            if (streetMatch) {
-                fullAddress = streetMatch[0] + ', ' + fullAddress;
-            }
-        }
-        const mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(fullAddress);
-        const statusClass = j.status === 'completed' ? 'is-completed' : (j.status === 'in_progress' ? 'is-in_progress' : '');
-        const crewClass = j.crew_assigned ? '' : 'unassigned';
-        
-        const statusLabel = (j.status || 'pending').replace('_', ' ');
-        const isUnassigned = !j.crew_assigned;
-        return `
-            <div class="job-row ${statusClass}" data-id="${j.id}">
-                ${scheduleReadOnly ? '' : `<div class="job-check" onclick="event.stopPropagation()"><input type="checkbox" ${selectedJobIds.has(j.id) ? 'checked' : ''} onchange="toggleJobSelect(${JSON.stringify(j.id)})"></div>`}
-                <div class="job-seq">${j.route_order || (i + 1)}</div>
-                <div class="job-main">
-                    <div class="job-customer">${esc(j.customer_name)}</div>
-                    <div class="job-tags">
-                        <span class="tag ${tagClass}">${esc(j.service_type)}</span>
+    const rowMarkup = filtered.map((j, i) => {
+        try {
+            const serviceType = normalizeScheduleString(j.service_type).toLowerCase();
+            let tagClass = 'tag-mowing';
+            if (serviceType.includes('cleanup') || serviceType.includes('clean up') || serviceType.includes('spring')) tagClass = 'tag-cleanup';
+            else if (serviceType.includes('mulch')) tagClass = 'tag-mulch';
+            else if (serviceType.includes('fertil')) tagClass = 'tag-fertilizer';
+            else if (serviceType.includes('aerat')) tagClass = 'tag-aeration';
+            else if (serviceType.includes('snow') || serviceType.includes('plow')) tagClass = 'tag-snow';
+
+            const fullAddress = buildScheduleMapAddress(j);
+            const mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(fullAddress);
+            const statusClass = j.status === 'completed' ? 'is-completed' : (j.status === 'in_progress' ? 'is-in_progress' : '');
+            const statusLabel = normalizeScheduleString(j.status || 'pending', 'pending').replace(/_/g, ' ');
+            const isUnassigned = !j.crew_assigned;
+            const priceLabel = j.service_price_value == null ? '—' : '$' + j.service_price_value.toFixed(0);
+
+            return `
+                <div class="job-row ${statusClass}" data-id="${esc(j.id)}">
+                    ${scheduleReadOnly ? '' : `<div class="job-check" onclick="event.stopPropagation()"><input type="checkbox" ${selectedJobIds.has(j.id) ? 'checked' : ''} onchange="toggleJobSelect(${JSON.stringify(j.id)})"></div>`}
+                    <div class="job-seq">${j.route_order || (i + 1)}</div>
+                    <div class="job-main">
+                        <div class="job-customer">${esc(j.customer_name)}</div>
+                        <div class="job-tags">
+                            <span class="tag ${tagClass}">${esc(j.service_type)}</span>
+                        </div>
+                    </div>
+                    <div class="job-address">
+                        <a href="${mapUrl}" target="_blank" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none">${esc(j.address)}</a>
+                    </div>
+                    <div class="job-price">${priceLabel}</div>
+                    <div class="job-assignment">
+                        <span class="assignment-pill ${isUnassigned ? 'unassigned' : ''}"><span class="dot"></span>${esc(j.crew_assigned || 'Unassigned')}</span>
+                    </div>
+                    <div class="job-status">
+                        <span class="status-pill ${j.status === 'completed' ? 'success' : j.status === 'in_progress' ? 'info' : j.status === 'cancelled' ? 'danger' : 'warning'}">${esc(statusLabel)}</span>
                     </div>
                 </div>
-                <div class="job-address">
-                    <a href="${mapUrl}" target="_blank" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none">${esc(j.address)}</a>
+            `;
+        } catch (error) {
+            recordScheduleRenderIssue('row_error', {
+                job_id: j?.id ?? null,
+                customer_name: j?.customer_name ?? null,
+                address: j?.address ?? null,
+                service_type: j?.service_type ?? null,
+                crew_assigned: j?.crew_assigned ?? null,
+                status: j?.status ?? null,
+                message: error?.message || String(error),
+            });
+            return `
+                <div class="job-row" data-id="${esc(j?.id)}">
+                    <div class="job-seq">${j?.route_order || (i + 1)}</div>
+                    <div class="job-main">
+                        <div class="job-customer">Unable to render job</div>
+                        <div class="job-tags">
+                            <span class="tag tag-cleanup">Render warning</span>
+                        </div>
+                    </div>
+                    <div class="job-address">Check console diagnostics</div>
+                    <div class="job-price">—</div>
+                    <div class="job-assignment">
+                        <span class="assignment-pill unassigned"><span class="dot"></span>Unknown</span>
+                    </div>
+                    <div class="job-status">
+                        <span class="status-pill warning">warning</span>
+                    </div>
                 </div>
-                <div class="job-price">${j.service_price ? '$' + parseFloat(j.service_price).toFixed(0) : '—'}</div>
-                <div class="job-assignment">
-                    <span class="assignment-pill ${isUnassigned ? 'unassigned' : ''}"><span class="dot"></span>${esc(j.crew_assigned || 'Unassigned')}</span>
-                </div>
-                <div class="job-status">
-                    <span class="status-pill ${j.status === 'completed' ? 'success' : j.status === 'in_progress' ? 'info' : j.status === 'cancelled' ? 'danger' : 'warning'}">${statusLabel}</span>
-                </div>
-            </div>
-        `;
+            `;
+        }
     }).join('');
+
+    document.getElementById('jobsList').innerHTML = rowMarkup;
 
     // Add click handlers
     document.querySelectorAll('.job-row').forEach(card => {
@@ -2108,27 +2213,28 @@ function buildCompletionSection(j) {
 function openPanel(id) {
     const j = allJobs.find(x => String(x.id) === String(id));
     if (!j) return;
+    const safeJob = normalizeScheduleJobForRender(j);
 
     document.getElementById('panelBody').innerHTML =
         '<div class="panel-section"><div class="panel-section-title">Customer</div>' +
-        '<div class="panel-field"><span class="panel-field-label">Name</span><span class="panel-field-value">' + esc(j.customer_name) + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Phone</span><span class="panel-field-value">' + (j.phone ? '<a href="tel:' + esc(j.phone) + '">' + esc(j.phone) + '</a>' : '\u2014') + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Address</span><span class="panel-field-value">' + esc(j.address) + '</span></div></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Name</span><span class="panel-field-value">' + esc(safeJob.customer_name) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Phone</span><span class="panel-field-value">' + (safeJob.phone ? '<a href="tel:' + esc(safeJob.phone) + '">' + esc(safeJob.phone) + '</a>' : '\u2014') + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Address</span><span class="panel-field-value">' + esc(safeJob.address) + '</span></div></div>' +
         '<div class="panel-section"><div class="panel-section-title">Service</div>' +
-        '<div class="panel-field"><span class="panel-field-label">Type</span><span class="panel-field-value">' + esc(j.service_type) + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Frequency</span><span class="panel-field-value">' + esc(j.service_frequency || '\u2014') + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Price</span><span class="panel-field-value">' + (j.service_price ? '$' + parseFloat(j.service_price).toFixed(2) : '\u2014') + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Duration</span><span class="panel-field-value">' + (j.estimated_duration || 30) + ' min</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Crew</span><span class="panel-field-value">' + esc(j.crew_assigned || '\u2014') + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Status</span><span class="panel-field-value">' + esc((j.status || 'pending').replace('_', ' ')) + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Freshness</span><span class="panel-field-value">' + esc(j.freshness_source || (scheduleFreshness && scheduleFreshness.source) || 'live') + '</span></div></div>' +
-        (j.special_notes ? '<div class="panel-section"><div class="panel-section-title">Special Notes</div><div class="panel-notes">' + esc(j.special_notes) + '</div></div>' : '') +
-        (j.property_notes ? '<div class="panel-section"><div class="panel-section-title">Property Notes</div><div class="panel-notes">' + esc(j.property_notes) + '</div></div>' : '') +
+        '<div class="panel-field"><span class="panel-field-label">Type</span><span class="panel-field-value">' + esc(safeJob.service_type) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Frequency</span><span class="panel-field-value">' + esc(normalizeScheduleString(safeJob.service_frequency, '\u2014')) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Price</span><span class="panel-field-value">' + (safeJob.service_price_value == null ? '\u2014' : '$' + safeJob.service_price_value.toFixed(2)) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Duration</span><span class="panel-field-value">' + (safeJob.estimated_duration || 30) + ' min</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Crew</span><span class="panel-field-value">' + esc(normalizeScheduleString(safeJob.crew_assigned, '\u2014')) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Status</span><span class="panel-field-value">' + esc(normalizeScheduleString(safeJob.status, 'pending').replace(/_/g, ' ')) + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Freshness</span><span class="panel-field-value">' + esc(safeJob.freshness_source || (scheduleFreshness && scheduleFreshness.source) || 'live') + '</span></div></div>' +
+        (safeJob.special_notes ? '<div class="panel-section"><div class="panel-section-title">Special Notes</div><div class="panel-notes">' + esc(safeJob.special_notes) + '</div></div>' : '') +
+        (safeJob.property_notes ? '<div class="panel-section"><div class="panel-section-title">Property Notes</div><div class="panel-notes">' + esc(safeJob.property_notes) + '</div></div>' : '') +
         '<div class="panel-section"><div class="panel-section-title">Source</div>' +
         '<div class="panel-field"><span class="panel-field-label">System</span><span class="panel-field-value">Copilot</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Visit ID</span><span class="panel-field-value">' + esc(j.visit_id || '\u2014') + '</span></div>' +
-        '<div class="panel-field"><span class="panel-field-label">Fetched</span><span class="panel-field-value">' + esc(formatFreshnessTimestamp(j.fetched_at)) + '</span></div></div>' +
-        buildCompletionSection(j);
+        '<div class="panel-field"><span class="panel-field-label">Visit ID</span><span class="panel-field-value">' + esc(safeJob.visit_id || '\u2014') + '</span></div>' +
+        '<div class="panel-field"><span class="panel-field-label">Fetched</span><span class="panel-field-value">' + esc(formatFreshnessTimestamp(safeJob.fetched_at)) + '</span></div></div>' +
+        buildCompletionSection(safeJob);
 
     document.getElementById('panelFooter').innerHTML =
         '<div style="font-size:12px;color:var(--gray-500);line-height:1.5;">Live Copilot schedule jobs are read-only in YardDesk. Use CopilotCRM for scheduling and dispatch changes. Legacy import/local job flows remain fallback only.</div>';
@@ -3635,9 +3741,24 @@ async function undoReschedule() {
 // TIME SLOT VIEW (Day/Week)
 // ═══════════════════════════════════════════════════════════
 function renderTimeSlotView(jobs) {
-    const hasTimedJobs = jobs.some(j => j.start_time);
+    const normalizedJobs = jobs.map(normalizeScheduleJobForRender);
+    const timedJobs = normalizedJobs.filter(j => j.start_time);
+    const malformedTimedJobs = jobs.filter(j => j.start_time && typeof j.start_time !== 'string');
     const timeSlotEl = document.getElementById('timeSlotView');
     const jobsListEl = document.getElementById('jobsList');
+    const hasTimedJobs = timedJobs.length > 0;
+
+    if (malformedTimedJobs.length > 0) {
+        recordScheduleRenderIssue('timed_job_warning', {
+            total: malformedTimedJobs.length,
+            jobs: malformedTimedJobs.slice(0, 5).map(job => ({
+                job_id: job?.id ?? null,
+                customer_name: job?.customer_name ?? null,
+                start_time: job?.start_time ?? null,
+                end_time: job?.end_time ?? null,
+            })),
+        });
+    }
 
     if (!hasTimedJobs) {
         timeSlotEl.style.display = 'none';
@@ -3648,14 +3769,12 @@ function renderTimeSlotView(jobs) {
     timeSlotEl.style.display = 'block';
     jobsListEl.style.display = 'none';
 
-    const timedJobs = jobs.filter(j => j.start_time);
-    const untimedJobs = jobs.filter(j => !j.start_time);
+    const untimedJobs = normalizedJobs.filter(j => !j.start_time);
 
     let html = '<div class="time-slot-grid">';
     // 8 AM to 6 PM
     for (let hour = 8; hour <= 18; hour++) {
         const label = hour <= 12 ? (hour + (hour < 12 ? 'am' : 'pm')) : ((hour - 12) + 'pm');
-        const hourStr = String(hour).padStart(2, '0');
         const slotJobs = timedJobs.filter(j => {
             const h = parseInt(j.start_time.split(':')[0]);
             return h === hour;

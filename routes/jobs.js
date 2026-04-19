@@ -1022,6 +1022,34 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     };
   }
 
+  function stableRouteOrderCompare(left, right) {
+    const leftOrder = left?.route_order ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = right?.route_order ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    const leftName = left?.customer_name || '';
+    const rightName = right?.customer_name || '';
+    if (leftName !== rightName) return leftName.localeCompare(rightName);
+    return String(left?.id || '').localeCompare(String(right?.id || ''));
+  }
+
+  async function fetchLiveDispatchJobsForDate(targetDate) {
+    const livePayload = await getCopilotLiveJobs({
+      poolClient: pool,
+      date: targetDate,
+      startDate: targetDate,
+      endDate: targetDate,
+      fetchImpl,
+    });
+
+    return (livePayload.jobs || []).filter((job) => !job?.hold_from_dispatch && !job?.source_deleted);
+  }
+
+  function getCrewDispatchJobs(jobs, crewName) {
+    return jobs
+      .filter((job) => (job.crew_assigned || null) === crewName)
+      .sort(stableRouteOrderCompare);
+  }
+
   // Haversine distance (for route optimization)
   function haversineDistance(lat1, lon1, lat2, lon2) {
     const R = 3959;
@@ -2403,6 +2431,90 @@ router.get('/api/dispatch/board', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
+router.patch('/api/dispatch/route-order', async (req, res) => {
+  try {
+    const { date, crew_name, ordered_job_keys } = req.body;
+    if (!date || !crew_name || !Array.isArray(ordered_job_keys) || ordered_job_keys.length === 0) {
+      return res.status(400).json({ success: false, error: 'date, crew_name, and ordered_job_keys are required' });
+    }
+
+    const actor = getDispatchActor(req);
+    const liveJobs = await fetchLiveDispatchJobsForDate(date);
+    const crewJobs = getCrewDispatchJobs(liveJobs, crew_name);
+    const expectedKeys = crewJobs.map((job) => normalizeLiveDispatchJobKey(job.job_key || job.id)).filter(Boolean);
+    const submittedKeys = ordered_job_keys.map((jobKey) => normalizeLiveDispatchJobKey(jobKey)).filter(Boolean);
+
+    if (expectedKeys.length === 0) {
+      return res.status(404).json({ success: false, error: 'No live jobs found for that crew and date' });
+    }
+    if (submittedKeys.length !== ordered_job_keys.length) {
+      return res.status(400).json({ success: false, error: 'ordered_job_keys must be live Copilot job keys' });
+    }
+    if (expectedKeys.length !== submittedKeys.length) {
+      return res.status(400).json({ success: false, error: 'ordered_job_keys must include every current live stop for this crew and date' });
+    }
+
+    const expectedSet = new Set(expectedKeys);
+    const submittedSet = new Set(submittedKeys);
+    if (submittedSet.size !== submittedKeys.length || expectedKeys.some((key) => !submittedSet.has(key)) || submittedKeys.some((key) => !expectedSet.has(key))) {
+      return res.status(400).json({ success: false, error: 'ordered_job_keys do not match the current live crew job set' });
+    }
+
+    const updated = await patchDispatchPlanItems(pool, {
+      patches: submittedKeys.map((jobKey, index) => ({
+        jobKey,
+        patch: { route_order_override: index + 1 },
+      })),
+      ...actor,
+    });
+
+    res.json({
+      success: true,
+      crew_name,
+      date,
+      updated: updated.length,
+      ordered: submittedKeys.map((jobKey, index) => ({ job_key: jobKey, route_order_override: index + 1 })),
+    });
+  } catch (error) { serverError(res, error); }
+});
+
+router.post('/api/dispatch/reverse-route', async (req, res) => {
+  try {
+    const { date, crew_name } = req.body;
+    if (!date || !crew_name) {
+      return res.status(400).json({ success: false, error: 'date and crew_name are required' });
+    }
+
+    const actor = getDispatchActor(req);
+    const liveJobs = await fetchLiveDispatchJobsForDate(date);
+    const crewJobs = getCrewDispatchJobs(liveJobs, crew_name);
+    if (crewJobs.length < 2) {
+      return res.json({ success: true, crew_name, date, updated: 0, ordered: [] });
+    }
+
+    const reversedKeys = crewJobs
+      .map((job) => normalizeLiveDispatchJobKey(job.job_key || job.id))
+      .filter(Boolean)
+      .reverse();
+
+    const updated = await patchDispatchPlanItems(pool, {
+      patches: reversedKeys.map((jobKey, index) => ({
+        jobKey,
+        patch: { route_order_override: index + 1 },
+      })),
+      ...actor,
+    });
+
+    res.json({
+      success: true,
+      crew_name,
+      date,
+      updated: updated.length,
+      ordered: reversedKeys.map((jobKey, index) => ({ job_key: jobKey, route_order_override: index + 1 })),
+    });
+  } catch (error) { serverError(res, error); }
+});
+
 // PATCH /api/dispatch/assign - Persist crew / route overrides for live Dispatch jobs.
 router.patch('/api/dispatch/assign', async (req, res) => {
   try {
@@ -2638,19 +2750,8 @@ router.post('/api/dispatch/optimize-route', async (req, res) => {
     const { date, crew_name, start_lat, start_lng } = req.body;
     if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
     const actor = getDispatchActor(req);
-    const livePayload = await getCopilotLiveJobs({
-      poolClient: pool,
-      date,
-      startDate: date,
-      endDate: date,
-      fetchImpl,
-    });
-    const crewJobs = (livePayload.jobs || []).filter((job) => (
-      job.crew_assigned === crew_name &&
-      !job.hold_from_dispatch &&
-      job.lat != null &&
-      job.lng != null
-    ));
+    const crewJobs = getCrewDispatchJobs(await fetchLiveDispatchJobsForDate(date), crew_name)
+      .filter((job) => job.lat != null && job.lng != null);
 
     if (crewJobs.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
 

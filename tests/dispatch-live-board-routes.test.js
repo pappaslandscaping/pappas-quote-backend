@@ -168,6 +168,7 @@ describe('dispatch live board route', () => {
         route_order: true,
         geocode: true,
         optimize: true,
+        reverse_route: true,
         complete: false,
         add_job: false,
       },
@@ -414,6 +415,132 @@ describe('dispatch live board route', () => {
       optimized: [
         { job_key: 'copilot:2026-04-20:job-1', route_order: 1 },
         { job_key: 'copilot:2026-04-20:job-2', route_order: 2 },
+      ],
+    });
+  });
+
+  test('persists manual live route order for a crew by job key', async () => {
+    getCopilotLiveJobs.mockResolvedValue({
+      jobs: [
+        {
+          id: 'copilot:2026-04-20:job-1',
+          job_key: 'copilot:2026-04-20:job-1',
+          crew_assigned: 'Crew A',
+          route_order: 1,
+          hold_from_dispatch: false,
+        },
+        {
+          id: 'copilot:2026-04-20:job-2',
+          job_key: 'copilot:2026-04-20:job-2',
+          crew_assigned: 'Crew A',
+          route_order: 2,
+          hold_from_dispatch: false,
+        },
+      ],
+    });
+    patchDispatchPlanItems.mockResolvedValue([]);
+
+    const pool = { query: jest.fn() };
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/route-order', 'patch', {
+      body: {
+        date: '2026-04-20',
+        crew_name: 'Crew A',
+        ordered_job_keys: [
+          'copilot:2026-04-20:job-2',
+          'copilot:2026-04-20:job-1',
+        ],
+      },
+      user: { id: 17, name: 'Theresa' },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledWith(expect.objectContaining({
+      poolClient: pool,
+      date: '2026-04-20',
+    }));
+    expect(patchDispatchPlanItems).toHaveBeenCalledWith(pool, expect.objectContaining({
+      updatedByName: 'Theresa',
+      patches: [
+        { jobKey: 'copilot:2026-04-20:job-2', patch: { route_order_override: 1 } },
+        { jobKey: 'copilot:2026-04-20:job-1', patch: { route_order_override: 2 } },
+      ],
+    }));
+    expect(res.body).toMatchObject({
+      success: true,
+      crew_name: 'Crew A',
+      updated: 0,
+      ordered: [
+        { job_key: 'copilot:2026-04-20:job-2', route_order_override: 1 },
+        { job_key: 'copilot:2026-04-20:job-1', route_order_override: 2 },
+      ],
+    });
+  });
+
+  test('reverses a live crew route and persists route_order_override by job key', async () => {
+    getCopilotLiveJobs.mockResolvedValue({
+      jobs: [
+        {
+          id: 'copilot:2026-04-20:job-1',
+          job_key: 'copilot:2026-04-20:job-1',
+          crew_assigned: 'Crew A',
+          route_order: 1,
+          hold_from_dispatch: false,
+        },
+        {
+          id: 'copilot:2026-04-20:job-2',
+          job_key: 'copilot:2026-04-20:job-2',
+          crew_assigned: 'Crew A',
+          route_order: 2,
+          hold_from_dispatch: false,
+        },
+      ],
+    });
+    patchDispatchPlanItems.mockResolvedValue([]);
+
+    const pool = { query: jest.fn() };
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/reverse-route', 'post', {
+      body: {
+        date: '2026-04-20',
+        crew_name: 'Crew A',
+      },
+      user: { id: 17, name: 'Theresa' },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledWith(expect.objectContaining({
+      poolClient: pool,
+      date: '2026-04-20',
+    }));
+    expect(patchDispatchPlanItems).toHaveBeenCalledWith(pool, expect.objectContaining({
+      updatedByName: 'Theresa',
+      patches: [
+        { jobKey: 'copilot:2026-04-20:job-2', patch: { route_order_override: 1 } },
+        { jobKey: 'copilot:2026-04-20:job-1', patch: { route_order_override: 2 } },
+      ],
+    }));
+    expect(res.body).toMatchObject({
+      success: true,
+      crew_name: 'Crew A',
+      updated: 0,
+      ordered: [
+        { job_key: 'copilot:2026-04-20:job-2', route_order_override: 1 },
+        { job_key: 'copilot:2026-04-20:job-1', route_order_override: 2 },
       ],
     });
   });

@@ -506,7 +506,7 @@
             cursor: pointer;
             position: relative;
             margin-bottom: 0;
-            grid-template-columns: 28px 40px minmax(0, 1fr) fit-content(300px);
+            grid-template-columns: 28px minmax(0, 1fr) fit-content(300px);
             gap: 16px;
             padding: 16px 18px;
             align-items: start;
@@ -677,7 +677,7 @@
 
         @media (max-width: 1120px) {
             .job-row {
-                grid-template-columns: 28px 40px minmax(0, 1fr) fit-content(268px);
+                grid-template-columns: 28px minmax(0, 1fr) fit-content(268px);
                 gap: 12px;
             }
             .job-row .job-address {
@@ -1384,7 +1384,7 @@
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) {
             .job-row {
-                grid-template-columns: 28px 36px minmax(0, 1fr) 84px;
+                grid-template-columns: 28px minmax(0, 1fr);
                 gap: 12px;
                 padding: 14px 14px;
             }
@@ -1396,7 +1396,7 @@
             }
             .job-row .job-side {
                 display: flex;
-                grid-column: 3 / -1;
+                grid-column: 2 / -1;
                 justify-content: flex-start;
                 flex-wrap: wrap;
                 gap: 8px 10px;

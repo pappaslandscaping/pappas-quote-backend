@@ -506,9 +506,10 @@
             cursor: pointer;
             position: relative;
             margin-bottom: 0;
-            grid-template-columns: 28px 40px minmax(0, 2.1fr) minmax(170px, 0.95fr) 92px 112px;
+            grid-template-columns: 28px 40px minmax(320px, 3fr) minmax(170px, 1.2fr) 96px 108px;
             gap: 18px;
             padding: 16px 18px;
+            align-items: start;
         }
         .job-row.is-completed { opacity: 0.72; }
         .job-row.is-in_progress { border-left: 3px solid var(--info); }
@@ -530,7 +531,8 @@
             white-space: normal;
             overflow: visible;
             text-overflow: clip;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
         .job-row .job-meta {
             display: flex;
@@ -540,16 +542,18 @@
         }
         .job-row .job-service-line {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             min-width: 0;
         }
         .job-row .job-service-text {
             font: 600 13px/1.35 var(--font-ui);
             color: var(--text);
             min-width: 0;
-            overflow-wrap: anywhere;
+            flex: 1 1 auto;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
         .job-row .job-address {
             font-size: 13px;
@@ -557,10 +561,12 @@
             white-space: normal;
             overflow: visible;
             text-overflow: clip;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
         .job-row .job-address a {
             display: inline-block;
+            max-width: 100%;
             color: inherit;
             text-decoration: none;
         }
@@ -571,8 +577,10 @@
         }
         .job-row .job-crew {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
+            justify-content: flex-start;
             min-width: 0;
+            padding-top: 2px;
         }
         .job-row .job-crew .assignment-pill {
             max-width: 100%;
@@ -588,14 +596,16 @@
         }
         .job-row .job-price {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: flex-end;
             font-size: 16px;
             letter-spacing: -0.02em;
+            padding-top: 4px;
         }
         .job-row .job-status {
             justify-content: flex-end;
-            align-items: center;
+            align-items: flex-start;
+            padding-top: 2px;
         }
         .job-row .job-status .status-pill {
             min-width: 88px;
@@ -646,14 +656,13 @@
         .job-action-btn.action-map { background: var(--gray-100); color: var(--gray-600); }
         .job-action-btn.action-map:hover { background: var(--primary); color: white; }
 
-        @media (max-width: 1180px) {
+        @media (max-width: 1240px) {
             .job-row {
-                grid-template-columns: 28px 40px minmax(0, 1.8fr) minmax(150px, 0.9fr) 92px;
+                grid-template-columns: 28px 40px minmax(240px, 2.2fr) minmax(150px, 1fr) 92px 104px;
+                gap: 14px;
             }
-            .job-row .job-status {
-                grid-column: 3 / -1;
-                justify-content: flex-start;
-                padding-top: 2px;
+            .job-row .job-service-line {
+                flex-wrap: wrap;
             }
         }
         
@@ -1357,6 +1366,12 @@
                 gap: 12px;
                 padding: 14px 14px;
             }
+            .job-row .job-main {
+                gap: 7px;
+            }
+            .job-row .job-service-line {
+                flex-wrap: wrap;
+            }
             .job-row .job-crew {
                 grid-column: 3 / -1;
                 justify-content: flex-start;
@@ -1364,6 +1379,9 @@
             .job-row .job-status {
                 grid-column: 3 / -1;
                 justify-content: flex-start;
+            }
+            .job-row .job-price {
+                justify-content: flex-end;
             }
             .job-row .job-status .status-pill {
                 min-width: 0;

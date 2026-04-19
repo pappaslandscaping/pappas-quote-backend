@@ -1109,6 +1109,7 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
         <Row>
           <Cell ss:StyleID="cell-center"><Data ss:Type="Number">${index + 1}</Data></Cell>
           <Cell ss:StyleID="cell-center"><Data ss:Type="String"></Data></Cell>
+          <Cell ss:StyleID="cell-center"><Data ss:Type="String"></Data></Cell>
           <Cell ss:StyleID="cell-name"><Data ss:Type="String">${escapeXml(`${job.customer_name || ''}${isBiWeeklyDispatchRouteJob(job) ? ' (BW)' : ''}`)}</Data></Cell>
           <Cell ss:StyleID="cell-wrap"><Data ss:Type="String">${escapeXml(buildDispatchRouteSheetAddress(job))}</Data></Cell>
           <Cell ss:StyleID="cell-wrap"><Data ss:Type="String">${escapeXml(buildDispatchRouteSheetComments(job))}</Data></Cell>
@@ -1120,22 +1121,24 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
           <Table>
             <Column ss:Width="34"/>
             <Column ss:Width="32"/>
+            <Column ss:Width="52"/>
             <Column ss:Width="155"/>
             <Column ss:Width="220"/>
             <Column ss:Width="260"/>
             <Row>
-              <Cell ss:MergeAcross="4" ss:StyleID="title"><Data ss:Type="String">Pappas &amp; Co. Landscaping</Data></Cell>
+              <Cell ss:MergeAcross="5" ss:StyleID="title"><Data ss:Type="String">Pappas &amp; Co. Landscaping</Data></Cell>
             </Row>
             <Row>
-              <Cell ss:MergeAcross="4" ss:StyleID="subtitle"><Data ss:Type="String">${escapeXml(group.crewName)} — Route Sheet</Data></Cell>
+              <Cell ss:MergeAcross="5" ss:StyleID="subtitle"><Data ss:Type="String">${escapeXml(group.crewName)} — Route Sheet</Data></Cell>
             </Row>
             <Row>
-              <Cell ss:MergeAcross="4" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(displayDate)}</Data></Cell>
+              <Cell ss:MergeAcross="5" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(displayDate)}</Data></Cell>
             </Row>
             <Row/>
             <Row>
               <Cell ss:StyleID="header"><Data ss:Type="String">#</Data></Cell>
               <Cell ss:StyleID="header"><Data ss:Type="String">Done</Data></Cell>
+              <Cell ss:StyleID="header"><Data ss:Type="String">Time</Data></Cell>
               <Cell ss:StyleID="header"><Data ss:Type="String">Name</Data></Cell>
               <Cell ss:StyleID="header"><Data ss:Type="String">Address</Data></Cell>
               <Cell ss:StyleID="header"><Data ss:Type="String">Comments</Data></Cell>
@@ -1143,7 +1146,7 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
             ${rows}
             <Row/>
             <Row>
-              <Cell ss:MergeAcross="4" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(`${group.jobs.length} stops · $${Number(totalPrice || 0).toFixed(0)}`)}</Data></Cell>
+              <Cell ss:MergeAcross="5" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(`${group.jobs.length} stops · $${Number(totalPrice || 0).toFixed(0)}`)}</Data></Cell>
             </Row>
           </Table>
         </Worksheet>

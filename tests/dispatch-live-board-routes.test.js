@@ -270,6 +270,7 @@ describe('dispatch live board route', () => {
     expect(res.headers['Content-Disposition']).toContain('dispatch-route-sheets-2026-04-20.xml');
     expect(res.body).toContain('<Worksheet ss:Name="Crew A">');
     expect(res.body).toContain('<Worksheet ss:Name="Unassigned">');
+    expect(res.body).toContain('<Cell ss:StyleID="header"><Data ss:Type="String">Time</Data></Cell>');
     expect(res.body).toContain('Angela Ziegler');
     expect(res.body).toContain('Unassigned Customer');
   });

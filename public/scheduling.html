@@ -506,9 +506,111 @@
             cursor: pointer;
             position: relative;
             margin-bottom: 0;
+            grid-template-columns: 28px 40px minmax(0, 2.1fr) minmax(170px, 0.95fr) 92px 112px;
+            gap: 18px;
+            padding: 16px 18px;
         }
-        .job-row.is-completed { opacity: 0.62; }
+        .job-row.is-completed { opacity: 0.72; }
         .job-row.is-in_progress { border-left: 3px solid var(--info); }
+        .job-row .job-seq {
+            width: 32px;
+            height: 32px;
+            font-size: 12px;
+        }
+        .job-row .job-main {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+        .job-row .job-customer {
+            font-size: 15px;
+            line-height: 1.25;
+            letter-spacing: -0.01em;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            overflow-wrap: anywhere;
+        }
+        .job-row .job-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+        .job-row .job-service-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 0;
+        }
+        .job-row .job-service-text {
+            font: 600 13px/1.35 var(--font-ui);
+            color: var(--text);
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .job-row .job-address {
+            font-size: 13px;
+            line-height: 1.45;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            overflow-wrap: anywhere;
+        }
+        .job-row .job-address a {
+            display: inline-block;
+            color: inherit;
+            text-decoration: none;
+        }
+        .job-row .job-address a:hover {
+            color: var(--text-strong);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .job-row .job-crew {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+        .job-row .job-crew .assignment-pill {
+            max-width: 100%;
+            min-height: 30px;
+            padding: 6px 12px;
+            font-size: 12px;
+            line-height: 1.2;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            border-radius: 12px;
+            justify-content: flex-start;
+        }
+        .job-row .job-price {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 16px;
+            letter-spacing: -0.02em;
+        }
+        .job-row .job-status {
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .job-row .job-status .status-pill {
+            min-width: 88px;
+            justify-content: center;
+            text-transform: capitalize;
+        }
+        .tag {
+            min-height: 26px;
+            padding: 0 12px;
+            font-size: 10px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
 
         .job-row .job-actions {
             display: flex;
@@ -543,6 +645,17 @@
         .job-action-btn.action-edit:hover { background: var(--blue); color: white; }
         .job-action-btn.action-map { background: var(--gray-100); color: var(--gray-600); }
         .job-action-btn.action-map:hover { background: var(--primary); color: white; }
+
+        @media (max-width: 1180px) {
+            .job-row {
+                grid-template-columns: 28px 40px minmax(0, 1.8fr) minmax(150px, 0.9fr) 92px;
+            }
+            .job-row .job-status {
+                grid-column: 3 / -1;
+                justify-content: flex-start;
+                padding-top: 2px;
+            }
+        }
         
         /* Compact daily route summary — sits above the list */
         .route-summary {
@@ -1239,8 +1352,23 @@
         .form-row textarea { resize: vertical; min-height: 60px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) {
-            .job-row { grid-template-columns: 28px 36px 1fr 90px; gap: 12px; }
-            .job-row .job-assignment, .job-row .job-actions { display: none; }
+            .job-row {
+                grid-template-columns: 28px 36px minmax(0, 1fr) 84px;
+                gap: 12px;
+                padding: 14px 14px;
+            }
+            .job-row .job-crew {
+                grid-column: 3 / -1;
+                justify-content: flex-start;
+            }
+            .job-row .job-status {
+                grid-column: 3 / -1;
+                justify-content: flex-start;
+            }
+            .job-row .job-status .status-pill {
+                min-width: 0;
+            }
+            .job-row .job-actions { display: none; }
             .modal { width: 95%; margin: 0 10px; }
             .form-grid { grid-template-columns: 1fr; }
             .route-summary { flex-direction: column; text-align: center; }
@@ -1691,6 +1819,17 @@ function normalizeScheduleMoney(value) {
     return Number.isFinite(numeric) ? numeric : null;
 }
 
+function getScheduleServiceBadgeLabel(serviceType = '') {
+    const value = normalizeScheduleString(serviceType, '').toLowerCase();
+    if (value.includes('cleanup') || value.includes('clean up') || value.includes('spring')) return 'Cleanup';
+    if (value.includes('mulch')) return 'Mulch';
+    if (value.includes('fertil')) return 'Fertilizer';
+    if (value.includes('aerat')) return 'Aeration';
+    if (value.includes('snow') || value.includes('plow')) return 'Snow';
+    if (value.includes('mow')) return 'Mowing';
+    return 'Service';
+}
+
 function normalizeScheduleJobForRender(job = {}) {
     return {
         ...job,
@@ -2090,6 +2229,10 @@ function renderJobs() {
             const statusLabel = normalizeScheduleString(j.status || 'pending', 'pending').replace(/_/g, ' ');
             const isUnassigned = !j.crew_assigned;
             const priceLabel = j.service_price_value == null ? '—' : '$' + j.service_price_value.toFixed(0);
+            const crewLabel = esc(j.crew_assigned || 'Unassigned');
+            const serviceLabel = esc(j.service_type);
+            const serviceBadgeLabel = esc(getScheduleServiceBadgeLabel(j.service_type));
+            const addressLabel = esc(j.address);
 
             return `
                 <div class="job-row ${statusClass}" data-id="${esc(j.id)}">
@@ -2097,17 +2240,20 @@ function renderJobs() {
                     <div class="job-seq">${j.route_order || (i + 1)}</div>
                     <div class="job-main">
                         <div class="job-customer">${esc(j.customer_name)}</div>
-                        <div class="job-tags">
-                            <span class="tag ${tagClass}">${esc(j.service_type)}</span>
+                        <div class="job-meta">
+                            <div class="job-service-line">
+                                <span class="tag ${tagClass}">${serviceBadgeLabel}</span>
+                                <span class="job-service-text">${serviceLabel}</span>
+                            </div>
+                            <div class="job-address">
+                                <a href="${mapUrl}" target="_blank" onclick="event.stopPropagation()">${addressLabel}</a>
+                            </div>
                         </div>
                     </div>
-                    <div class="job-address">
-                        <a href="${mapUrl}" target="_blank" onclick="event.stopPropagation()" style="color:inherit;text-decoration:none">${esc(j.address)}</a>
+                    <div class="job-crew">
+                        <span class="assignment-pill ${isUnassigned ? 'unassigned' : ''}"><span class="dot"></span>${crewLabel}</span>
                     </div>
                     <div class="job-price">${priceLabel}</div>
-                    <div class="job-assignment">
-                        <span class="assignment-pill ${isUnassigned ? 'unassigned' : ''}"><span class="dot"></span>${esc(j.crew_assigned || 'Unassigned')}</span>
-                    </div>
                     <div class="job-status">
                         <span class="status-pill ${j.status === 'completed' ? 'success' : j.status === 'in_progress' ? 'info' : j.status === 'cancelled' ? 'danger' : 'warning'}">${esc(statusLabel)}</span>
                     </div>
@@ -2128,15 +2274,18 @@ function renderJobs() {
                     <div class="job-seq">${j?.route_order || (i + 1)}</div>
                     <div class="job-main">
                         <div class="job-customer">Unable to render job</div>
-                        <div class="job-tags">
-                            <span class="tag tag-cleanup">Render warning</span>
+                        <div class="job-meta">
+                            <div class="job-service-line">
+                                <span class="tag tag-cleanup">Render warning</span>
+                                <span class="job-service-text">Malformed live row</span>
+                            </div>
+                            <div class="job-address">Check console diagnostics for the failing fields.</div>
                         </div>
                     </div>
-                    <div class="job-address">Check console diagnostics</div>
-                    <div class="job-price">—</div>
-                    <div class="job-assignment">
+                    <div class="job-crew">
                         <span class="assignment-pill unassigned"><span class="dot"></span>Unknown</span>
                     </div>
+                    <div class="job-price">—</div>
                     <div class="job-status">
                         <span class="status-pill warning">warning</span>
                     </div>

@@ -1,8 +1,11 @@
 const {
+  applyDispatchRouteTemplate,
+  buildDispatchRouteTemplateStop,
   buildDispatchBoardPayload,
   buildCopilotJobKey,
   fetchLiveCopilotScheduleDate,
   getCopilotLiveJobs,
+  isDispatchRouteTemplateApplicable,
   mapScheduleJobToDispatchJob,
   mapResolvedLiveJobToScheduleJob,
   normalizeDispatchPlanPatch,
@@ -238,6 +241,109 @@ describe('copilot live jobs service', () => {
         source_deleted: false,
       },
     });
+  });
+
+  test('dispatch route templates honor weekly and biweekly cadence', () => {
+    expect(isDispatchRouteTemplateApplicable({
+      cadence: 'weekly',
+      anchor_date: '2026-04-20',
+      day_of_week: 1,
+    }, '2026-04-27')).toBe(true);
+    expect(isDispatchRouteTemplateApplicable({
+      cadence: 'biweekly',
+      anchor_date: '2026-04-20',
+      day_of_week: 1,
+    }, '2026-05-04')).toBe(true);
+    expect(isDispatchRouteTemplateApplicable({
+      cadence: 'biweekly',
+      anchor_date: '2026-04-20',
+      day_of_week: 1,
+    }, '2026-04-27')).toBe(false);
+  });
+
+  test('buildDispatchRouteTemplateStop saves only route-matching hints', () => {
+    expect(buildDispatchRouteTemplateStop({
+      customer_name: 'Jane Smith',
+      copilot_customer_id: '9001',
+      local_customer_id: 21,
+      property_id: 44,
+      address: '123 Main St, Lakewood OH 44107, US',
+      service_title: 'Spring Cleanup',
+      service_frequency: 'Weekly',
+      copilot_event_type: 'Visit',
+    }, 3)).toEqual({
+      position: 3,
+      source_customer_id: '9001',
+      customer_link_id: 21,
+      property_link_id: 44,
+      customer_name: 'Jane Smith',
+      address_fingerprint: '123 main st lakewood',
+      service_title: 'Spring Cleanup',
+      service_frequency: 'Weekly',
+      source_event_type: 'Visit',
+    });
+  });
+
+  test('applyDispatchRouteTemplate matches saved stops and appends remaining crew jobs', () => {
+    const result = applyDispatchRouteTemplate({
+      template: {
+        crew_name: 'Crew A',
+      },
+      templateStops: [
+        {
+          position: 1,
+          source_customer_id: '9002',
+          customer_link_id: null,
+          property_link_id: null,
+          customer_name: 'John Doe',
+          address_fingerprint: '45 elm st rocky river',
+          service_title: 'Mulch Refresh',
+          service_frequency: 'One-time',
+          source_event_type: 'Visit',
+        },
+      ],
+      liveJobs: [
+        {
+          id: 'copilot:2026-04-20:job-1',
+          crew_assigned: 'Crew A',
+          route_order: 1,
+          customer_name: 'Jane Smith',
+          address: '123 Main St, Lakewood OH',
+          service_title: 'Spring Cleanup',
+          service_frequency: 'Weekly',
+          copilot_customer_id: '9001',
+        },
+        {
+          id: 'copilot:2026-04-20:job-2',
+          crew_assigned: null,
+          route_order: null,
+          customer_name: 'John Doe',
+          address: '45 Elm St, Rocky River OH',
+          service_title: 'Mulch Refresh',
+          service_frequency: 'One-time',
+          copilot_customer_id: '9002',
+        },
+      ],
+    });
+
+    expect(result.patches).toEqual([
+      {
+        jobKey: 'copilot:2026-04-20:job-2',
+        patch: {
+          crew_override_name: 'Crew A',
+          route_order_override: 1,
+        },
+      },
+      {
+        jobKey: 'copilot:2026-04-20:job-1',
+        patch: {
+          crew_override_name: 'Crew A',
+          route_order_override: 2,
+        },
+      },
+    ]);
+    expect(result.unmatched_template_stops).toEqual([]);
+    expect(result.ambiguous).toEqual([]);
   });
 
   test('upsertCopilotLiveJobs upserts rows and marks missing jobs deleted for a sync date', async () => {

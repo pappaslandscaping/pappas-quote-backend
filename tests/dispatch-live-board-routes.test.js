@@ -419,6 +419,210 @@ describe('dispatch live board route', () => {
     });
   });
 
+  test('saves a recurring route template from the current live crew order', async () => {
+    getCopilotLiveJobs.mockResolvedValue({
+      jobs: [
+        {
+          id: 'copilot:2026-04-20:job-1',
+          crew_assigned: 'Crew A',
+          route_order: 1,
+          customer_name: 'Jane Smith',
+          address: '123 Main St, Lakewood OH 44107, US',
+          service_title: 'Spring Cleanup',
+          service_frequency: 'Weekly',
+          copilot_customer_id: '9001',
+          local_customer_id: 21,
+          property_id: 44,
+          copilot_event_type: 'Visit',
+        },
+        {
+          id: 'copilot:2026-04-20:job-2',
+          crew_assigned: 'Crew A',
+          route_order: 2,
+          customer_name: 'John Doe',
+          address: '45 Elm St, Rocky River OH 44116, US',
+          service_title: 'Mulch Refresh',
+          service_frequency: 'One-time',
+          copilot_customer_id: '9002',
+          local_customer_id: 22,
+          property_id: 45,
+          copilot_event_type: 'Visit',
+        },
+      ],
+    });
+
+    const query = jest.fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 9,
+          name: 'Crew A Weekly',
+          crew_name: 'Crew A',
+          cadence: 'weekly',
+          anchor_date: '2026-04-20',
+          day_of_week: 1,
+          active: true,
+          notes: null,
+          created_at: null,
+          updated_at: null,
+        }],
+      })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    const release = jest.fn();
+    const pool = {
+      query: jest.fn(),
+      connect: jest.fn().mockResolvedValue({ query, release }),
+    };
+
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/route-templates/save-from-live', 'post', {
+      body: {
+        date: '2026-04-20',
+        crew_name: 'Crew A',
+        name: 'Crew A Weekly',
+        cadence: 'weekly',
+      },
+      user: { id: 17, name: 'Theresa' },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledWith(expect.objectContaining({
+      poolClient: pool,
+      date: '2026-04-20',
+    }));
+    expect(pool.connect).toHaveBeenCalled();
+    expect(query.mock.calls[1][0]).toContain('INSERT INTO dispatch_route_templates');
+    expect(query.mock.calls[2][0]).toContain('INSERT INTO dispatch_route_template_stops');
+    expect(query.mock.calls[3][0]).toContain('INSERT INTO dispatch_route_template_stops');
+    expect(release).toHaveBeenCalled();
+    expect(res.body).toMatchObject({
+      success: true,
+      template: {
+        id: 9,
+        name: 'Crew A Weekly',
+        crew_name: 'Crew A',
+        cadence: 'weekly',
+        stop_count: 2,
+      },
+    });
+  });
+
+  test('applies a recurring route template by writing dispatch_plan_items overrides', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 9,
+            name: 'Crew A Weekly',
+            crew_name: 'Crew A',
+            cadence: 'weekly',
+            anchor_date: '2026-04-20',
+            day_of_week: 1,
+            active: true,
+            notes: null,
+            created_at: null,
+            updated_at: null,
+          }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{
+            template_id: 9,
+            position: 1,
+            source_customer_id: '9002',
+            customer_link_id: null,
+            property_link_id: null,
+            customer_name: 'John Doe',
+            address_fingerprint: '45 elm st rocky river',
+            service_title: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            source_event_type: 'Visit',
+          }],
+        }),
+    };
+    getCopilotLiveJobs.mockResolvedValue({
+      jobs: [
+        {
+          id: 'copilot:2026-05-04:job-1',
+          crew_assigned: 'Crew A',
+          route_order: 1,
+          customer_name: 'Jane Smith',
+          address: '123 Main St, Lakewood OH',
+          service_title: 'Spring Cleanup',
+          service_frequency: 'Weekly',
+          copilot_customer_id: '9001',
+        },
+        {
+          id: 'copilot:2026-05-04:job-2',
+          crew_assigned: null,
+          route_order: null,
+          customer_name: 'John Doe',
+          address: '45 Elm St, Rocky River OH',
+          service_title: 'Mulch Refresh',
+          service_frequency: 'One-time',
+          copilot_customer_id: '9002',
+        },
+      ],
+    });
+    patchDispatchPlanItems.mockResolvedValue([]);
+
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/route-templates/:id/apply', 'post', {
+      params: { id: '9' },
+      body: { date: '2026-05-04' },
+      user: { id: 17, name: 'Theresa' },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledWith(expect.objectContaining({
+      poolClient: pool,
+      date: '2026-05-04',
+    }));
+    expect(patchDispatchPlanItems).toHaveBeenCalledWith(pool, expect.objectContaining({
+      updatedByName: 'Theresa',
+      patches: [
+        {
+          jobKey: 'copilot:2026-05-04:job-2',
+          patch: {
+            crew_override_name: 'Crew A',
+            route_order_override: 1,
+          },
+        },
+        {
+          jobKey: 'copilot:2026-05-04:job-1',
+          patch: {
+            crew_override_name: 'Crew A',
+            route_order_override: 2,
+          },
+        },
+      ],
+    }));
+    expect(res.body).toMatchObject({
+      success: true,
+      matched_count: 1,
+      appended_count: 1,
+      ordered: [
+        { job_key: 'copilot:2026-05-04:job-2', route_order_override: 1, crew_override_name: 'Crew A' },
+        { job_key: 'copilot:2026-05-04:job-1', route_order_override: 2, crew_override_name: 'Crew A' },
+      ],
+    });
+  });
+
   test('persists manual live route order for a crew by job key', async () => {
     getCopilotLiveJobs.mockResolvedValue({
       jobs: [

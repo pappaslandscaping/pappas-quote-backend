@@ -225,6 +225,7 @@
         .job-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); transform: translateY(-1px); }
         .job-card:active { cursor: grabbing; }
         .job-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+        .job-card.drag-over { box-shadow: 0 0 0 2px rgba(46, 64, 61, 0.18), 0 4px 12px rgba(0,0,0,0.08); border-color: var(--primary); }
         .job-card.service-mowing { border-left-color: var(--green); }
         .job-card.service-cleanup { border-left-color: var(--blue); }
         .job-card.service-mulch { border-left-color: var(--amber); }
@@ -913,7 +914,9 @@ let currentDate = new Date();
 let currentView = 'day';
 let boardData = null;
 let draggedJob = null;
+let dragMode = null;
 let dragSourceCrewId = null;
+let dragSourceCrewName = null;
 let selectedJobs = new Set();
 let routeMap = null;
 let mapMarkers = [];
@@ -937,6 +940,7 @@ let dispatchCapabilities = {
     route_order: false,
     geocode: false,
     optimize: false,
+    reverse_route: false,
     complete: false,
     add_job: false,
 };
@@ -955,6 +959,10 @@ function isBoardReadOnly() {
 
 function canDispatchCapability(key) {
     return !!dispatchCapabilities[key];
+}
+
+function canUseBoardSelection() {
+    return canDispatchCapability('assign') || canDispatchCapability('route_order') || canDispatchCapability('complete');
 }
 
 function blockDispatchCapability(actionLabel, capabilityKey) {
@@ -1006,10 +1014,14 @@ function syncDispatchModeUI() {
         bulkCompleteBtn.disabled = readOnly || !canDispatchCapability('complete');
         bulkCompleteBtn.title = canDispatchCapability('complete') ? 'Mark selected jobs complete' : 'Completion stays in Copilot for the live Dispatch board.';
     }
+    document.querySelectorAll('.reverse-route-btn').forEach((el) => {
+        el.disabled = readOnly || !canDispatchCapability('reverse_route');
+    });
 
     document.querySelectorAll('.add-job-btn').forEach((el) => { el.disabled = readOnly || !canDispatchCapability('add_job'); });
     document.querySelectorAll('.route-job-check, .unassigned-check, .ucard-assign select').forEach((el) => {
-        el.disabled = readOnly || !canDispatchCapability('assign');
+        const requiresAssign = el.classList.contains('unassigned-check') || el.closest('.ucard-assign');
+        el.disabled = readOnly || !(requiresAssign ? canDispatchCapability('assign') : canUseBoardSelection());
     });
 
     if (readOnly || !canDispatchCapability('assign')) {
@@ -1533,7 +1545,7 @@ function toggleUnassigned() {
    BULK SELECTION
    ═══════════════════════════════════════════════════════════ */
 function toggleJobSelect(jobId, checkbox) {
-    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
+    if (isBoardReadOnly() || !canUseBoardSelection()) {
         checkbox.checked = false;
         return;
     }
@@ -1543,7 +1555,7 @@ function toggleJobSelect(jobId, checkbox) {
 }
 
 function toggleSelectAll(master) {
-    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
+    if (isBoardReadOnly() || !canUseBoardSelection()) {
         master.checked = false;
         return;
     }
@@ -1559,7 +1571,7 @@ function toggleSelectAll(master) {
 
 function updateBulkBar() {
     const bar = document.getElementById('bulkBar');
-    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
+    if (isBoardReadOnly() || !canUseBoardSelection()) {
         bar.classList.remove('active');
         return;
     }
@@ -1580,25 +1592,70 @@ function clearBulkSelection() {
 
 async function bulkOrderStops() {
     if (blockDispatchCapability('Ordering route stops', 'route_order')) return;
-    if (selectedJobs.size === 0) return;
-    const assignments = [];
-    let order = 1;
-    selectedJobs.forEach(id => {
-        assignments.push({ job_key: id, route_order: order++ });
-    });
-    // We only set route_order, keep crew_assigned by finding existing
-    for (const a of assignments) {
-        const job = findJob(a.job_key);
-        if (job) a.crew_assigned = job.crew_assigned;
+    if (selectedJobs.size === 0) {
+        showToast('Select one crew lane first, then drag stops into order', 'error');
+        return;
+    }
+    const selected = Array.from(selectedJobs).map((jobId) => findJob(jobId)).filter(Boolean);
+    const crewNames = [...new Set(selected.map((job) => job.crew_assigned).filter(Boolean))];
+    if (crewNames.length !== 1) {
+        showToast('Manual route order can only be saved for one crew at a time.', 'error');
+        return;
+    }
+    const crewName = crewNames[0];
+    const crew = (boardData?.crews || []).find((entry) => entry.name === crewName);
+    const crewJobs = (crew?.jobs || []).slice().sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+    if (crewJobs.length === 0) {
+        showToast('No live jobs found for that crew.', 'error');
+        return;
+    }
+    const crewJobIds = crewJobs.map((job) => normalizeJobId(job.id));
+    const selectedIds = selected.map((job) => normalizeJobId(job.id));
+    if (crewJobIds.length !== selectedIds.length || crewJobIds.some((jobId) => !selectedJobs.has(jobId))) {
+        showToast('Select every stop in one crew lane, or drag the cards directly in the day board.', 'error');
+        return;
     }
     try {
-        await fetch('/api/dispatch/assign', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ assignments })
-        });
-        showToast('Stop order updated');
+        await persistCrewRouteOrder(crewName, crewJobIds);
+        showToast(`Saved route order for ${crewName}`);
         clearBulkSelection();
+        loadBoard();
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+async function persistCrewRouteOrder(crewName, orderedJobKeys) {
+    const ordered = (orderedJobKeys || []).map((jobId) => normalizeJobId(jobId)).filter(Boolean);
+    const res = await fetch('/api/dispatch/route-order', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            date: formatDate(currentDate),
+            crew_name: crewName,
+            ordered_job_keys: ordered,
+        })
+    });
+    const data = await res.json();
+    if (!data.success && !res.ok) throw new Error(data.error || 'Failed to save route order');
+    return data;
+}
+
+async function reverseCrewRoute(crewName) {
+    if (blockDispatchCapability('Reversing routes', 'reverse_route')) return;
+    showToast(`Reversing route for ${crewName}...`);
+    try {
+        const res = await fetch('/api/dispatch/reverse-route', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: formatDate(currentDate),
+                crew_name: crewName,
+            })
+        });
+        const data = await res.json();
+        if (!data.success && !res.ok) throw new Error(data.error || 'Failed to reverse route');
+        showToast(`Reversed route for ${crewName}`);
         loadBoard();
     } catch (err) {
         showToast('Failed: ' + err.message, 'error');
@@ -1687,6 +1744,7 @@ async function loadBoard() {
             route_order: false,
             geocode: false,
             optimize: false,
+            reverse_route: false,
             complete: false,
             add_job: false,
             ...(data.write_capabilities || {})
@@ -1973,6 +2031,7 @@ function renderDayView(data) {
     const container = document.getElementById('dayBoard');
     let crews = data.crews || [];
     const canAddJob = !isBoardReadOnly() && canDispatchCapability('add_job');
+    const canReverseRoute = !isBoardReadOnly() && canDispatchCapability('reverse_route');
 
     // Filter out empty crews unless toggled on
     if (!showEmptyCrews) {
@@ -2015,6 +2074,7 @@ function renderDayView(data) {
                         <div class="crew-members">${esc(crew.members || '--')}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                        ${jobs.length > 1 ? `<button class="reverse-route-btn" onclick="reverseCrewRoute('${safeCrewName}')" style="padding:6px 10px;font-size:11px;font-weight:700;border:1px solid var(--gray-300);border-radius:999px;background:var(--white);color:var(--gray-700);cursor:${canReverseRoute ? 'pointer' : 'not-allowed'};font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;" title="${canReverseRoute ? `Reverse route for ${esc(crew.name)}` : 'Reverse route is unavailable on this board'}" ${canReverseRoute ? '' : 'disabled'}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Reverse</button>` : ''}
                         ${jobs.length > 1 ? `<button onclick="optimizeCrewRoute('${safeCrewName}')" style="padding:6px 10px;font-size:11px;font-weight:700;border:1px solid var(--gray-300);border-radius:999px;background:var(--white);color:var(--primary);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;" title="Optimize route for ${esc(crew.name)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Optimize</button>` : ''}
                         <span class="availability-dot ${avail}" title="${laneHours}h scheduled"></span>
                     </div>
@@ -2026,8 +2086,8 @@ function renderDayView(data) {
                     <span class="crew-kpi"><strong>${jobs.filter((job) => job.route_order != null).length}</strong> routed</span>
                 </div>
             </div>
-            <div class="crew-lane-body" data-crew-id="${crew.id}"
-                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleCrewDrop(event, '${esc(crew.name)}')">
+            <div class="crew-lane-body" data-crew-id="${crew.id}" data-crew-name="${esc(crew.name)}"
+                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleCrewDrop(event, '${safeCrewName}')">
                 ${jobs.length === 0 ? '<div style="color:var(--gray-400);font-size:12px;text-align:center;padding:24px;">No jobs assigned</div>' : ''}
                 ${jobs.map(job => renderJobCard(job)).join('')}
                 <div class="drop-placeholder">Drop job here to assign</div>
@@ -2052,9 +2112,9 @@ function renderJobCard(job) {
     const jobId = normalizeJobId(job.id);
     const jobIdEsc = esc(jobId);
     const jobIdJs = jobIdLiteral(jobId);
-    const dragAttrs = (isBoardReadOnly() || !canDispatchCapability('assign'))
+    const dragAttrs = (isBoardReadOnly() || !canDispatchCapability('route_order'))
         ? 'draggable="false"'
-        : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
+        : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs}, "route")' ondragend='handleDragEnd(event)' ondragover='handleJobCardDragOver(event)' ondragleave='handleJobCardDragLeave(event)' ondrop='handleJobCardDrop(event, ${JSON.stringify(job.crew_assigned || '')}, ${jobIdJs})'`;
 
     return `
     <div class="job-card ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
@@ -2107,7 +2167,7 @@ function renderRouteTable(data) {
         const jobIdJs = jobIdLiteral(jobId);
         return `
         <tr class="${isSelected ? 'selected' : ''}" onclick='openJobDetail(${jobIdJs})'>
-            <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${jobIdEsc}" ${isSelected ? 'checked' : ''} ${(isBoardReadOnly() || !canDispatchCapability('assign')) ? 'disabled' : ''} onchange='toggleJobSelect(${jobIdJs}, this)'></td>
+            <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${jobIdEsc}" ${isSelected ? 'checked' : ''} ${(isBoardReadOnly() || !canUseBoardSelection()) ? 'disabled' : ''} onchange='toggleJobSelect(${jobIdJs}, this)'></td>
             <td><span class="stop-num">${job.route_order || (i + 1)}</span></td>
             <td style="white-space:nowrap;">${job.job_date ? job.job_date.split('T')[0] : formatDate(currentDate)}</td>
             <td style="font-weight:600;">${esc(job.service_type || 'Service')}</td>
@@ -2176,7 +2236,7 @@ function renderWeekView(data) {
                     const jobIdJs = jobIdLiteral(jobId);
                     const dragAttrs = (isBoardReadOnly() || !canDispatchCapability('assign'))
                         ? 'draggable="false"'
-                        : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
+                        : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs}, "assign")' ondragend='handleDragEnd(event)'`;
                     html += `<div class="week-job-card ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
                         onclick='openJobDetail(${jobIdJs})'>
                         <div class="week-job-name">${esc(job.customer_name)}</div>
@@ -2244,7 +2304,7 @@ function updateUnassignedPanel(jobs) {
         const jobIdJs = jobIdLiteral(jobId);
         const dragAttrs = readOnly
             ? 'draggable="false"'
-            : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
+            : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs}, "assign")' ondragend='handleDragEnd(event)'`;
 
         return `<div class="ucard ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
                      onmouseenter='highlightMapPin(${jobIdJs})' onmouseleave='unhighlightMapPin(${jobIdJs})'>
@@ -2303,12 +2363,16 @@ async function batchAssignUnassigned() {
 /* ═══════════════════════════════════════════════════════════
    DRAG AND DROP
    ═══════════════════════════════════════════════════════════ */
-function handleDragStart(e, jobId) {
-    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
+function handleDragStart(e, jobId, mode = 'assign') {
+    if (isBoardReadOnly()) return;
+    if (mode === 'route' && !canDispatchCapability('route_order')) return;
+    if (mode === 'assign' && !canDispatchCapability('assign')) return;
     draggedJob = jobId;
+    dragMode = mode;
     const card = e.target.closest('.job-card, .week-job-card');
     const lane = card ? card.closest('.crew-lane-body, .week-cell') : null;
     dragSourceCrewId = lane ? lane.dataset.crewId || null : null;
+    dragSourceCrewName = lane ? lane.dataset.crewName || null : null;
 
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', normalizeJobId(jobId));
@@ -2320,7 +2384,9 @@ function handleDragStart(e, jobId) {
 
 function handleDragEnd(e) {
     draggedJob = null;
+    dragMode = null;
     dragSourceCrewId = null;
+    dragSourceCrewName = null;
     document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
     document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
 }
@@ -2340,13 +2406,25 @@ function handleDragLeave(e) {
 function handleCrewDrop(e, crewName) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
+    if (isBoardReadOnly() || !canDispatchCapability('route_order')) return;
     const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
+    if (dragMode !== 'route') return;
+    if (!dragSourceCrewName || dragSourceCrewName !== crewName) {
+        showToast('Cross-crew drag stays blocked on the live route board. Use crew assignment controls instead.', 'error');
+        return;
+    }
     const lane = e.currentTarget;
-    const existingCards = lane.querySelectorAll('.job-card[data-job-id]');
-    const routeOrder = existingCards.length + 1;
-    assignJob(jobId, crewName, routeOrder);
+    const orderedJobKeys = Array.from(lane.querySelectorAll('.job-card[data-job-id]'))
+        .map((card) => normalizeJobId(card.dataset.jobId))
+        .filter((id) => id && id !== normalizeJobId(jobId));
+    orderedJobKeys.push(normalizeJobId(jobId));
+    persistCrewRouteOrder(crewName, orderedJobKeys)
+        .then(() => {
+            showToast(`Updated route order for ${crewName}`);
+            loadBoard();
+        })
+        .catch((err) => showToast('Failed to save route order: ' + err.message, 'error'));
 }
 
 function handleWeekDrop(e, crewName, dateStr) {
@@ -2365,6 +2443,54 @@ function handleUnassignedDrop(e) {
     const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     assignJob(jobId, null, null);
+}
+
+function handleJobCardDragOver(e) {
+    if (dragMode !== 'route') return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.add('drag-over');
+}
+
+function handleJobCardDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+}
+
+function handleJobCardDrop(e, crewName, targetJobId) {
+    if (dragMode !== 'route') return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drag-over');
+    if (isBoardReadOnly() || !canDispatchCapability('route_order')) return;
+
+    const draggedJobId = normalizeJobId(e.dataTransfer.getData('text/plain'));
+    const normalizedTargetJobId = normalizeJobId(targetJobId);
+    if (!draggedJobId || !normalizedTargetJobId) return;
+    if (!dragSourceCrewName || dragSourceCrewName !== crewName) {
+        showToast('Cross-crew drag stays blocked on the live route board. Use crew assignment controls instead.', 'error');
+        return;
+    }
+
+    const lane = e.currentTarget.closest('.crew-lane-body');
+    if (!lane) return;
+    const cards = Array.from(lane.querySelectorAll('.job-card[data-job-id]'));
+    const ordered = cards
+        .map((card) => normalizeJobId(card.dataset.jobId))
+        .filter((jobId) => jobId && jobId !== draggedJobId);
+    const targetIndex = ordered.indexOf(normalizedTargetJobId);
+    if (targetIndex === -1) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const insertAfter = e.clientY > (rect.top + rect.height / 2);
+    ordered.splice(insertAfter ? targetIndex + 1 : targetIndex, 0, draggedJobId);
+
+    persistCrewRouteOrder(crewName, ordered)
+        .then(() => {
+            showToast(`Updated route order for ${crewName}`);
+            loadBoard();
+        })
+        .catch((err) => showToast('Failed to save route order: ' + err.message, 'error'));
 }
 
 /* ═══════════════════════════════════════════════════════════

@@ -11,6 +11,7 @@ const DISPATCH_WRITE_CAPABILITIES = Object.freeze({
   route_order: true,
   geocode: true,
   optimize: true,
+  reverse_route: true,
   complete: false,
   add_job: false,
 });

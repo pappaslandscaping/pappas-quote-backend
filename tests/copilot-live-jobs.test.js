@@ -579,6 +579,7 @@ describe('copilot live jobs service', () => {
         route_order: true,
         geocode: true,
         optimize: true,
+        reverse_route: true,
         complete: false,
         add_job: false,
       },

@@ -19,26 +19,42 @@
 
         /* ─── Top Tabs (Routes / Quick Dispatch / Templates) ── */
         .dispatch-tabs {
-            display: flex; background: var(--white); border-bottom: 1px solid var(--gray-200);
-            padding: 0 32px; gap: 0;
+            display: flex; align-items: center; gap: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,248,0.98));
+            border-bottom: 1px solid var(--gray-200);
+            padding: 0 32px;
         }
         .dispatch-tab {
-            padding: 12px 24px; font-size: 14px; font-weight: 600; color: var(--gray-500);
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 22px; font-size: 14px; font-weight: 700; color: var(--gray-500);
             cursor: pointer; border: none; background: none; font-family: inherit;
             border-bottom: 3px solid transparent; transition: all 0.15s;
         }
         .dispatch-tab:hover { color: var(--primary); background: var(--gray-50); }
         .dispatch-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .dispatch-tab-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+            letter-spacing: 0.05em; text-transform: uppercase;
+        }
+        .dispatch-tab-badge.live { background: var(--green-bg); color: var(--green); }
+        .dispatch-tab-badge.legacy { background: var(--amber-bg); color: var(--amber); }
         .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
         .tab-content.active { display: flex; }
 
         /* ─── Toolbar ──────────────────────────────────────── */
         .dispatch-toolbar {
-            display: flex; align-items: center; justify-content: space-between; gap: 16px;
-            padding: 12px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
+            display: grid; grid-template-columns: minmax(280px, 1.2fr) minmax(320px, 1.6fr) minmax(240px, 1fr);
+            gap: 16px; padding: 18px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
         }
-        .toolbar-left { display: flex; align-items: center; gap: 12px; }
-        .toolbar-right { display: flex; align-items: center; gap: 12px; }
+        .toolbar-left, .toolbar-center, .toolbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .toolbar-left { justify-content: flex-start; }
+        .toolbar-center { justify-content: center; flex-wrap: wrap; }
+        .toolbar-right { justify-content: flex-end; flex-wrap: wrap; }
+        .toolbar-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .toolbar-kicker { font-size: 11px; font-weight: 700; color: var(--gray-400); letter-spacing: 0.08em; text-transform: uppercase; }
+        .toolbar-note { font-size: 12px; color: var(--gray-500); }
+        .toolbar-note strong { color: var(--gray-700); }
         .date-nav { display: flex; align-items: center; gap: 4px; }
         .date-nav-btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--gray-200); background: var(--white); border-radius: 8px; font-size: 16px; color: var(--gray-600); cursor: pointer; transition: all 0.15s; font-family: inherit; }
         .date-nav-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
@@ -52,9 +68,80 @@
         .view-toggle-btn + .view-toggle-btn { border-left: 1px solid var(--gray-200); }
         .view-toggle-btn.active { background: var(--primary); color: var(--white); }
         .view-toggle-btn:hover:not(.active) { background: var(--gray-50); }
+        .toolbar-section-card {
+            background: linear-gradient(180deg, #f8fbf8, #f3f6f3);
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+        .toolbar-action-group {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--gray-50);
+        }
+        .toolbar-action-group .btn { white-space: nowrap; }
+        .toolbar-legacy-note {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 10px; border-radius: 10px; background: var(--amber-bg); color: var(--amber);
+            font-size: 12px; font-weight: 700;
+        }
 
         .unassigned-toggle { position: relative; }
         .unassigned-badge { position: absolute; top: -6px; right: -6px; background: var(--red); color: white; font-size: 10px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+        /* ─── Dispatch Overview ───────────────────────────── */
+        .dispatch-overview {
+            display: flex; align-items: stretch; justify-content: space-between; gap: 18px;
+            padding: 14px 32px 16px; background: var(--white); border-bottom: 1px solid var(--gray-200);
+        }
+        .dispatch-overview-left { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+        .dispatch-overview-right { display: flex; flex-direction: column; gap: 10px; width: min(420px, 40%); min-width: 280px; }
+        .dispatch-summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+        .dispatch-summary-card {
+            background: linear-gradient(180deg, #ffffff, #f7faf7);
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 12px 14px;
+            min-width: 0;
+        }
+        .dispatch-summary-card .label { display: block; font-size: 11px; font-weight: 700; color: var(--gray-400); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+        .dispatch-summary-card .value { display: block; font-size: 22px; font-weight: 700; color: var(--primary); line-height: 1.1; }
+        .dispatch-summary-card .detail { display: block; margin-top: 4px; font-size: 12px; color: var(--gray-500); }
+        .dispatch-status-panel {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 12px 14px; border: 1px solid #f5d487; border-radius: 14px; background: linear-gradient(180deg, #fff9ec, #fff6df);
+            font-size: 13px; color: var(--amber);
+        }
+        .dispatch-status-panel svg { flex-shrink: 0; margin-top: 2px; }
+        .dispatch-status-panel strong { color: #9a6700; }
+        .crew-filter-panel {
+            border: 1px solid var(--gray-200); border-radius: 14px; background: linear-gradient(180deg, #fbfcfb, #f6f8f6);
+            padding: 12px 14px;
+        }
+        .crew-filter-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+        .crew-filter-title { font-size: 13px; font-weight: 700; color: var(--gray-700); }
+        .crew-filter-subtitle { font-size: 12px; color: var(--gray-500); }
+        .crew-filter-reset {
+            border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600);
+            border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer;
+            font-family: inherit; transition: all 0.15s;
+        }
+        .crew-filter-reset:hover { border-color: var(--primary); color: var(--primary); background: var(--green-bg); }
+        .crew-filter-list {
+            display: flex; flex-wrap: wrap; gap: 8px;
+        }
+        .crew-filter-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            min-height: 36px; padding: 8px 12px; border-radius: 12px;
+            border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600);
+            font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s;
+        }
+        .crew-filter-chip:hover { border-color: var(--gray-400); transform: translateY(-1px); }
+        .crew-filter-chip.active { color: var(--white); border-color: transparent; box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+        .crew-filter-chip.inactive { opacity: 0.45; }
+        .crew-filter-chip .pill-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .crew-filter-chip .chip-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .crew-filter-chip .chip-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 999px; background: rgba(255,255,255,0.18); font-size: 11px; font-weight: 700; padding: 0 8px; }
+        .crew-filter-chip.inactive .chip-count { background: var(--gray-100); color: var(--gray-500); }
 
         /* ─── Bulk Actions Bar ─────────────────────────────── */
         .bulk-bar {
@@ -70,6 +157,7 @@
         }
         .bulk-bar .bulk-btn:hover { background: rgba(255,255,255,0.2); }
         .bulk-bar .bulk-close { margin-left: auto; background: none; border: none; color: var(--white); cursor: pointer; font-size: 18px; padding: 4px; }
+        .bulk-bar-note { font-size: 12px; color: rgba(255,255,255,0.82); }
 
         /* ─── Map Panel ───────────────────────────────────── */
         .map-container {
@@ -113,6 +201,15 @@
         .crew-stats { display: flex; gap: 12px; font-size: 12px; color: var(--gray-500); }
         .crew-stats span { display: flex; align-items: center; gap: 4px; }
         .crew-stats strong { color: var(--gray-700); font-weight: 600; }
+        .crew-header-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .crew-header-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .crew-lane-kpis { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .crew-kpi {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 10px; border-radius: 999px; background: var(--gray-50); border: 1px solid var(--gray-200);
+            font-size: 11px; font-weight: 700; color: var(--gray-600);
+        }
+        .crew-kpi strong { color: var(--gray-800); font-size: 12px; }
         .crew-lane-body { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; overflow-y: auto; }
         .crew-lane-body.drag-over { background: var(--gray-50); }
         .drop-placeholder { border: 2px dashed var(--gray-300); border-radius: 8px; padding: 24px; text-align: center; color: var(--gray-400); font-size: 12px; display: none; }
@@ -120,6 +217,8 @@
         .crew-lane-footer { padding: 12px; border-top: 1px solid var(--gray-100); }
         .add-job-btn { width: 100%; padding: 8px; border: 1px dashed var(--gray-300); border-radius: 8px; background: transparent; color: var(--gray-400); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 4px; }
         .add-job-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--gray-50); }
+        .lane-footer-note { margin-top: 8px; font-size: 11px; color: var(--gray-500); line-height: 1.45; }
+        .lane-footer-note strong { color: var(--gray-700); }
 
         /* ─── Job Card ─────────────────────────────────────── */
         .job-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px; cursor: grab; transition: all 0.15s; border-left: 3px solid var(--gray-300); position: relative; }
@@ -315,18 +414,6 @@
         .pin-bad-address { outline: 2px solid #d97706 !important; outline-offset: -2px; }
 
         /* ─── Crew Toggle Pills ───────────────────────────── */
-        .crew-pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .crew-pill-toggle {
-            display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
-            border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer;
-            border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600);
-            font-family: inherit; transition: all 0.15s; user-select: none;
-        }
-        .crew-pill-toggle:hover { border-color: var(--gray-400); }
-        .crew-pill-toggle.active { color: var(--white); border-color: transparent; }
-        .crew-pill-toggle .pill-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .crew-pill-toggle.inactive { opacity: 0.4; }
-
         /* ─── Animations ───────────────────────────────────── */
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -334,12 +421,18 @@
 
         /* ─── Responsive ───────────────────────────────────── */
         @media (max-width: 1024px) {
+            .dispatch-toolbar { grid-template-columns: 1fr; }
+            .dispatch-overview { flex-direction: column; }
+            .dispatch-overview-right { width: 100%; min-width: 0; }
+            .dispatch-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .unassigned-panel { width: 260px; }
             .crew-lane { min-width: 250px; }
         }
         @media (max-width: 768px) {
-            .dispatch-toolbar { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px; }
-            .toolbar-left, .toolbar-right { flex-wrap: wrap; }
+            .dispatch-toolbar { grid-template-columns: 1fr; gap: 10px; padding: 12px 16px; }
+            .toolbar-left, .toolbar-center, .toolbar-right { justify-content: flex-start; }
+            .dispatch-overview { padding: 12px 16px 14px; }
+            .dispatch-summary-strip { grid-template-columns: 1fr 1fr; }
             .board-area { padding: 12px; }
             .day-board { flex-direction: column; }
             .crew-lane { max-width: unset; min-width: unset; }
@@ -377,9 +470,18 @@
 
     <!-- Top Tabs -->
     <div class="dispatch-tabs no-print">
-        <button class="dispatch-tab active" onclick="setDispatchTab('routes')">Routes</button>
-        <button class="dispatch-tab" onclick="setDispatchTab('quick-dispatch')">Quick Dispatch</button>
-        <button class="dispatch-tab" onclick="setDispatchTab('templates')">Quick Dispatch Templates</button>
+        <button class="dispatch-tab active" onclick="setDispatchTab('routes')">
+            <span>Routes</span>
+            <span class="dispatch-tab-badge live">Live</span>
+        </button>
+        <button class="dispatch-tab" onclick="setDispatchTab('quick-dispatch')">
+            <span>Quick Dispatch</span>
+            <span class="dispatch-tab-badge legacy">Legacy</span>
+        </button>
+        <button class="dispatch-tab" onclick="setDispatchTab('templates')">
+            <span>Templates</span>
+            <span class="dispatch-tab-badge legacy">Legacy</span>
+        </button>
     </div>
 
     <!-- ══════ TAB 1: ROUTES ══════ -->
@@ -388,67 +490,105 @@
         <!-- Toolbar -->
         <div class="dispatch-toolbar no-print">
             <div class="toolbar-left">
-                <div class="date-nav">
-                    <button class="date-nav-btn" onclick="navigateDate(-1)" title="Previous day">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-                    </button>
-                    <input type="date" class="date-input" id="datePicker" onchange="onDateChange()">
-                    <button class="date-nav-btn" onclick="navigateDate(1)" title="Next day">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                    </button>
+                <div class="toolbar-section-card toolbar-stack">
+                    <span class="toolbar-kicker">Dispatch Date</span>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <div class="date-nav">
+                            <button class="date-nav-btn" onclick="navigateDate(-1)" title="Previous day">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <input type="date" class="date-input" id="datePicker" onchange="onDateChange()">
+                            <button class="date-nav-btn" onclick="navigateDate(1)" title="Next day">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                        <button class="today-btn" onclick="goToToday()">Today</button>
+                    </div>
+                    <div class="toolbar-note">Schedule is the office view. <strong>Dispatch</strong> is the live crew-routing view for this same Copilot-backed date.</div>
                 </div>
-                <button class="today-btn" onclick="goToToday()">Today</button>
-                <div class="view-toggle">
-                    <button class="view-toggle-btn active" id="viewDay" onclick="setView('day')">Day</button>
-                    <button class="view-toggle-btn" id="viewWeek" onclick="setView('week')">Week</button>
-                    <button class="view-toggle-btn" id="viewRoute" onclick="setView('route')">Route Table</button>
+            </div>
+            <div class="toolbar-center">
+                <div class="toolbar-section-card toolbar-stack" style="width:100%;">
+                    <span class="toolbar-kicker">Board View</span>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                        <div class="view-toggle">
+                            <button class="view-toggle-btn active" id="viewDay" onclick="setView('day')">Day</button>
+                            <button class="view-toggle-btn" id="viewWeek" onclick="setView('week')">Week</button>
+                            <button class="view-toggle-btn" id="viewRoute" onclick="setView('route')">Route Table</button>
+                        </div>
+                        <div class="toolbar-note">Use Day for crew lanes, Week for date spread, and Route Table for stop-by-stop review.</div>
+                    </div>
                 </div>
             </div>
             <div class="toolbar-right">
-                <div class="crew-pills" id="crewPills">
-                    <!-- Populated dynamically -->
-                </div>
-                <button class="btn btn-secondary" id="geocodeBtn" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    Geocode
-                </button>
-                <button class="btn btn-secondary" id="lassoBtn" onclick="toggleLassoMode()" title="Draw to select jobs on the map, then assign to crew">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
-                    Lasso
-                </button>
-                <button class="btn btn-primary" id="optimizeRouteBtn" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    Optimize Route
-                </button>
-                <button class="btn btn-secondary" id="mapToggleToolbar" onclick="toggleMap()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-                    <span id="mapToggleLabel">Hide Map</span>
-                </button>
-                <button class="btn btn-secondary" id="emptyCrewsBtn" onclick="toggleEmptyCrews()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                    <span id="emptyCrewsLabel">Show All Crews</span>
-                </button>
-                <div class="unassigned-toggle">
-                    <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                        Unassigned
+                <div class="toolbar-action-group">
+                    <button class="btn btn-secondary" id="geocodeBtn" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        Geocode
                     </button>
-                    <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
+                    <button class="btn btn-secondary" id="lassoBtn" onclick="toggleLassoMode()" title="Draw to select jobs on the map, then assign to crew">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
+                        Lasso
+                    </button>
+                    <button class="btn btn-primary" id="optimizeRouteBtn" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Optimize Route
+                    </button>
+                    <button class="btn btn-secondary" id="mapToggleToolbar" onclick="toggleMap()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                        <span id="mapToggleLabel">Hide Map</span>
+                    </button>
+                    <button class="btn btn-secondary" id="emptyCrewsBtn" onclick="toggleEmptyCrews()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                        <span id="emptyCrewsLabel">Show All Crews</span>
+                    </button>
+                    <div class="unassigned-toggle">
+                        <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                            Unassigned
+                        </button>
+                        <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
+                    </div>
+                </div>
+                <div class="toolbar-legacy-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Completion stays in Copilot
                 </div>
             </div>
         </div>
 
-        <div class="crew-filter-bar" id="dispatchModeBanner" style="display:none;background:var(--amber-bg);color:var(--amber);border-bottom:1px solid #f5d487;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span id="dispatchModeBannerText">Dispatch is reading the shared live Copilot-backed job set.</span>
+        <div class="dispatch-overview no-print">
+            <div class="dispatch-overview-left">
+                <div class="dispatch-summary-strip" id="dispatchSummaryStrip"></div>
+                <div class="dispatch-status-panel" id="dispatchModeBanner" style="display:none;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div>
+                        <strong>Live Dispatch rules</strong><br>
+                        <span id="dispatchModeBannerText">Dispatch is reading the shared live Copilot-backed job set.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="dispatch-overview-right">
+                <div class="crew-filter-panel">
+                    <div class="crew-filter-panel-head">
+                        <div>
+                            <div class="crew-filter-title">Crew visibility</div>
+                            <div class="crew-filter-subtitle">Filter map pins and board lanes without changing the underlying live job set.</div>
+                        </div>
+                        <button class="crew-filter-reset" type="button" onclick="resetCrewVisibility()">Show all</button>
+                    </div>
+                    <div class="crew-filter-list" id="crewPills"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Bulk Actions Bar -->
         <div class="bulk-bar" id="bulkBar">
             <span class="bulk-count"><span id="bulkCount">0</span> selected</span>
-            <button class="bulk-btn" onclick="bulkOrderStops()">Order Stops</button>
-            <button class="bulk-btn" onclick="bulkAssignCrew()">Assign Crew</button>
-            <button class="bulk-btn" onclick="bulkComplete()">Mark Complete</button>
+            <button class="bulk-btn" id="bulkOrderStopsBtn" onclick="bulkOrderStops()">Order Stops</button>
+            <button class="bulk-btn" id="bulkAssignCrewBtn" onclick="bulkAssignCrew()">Assign Crew</button>
+            <button class="bulk-btn" id="bulkCompleteBtn" onclick="bulkComplete()">Mark Complete in Copilot</button>
+            <span class="bulk-bar-note">Live Dispatch can assign, geocode, and reorder. Completion stays in Copilot.</span>
             <button class="bulk-close" onclick="clearBulkSelection()">&times;</button>
         </div>
 
@@ -537,8 +677,12 @@
     <div class="tab-content" id="tab-quick-dispatch">
         <div class="qd-layout">
             <div class="qd-form-card">
+                <div class="toolbar-legacy-note" style="margin-bottom:16px;display:inline-flex;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Legacy fallback
+                </div>
                 <h3>Quick Dispatch</h3>
-                <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">Enter an address and zip code to auto-match a crew and create a job.</p>
+                <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">This is a legacy fallback flow for creating local jobs. It is not part of the primary live Copilot-backed Dispatch board.</p>
                 <form onsubmit="submitQuickDispatch(event)">
                     <div class="form-group">
                         <label>Customer Name</label>
@@ -568,7 +712,7 @@
                 <h3>Recent Quick Dispatches</h3>
                 <div id="qdResultsArea">
                     <div style="text-align:center;padding:40px;color:var(--gray-400);">
-                        <p>Use the form to auto-match a template by zip code and dispatch instantly.</p>
+                        <p>Use the legacy form to auto-match a template by zip code only when the live board is not the right path.</p>
                     </div>
                 </div>
             </div>
@@ -579,13 +723,16 @@
     <div class="tab-content" id="tab-templates">
         <div class="templates-layout">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <h3 style="font-size:20px;font-weight:700;color:var(--gray-800);">Quick Dispatch Templates</h3>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <h3 style="font-size:20px;font-weight:700;color:var(--gray-800);">Quick Dispatch Templates</h3>
+                    <span class="dispatch-tab-badge legacy">Legacy</span>
+                </div>
                 <button class="btn btn-primary" onclick="openTemplateModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Template
                 </button>
             </div>
-            <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">Templates auto-assign crews based on zip code when using Quick Dispatch.</p>
+            <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px;">Templates remain available for the legacy Quick Dispatch workflow. They are not the primary path for the live Copilot-backed Dispatch board.</p>
             <div class="templates-grid" id="templatesGrid">
                 <div style="text-align:center;padding:40px;color:var(--gray-400);grid-column:1/-1;">Loading templates...</div>
             </div>
@@ -830,7 +977,13 @@ function syncDispatchModeUI() {
     const bannerText = document.getElementById('dispatchModeBannerText');
     const hasRestrictions = readOnly || Object.values(dispatchCapabilities).some((enabled) => !enabled);
     if (banner) banner.style.display = hasRestrictions ? 'flex' : 'none';
-    if (bannerText && dispatchReadOnlyReason) bannerText.textContent = dispatchReadOnlyReason;
+    if (bannerText) {
+        const restrictions = [];
+        if (!canDispatchCapability('complete')) restrictions.push('completion stays in Copilot');
+        if (!canDispatchCapability('add_job')) restrictions.push('Add Job is legacy-only');
+        const suffix = restrictions.length ? ` ${restrictions.join(' and ')}.` : '';
+        bannerText.textContent = `${dispatchReadOnlyReason}${suffix}`;
+    }
 
     const geocodeBtn = document.getElementById('geocodeBtn');
     if (geocodeBtn) geocodeBtn.disabled = readOnly || !canDispatchCapability('geocode');
@@ -844,12 +997,15 @@ function syncDispatchModeUI() {
     if (unassignedBatchCrew) unassignedBatchCrew.disabled = readOnly || !canDispatchCapability('assign');
     const unassignedAssignBtn = document.getElementById('unassignedAssignBtn');
     if (unassignedAssignBtn) unassignedAssignBtn.disabled = readOnly || !canDispatchCapability('assign');
-    document.querySelectorAll('.bulk-btn').forEach((button) => {
-        const label = button.textContent.trim();
-        if (label === 'Order Stops') button.disabled = readOnly || !canDispatchCapability('route_order');
-        if (label === 'Assign Crew') button.disabled = readOnly || !canDispatchCapability('assign');
-        if (label === 'Mark Complete') button.disabled = readOnly || !canDispatchCapability('complete');
-    });
+    const bulkOrderStopsBtn = document.getElementById('bulkOrderStopsBtn');
+    if (bulkOrderStopsBtn) bulkOrderStopsBtn.disabled = readOnly || !canDispatchCapability('route_order');
+    const bulkAssignCrewBtn = document.getElementById('bulkAssignCrewBtn');
+    if (bulkAssignCrewBtn) bulkAssignCrewBtn.disabled = readOnly || !canDispatchCapability('assign');
+    const bulkCompleteBtn = document.getElementById('bulkCompleteBtn');
+    if (bulkCompleteBtn) {
+        bulkCompleteBtn.disabled = readOnly || !canDispatchCapability('complete');
+        bulkCompleteBtn.title = canDispatchCapability('complete') ? 'Mark selected jobs complete' : 'Completion stays in Copilot for the live Dispatch board.';
+    }
 
     document.querySelectorAll('.add-job-btn').forEach((el) => { el.disabled = readOnly || !canDispatchCapability('add_job'); });
     document.querySelectorAll('.route-job-check, .unassigned-check, .ucard-assign select').forEach((el) => {
@@ -860,6 +1016,34 @@ function syncDispatchModeUI() {
         clearBulkSelection();
         if (lassoMode) toggleLassoMode();
     }
+}
+
+function renderDispatchSummaryStrip(data) {
+    const container = document.getElementById('dispatchSummaryStrip');
+    if (!container) return;
+
+    const crews = data?.crews || [];
+    const unassigned = data?.unassigned || [];
+    const allCrewJobs = crews.flatMap((crew) => crew.jobs || []);
+    const totalJobs = allCrewJobs.length + unassigned.length;
+    const activeCrews = crews.filter((crew) => (crew.jobs || []).length > 0).length;
+    const revenue = [...allCrewJobs, ...unassigned].reduce((sum, job) => sum + (Number(job.service_price) || 0), 0);
+    const totalHours = [...allCrewJobs, ...unassigned].reduce((sum, job) => sum + ((Number(job.estimated_duration) || 0) / 60), 0);
+
+    const cards = [
+        { label: 'Live Jobs', value: totalJobs, subtext: `${allCrewJobs.length} assigned on board` },
+        { label: 'Active Crews', value: activeCrews, subtext: `${crews.length} crews available` },
+        { label: 'Unassigned', value: unassigned.length, subtext: unassigned.length ? 'Needs lane assignment' : 'All jobs routed' },
+        { label: 'Day Load', value: formatPrice(revenue), subtext: `${totalHours.toFixed(1)} scheduled hours` }
+    ];
+
+    container.innerHTML = cards.map((card) => `
+        <div class="dispatch-summary-card">
+            <span class="label">${esc(card.label)}</span>
+            <div class="value">${esc(String(card.value))}</div>
+            <div class="subtext">${esc(card.subtext)}</div>
+        </div>
+    `).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1512,6 +1696,7 @@ async function loadBoard() {
 
         updateUnassignedPanel(data.unassigned || []);
         populateCrewSelect(data.crews || []);
+        renderDispatchSummaryStrip(data);
 
         // Collect all jobs for map (assigned + unassigned), tagging crew name
         const allJobs = [];
@@ -1811,24 +1996,34 @@ function renderDayView(data) {
     container.innerHTML = crews.map(crew => {
         const avail = getAvailabilityClass(crew.totalHours || 0);
         const jobs = (crew.jobs || []).sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+        const safeCrewName = esc(crew.name).replace(/'/g, "\\'");
+        const laneHours = (crew.totalHours || 0).toFixed(1);
+        const laneRevenue = formatPrice((crew.totalRevenue || 0));
+        const laneFootnote = canAddJob
+            ? 'Use Add Job only for approved local-only workflows.'
+            : 'Add Job stays disabled here because the live Dispatch board does not create a second local source of truth.';
 
         return `
         <div class="crew-lane" data-crew-id="${crew.id}">
             <div class="crew-lane-header" style="border-top: 3px solid ${crew.color || '#9ca09c'}">
-                <div class="crew-lane-header-top">
-                    <div class="crew-name-row">
-                        <span class="crew-color-dot" style="background:${crew.color || '#9ca09c'}"></span>
-                        <span class="crew-name ${selectedCrewFilter === crew.name ? 'active-filter' : ''}" onclick="event.stopPropagation(); filterMapByCrew('${esc(crew.name).replace(/'/g, "\\'")}')" title="Click to filter map to this crew">${esc(crew.name)}</span>
+                <div class="crew-header-meta">
+                    <div class="crew-header-block">
+                        <div class="crew-name-row">
+                            <span class="crew-color-dot" style="background:${crew.color || '#9ca09c'}"></span>
+                            <span class="crew-name ${selectedCrewFilter === crew.name ? 'active-filter' : ''}" onclick="event.stopPropagation(); filterMapByCrew('${safeCrewName}')" title="Click to filter map to this crew">${esc(crew.name)}</span>
+                        </div>
+                        <div class="crew-members">${esc(crew.members || '--')}</div>
                     </div>
-                    <span class="availability-dot ${avail}" title="${(crew.totalHours || 0).toFixed(1)}h scheduled"></span>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                        ${jobs.length > 1 ? `<button onclick="optimizeCrewRoute('${safeCrewName}')" style="padding:6px 10px;font-size:11px;font-weight:700;border:1px solid var(--gray-300);border-radius:999px;background:var(--white);color:var(--primary);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;" title="Optimize route for ${esc(crew.name)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Optimize</button>` : ''}
+                        <span class="availability-dot ${avail}" title="${laneHours}h scheduled"></span>
+                    </div>
                 </div>
-                <div class="crew-members">${esc(crew.members || '--')}</div>
-                <div class="crew-stats" style="display:flex;align-items:center;justify-content:space-between;">
-                    <div>
-                        <span><strong>${crew.jobCount || jobs.length}</strong> jobs</span>
-                        <span><strong>${(crew.totalHours || 0).toFixed(1)}</strong> hours</span>
-                    </div>
-                    ${jobs.length > 1 ? `<button onclick="optimizeCrewRoute('${esc(crew.name).replace(/'/g, "\\'")}')" style="padding:4px 10px;font-size:11px;font-weight:600;border:1px solid var(--gray-300);border-radius:6px;background:var(--white);color:var(--primary);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;" title="Optimize route for ${esc(crew.name)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Optimize</button>` : ''}
+                <div class="crew-lane-kpis">
+                    <span class="crew-kpi"><strong>${crew.jobCount || jobs.length}</strong> jobs</span>
+                    <span class="crew-kpi"><strong>${laneHours}</strong> hours</span>
+                    <span class="crew-kpi"><strong>${laneRevenue}</strong> revenue</span>
+                    <span class="crew-kpi"><strong>${jobs.filter((job) => job.route_order != null).length}</strong> routed</span>
                 </div>
             </div>
             <div class="crew-lane-body" data-crew-id="${crew.id}"
@@ -1838,10 +2033,11 @@ function renderDayView(data) {
                 <div class="drop-placeholder">Drop job here to assign</div>
             </div>
             <div class="crew-lane-footer">
-                <button class="add-job-btn" ${canAddJob ? `onclick="openAddJobModal('${esc(crew.name)}')"` : 'disabled'}>
+                <button class="add-job-btn" ${canAddJob ? `onclick="openAddJobModal('${esc(crew.name)}')"` : 'disabled'} title="${canAddJob ? 'Add a local-only job for this lane' : 'Add Job remains disabled on the live board; use legacy fallback only when approved.'}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    ${canAddJob ? 'Add Job' : 'Add Job Disabled'}
+                    ${canAddJob ? 'Add Job' : 'Add Job (Legacy Only)'}
                 </button>
+                <div class="lane-footer-note"><strong>Live board rule:</strong> ${laneFootnote}</div>
             </div>
         </div>`;
     }).join('');
@@ -2289,7 +2485,7 @@ function populateCrewSelect(crews) {
         if (current) sel.value = current;
     });
 
-    // Build crew toggle pills
+    // Build live crew visibility chips
     renderCrewPills(crews);
 }
 
@@ -2297,39 +2493,51 @@ function renderCrewPills(crews) {
     const container = document.getElementById('crewPills');
     if (!container) return;
 
-    // Count unassigned
     const unassignedCount = (boardData?.unassigned || []).length;
-
-    let html = '';
-    crews.forEach(c => {
-        const isVisible = crewVisibility[c.name] !== false;
-        const jobCount = (c.jobs || []).length;
-        html += `<button class="crew-pill-toggle ${isVisible ? 'active' : 'inactive'}"
-            style="${isVisible ? 'background:' + (c.color || '#9ca09c') + ';' : ''}"
-            onclick="toggleCrewPill('${esc(c.name).replace(/'/g, "\\'")}')" title="Toggle ${esc(c.name)} visibility">
-            <span class="pill-dot" style="background:${isVisible ? 'white' : (c.color || '#9ca09c')}"></span>
-            ${esc(c.name)} (${jobCount})
-        </button>`;
+    const chips = crews.map((crew) => {
+        const isVisible = crewVisibility[crew.name] !== false;
+        const jobCount = (crew.jobs || []).length;
+        const color = crew.color || '#9ca09c';
+        return `
+            <button class="crew-filter-chip ${isVisible ? 'active' : 'inactive'}"
+                style="${isVisible ? `background:${color};` : ''}"
+                onclick="toggleCrewPill('${esc(crew.name).replace(/'/g, "\\'")}')"
+                title="Toggle ${esc(crew.name)} visibility">
+                <span class="pill-dot" style="background:${isVisible ? 'white' : color}"></span>
+                <span class="chip-name">${esc(crew.name)}</span>
+                <span class="chip-count">${jobCount}</span>
+            </button>`;
     });
 
-    // Unassigned pill
-    const unVis = crewVisibility['__unassigned'] !== false;
-    html += `<button class="crew-pill-toggle ${unVis ? 'active' : 'inactive'}"
-        style="${unVis ? 'background:#dc4a4a;' : ''}"
-        onclick="toggleCrewPill('__unassigned')" title="Toggle Unassigned visibility">
-        <span class="pill-dot" style="background:${unVis ? 'white' : '#dc4a4a'}"></span>
-        Unassigned (${unassignedCount})
-    </button>`;
+    const unassignedVisible = crewVisibility['__unassigned'] !== false;
+    chips.push(`
+        <button class="crew-filter-chip ${unassignedVisible ? 'active' : 'inactive'}"
+            style="${unassignedVisible ? 'background:#dc4a4a;' : ''}"
+            onclick="toggleCrewPill('__unassigned')"
+            title="Toggle Unassigned visibility">
+            <span class="pill-dot" style="background:${unassignedVisible ? 'white' : '#dc4a4a'}"></span>
+            <span class="chip-name">Unassigned</span>
+            <span class="chip-count">${unassignedCount}</span>
+        </button>`);
 
-    container.innerHTML = html;
+    container.innerHTML = chips.join('');
 }
 
 function toggleCrewPill(crewName) {
-    // Toggle visibility
     if (crewVisibility[crewName] === undefined) crewVisibility[crewName] = true;
     crewVisibility[crewName] = !crewVisibility[crewName];
 
-    // Re-render pills and map
+    renderCrewPills(allCrews);
+    if (boardData) {
+        const allJobs = [];
+        (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
+        (boardData.unassigned || []).forEach(j => allJobs.push(j));
+        updateMapMarkers(allJobs);
+    }
+}
+
+function resetCrewVisibility() {
+    crewVisibility = {};
     renderCrewPills(allCrews);
     if (boardData) {
         const allJobs = [];

@@ -13,7 +13,10 @@ const {
 } = require('../services/copilot/client');
 const {
   buildDispatchBoardPayload,
+  fetchResolvedLiveJobs,
   getCopilotLiveJobs,
+  mapResolvedLiveJobToScheduleJob,
+  patchDispatchPlanItems,
 } = require('../services/copilot/live-jobs');
 
 const VALID_JOB_STATUSES = new Set(['pending', 'in_progress', 'completed', 'skipped', 'cancelled']);
@@ -1004,6 +1007,20 @@ async function transitionScheduledJobStatus({
 
 function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumber, upload, fetchImpl = fetch }) {
   const router = express.Router();
+
+  function normalizeLiveDispatchJobKey(value) {
+    if (value == null) return null;
+    const normalized = String(value).trim();
+    return normalized.startsWith('copilot:') ? normalized : null;
+  }
+
+  function getDispatchActor(req) {
+    const user = req?.user || {};
+    return {
+      updatedByUserId: Number.isFinite(Number(user.id)) ? Number(user.id) : null,
+      updatedByName: user.name || user.email || user.username || 'YardDesk Dispatch',
+    };
+  }
 
   // Haversine distance (for route optimization)
   function haversineDistance(lat1, lon1, lat2, lon2) {
@@ -2386,30 +2403,45 @@ router.get('/api/dispatch/board', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
-// PATCH /api/dispatch/assign - Batch reassignment (supports crew, route_order, status, job_date)
+// PATCH /api/dispatch/assign - Persist crew / route overrides for live Dispatch jobs.
 router.patch('/api/dispatch/assign', async (req, res) => {
   try {
     const { assignments } = req.body;
     if (!assignments || !Array.isArray(assignments)) return res.status(400).json({ success: false, error: 'assignments array required' });
-    const updated = [];
-    for (const a of assignments) {
-      const sets = [];
-      const vals = [];
-      let idx = 1;
-      if (a.crew_assigned !== undefined) { sets.push(`crew_assigned = $${idx++}`); vals.push(a.crew_assigned); }
-      if (a.route_order !== undefined) { sets.push(`route_order = $${idx++}`); vals.push(a.route_order || null); }
-      if (a.status !== undefined) { sets.push(`status = $${idx++}`); vals.push(a.status); }
-      if (a.job_date !== undefined) { sets.push(`job_date = $${idx++}`); vals.push(a.job_date); }
-      sets.push('updated_at = NOW()');
-      if (sets.length <= 1) continue;
-      vals.push(a.job_id);
-      const result = await pool.query(
-        `UPDATE scheduled_jobs SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
-        vals
+    const actor = getDispatchActor(req);
+    const patches = [];
+
+    for (const assignment of assignments) {
+      const jobKey = normalizeLiveDispatchJobKey(
+        assignment.job_key || assignment.jobId || assignment.job_id || assignment.id
       );
-      if (result.rows.length > 0) updated.push(result.rows[0]);
+      if (!jobKey) {
+        return res.status(400).json({ success: false, error: 'Live Dispatch assignments require a Copilot job_key' });
+      }
+      if (assignment.status !== undefined || assignment.job_date !== undefined) {
+        return res.status(409).json({
+          success: false,
+          error: 'Live Dispatch assignments only support crew and route overrides. Status and date remain source-of-truth fields from Copilot.',
+        });
+      }
+
+      const patch = {};
+      if (Object.prototype.hasOwnProperty.call(assignment, 'crew_assigned')) patch.crew_override_name = assignment.crew_assigned;
+      if (Object.prototype.hasOwnProperty.call(assignment, 'route_order')) patch.route_order_override = assignment.route_order;
+      if (Object.keys(patch).length === 0) continue;
+      patches.push({ jobKey, patch });
     }
-    res.json({ success: true, updated: updated.length, jobs: updated });
+
+    const updated = await patchDispatchPlanItems(pool, {
+      patches,
+      ...actor,
+    });
+
+    res.json({
+      success: true,
+      updated: updated.length,
+      jobs: updated.map((entry) => entry.dispatchJob),
+    });
   } catch (error) { serverError(res, error); }
 });
 
@@ -2426,277 +2458,208 @@ router.get('/api/dispatch/crew-availability', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
-// POST /api/dispatch/geocode - Geocode jobs and store lat/lng.
-//
-// This is the ONLY writer of scheduled_jobs.lat/lng anywhere in the app.
-// All map pins on the frontend come from values written here, so the gating
-// is strict: only street-level Google results are persisted as coordinates.
+// POST /api/dispatch/geocode - Geocode live Dispatch jobs into dispatch_plan_items.
 //
 // Body:
-//   jobIds: number[]   → repair these exact jobs. Implies force-clear of
-//                        their coords before re-geocoding.
-//   jobId: number      → single-job alias for jobIds.
+//   jobKeys: string[]  → geocode these exact live jobs. Implies force-clear of
+//                        their dispatch-plan map overrides before re-geocoding.
+//   jobKey: string     → single-job alias for jobKeys.
 //   date: 'YYYY-MM-DD' (default: today) → date-mode scope.
-//   force: bool        → wipe ALL lat/lng in scope before re-geocoding,
-//                        regardless of stored quality. Use when stored
-//                        coords cannot be trusted (legacy bad data).
-//   cleanup: bool      → run two extra repair passes BEFORE geocoding:
-//                          (a) suspicious-cluster detection — within the
-//                              date scope, any rounded (lat,lng) shared by
-//                              3+ jobs is treated as a city-center cluster
-//                              and cleared (legacy bad data not flagged
-//                              with geocode_quality);
-//                          (b) clear lat/lng for any in-scope jobs whose
-//                              stored geocode_quality is already 'city',
-//                              'failed', or 'no_street'.
-//                        Both passes are no-ops on every-page-load callers
-//                        because callers don't pass cleanup:true.
+//   force: bool        → re-geocode the whole in-scope live job set even when
+//                        map pins already exist in the dispatch plan.
 router.post('/api/dispatch/geocode', async (req, res) => {
   try {
-    const { date, force, jobId, jobIds, cleanup } = req.body;
+    const { date, force, jobKey, jobKeys } = req.body;
     const targetDate = date || new Date().toISOString().split('T')[0];
+    const actor = getDispatchActor(req);
+    const explicitJobKeys = Array.isArray(jobKeys)
+      ? jobKeys.map((value) => normalizeLiveDispatchJobKey(value)).filter(Boolean)
+      : (normalizeLiveDispatchJobKey(jobKey) ? [normalizeLiveDispatchJobKey(jobKey)] : null);
+    const isExplicit = !!(explicitJobKeys && explicitJobKeys.length > 0);
 
-    // Resolve scope: explicit ID list > single ID > date.
-    const explicitIds = Array.isArray(jobIds)
-      ? jobIds.map(n => parseInt(n)).filter(Number.isFinite)
-      : (jobId ? [parseInt(jobId)].filter(Number.isFinite) : null);
-    const isExplicit = !!(explicitIds && explicitIds.length > 0);
-
-    // ── Repair pass 1: suspicious-cluster detection ────────────
-    // Only runs when cleanup:true. Always uses the date scope (per spec)
-    // since clusters are most meaningful day-by-day. This catches legacy
-    // bad coords that don't have geocode_quality flagged — e.g. coords
-    // written by the pre-quality-gate code that all collapsed onto a city
-    // centroid even though geocode_quality is still 'street' or NULL.
-    let suspiciousCleared = 0;
-    if (cleanup) {
-      const clusters = await pool.query(
-        `SELECT ROUND(lat::numeric, 4) AS rlat, ROUND(lng::numeric, 4) AS rlng
-         FROM scheduled_jobs
-         WHERE job_date::date = $1::date AND lat IS NOT NULL AND lng IS NOT NULL
-         GROUP BY rlat, rlng
-         HAVING COUNT(*) >= 3`,
-        [targetDate]
-      );
-      for (const c of clusters.rows) {
-        const r = await pool.query(
-          `UPDATE scheduled_jobs SET lat = NULL, lng = NULL, geocode_quality = 'city'
-           WHERE job_date::date = $1::date
-             AND ROUND(lat::numeric, 4) = $2
-             AND ROUND(lng::numeric, 4) = $3`,
-          [targetDate, c.rlat, c.rlng]
-        );
-        suspiciousCleared += r.rowCount || 0;
-      }
-    }
-
-    // ── Repair pass 2: clear known-bad geocode_quality ─────────
-    let cleared = 0;
-    if (cleanup) {
-      const badQualities = ['city', 'failed', 'no_street'];
-      let cleanupQ, cleanupP;
-      if (isExplicit) {
-        cleanupQ = `UPDATE scheduled_jobs SET lat = NULL, lng = NULL
-                    WHERE id = ANY($1::int[]) AND geocode_quality = ANY($2::text[])`;
-        cleanupP = [explicitIds, badQualities];
-      } else {
-        cleanupQ = `UPDATE scheduled_jobs SET lat = NULL, lng = NULL
-                    WHERE job_date::date = $1::date AND geocode_quality = ANY($2::text[])`;
-        cleanupP = [targetDate, badQualities];
-      }
-      const r = await pool.query(cleanupQ, cleanupP);
-      cleared = r.rowCount || 0;
-    }
-
-    // ── Repair pass 3: force-clear ALL targeted coords ────────
-    // Triggered by force:true OR explicit IDs (per spec: explicit jobIds
-    // are treated as a force re-geocode of exactly those jobs). Wipes
-    // ALL coords in scope — old or new, good or bad — so the geocoder
-    // re-derives every coordinate from scratch using the current
-    // street-level quality gate. Legacy stale coords cannot survive.
-    let forceCleared = 0;
-    if (force === true || isExplicit) {
-      let q, p;
-      if (isExplicit) {
-        q = `UPDATE scheduled_jobs SET lat = NULL, lng = NULL WHERE id = ANY($1::int[])`;
-        p = [explicitIds];
-      } else {
-        q = `UPDATE scheduled_jobs SET lat = NULL, lng = NULL WHERE job_date::date = $1::date`;
-        p = [targetDate];
-      }
-      const r = await pool.query(q, p);
-      forceCleared = r.rowCount || 0;
-    }
-
-    // ── Build the SELECT WHERE for the geocode loop ───────────
-    // After the repair passes above, all jobs that need coords have
-    // lat/lng = NULL. The missing-coord filter picks them up cleanly.
-    let whereClause, selectParams;
+    let jobs = [];
     if (isExplicit) {
-      whereClause = 'sj.id = ANY($1::int[]) AND sj.address IS NOT NULL';
-      selectParams = [explicitIds];
+      const resolved = await fetchResolvedLiveJobs(pool, { jobKeys: explicitJobKeys, includeDeleted: false });
+      jobs = resolved.map((job) => mapResolvedLiveJobToScheduleJob(job));
     } else {
-      whereClause = 'sj.job_date::date = $1::date AND sj.address IS NOT NULL';
-      selectParams = [targetDate];
-      // Default mode (no force, no cleanup): only geocode jobs missing
-      // coords so we don't burn quota re-geocoding good data.
-      if (!force && !cleanup) whereClause += ' AND (sj.lat IS NULL OR sj.lng IS NULL)';
+      const livePayload = await getCopilotLiveJobs({
+        poolClient: pool,
+        date: targetDate,
+        startDate: targetDate,
+        endDate: targetDate,
+        fetchImpl,
+      });
+      jobs = livePayload.jobs || [];
     }
 
-    const jobs = await pool.query(
-      `SELECT sj.id, sj.address, sj.customer_name, sj.service_type, sj.customer_id,
-              c.street AS cust_street, c.city AS cust_city, c.state AS cust_state, c.postal_code AS cust_zip
-       FROM scheduled_jobs sj
-       LEFT JOIN customers c ON sj.customer_id = c.id
-       WHERE ${whereClause}`,
-      selectParams
-    );
+    const targetJobs = jobs.filter((job) => {
+      if (job?.hold_from_dispatch || job?.source_deleted) return false;
+      if (!job?.address) return false;
+      if (force === true || isExplicit) return true;
+      return job.lat == null || job.lng == null;
+    });
+
     let geocoded = 0;
     const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
-
     let skippedNoStreet = 0;
-    for (const job of jobs.rows) {
+    let failed = 0;
+    for (const job of targetJobs) {
       try {
-        // Use the shared address-quality helper. If it can only build a
-        // city-level address (no street number anywhere), skip the geocode
-        // entirely — writing the city centroid would just collapse every
-        // job in that town onto the same map pin.
         const { address: fullAddress, source: addressSource } = buildBestJobGeocodeAddress(job);
         if (addressSource !== 'street' || !fullAddress) {
-          await pool.query(
-            'UPDATE scheduled_jobs SET geocode_quality = $1 WHERE id = $2',
-            ['no_street', job.id]
-          );
+          await patchDispatchPlanItems(pool, {
+            patches: [{
+              jobKey: normalizeLiveDispatchJobKey(job.job_key || job.id),
+              patch: {
+                map_lat: null,
+                map_lng: null,
+                map_source: 'geocoded',
+                map_quality: 'missing',
+                map_address_input: fullAddress || job.address || null,
+              },
+            }],
+            ...actor,
+          });
           skippedNoStreet++;
           continue;
         }
 
         const q = encodeURIComponent(fullAddress);
         if (GMAPS_KEY) {
-          const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${GMAPS_KEY}`);
+          const gRes = await fetchImpl(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${GMAPS_KEY}`);
           const gData = await gRes.json();
           if (gData.status === 'OK' && gData.results && gData.results.length > 0) {
             const result = gData.results[0];
             if (isStreetLevelGoogleResult(result)) {
               const loc = result.geometry.location;
-              await pool.query(
-                'UPDATE scheduled_jobs SET lat = $1, lng = $2, geocode_quality = $3 WHERE id = $4',
-                [loc.lat, loc.lng, 'street', job.id]
-              );
+              await patchDispatchPlanItems(pool, {
+                patches: [{
+                  jobKey: normalizeLiveDispatchJobKey(job.job_key || job.id),
+                  patch: {
+                    map_lat: loc.lat,
+                    map_lng: loc.lng,
+                    map_source: 'geocoded',
+                    map_quality: 'street',
+                    map_address_input: fullAddress,
+                  },
+                }],
+                ...actor,
+              });
               geocoded++;
             } else {
-              // Google fell back to a city/locality centroid — do NOT store
-              // the coordinates. Just record the quality so the UI can flag
-              // the job and so the optimizer skips it.
-              await pool.query(
-                'UPDATE scheduled_jobs SET geocode_quality = $1 WHERE id = $2',
-                ['city', job.id]
-              );
+              await patchDispatchPlanItems(pool, {
+                patches: [{
+                  jobKey: normalizeLiveDispatchJobKey(job.job_key || job.id),
+                  patch: {
+                    map_lat: null,
+                    map_lng: null,
+                    map_source: 'geocoded',
+                    map_quality: 'ambiguous',
+                    map_address_input: fullAddress,
+                  },
+                }],
+                ...actor,
+              });
             }
           } else {
-            await pool.query(
-              'UPDATE scheduled_jobs SET geocode_quality = $1 WHERE id = $2',
-              ['failed', job.id]
-            );
+            await patchDispatchPlanItems(pool, {
+              patches: [{
+                jobKey: normalizeLiveDispatchJobKey(job.job_key || job.id),
+                patch: {
+                  map_lat: null,
+                  map_lng: null,
+                  map_source: 'geocoded',
+                  map_quality: 'failed',
+                  map_address_input: fullAddress,
+                },
+              }],
+              ...actor,
+            });
+            failed++;
           }
         } else {
-          const gRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
+          const gRes = await fetchImpl(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=us`);
           const gData = await gRes.json();
           if (gData && gData.length > 0) {
-            // Nominatim doesn't return a clean type list comparable to
-            // Google's. Trust the address-source check we already did:
-            // we only got here when source === 'street', so the lookup
-            // came from a real street-level address string.
-            await pool.query(
-              'UPDATE scheduled_jobs SET lat = $1, lng = $2, geocode_quality = $3 WHERE id = $4',
-              [parseFloat(gData[0].lat), parseFloat(gData[0].lon), 'street', job.id]
-            );
+            await patchDispatchPlanItems(pool, {
+              patches: [{
+                jobKey: normalizeLiveDispatchJobKey(job.job_key || job.id),
+                patch: {
+                  map_lat: parseFloat(gData[0].lat),
+                  map_lng: parseFloat(gData[0].lon),
+                  map_source: 'geocoded',
+                  map_quality: 'street',
+                  map_address_input: fullAddress,
+                },
+              }],
+              ...actor,
+            });
             geocoded++;
           } else {
-            await pool.query(
-              'UPDATE scheduled_jobs SET geocode_quality = $1 WHERE id = $2',
-              ['failed', job.id]
-            );
+            await patchDispatchPlanItems(pool, {
+              patches: [{
+                jobKey: normalizeLiveDispatchJobKey(job.job_key || job.id),
+                patch: {
+                  map_lat: null,
+                  map_lng: null,
+                  map_source: 'geocoded',
+                  map_quality: 'failed',
+                  map_address_input: fullAddress,
+                },
+              }],
+              ...actor,
+            });
+            failed++;
           }
           await new Promise(r => setTimeout(r, 1100));
         }
-      } catch (e) { /* skip individual failures */ }
-    }
-
-    // ── Post-geocode duplicate validation ─────────────────────
-    // Even after the gate (street_address/premise/subpremise/intersection)
-    // and the pre-pass cluster detection, Google can still hand back the
-    // same coordinate for multiple distinct addresses (e.g. ambiguous
-    // partial addresses, biased viewport collapses). If we don't catch
-    // those here, the bad coords get re-saved and the map shows one pin.
-    //
-    // Group the just-touched scope by rounded (lat, lng). Any coord pair
-    // shared by 2+ DISTINCT addresses (using customer.street, falling
-    // back to scheduled_jobs.address) is treated as ambiguous: we clear
-    // the coords and mark geocode_quality = 'ambiguous' so the UI can
-    // surface them and the optimizer skips them.
-    const postScope = isExplicit
-      ? { where: 'sj.id = ANY($1::int[])', baseParams: [explicitIds] }
-      : { where: 'sj.job_date::date = $1::date', baseParams: [targetDate] };
-    let postCleared = 0;
-    const dupes = await pool.query(
-      `SELECT rlat, rlng FROM (
-         SELECT ROUND(sj.lat::numeric, 4) AS rlat,
-                ROUND(sj.lng::numeric, 4) AS rlng,
-                COUNT(DISTINCT LOWER(TRIM(COALESCE(NULLIF(c.street, ''), sj.address, '')))) AS distinct_addrs
-         FROM scheduled_jobs sj
-         LEFT JOIN customers c ON sj.customer_id = c.id
-         WHERE ${postScope.where} AND sj.lat IS NOT NULL AND sj.lng IS NOT NULL
-         GROUP BY rlat, rlng
-       ) sub
-       WHERE distinct_addrs >= 2`,
-      postScope.baseParams
-    );
-    for (const c of dupes.rows) {
-      const r = await pool.query(
-        `UPDATE scheduled_jobs sj
-            SET lat = NULL, lng = NULL, geocode_quality = 'ambiguous'
-          WHERE ${postScope.where}
-            AND ROUND(sj.lat::numeric, 4) = $${postScope.baseParams.length + 1}
-            AND ROUND(sj.lng::numeric, 4) = $${postScope.baseParams.length + 2}`,
-        [...postScope.baseParams, c.rlat, c.rlng]
-      );
-      const cleared = r.rowCount || 0;
-      postCleared += cleared;
-      // The geocoded counter was incremented for these jobs above; back
-      // it out so the response reflects the actual surviving pins.
-      geocoded = Math.max(0, geocoded - cleared);
+      } catch (e) { failed += 1; }
     }
 
     res.json({
       success: true,
       geocoded,
       skippedNoStreet,
-      cleared,            // legacy: bad-quality coords cleared
-      forceCleared,       // coords cleared by force/explicit-IDs
-      suspiciousCleared,  // coords cleared by pre-pass duplicate-cluster detection
-      ambiguousCleared: postCleared, // coords cleared by post-geocode dedup
-      total: jobs.rows.length,
+      failed,
+      cleared: 0,
+      forceCleared: 0,
+      suspiciousCleared: 0,
+      ambiguousCleared: 0,
+      total: targetJobs.length,
     });
   } catch (error) { serverError(res, error); }
 });
 
 // extractStreetAddress moved to top of closure as a shared helper.
 
-// POST /api/dispatch/optimize-route - Optimize route order for a crew
+// POST /api/dispatch/optimize-route - Optimize live route order for a crew
 router.post('/api/dispatch/optimize-route', async (req, res) => {
   try {
     const { date, crew_name, start_lat, start_lng } = req.body;
     if (!date || !crew_name) return res.status(400).json({ success: false, error: 'date and crew_name required' });
+    const actor = getDispatchActor(req);
+    const livePayload = await getCopilotLiveJobs({
+      poolClient: pool,
+      date,
+      startDate: date,
+      endDate: date,
+      fetchImpl,
+    });
+    const crewJobs = (livePayload.jobs || []).filter((job) => (
+      job.crew_assigned === crew_name &&
+      !job.hold_from_dispatch &&
+      job.lat != null &&
+      job.lng != null
+    ));
 
-    const jobs = await pool.query(
-      'SELECT id, address, lat, lng, route_order, estimated_duration FROM scheduled_jobs WHERE job_date::date = $1::date AND crew_assigned = $2 AND lat IS NOT NULL AND lng IS NOT NULL',
-      [date, crew_name]
-    );
+    if (crewJobs.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
 
-    if (jobs.rows.length === 0) return res.json({ success: true, message: 'No geocoded jobs found for this crew', optimized: [] });
-
-    const stops = jobs.rows.map(j => ({ id: j.id, lat: parseFloat(j.lat), lng: parseFloat(j.lng), duration: parseInt(j.estimated_duration) || 30 }));
+    const stops = crewJobs.map((job) => ({
+      id: normalizeLiveDispatchJobKey(job.job_key || job.id),
+      lat: parseFloat(job.lat),
+      lng: parseFloat(job.lng),
+      duration: parseInt(job.estimated_duration, 10) || 30,
+    }));
     // Get home base from settings (default: Pappas HQ)
     let defaultLat = 41.4268, defaultLng = -81.7356;
     try {
@@ -2717,12 +2680,16 @@ router.post('/api/dispatch/optimize-route', async (req, res) => {
         // /api/jobs/optimize-route (no destination = origin loop).
         const best = await pickBestForwardRoute(stops, sLat, sLng, GMAPS_KEY);
         if (best && best.orderedIds.length === stops.length) {
-          for (let i = 0; i < best.orderedIds.length; i++) {
-            await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, best.orderedIds[i]]);
-          }
+          await patchDispatchPlanItems(pool, {
+            patches: best.orderedIds.map((id, index) => ({
+              jobKey: id,
+              patch: { route_order_override: index + 1 },
+            })),
+            ...actor,
+          });
           return res.json({
             success: true,
-            optimized: best.orderedIds.map((id, i) => ({ job_id: id, route_order: i + 1 })),
+            optimized: best.orderedIds.map((id, i) => ({ job_key: id, job_id: id, route_order: i + 1 })),
             stats: {
               totalDistance: (best.totalDistance / 1609.34).toFixed(1) + ' miles',
               totalDriveTime: Math.round(best.totalDuration / 60) + ' minutes',
@@ -2748,10 +2715,14 @@ router.post('/api/dispatch/optimize-route', async (req, res) => {
       order.push(nearest.id);
       curLat = nearest.lat; curLng = nearest.lng;
     }
-    for (let i = 0; i < order.length; i++) {
-      await pool.query('UPDATE scheduled_jobs SET route_order = $1 WHERE id = $2', [i + 1, order[i]]);
-    }
-    res.json({ success: true, optimized: order.map((id, i) => ({ job_id: id, route_order: i + 1 })) });
+    await patchDispatchPlanItems(pool, {
+      patches: order.map((id, index) => ({
+        jobKey: id,
+        patch: { route_order_override: index + 1 },
+      })),
+      ...actor,
+    });
+    res.json({ success: true, optimized: order.map((id, i) => ({ job_key: id, job_id: id, route_order: i + 1 })) });
   } catch (error) { serverError(res, error); }
 });
 

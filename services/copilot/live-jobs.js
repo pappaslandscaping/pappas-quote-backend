@@ -6,6 +6,14 @@ const {
 const COPILOT_SOURCE_SYSTEM = 'copilot';
 const SCHEDULE_SOURCE_KIND = 'live_schedule';
 const LIVE_JOB_FETCH_TIMEOUT_MS = 12 * 1000;
+const DISPATCH_WRITE_CAPABILITIES = Object.freeze({
+  assign: true,
+  route_order: true,
+  geocode: true,
+  optimize: true,
+  complete: false,
+  add_job: false,
+});
 
 const LIVE_JOB_STATUS_MAP = new Map([
   ['scheduled', 'pending'],
@@ -97,6 +105,112 @@ function withTimeout(promise, timeoutMs, message) {
 
 function normalizeScheduleAddress(address) {
   return typeof address === 'string' ? address.trim() : '';
+}
+
+function toNullableTrimmedString(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function toNullablePositiveInteger(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
+function toNullableCoordinate(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeDispatchPlanPatch(job, patch = {}) {
+  const normalized = {};
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'crew_override_name')) {
+    const crewOverride = toNullableTrimmedString(patch.crew_override_name);
+    normalized.crew_override_name = crewOverride === (job.source.crew_name || null) ? null : crewOverride;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'route_order_override')) {
+    const routeOverride = toNullablePositiveInteger(patch.route_order_override);
+    if (routeOverride === undefined) throw new Error('route_order_override must be a positive integer or null');
+    normalized.route_order_override = routeOverride === (job.source.stop_order ?? null) ? null : routeOverride;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'route_locked')) {
+    normalized.route_locked = !!patch.route_locked;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'map_lat')) {
+    const mapLat = toNullableCoordinate(patch.map_lat);
+    if (mapLat === undefined) throw new Error('map_lat must be numeric or null');
+    normalized.map_lat = mapLat;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'map_lng')) {
+    const mapLng = toNullableCoordinate(patch.map_lng);
+    if (mapLng === undefined) throw new Error('map_lng must be numeric or null');
+    normalized.map_lng = mapLng;
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(normalized, 'map_lat') ||
+    Object.prototype.hasOwnProperty.call(normalized, 'map_lng')
+  ) {
+    const nextLat = Object.prototype.hasOwnProperty.call(normalized, 'map_lat')
+      ? normalized.map_lat
+      : job.dispatch_plan.map_lat;
+    const nextLng = Object.prototype.hasOwnProperty.call(normalized, 'map_lng')
+      ? normalized.map_lng
+      : job.dispatch_plan.map_lng;
+    const hasLat = nextLat !== null && nextLat !== undefined;
+    const hasLng = nextLng !== null && nextLng !== undefined;
+    if (hasLat !== hasLng) throw new Error('map_lat and map_lng must both be provided or both be null');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'map_source')) {
+    const mapSource = toNullableTrimmedString(patch.map_source);
+    if (mapSource == null) normalized.map_source = 'none';
+    else if (!['none', 'geocoded', 'manual_override'].includes(mapSource)) throw new Error('map_source is invalid');
+    else normalized.map_source = mapSource;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'map_quality')) {
+    const mapQuality = toNullableTrimmedString(patch.map_quality);
+    if (mapQuality == null) normalized.map_quality = 'missing';
+    else if (!['street', 'ambiguous', 'missing', 'failed'].includes(mapQuality)) throw new Error('map_quality is invalid');
+    else normalized.map_quality = mapQuality;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'map_address_input')) {
+    normalized.map_address_input = toNullableTrimmedString(patch.map_address_input);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'print_group_key')) {
+    normalized.print_group_key = toNullableTrimmedString(patch.print_group_key);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'print_note')) {
+    normalized.print_note = toNullableTrimmedString(patch.print_note);
+  }
+
+  if (
+    (Object.prototype.hasOwnProperty.call(normalized, 'map_lat') && normalized.map_lat == null) ||
+    (Object.prototype.hasOwnProperty.call(normalized, 'map_lng') && normalized.map_lng == null)
+  ) {
+    normalized.map_lat = null;
+    normalized.map_lng = null;
+    if (!Object.prototype.hasOwnProperty.call(normalized, 'map_quality')) normalized.map_quality = 'missing';
+    if (!Object.prototype.hasOwnProperty.call(normalized, 'map_source')) normalized.map_source = 'none';
+  }
+
+  return normalized;
 }
 
 function buildScheduleGeocodeFields(address) {
@@ -274,6 +388,95 @@ async function fetchResolvedLiveJobs(pool, {
 async function fetchResolvedLiveJob(pool, jobKey, { includeDeleted = true } = {}) {
   const jobs = await fetchResolvedLiveJobs(pool, { jobKeys: [jobKey], includeDeleted });
   return jobs[0] || null;
+}
+
+async function ensureDispatchPlanItem(pool, { jobKey, serviceDate }) {
+  await pool.query(
+    `INSERT INTO dispatch_plan_items (job_key, service_date)
+     VALUES ($1, $2::date)
+     ON CONFLICT (job_key) DO UPDATE
+       SET service_date = EXCLUDED.service_date`,
+    [jobKey, serviceDate]
+  );
+}
+
+async function patchDispatchPlanItem(pool, {
+  jobKey,
+  patch,
+  updatedByUserId = null,
+  updatedByName = null,
+} = {}) {
+  if (!jobKey) throw new Error('jobKey is required');
+  const job = await fetchResolvedLiveJob(pool, jobKey, { includeDeleted: true });
+  if (!job) throw new Error(`Live job not found: ${jobKey}`);
+
+  const normalizedPatch = normalizeDispatchPlanPatch(job, patch);
+  const patchKeys = Object.keys(normalizedPatch);
+
+  if (patchKeys.length === 0) {
+    return {
+      job,
+      dispatchJob: mapScheduleJobToDispatchJob(mapResolvedLiveJobToScheduleJob(job)),
+    };
+  }
+
+  await ensureDispatchPlanItem(pool, { jobKey, serviceDate: job.service_date });
+
+  const sets = [];
+  const values = [];
+  let parameterIndex = 1;
+
+  for (const key of patchKeys) {
+    sets.push(`${key} = $${parameterIndex++}`);
+    values.push(normalizedPatch[key]);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'map_lat') ||
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'map_lng') ||
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'map_source') ||
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'map_quality') ||
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'map_address_input')
+  ) {
+    sets.push('map_updated_at = NOW()');
+  }
+
+  sets.push(`updated_by_user_id = $${parameterIndex++}`);
+  values.push(updatedByUserId);
+  sets.push(`updated_by_name = $${parameterIndex++}`);
+  values.push(updatedByName);
+  sets.push('updated_at = NOW()');
+
+  values.push(jobKey);
+  await pool.query(
+    `UPDATE dispatch_plan_items
+        SET ${sets.join(', ')}
+      WHERE job_key = $${parameterIndex}`,
+    values
+  );
+
+  const updatedJob = await fetchResolvedLiveJob(pool, jobKey, { includeDeleted: true });
+  return {
+    job: updatedJob,
+    dispatchJob: mapScheduleJobToDispatchJob(mapResolvedLiveJobToScheduleJob(updatedJob)),
+  };
+}
+
+async function patchDispatchPlanItems(pool, {
+  patches = [],
+  updatedByUserId = null,
+  updatedByName = null,
+} = {}) {
+  const results = [];
+  for (const entry of patches) {
+    results.push(await patchDispatchPlanItem(pool, {
+      jobKey: entry.jobKey,
+      patch: entry.patch,
+      updatedByUserId,
+      updatedByName,
+    }));
+  }
+  return results;
 }
 
 async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new Date() }) {
@@ -473,13 +676,13 @@ function mapScheduleJobToDispatchJob(job) {
     job_key: normalizedId,
     source_system: job?.source_system || COPILOT_SOURCE_SYSTEM,
     source_kind: 'live_dispatch',
-    is_read_only: true,
-    can_assign: false,
+    is_read_only: false,
+    can_assign: true,
     can_edit: false,
     can_complete: false,
     can_delete: false,
-    can_geocode: false,
-    can_optimize: false,
+    can_geocode: true,
+    can_optimize: true,
     job_date: job?.job_date || job?.service_date || null,
     service_date: job?.service_date || job?.job_date || null,
     visit_id: job?.visit_id || job?.copilot_visit_id || null,
@@ -575,8 +778,9 @@ function buildDispatchBoardPayload({
     view,
     source_system: COPILOT_SOURCE_SYSTEM,
     source_kind: 'live_dispatch',
-    read_only: true,
-    read_only_reason: 'Dispatch is reading the shared live Copilot-backed job set. Legacy write actions remain disabled until dispatch plan writes move onto the live model.',
+    read_only: false,
+    read_only_reason: 'Dispatch is reading the shared live Copilot-backed job set. Crew, route, and map overrides persist to the live dispatch plan; completion and add-job flows remain legacy-only.',
+    write_capabilities: { ...DISPATCH_WRITE_CAPABILITIES },
     freshness,
     crews: Object.values(crewMap),
     unassigned,
@@ -830,8 +1034,11 @@ module.exports = {
   isValidIsoDate,
   mapScheduleJobToDispatchJob,
   mapResolvedLiveJobToScheduleJob,
+  normalizeDispatchPlanPatch,
   normalizeCopilotLiveStatus,
   normalizeResolvedRow,
+  patchDispatchPlanItem,
+  patchDispatchPlanItems,
   parseVisitTotal,
   upsertCopilotLiveJobs,
 };

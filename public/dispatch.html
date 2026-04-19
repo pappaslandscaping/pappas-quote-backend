@@ -296,6 +296,11 @@
         .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
         .toast { background: var(--primary); color: var(--white); padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; display: flex; align-items: center; gap: 8px; }
         .toast.error { background: var(--red); color: white; }
+        .btn[disabled], .bulk-btn[disabled], .add-job-btn[disabled], .ucard-assign select[disabled], .route-job-check[disabled], .unassigned-check[disabled] {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
 
         /* ─── Loading ──────────────────────────────────────── */
         .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center; z-index: 10; }
@@ -403,7 +408,7 @@
                 <div class="crew-pills" id="crewPills">
                     <!-- Populated dynamically -->
                 </div>
-                <button class="btn btn-secondary" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
+                <button class="btn btn-secondary" id="geocodeBtn" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     Geocode
                 </button>
@@ -411,7 +416,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
                     Lasso
                 </button>
-                <button class="btn btn-primary" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
+                <button class="btn btn-primary" id="optimizeRouteBtn" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Optimize Route
                 </button>
@@ -431,6 +436,11 @@
                     <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
                 </div>
             </div>
+        </div>
+
+        <div class="crew-filter-bar" id="dispatchModeBanner" style="display:none;background:var(--amber-bg);color:var(--amber);border-bottom:1px solid #f5d487;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="dispatchModeBannerText">Dispatch is reading the shared live Copilot-backed job set.</span>
         </div>
 
         <!-- Bulk Actions Bar -->
@@ -513,7 +523,7 @@
                         <select id="unassignedBatchCrew" style="flex:1;">
                             <option value="">Assign to...</option>
                         </select>
-                        <button onclick="batchAssignUnassigned()" style="background:var(--primary);color:white;">Assign Selected</button>
+                        <button id="unassignedAssignBtn" onclick="batchAssignUnassigned()" style="background:var(--primary);color:white;">Assign Selected</button>
                     </div>
                 </div>
                 <div class="unassigned-body" id="unassignedBody"
@@ -773,6 +783,52 @@ let lassoMode = false;
 let infoWindow = null;
 let markerByJobId = {};
 let crewVisibility = {}; // crew name → bool (true = visible)
+let dispatchBoardReadOnly = false;
+let dispatchReadOnlyReason = '';
+
+function normalizeJobId(jobId) {
+    return jobId == null ? '' : String(jobId);
+}
+
+function jobIdLiteral(jobId) {
+    return JSON.stringify(normalizeJobId(jobId));
+}
+
+function isBoardReadOnly() {
+    return dispatchBoardReadOnly;
+}
+
+function blockDispatchWrite(actionLabel) {
+    if (!isBoardReadOnly()) return false;
+    showToast(`${actionLabel} is disabled on the live Dispatch board until dispatch write actions move onto the shared live model.`, 'error');
+    return true;
+}
+
+function getJobReference(job) {
+    return job?.copilot_visit_id || job?.visit_id || job?.id || '--';
+}
+
+function syncDispatchModeUI() {
+    const readOnly = isBoardReadOnly();
+    const banner = document.getElementById('dispatchModeBanner');
+    const bannerText = document.getElementById('dispatchModeBannerText');
+    if (banner) banner.style.display = readOnly ? 'flex' : 'none';
+    if (bannerText && dispatchReadOnlyReason) bannerText.textContent = dispatchReadOnlyReason;
+
+    ['geocodeBtn', 'lassoBtn', 'optimizeRouteBtn', 'unassignedSelectAll', 'unassignedBatchCrew', 'unassignedAssignBtn'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = readOnly;
+    });
+
+    document.querySelectorAll('.add-job-btn, .route-job-check, .unassigned-check, .ucard-assign select').forEach((el) => {
+        el.disabled = readOnly;
+    });
+
+    if (readOnly) {
+        clearBulkSelection();
+        if (lassoMode) toggleLassoMode();
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -873,6 +929,7 @@ async function initMap() {
 }
 
 function toggleLassoMode() {
+    if (isBoardReadOnly()) return;
     lassoMode = !lassoMode;
     const btn = document.getElementById('lassoBtn');
     const mapEl = document.getElementById('routeMap');
@@ -1259,15 +1316,23 @@ function toggleUnassigned() {
    BULK SELECTION
    ═══════════════════════════════════════════════════════════ */
 function toggleJobSelect(jobId, checkbox) {
+    if (isBoardReadOnly()) {
+        checkbox.checked = false;
+        return;
+    }
     if (checkbox.checked) selectedJobs.add(jobId);
     else selectedJobs.delete(jobId);
     updateBulkBar();
 }
 
 function toggleSelectAll(master) {
+    if (isBoardReadOnly()) {
+        master.checked = false;
+        return;
+    }
     const checkboxes = document.querySelectorAll('.route-job-check');
     checkboxes.forEach(cb => {
-        const id = parseInt(cb.dataset.jobId);
+        const id = cb.dataset.jobId;
         cb.checked = master.checked;
         if (master.checked) selectedJobs.add(id);
         else selectedJobs.delete(id);
@@ -1277,6 +1342,10 @@ function toggleSelectAll(master) {
 
 function updateBulkBar() {
     const bar = document.getElementById('bulkBar');
+    if (isBoardReadOnly()) {
+        bar.classList.remove('active');
+        return;
+    }
     if (selectedJobs.size > 0) {
         bar.classList.add('active');
         document.getElementById('bulkCount').textContent = selectedJobs.size;
@@ -1293,6 +1362,7 @@ function clearBulkSelection() {
 }
 
 async function bulkOrderStops() {
+    if (blockDispatchWrite('Ordering route stops')) return;
     if (selectedJobs.size === 0) return;
     const assignments = [];
     let order = 1;
@@ -1319,6 +1389,7 @@ async function bulkOrderStops() {
 }
 
 function bulkAssignCrew() {
+    if (blockDispatchWrite('Assigning crews')) return;
     if (selectedJobs.size === 0) return;
     const sel = document.getElementById('bulkCrewSelect');
     sel.innerHTML = allCrews.map(c => `<option value="${c.name}">${esc(c.name)}</option>`).join('');
@@ -1326,6 +1397,7 @@ function bulkAssignCrew() {
 }
 
 async function applyBulkCrewAssign() {
+    if (blockDispatchWrite('Assigning crews')) return;
     const crewName = document.getElementById('bulkCrewSelect').value;
     const assignments = [];
     selectedJobs.forEach(id => {
@@ -1347,6 +1419,7 @@ async function applyBulkCrewAssign() {
 }
 
 async function bulkComplete() {
+    if (blockDispatchWrite('Marking jobs complete')) return;
     if (selectedJobs.size === 0) return;
     const assignments = [];
     selectedJobs.forEach(id => {
@@ -1390,6 +1463,8 @@ async function loadBoard() {
         if (!data.success) throw new Error(data.error || 'Failed to load board');
 
         boardData = data;
+        dispatchBoardReadOnly = !!data.read_only;
+        dispatchReadOnlyReason = data.read_only_reason || 'Dispatch is reading the shared live Copilot-backed job set.';
         allCrews = data.crews || [];
         loading.style.display = 'none';
 
@@ -1407,7 +1482,7 @@ async function loadBoard() {
 
         // Auto-geocode if many jobs are missing lat/lng
         const missingGeo = allJobs.filter(j => !j.lat || !j.lng).length;
-        if (missingGeo > 0 && allJobs.length > 0) {
+        if (!dispatchBoardReadOnly && missingGeo > 0 && allJobs.length > 0) {
             autoGeocodeInBackground();
         }
 
@@ -1421,6 +1496,7 @@ async function loadBoard() {
             renderRouteTable(data);
             routeTableView.style.display = 'block';
         }
+        syncDispatchModeUI();
     } catch (err) {
         loading.innerHTML = `
             <div style="text-align:center;color:var(--gray-400);">
@@ -1436,6 +1512,7 @@ async function loadBoard() {
 }
 
 async function assignJob(jobId, crewId, routeOrder) {
+    if (blockDispatchWrite('Dispatch assignments')) return;
     try {
         const res = await fetch('/api/dispatch/assign', {
             method: 'PATCH',
@@ -1460,6 +1537,7 @@ async function assignJob(jobId, crewId, routeOrder) {
 
 async function submitAddJob(e) {
     e.preventDefault();
+    if (blockDispatchWrite('Adding jobs')) return;
     const payload = {
         customer_name: document.getElementById('addJobCustomer').value,
         phone: document.getElementById('addJobPhone').value,
@@ -1529,6 +1607,7 @@ function getAvailabilityClass(totalHours) {
    ═══════════════════════════════════════════════════════════ */
 let autoGeocodeRan = false;
 async function autoGeocodeInBackground() {
+    if (isBoardReadOnly()) return;
     if (autoGeocodeRan) return;
     autoGeocodeRan = true;
     try {
@@ -1546,6 +1625,7 @@ async function autoGeocodeInBackground() {
 }
 
 async function geocodeAllJobs() {
+    if (blockDispatchWrite('Geocoding Dispatch jobs')) return;
     autoGeocodeRan = false;
     showToast('Geocoding all job addresses (force re-geocode)...');
     try {
@@ -1567,6 +1647,7 @@ async function geocodeAllJobs() {
 }
 
 async function optimizeRoute() {
+    if (blockDispatchWrite('Optimizing routes')) return;
     // Get crews with jobs
     const crewsWithJobs = (boardData?.crews || []).filter(c => (c.jobs || []).length > 1);
     if (crewsWithJobs.length === 0) {
@@ -1606,6 +1687,7 @@ async function optimizeRoute() {
 }
 
 async function optimizeCrewRoute(crewName) {
+    if (blockDispatchWrite('Optimizing routes')) return;
     showToast(`Optimizing route for ${crewName}...`);
     try {
         const res = await fetch('/api/dispatch/optimize-route', {
@@ -1656,12 +1738,14 @@ function toggleEmptyCrews() {
     if (boardData) {
         if (currentView === 'day') renderDayView(boardData);
         else if (currentView === 'week') renderWeekView(boardData);
+        syncDispatchModeUI();
     }
 }
 
 function renderDayView(data) {
     const container = document.getElementById('dayBoard');
     let crews = data.crews || [];
+    const readOnly = isBoardReadOnly();
 
     // Filter out empty crews unless toggled on
     if (!showEmptyCrews) {
@@ -1712,9 +1796,9 @@ function renderDayView(data) {
                 <div class="drop-placeholder">Drop job here to assign</div>
             </div>
             <div class="crew-lane-footer">
-                <button class="add-job-btn" onclick="openAddJobModal('${esc(crew.name)}')">
+                <button class="add-job-btn" ${readOnly ? 'disabled' : `onclick="openAddJobModal('${esc(crew.name)}')"`}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Job
+                    ${readOnly ? 'Live Board Read Only' : 'Add Job'}
                 </button>
             </div>
         </div>`;
@@ -1727,12 +1811,17 @@ function renderJobCard(job) {
     const statusLabel = getStatusLabel(job.status);
     const displayAddr = buildDisplayAddress(job);
     const badAddr = job.geocode_quality && job.geocode_quality !== 'street';
+    const jobId = normalizeJobId(job.id);
+    const jobIdEsc = esc(jobId);
+    const jobIdJs = jobIdLiteral(jobId);
+    const dragAttrs = isBoardReadOnly()
+        ? 'draggable="false"'
+        : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
 
     return `
-    <div class="job-card ${svcClass}" draggable="true" data-job-id="${job.id}"
-         ondragstart="handleDragStart(event, ${job.id})" ondragend="handleDragEnd(event)"
-         onclick="openJobDetail(${job.id})"
-         onmouseenter="highlightMapPin(${job.id})" onmouseleave="unhighlightMapPin(${job.id})">
+    <div class="job-card ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
+         onclick='openJobDetail(${jobIdJs})'
+         onmouseenter='highlightMapPin(${jobIdJs})' onmouseleave='unhighlightMapPin(${jobIdJs})'>
         ${job.route_order ? `<span class="job-route-order">${job.route_order}</span>` : ''}
         <div class="job-card-top">
             <span class="job-customer">${esc(job.customer_name)}</span>
@@ -1775,9 +1864,12 @@ function renderRouteTable(data) {
         const statusClass = getStatusClass(job.status);
         const statusLabel = getStatusLabel(job.status);
         const isSelected = selectedJobs.has(job.id);
+        const jobId = normalizeJobId(job.id);
+        const jobIdEsc = esc(jobId);
+        const jobIdJs = jobIdLiteral(jobId);
         return `
-        <tr class="${isSelected ? 'selected' : ''}" onclick="openJobDetail(${job.id})">
-            <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${job.id}" ${isSelected ? 'checked' : ''} onchange="toggleJobSelect(${job.id}, this)"></td>
+        <tr class="${isSelected ? 'selected' : ''}" onclick='openJobDetail(${jobIdJs})'>
+            <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${jobIdEsc}" ${isSelected ? 'checked' : ''} ${isBoardReadOnly() ? 'disabled' : ''} onchange='toggleJobSelect(${jobIdJs}, this)'></td>
             <td><span class="stop-num">${job.route_order || (i + 1)}</span></td>
             <td style="white-space:nowrap;">${job.job_date ? job.job_date.split('T')[0] : formatDate(currentDate)}</td>
             <td style="font-weight:600;">${esc(job.service_type || 'Service')}</td>
@@ -1841,9 +1933,14 @@ function renderWeekView(data) {
                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleWeekDrop(event, '${esc(crew.name)}', '${dateStr}')">`;
                 dayJobs.forEach(job => {
                     const svcClass = getServiceClass(job.service_type);
-                    html += `<div class="week-job-card ${svcClass}" draggable="true" data-job-id="${job.id}"
-                        ondragstart="handleDragStart(event, ${job.id})" ondragend="handleDragEnd(event)"
-                        onclick="openJobDetail(${job.id})">
+                    const jobId = normalizeJobId(job.id);
+                    const jobIdEsc = esc(jobId);
+                    const jobIdJs = jobIdLiteral(jobId);
+                    const dragAttrs = isBoardReadOnly()
+                        ? 'draggable="false"'
+                        : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
+                    html += `<div class="week-job-card ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
+                        onclick='openJobDetail(${jobIdJs})'>
                         <div class="week-job-name">${esc(job.customer_name)}</div>
                         <div class="week-job-service">${esc(job.service_type || '')}</div>
                     </div>`;
@@ -1865,6 +1962,7 @@ function updateUnassignedPanel(jobs) {
     const body = document.getElementById('unassignedBody');
     const countEl = document.getElementById('unassignedCount');
     const badge = document.getElementById('unassignedBadge');
+    const readOnly = isBoardReadOnly();
 
     countEl.textContent = jobs.length;
     if (jobs.length > 0) {
@@ -1903,18 +2001,23 @@ function updateUnassignedPanel(jobs) {
         let shortName = job.customer_name || 'Unknown';
         const addrMatch = shortName.match(/^(.+?)\s+\d+\s+[A-Za-z]/);
         if (addrMatch) shortName = addrMatch[1].trim();
+        const jobId = normalizeJobId(job.id);
+        const jobIdEsc = esc(jobId);
+        const jobIdJs = jobIdLiteral(jobId);
+        const dragAttrs = readOnly
+            ? 'draggable="false"'
+            : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
 
-        return `<div class="ucard ${svcClass}" draggable="true" data-job-id="${job.id}"
-                     ondragstart="handleDragStart(event, ${job.id})" ondragend="handleDragEnd(event)"
-                     onmouseenter="highlightMapPin(${job.id})" onmouseleave="unhighlightMapPin(${job.id})">
-            <input type="checkbox" class="ucard-check unassigned-check" data-job-id="${job.id}" onclick="event.stopPropagation()">
-            <div class="ucard-info" onclick="openJobDetail(${job.id})">
+        return `<div class="ucard ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
+                     onmouseenter='highlightMapPin(${jobIdJs})' onmouseleave='unhighlightMapPin(${jobIdJs})'>
+            <input type="checkbox" class="ucard-check unassigned-check" data-job-id="${jobIdEsc}" ${readOnly ? 'disabled' : ''} onclick="event.stopPropagation()">
+            <div class="ucard-info" onclick='openJobDetail(${jobIdJs})'>
                 <div class="ucard-name" title="${esc(job.customer_name)}">${esc(shortName)}</div>
                 <div class="ucard-detail" title="${esc(displayAddr)}">${esc(job.service_type || 'Service')} · ${esc(displayAddr)}</div>
             </div>
             <span class="ucard-price">${formatPrice(job.service_price)}</span>
             <div class="ucard-assign" onclick="event.stopPropagation()">
-                <select onchange="quickAssignUnassigned(${job.id}, this.value)" title="Assign to crew">
+                <select ${readOnly ? 'disabled' : ''} onchange='quickAssignUnassigned(${jobIdJs}, this.value)' title="Assign to crew">
                     <option value="">Crew</option>
                     ${crewOpts}
                 </select>
@@ -1924,21 +2027,27 @@ function updateUnassignedPanel(jobs) {
 }
 
 function toggleUnassignedSelectAll(master) {
+    if (isBoardReadOnly()) {
+        master.checked = false;
+        return;
+    }
     document.querySelectorAll('.unassigned-check').forEach(cb => cb.checked = master.checked);
 }
 
 async function quickAssignUnassigned(jobId, crewName) {
     if (!crewName) return;
+    if (blockDispatchWrite('Assigning crews')) return;
     await assignJob(jobId, crewName, null);
 }
 
 async function batchAssignUnassigned() {
+    if (blockDispatchWrite('Assigning crews')) return;
     const crewName = document.getElementById('unassignedBatchCrew').value;
     if (!crewName) { showToast('Select a crew first', 'error'); return; }
     const checks = document.querySelectorAll('.unassigned-check:checked');
     if (checks.length === 0) { showToast('Select jobs first', 'error'); return; }
     const assignments = [];
-    checks.forEach(cb => assignments.push({ job_id: parseInt(cb.dataset.jobId), crew_assigned: crewName }));
+    checks.forEach(cb => assignments.push({ job_id: cb.dataset.jobId, crew_assigned: crewName }));
     try {
         await fetch('/api/dispatch/assign', {
             method: 'PATCH',
@@ -1957,13 +2066,14 @@ async function batchAssignUnassigned() {
    DRAG AND DROP
    ═══════════════════════════════════════════════════════════ */
 function handleDragStart(e, jobId) {
+    if (isBoardReadOnly()) return;
     draggedJob = jobId;
     const card = e.target.closest('.job-card, .week-job-card');
     const lane = card ? card.closest('.crew-lane-body, .week-cell') : null;
     dragSourceCrewId = lane ? lane.dataset.crewId || null : null;
 
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', jobId);
+    e.dataTransfer.setData('text/plain', normalizeJobId(jobId));
 
     requestAnimationFrame(() => {
         if (card) card.classList.add('dragging');
@@ -1992,7 +2102,8 @@ function handleDragLeave(e) {
 function handleCrewDrop(e, crewName) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    const jobId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (isBoardReadOnly()) return;
+    const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     const lane = e.currentTarget;
     const existingCards = lane.querySelectorAll('.job-card[data-job-id]');
@@ -2003,7 +2114,8 @@ function handleCrewDrop(e, crewName) {
 function handleWeekDrop(e, crewName, dateStr) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    const jobId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (isBoardReadOnly()) return;
+    const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     assignJob(jobId, crewName, null);
 }
@@ -2011,7 +2123,8 @@ function handleWeekDrop(e, crewName, dateStr) {
 function handleUnassignedDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    const jobId = parseInt(e.dataTransfer.getData('text/plain'));
+    if (isBoardReadOnly()) return;
+    const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     assignJob(jobId, null, null);
 }
@@ -2064,8 +2177,8 @@ function openJobDetail(jobId) {
                 <div class="detail-value">${job.route_order || 'Not set'}</div>
             </div>
             <div class="detail-item">
-                <div class="detail-label">Job ID</div>
-                <div class="detail-value">#${job.id}</div>
+                <div class="detail-label">${job.copilot_visit_id ? 'Visit ID' : 'Job ID'}</div>
+                <div class="detail-value">${esc(getJobReference(job))}</div>
             </div>
         </div>
         ${job.special_notes ? `
@@ -2073,20 +2186,26 @@ function openJobDetail(jobId) {
                 <strong>Special Notes</strong>
                 ${esc(job.special_notes)}
             </div>` : ''}
+        ${isBoardReadOnly() ? `
+        <div class="detail-notes" style="background:var(--blue-bg);border-color:#bfdbfe;color:var(--blue);margin-top:16px;">
+            <strong>Live Dispatch View</strong>
+            ${esc(dispatchReadOnlyReason)}
+        </div>` : `
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;">
             <label style="font-size:13px;font-weight:600;color:var(--gray-600);white-space:nowrap;">Assign to Crew:</label>
             <select id="jobDetailCrewSelect" style="flex:1;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:inherit;font-size:13px;">
                 <option value="">— Unassigned —</option>
                 ${allCrews.map(c => `<option value="${esc(c.name)}" ${job.crew_assigned === c.name ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
             </select>
-            <button class="btn btn-primary" style="padding:8px 16px;" onclick="quickAssignFromDetail(${job.id})">Assign</button>
-        </div>
+            <button class="btn btn-primary" style="padding:8px 16px;" onclick='quickAssignFromDetail(${jobIdLiteral(job.id)})'>Assign</button>
+        </div>`}
     `;
 
     openModal('jobDetailModal');
 }
 
 async function quickAssignFromDetail(jobId) {
+    if (blockDispatchWrite('Assigning crews')) return;
     const crewName = document.getElementById('jobDetailCrewSelect').value || null;
     await assignJob(jobId, crewName, null);
     closeModal('jobDetailModal');
@@ -2094,17 +2213,19 @@ async function quickAssignFromDetail(jobId) {
 
 function findJob(jobId) {
     if (!boardData) return null;
+    const targetJobId = normalizeJobId(jobId);
     for (const crew of (boardData.crews || [])) {
-        const found = (crew.jobs || []).find(j => j.id === jobId);
+        const found = (crew.jobs || []).find(j => normalizeJobId(j.id) === targetJobId);
         if (found) return found;
     }
-    return (boardData.unassigned || []).find(j => j.id === jobId) || null;
+    return (boardData.unassigned || []).find(j => normalizeJobId(j.id) === targetJobId) || null;
 }
 
 /* ═══════════════════════════════════════════════════════════
    ADD JOB MODAL
    ═══════════════════════════════════════════════════════════ */
 function openAddJobModal(crewName) {
+    if (blockDispatchWrite('Adding jobs')) return;
     document.getElementById('addJobForm').reset();
     document.getElementById('addJobDate').value = formatDate(currentDate);
     if (crewName) {

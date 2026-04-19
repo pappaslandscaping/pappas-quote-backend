@@ -5,6 +5,7 @@ const {
   getCopilotLiveJobs,
   mapScheduleJobToDispatchJob,
   mapResolvedLiveJobToScheduleJob,
+  normalizeDispatchPlanPatch,
   normalizeResolvedRow,
   parseVisitTotal,
   upsertCopilotLiveJobs,
@@ -481,9 +482,9 @@ describe('copilot live jobs service', () => {
     expect(mapped).toMatchObject({
       id: 'copilot:2026-04-18:visit-101',
       source_kind: 'live_dispatch',
-      is_read_only: true,
-      can_assign: false,
-      can_geocode: false,
+      is_read_only: false,
+      can_assign: true,
+      can_geocode: true,
       job_date: '2026-04-18',
       visit_id: 'visit-101',
       customer_name: 'Jane Doe',
@@ -498,6 +499,29 @@ describe('copilot live jobs service', () => {
       lat: 41.4767,
       lng: -81.8123,
       geocode_quality: 'street',
+    });
+  });
+
+  test('normalizeDispatchPlanPatch clears overrides that match the live source', () => {
+    const normalized = normalizeDispatchPlanPatch({
+      source: { crew_name: 'Crew A', stop_order: 2 },
+      dispatch_plan: { map_lat: null, map_lng: null },
+    }, {
+      crew_override_name: 'Crew A',
+      route_order_override: 2,
+      map_lat: 41.45,
+      map_lng: -81.78,
+      map_source: 'manual_override',
+      map_quality: 'street',
+    });
+
+    expect(normalized).toEqual({
+      crew_override_name: null,
+      route_order_override: null,
+      map_lat: 41.45,
+      map_lng: -81.78,
+      map_source: 'manual_override',
+      map_quality: 'street',
     });
   });
 
@@ -549,7 +573,15 @@ describe('copilot live jobs service', () => {
     expect(payload).toMatchObject({
       success: true,
       source_kind: 'live_dispatch',
-      read_only: true,
+      read_only: false,
+      write_capabilities: {
+        assign: true,
+        route_order: true,
+        geocode: true,
+        optimize: true,
+        complete: false,
+        add_job: false,
+      },
       freshness: { source: 'live', stale: false },
     });
     expect(payload.crews).toHaveLength(1);

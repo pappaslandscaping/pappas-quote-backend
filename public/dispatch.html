@@ -785,6 +785,14 @@ let markerByJobId = {};
 let crewVisibility = {}; // crew name → bool (true = visible)
 let dispatchBoardReadOnly = false;
 let dispatchReadOnlyReason = '';
+let dispatchCapabilities = {
+    assign: false,
+    route_order: false,
+    geocode: false,
+    optimize: false,
+    complete: false,
+    add_job: false,
+};
 
 function normalizeJobId(jobId) {
     return jobId == null ? '' : String(jobId);
@@ -798,9 +806,17 @@ function isBoardReadOnly() {
     return dispatchBoardReadOnly;
 }
 
-function blockDispatchWrite(actionLabel) {
-    if (!isBoardReadOnly()) return false;
-    showToast(`${actionLabel} is disabled on the live Dispatch board until dispatch write actions move onto the shared live model.`, 'error');
+function canDispatchCapability(key) {
+    return !!dispatchCapabilities[key];
+}
+
+function blockDispatchCapability(actionLabel, capabilityKey) {
+    if (canDispatchCapability(capabilityKey)) return false;
+    const capabilityMessage = {
+        complete: 'Completion stays in Copilot for the live Dispatch board.',
+        add_job: 'Adding local-only jobs is still legacy-only on the live Dispatch board.',
+    };
+    showToast(capabilityMessage[capabilityKey] || `${actionLabel} is not available on this live Dispatch board.`, 'error');
     return true;
 }
 
@@ -812,19 +828,35 @@ function syncDispatchModeUI() {
     const readOnly = isBoardReadOnly();
     const banner = document.getElementById('dispatchModeBanner');
     const bannerText = document.getElementById('dispatchModeBannerText');
-    if (banner) banner.style.display = readOnly ? 'flex' : 'none';
+    const hasRestrictions = readOnly || Object.values(dispatchCapabilities).some((enabled) => !enabled);
+    if (banner) banner.style.display = hasRestrictions ? 'flex' : 'none';
     if (bannerText && dispatchReadOnlyReason) bannerText.textContent = dispatchReadOnlyReason;
 
-    ['geocodeBtn', 'lassoBtn', 'optimizeRouteBtn', 'unassignedSelectAll', 'unassignedBatchCrew', 'unassignedAssignBtn'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.disabled = readOnly;
+    const geocodeBtn = document.getElementById('geocodeBtn');
+    if (geocodeBtn) geocodeBtn.disabled = readOnly || !canDispatchCapability('geocode');
+    const lassoBtn = document.getElementById('lassoBtn');
+    if (lassoBtn) lassoBtn.disabled = readOnly || !canDispatchCapability('assign');
+    const optimizeRouteBtn = document.getElementById('optimizeRouteBtn');
+    if (optimizeRouteBtn) optimizeRouteBtn.disabled = readOnly || !canDispatchCapability('optimize');
+    const unassignedSelectAll = document.getElementById('unassignedSelectAll');
+    if (unassignedSelectAll) unassignedSelectAll.disabled = readOnly || !canDispatchCapability('assign');
+    const unassignedBatchCrew = document.getElementById('unassignedBatchCrew');
+    if (unassignedBatchCrew) unassignedBatchCrew.disabled = readOnly || !canDispatchCapability('assign');
+    const unassignedAssignBtn = document.getElementById('unassignedAssignBtn');
+    if (unassignedAssignBtn) unassignedAssignBtn.disabled = readOnly || !canDispatchCapability('assign');
+    document.querySelectorAll('.bulk-btn').forEach((button) => {
+        const label = button.textContent.trim();
+        if (label === 'Order Stops') button.disabled = readOnly || !canDispatchCapability('route_order');
+        if (label === 'Assign Crew') button.disabled = readOnly || !canDispatchCapability('assign');
+        if (label === 'Mark Complete') button.disabled = readOnly || !canDispatchCapability('complete');
     });
 
-    document.querySelectorAll('.add-job-btn, .route-job-check, .unassigned-check, .ucard-assign select').forEach((el) => {
-        el.disabled = readOnly;
+    document.querySelectorAll('.add-job-btn').forEach((el) => { el.disabled = readOnly || !canDispatchCapability('add_job'); });
+    document.querySelectorAll('.route-job-check, .unassigned-check, .ucard-assign select').forEach((el) => {
+        el.disabled = readOnly || !canDispatchCapability('assign');
     });
 
-    if (readOnly) {
+    if (readOnly || !canDispatchCapability('assign')) {
         clearBulkSelection();
         if (lassoMode) toggleLassoMode();
     }
@@ -929,7 +961,7 @@ async function initMap() {
 }
 
 function toggleLassoMode() {
-    if (isBoardReadOnly()) return;
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
     lassoMode = !lassoMode;
     const btn = document.getElementById('lassoBtn');
     const mapEl = document.getElementById('routeMap');
@@ -1227,6 +1259,7 @@ function updateMapStatus(pinCount, totalJobs, missing) {
 }
 
 async function autoGeocodeAndRefreshMap() {
+    if (isBoardReadOnly() || !canDispatchCapability('geocode')) return;
     try {
         const res = await fetch('/api/dispatch/geocode', {
             method: 'POST',
@@ -1316,7 +1349,7 @@ function toggleUnassigned() {
    BULK SELECTION
    ═══════════════════════════════════════════════════════════ */
 function toggleJobSelect(jobId, checkbox) {
-    if (isBoardReadOnly()) {
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
         checkbox.checked = false;
         return;
     }
@@ -1326,7 +1359,7 @@ function toggleJobSelect(jobId, checkbox) {
 }
 
 function toggleSelectAll(master) {
-    if (isBoardReadOnly()) {
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
         master.checked = false;
         return;
     }
@@ -1342,7 +1375,7 @@ function toggleSelectAll(master) {
 
 function updateBulkBar() {
     const bar = document.getElementById('bulkBar');
-    if (isBoardReadOnly()) {
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
         bar.classList.remove('active');
         return;
     }
@@ -1362,16 +1395,16 @@ function clearBulkSelection() {
 }
 
 async function bulkOrderStops() {
-    if (blockDispatchWrite('Ordering route stops')) return;
+    if (blockDispatchCapability('Ordering route stops', 'route_order')) return;
     if (selectedJobs.size === 0) return;
     const assignments = [];
     let order = 1;
     selectedJobs.forEach(id => {
-        assignments.push({ job_id: id, route_order: order++ });
+        assignments.push({ job_key: id, route_order: order++ });
     });
     // We only set route_order, keep crew_assigned by finding existing
     for (const a of assignments) {
-        const job = findJob(a.job_id);
+        const job = findJob(a.job_key);
         if (job) a.crew_assigned = job.crew_assigned;
     }
     try {
@@ -1389,7 +1422,7 @@ async function bulkOrderStops() {
 }
 
 function bulkAssignCrew() {
-    if (blockDispatchWrite('Assigning crews')) return;
+    if (blockDispatchCapability('Assigning crews', 'assign')) return;
     if (selectedJobs.size === 0) return;
     const sel = document.getElementById('bulkCrewSelect');
     sel.innerHTML = allCrews.map(c => `<option value="${c.name}">${esc(c.name)}</option>`).join('');
@@ -1397,11 +1430,11 @@ function bulkAssignCrew() {
 }
 
 async function applyBulkCrewAssign() {
-    if (blockDispatchWrite('Assigning crews')) return;
+    if (blockDispatchCapability('Assigning crews', 'assign')) return;
     const crewName = document.getElementById('bulkCrewSelect').value;
     const assignments = [];
     selectedJobs.forEach(id => {
-        assignments.push({ job_id: id, crew_assigned: crewName });
+        assignments.push({ job_key: id, crew_assigned: crewName });
     });
     try {
         await fetch('/api/dispatch/assign', {
@@ -1419,7 +1452,7 @@ async function applyBulkCrewAssign() {
 }
 
 async function bulkComplete() {
-    if (blockDispatchWrite('Marking jobs complete')) return;
+    if (blockDispatchCapability('Marking jobs complete', 'complete')) return;
     if (selectedJobs.size === 0) return;
     const assignments = [];
     selectedJobs.forEach(id => {
@@ -1465,6 +1498,15 @@ async function loadBoard() {
         boardData = data;
         dispatchBoardReadOnly = !!data.read_only;
         dispatchReadOnlyReason = data.read_only_reason || 'Dispatch is reading the shared live Copilot-backed job set.';
+        dispatchCapabilities = {
+            assign: false,
+            route_order: false,
+            geocode: false,
+            optimize: false,
+            complete: false,
+            add_job: false,
+            ...(data.write_capabilities || {})
+        };
         allCrews = data.crews || [];
         loading.style.display = 'none';
 
@@ -1482,7 +1524,7 @@ async function loadBoard() {
 
         // Auto-geocode if many jobs are missing lat/lng
         const missingGeo = allJobs.filter(j => !j.lat || !j.lng).length;
-        if (!dispatchBoardReadOnly && missingGeo > 0 && allJobs.length > 0) {
+        if (!dispatchBoardReadOnly && canDispatchCapability('geocode') && missingGeo > 0 && allJobs.length > 0) {
             autoGeocodeInBackground();
         }
 
@@ -1512,14 +1554,14 @@ async function loadBoard() {
 }
 
 async function assignJob(jobId, crewId, routeOrder) {
-    if (blockDispatchWrite('Dispatch assignments')) return;
+    if (blockDispatchCapability('Dispatch assignments', 'assign')) return;
     try {
         const res = await fetch('/api/dispatch/assign', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 assignments: [{
-                    job_id: jobId,
+                    job_key: normalizeJobId(jobId),
                     crew_assigned: crewId,
                     route_order: routeOrder
                 }]
@@ -1537,7 +1579,7 @@ async function assignJob(jobId, crewId, routeOrder) {
 
 async function submitAddJob(e) {
     e.preventDefault();
-    if (blockDispatchWrite('Adding jobs')) return;
+    if (blockDispatchCapability('Adding jobs', 'add_job')) return;
     const payload = {
         customer_name: document.getElementById('addJobCustomer').value,
         phone: document.getElementById('addJobPhone').value,
@@ -1607,7 +1649,7 @@ function getAvailabilityClass(totalHours) {
    ═══════════════════════════════════════════════════════════ */
 let autoGeocodeRan = false;
 async function autoGeocodeInBackground() {
-    if (isBoardReadOnly()) return;
+    if (isBoardReadOnly() || !canDispatchCapability('geocode')) return;
     if (autoGeocodeRan) return;
     autoGeocodeRan = true;
     try {
@@ -1625,7 +1667,7 @@ async function autoGeocodeInBackground() {
 }
 
 async function geocodeAllJobs() {
-    if (blockDispatchWrite('Geocoding Dispatch jobs')) return;
+    if (blockDispatchCapability('Geocoding Dispatch jobs', 'geocode')) return;
     autoGeocodeRan = false;
     showToast('Geocoding all job addresses (force re-geocode)...');
     try {
@@ -1647,7 +1689,7 @@ async function geocodeAllJobs() {
 }
 
 async function optimizeRoute() {
-    if (blockDispatchWrite('Optimizing routes')) return;
+    if (blockDispatchCapability('Optimizing routes', 'optimize')) return;
     // Get crews with jobs
     const crewsWithJobs = (boardData?.crews || []).filter(c => (c.jobs || []).length > 1);
     if (crewsWithJobs.length === 0) {
@@ -1687,7 +1729,7 @@ async function optimizeRoute() {
 }
 
 async function optimizeCrewRoute(crewName) {
-    if (blockDispatchWrite('Optimizing routes')) return;
+    if (blockDispatchCapability('Optimizing routes', 'optimize')) return;
     showToast(`Optimizing route for ${crewName}...`);
     try {
         const res = await fetch('/api/dispatch/optimize-route', {
@@ -1745,7 +1787,7 @@ function toggleEmptyCrews() {
 function renderDayView(data) {
     const container = document.getElementById('dayBoard');
     let crews = data.crews || [];
-    const readOnly = isBoardReadOnly();
+    const canAddJob = !isBoardReadOnly() && canDispatchCapability('add_job');
 
     // Filter out empty crews unless toggled on
     if (!showEmptyCrews) {
@@ -1796,9 +1838,9 @@ function renderDayView(data) {
                 <div class="drop-placeholder">Drop job here to assign</div>
             </div>
             <div class="crew-lane-footer">
-                <button class="add-job-btn" ${readOnly ? 'disabled' : `onclick="openAddJobModal('${esc(crew.name)}')"`}>
+                <button class="add-job-btn" ${canAddJob ? `onclick="openAddJobModal('${esc(crew.name)}')"` : 'disabled'}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    ${readOnly ? 'Live Board Read Only' : 'Add Job'}
+                    ${canAddJob ? 'Add Job' : 'Add Job Disabled'}
                 </button>
             </div>
         </div>`;
@@ -1814,7 +1856,7 @@ function renderJobCard(job) {
     const jobId = normalizeJobId(job.id);
     const jobIdEsc = esc(jobId);
     const jobIdJs = jobIdLiteral(jobId);
-    const dragAttrs = isBoardReadOnly()
+    const dragAttrs = (isBoardReadOnly() || !canDispatchCapability('assign'))
         ? 'draggable="false"'
         : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
 
@@ -1869,7 +1911,7 @@ function renderRouteTable(data) {
         const jobIdJs = jobIdLiteral(jobId);
         return `
         <tr class="${isSelected ? 'selected' : ''}" onclick='openJobDetail(${jobIdJs})'>
-            <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${jobIdEsc}" ${isSelected ? 'checked' : ''} ${isBoardReadOnly() ? 'disabled' : ''} onchange='toggleJobSelect(${jobIdJs}, this)'></td>
+            <td onclick="event.stopPropagation()"><input type="checkbox" class="route-job-check" data-job-id="${jobIdEsc}" ${isSelected ? 'checked' : ''} ${(isBoardReadOnly() || !canDispatchCapability('assign')) ? 'disabled' : ''} onchange='toggleJobSelect(${jobIdJs}, this)'></td>
             <td><span class="stop-num">${job.route_order || (i + 1)}</span></td>
             <td style="white-space:nowrap;">${job.job_date ? job.job_date.split('T')[0] : formatDate(currentDate)}</td>
             <td style="font-weight:600;">${esc(job.service_type || 'Service')}</td>
@@ -1936,7 +1978,7 @@ function renderWeekView(data) {
                     const jobId = normalizeJobId(job.id);
                     const jobIdEsc = esc(jobId);
                     const jobIdJs = jobIdLiteral(jobId);
-                    const dragAttrs = isBoardReadOnly()
+                    const dragAttrs = (isBoardReadOnly() || !canDispatchCapability('assign'))
                         ? 'draggable="false"'
                         : `draggable="true" ondragstart='handleDragStart(event, ${jobIdJs})' ondragend='handleDragEnd(event)'`;
                     html += `<div class="week-job-card ${svcClass}" ${dragAttrs} data-job-id="${jobIdEsc}"
@@ -1962,7 +2004,7 @@ function updateUnassignedPanel(jobs) {
     const body = document.getElementById('unassignedBody');
     const countEl = document.getElementById('unassignedCount');
     const badge = document.getElementById('unassignedBadge');
-    const readOnly = isBoardReadOnly();
+    const readOnly = isBoardReadOnly() || !canDispatchCapability('assign');
 
     countEl.textContent = jobs.length;
     if (jobs.length > 0) {
@@ -2027,7 +2069,7 @@ function updateUnassignedPanel(jobs) {
 }
 
 function toggleUnassignedSelectAll(master) {
-    if (isBoardReadOnly()) {
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) {
         master.checked = false;
         return;
     }
@@ -2036,18 +2078,18 @@ function toggleUnassignedSelectAll(master) {
 
 async function quickAssignUnassigned(jobId, crewName) {
     if (!crewName) return;
-    if (blockDispatchWrite('Assigning crews')) return;
+    if (blockDispatchCapability('Assigning crews', 'assign')) return;
     await assignJob(jobId, crewName, null);
 }
 
 async function batchAssignUnassigned() {
-    if (blockDispatchWrite('Assigning crews')) return;
+    if (blockDispatchCapability('Assigning crews', 'assign')) return;
     const crewName = document.getElementById('unassignedBatchCrew').value;
     if (!crewName) { showToast('Select a crew first', 'error'); return; }
     const checks = document.querySelectorAll('.unassigned-check:checked');
     if (checks.length === 0) { showToast('Select jobs first', 'error'); return; }
     const assignments = [];
-    checks.forEach(cb => assignments.push({ job_id: cb.dataset.jobId, crew_assigned: crewName }));
+    checks.forEach(cb => assignments.push({ job_key: cb.dataset.jobId, crew_assigned: crewName }));
     try {
         await fetch('/api/dispatch/assign', {
             method: 'PATCH',
@@ -2066,7 +2108,7 @@ async function batchAssignUnassigned() {
    DRAG AND DROP
    ═══════════════════════════════════════════════════════════ */
 function handleDragStart(e, jobId) {
-    if (isBoardReadOnly()) return;
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
     draggedJob = jobId;
     const card = e.target.closest('.job-card, .week-job-card');
     const lane = card ? card.closest('.crew-lane-body, .week-cell') : null;
@@ -2102,7 +2144,7 @@ function handleDragLeave(e) {
 function handleCrewDrop(e, crewName) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    if (isBoardReadOnly()) return;
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
     const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     const lane = e.currentTarget;
@@ -2114,7 +2156,7 @@ function handleCrewDrop(e, crewName) {
 function handleWeekDrop(e, crewName, dateStr) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    if (isBoardReadOnly()) return;
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
     const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     assignJob(jobId, crewName, null);
@@ -2123,7 +2165,7 @@ function handleWeekDrop(e, crewName, dateStr) {
 function handleUnassignedDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    if (isBoardReadOnly()) return;
+    if (isBoardReadOnly() || !canDispatchCapability('assign')) return;
     const jobId = e.dataTransfer.getData('text/plain');
     if (!jobId) return;
     assignJob(jobId, null, null);
@@ -2186,7 +2228,7 @@ function openJobDetail(jobId) {
                 <strong>Special Notes</strong>
                 ${esc(job.special_notes)}
             </div>` : ''}
-        ${isBoardReadOnly() ? `
+        ${isBoardReadOnly() || !canDispatchCapability('assign') ? `
         <div class="detail-notes" style="background:var(--blue-bg);border-color:#bfdbfe;color:var(--blue);margin-top:16px;">
             <strong>Live Dispatch View</strong>
             ${esc(dispatchReadOnlyReason)}
@@ -2205,7 +2247,7 @@ function openJobDetail(jobId) {
 }
 
 async function quickAssignFromDetail(jobId) {
-    if (blockDispatchWrite('Assigning crews')) return;
+    if (blockDispatchCapability('Assigning crews', 'assign')) return;
     const crewName = document.getElementById('jobDetailCrewSelect').value || null;
     await assignJob(jobId, crewName, null);
     closeModal('jobDetailModal');
@@ -2225,7 +2267,7 @@ function findJob(jobId) {
    ADD JOB MODAL
    ═══════════════════════════════════════════════════════════ */
 function openAddJobModal(crewName) {
-    if (blockDispatchWrite('Adding jobs')) return;
+    if (blockDispatchCapability('Adding jobs', 'add_job')) return;
     document.getElementById('addJobForm').reset();
     document.getElementById('addJobDate').value = formatDate(currentDate);
     if (crewName) {

@@ -108,6 +108,43 @@ function normalizeScheduleAddress(address) {
   return typeof address === 'string' ? address.trim() : '';
 }
 
+function normalizeRouteTemplateText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function buildRouteTemplateAddressFingerprint(value) {
+  return normalizeRouteTemplateText(value)
+    .replace(/\b(oh|us)\b/g, ' ')
+    .replace(/\b\d{5}(?:-\d{4})?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getIsoDayOfWeek(value) {
+  const date = value instanceof Date ? value : new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date.getUTCDay();
+}
+
+function getWholeDayDiff(anchorDate, targetDate) {
+  const anchor = new Date(`${anchorDate}T00:00:00.000Z`);
+  const target = new Date(`${targetDate}T00:00:00.000Z`);
+  if (Number.isNaN(anchor.getTime()) || Number.isNaN(target.getTime())) return null;
+  return Math.round((target.getTime() - anchor.getTime()) / 86400000);
+}
+
+function isDispatchRouteTemplateApplicable(template, targetDate) {
+  if (!template || !targetDate) return false;
+  const targetDay = getIsoDayOfWeek(targetDate);
+  if (targetDay == null || Number(template.day_of_week) !== targetDay) return false;
+  if (template.cadence === 'weekly') return true;
+  const dayDiff = getWholeDayDiff(template.anchor_date, targetDate);
+  if (dayDiff == null) return false;
+  return Math.abs(dayDiff / 7) % 2 === 0;
+}
+
 function toNullableTrimmedString(value) {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -480,6 +517,154 @@ async function patchDispatchPlanItems(pool, {
   return results;
 }
 
+function buildDispatchRouteTemplateStop(job, position) {
+  const serviceTitle = job?.service_title || job?.service_type || null;
+  return {
+    position,
+    source_customer_id: job?.copilot_customer_id || null,
+    customer_link_id: job?.local_customer_id ?? job?.customer_id ?? null,
+    property_link_id: job?.property_id ?? null,
+    customer_name: job?.customer_name || null,
+    address_fingerprint: buildRouteTemplateAddressFingerprint(job?.address || ''),
+    service_title: serviceTitle,
+    service_frequency: job?.service_frequency || null,
+    source_event_type: job?.copilot_event_type || null,
+  };
+}
+
+function scoreDispatchRouteTemplateMatch(templateStop, job) {
+  let score = 0;
+  const jobServiceTitle = normalizeRouteTemplateText(job?.service_title || job?.service_type);
+  const stopServiceTitle = normalizeRouteTemplateText(templateStop?.service_title);
+  const jobCustomerName = normalizeRouteTemplateText(job?.customer_name);
+  const stopCustomerName = normalizeRouteTemplateText(templateStop?.customer_name);
+  const jobAddress = buildRouteTemplateAddressFingerprint(job?.address || '');
+  const stopAddress = buildRouteTemplateAddressFingerprint(templateStop?.address_fingerprint || '');
+  const jobFrequency = normalizeRouteTemplateText(job?.service_frequency);
+  const stopFrequency = normalizeRouteTemplateText(templateStop?.service_frequency);
+  const jobEventType = normalizeRouteTemplateText(job?.copilot_event_type);
+  const stopEventType = normalizeRouteTemplateText(templateStop?.source_event_type);
+
+  if (templateStop?.property_link_id && job?.property_id && Number(templateStop.property_link_id) === Number(job.property_id)) {
+    score = Math.max(score, 100);
+  }
+  if (templateStop?.customer_link_id && (job?.local_customer_id ?? job?.customer_id) && Number(templateStop.customer_link_id) === Number(job.local_customer_id ?? job.customer_id)) {
+    score = Math.max(score, 92);
+  }
+  if (
+    templateStop?.source_customer_id &&
+    job?.copilot_customer_id &&
+    String(templateStop.source_customer_id) === String(job.copilot_customer_id) &&
+    stopServiceTitle &&
+    stopServiceTitle === jobServiceTitle
+  ) {
+    score = Math.max(score, 84);
+  }
+  if (stopCustomerName && stopAddress && stopServiceTitle && stopCustomerName === jobCustomerName && stopAddress === jobAddress && stopServiceTitle === jobServiceTitle) {
+    score = Math.max(score, 76);
+  }
+  if (stopCustomerName && stopServiceTitle && stopCustomerName === jobCustomerName && stopServiceTitle === jobServiceTitle) {
+    score = Math.max(score, 68);
+  }
+
+  if (score === 0) return 0;
+  if (stopFrequency && stopFrequency === jobFrequency) score += 3;
+  if (stopEventType && stopEventType === jobEventType) score += 1;
+  return score;
+}
+
+function applyDispatchRouteTemplate({
+  template,
+  templateStops = [],
+  liveJobs = [],
+} = {}) {
+  const targetCrew = template?.crew_name || null;
+  const ownedCrewJobs = liveJobs
+    .filter((job) => (job?.crew_assigned || null) === targetCrew)
+    .slice()
+    .sort((left, right) => (left?.route_order ?? Number.MAX_SAFE_INTEGER) - (right?.route_order ?? Number.MAX_SAFE_INTEGER));
+  const unassignedJobs = liveJobs
+    .filter((job) => !job?.crew_assigned)
+    .slice()
+    .sort((left, right) => (left?.route_order ?? Number.MAX_SAFE_INTEGER) - (right?.route_order ?? Number.MAX_SAFE_INTEGER));
+  const candidateJobs = [...ownedCrewJobs, ...unassignedJobs];
+  const matchedJobIds = new Set();
+  const matched = [];
+  const ambiguous = [];
+  const unmatchedTemplateStops = [];
+
+  for (const stop of templateStops.slice().sort((left, right) => left.position - right.position)) {
+    const candidates = candidateJobs
+      .filter((job) => !matchedJobIds.has(String(job.id)))
+      .map((job) => ({ job, score: scoreDispatchRouteTemplateMatch(stop, job) }))
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => right.score - left.score || String(left.job.id).localeCompare(String(right.job.id)));
+
+    if (candidates.length === 0) {
+      unmatchedTemplateStops.push({
+        position: stop.position,
+        customer_name: stop.customer_name,
+        service_title: stop.service_title,
+        reason: 'missing',
+      });
+      continue;
+    }
+
+    const bestScore = candidates[0].score;
+    const tied = candidates.filter((candidate) => candidate.score === bestScore);
+    if (tied.length > 1) {
+      ambiguous.push({
+        position: stop.position,
+        customer_name: stop.customer_name,
+        service_title: stop.service_title,
+        candidate_job_keys: tied.map((entry) => String(entry.job.id)),
+      });
+      continue;
+    }
+
+    const selected = candidates[0].job;
+    matchedJobIds.add(String(selected.id));
+    matched.push({
+      stop,
+      job: selected,
+      route_order_override: matched.length + 1,
+      score: bestScore,
+    });
+  }
+
+  const appended = ownedCrewJobs
+    .filter((job) => !matchedJobIds.has(String(job.id)))
+    .map((job, index) => ({
+      job,
+      route_order_override: matched.length + index + 1,
+    }));
+
+  const patches = [
+    ...matched.map((entry) => ({
+      jobKey: String(entry.job.id),
+      patch: {
+        crew_override_name: targetCrew,
+        route_order_override: entry.route_order_override,
+      },
+    })),
+    ...appended.map((entry) => ({
+      jobKey: String(entry.job.id),
+      patch: {
+        crew_override_name: targetCrew,
+        route_order_override: entry.route_order_override,
+      },
+    })),
+  ];
+
+  return {
+    matched,
+    appended,
+    ambiguous,
+    unmatched_template_stops: unmatchedTemplateStops,
+    patches,
+  };
+}
+
 async function upsertCopilotLiveJobs(pool, { serviceDate, jobs, syncedAt = new Date() }) {
   if (!serviceDate) throw new Error('serviceDate is required');
   if (!Array.isArray(jobs)) throw new Error('jobs must be an array');
@@ -624,6 +809,7 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     copilot_customer_id: job.source.customer_id || null,
     customer_id: job.overlay.customer_link_id ?? null,
     local_customer_id: job.overlay.customer_link_id ?? null,
+    property_id: job.overlay.property_link_id ?? null,
     customer_name: job.source.customer_name || 'Unknown',
     phone: null,
     email: null,
@@ -650,6 +836,7 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     start_time: null,
     end_time: null,
     special_notes: job.overlay.office_note || null,
+    print_note: job.dispatch_plan.print_note || null,
     property_notes: null,
     completion_notes: null,
     completion_photos: [],
@@ -692,6 +879,7 @@ function mapScheduleJobToDispatchJob(job) {
     copilot_job_id: job?.copilot_job_id || null,
     customer_id: job?.customer_id ?? null,
     local_customer_id: job?.local_customer_id ?? null,
+    property_id: job?.property_id ?? null,
     customer_name: job?.customer_name || 'Unknown',
     phone: job?.phone || null,
     email: job?.email || null,
@@ -713,6 +901,7 @@ function mapScheduleJobToDispatchJob(job) {
     stop_order: routeOrder,
     estimated_duration: Number.isFinite(estimatedDuration) ? estimatedDuration : 30,
     special_notes: job?.special_notes || null,
+    print_note: job?.print_note || null,
     property_notes: job?.property_notes || null,
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
@@ -1021,11 +1210,14 @@ async function getCopilotLiveJobs({
 }
 
 module.exports = {
+  applyDispatchRouteTemplate,
+  buildDispatchRouteTemplateStop,
   COPILOT_SOURCE_SYSTEM,
   buildCopilotJobKey,
   buildDispatchBoardPayload,
   buildLiveJobDaySummaries,
   buildLiveJobStats,
+  buildRouteTemplateAddressFingerprint,
   buildScheduleGeocodeFields,
   buildAggregateFreshness,
   fetchResolvedLiveJob,
@@ -1038,8 +1230,10 @@ module.exports = {
   normalizeDispatchPlanPatch,
   normalizeCopilotLiveStatus,
   normalizeResolvedRow,
+  normalizeRouteTemplateText,
   patchDispatchPlanItem,
   patchDispatchPlanItems,
   parseVisitTotal,
+  isDispatchRouteTemplateApplicable,
   upsertCopilotLiveJobs,
 };

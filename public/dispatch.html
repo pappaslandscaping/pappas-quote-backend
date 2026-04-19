@@ -400,6 +400,17 @@
         .template-card .tpl-zips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
         .template-card .zip-tag { background: var(--green-bg); color: var(--green); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
         .template-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--gray-100); }
+        .live-route-template-list { display: flex; flex-direction: column; gap: 12px; max-height: 56vh; overflow-y: auto; }
+        .live-route-template-card { border: 1px solid var(--gray-200); border-radius: 12px; padding: 14px; background: var(--gray-50); }
+        .live-route-template-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+        .live-route-template-name { font-size: 15px; font-weight: 700; color: var(--primary); }
+        .live-route-template-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+        .live-route-template-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--white); border: 1px solid var(--gray-200); font-size: 11px; font-weight: 700; color: var(--gray-600); }
+        .live-route-template-badge.good { background: var(--green-bg); color: var(--green); border-color: rgba(5,150,105,0.18); }
+        .live-route-template-badge.warn { background: var(--amber-bg); color: var(--amber); border-color: rgba(217,119,6,0.18); }
+        .live-route-template-notes { font-size: 12px; color: var(--gray-500); line-height: 1.45; margin-top: 8px; }
+        .route-template-form-note { font-size: 12px; color: var(--gray-500); line-height: 1.45; margin-bottom: 12px; }
+        .route-template-empty { text-align: center; padding: 28px 16px; color: var(--gray-400); font-size: 13px; border: 1px dashed var(--gray-200); border-radius: 12px; background: var(--gray-50); }
 
         /* ─── Modal ────────────────────────────────────────── */
         .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 200; display: none; align-items: center; justify-content: center; animation: fadeIn 0.2s; }
@@ -519,6 +530,10 @@
             <button class="btn btn-secondary no-print" onclick="printDispatch()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 Print Sheet
+            </button>
+            <button class="btn btn-secondary no-print" onclick="openRouteTemplateLibrary()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18"/><path d="M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M8 11h8"/><path d="M8 15h5"/></svg>
+                Route Patterns
             </button>
             <button class="topbar-icon-btn" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button>
             <div class="topbar-avatar" title="Account">TP</div>
@@ -968,6 +983,67 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="routeTemplateLibraryModal">
+    <div class="modal" style="max-width:760px;">
+        <div class="modal-header">
+            <div>
+                <h3>Live Route Patterns</h3>
+                <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Save and apply weekly or bi-weekly crew route patterns without changing the Copilot live job source.</div>
+            </div>
+            <button class="modal-close" onclick="closeModal('routeTemplateLibraryModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="routeTemplateLibraryStatus" class="route-template-form-note"></div>
+            <div class="live-route-template-list" id="routeTemplateLibraryList">
+                <div class="route-template-empty">Loading route patterns...</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('routeTemplateLibraryModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="saveRouteTemplateModal">
+    <div class="modal" style="max-width:520px;">
+        <div class="modal-header">
+            <h3>Save Live Route Pattern</h3>
+            <button class="modal-close" onclick="closeModal('saveRouteTemplateModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="saveRouteTemplateForm" onsubmit="submitSaveRouteTemplate(event)">
+                <div class="route-template-form-note">This saves the current live route order for the selected crew as a reusable pattern. Applying it later only writes dispatch overrides for that future live date.</div>
+                <div class="form-group">
+                    <label>Pattern Name</label>
+                    <input type="text" id="routeTemplateName" required placeholder="Tim Westlake Weekly">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Crew</label>
+                        <input type="text" id="routeTemplateCrew" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Cadence</label>
+                        <select id="routeTemplateCadence">
+                            <option value="weekly">Weekly</option>
+                            <option value="biweekly">Bi-Weekly</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="routeTemplateNotes" placeholder="Optional routing notes for the office"></textarea>
+                </div>
+                <input type="hidden" id="routeTemplateDate">
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('saveRouteTemplateModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="document.getElementById('saveRouteTemplateForm').requestSubmit()">Save Pattern</button>
+        </div>
+    </div>
+</div>
+
 <!-- ─── Toast Container ────────────────────────────────── -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -998,6 +1074,7 @@ let lassoMode = false;
 let infoWindow = null;
 let markerByJobId = {};
 let crewVisibility = {}; // crew name → bool (true = visible)
+let liveRouteTemplates = [];
 let dispatchBoardReadOnly = false;
 let dispatchReadOnlyReason = '';
 let dispatchCapabilities = {
@@ -1171,6 +1248,236 @@ function renderDispatchSummaryStrip(data) {
             <div class="subtext">${esc(card.subtext)}</div>
         </div>
     `).join('');
+}
+
+function formatCadenceLabel(cadence) {
+    return cadence === 'biweekly' ? 'Bi-Weekly' : 'Weekly';
+}
+
+function formatAnchorDate(value) {
+    if (!value) return '--';
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function openSaveRouteTemplateModal(crewName) {
+    document.getElementById('routeTemplateCrew').value = crewName;
+    document.getElementById('routeTemplateDate').value = formatDate(currentDate);
+    document.getElementById('routeTemplateName').value = `${crewName} ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    document.getElementById('routeTemplateCadence').value = 'weekly';
+    document.getElementById('routeTemplateNotes').value = '';
+    openModal('saveRouteTemplateModal');
+}
+
+async function submitSaveRouteTemplate(event) {
+    event.preventDefault();
+    const payload = {
+        date: document.getElementById('routeTemplateDate').value,
+        crew_name: document.getElementById('routeTemplateCrew').value,
+        name: document.getElementById('routeTemplateName').value.trim(),
+        cadence: document.getElementById('routeTemplateCadence').value,
+        notes: document.getElementById('routeTemplateNotes').value.trim() || null,
+    };
+    try {
+        const res = await fetch('/api/dispatch/route-templates/save-from-live', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!data.success && !res.ok) throw new Error(data.error || 'Failed to save route pattern');
+        showToast(`Saved route pattern: ${data.template.name}`);
+        closeModal('saveRouteTemplateModal');
+        loadRouteTemplateLibrary();
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+function openRouteTemplateLibrary() {
+    openModal('routeTemplateLibraryModal');
+    loadRouteTemplateLibrary();
+}
+
+async function loadRouteTemplateLibrary() {
+    const statusEl = document.getElementById('routeTemplateLibraryStatus');
+    const listEl = document.getElementById('routeTemplateLibraryList');
+    if (!statusEl || !listEl) return;
+    statusEl.textContent = `Selected date: ${currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}. Applying a pattern writes route overrides into the live Dispatch plan for this date only.`;
+    listEl.innerHTML = '<div class="route-template-empty">Loading route patterns...</div>';
+    try {
+        const res = await fetch(`/api/dispatch/route-templates?date=${encodeURIComponent(formatDate(currentDate))}`);
+        const data = await res.json();
+        if (!data.success && !res.ok) throw new Error(data.error || 'Failed to load route patterns');
+        liveRouteTemplates = data.templates || [];
+        if (liveRouteTemplates.length === 0) {
+            listEl.innerHTML = '<div class="route-template-empty">No live route patterns yet. Save one from a crew lane to reuse it weekly or bi-weekly.</div>';
+            return;
+        }
+
+        listEl.innerHTML = liveRouteTemplates.map((template) => {
+            const applicableClass = template.applies_to_date ? 'good' : 'warn';
+            const applicableLabel = template.applies_to_date ? 'Applies to selected date' : 'Out of cycle for selected date';
+            return `
+                <div class="live-route-template-card">
+                    <div class="live-route-template-head">
+                        <div>
+                            <div class="live-route-template-name">${esc(template.name)}</div>
+                            <div class="live-route-template-meta">
+                                <span class="live-route-template-badge">${esc(template.crew_name)}</span>
+                                <span class="live-route-template-badge">${esc(formatCadenceLabel(template.cadence))}</span>
+                                <span class="live-route-template-badge">${esc(String(template.stop_count || 0))} stops</span>
+                                <span class="live-route-template-badge ${applicableClass}">${esc(applicableLabel)}</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" ${template.applies_to_date ? '' : 'disabled'} onclick="applyRouteTemplate(${Number(template.id)})">Apply</button>
+                    </div>
+                    <div class="live-route-template-notes">Anchor date: ${esc(formatAnchorDate(template.anchor_date))}${template.notes ? ` · ${esc(template.notes)}` : ''}</div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        listEl.innerHTML = `<div class="route-template-empty" style="color:var(--red);">${esc(err.message)}</div>`;
+    }
+}
+
+async function applyRouteTemplate(templateId) {
+    try {
+        const res = await fetch(`/api/dispatch/route-templates/${templateId}/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate) }),
+        });
+        const data = await res.json();
+        if (!data.success && !res.ok) throw new Error(data.error || 'Failed to apply route pattern');
+        const summary = `${data.matched_count} matched, ${data.appended_count} appended`;
+        const notes = [];
+        if ((data.ambiguous || []).length > 0) notes.push(`${data.ambiguous.length} ambiguous`);
+        if ((data.unmatched_template_stops || []).length > 0) notes.push(`${data.unmatched_template_stops.length} missing`);
+        showToast(`Applied ${data.template.name} — ${summary}${notes.length ? ` (${notes.join(', ')})` : ''}`);
+        closeModal('routeTemplateLibraryModal');
+        loadBoard();
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+function buildRouteSheetComments(job) {
+    const notes = [];
+    const service = (job.service_type || '').trim();
+    if (service && !/^mowing(?:\s*\(weekly\))?$/i.test(service)) notes.push(service);
+    if (job.print_note) notes.push(job.print_note);
+    if (job.special_notes) notes.push(job.special_notes);
+    if (job.property_notes) notes.push(job.property_notes);
+    return [...new Set(notes.filter(Boolean))].join(' / ');
+}
+
+function isBiWeeklyRouteJob(job) {
+    return /bi-?\s*weekly/i.test([job.service_frequency, job.service_type, job.service_title].filter(Boolean).join(' '));
+}
+
+function buildRouteSheetGroups() {
+    if (!boardData) return [];
+    const groups = [];
+    const visibleSet = new Set(getVisibleCrewNames());
+    (boardData.crews || []).forEach((crew) => {
+        if (!visibleSet.has(crew.name)) return;
+        const jobs = (crew.jobs || []).slice().sort((a, b) => (a.route_order || 999) - (b.route_order || 999));
+        if (jobs.length === 0) return;
+        groups.push({
+            crewName: crew.name,
+            jobs,
+        });
+    });
+    if (visibleSet.has('__unassigned') && (boardData.unassigned || []).length > 0) {
+        groups.push({
+            crewName: 'Unassigned',
+            jobs: (boardData.unassigned || []).slice().sort((a, b) => (a.route_order || 999) - (b.route_order || 999)),
+        });
+    }
+    return groups;
+}
+
+function buildRouteSheetPrintHtml() {
+    const groups = buildRouteSheetGroups();
+    if (groups.length === 0) return '';
+    const printDate = currentDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+
+    const pages = groups.map((group, groupIndex) => {
+        const totalPrice = group.jobs.reduce((sum, job) => sum + (Number(job.service_price) || 0), 0);
+        const rows = group.jobs.map((job, index) => `
+            <tr>
+                <td class="num">${index + 1}</td>
+                <td class="check"><span class="check-box"></span></td>
+                <td class="name">${esc(job.customer_name)}${isBiWeeklyRouteJob(job) ? '<span class="biweekly">BW</span>' : ''}</td>
+                <td class="addr">${esc(buildDisplayAddress(job))}</td>
+                <td class="comments">${esc(buildRouteSheetComments(job))}</td>
+            </tr>
+        `).join('');
+        return `
+            <div class="route-page" style="${groupIndex > 0 ? 'page-break-before:always;' : ''}">
+                <div class="route-header">
+                    <div>
+                        <div class="company">Pappas & Co. Landscaping</div>
+                        <h2>${esc(group.crewName)} — Route Sheet</h2>
+                    </div>
+                    <div class="date">${esc(printDate)}</div>
+                </div>
+                <table class="route-table">
+                    <thead>
+                        <tr>
+                            <th class="num">#</th>
+                            <th class="check"></th>
+                            <th class="name">Name</th>
+                            <th class="addr">Address</th>
+                            <th class="comments">Comments</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div class="summary">${group.jobs.length} stops &middot; ${formatPrice(totalPrice)}</div>
+            </div>
+        `;
+    }).join('');
+
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Dispatch Route Sheets</title>
+        <style>
+            body { font-family: 'DM Sans', sans-serif; background: #fff; color: #2e403d; margin: 0; padding: 0; }
+            .route-page { padding: 18px 20px; }
+            .route-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #2e403d; }
+            .route-header h2 { font-size: 18px; margin: 0; }
+            .route-header .date, .route-header .company { font-size: 14px; color: #6e726e; }
+            .route-header .company { font-style: italic; font-weight: 600; color: #2e403d; }
+            .route-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            .route-table th { text-align:left; padding:6px 8px; border-bottom:2px solid #2e403d; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:#6e726e; }
+            .route-table td { padding:5px 8px; border-bottom:1px solid #f0f2f0; vertical-align: top; }
+            .route-table tr:nth-child(even) { background:#fafbf7; }
+            .num { width:30px; text-align:center; font-weight:600; }
+            .check { width:28px; text-align:center; }
+            .check-box { width:16px; height:16px; border:2px solid #d1d5db; border-radius:3px; display:inline-block; }
+            .name { width:180px; font-weight:600; }
+            .addr { width:220px; }
+            .comments { font-size: 12px; }
+            .biweekly { font-size: 10px; font-weight: 600; color: #7a8a3d; background: #f0f5d9; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+            .summary { font-size:13px; color:#6e726e; margin-top:12px; padding-top:8px; border-top:1px solid #e5e7eb; }
+            @media print {
+                .route-page { page-break-after: always; }
+                .route-page:last-child { page-break-after: auto; }
+            }
+        </style>
+    </head>
+    <body>${pages}</body>
+    </html>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2168,6 +2475,7 @@ function renderDayView(data) {
                         <div class="crew-members">${esc(crew.members || '--')}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+                        ${jobs.length > 0 ? `<button onclick="openSaveRouteTemplateModal('${safeCrewName}')" style="padding:6px 10px;font-size:11px;font-weight:700;border:1px solid var(--gray-300);border-radius:999px;background:var(--white);color:var(--gray-700);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;" title="Save this crew's current live route as a reusable pattern"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save Pattern</button>` : ''}
                         ${jobs.length > 1 ? `<button class="reverse-route-btn" onclick="reverseCrewRoute('${safeCrewName}')" style="padding:6px 10px;font-size:11px;font-weight:700;border:1px solid var(--gray-300);border-radius:999px;background:var(--white);color:var(--gray-700);cursor:${canReverseRoute ? 'pointer' : 'not-allowed'};font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;" title="${canReverseRoute ? `Reverse route for ${esc(crew.name)}` : 'Reverse route is unavailable on this board'}" ${canReverseRoute ? '' : 'disabled'}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Reverse</button>` : ''}
                         ${jobs.length > 1 ? `<button onclick="optimizeCrewRoute('${safeCrewName}')" style="padding:6px 10px;font-size:11px;font-weight:700;border:1px solid var(--gray-300);border-radius:999px;background:var(--white);color:var(--primary);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;" title="Optimize route for ${esc(crew.name)}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Optimize</button>` : ''}
                         <span class="availability-dot ${avail}" title="${laneHours}h scheduled"></span>
@@ -2952,7 +3260,21 @@ document.addEventListener('keydown', (e) => {
    PRINT
    ═══════════════════════════════════════════════════════════ */
 function printDispatch() {
-    window.print();
+    const html = buildRouteSheetPrintHtml();
+    if (!html) {
+        showToast('No visible crew routes to print for this date.', 'error');
+        return;
+    }
+    const popup = window.open('', '_blank', 'width=1200,height=900');
+    if (!popup) {
+        showToast('Unable to open the print window. Check your browser pop-up settings.', 'error');
+        return;
+    }
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    popup.focus();
+    setTimeout(() => popup.print(), 150);
 }
 
 /* ═══════════════════════════════════════════════════════════

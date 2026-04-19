@@ -12,9 +12,12 @@ const {
   fetchCopilotRouteJobsForDate,
 } = require('../services/copilot/client');
 const {
+  applyDispatchRouteTemplate,
+  buildDispatchRouteTemplateStop,
   buildDispatchBoardPayload,
   fetchResolvedLiveJobs,
   getCopilotLiveJobs,
+  isDispatchRouteTemplateApplicable,
   mapResolvedLiveJobToScheduleJob,
   patchDispatchPlanItems,
 } = require('../services/copilot/live-jobs');
@@ -1048,6 +1051,25 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     return jobs
       .filter((job) => (job.crew_assigned || null) === crewName)
       .sort(stableRouteOrderCompare);
+  }
+
+  function summarizeDispatchRouteTemplate(templateRow, stopCount = 0, { targetDate = null } = {}) {
+    return {
+      id: templateRow.id,
+      name: templateRow.name,
+      crew_name: templateRow.crew_name,
+      cadence: templateRow.cadence,
+      anchor_date: templateRow.anchor_date instanceof Date
+        ? templateRow.anchor_date.toISOString().slice(0, 10)
+        : templateRow.anchor_date,
+      day_of_week: templateRow.day_of_week,
+      active: templateRow.active !== false,
+      notes: templateRow.notes || null,
+      stop_count: Number(stopCount) || 0,
+      applies_to_date: targetDate ? isDispatchRouteTemplateApplicable(templateRow, targetDate) : null,
+      created_at: templateRow.created_at || null,
+      updated_at: templateRow.updated_at || null,
+    };
   }
 
   // Haversine distance (for route optimization)
@@ -2824,6 +2846,165 @@ router.post('/api/dispatch/optimize-route', async (req, res) => {
       ...actor,
     });
     res.json({ success: true, optimized: order.map((id, i) => ({ job_key: id, job_id: id, route_order: i + 1 })) });
+  } catch (error) { serverError(res, error); }
+});
+
+router.get('/api/dispatch/route-templates', async (req, res) => {
+  try {
+    const { date = null, crew_name = null, include_inactive = 'false' } = req.query;
+    const includeInactive = String(include_inactive) === 'true';
+    const result = await pool.query(
+      `SELECT drt.*, COUNT(drts.id) AS stop_count
+         FROM dispatch_route_templates drt
+         LEFT JOIN dispatch_route_template_stops drts ON drts.template_id = drt.id
+        WHERE ($1::text IS NULL OR drt.crew_name = $1)
+          AND ($2::boolean OR drt.active = true)
+        GROUP BY drt.id
+        ORDER BY drt.crew_name ASC, drt.name ASC`,
+      [crew_name || null, includeInactive]
+    );
+
+    res.json({
+      success: true,
+      templates: result.rows.map((row) => summarizeDispatchRouteTemplate(row, row.stop_count, { targetDate: date || null })),
+    });
+  } catch (error) { serverError(res, error); }
+});
+
+router.post('/api/dispatch/route-templates/save-from-live', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { date, crew_name, name, cadence = 'weekly', anchor_date = null, notes = null } = req.body;
+    if (!date || !crew_name || !name) {
+      return res.status(400).json({ success: false, error: 'date, crew_name, and name are required' });
+    }
+    if (!['weekly', 'biweekly'].includes(cadence)) {
+      return res.status(400).json({ success: false, error: 'cadence must be weekly or biweekly' });
+    }
+    const anchorDate = anchor_date || date;
+    if (!isValidIsoDate(date) || !isValidIsoDate(anchorDate)) {
+      return res.status(400).json({ success: false, error: 'date and anchor_date must be YYYY-MM-DD values' });
+    }
+
+    const actor = getDispatchActor(req);
+    const liveJobs = await fetchLiveDispatchJobsForDate(date);
+    const crewJobs = getCrewDispatchJobs(liveJobs, crew_name);
+    if (crewJobs.length === 0) {
+      return res.status(404).json({ success: false, error: 'No live jobs found for that crew and date' });
+    }
+
+    await client.query('BEGIN');
+    const templateResult = await client.query(
+      `INSERT INTO dispatch_route_templates (
+         name, crew_name, cadence, anchor_date, day_of_week, active, notes,
+         created_by_user_id, created_by_name, updated_by_user_id, updated_by_name
+       ) VALUES ($1, $2, $3, $4::date, $5, true, $6, $7, $8, $7, $8)
+       RETURNING *`,
+      [
+        String(name).trim(),
+        String(crew_name).trim(),
+        cadence,
+        anchorDate,
+        new Date(`${anchorDate}T00:00:00.000Z`).getUTCDay(),
+        notes || null,
+        actor.updatedByUserId,
+        actor.updatedByName,
+      ]
+    );
+    const template = templateResult.rows[0];
+
+    for (const [index, job] of crewJobs.entries()) {
+      const stop = buildDispatchRouteTemplateStop(job, index + 1);
+      await client.query(
+        `INSERT INTO dispatch_route_template_stops (
+           template_id, position, source_customer_id, customer_link_id, property_link_id,
+           customer_name, address_fingerprint, service_title, service_frequency, source_event_type
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          template.id,
+          stop.position,
+          stop.source_customer_id,
+          stop.customer_link_id,
+          stop.property_link_id,
+          stop.customer_name,
+          stop.address_fingerprint,
+          stop.service_title,
+          stop.service_frequency,
+          stop.source_event_type,
+        ]
+      );
+    }
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      template: summarizeDispatchRouteTemplate(template, crewJobs.length, { targetDate: date }),
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    serverError(res, error);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/api/dispatch/route-templates/:id/apply', async (req, res) => {
+  try {
+    const templateId = Number.parseInt(req.params.id, 10);
+    const { date, force = false } = req.body;
+    if (!Number.isFinite(templateId) || !date) {
+      return res.status(400).json({ success: false, error: 'template id and date are required' });
+    }
+    if (!isValidIsoDate(date)) {
+      return res.status(400).json({ success: false, error: 'date must be YYYY-MM-DD' });
+    }
+
+    const templateResult = await pool.query(
+      `SELECT * FROM dispatch_route_templates WHERE id = $1`,
+      [templateId]
+    );
+    if (templateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Route template not found' });
+    }
+    const template = templateResult.rows[0];
+    if (!template.active) {
+      return res.status(409).json({ success: false, error: 'Route template is inactive' });
+    }
+    if (!force && !isDispatchRouteTemplateApplicable(template, date)) {
+      return res.status(409).json({ success: false, error: 'Route template does not align with the selected date cadence' });
+    }
+
+    const stopsResult = await pool.query(
+      `SELECT * FROM dispatch_route_template_stops WHERE template_id = $1 ORDER BY position ASC`,
+      [templateId]
+    );
+    const liveJobs = await fetchLiveDispatchJobsForDate(date);
+    const applyResult = applyDispatchRouteTemplate({
+      template,
+      templateStops: stopsResult.rows,
+      liveJobs,
+    });
+    const actor = getDispatchActor(req);
+    const updated = await patchDispatchPlanItems(pool, {
+      patches: applyResult.patches,
+      ...actor,
+    });
+
+    res.json({
+      success: true,
+      template: summarizeDispatchRouteTemplate(template, stopsResult.rows.length, { targetDate: date }),
+      applied_date: date,
+      updated: updated.length,
+      matched_count: applyResult.matched.length,
+      appended_count: applyResult.appended.length,
+      ambiguous: applyResult.ambiguous,
+      unmatched_template_stops: applyResult.unmatched_template_stops,
+      ordered: applyResult.patches.map((entry) => ({
+        job_key: entry.jobKey,
+        route_order_override: entry.patch.route_order_override,
+        crew_override_name: entry.patch.crew_override_name || null,
+      })),
+    });
   } catch (error) { serverError(res, error); }
 });
 

@@ -506,7 +506,7 @@
             cursor: pointer;
             position: relative;
             margin-bottom: 0;
-            grid-template-columns: 28px 40px minmax(340px, 1.7fr) minmax(240px, 0.95fr);
+            grid-template-columns: 28px 40px minmax(0, 1fr) fit-content(300px);
             gap: 16px;
             padding: 16px 18px;
             align-items: start;
@@ -601,13 +601,14 @@
         }
         .job-row .job-side {
             display: grid;
-            grid-template-columns: minmax(140px, 1fr) auto auto;
+            grid-template-columns: fit-content(220px) auto auto;
             align-items: start;
             justify-content: end;
             column-gap: 12px;
             row-gap: 8px;
             min-width: 0;
-            width: 100%;
+            width: auto;
+            justify-self: end;
             padding-top: 2px;
         }
         .job-row .job-price {
@@ -676,8 +677,11 @@
 
         @media (max-width: 1120px) {
             .job-row {
-                grid-template-columns: 28px 40px minmax(260px, 1.45fr) minmax(220px, 0.9fr);
+                grid-template-columns: 28px 40px minmax(0, 1fr) fit-content(268px);
                 gap: 12px;
+            }
+            .job-row .job-address {
+                display: block;
             }
             .job-row .job-crew .assignment-pill {
                 max-width: 180px;

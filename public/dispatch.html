@@ -941,6 +941,56 @@ let dispatchCapabilities = {
     add_job: false,
 };
 
+function collectBoardJobs() {
+    if (!boardData) return [];
+    const jobs = [];
+    (boardData.crews || []).forEach((crew) => (crew.jobs || []).forEach((job) => jobs.push(job)));
+    (boardData.unassigned || []).forEach((job) => jobs.push(job));
+    return jobs;
+}
+
+function getTrackedCrewNames() {
+    const names = (allCrews || []).map((crew) => crew.name);
+    if ((boardData?.unassigned || []).length > 0 || crewVisibility.__unassigned !== undefined) names.push('__unassigned');
+    return names;
+}
+
+function getVisibleCrewNames() {
+    return getTrackedCrewNames().filter((crewName) => crewVisibility[crewName] !== false);
+}
+
+function formatCrewFilterLabel(crewNames) {
+    if (!crewNames || crewNames.length === 0) return 'No crews selected';
+    if (crewNames.length === 1) return crewNames[0] === '__unassigned' ? 'Unassigned Jobs' : crewNames[0];
+    if (crewNames.length === 2) return crewNames.map((name) => name === '__unassigned' ? 'Unassigned' : name).join(' + ');
+    return `${crewNames.length} crews`;
+}
+
+function syncMapFilterState() {
+    const trackedNames = getTrackedCrewNames();
+    const visibleNames = getVisibleCrewNames();
+    const allVisible = trackedNames.length === 0 || visibleNames.length === trackedNames.length;
+
+    selectedCrewFilter = visibleNames.length === 1 ? visibleNames[0] : null;
+
+    const filterBar = document.getElementById('crewFilterBar');
+    const filterName = document.getElementById('crewFilterName');
+    if (filterBar && filterName) {
+        if (allVisible) {
+            filterBar.style.display = 'none';
+            filterName.textContent = '';
+        } else {
+            filterBar.style.display = 'flex';
+            filterName.textContent = formatCrewFilterLabel(visibleNames);
+        }
+    }
+
+    document.querySelectorAll('.crew-name').forEach((el) => {
+        const crewName = (el.dataset.crewName || '').trim();
+        el.classList.toggle('active-filter', !!crewName && selectedCrewFilter === crewName);
+    });
+}
+
 function normalizeJobId(jobId) {
     return jobId == null ? '' : String(jobId);
 }
@@ -1173,36 +1223,24 @@ function toggleMap() {
 }
 
 function filterMapByCrew(crewName) {
-    if (selectedCrewFilter === crewName) {
-        clearCrewFilter();
+    const visibleNames = getVisibleCrewNames();
+    if (visibleNames.length === 1 && visibleNames[0] === crewName) {
+        resetCrewVisibility();
         return;
     }
-    selectedCrewFilter = crewName;
-    document.getElementById('crewFilterBar').style.display = 'flex';
-    document.getElementById('crewFilterName').textContent = crewName === '__unassigned' ? 'Unassigned Jobs' : crewName;
-    // Highlight active crew name in lanes
-    document.querySelectorAll('.crew-name').forEach(el => {
-        el.classList.toggle('active-filter', el.textContent === crewName);
+
+    crewVisibility = {};
+    getTrackedCrewNames().forEach((name) => {
+        crewVisibility[name] = name === crewName;
     });
-    // Re-render map with filter
-    if (boardData) {
-        const allJobs = [];
-        (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
-        (boardData.unassigned || []).forEach(j => allJobs.push(j));
-        updateMapMarkers(allJobs);
-    }
+
+    renderCrewPills(allCrews);
+    syncMapFilterState();
+    updateMapMarkers(collectBoardJobs());
 }
 
 function clearCrewFilter() {
-    selectedCrewFilter = null;
-    document.getElementById('crewFilterBar').style.display = 'none';
-    document.querySelectorAll('.crew-name').forEach(el => el.classList.remove('active-filter'));
-    if (boardData) {
-        const allJobs = [];
-        (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
-        (boardData.unassigned || []).forEach(j => allJobs.push(j));
-        updateMapMarkers(allJobs);
-    }
+    resetCrewVisibility();
 }
 
 async function updateMapMarkers(jobs) {
@@ -1218,20 +1256,10 @@ async function updateMapMarkers(jobs) {
     const crewColorMap = {};
     (boardData?.crews || []).forEach(c => { crewColorMap[c.name] = c.color || '#9ca09c'; });
 
-    // Filter by crew visibility (pill toggles)
     let filteredJobs = jobs.filter(j => {
         const crew = j.crew_assigned || '__unassigned';
-        return crewVisibility[crew] !== false; // visible by default
+        return crewVisibility[crew] !== false;
     });
-
-    // Also apply selectedCrewFilter if set
-    if (selectedCrewFilter) {
-        if (selectedCrewFilter === '__unassigned') {
-            filteredJobs = filteredJobs.filter(j => !j.crew_assigned);
-        } else {
-            filteredJobs = filteredJobs.filter(j => j.crew_assigned === selectedCrewFilter);
-        }
-    }
 
     const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
     const bounds = new google.maps.LatLngBounds();
@@ -1706,6 +1734,7 @@ async function loadBoard() {
         }));
         (data.unassigned || []).forEach(j => allJobs.push(j));
         updateMapMarkers(allJobs);
+        syncMapFilterState();
 
         // Auto-geocode if many jobs are missing lat/lng
         const missingGeo = allJobs.filter(j => !j.lat || !j.lng).length;
@@ -2010,7 +2039,7 @@ function renderDayView(data) {
                     <div class="crew-header-block">
                         <div class="crew-name-row">
                             <span class="crew-color-dot" style="background:${crew.color || '#9ca09c'}"></span>
-                            <span class="crew-name ${selectedCrewFilter === crew.name ? 'active-filter' : ''}" onclick="event.stopPropagation(); filterMapByCrew('${safeCrewName}')" title="Click to filter map to this crew">${esc(crew.name)}</span>
+                            <span class="crew-name ${selectedCrewFilter === crew.name ? 'active-filter' : ''}" data-crew-name="${esc(crew.name)}" onclick="event.stopPropagation(); filterMapByCrew('${safeCrewName}')" title="Click to filter map to this crew">${esc(crew.name)}</span>
                         </div>
                         <div class="crew-members">${esc(crew.members || '--')}</div>
                     </div>
@@ -2526,25 +2555,21 @@ function renderCrewPills(crews) {
 function toggleCrewPill(crewName) {
     if (crewVisibility[crewName] === undefined) crewVisibility[crewName] = true;
     crewVisibility[crewName] = !crewVisibility[crewName];
+    if (getVisibleCrewNames().length === 0) {
+        crewVisibility[crewName] = true;
+        showToast('At least one crew must stay visible on the map.', 'error');
+    }
 
     renderCrewPills(allCrews);
-    if (boardData) {
-        const allJobs = [];
-        (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
-        (boardData.unassigned || []).forEach(j => allJobs.push(j));
-        updateMapMarkers(allJobs);
-    }
+    syncMapFilterState();
+    updateMapMarkers(collectBoardJobs());
 }
 
 function resetCrewVisibility() {
     crewVisibility = {};
     renderCrewPills(allCrews);
-    if (boardData) {
-        const allJobs = [];
-        (boardData.crews || []).forEach(c => (c.jobs || []).forEach(j => allJobs.push(j)));
-        (boardData.unassigned || []).forEach(j => allJobs.push(j));
-        updateMapMarkers(allJobs);
-    }
+    syncMapFilterState();
+    updateMapMarkers(collectBoardJobs());
 }
 
 /* ═══════════════════════════════════════════════════════════

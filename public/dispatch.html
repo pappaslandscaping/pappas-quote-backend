@@ -44,13 +44,13 @@
 
         /* ─── Toolbar ──────────────────────────────────────── */
         .dispatch-toolbar {
-            display: grid; grid-template-columns: minmax(280px, 1.2fr) minmax(320px, 1.6fr) minmax(240px, 1fr);
-            gap: 16px; padding: 18px 32px; background: var(--white); border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
+            display: grid; grid-template-columns: minmax(280px, 1.05fr) minmax(320px, 1fr) minmax(360px, 1.25fr);
+            gap: 16px; padding: 18px 32px; background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,250,247,0.98)); border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
         }
         .toolbar-left, .toolbar-center, .toolbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
         .toolbar-left { justify-content: flex-start; }
         .toolbar-center { justify-content: center; flex-wrap: wrap; }
-        .toolbar-right { justify-content: flex-end; flex-wrap: wrap; }
+        .toolbar-right { justify-content: stretch; }
         .toolbar-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
         .toolbar-kicker { font-size: 11px; font-weight: 700; color: var(--gray-400); letter-spacing: 0.08em; text-transform: uppercase; }
         .toolbar-note { font-size: 12px; color: var(--gray-500); }
@@ -74,11 +74,57 @@
             border-radius: 14px;
             padding: 12px 14px;
         }
+        .toolbar-action-card {
+            width: 100%;
+            background: linear-gradient(180deg, #fbfcfb, #f5f8f5);
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+        .toolbar-action-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .toolbar-action-head-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .toolbar-action-head-copy .toolbar-note { max-width: 42ch; }
+        .toolbar-action-groups { display: flex; flex-direction: column; gap: 10px; }
         .toolbar-action-group {
             display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--gray-50);
+            padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 12px; background: rgba(255,255,255,0.92);
+        }
+        .toolbar-action-group.primary {
+            border-color: rgba(46, 64, 61, 0.12);
+            background: linear-gradient(180deg, rgba(46,64,61,0.05), rgba(46,64,61,0.02));
         }
         .toolbar-action-group .btn { white-space: nowrap; }
+        .toolbar-group-label {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: var(--gray-100);
+            color: var(--gray-500);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .toolbar-quiet-note {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 9px 11px;
+            border-radius: 12px;
+            background: rgba(245, 212, 135, 0.18);
+            color: #9a6700;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .toolbar-quiet-note svg { flex-shrink: 0; margin-top: 1px; }
+        .toolbar-quiet-note strong { color: #8a5f00; }
         .toolbar-legacy-note {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 7px 10px; border-radius: 10px; background: var(--amber-bg); color: var(--amber);
@@ -91,7 +137,7 @@
         /* ─── Dispatch Overview ───────────────────────────── */
         .dispatch-overview {
             display: flex; align-items: stretch; justify-content: space-between; gap: 18px;
-            padding: 14px 32px 16px; background: var(--white); border-bottom: 1px solid var(--gray-200);
+            padding: 14px 32px 16px; background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,251,249,0.96)); border-bottom: 1px solid var(--gray-200);
         }
         .dispatch-overview-left { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
         .dispatch-overview-right { display: flex; flex-direction: column; gap: 10px; width: min(420px, 40%); min-width: 280px; }
@@ -105,10 +151,11 @@
         }
         .dispatch-summary-card .label { display: block; font-size: 11px; font-weight: 700; color: var(--gray-400); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
         .dispatch-summary-card .value { display: block; font-size: 22px; font-weight: 700; color: var(--primary); line-height: 1.1; }
+        .dispatch-summary-card .subtext,
         .dispatch-summary-card .detail { display: block; margin-top: 4px; font-size: 12px; color: var(--gray-500); }
         .dispatch-status-panel {
             display: flex; align-items: flex-start; gap: 10px;
-            padding: 12px 14px; border: 1px solid #f5d487; border-radius: 14px; background: linear-gradient(180deg, #fff9ec, #fff6df);
+            padding: 12px 14px; border: 1px solid rgba(245, 212, 135, 0.8); border-radius: 14px; background: linear-gradient(180deg, #fffaf0, #fff6e4);
             font-size: 13px; color: var(--amber);
         }
         .dispatch-status-panel svg { flex-shrink: 0; margin-top: 2px; }
@@ -145,19 +192,36 @@
 
         /* ─── Bulk Actions Bar ─────────────────────────────── */
         .bulk-bar {
-            display: none; align-items: center; gap: 12px; padding: 10px 32px;
-            background: var(--primary); color: var(--white); flex-shrink: 0;
+            display: none; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 32px;
+            background: linear-gradient(180deg, #f6faf6, #edf5ed); color: var(--gray-700); flex-shrink: 0;
+            border-bottom: 1px solid var(--gray-200);
         }
         .bulk-bar.active { display: flex; }
-        .bulk-bar .bulk-count { font-size: 13px; font-weight: 700; margin-right: 8px; }
-        .bulk-bar .bulk-btn {
-            padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
-            border: 1px solid rgba(201,221,128,0.3); background: rgba(255,255,255,0.1);
-            color: var(--white); cursor: pointer; font-family: inherit; transition: all 0.15s;
+        .bulk-bar .bulk-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-right: 8px;
         }
-        .bulk-bar .bulk-btn:hover { background: rgba(255,255,255,0.2); }
-        .bulk-bar .bulk-close { margin-left: auto; background: none; border: none; color: var(--white); cursor: pointer; font-size: 18px; padding: 4px; }
-        .bulk-bar-note { font-size: 12px; color: rgba(255,255,255,0.82); }
+        .bulk-bar .bulk-count::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--primary);
+            flex-shrink: 0;
+        }
+        .bulk-bar .bulk-btn {
+            padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 700;
+            border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-700); cursor: pointer; font-family: inherit; transition: all 0.15s;
+        }
+        .bulk-bar .bulk-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--green-bg); }
+        .bulk-bar .bulk-close { margin-left: auto; background: none; border: none; color: var(--gray-500); cursor: pointer; font-size: 18px; padding: 4px; }
+        .bulk-bar-note { font-size: 12px; color: var(--gray-500); flex: 1; min-width: 220px; }
 
         /* ─── Map Panel ───────────────────────────────────── */
         .map-container {
@@ -190,8 +254,10 @@
         .crew-name { font-size: 15px; font-weight: 700; color: var(--primary); cursor: pointer; }
         .crew-name:hover { text-decoration: underline; }
         .crew-name.active-filter { background: var(--primary); color: var(--white); padding: 2px 8px; border-radius: 4px; }
-        .crew-filter-bar { display: flex; align-items: center; gap: 8px; padding: 8px 32px; background: var(--blue-bg); border-bottom: 1px solid var(--gray-200); font-size: 13px; font-weight: 600; color: var(--blue); }
-        .crew-filter-bar button { padding: 4px 12px; border: 1px solid var(--blue); border-radius: 6px; background: var(--white); color: var(--blue); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .crew-filter-bar {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 9px 32px; background: rgba(59, 130, 246, 0.06); border-bottom: 1px solid var(--gray-200); font-size: 12px; font-weight: 700; color: var(--blue);
+        }
+        .crew-filter-bar button { padding: 5px 11px; border: 1px solid rgba(59,130,246,0.22); border-radius: 999px; background: var(--white); color: var(--blue); font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
         .crew-filter-bar button:hover { background: var(--blue); color: var(--white); }
         .availability-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .availability-dot.green { background: var(--green); }
@@ -428,12 +494,15 @@
             .dispatch-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .unassigned-panel { width: 260px; }
             .crew-lane { min-width: 250px; }
+            .toolbar-right { justify-content: stretch; }
         }
         @media (max-width: 768px) {
             .dispatch-toolbar { grid-template-columns: 1fr; gap: 10px; padding: 12px 16px; }
             .toolbar-left, .toolbar-center, .toolbar-right { justify-content: flex-start; }
             .dispatch-overview { padding: 12px 16px 14px; }
             .dispatch-summary-strip { grid-template-columns: 1fr 1fr; }
+            .bulk-bar { padding: 12px 16px; }
+            .crew-filter-bar { padding: 9px 16px; }
             .board-area { padding: 12px; }
             .day-board { flex-direction: column; }
             .crew-lane { max-width: unset; min-width: unset; }
@@ -522,38 +591,52 @@
                 </div>
             </div>
             <div class="toolbar-right">
-                <div class="toolbar-action-group">
-                    <button class="btn btn-secondary" id="geocodeBtn" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        Geocode
-                    </button>
-                    <button class="btn btn-secondary" id="lassoBtn" onclick="toggleLassoMode()" title="Draw to select jobs on the map, then assign to crew">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
-                        Lasso
-                    </button>
-                    <button class="btn btn-primary" id="optimizeRouteBtn" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Optimize Route
-                    </button>
-                    <button class="btn btn-secondary" id="mapToggleToolbar" onclick="toggleMap()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
-                        <span id="mapToggleLabel">Hide Map</span>
-                    </button>
-                    <button class="btn btn-secondary" id="emptyCrewsBtn" onclick="toggleEmptyCrews()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                        <span id="emptyCrewsLabel">Show All Crews</span>
-                    </button>
-                    <div class="unassigned-toggle">
-                        <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                            Unassigned
-                        </button>
-                        <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
+                <div class="toolbar-action-card">
+                    <div class="toolbar-action-head">
+                        <div class="toolbar-action-head-copy">
+                            <span class="toolbar-kicker">Map & Actions</span>
+                            <div class="toolbar-note">Primary live-board tools stay here. Selection actions appear only when jobs are selected.</div>
+                        </div>
                     </div>
-                </div>
-                <div class="toolbar-legacy-note">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    Completion stays in Copilot
+                    <div class="toolbar-action-groups">
+                        <div class="toolbar-action-group primary">
+                            <span class="toolbar-group-label">Map tools</span>
+                            <button class="btn btn-secondary" id="geocodeBtn" onclick="geocodeAllJobs()" title="Geocode missing job addresses for map pins">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                Geocode
+                            </button>
+                            <button class="btn btn-primary" id="optimizeRouteBtn" onclick="optimizeRoute()" title="Optimize route order for minimum driving distance">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                                Optimize Route
+                            </button>
+                            <button class="btn btn-secondary" id="mapToggleToolbar" onclick="toggleMap()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                                <span id="mapToggleLabel">Hide Map</span>
+                            </button>
+                        </div>
+                        <div class="toolbar-action-group">
+                            <span class="toolbar-group-label">Board tools</span>
+                            <button class="btn btn-secondary" id="lassoBtn" onclick="toggleLassoMode()" title="Draw to select jobs on the map, then assign to crew">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 22l-3-3 3-3"/><path d="M17 2l3 3-3 3"/><path d="M21 5H9a4 4 0 000 8h6"/><path d="M3 19h12a4 4 0 000-8h-6"/></svg>
+                                Lasso
+                            </button>
+                            <button class="btn btn-secondary" id="emptyCrewsBtn" onclick="toggleEmptyCrews()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                                <span id="emptyCrewsLabel">Show All Crews</span>
+                            </button>
+                            <div class="unassigned-toggle">
+                                <button class="btn btn-secondary" onclick="toggleUnassigned()" id="unassignedToggleBtn">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                                    Unassigned
+                                </button>
+                                <span class="unassigned-badge" id="unassignedBadge" style="display:none;">0</span>
+                            </div>
+                        </div>
+                        <div class="toolbar-quiet-note">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            <span><strong>Live rule:</strong> completion stays in Copilot, and Quick Dispatch / Templates remain legacy fallback paths.</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

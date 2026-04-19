@@ -1053,6 +1053,144 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
       .sort(stableRouteOrderCompare);
   }
 
+  function escapeXml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  function buildDispatchRouteSheetComments(job) {
+    const notes = [];
+    const service = String(job?.service_type || '').trim();
+    if (service && !/^mowing(?:\s*\(weekly\))?$/i.test(service)) notes.push(service);
+    if (job?.print_note) notes.push(job.print_note);
+    if (job?.special_notes) notes.push(job.special_notes);
+    if (job?.property_notes) notes.push(job.property_notes);
+    return [...new Set(notes.filter(Boolean))].join(' / ');
+  }
+
+  function buildDispatchRouteSheetAddress(job) {
+    if (job?.cust_street && String(job.cust_street).trim()) {
+      const parts = [String(job.cust_street).trim()];
+      if (job.cust_city) parts.push(job.cust_city);
+      if (job.cust_state) parts.push(job.cust_state);
+      if (job.cust_zip) parts.push(job.cust_zip);
+      return parts.join(', ');
+    }
+    return job?.address || 'No address';
+  }
+
+  function isBiWeeklyDispatchRouteJob(job) {
+    return /bi-?\s*weekly/i.test([job?.service_frequency, job?.service_type, job?.service_title].filter(Boolean).join(' '));
+  }
+
+  function sanitizeWorksheetName(name, index) {
+    const cleaned = String(name || `Sheet ${index + 1}`)
+      .replace(/[\[\]\*\/\\\?:]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned.slice(0, 31) || `Sheet ${index + 1}`;
+  }
+
+  function buildDispatchRouteSheetWorkbookXml({ targetDate, groups }) {
+    const displayDate = new Date(`${targetDate}T00:00:00`).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const worksheets = groups.map((group, groupIndex) => {
+      const sheetName = sanitizeWorksheetName(group.crewName, groupIndex);
+      const totalPrice = group.jobs.reduce((sum, job) => sum + (Number(job.service_price) || 0), 0);
+      const rows = group.jobs.map((job, index) => `
+        <Row>
+          <Cell ss:StyleID="cell-center"><Data ss:Type="Number">${index + 1}</Data></Cell>
+          <Cell ss:StyleID="cell-center"><Data ss:Type="String"></Data></Cell>
+          <Cell ss:StyleID="cell-name"><Data ss:Type="String">${escapeXml(`${job.customer_name || ''}${isBiWeeklyDispatchRouteJob(job) ? ' (BW)' : ''}`)}</Data></Cell>
+          <Cell ss:StyleID="cell-wrap"><Data ss:Type="String">${escapeXml(buildDispatchRouteSheetAddress(job))}</Data></Cell>
+          <Cell ss:StyleID="cell-wrap"><Data ss:Type="String">${escapeXml(buildDispatchRouteSheetComments(job))}</Data></Cell>
+        </Row>
+      `).join('');
+
+      return `
+        <Worksheet ss:Name="${escapeXml(sheetName)}">
+          <Table>
+            <Column ss:Width="34"/>
+            <Column ss:Width="32"/>
+            <Column ss:Width="155"/>
+            <Column ss:Width="220"/>
+            <Column ss:Width="260"/>
+            <Row>
+              <Cell ss:MergeAcross="4" ss:StyleID="title"><Data ss:Type="String">Pappas &amp; Co. Landscaping</Data></Cell>
+            </Row>
+            <Row>
+              <Cell ss:MergeAcross="4" ss:StyleID="subtitle"><Data ss:Type="String">${escapeXml(group.crewName)} — Route Sheet</Data></Cell>
+            </Row>
+            <Row>
+              <Cell ss:MergeAcross="4" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(displayDate)}</Data></Cell>
+            </Row>
+            <Row/>
+            <Row>
+              <Cell ss:StyleID="header"><Data ss:Type="String">#</Data></Cell>
+              <Cell ss:StyleID="header"><Data ss:Type="String">Done</Data></Cell>
+              <Cell ss:StyleID="header"><Data ss:Type="String">Name</Data></Cell>
+              <Cell ss:StyleID="header"><Data ss:Type="String">Address</Data></Cell>
+              <Cell ss:StyleID="header"><Data ss:Type="String">Comments</Data></Cell>
+            </Row>
+            ${rows}
+            <Row/>
+            <Row>
+              <Cell ss:MergeAcross="4" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(`${group.jobs.length} stops · $${Number(totalPrice || 0).toFixed(0)}`)}</Data></Cell>
+            </Row>
+          </Table>
+        </Worksheet>
+      `;
+    }).join('');
+
+    return `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Top"/>
+   <Font ss:FontName="DM Sans" ss:Size="10" ss:Color="#2e403d"/>
+  </Style>
+  <Style ss:ID="title">
+   <Font ss:FontName="DM Sans" ss:Bold="1" ss:Size="14" ss:Color="#2e403d"/>
+  </Style>
+  <Style ss:ID="subtitle">
+   <Font ss:FontName="DM Sans" ss:Bold="1" ss:Size="12" ss:Color="#2e403d"/>
+  </Style>
+  <Style ss:ID="meta">
+   <Font ss:FontName="DM Sans" ss:Size="10" ss:Color="#6e726e"/>
+  </Style>
+  <Style ss:ID="header">
+   <Font ss:FontName="DM Sans" ss:Bold="1" ss:Size="10" ss:Color="#6e726e"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="cell-center">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Top"/>
+  </Style>
+  <Style ss:ID="cell-name">
+   <Font ss:FontName="DM Sans" ss:Bold="1" ss:Size="10" ss:Color="#2e403d"/>
+  </Style>
+  <Style ss:ID="cell-wrap">
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+  </Style>
+ </Styles>
+ ${worksheets}
+</Workbook>`;
+  }
+
   function summarizeDispatchRouteTemplate(templateRow, stopCount = 0, { targetDate = null } = {}) {
     return {
       id: templateRow.id,
@@ -2450,6 +2588,59 @@ router.get('/api/dispatch/board', async (req, res) => {
       crews: crews.rows || [],
       freshness: livePayload.freshness || null,
     }));
+  } catch (error) { serverError(res, error); }
+});
+
+router.get('/api/dispatch/route-sheet-export', async (req, res) => {
+  try {
+    const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+    const visibleCrews = String(req.query.visible_crews || '')
+      .split(',')
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    const visibleSet = new Set(visibleCrews);
+
+    const livePayload = await getCopilotLiveJobs({
+      poolClient: pool,
+      date: targetDate,
+      startDate: targetDate,
+      endDate: targetDate,
+      fetchImpl,
+    });
+    const crews = await pool.query('SELECT * FROM crews ORDER BY name');
+    const boardPayload = buildDispatchBoardPayload({
+      targetDate,
+      view: 'day',
+      jobs: livePayload.jobs || [],
+      crews: crews.rows || [],
+      freshness: livePayload.freshness || null,
+    });
+
+    const groups = [];
+    for (const crew of boardPayload.crews || []) {
+      if (visibleSet.size > 0 && !visibleSet.has(crew.name)) continue;
+      const jobs = (crew.jobs || []).slice().sort(stableRouteOrderCompare);
+      if (jobs.length === 0) continue;
+      groups.push({ crewName: crew.name, jobs });
+    }
+    if ((boardPayload.unassigned || []).length > 0 && (visibleSet.size === 0 || visibleSet.has('__unassigned'))) {
+      groups.push({
+        crewName: 'Unassigned',
+        jobs: (boardPayload.unassigned || []).slice().sort(stableRouteOrderCompare),
+      });
+    }
+
+    if (groups.length === 0) {
+      return res.status(404).json({ success: false, error: 'No visible routes available for export' });
+    }
+
+    const workbookXml = buildDispatchRouteSheetWorkbookXml({
+      targetDate,
+      groups,
+    });
+    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="dispatch-route-sheets-${targetDate}.xml"`);
+    res.status(200).send(workbookXml);
   } catch (error) { serverError(res, error); }
 });
 

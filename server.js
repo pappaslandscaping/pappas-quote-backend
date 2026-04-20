@@ -10673,6 +10673,215 @@ const SOCIAL_REFINE_SCHEMA = {
   required: ['reply']
 };
 
+const MARKETING_AI_ALLOWED_AUDIENCES = new Set(['all', 'monthly_plan', 'active']);
+const MARKETING_AI_ALLOWED_TONES = new Set(['premium', 'friendly', 'urgent', 'seasonal', 'local']);
+const MARKETING_AI_ALLOWED_CTA_GOALS = new Set(['book-now', 'request-quote', 'reply-text', 'learn-more']);
+const MARKETING_AI_ALLOWED_CTA_URLS = new Set(['{quote_link}', '{payment_link}', '{portal_link}', '{contract_link}']);
+const MARKETING_AI_ALLOWED_BLOCK_TYPES = new Set(['title', 'paragraph', 'button', 'list', 'divider']);
+
+const CAMPAIGN_BUNDLE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    campaign_name: { type: 'string' },
+    campaign_description: { type: 'string' },
+    audience: { type: 'string', enum: ['all', 'monthly_plan', 'active'] },
+    email: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        subject_options: {
+          type: 'array',
+          minItems: 3,
+          maxItems: 8,
+          items: { type: 'string' }
+        },
+        recommended_subject: { type: 'string' },
+        preheader: { type: 'string' },
+        blocks: { type: 'array', minItems: 2, items: TEMPLATE_BLOCK_SCHEMA }
+      },
+      required: ['subject_options', 'recommended_subject', 'preheader', 'blocks']
+    },
+    sms: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        body: { type: 'string' }
+      },
+      required: ['body']
+    },
+    cta_variants: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 5,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          label: { type: 'string' },
+          url: { type: 'string' }
+        },
+        required: ['label', 'url']
+      }
+    }
+  },
+  required: ['campaign_name', 'campaign_description', 'audience', 'email', 'sms', 'cta_variants']
+};
+
+function normalizeSingleLineText(value, fallback = '') {
+  return String(value || fallback)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getCtaGoalDefaults(ctaGoal) {
+  switch (ctaGoal) {
+    case 'book-now':
+      return {
+        url: '{quote_link}',
+        labels: ['Reserve Your Spot', 'Book Spring Service', 'Schedule Now']
+      };
+    case 'reply-text':
+      return {
+        url: '{portal_link}',
+        labels: ['Reply to Get Started', 'Open Your Portal', 'See Next Steps']
+      };
+    case 'learn-more':
+      return {
+        url: '{portal_link}',
+        labels: ['Learn More', 'View Details', 'See Your Options']
+      };
+    case 'request-quote':
+    default:
+      return {
+        url: '{quote_link}',
+        labels: ['Request Your Quote', 'Get My Estimate', 'Review Your Options']
+      };
+  }
+}
+
+function sanitizeCampaignBundleBlocks(blocks, defaultCtaUrl, defaultCtaLabel) {
+  const sanitized = [];
+  for (const block of Array.isArray(blocks) ? blocks : []) {
+    if (!block || !MARKETING_AI_ALLOWED_BLOCK_TYPES.has(block.type)) continue;
+
+    if (block.type === 'divider') {
+      sanitized.push({ type: 'divider' });
+      continue;
+    }
+
+    if (block.type === 'list') {
+      const items = (Array.isArray(block.content) ? block.content : [])
+        .map((item) => normalizeSingleLineText(item))
+        .filter(Boolean)
+        .slice(0, 6);
+      if (items.length) sanitized.push({ type: 'list', content: items });
+      continue;
+    }
+
+    const content = normalizeSingleLineText(block.content);
+    if (!content) continue;
+
+    if (block.type === 'button') {
+      const safeUrl = MARKETING_AI_ALLOWED_CTA_URLS.has(block.url) ? block.url : defaultCtaUrl;
+      sanitized.push({
+        type: 'button',
+        content: content || defaultCtaLabel,
+        url: safeUrl
+      });
+      continue;
+    }
+
+    sanitized.push({ type: block.type, content });
+  }
+
+  if (!sanitized.some((block) => block.type === 'button')) {
+    sanitized.push({ type: 'button', content: defaultCtaLabel, url: defaultCtaUrl });
+  }
+
+  return sanitized.slice(0, 8);
+}
+
+function trimSmsBody(body, maxLength) {
+  const normalized = normalizeSingleLineText(body);
+  if (normalized.length <= maxLength) {
+    return {
+      body: normalized,
+      original_length: normalized.length,
+      max_length: maxLength,
+      was_trimmed: false
+    };
+  }
+
+  const ellipsis = '...';
+  const targetLength = Math.max(0, maxLength - ellipsis.length);
+  let trimmed = normalized.slice(0, targetLength);
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace > 80) trimmed = trimmed.slice(0, lastSpace);
+  trimmed = trimmed.trimEnd() + ellipsis;
+
+  return {
+    body: trimmed,
+    original_length: normalized.length,
+    max_length: maxLength,
+    was_trimmed: true
+  };
+}
+
+function sanitizeCampaignBundleResult(rawBundle, requestedAudience, ctaGoal, smsMaxChars) {
+  const goalDefaults = getCtaGoalDefaults(ctaGoal);
+  const requestedSafeAudience = MARKETING_AI_ALLOWED_AUDIENCES.has(requestedAudience) ? requestedAudience : 'all';
+  const audience = MARKETING_AI_ALLOWED_AUDIENCES.has(rawBundle?.audience) ? rawBundle.audience : requestedSafeAudience;
+
+  const ctaVariants = (Array.isArray(rawBundle?.cta_variants) ? rawBundle.cta_variants : [])
+    .map((cta, index) => {
+      const fallbackLabel = goalDefaults.labels[index] || goalDefaults.labels[0];
+      return {
+        label: normalizeSingleLineText(cta?.label, fallbackLabel) || fallbackLabel,
+        url: MARKETING_AI_ALLOWED_CTA_URLS.has(cta?.url) ? cta.url : goalDefaults.url
+      };
+    })
+    .filter((cta) => cta.label)
+    .slice(0, 5);
+
+  while (ctaVariants.length < 3) {
+    const fallbackLabel = goalDefaults.labels[ctaVariants.length] || `Learn More ${ctaVariants.length + 1}`;
+    ctaVariants.push({ label: fallbackLabel, url: goalDefaults.url });
+  }
+
+  const subjectOptions = [...new Set((Array.isArray(rawBundle?.email?.subject_options) ? rawBundle.email.subject_options : [])
+    .map((subject) => normalizeSingleLineText(subject))
+    .filter(Boolean))]
+    .slice(0, 8);
+
+  if (subjectOptions.length === 0) {
+    subjectOptions.push('Seasonal service update from Pappas & Co. Landscaping');
+  }
+
+  const recommendedSubject = normalizeSingleLineText(rawBundle?.email?.recommended_subject, subjectOptions[0]) || subjectOptions[0];
+  if (!subjectOptions.includes(recommendedSubject)) subjectOptions.unshift(recommendedSubject);
+
+  const sanitizedBlocks = sanitizeCampaignBundleBlocks(
+    rawBundle?.email?.blocks,
+    ctaVariants[0].url,
+    ctaVariants[0].label
+  );
+
+  return {
+    campaign_name: normalizeSingleLineText(rawBundle?.campaign_name, 'Marketing Campaign'),
+    campaign_description: normalizeSingleLineText(rawBundle?.campaign_description, 'Customer-facing seasonal campaign draft.'),
+    audience,
+    email: {
+      subject_options: subjectOptions.slice(0, 8),
+      recommended_subject: subjectOptions.includes(recommendedSubject) ? recommendedSubject : subjectOptions[0],
+      preheader: normalizeSingleLineText(rawBundle?.email?.preheader, 'Seasonal service update from Pappas & Co. Landscaping.'),
+      blocks: sanitizedBlocks
+    },
+    sms: trimSmsBody(rawBundle?.sms?.body || '', smsMaxChars),
+    cta_variants: ctaVariants
+  };
+}
+
 // 7.10 AI Quote Writer
 app.post('/api/ai/generate-quote', async (req, res) => {
   try {
@@ -10985,6 +11194,98 @@ app.post('/api/ai/create-campaign', async (req, res) => {
     res.json({ success: true, campaign, template_id: templateId });
   } catch (error) {
     console.error('AI campaign creation error:', error);
+    serverError(res, error);
+  }
+});
+
+app.post('/api/marketing/ai/campaign-bundle', async (req, res) => {
+  try {
+    if (!isWritingAiConfigured()) {
+      return res.status(503).json({ success: false, error: 'AI service not configured.' });
+    }
+
+    const {
+      service_type,
+      offer,
+      tone = 'friendly',
+      audience = 'all',
+      cta_goal = 'request-quote',
+      constraints
+    } = req.body || {};
+
+    if (!service_type || !offer) {
+      return res.status(400).json({ success: false, error: 'service_type and offer are required' });
+    }
+    if (!MARKETING_AI_ALLOWED_TONES.has(tone)) {
+      return res.status(400).json({ success: false, error: 'tone must be premium, friendly, urgent, seasonal, or local' });
+    }
+    if (!MARKETING_AI_ALLOWED_AUDIENCES.has(audience)) {
+      return res.status(400).json({ success: false, error: 'audience must be all, monthly_plan, or active' });
+    }
+    if (!MARKETING_AI_ALLOWED_CTA_GOALS.has(cta_goal)) {
+      return res.status(400).json({ success: false, error: 'cta_goal must be book-now, request-quote, reply-text, or learn-more' });
+    }
+
+    const requestedSmsMaxChars = Number(constraints?.sms_max_chars);
+    const smsMaxChars = Number.isFinite(requestedSmsMaxChars)
+      ? Math.max(80, Math.min(320, requestedSmsMaxChars))
+      : 160;
+
+    const goalDefaults = getCtaGoalDefaults(cta_goal);
+
+    const systemPrompt = `You are the marketing campaign builder for Pappas & Co. Landscaping.
+
+Return a campaign-ready marketing bundle for YardDesk's marketing surfaces only.
+
+Rules:
+- This is for Templates, Broadcasts, and Campaigns, not Communications inbox workflows.
+- Generate customer-facing writing only. Do not invent operational planning or office workflow state.
+- Audience must be exactly one of: all, monthly_plan, active.
+- Allowed block types: title, paragraph, button, list, divider.
+- Button URLs must use only one of these merge tags: {quote_link}, {payment_link}, {portal_link}, {contract_link}
+- CTA goal "${cta_goal}" should use ${goalDefaults.url} unless there is a strong reason to use another allowed URL.
+- Write concise, production-ready marketing copy for Northeast Ohio.
+- Use the full business name "Pappas & Co. Landscaping".
+- SMS must stay within ${smsMaxChars} characters if possible.
+- Subject options should feel distinct, not minor rewrites of the same line.`;
+
+    const userPrompt = `Build a structured campaign bundle with these inputs:
+
+Service type: ${service_type}
+Offer: ${offer}
+Tone: ${tone}
+Audience: ${audience}
+CTA goal: ${cta_goal}
+Preferred CTA URL: ${goalDefaults.url}
+Preferred CTA labels: ${goalDefaults.labels.join(', ')}
+SMS max length: ${smsMaxChars}
+
+Return:
+- campaign_name
+- campaign_description
+- audience
+- email.subject_options (5 strong options)
+- email.recommended_subject
+- email.preheader
+- email.blocks
+- sms.body
+- cta_variants (3 to 5 options)`;
+
+    const response = await generateWritingJsonWithTextFallback({
+      systemPrompt,
+      maxOutputTokens: 2048,
+      schemaName: 'marketing_campaign_bundle',
+      schemaDescription: 'A structured marketing campaign bundle for templates and broadcasts.',
+      jsonSchema: CAMPAIGN_BUNDLE_SCHEMA,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+
+    const bundle = sanitizeCampaignBundleResult(response.json, audience, cta_goal, smsMaxChars);
+
+    console.log(`[Marketing AI] campaign-bundle via ${response.provider}:${response.model} tone=${tone} audience=${bundle.audience} cta=${cta_goal}`);
+    res.json({ success: true, bundle });
+  } catch (error) {
+    console.error('Marketing campaign bundle error:', error);
     serverError(res, error);
   }
 });

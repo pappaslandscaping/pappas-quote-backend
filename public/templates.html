@@ -1308,6 +1308,53 @@
                                 <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Template Assistant</div>
                                 <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="clearAiChat()" title="Clear conversation">Clear Chat</button>
                             </div>
+                            <div style="margin-top:12px;padding:14px;border:1px solid #d1fae5;border-radius:12px;background:#f8fffb;">
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                                    <div>
+                                        <div class="editor-section-title" style="margin:0;color:#2e403d;">Campaign Bundle Builder</div>
+                                        <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#64748b;">Generate a structured email + SMS marketing draft with subject lines and CTA options, then apply only the parts you want.</p>
+                                    </div>
+                                    <button class="btn btn-primary" id="campaignBundleBtn" onclick="generateCampaignBundle()">Generate Campaign Bundle</button>
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleServiceType">Service Type</label>
+                                        <input type="text" class="form-input" id="bundleServiceType" placeholder="Spring Cleanup">
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleTone">Tone</label>
+                                        <select class="form-select" id="bundleTone">
+                                            <option value="friendly">Friendly</option>
+                                            <option value="premium">Premium</option>
+                                            <option value="urgent">Urgent</option>
+                                            <option value="seasonal">Seasonal</option>
+                                            <option value="local">Local</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleAudience">Audience</label>
+                                        <select class="form-select" id="bundleAudience">
+                                            <option value="all">All Customers</option>
+                                            <option value="monthly_plan">Monthly Plan</option>
+                                            <option value="active">Active Customers</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleCtaGoal">CTA Goal</label>
+                                        <select class="form-select" id="bundleCtaGoal">
+                                            <option value="request-quote">Request Quote</option>
+                                            <option value="book-now">Book Now</option>
+                                            <option value="reply-text">Reply / Portal</option>
+                                            <option value="learn-more">Learn More</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin:0;grid-column:1/-1;">
+                                        <label class="form-label" for="bundleOffer">Offer</label>
+                                        <input type="text" class="form-input" id="bundleOffer" placeholder="10% off spring cleanup if booked this week">
+                                    </div>
+                                </div>
+                                <div id="campaignBundleResult" style="display:none;margin-top:14px;padding:14px;border:1px solid #dcfce7;border-radius:12px;background:#ffffff;"></div>
+                            </div>
                             <div id="aiChatMessages" style="max-height:320px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px;"></div>
                             <div style="display:flex; gap:8px; align-items:end;">
                                 <textarea class="form-textarea" id="aiPrompt" rows="2" placeholder="Ask me to generate, rewrite, tweak, or suggest subjects..." style="flex:1; resize:vertical; min-height:40px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
@@ -2427,6 +2474,7 @@ document.addEventListener('keydown', (e) => {
    AI Template Assistant (Chat-based)
    ============================================================== */
 let aiChatHistory = []; // {role:'user'|'assistant', content:'...'}
+window._pendingCampaignBundle = null;
 
 function clearAiChat() {
     aiChatHistory = [];
@@ -2448,6 +2496,205 @@ function addChatBubble(role, html) {
 function aiQuickAction(text) {
     document.getElementById('aiPrompt').value = text;
     aiSend();
+}
+
+function renderEmailHtmlFromAiBlocks(blocks) {
+    let emailHtml = '';
+    (blocks || []).forEach(block => {
+        switch (block.type) {
+            case 'title':
+                emailHtml += '<h1 style="color:#1e293b;font-family:-apple-system,Arial,sans-serif;font-size:28px;font-weight:700;text-align:center;margin:0 0 24px;">' + block.content + '</h1>\n';
+                break;
+            case 'paragraph':
+                emailHtml += '<p style="color:#4a5568;font-size:15px;line-height:1.8;margin:0 0 18px;">' + block.content + '</p>\n';
+                break;
+            case 'button':
+                emailHtml += '<div style="text-align:center;margin:28px 0 20px;"><a href="' + (block.url || '{quote_link}') + '" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">' + block.content + ' &#x2192;</a></div>\n';
+                break;
+            case 'list':
+                if (Array.isArray(block.content)) {
+                    emailHtml += '<ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">\n';
+                    block.content.forEach(item => { emailHtml += '  <li>' + item + '</li>\n'; });
+                    emailHtml += '</ul>\n';
+                }
+                break;
+            case 'divider':
+                emailHtml += '<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;">\n';
+                break;
+        }
+    });
+    return emailHtml;
+}
+
+function applyCampaignBundleSubject(subject) {
+    if (!subject) { showToast('No subject to apply', 'error'); return; }
+    document.getElementById('editorSubject').value = subject;
+    markDirty();
+    showToast('Subject applied', 'success');
+}
+
+function applyCampaignBundleBlocks() {
+    const bundle = window._pendingCampaignBundle;
+    if (!bundle?.email?.blocks?.length) { showToast('No email blocks to apply', 'error'); return; }
+    setEditorContent(renderEmailHtmlFromAiBlocks(bundle.email.blocks));
+    markDirty();
+    showToast('Email blocks applied', 'success');
+}
+
+function applyCampaignBundleSms() {
+    const bundle = window._pendingCampaignBundle;
+    if (!bundle?.sms?.body) { showToast('No SMS body to apply', 'error'); return; }
+    document.getElementById('editorSms').value = bundle.sms.body;
+    markDirty();
+    updateSmsCounter();
+    showToast(bundle.sms.was_trimmed ? 'SMS applied (trimmed to fit)' : 'SMS applied', 'success');
+}
+
+function applyCampaignBundleCta(index) {
+    const bundle = window._pendingCampaignBundle;
+    const cta = bundle?.cta_variants?.[index];
+    if (!bundle || !cta) { showToast('No CTA to apply', 'error'); return; }
+
+    const buttonHtml = renderEmailHtmlFromAiBlocks([{ type: 'button', content: cta.label, url: cta.url }]);
+    const currentBody = getEditorContent().trim();
+    setEditorContent((currentBody ? currentBody + '\n' : '') + buttonHtml);
+
+    if (bundle.email && Array.isArray(bundle.email.blocks)) {
+        const buttonBlock = bundle.email.blocks.find((block) => block.type === 'button');
+        if (buttonBlock) {
+            buttonBlock.content = cta.label;
+            buttonBlock.url = cta.url;
+        }
+    }
+
+    markDirty();
+    showToast('CTA button applied', 'success');
+}
+
+function renderCampaignBundleResult(bundle) {
+    const el = document.getElementById('campaignBundleResult');
+    if (!bundle) {
+        el.style.display = 'none';
+        el.innerHTML = '';
+        return;
+    }
+
+    const audienceLabel = bundle.audience === 'monthly_plan'
+        ? 'Monthly Plan'
+        : bundle.audience === 'active'
+            ? 'Active Customers'
+            : 'All Customers';
+
+    el.style.display = 'block';
+    el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div>
+                <div style="font-size:15px;font-weight:700;color:#2e403d;">${escHtml(bundle.campaign_name)}</div>
+                <div style="margin-top:4px;font-size:12px;line-height:1.5;color:#64748b;">${escHtml(bundle.campaign_description)}</div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:#2e403d;background:#ecfdf5;border:1px solid #bbf7d0;padding:5px 9px;border-radius:999px;">Audience: ${escHtml(audienceLabel)}</div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:12px;font-weight:700;color:#2e403d;text-transform:uppercase;letter-spacing:0.03em;">Recommended Subject</div>
+                    <div style="margin-top:4px;font-size:13px;color:#334155;">${escHtml(bundle.email.recommended_subject)}</div>
+                </div>
+                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="applyCampaignBundleSubject(window._pendingCampaignBundle.email.recommended_subject)">Apply Subject</button>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:#64748b;">Alternatives: ${(bundle.email.subject_options || []).map((subject) => `<button type="button" class="btn btn-secondary" style="font-size:10px;padding:2px 8px;margin:4px 6px 0 0;" onclick="applyCampaignBundleSubject(${JSON.stringify(subject).replace(/"/g, '&quot;')})">${escHtml(subject)}</button>`).join('')}</div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:12px;font-weight:700;color:#2e403d;text-transform:uppercase;letter-spacing:0.03em;">Email Blocks</div>
+                    <div style="margin-top:4px;font-size:12px;color:#64748b;">Preview the generated structure, then apply it to the editor.</div>
+                </div>
+                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="applyCampaignBundleBlocks()">Apply Email Blocks</button>
+            </div>
+            <div style="margin-top:10px;border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#f8fafc;">
+                ${(bundle.email.blocks || []).map((block) => {
+                    if (block.type === 'divider') return '<div style="border-top:1px solid #cbd5e1;margin:10px 0;"></div>';
+                    if (block.type === 'list') return `<ul style="margin:0;padding-left:18px;color:#334155;font-size:13px;">${(block.content || []).map((item) => `<li>${escHtml(item)}</li>`).join('')}</ul>`;
+                    if (block.type === 'button') return `<div style="margin:8px 0;"><span style="display:inline-block;background:#c9dd80;color:#2e403d;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;">${escHtml(block.content)}</span> <span style="font-size:11px;color:#64748b;">${escHtml(block.url)}</span></div>`;
+                    return `<div style="margin:8px 0;color:#334155;font-size:${block.type === 'title' ? '15px' : '13px'};font-weight:${block.type === 'title' ? '700' : '400'};">${escHtml(block.content)}</div>`;
+                }).join('')}
+            </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:12px;font-weight:700;color:#2e403d;text-transform:uppercase;letter-spacing:0.03em;">SMS Body</div>
+                    <div style="margin-top:4px;font-size:13px;color:#334155;">${escHtml(bundle.sms.body)}</div>
+                    <div style="margin-top:4px;font-size:11px;color:${bundle.sms.was_trimmed ? '#b45309' : '#64748b'};">${bundle.sms.original_length} chars${bundle.sms.was_trimmed ? `, trimmed to ${bundle.sms.max_length}` : ''}</div>
+                </div>
+                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="applyCampaignBundleSms()">Apply SMS</button>
+            </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;">
+            <div style="font-size:12px;font-weight:700;color:#2e403d;text-transform:uppercase;letter-spacing:0.03em;">CTA Variants</div>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+                ${(bundle.cta_variants || []).map((cta, index) => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+                        <div>
+                            <div style="font-size:13px;font-weight:700;color:#334155;">${escHtml(cta.label)}</div>
+                            <div style="font-size:11px;color:#64748b;">${escHtml(cta.url)}</div>
+                        </div>
+                        <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="applyCampaignBundleCta(${index})">Apply CTA</button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+async function generateCampaignBundle() {
+    const serviceType = document.getElementById('bundleServiceType').value.trim();
+    const offer = document.getElementById('bundleOffer').value.trim();
+    const tone = document.getElementById('bundleTone').value;
+    const audience = document.getElementById('bundleAudience').value;
+    const ctaGoal = document.getElementById('bundleCtaGoal').value;
+    const button = document.getElementById('campaignBundleBtn');
+    const resultEl = document.getElementById('campaignBundleResult');
+
+    if (!serviceType || !offer) {
+        showToast('Service type and offer are required', 'error');
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Generating...';
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div style="font-size:12px;color:#64748b;">Building campaign bundle...</div>';
+
+    try {
+        const res = await fetch('/api/marketing/ai/campaign-bundle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                service_type: serviceType,
+                offer,
+                tone,
+                audience,
+                cta_goal: ctaGoal,
+                constraints: { sms_max_chars: 160 }
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Campaign bundle generation failed');
+
+        window._pendingCampaignBundle = data.bundle;
+        renderCampaignBundleResult(data.bundle);
+        showToast('Campaign bundle ready', 'success');
+    } catch (err) {
+        window._pendingCampaignBundle = null;
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = '<div style="font-size:12px;color:#b91c1c;">Unable to generate campaign bundle: ' + escHtml(err.message) + '</div>';
+        showToast('Campaign bundle failed: ' + err.message, 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Generate Campaign Bundle';
+    }
 }
 
 async function aiSend(mode) {
@@ -2508,30 +2755,7 @@ async function aiSend(mode) {
         // Handle structured results (template generation)
         if (result.blocks && (shouldApply || result._auto_apply)) {
             // Apply blocks to template
-            let emailHtml = '';
-            result.blocks.forEach(block => {
-                switch (block.type) {
-                    case 'title':
-                        emailHtml += '<h1 style="color:#1e293b;font-family:-apple-system,Arial,sans-serif;font-size:28px;font-weight:700;text-align:center;margin:0 0 24px;">' + block.content + '</h1>\n';
-                        break;
-                    case 'paragraph':
-                        emailHtml += '<p style="color:#4a5568;font-size:15px;line-height:1.8;margin:0 0 18px;">' + block.content + '</p>\n';
-                        break;
-                    case 'button':
-                        emailHtml += '<div style="text-align:center;margin:28px 0 20px;"><a href="' + (block.url || '#') + '" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">' + block.content + ' &#x2192;</a></div>\n';
-                        break;
-                    case 'list':
-                        if (Array.isArray(block.content)) {
-                            emailHtml += '<ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">\n';
-                            block.content.forEach(item => { emailHtml += '  <li>' + item + '</li>\n'; });
-                            emailHtml += '</ul>\n';
-                        }
-                        break;
-                    case 'divider':
-                        emailHtml += '<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;">\n';
-                        break;
-                }
-            });
+            const emailHtml = renderEmailHtmlFromAiBlocks(result.blocks);
             if (result.subject) document.getElementById('editorSubject').value = result.subject;
             setEditorContent(emailHtml);
             markDirty();
@@ -2601,30 +2825,7 @@ async function aiSend(mode) {
 function applyAiBlocks() {
     const result = window._pendingAiBlocks;
     if (!result || !result.blocks) { showToast('No pending template to apply', 'error'); return; }
-    let emailHtml = '';
-    result.blocks.forEach(block => {
-        switch (block.type) {
-            case 'title':
-                emailHtml += '<h1 style="color:#1e293b;font-family:-apple-system,Arial,sans-serif;font-size:28px;font-weight:700;text-align:center;margin:0 0 24px;">' + block.content + '</h1>\n';
-                break;
-            case 'paragraph':
-                emailHtml += '<p style="color:#4a5568;font-size:15px;line-height:1.8;margin:0 0 18px;">' + block.content + '</p>\n';
-                break;
-            case 'button':
-                emailHtml += '<div style="text-align:center;margin:28px 0 20px;"><a href="' + (block.url || '#') + '" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">' + block.content + ' &#x2192;</a></div>\n';
-                break;
-            case 'list':
-                if (Array.isArray(block.content)) {
-                    emailHtml += '<ul style="color:#4a5568;font-size:15px;line-height:1.8;padding-left:20px;margin:0 0 18px;">\n';
-                    block.content.forEach(item => { emailHtml += '  <li>' + item + '</li>\n'; });
-                    emailHtml += '</ul>\n';
-                }
-                break;
-            case 'divider':
-                emailHtml += '<hr style="border:none;border-top:1px solid #e5e5e5;margin:24px 0;">\n';
-                break;
-        }
-    });
+    const emailHtml = renderEmailHtmlFromAiBlocks(result.blocks);
     if (result.subject) document.getElementById('editorSubject').value = result.subject;
     setEditorContent(emailHtml);
     markDirty();

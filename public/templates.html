@@ -816,7 +816,8 @@
             border-radius: 18px;
             overflow: hidden;
             background: linear-gradient(180deg, #eef3ea 0%, #e7eee4 100%);
-            min-height: 560px;
+            height: min(560px, calc(100dvh - 250px));
+            min-height: min(560px, calc(100dvh - 250px));
             max-height: calc(100dvh - 250px);
             display: none;
             flex-direction: column;
@@ -1334,6 +1335,14 @@
             .preview-frame-note {
                 max-width: none;
                 text-align: left;
+            }
+            .preview-frame-container {
+                height: min(460px, calc(100dvh - 220px));
+                min-height: min(460px, calc(100dvh - 220px));
+                max-height: calc(100dvh - 220px);
+            }
+            .preview-frame-canvas {
+                padding: 14px;
             }
         }
     </style>

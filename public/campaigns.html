@@ -18,9 +18,10 @@
             border: none;
             border-radius: 26px 26px 0 0;
             background:
-                linear-gradient(140deg, rgba(33, 49, 47, 0.98), rgba(58, 86, 77, 0.92)),
-                linear-gradient(180deg, rgba(247, 244, 235, 0.22), rgba(247, 244, 235, 0));
-            box-shadow: 0 24px 48px rgba(19, 28, 27, 0.18);
+                radial-gradient(circle at top right, rgba(201, 221, 128, 0.2), transparent 28%),
+                linear-gradient(135deg, #243330 0%, #314540 48%, #f3f1e8 48%, #f3f1e8 100%);
+            box-shadow: 0 28px 48px rgba(36, 51, 48, 0.16);
+            align-items: stretch;
         }
 
         body.campaigns-marketing-page .page-intro-copy {
@@ -30,16 +31,13 @@
         }
 
         body.campaigns-marketing-page .page-intro-label {
-            color: rgba(247, 244, 235, 0.72);
-            letter-spacing: 0.24em;
-            text-transform: uppercase;
-            font-size: 11px;
-            font-weight: 700;
+            color: rgba(201, 221, 128, 0.88);
+            letter-spacing: 0.16em;
         }
 
         body.campaigns-marketing-page .page-intro-note {
-            color: #f4efe2;
-            max-width: 700px;
+            color: #f5f1e6;
+            max-width: 520px;
             font-size: 15px;
             line-height: 1.6;
         }
@@ -59,23 +57,25 @@
 
         .marketing-hero-kpi {
             border-radius: 20px;
-            padding: 18px 18px 16px;
-            background: rgba(247, 244, 235, 0.12);
-            border: 1px solid rgba(247, 244, 235, 0.14);
+            padding: 16px 16px 14px;
+            background: rgba(255,255,255,0.76);
+            border: 1px solid rgba(36, 51, 48, 0.08);
             backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
         }
 
         .marketing-hero-kpi-value {
-            font-size: 22px;
+            font-size: 21px;
             font-weight: 700;
-            color: #f7f4eb;
+            color: #243330;
             margin-bottom: 6px;
         }
 
         .marketing-hero-kpi-label {
-            font-size: 12px;
-            line-height: 1.45;
-            color: rgba(247, 244, 235, 0.72);
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1.5;
+            color: #5f6f68;
             text-transform: uppercase;
             letter-spacing: 0.12em;
         }
@@ -86,16 +86,17 @@
         }
 
         body.campaigns-marketing-page .page-handoff-link {
-            background: rgba(247, 244, 235, 0.12);
-            color: rgba(247, 244, 235, 0.86);
-            border-color: rgba(247, 244, 235, 0.14);
+            background: rgba(255,255,255,0.78);
+            color: #314540;
+            border-color: rgba(36, 51, 48, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
         }
 
         body.campaigns-marketing-page .page-handoff-link.active {
-            background: #f1d77c;
-            color: #223230;
-            border-color: transparent;
-            box-shadow: 0 12px 26px rgba(241, 215, 124, 0.26);
+            background: #243330;
+            color: #f4f7ef;
+            border-color: #243330;
+            box-shadow: none;
         }
 
         /* ─── Stats Row ─────────────────────────────────────── */
@@ -1184,6 +1185,9 @@
                 margin: 14px 14px 0;
                 padding: 18px;
                 border-radius: 22px 22px 0 0;
+                background:
+                    radial-gradient(circle at top right, rgba(201, 221, 128, 0.2), transparent 24%),
+                    linear-gradient(180deg, #243330 0%, #314540 100%);
             }
             .marketing-hero-panel { gap: 18px; }
             .marketing-hero-kpis { grid-template-columns: 1fr; }

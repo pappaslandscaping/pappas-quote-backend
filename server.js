@@ -148,6 +148,255 @@ try {
   console.log('⚠️ Anthropic SDK not available:', err.message);
 }
 
+// OpenAI Responses API Configuration (optional — used for customer-facing writing surfaces)
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+try {
+  if (OPENAI_API_KEY) {
+    console.log('✅ OpenAI Responses API initialized');
+  } else {
+    console.log('⚠️ OpenAI API not configured (OPENAI_API_KEY is not set)');
+  }
+} catch (err) {
+  console.log('⚠️ OpenAI initialization failed:', err.message);
+}
+
+const DEFAULT_ANTHROPIC_MODEL = process.env.AI_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
+const DEFAULT_WRITING_PROVIDER = (process.env.AI_WRITING_PROVIDER || '').trim().toLowerCase();
+const DEFAULT_WRITING_OPENAI_MODEL = process.env.AI_WRITING_OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+const DEFAULT_WRITING_OPENAI_FALLBACK_MODEL = process.env.AI_WRITING_OPENAI_FALLBACK_MODEL || 'gpt-5-mini';
+
+function getWritingAiProvider() {
+  if (DEFAULT_WRITING_PROVIDER === 'openai' || DEFAULT_WRITING_PROVIDER === 'anthropic') {
+    return DEFAULT_WRITING_PROVIDER;
+  }
+  if (OPENAI_API_KEY) return 'openai';
+  if (anthropicClient) return 'anthropic';
+  return null;
+}
+
+function isWritingAiConfigured() {
+  const provider = getWritingAiProvider();
+  if (provider === 'openai') return Boolean(OPENAI_API_KEY);
+  if (provider === 'anthropic') return Boolean(anthropicClient);
+  return false;
+}
+
+function extractAnthropicText(message) {
+  return (message?.content || [])
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('\n')
+    .trim();
+}
+
+function extractOpenAIOutputText(response) {
+  if (typeof response?.output_text === 'string' && response.output_text.trim()) {
+    return response.output_text.trim();
+  }
+
+  const parts = [];
+  for (const item of response?.output || []) {
+    if (!Array.isArray(item?.content)) continue;
+    for (const content of item.content) {
+      if (content?.type === 'output_text' && typeof content.text === 'string') {
+        parts.push(content.text);
+      }
+      if (content?.type === 'refusal' && typeof content.refusal === 'string') {
+        parts.push(content.refusal);
+      }
+    }
+  }
+  return parts.join('\n').trim();
+}
+
+function parseJsonFromModelText(text) {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Model returned an empty response');
+  }
+
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch (parseErr) {
+    const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+    if (objectMatch) return JSON.parse(objectMatch[0]);
+
+    const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
+    if (arrayMatch) return JSON.parse(arrayMatch[0]);
+
+    throw parseErr;
+  }
+}
+
+function buildResponsesInput(messages) {
+  return (messages || []).map((message) => ({
+    role: message.role,
+    content: [{ type: 'input_text', text: message.content }]
+  }));
+}
+
+function isOpenAIModelAvailabilityError(statusCode, message) {
+  if (![400, 404].includes(statusCode)) return false;
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('model') && (
+    normalized.includes('not found') ||
+    normalized.includes('does not exist') ||
+    normalized.includes('not available') ||
+    normalized.includes('unsupported') ||
+    normalized.includes('unknown')
+  );
+}
+
+async function createOpenAIWritingResponse({
+  systemPrompt,
+  messages,
+  maxOutputTokens = 1024,
+  schemaName,
+  schemaDescription,
+  jsonSchema
+}) {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key is not configured');
+  }
+
+  const modelsToTry = [DEFAULT_WRITING_OPENAI_MODEL];
+  if (DEFAULT_WRITING_OPENAI_FALLBACK_MODEL && DEFAULT_WRITING_OPENAI_FALLBACK_MODEL !== DEFAULT_WRITING_OPENAI_MODEL) {
+    modelsToTry.push(DEFAULT_WRITING_OPENAI_FALLBACK_MODEL);
+  }
+
+  let lastError = null;
+
+  for (const model of modelsToTry) {
+    const payload = {
+      model,
+      input: buildResponsesInput(messages),
+      max_output_tokens: maxOutputTokens
+    };
+
+    if (systemPrompt) payload.instructions = systemPrompt;
+    if (jsonSchema) {
+      payload.text = {
+        format: {
+          type: 'json_schema',
+          name: schemaName,
+          description: schemaDescription,
+          strict: true,
+          schema: jsonSchema
+        }
+      };
+    }
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const errMessage = data?.error?.message || `OpenAI request failed with status ${response.status}`;
+        const err = new Error(errMessage);
+        err.statusCode = response.status;
+        err.openaiError = data?.error || null;
+        throw err;
+      }
+
+      return {
+        provider: 'openai',
+        model,
+        text: extractOpenAIOutputText(data)
+      };
+    } catch (error) {
+      lastError = error;
+      const canFallback =
+        model !== modelsToTry[modelsToTry.length - 1] &&
+        isOpenAIModelAvailabilityError(error.statusCode, error.message);
+
+      if (canFallback) {
+        console.warn(`OpenAI model ${model} unavailable for writing surfaces, falling back to ${modelsToTry[modelsToTry.indexOf(model) + 1]}`);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError || new Error('OpenAI response generation failed');
+}
+
+async function createAnthropicWritingResponse({ systemPrompt, messages, maxOutputTokens = 1024 }) {
+  if (!anthropicClient) {
+    throw new Error('Anthropic client is not configured');
+  }
+
+  const response = await anthropicClient.messages.create({
+    model: DEFAULT_ANTHROPIC_MODEL,
+    max_tokens: maxOutputTokens,
+    system: systemPrompt || undefined,
+    messages: (messages || []).map((message) => ({
+      role: message.role,
+      content: message.content
+    }))
+  });
+
+  return {
+    provider: 'anthropic',
+    model: DEFAULT_ANTHROPIC_MODEL,
+    text: extractAnthropicText(response)
+  };
+}
+
+async function generateWritingText(options) {
+  const provider = getWritingAiProvider();
+  if (provider === 'openai') {
+    return createOpenAIWritingResponse(options);
+  }
+  if (provider === 'anthropic') {
+    return createAnthropicWritingResponse(options);
+  }
+  throw new Error('No AI provider configured for writing surfaces');
+}
+
+async function generateWritingJson(options) {
+  const provider = getWritingAiProvider();
+  const response = provider === 'openai'
+    ? await createOpenAIWritingResponse(options)
+    : provider === 'anthropic'
+      ? await createAnthropicWritingResponse(options)
+      : (() => { throw new Error('No AI provider configured for writing surfaces'); })();
+
+  return {
+    ...response,
+    json: parseJsonFromModelText(response.text)
+  };
+}
+
+async function generateWritingJsonWithTextFallback(options) {
+  try {
+    return await generateWritingJson(options);
+  } catch (structuredError) {
+    const fallback = await generateWritingText({
+      systemPrompt: options.systemPrompt,
+      messages: options.messages,
+      maxOutputTokens: options.maxOutputTokens
+    });
+
+    try {
+      return {
+        ...fallback,
+        json: parseJsonFromModelText(fallback.text)
+      };
+    } catch (parseError) {
+      parseError.fallbackText = fallback.text;
+      throw parseError;
+    }
+  }
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -10295,8 +10544,113 @@ app.get('/api/kpi/detailed', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// AI-POWERED FEATURES (Claude SDK)
+// AI-POWERED FEATURES
 // ═══════════════════════════════════════════════════════════
+
+const FOLLOWUP_SMS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    body: { type: 'string' }
+  },
+  required: ['body']
+};
+
+const FOLLOWUP_EMAIL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    subject: { type: 'string' },
+    body: { type: 'string' }
+  },
+  required: ['subject', 'body']
+};
+
+const TEMPLATE_BLOCK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    type: { type: 'string', enum: ['title', 'paragraph', 'button', 'list', 'divider'] },
+    content: {
+      anyOf: [
+        { type: 'string' },
+        { type: 'array', items: { type: 'string' } }
+      ]
+    },
+    url: { type: 'string' }
+  },
+  required: ['type']
+};
+
+const TEMPLATE_CAMPAIGN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string' },
+    description: { type: 'string' },
+    subject: { type: 'string' },
+    blocks: { type: 'array', items: TEMPLATE_BLOCK_SCHEMA },
+    sms: { type: 'string' },
+    audience: { type: 'string', enum: ['all', 'monthly_plan', 'active'] }
+  },
+  required: ['name', 'description', 'subject', 'blocks', 'sms', 'audience']
+};
+
+const TEMPLATE_GENERATION_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    message: { type: 'string' },
+    subject: { type: 'string' },
+    blocks: { type: 'array', items: TEMPLATE_BLOCK_SCHEMA },
+    subjects: { type: 'array', items: { type: 'string' } },
+    sms: { type: 'string' },
+    campaign: TEMPLATE_CAMPAIGN_SCHEMA
+  },
+  required: ['message']
+};
+
+const SERVICE_SUGGESTION_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' },
+    description: { type: 'string' }
+  },
+  required: ['title', 'description']
+};
+
+const SOCIAL_POST_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    text: { type: 'string' }
+  },
+  required: ['text']
+};
+
+const SOCIAL_POSTS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    facebook: SOCIAL_POST_SCHEMA,
+    instagram: SOCIAL_POST_SCHEMA,
+    nextdoor: SOCIAL_POST_SCHEMA,
+    tiktok: SOCIAL_POST_SCHEMA,
+    google: SOCIAL_POST_SCHEMA,
+    twitter: SOCIAL_POST_SCHEMA
+  }
+};
+
+const SOCIAL_REFINE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    reply: { type: 'string' },
+    posts: SOCIAL_POSTS_SCHEMA
+  },
+  required: ['reply']
+};
 
 // 7.10 AI Quote Writer
 app.post('/api/ai/generate-quote', async (req, res) => {
@@ -10369,8 +10723,8 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
 // 7.11 AI Follow-up Message Generator
 app.post('/api/ai/generate-followup', async (req, res) => {
   try {
-    if (!anthropicClient) {
-      return res.status(503).json({ success: false, error: 'AI service not configured. ANTHROPIC_API_KEY is not set.' });
+    if (!isWritingAiConfigured()) {
+      return res.status(503).json({ success: false, error: 'AI service not configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.' });
     }
 
     const { customer_name, service_type, quote_amount, days_since_sent, channel } = req.body;
@@ -10401,26 +10755,17 @@ Guidelines:
 Respond ONLY with valid JSON in this exact format (no markdown, no code fences):
 ${isSMS ? '{"body": "The SMS message text"}' : '{"subject": "Email subject line", "body": "<p>HTML email body</p>"}'}`;
 
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+    const { json } = await generateWritingJsonWithTextFallback({
+      maxOutputTokens: 1024,
+      schemaName: isSMS ? 'followup_sms' : 'followup_email',
+      schemaDescription: isSMS
+        ? 'A concise SMS follow-up message for a landscaping customer.'
+        : 'A concise HTML email follow-up message for a landscaping customer.',
+      jsonSchema: isSMS ? FOLLOWUP_SMS_SCHEMA : FOLLOWUP_EMAIL_SCHEMA,
       messages: [{ role: 'user', content: prompt }]
     });
 
-    const responseText = message.content[0].text.trim();
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseErr) {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Failed to parse AI response as JSON');
-      }
-    }
-
-    res.json({ success: true, message: result });
+    res.json({ success: true, message: json });
   } catch (error) {
     console.error('AI generate-followup error:', error);
     serverError(res, error);
@@ -10490,7 +10835,7 @@ Keep responses concise, practical, and professional. If asked about specific cus
 // ─── AI Template Generator (Chat-based) ──────────────────────────
 app.post('/api/ai/generate-template', async (req, res) => {
   try {
-    if (!anthropicClient) {
+    if (!isWritingAiConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service not configured.' });
     }
     const { prompt, type, action, history, apply } = req.body;
@@ -10566,21 +10911,20 @@ Keep the tone professional but warm and friendly. Use merge tags where appropria
     if (apply) userMsg += '\n\n[INSTRUCTION: Generate the template and mark it for auto-apply.]';
     messages.push({ role: 'user', content: userMsg });
 
-    const response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages
-    });
-
-    const text = response.content[0].text;
     let parsed;
     try {
-      const jsonMatch = text.match(/[\[{][\s\S]*[\]}]/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+      const response = await generateWritingJsonWithTextFallback({
+        systemPrompt,
+        messages,
+        maxOutputTokens: 2048,
+        schemaName: 'template_generation',
+        schemaDescription: 'Interactive template, SMS, subject-line, or campaign generation output.',
+        jsonSchema: TEMPLATE_GENERATION_SCHEMA
+      });
+      parsed = response.json;
     } catch (e) {
-      // Fallback: treat as plain text message
-      parsed = { message: text };
+      // Final fallback: treat as plain text message
+      parsed = { message: e.fallbackText || e.message || 'Template generation failed' };
     }
     // Mark auto-apply if requested
     if (apply && parsed.blocks) parsed._auto_apply = true;
@@ -10627,7 +10971,7 @@ app.post('/api/ai/create-campaign', async (req, res) => {
 // ─── AI Service Title & Description Suggestions ──────────────────
 app.post('/api/ai/suggest-service', async (req, res) => {
   try {
-    if (!anthropicClient) {
+    if (!isWritingAiConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service not configured.' });
     }
     const { service_name, context } = req.body;
@@ -10656,19 +11000,21 @@ Guidelines:
 - Use landscaping industry terminology
 - DO NOT include pricing`;
 
-    const response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
-    });
-
-    const text = response.content[0].text;
     let parsed;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+      const response = await generateWritingJsonWithTextFallback({
+        maxOutputTokens: 1024,
+        schemaName: 'service_suggestion',
+        schemaDescription: 'A polished title and customer-facing description for a landscaping service.',
+        jsonSchema: SERVICE_SUGGESTION_SCHEMA,
+        messages: [{ role: 'user', content: prompt }]
+      });
+      parsed = response.json;
     } catch (e) {
-      parsed = { title: service_name, description: text };
+      parsed = {
+        title: service_name,
+        description: e.fallbackText || e.message || 'Unable to generate a service description right now.'
+      };
     }
     res.json({ success: true, suggestion: parsed });
   } catch (error) {
@@ -10680,7 +11026,7 @@ Guidelines:
 // ─── Social Media AI Generator ──────────────────────────
 app.post('/api/social-media/generate', authenticateToken, async (req, res) => {
   try {
-    if (!anthropicClient) {
+    if (!isWritingAiConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service not configured.' });
     }
 
@@ -10728,20 +11074,19 @@ Respond ONLY with valid JSON in this exact format, no markdown or extra text:
 
 ${platform ? `Only generate for: ${platform}` : ''}`;
 
-    const response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: `Post topic: ${context}\nTone: ${tone || 'professional'}` }]
-    });
-
-    const text = response.content[0].text;
     let posts;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      posts = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+      const response = await generateWritingJsonWithTextFallback({
+        systemPrompt,
+        maxOutputTokens: 2048,
+        schemaName: 'social_posts',
+        schemaDescription: 'Platform-specific customer-facing social media copy for a landscaping company.',
+        jsonSchema: SOCIAL_POSTS_SCHEMA,
+        messages: [{ role: 'user', content: `Post topic: ${context}\nTone: ${tone || 'professional'}` }]
+      });
+      posts = response.json;
     } catch (e) {
-      console.error('Social media AI parse error:', e.message, 'Raw:', text);
+      console.error('Social media AI parse error:', e.message);
       return res.status(500).json({ success: false, error: 'Failed to parse AI response' });
     }
 
@@ -10774,7 +11119,7 @@ ${platform ? `Only generate for: ${platform}` : ''}`;
 // POST /api/social-media/refine - Refine existing posts or have a conversation
 app.post('/api/social-media/refine', authenticateToken, async (req, res) => {
   try {
-    if (!anthropicClient) {
+    if (!isWritingAiConfigured()) {
       return res.status(503).json({ success: false, error: 'AI service not configured.' });
     }
 
@@ -10811,21 +11156,19 @@ If the user is asking a QUESTION or for advice (not modifying posts), respond wi
 
 Always respond with valid JSON only, no markdown.`;
 
-    const response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: instruction }]
-    });
-
-    const text = response.content[0].text;
     let parsed;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+      const response = await generateWritingJsonWithTextFallback({
+        systemPrompt,
+        maxOutputTokens: 2048,
+        schemaName: 'social_refine',
+        schemaDescription: 'Conversational social media refinement output with optional updated posts.',
+        jsonSchema: SOCIAL_REFINE_SCHEMA,
+        messages: [{ role: 'user', content: instruction }]
+      });
+      parsed = response.json;
     } catch (e) {
-      // If AI didn't return JSON, treat the whole response as a reply
-      parsed = { reply: text };
+      parsed = { reply: e.fallbackText || e.message || 'Refinement failed' };
     }
 
     res.json({ success: true, reply: parsed.reply || null, posts: parsed.posts || null });

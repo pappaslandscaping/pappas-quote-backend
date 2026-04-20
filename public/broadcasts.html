@@ -2140,9 +2140,9 @@ function buildTemplatePreviewMarkup(template) {
     const channelLabel = template.channel === 'both' ? 'Email + SMS' : template.channel === 'sms' ? 'SMS Only' : 'Email';
     const wrapperLabel = wrapper === 'minimal' ? 'Minimal Wrapper' : wrapper === 'none' ? 'No Wrapper' : 'Full Wrapper';
     const footer = wrapper === 'full'
-        ? 'Questions? Reply to this email or call (440) 886-7318'
+        ? 'Reply directly or call (440) 886-7318'
         : wrapper === 'minimal'
-            ? 'Pappas & Co. Landscaping • pappaslandscaping.com'
+            ? 'Clear communication • Thoughtful care'
             : 'Template body only';
 
     return `
@@ -2163,7 +2163,7 @@ function buildTemplatePreviewMarkup(template) {
                 <span>Sample render</span>
             </div>
             <div class="tpl-email ${escHtml(wrapper)}">
-                ${wrapper === 'none' ? '' : `<div class="tpl-email-header"><span class="tpl-brand-kicker">Pappas &amp; Co. Landscaping</span>${wrapper === 'full' ? '<span class="tpl-email-header-main">Elevated customer email shell</span>' : ''}</div>`}
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-header"><span class="tpl-brand-kicker">Pappas &amp; Co. Landscaping</span>${wrapper === 'full' ? '<span class="tpl-email-header-main">Seasonal service with a cleaner customer experience</span>' : ''}</div>`}
                 <div class="tpl-email-body">${body}</div>
                 ${wrapper === 'none' ? '' : `<div class="tpl-email-footer">${escHtml(footer)}</div>`}
             </div>
@@ -2200,28 +2200,73 @@ function wrapBroadcastPreview(bodyHtml, wrapper = 'full') {
     const socialIg = `${baseOrigin}/email-assets/ig-white.png`;
     const socialNd = `${baseOrigin}/email-assets/nd-white.png`;
     const unsubscribeUrl = `${baseOrigin}/unsubscribe.html?email=preview%40example.com`;
-    const header = mode === 'minimal'
-        ? `<div style="padding:22px 40px 0;"><p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#7a9477;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p></div>`
-        : mode === 'none'
-            ? ''
-            : `<div style="background:#2e403d;padding:36px 48px;text-align:center;"><img src="${baseOrigin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;"></div><div style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</div>`;
-    const footer = mode === 'none'
-        ? ''
-        : mode === 'minimal'
-            ? `<div style="padding:0 40px 26px;text-align:center;"><p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:700;text-decoration:none;">(440) 886-7318</a></p><p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p></div>`
-            : `<div style="background:#243330;padding:32px 40px;text-align:center;"><p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p><table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;"><tr><td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:30px;height:30px;"></a></td><td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:30px;height:30px;"></a></td><td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:30px;height:30px;"></a></td></tr></table><p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',Arial,sans-serif;">Pappas & Co. Landscaping</p><p style="margin:0 0 4px;font-size:11px;color:#5f8a5c;font-family:'DM Sans',Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p><p style="margin:0 0 14px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-weight:500;font-family:'DM Sans',Arial,sans-serif;">pappaslandscaping.com</a></p><p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',Arial,sans-serif;"><a href="${unsubscribeUrl}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p></div>`;
-    const bodyPadding = mode === 'minimal' ? '34px 40px' : mode === 'none' ? '24px' : '44px 48px 36px';
+    const signatureImage = 'https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/White%20Modern%20Minimalist%20Signature%20Brand%20Logo%20%281200%20x%20300%20px%29%20%281%29.png';
+    const signatureBlock = `<div style="margin-top:38px;padding-top:22px;border-top:1px solid #e7e1d5;"><p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#7b8d73;font-weight:700;">With appreciation</p><img src="${signatureImage}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;"></div>`;
+    const logo = `${baseOrigin}/logo.png`;
+
+    if (mode === 'none') {
+        return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;padding:24px;background:#ffffff;font-family:'DM Sans',-apple-system,sans-serif;color:#465464;font-size:15px;line-height:1.78;}</style>
+</head><body>${bodyHtml}</body></html>`;
+    }
+
+    if (mode === 'minimal') {
+        return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;padding:0;background:#f5f8f4;font-family:'DM Sans',-apple-system,sans-serif;}</style>
+</head><body>
+<div style="max-width:620px;margin:0 auto;padding:28px 14px;">
+  <div style="background:#ffffff;border:1px solid #dde4db;border-radius:24px;overflow:hidden;box-shadow:0 14px 36px rgba(35,51,48,0.08);">
+    <div style="padding:22px 34px 0;">
+      <div style="border-bottom:1px solid #e6ebe3;padding:0 0 16px;">
+        <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#7b8d73;font-weight:700;">Pappas &amp; Co. Landscaping</p>
+        <p style="margin:0;font-size:13px;line-height:1.6;color:#68796f;">Clear communication, thoughtful care, and direct customer support.</p>
+      </div>
+    </div>
+    <div style="padding:34px 34px 28px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
+    <div style="padding:0 34px 28px;">
+      <div style="border-top:1px solid #e6ebe3;padding:18px 0 0;">
+        <p style="margin:0 0 6px;font-size:12px;color:#57694e;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
+        <p style="margin:0;font-size:11px;color:#8aa083;">Pappas &amp; Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>`;
+    }
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>body{margin:0;padding:${mode === 'none' ? '0' : '24px 0'};background:${mode === 'none' ? '#ffffff' : '#f2f4f3'};font-family:'DM Sans',-apple-system,sans-serif;}</style>
+<style>body{margin:0;padding:0;background:#edf1ea;font-family:'DM Sans',-apple-system,sans-serif;}</style>
 </head><body>
-<div style="max-width:600px;margin:0 auto;background:#fff;${mode === 'none' ? '' : 'border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);'}">
-    ${header}
-    <div style="padding:${bodyPadding};color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,sans-serif;">
-        ${bodyHtml}
+<div style="max-width:640px;margin:0 auto;padding:34px 0;">
+  <div style="padding:0 16px;">
+    <div style="background:#223330;border-radius:32px 32px 0 0;text-align:center;padding:18px 36px 12px;">
+      <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#c9dd80;font-weight:700;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p>
+      <img src="${logo}" alt="Pappas & Co. Landscaping" style="display:block;max-height:86px;max-width:360px;width:auto;margin:0 auto 12px;">
+      <p style="margin:0;font-size:14px;line-height:1.65;color:#d8e2d0;">Seasonal service, thoughtful communication, and a cleaner customer experience from quote to follow-up.</p>
     </div>
-    ${footer}
+  </div>
+  <div style="padding:0 16px 18px;">
+    <div style="background:#efe7d8;border-radius:0 0 32px 32px;">
+      <div style="padding:14px 28px;border-bottom:1px solid #ddd3c1;text-align:center;">
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#5f6f68;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
+      </div>
+      <div style="padding:18px 28px 0;">
+        <div style="background:#ffffff;border:1px solid #e5ddd0;border-radius:24px;overflow:hidden;">
+          <div style="padding:38px 40px 30px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
+        </div>
+      </div>
+      <div style="padding:26px 28px 28px;text-align:center;">
+        <table cellpadding="0" cellspacing="0" style="margin:0 auto 18px;"><tr><td style="padding:0 10px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:30px;height:30px;"></a></td><td style="padding:0 10px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:30px;height:30px;"></a></td><td style="padding:0 10px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:30px;height:30px;"></a></td></tr></table>
+        <p style="margin:0 0 4px;font-size:13px;color:#223330;font-weight:700;">Pappas &amp; Co. Landscaping</p>
+        <p style="margin:0 0 4px;font-size:11px;color:#6f8076;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+        <p style="margin:0 0 12px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#223330;text-decoration:none;font-weight:600;">pappaslandscaping.com</a></p>
+        <p style="margin:0;font-size:10px;color:#8aa083;"><a href="${unsubscribeUrl}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+      </div>
+    </div>
+  </div>
 </div>
 </body></html>`;
 }

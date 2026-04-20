@@ -1020,6 +1020,11 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
 
   const CANONICAL_ROUTE_TEMPLATE_SEED_KEYS = DISPATCH_ROUTE_TEMPLATE_SEEDS.map((seed) => seed.seed_key);
   const DISPATCH_AUTO_APPLY_NAME = 'YardDesk Auto Apply';
+  const DISPATCH_CANONICAL_REAPPLY_NAME = 'YardDesk Canonical Reapply';
+  const CANONICAL_ROUTE_APPLY_NAMES = new Set([
+    DISPATCH_AUTO_APPLY_NAME,
+    DISPATCH_CANONICAL_REAPPLY_NAME,
+  ]);
 
   function getDispatchActor(req) {
     const user = req?.user || {};
@@ -1076,10 +1081,27 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     );
 
     const rows = result.rows || [];
+    const updatedByNames = rows.map((row) => row.updated_by_name || '');
     return {
       hasOverrides: rows.length > 0,
-      autoAppliedOnly: rows.length > 0 && rows.every((row) => (row.updated_by_name || '') === DISPATCH_AUTO_APPLY_NAME),
+      autoAppliedOnly: rows.length > 0 && updatedByNames.every((name) => name === DISPATCH_AUTO_APPLY_NAME),
+      canonicalAppliedOnly: rows.length > 0 && updatedByNames.every((name) => CANONICAL_ROUTE_APPLY_NAMES.has(name)),
+      reapplied: updatedByNames.includes(DISPATCH_CANONICAL_REAPPLY_NAME),
     };
+  }
+
+  async function fetchRouteOverrideJobKeysForCrewDate(targetDate, crewName) {
+    const result = await pool.query(
+      `SELECT clj.job_key
+         FROM copilot_live_jobs clj
+         JOIN dispatch_plan_items dpi ON dpi.job_key = clj.job_key
+        WHERE clj.service_date = $1::date
+          AND dpi.route_order_override IS NOT NULL
+          AND COALESCE(dpi.crew_override_name, clj.source_crew_name) = $2
+        ORDER BY clj.job_key ASC`,
+      [targetDate, crewName]
+    );
+    return (result.rows || []).map((row) => row.job_key).filter(Boolean);
   }
 
   async function maybeAutoApplyCanonicalTemplates({ targetDate, startDate, endDate, livePayload }) {
@@ -1101,12 +1123,18 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
       const overrideState = await getRouteOverrideStateForCrewDate(targetDate, template.crew_name);
       if (overrideState.hasOverrides) {
         statuses.push({
+          template_id: template.id,
           crew_name: template.crew_name,
           template_name: template.name,
-          status: overrideState.autoAppliedOnly ? 'already_applied' : 'manual_overrides',
-          message: overrideState.autoAppliedOnly
+          status: overrideState.reapplied
+            ? 'reapplied'
+            : (overrideState.canonicalAppliedOnly ? 'already_applied' : 'manual_overrides'),
+          can_reapply: !overrideState.canonicalAppliedOnly,
+          message: overrideState.reapplied
+            ? `Canonical Monday pattern was re-applied for ${template.crew_name}.`
+            : (overrideState.canonicalAppliedOnly
             ? `Canonical Monday pattern already applied for ${template.crew_name}.`
-            : `Manual route overrides already exist for ${template.crew_name}; canonical Monday auto-apply skipped.`,
+            : `Manual route overrides already exist for ${template.crew_name}; canonical Monday auto-apply skipped.`),
         });
         continue;
       }
@@ -1123,9 +1151,11 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
 
       if (applyResult.patches.length === 0) {
         statuses.push({
+          template_id: template.id,
           crew_name: template.crew_name,
           template_name: template.name,
           status: 'partial_match',
+          can_reapply: false,
           message: `Canonical Monday pattern exists for ${template.crew_name}, but no live stops could be matched automatically.`,
           matched_count: 0,
           appended_count: 0,
@@ -1145,9 +1175,11 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
       didApply = true;
       const partial = applyResult.unmatched_template_stops.length > 0 || applyResult.ambiguous.length > 0;
       statuses.push({
+        template_id: template.id,
         crew_name: template.crew_name,
         template_name: template.name,
         status: partial ? 'partial_match' : 'applied',
+        can_reapply: false,
         message: partial
           ? `Canonical Monday pattern auto-applied for ${template.crew_name} with ${applyResult.unmatched_template_stops.length} unmatched and ${applyResult.ambiguous.length} ambiguous stop(s).`
           : `Canonical Monday pattern auto-applied for ${template.crew_name}.`,
@@ -3330,6 +3362,89 @@ router.post('/api/dispatch/route-templates/:id/apply', async (req, res) => {
       template: summarizeDispatchRouteTemplate(template, stopsResult.rows.length, { targetDate: date }),
       applied_date: date,
       updated: updated.length,
+      matched_count: applyResult.matched.length,
+      appended_count: applyResult.appended.length,
+      ambiguous: applyResult.ambiguous,
+      unmatched_template_stops: applyResult.unmatched_template_stops,
+      ordered: applyResult.patches.map((entry) => ({
+        job_key: entry.jobKey,
+        route_order_override: entry.patch.route_order_override,
+        crew_override_name: entry.patch.crew_override_name || null,
+      })),
+    });
+  } catch (error) { serverError(res, error); }
+});
+
+router.post('/api/dispatch/route-templates/:id/reapply-canonical', async (req, res) => {
+  try {
+    const templateId = Number.parseInt(req.params.id, 10);
+    const { date } = req.body;
+    if (!Number.isFinite(templateId) || !date) {
+      return res.status(400).json({ success: false, error: 'template id and date are required' });
+    }
+    if (!isValidIsoDate(date)) {
+      return res.status(400).json({ success: false, error: 'date must be YYYY-MM-DD' });
+    }
+
+    const templateResult = await pool.query(
+      `SELECT * FROM dispatch_route_templates WHERE id = $1`,
+      [templateId]
+    );
+    if (templateResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Route template not found' });
+    }
+    const template = templateResult.rows[0];
+    if (!template.active) {
+      return res.status(409).json({ success: false, error: 'Route template is inactive' });
+    }
+    if (!CANONICAL_ROUTE_TEMPLATE_SEED_KEYS.includes(template.seed_key)) {
+      return res.status(409).json({ success: false, error: 'Only canonical route templates can be reapplied from this panel' });
+    }
+    if (!isDispatchRouteTemplateApplicable(template, date)) {
+      return res.status(409).json({ success: false, error: 'Canonical route template does not align with the selected date cadence' });
+    }
+
+    const stopsResult = await pool.query(
+      `SELECT * FROM dispatch_route_template_stops WHERE template_id = $1 ORDER BY position ASC`,
+      [templateId]
+    );
+    const liveJobs = await fetchLiveDispatchJobsForDate(date);
+    const applyResult = applyDispatchRouteTemplate({
+      template,
+      templateStops: stopsResult.rows,
+      liveJobs,
+    });
+    if (applyResult.patches.length === 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'Canonical route template could not match any live stops for this date',
+        ambiguous: applyResult.ambiguous,
+        unmatched_template_stops: applyResult.unmatched_template_stops,
+      });
+    }
+
+    const existingOverrideJobKeys = await fetchRouteOverrideJobKeysForCrewDate(date, template.crew_name);
+    const nextOrderedJobKeys = new Set(applyResult.patches.map((entry) => entry.jobKey));
+    const clearPatches = existingOverrideJobKeys
+      .filter((jobKey) => !nextOrderedJobKeys.has(jobKey))
+      .map((jobKey) => ({
+        jobKey,
+        patch: { route_order_override: null },
+      }));
+
+    const actor = getDispatchActor(req);
+    const updated = await patchDispatchPlanItems(pool, {
+      patches: [...clearPatches, ...applyResult.patches],
+      updatedByUserId: actor.updatedByUserId,
+      updatedByName: DISPATCH_CANONICAL_REAPPLY_NAME,
+    });
+
+    res.json({
+      success: true,
+      template: summarizeDispatchRouteTemplate(template, stopsResult.rows.length, { targetDate: date }),
+      applied_date: date,
+      updated: updated.length,
+      cleared_count: clearPatches.length,
       matched_count: applyResult.matched.length,
       appended_count: applyResult.appended.length,
       ambiguous: applyResult.ambiguous,

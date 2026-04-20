@@ -190,6 +190,19 @@
             color: #1d4ed8;
         }
         .dispatch-template-status-detail { color: var(--gray-500); font-size: 11px; margin-top: 4px; }
+        .dispatch-template-status-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+        .dispatch-template-status-action {
+            border: 1px solid rgba(59,130,246,0.18);
+            background: rgba(255,255,255,0.9);
+            color: var(--blue);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .dispatch-template-status-action:hover { border-color: rgba(59,130,246,0.36); background: #fff; }
         .crew-filter-panel {
             border: 1px solid var(--gray-200); border-radius: 14px; background: linear-gradient(180deg, #fbfcfb, #f6f8f6);
             padding: 12px 14px;
@@ -1319,17 +1332,24 @@ function renderCanonicalTemplateStatuses(statuses) {
 
     panel.style.display = 'block';
     list.innerHTML = dispatchCanonicalTemplateStatuses.map((status) => {
-        const kind = status.status === 'applied'
+        const kind = (status.status === 'applied' || status.status === 'reapplied')
             ? 'success'
             : (status.status === 'partial_match' ? 'warning' : 'neutral');
         const badge = status.status === 'applied'
             ? 'Auto-applied'
-            : (status.status === 'manual_overrides' ? 'Manual overrides' : (status.status === 'already_applied' ? 'Already applied' : 'Needs review'));
+            : (status.status === 'manual_overrides'
+                ? 'Manual overrides'
+                : (status.status === 'already_applied'
+                    ? 'Already applied'
+                    : (status.status === 'reapplied' ? 'Re-applied' : 'Needs review')));
         const detailParts = [];
         if (Number.isFinite(Number(status.matched_count))) detailParts.push(`${Number(status.matched_count)} matched`);
         if (Number.isFinite(Number(status.appended_count)) && Number(status.appended_count) > 0) detailParts.push(`${Number(status.appended_count)} appended`);
         if (Number.isFinite(Number(status.unmatched_count)) && Number(status.unmatched_count) > 0) detailParts.push(`${Number(status.unmatched_count)} unmatched`);
         if (Number.isFinite(Number(status.ambiguous_count)) && Number(status.ambiguous_count) > 0) detailParts.push(`${Number(status.ambiguous_count)} ambiguous`);
+        const actionMarkup = status.status === 'manual_overrides' && status.can_reapply && status.template_id
+            ? `<div class="dispatch-template-status-actions"><button type="button" class="dispatch-template-status-action" onclick='reapplyCanonicalTemplate(${Number(status.template_id)}, ${JSON.stringify(status.crew_name || '')})'>Reapply canonical order</button></div>`
+            : '';
         return `
             <div class="dispatch-template-status-item ${kind}">
                 <div class="dispatch-template-status-title">
@@ -1338,6 +1358,7 @@ function renderCanonicalTemplateStatuses(statuses) {
                 </div>
                 <div>${esc(status.message || '')}</div>
                 ${detailParts.length ? `<div class="dispatch-template-status-detail">${esc(detailParts.join(' · '))}</div>` : ''}
+                ${actionMarkup}
             </div>
         `;
     }).join('');
@@ -1450,6 +1471,28 @@ async function applyRouteTemplate(templateId) {
         if ((data.unmatched_template_stops || []).length > 0) notes.push(`${data.unmatched_template_stops.length} missing`);
         showToast(`Applied ${data.template.name} — ${summary}${notes.length ? ` (${notes.join(', ')})` : ''}`);
         closeModal('routeTemplateLibraryModal');
+        loadBoard();
+    } catch (err) {
+        showToast('Failed: ' + err.message, 'error');
+    }
+}
+
+async function reapplyCanonicalTemplate(templateId, crewName) {
+    try {
+        const label = crewName || 'this crew';
+        showToast(`Reapplying canonical Monday order for ${label}...`);
+        const res = await fetch(`/api/dispatch/route-templates/${templateId}/reapply-canonical`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: formatDate(currentDate) })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Failed to reapply canonical order');
+        const notes = [];
+        if (Number.isFinite(Number(data.matched_count))) notes.push(`${Number(data.matched_count)} matched`);
+        if (Number.isFinite(Number(data.appended_count)) && Number(data.appended_count) > 0) notes.push(`${Number(data.appended_count)} appended`);
+        if (Number.isFinite(Number(data.cleared_count)) && Number(data.cleared_count) > 0) notes.push(`${Number(data.cleared_count)} cleared`);
+        showToast(`Reapplied canonical Monday order for ${label}${notes.length ? ` — ${notes.join(', ')}` : ''}`);
         loadBoard();
     } catch (err) {
         showToast('Failed: ' + err.message, 'error');

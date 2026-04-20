@@ -401,6 +401,50 @@
         .feed-empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: 0.35; display: block; margin-left: auto; margin-right: auto; }
         .feed-empty p { font-size: 13px; }
 
+        .boundary-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 32px;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            flex-wrap: wrap;
+        }
+
+        .boundary-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .boundary-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .boundary-text {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--gray-500);
+        }
+
+        .boundary-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .handoff-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--gray-400);
+        }
+
         @media (max-width: 768px) {
             .comms-layout { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
@@ -412,6 +456,7 @@
             .email-modal-actions { flex-direction: column; align-items: stretch; }
             .email-modal-buttons { width: 100%; }
             .email-secondary-btn, .email-primary-btn { justify-content: center; width: 100%; }
+            .boundary-strip { padding: 12px 20px; }
         }
     </style>
 </head>
@@ -425,7 +470,7 @@
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <h1>Communications</h1>
+            <h1>Communications Inbox</h1>
         </div>
         <div class="topbar-actions">
             <button class="btn btn-secondary" onclick="loadFeed()">
@@ -435,13 +480,17 @@
         </div>
     </div>
 
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Communications</a>
-        <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Templates</a>
-        <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
-        <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
-        <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Broadcasts</a>
-        <a href="social-media.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Social Media</a>
+    <div class="boundary-strip">
+        <div class="boundary-copy">
+            <div class="boundary-title">Texts, calls, and voicemails only</div>
+            <div class="boundary-text">Use this inbox for operational conversation follow-up. Email campaigns, templates, automations, and social content live in the dedicated marketing surfaces.</div>
+        </div>
+        <div class="boundary-actions">
+            <span class="handoff-label">Email & Marketing</span>
+            <a href="broadcasts.html" class="btn btn-secondary">Broadcasts</a>
+            <a href="templates.html" class="btn btn-secondary">Templates</a>
+            <a href="campaigns.html" class="btn btn-secondary">Campaigns</a>
+        </div>
     </div>
 
     <!-- Stats Bar -->

@@ -102,6 +102,29 @@ function getBroadcastFilterSummary(filters) {
   return summary;
 }
 
+function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDateClause }) {
+  return `(
+    EXISTS (
+      SELECT 1
+      FROM copilot_live_jobs clj
+      LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
+      LEFT JOIN customers live_customer
+        ON live_customer.customer_number IS NOT NULL
+       AND clj.source_customer_id IS NOT NULL
+       AND live_customer.customer_number = clj.source_customer_id
+      WHERE clj.source_deleted_at IS NULL
+        AND COALESCE(yjo.customer_link_id, live_customer.id) = c.id
+        AND ${liveDateClause}
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM scheduled_jobs sj
+      WHERE sj.customer_id = c.id
+        AND ${scheduledDateClause}
+    )
+  )`;
+}
+
 function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL }) {
   const router = express.Router();
 
@@ -551,16 +574,28 @@ router.post('/api/broadcasts/preview', async (req, res) => {
       conditions.push(`c.monthly_plan_amount > 0`);
     }
 
-    // Active since N months (had jobs in last N months)
+    // Active since N months: prefer live Copilot-linked jobs, then fall back to local scheduled rows.
     if (filters.active_since_months) {
       params.push(filters.active_since_months);
-      conditions.push(`c.id IN (SELECT DISTINCT customer_id FROM scheduled_jobs WHERE created_at >= NOW() - ($${paramIdx++} || ' months')::INTERVAL)`);
+      const liveMonthsPlaceholder = `$${paramIdx++}`;
+      params.push(filters.active_since_months);
+      const scheduledMonthsPlaceholder = `$${paramIdx++}`;
+      conditions.push(buildBroadcastCustomerActivityCondition({
+        liveDateClause: `clj.service_date >= CURRENT_DATE - (${liveMonthsPlaceholder}::text || ' months')::INTERVAL`,
+        scheduledDateClause: `COALESCE(sj.job_date::date, sj.created_at::date) >= CURRENT_DATE - (${scheduledMonthsPlaceholder}::text || ' months')::INTERVAL`
+      }));
     }
 
-    // Scheduled on specific date (for daily reminders)
+    // Scheduled on specific date: prefer live Copilot-linked jobs, then fall back to local scheduled rows.
     if (filters.job_date) {
       params.push(filters.job_date);
-      conditions.push(`c.id IN (SELECT DISTINCT customer_id FROM scheduled_jobs WHERE job_date::date = $${paramIdx++}::date AND customer_id IS NOT NULL)`);
+      const liveJobDatePlaceholder = `$${paramIdx++}`;
+      params.push(filters.job_date);
+      const scheduledJobDatePlaceholder = `$${paramIdx++}`;
+      conditions.push(buildBroadcastCustomerActivityCondition({
+        liveDateClause: `clj.service_date = ${liveJobDatePlaceholder}::date`,
+        scheduledDateClause: `sj.job_date::date = ${scheduledJobDatePlaceholder}::date`
+      }));
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';

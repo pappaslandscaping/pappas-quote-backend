@@ -49,7 +49,17 @@
             background: var(--white); overflow: hidden;
         }
         .feed-toolbar {
-            padding: 10px 14px; border-bottom: 1px solid var(--gray-100);
+            padding: 12px 14px 10px; border-bottom: 1px solid var(--gray-100);
+        }
+        .feed-toolbar-copy {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin-bottom: 10px;
+        }
+        .feed-toolbar-title {
+            font-size: 14px; font-weight: 700; color: var(--gray-700);
+        }
+        .feed-toolbar-note {
+            font-size: 12px; color: var(--gray-400);
         }
         .feed-search {
             display: flex; align-items: center; gap: 8px;
@@ -78,11 +88,12 @@
 
         .feed-item {
             display: flex; align-items: flex-start; gap: 11px;
-            padding: 13px 16px; border-bottom: 1px solid var(--gray-100);
-            cursor: pointer; transition: background 0.15s ease; position: relative;
+            padding: 15px 18px; border-bottom: 1px solid var(--gray-100);
+            cursor: pointer; transition: background 0.15s ease, box-shadow 0.15s ease; position: relative;
+            border-left: 2px solid transparent;
         }
         .feed-item:hover { background: var(--gray-50); }
-        .feed-item.selected { background: rgba(22,163,74,0.06); border-left: 2px solid var(--primary); }
+        .feed-item.selected { background: rgba(22,163,74,0.06); border-left-color: var(--primary); box-shadow: inset 0 0 0 1px rgba(22,163,74,0.08); }
         .feed-item.unread { background: #fafcfa; }
         .unread-dot {
             position: absolute; left: 5px; top: 50%; transform: translateY(-50%);
@@ -96,11 +107,22 @@
         .av-sms { background: var(--green-bg); color: var(--green); }
         .av-call { background: var(--blue-bg); color: var(--blue); }
         .av-vm { background: var(--amber-bg); color: var(--amber); }
-        .feed-body { flex: 1; min-width: 0; }
-        .feed-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
-        .feed-name { font-size: 13px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
-        .feed-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; }
-        .feed-preview { font-size: 12px; color: var(--gray-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+        .feed-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .feed-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px; }
+        .feed-name-wrap { min-width: 0; }
+        .feed-name { font-size: 14px; font-weight: 700; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .feed-subline { font-size: 11px; color: var(--gray-400); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .feed-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; font-weight: 600; }
+        .feed-preview {
+            font-size: 12px; color: var(--gray-500); line-height: 1.45;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; min-height: 34px;
+        }
+        .feed-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .feed-state {
+            font-size: 11px; font-weight: 600; color: var(--gray-400);
+        }
+        .feed-state.unread { color: var(--primary); }
         .type-pill {
             display: inline-flex; align-items: center; gap: 3px;
             padding: 2px 7px; border-radius: 4px;
@@ -120,9 +142,25 @@
         .detail-empty {
             flex: 1; display: flex; flex-direction: column;
             align-items: center; justify-content: center; gap: 12px; color: var(--gray-300);
+            padding: 24px;
+        }
+        .detail-empty-card {
+            width: min(420px, 100%);
+            border: 1px solid var(--gray-200);
+            border-radius: 18px;
+            background: rgba(255,255,255,0.92);
+            padding: 28px 24px;
+            text-align: center;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
         }
         .detail-empty svg { width: 52px; height: 52px; }
         .detail-empty p { font-size: 14px; color: var(--gray-400); }
+        .detail-empty h3 {
+            font-size: 17px; font-weight: 700; color: var(--gray-700); margin-bottom: 8px;
+        }
+        .detail-empty-copy {
+            font-size: 13px; color: var(--gray-500); line-height: 1.55;
+        }
 
         /* Thread */
         .thread-back-btn {
@@ -134,13 +172,25 @@
         }
         .thread-back-btn svg { width: 16px; height: 16px; }
         .thread-header {
-            padding: 14px 24px; background: var(--white);
+            padding: 18px 24px 16px; background: var(--white);
             border-bottom: 1px solid var(--gray-200);
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: flex-start; justify-content: space-between;
             flex-shrink: 0;
         }
         .thread-who { display: flex; align-items: center; gap: 12px; }
-        .thread-actions { display: flex; align-items: center; gap: 8px; }
+        .thread-meta-wrap { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+        .thread-context-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .thread-context-chip {
+            display: inline-flex; align-items: center; gap: 5px;
+            border-radius: 999px; padding: 5px 10px;
+            background: var(--gray-50); border: 1px solid var(--gray-200);
+            color: var(--gray-500); font-size: 11px; font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+        .thread-context-chip svg { width: 12px; height: 12px; }
+        .thread-context-chip.primary {
+            background: rgba(22,163,74,0.08); border-color: rgba(22,163,74,0.15); color: var(--primary);
+        }
         .thread-action-btn {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 8px 10px; border-radius: 8px;
@@ -160,46 +210,72 @@
         .thread-num { font-size: 12px; color: var(--gray-400); }
 
         .thread-messages {
-            flex: 1; overflow-y: auto; padding: 20px 24px;
-            display: flex; flex-direction: column; gap: 10px;
+            flex: 1; overflow-y: auto; padding: 24px;
+            display: flex; flex-direction: column; gap: 14px;
+            background:
+                linear-gradient(180deg, rgba(249,250,251,0.9), rgba(249,250,251,0.72)),
+                radial-gradient(circle at top left, rgba(22,163,74,0.05), transparent 34%);
+        }
+        .message-day {
+            display: flex; align-items: center; justify-content: center;
+            margin: 6px 0 2px;
+        }
+        .message-day span {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; padding: 5px 12px; border-radius: 999px;
+            background: rgba(255,255,255,0.84);
+            border: 1px solid var(--gray-200);
+            font-size: 11px; font-weight: 700; color: var(--gray-400);
+            letter-spacing: 0.2px;
         }
         .bubble { display: flex; flex-direction: column; max-width: 68%; }
         .bubble.inbound { align-self: flex-start; }
         .bubble.outbound { align-self: flex-end; }
         .bubble-body {
-            padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5;
+            padding: 12px 15px; border-radius: 18px; font-size: 14px; line-height: 1.6;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
         .inbound .bubble-body {
-            background: var(--white); color: var(--gray-700);
+            background: rgba(255,255,255,0.96); color: var(--gray-700);
             border: 1px solid var(--gray-200); border-bottom-left-radius: 4px;
         }
         .outbound .bubble-body {
-            background: var(--primary); color: var(--white); border-bottom-right-radius: 4px;
+            background: linear-gradient(180deg, var(--primary), var(--primary-dark)); color: var(--white); border-bottom-right-radius: 4px;
         }
-        .bubble-time { font-size: 11px; color: var(--gray-400); margin-top: 3px; padding: 0 2px; }
+        .bubble-time { font-size: 11px; color: var(--gray-400); margin-top: 5px; padding: 0 4px; font-weight: 600; }
         .inbound .bubble-time { align-self: flex-start; }
         .outbound .bubble-time { align-self: flex-end; }
         .bubble-img { max-width: 220px; border-radius: 12px; overflow: hidden; margin-top: 4px; }
         .bubble-img img { width: 100%; display: block; cursor: pointer; }
 
         .reply-box {
-            padding: 14px 24px; background: var(--white);
+            padding: 16px 24px 18px; background: var(--white);
             border-top: 1px solid var(--gray-200); flex-shrink: 0;
+        }
+        .reply-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 14px; margin-bottom: 10px;
+        }
+        .reply-title {
+            font-size: 13px; font-weight: 700; color: var(--gray-700);
+        }
+        .reply-note {
+            font-size: 12px; color: var(--gray-400);
         }
         .reply-wrap {
             display: flex; align-items: flex-end; gap: 10px;
             background: var(--gray-50); border: 1px solid var(--gray-200);
-            border-radius: 12px; padding: 9px 12px; transition: border-color 0.15s;
+            border-radius: 14px; padding: 11px 12px; transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .reply-wrap:focus-within { border-color: var(--primary); }
+        .reply-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22,163,74,0.08); }
         .reply-input {
             flex: 1; border: none; background: none; outline: none;
             font-family: inherit; font-size: 14px; color: var(--gray-700);
-            resize: none; max-height: 100px; min-height: 22px; line-height: 1.5;
+            resize: none; max-height: 120px; min-height: 26px; line-height: 1.55;
         }
         .reply-input::placeholder { color: var(--gray-400); }
         .reply-btn {
-            width: 32px; height: 32px; border-radius: 8px;
+            min-width: 42px; height: 42px; border-radius: 10px;
             background: var(--primary); color: var(--white);
             border: none; cursor: pointer; display: flex;
             align-items: center; justify-content: center; flex-shrink: 0;
@@ -208,6 +284,16 @@
         .reply-btn:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.15); }
         .reply-btn:disabled { opacity: 0.4; cursor: default; }
         .reply-btn svg { width: 15px; height: 15px; }
+        .reply-foot {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 14px; margin-top: 10px;
+        }
+        .reply-hint {
+            font-size: 12px; color: var(--gray-400);
+        }
+        .reply-count {
+            font-size: 12px; font-weight: 700; color: var(--gray-400);
+        }
 
         .email-modal {
             position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
@@ -397,7 +483,7 @@
         .vm-action-btn.handled { color: var(--green); }
         .vm-action-btn.handled:hover { background: var(--green-bg); border-color: var(--green); }
 
-        .feed-empty { text-align: center; padding: 48px 20px; color: var(--gray-400); }
+        .feed-empty { text-align: center; padding: 56px 20px; color: var(--gray-400); }
         .feed-empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: 0.35; display: block; margin-left: auto; margin-right: auto; }
         .feed-empty p { font-size: 13px; }
 
@@ -408,6 +494,9 @@
             .detail-panel { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 200; background: var(--white); }
             .detail-panel.mobile-open { display: flex; }
             .thread-back-btn { display: flex !important; }
+            .thread-header { padding: 16px 18px 14px; }
+            .thread-messages { padding: 18px; }
+            .reply-box { padding: 14px 18px 16px; }
             .email-modal-body { grid-template-columns: 1fr; }
             .email-modal-actions { flex-direction: column; align-items: stretch; }
             .email-modal-buttons { width: 100%; }
@@ -469,9 +558,13 @@
         <!-- Feed -->
         <div class="feed-panel">
             <div class="feed-toolbar">
+                <div class="feed-toolbar-copy">
+                    <div class="feed-toolbar-title">Inbox</div>
+                    <div class="feed-toolbar-note">Texts, calls, and voicemails</div>
+                </div>
                 <div class="feed-search">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input type="text" placeholder="Search..." id="search-input" oninput="renderFeed()">
+                    <input type="text" placeholder="Search name, number, or message..." id="search-input" oninput="renderFeed()">
                 </div>
             </div>
             <div class="filter-tabs">
@@ -490,8 +583,11 @@
         <!-- Detail -->
         <div class="detail-panel" id="detail-panel">
             <div class="detail-empty" id="detail-empty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                <p>Select a conversation to view</p>
+                <div class="detail-empty-card">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                    <h3>Select a conversation</h3>
+                    <p class="detail-empty-copy">Choose a text thread, call, or voicemail from the left to review the conversation and respond by text.</p>
+                </div>
             </div>
             <div id="detail-content" style="display:none;flex:1;flex-direction:column;overflow:hidden;"></div>
         </div>
@@ -715,16 +811,23 @@ function renderFeed() {
         else if (item.type === 'mms') { pill = '<span class="type-pill pill-mms">Photo</span>'; }
         else { pill = '<span class="type-pill pill-sms">Text</span>'; }
 
+        const preview = item.body || (item.type === 'voicemail' ? 'Voicemail transcription available.' : item.type === 'call' ? 'Call details available.' : 'No preview available.');
         return `<div class="feed-item ${isSelected?'selected':''} ${isUnread?'unread':''}" onclick="selectItem('${item.id}')">
             ${isUnread ? '<div class="unread-dot"></div>' : ''}
             <div class="feed-avatar ${avClass}">${letter}</div>
             <div class="feed-body">
                 <div class="feed-top">
-                    <div class="feed-name">${esc(name)}</div>
+                    <div class="feed-name-wrap">
+                        <div class="feed-name">${esc(name)}</div>
+                        <div class="feed-subline">${esc(fmtPhone(item.from))}</div>
+                    </div>
                     <div class="feed-time">${fmtTime(item.time)}</div>
                 </div>
-                <div class="feed-preview">${esc((item.body||'').substring(0,55))}</div>
-                <div>${pill}</div>
+                <div class="feed-preview">${esc(preview)}</div>
+                <div class="feed-meta-row">
+                    <div>${pill}</div>
+                    <div class="feed-state ${isUnread ? 'unread' : ''}">${isUnread ? 'Needs reply' : 'Viewed'}</div>
+                </div>
             </div>
         </div>`;
     }).join('');
@@ -761,6 +864,7 @@ function selectItem(id) {
 async function openThread(item) {
     currentThreadItem = item;
     const name = item.name || fmtPhone(item.from);
+    const channelLabel = item.type === 'mms' ? 'Photo text thread' : 'SMS thread';
     showDetail(`
         <div class="thread-header">
             <div class="thread-who">
@@ -769,26 +873,38 @@ async function openThread(item) {
                     Back
                 </button>
                 <div class="thread-av">${name.charAt(0).toUpperCase()}</div>
-                <div>
+                <div class="thread-meta-wrap">
                     <div class="thread-name">${esc(name)}</div>
                     <div class="thread-num">${esc(fmtPhone(item.from))}</div>
+                    <div class="thread-context-row">
+                        <div class="thread-context-chip primary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                            ${esc(channelLabel)}
+                        </div>
+                        <div class="thread-context-chip">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Last active ${esc(fmtTime(item.time))}
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="thread-actions">
-                <button class="thread-action-btn" type="button" onclick="openEmailComposer()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
-                    Email
-                </button>
             </div>
         </div>
         <div class="thread-messages" id="thread-msgs"><div class="spinner"></div></div>
         <div class="reply-box">
+            <div class="reply-head">
+                <div class="reply-title">Reply by text</div>
+                <div class="reply-note">Stay in the thread and send one SMS reply at a time.</div>
+            </div>
             <div class="reply-wrap">
                 <textarea class="reply-input" id="reply-txt" placeholder="Type a message..." rows="1"
                     onkeydown="replyKey(event,'${item.from}')" oninput="autoH(this)"></textarea>
-                <button class="reply-btn" id="reply-btn" onclick="sendReply('${item.from}')">
+                <button class="reply-btn" id="reply-btn" onclick="sendReply('${item.from}')" disabled>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
+            </div>
+            <div class="reply-foot">
+                <div class="reply-hint">Press <strong>Enter</strong> to send, <strong>Shift + Enter</strong> for a new line.</div>
+                <div class="reply-count" id="reply-count">0 characters</div>
             </div>
         </div>
     `);
@@ -815,13 +931,18 @@ async function openThread(item) {
 function renderThread() {
     const el = document.getElementById('thread-msgs');
     if (!el) return;
+    let lastDayKey = '';
     el.innerHTML = currentThread.map(m => {
         const out = m.direction === 'outbound';
         const hasMedia = m.media_urls && m.media_urls.length > 0;
-        return `<div class="bubble ${out?'outbound':'inbound'}">
+        const messageDate = new Date(m.created_at || m.timestamp || Date.now());
+        const dayKey = messageDate.toDateString();
+        const divider = dayKey !== lastDayKey ? `<div class="message-day"><span>${esc(formatThreadDay(messageDate))}</span></div>` : '';
+        lastDayKey = dayKey;
+        return `${divider}<div class="bubble ${out?'outbound':'inbound'}">
             ${m.body ? `<div class="bubble-body">${esc(m.body)}</div>` : ''}
             ${hasMedia ? m.media_urls.map(u=>`<div class="bubble-img"><img src="${u}" onclick="window.open('${u}','_blank')" loading="lazy"></div>`).join('') : ''}
-            <div class="bubble-time">${fmtTime(new Date(m.created_at))}</div>
+            <div class="bubble-time">${fmtTime(messageDate)}</div>
         </div>`;
     }).join('');
     el.scrollTop = el.scrollHeight;
@@ -845,13 +966,33 @@ async function sendReply(to) {
             loadFeed();
         } else { alert('Failed to send. Please try again.'); }
     } catch(e) { alert('Failed to send.'); }
-    finally { btn.disabled = false; txt.disabled = false; txt.focus(); }
+    finally {
+        btn.disabled = false;
+        txt.disabled = false;
+        txt.focus();
+        updateReplyComposerState();
+    }
 }
 
 function replyKey(e, to) {
     if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendReply(to); }
 }
-function autoH(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+function autoH(el) {
+    el.style.height='auto';
+    el.style.height=Math.min(el.scrollHeight,120)+'px';
+    updateReplyComposerState();
+}
+
+function updateReplyComposerState() {
+    const input = document.getElementById('reply-txt');
+    const btn = document.getElementById('reply-btn');
+    const count = document.getElementById('reply-count');
+    if (!input || !btn || !count) return;
+    const value = input.value || '';
+    const trimmed = value.trim();
+    btn.disabled = !trimmed;
+    count.textContent = `${value.length} ${value.length === 1 ? 'character' : 'characters'}`;
+}
 
 async function loadCurrentCustomerContext(item) {
     currentCustomerContext = null;
@@ -1160,6 +1301,17 @@ function fmtTime(date) {
     const yest = new Date(today); yest.setDate(yest.getDate()-1);
     if (date >= yest) return 'Yesterday';
     return date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+}
+
+function formatThreadDay(date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((today - target) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function fmtDur(s) {

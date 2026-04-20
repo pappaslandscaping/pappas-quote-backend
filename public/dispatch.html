@@ -1347,7 +1347,7 @@ function renderCanonicalTemplateStatuses(statuses) {
         if (Number.isFinite(Number(status.appended_count)) && Number(status.appended_count) > 0) detailParts.push(`${Number(status.appended_count)} appended`);
         if (Number.isFinite(Number(status.unmatched_count)) && Number(status.unmatched_count) > 0) detailParts.push(`${Number(status.unmatched_count)} unmatched`);
         if (Number.isFinite(Number(status.ambiguous_count)) && Number(status.ambiguous_count) > 0) detailParts.push(`${Number(status.ambiguous_count)} ambiguous`);
-        const actionMarkup = status.status === 'manual_overrides' && status.can_reapply && status.template_id
+        const actionMarkup = status.can_reapply && status.template_id
             ? `<div class="dispatch-template-status-actions"><button type="button" class="dispatch-template-status-action" onclick='reapplyCanonicalTemplate(${Number(status.template_id)}, ${JSON.stringify(status.crew_name || '')})'>Reapply canonical order</button></div>`
             : '';
         return `

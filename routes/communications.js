@@ -11,6 +11,39 @@ const { validate, schemas } = require('../lib/validate');
 module.exports = function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL }) {
   const router = express.Router();
 
+  async function findCustomerContext({ customerId, phoneNumber }) {
+    if (customerId) {
+      const result = await pool.query(
+        'SELECT id, name, email, phone, mobile FROM customers WHERE id = $1 LIMIT 1',
+        [customerId]
+      );
+      return result.rows[0] || null;
+    }
+
+    if (phoneNumber) {
+      const cleanedPhone = String(phoneNumber).replace(/\D/g, '').slice(-10);
+      if (!cleanedPhone) return null;
+      const result = await pool.query(`
+        SELECT id, name, email, phone, mobile
+        FROM customers
+        WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+           OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+        ORDER BY id ASC
+        LIMIT 1
+      `, [`%${cleanedPhone}`]);
+      return result.rows[0] || null;
+    }
+
+    return null;
+  }
+
+  function plainTextToHtml(text) {
+    return String(text || '')
+      .split(/\r?\n/)
+      .map((line) => escapeHtml(line))
+      .join('<br>');
+  }
+
 router.get('/api/messages/conversations', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -198,6 +231,67 @@ router.post('/api/messages/send', validate(schemas.sendMessage), async (req, res
   } catch (error) {
     console.error('Send SMS error:', error);
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/api/communications/email/send', validate(schemas.sendOperationalEmail), async (req, res) => {
+  try {
+    const {
+      to,
+      customer_id: customerId,
+      customer_name: customerName,
+      phone_number: phoneNumber,
+      subject,
+      body,
+      html_body: htmlBody,
+    } = req.body;
+
+    if (!subject || !String(subject).trim()) {
+      return res.status(400).json({ success: false, error: 'subject is required' });
+    }
+
+    if ((!body || !String(body).trim()) && (!htmlBody || !String(htmlBody).trim())) {
+      return res.status(400).json({ success: false, error: 'body or html_body is required' });
+    }
+
+    const customer = await findCustomerContext({ customerId, phoneNumber });
+    const recipient = String(to || customer?.email || '').trim();
+
+    if (!recipient) {
+      return res.status(400).json({
+        success: false,
+        error: 'No recipient email available for this contact',
+      });
+    }
+
+    const innerHtml = htmlBody && String(htmlBody).trim()
+      ? String(htmlBody)
+      : plainTextToHtml(body);
+
+    await sendEmail(
+      recipient,
+      String(subject).trim(),
+      emailTemplate(innerHtml),
+      null,
+      {
+        type: 'communication',
+        customer_id: customer?.id || customerId || null,
+        customer_name: customer?.name || customerName || null,
+      }
+    );
+
+    res.json({
+      success: true,
+      recipient_email: recipient,
+      customer: customer ? {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+      } : null,
+    });
+  } catch (error) {
+    console.error('Inbox email send error:', error);
+    serverError(res, error);
   }
 });
 

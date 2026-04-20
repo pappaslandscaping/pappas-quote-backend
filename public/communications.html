@@ -140,6 +140,16 @@
             flex-shrink: 0;
         }
         .thread-who { display: flex; align-items: center; gap: 12px; }
+        .thread-actions { display: flex; align-items: center; gap: 8px; }
+        .thread-action-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 10px; border-radius: 8px;
+            border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-600); font-size: 12px; font-weight: 600;
+            cursor: pointer; font-family: inherit; transition: all 0.15s ease;
+        }
+        .thread-action-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
+        .thread-action-btn svg { width: 14px; height: 14px; }
         .thread-av {
             width: 38px; height: 38px; border-radius: 50%;
             background: var(--green-bg); color: var(--green);
@@ -198,6 +208,120 @@
         .reply-btn:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.15); }
         .reply-btn:disabled { opacity: 0.4; cursor: default; }
         .reply-btn svg { width: 15px; height: 15px; }
+
+        .email-modal {
+            position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+            background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(6px); z-index: 240; padding: 24px;
+        }
+        .email-modal.open { display: flex; }
+        .email-modal-card {
+            width: min(860px, 100%);
+            max-height: min(86vh, 900px);
+            background: var(--white);
+            border-radius: 18px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+            border: 1px solid rgba(209,213,219,0.9);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .email-modal-head {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        }
+        .email-modal-title { font-size: 16px; font-weight: 700; color: var(--gray-700); }
+        .email-modal-subtitle { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+        .email-modal-close {
+            width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--gray-200);
+            background: var(--white); color: var(--gray-500); font-size: 18px; cursor: pointer;
+        }
+        .email-modal-body {
+            padding: 20px;
+            display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+            gap: 20px; overflow: auto;
+        }
+        .email-form {
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .email-field {
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .email-field label {
+            font-size: 11px; font-weight: 700; color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .email-input, .email-select, .email-textarea {
+            width: 100%;
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            background: var(--white);
+            padding: 10px 12px;
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-700);
+            outline: none;
+            transition: all 0.15s ease;
+        }
+        .email-input:focus, .email-select:focus, .email-textarea:focus {
+            border-color: rgba(22,163,74,0.45);
+            box-shadow: 0 0 0 3px rgba(22,163,74,0.08);
+        }
+        .email-textarea {
+            min-height: 220px;
+            resize: vertical;
+            line-height: 1.55;
+        }
+        .email-inline-note {
+            font-size: 12px; line-height: 1.5; color: var(--gray-500);
+            padding: 10px 12px; border-radius: 10px; background: var(--gray-50); border: 1px solid var(--gray-200);
+        }
+        .email-preview-panel {
+            border: 1px solid var(--gray-200);
+            border-radius: 16px;
+            background: linear-gradient(180deg, rgba(249,250,251,0.84), rgba(255,255,255,1));
+            padding: 16px;
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .email-preview-label {
+            font-size: 11px; font-weight: 700; color: var(--gray-400);
+            text-transform: uppercase; letter-spacing: 0.35px; margin-bottom: 6px;
+        }
+        .email-preview-field {
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            background: var(--white);
+            padding: 12px 14px;
+        }
+        .email-preview-body {
+            font-size: 14px; line-height: 1.6; color: var(--gray-700); white-space: pre-wrap;
+        }
+        .email-modal-actions {
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
+            display: flex; justify-content: space-between; align-items: center; gap: 16px;
+            background: rgba(249,250,251,0.75);
+        }
+        .email-modal-note {
+            font-size: 12px; color: var(--gray-500); line-height: 1.5;
+        }
+        .email-modal-buttons {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .email-secondary-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 12px; border-radius: 10px;
+            border: 1px solid var(--gray-200); background: var(--white);
+            color: var(--gray-600); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .email-primary-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 14px; border-radius: 10px; border: none;
+            background: var(--primary); color: var(--white); font-size: 13px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+        }
+        .email-primary-btn:disabled { opacity: 0.45; cursor: default; }
+        .email-primary-btn:hover:not(:disabled) { background: var(--primary-dark); }
 
         /* Call Detail */
         .call-detail { padding: 28px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
@@ -284,6 +408,10 @@
             .detail-panel { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 200; background: var(--white); }
             .detail-panel.mobile-open { display: flex; }
             .thread-back-btn { display: flex !important; }
+            .email-modal-body { grid-template-columns: 1fr; }
+            .email-modal-actions { flex-direction: column; align-items: stretch; }
+            .email-modal-buttons { width: 100%; }
+            .email-secondary-btn, .email-primary-btn { justify-content: center; width: 100%; }
         }
     </style>
 </head>
@@ -370,6 +498,73 @@
     </div>
 </div>
 
+<div class="email-modal" id="email-modal" aria-hidden="true">
+    <div class="email-modal-card">
+        <div class="email-modal-head">
+            <div>
+                <div class="email-modal-title">Send email from inbox</div>
+                <div class="email-modal-subtitle">Compose directly from the current contact context without leaving Communications.</div>
+            </div>
+            <button class="email-modal-close" type="button" onclick="closeEmailComposer()">×</button>
+        </div>
+        <div class="email-modal-body">
+            <div class="email-form">
+                <div class="email-field">
+                    <label for="email-template-select">Template</label>
+                    <select class="email-select" id="email-template-select" onchange="applyEmailTemplateFromSelect(this.value)">
+                        <option value="">Start from scratch</option>
+                    </select>
+                </div>
+                <div class="email-field">
+                    <label for="email-compose-to">To</label>
+                    <input class="email-input" id="email-compose-to" type="email" placeholder="customer@example.com" oninput="handleEmailComposeInput()">
+                </div>
+                <div class="email-field">
+                    <label for="email-compose-subject">Subject</label>
+                    <input class="email-input" id="email-compose-subject" type="text" placeholder="Write a subject line..." oninput="handleEmailComposeInput()">
+                </div>
+                <div class="email-field">
+                    <label for="email-compose-body">Body</label>
+                    <textarea class="email-textarea" id="email-compose-body" placeholder="Write the email body or apply a template..." oninput="handleEmailComposeInput()"></textarea>
+                </div>
+                <div class="email-inline-note" id="email-compose-note">
+                    This first inbox email path sends a direct operational email and logs it to the existing email log. It does not create a full threaded email conversation yet.
+                </div>
+            </div>
+            <div class="email-preview-panel">
+                <div>
+                    <div class="email-preview-label">Contact</div>
+                    <div class="email-preview-field">
+                        <div class="email-preview-body" id="email-preview-contact">No contact loaded</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="email-preview-label">Subject preview</div>
+                    <div class="email-preview-field">
+                        <div class="email-preview-body" id="email-preview-subject">No subject yet</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="email-preview-label">Body preview</div>
+                    <div class="email-preview-field">
+                        <div class="email-preview-body" id="email-preview-body">Start typing or apply a template.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="email-modal-actions">
+            <div class="email-modal-note" id="email-send-status">Templates use the current contact where possible. You can still edit everything before sending.</div>
+            <div class="email-modal-buttons">
+                <button class="email-secondary-btn" type="button" onclick="closeEmailComposer()">Cancel</button>
+                <button class="email-primary-btn" id="email-send-btn" type="button" onclick="sendInboxEmail()" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Send Email
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const API = '';
 let allItems = [];
@@ -377,6 +572,15 @@ let currentFilter = 'all';
 let selectedId = null;
 let currentThread = [];
 let currentAudio = null;
+let currentThreadItem = null;
+let currentCustomerContext = null;
+let emailTemplates = [];
+let emailComposerState = {
+    templateId: '',
+    to: '',
+    subject: '',
+    body: '',
+};
 
 // ─── Load ──────────────────────────────────────────────────────────────────
 async function loadFeed() {
@@ -555,6 +759,7 @@ function selectItem(id) {
 
 // ─── Thread ────────────────────────────────────────────────────────────────
 async function openThread(item) {
+    currentThreadItem = item;
     const name = item.name || fmtPhone(item.from);
     showDetail(`
         <div class="thread-header">
@@ -568,6 +773,12 @@ async function openThread(item) {
                     <div class="thread-name">${esc(name)}</div>
                     <div class="thread-num">${esc(fmtPhone(item.from))}</div>
                 </div>
+            </div>
+            <div class="thread-actions">
+                <button class="thread-action-btn" type="button" onclick="openEmailComposer()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+                    Email
+                </button>
             </div>
         </div>
         <div class="thread-messages" id="thread-msgs"><div class="spinner"></div></div>
@@ -598,6 +809,7 @@ async function openThread(item) {
         currentThread = [item.raw];
     }
     renderThread();
+    loadCurrentCustomerContext(item);
 }
 
 function renderThread() {
@@ -640,6 +852,125 @@ function replyKey(e, to) {
     if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendReply(to); }
 }
 function autoH(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+
+async function loadCurrentCustomerContext(item) {
+    currentCustomerContext = null;
+    emailComposerState = { templateId: '', to: '', subject: '', body: '' };
+    try {
+        const res = await fetch(`/api/customers?search=${encodeURIComponent(item.from || '')}&limit=6`);
+        const data = await res.json();
+        const customers = data.customers || [];
+        const phoneDigits = digitsOnly(item.from);
+        currentCustomerContext = customers.find(c => digitsOnly(c.phone || c.mobile || c.mobile_phone || c.cell_phone) === phoneDigits) || customers[0] || null;
+        if (currentCustomerContext && currentCustomerContext.email) {
+            emailComposerState.to = currentCustomerContext.email;
+        }
+    } catch (e) {
+        currentCustomerContext = null;
+    }
+}
+
+async function ensureEmailTemplatesLoaded() {
+    if (emailTemplates.length) return;
+    const res = await fetch('/api/templates');
+    const data = await res.json();
+    emailTemplates = (data.templates || []).filter(t => t.is_active !== false && (t.body || t.subject));
+    const select = document.getElementById('email-template-select');
+    if (!select) return;
+    select.innerHTML = '<option value="">Start from scratch</option>';
+    emailTemplates.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name || t.subject || `Template #${t.id}`;
+        select.appendChild(opt);
+    });
+}
+
+async function openEmailComposer() {
+    if (!currentThreadItem) return;
+    await ensureEmailTemplatesLoaded();
+    document.getElementById('email-modal').classList.add('open');
+    document.getElementById('email-template-select').value = emailComposerState.templateId || '';
+    document.getElementById('email-compose-to').value = emailComposerState.to || '';
+    document.getElementById('email-compose-subject').value = emailComposerState.subject || '';
+    document.getElementById('email-compose-body').value = emailComposerState.body || '';
+    renderEmailPreview();
+}
+
+function closeEmailComposer() {
+    document.getElementById('email-modal').classList.remove('open');
+}
+
+function handleEmailComposeInput() {
+    emailComposerState.to = document.getElementById('email-compose-to').value.trim();
+    emailComposerState.subject = document.getElementById('email-compose-subject').value;
+    emailComposerState.body = document.getElementById('email-compose-body').value;
+    renderEmailPreview();
+}
+
+function applyEmailTemplateFromSelect(templateId) {
+    emailComposerState.templateId = templateId;
+    if (!templateId) {
+        renderEmailPreview();
+        return;
+    }
+    const template = emailTemplates.find(t => String(t.id) === String(templateId));
+    if (!template) return;
+    emailComposerState.subject = applyInboxTemplateVars(template.subject || '');
+    emailComposerState.body = stripHtmlToText(applyInboxTemplateVars(template.body || ''));
+    if (!emailComposerState.to && currentCustomerContext && currentCustomerContext.email) {
+        emailComposerState.to = currentCustomerContext.email;
+    }
+    document.getElementById('email-compose-to').value = emailComposerState.to || '';
+    document.getElementById('email-compose-subject').value = emailComposerState.subject || '';
+    document.getElementById('email-compose-body').value = emailComposerState.body || '';
+    renderEmailPreview();
+}
+
+function renderEmailPreview() {
+    const contactName = currentCustomerContext?.name || currentThreadItem?.name || fmtPhone(currentThreadItem?.from || '');
+    const contactEmail = emailComposerState.to || currentCustomerContext?.email || 'No email available yet';
+    document.getElementById('email-preview-contact').textContent = `${contactName} • ${contactEmail}`;
+    document.getElementById('email-preview-subject').textContent = emailComposerState.subject || 'No subject yet';
+    document.getElementById('email-preview-body').textContent = emailComposerState.body || 'Start typing or apply a template.';
+    const sendBtn = document.getElementById('email-send-btn');
+    sendBtn.disabled = !(emailComposerState.to && emailComposerState.subject.trim() && emailComposerState.body.trim());
+}
+
+async function sendInboxEmail() {
+    const btn = document.getElementById('email-send-btn');
+    const status = document.getElementById('email-send-status');
+    handleEmailComposeInput();
+    if (btn.disabled) return;
+    btn.disabled = true;
+    status.textContent = 'Sending email...';
+    try {
+        const res = await fetch('/api/communications/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                to: emailComposerState.to,
+                customer_id: currentCustomerContext?.id || null,
+                customer_name: currentCustomerContext?.name || currentThreadItem?.name || null,
+                phone_number: currentThreadItem?.from || null,
+                subject: emailComposerState.subject,
+                body: emailComposerState.body
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Failed to send email');
+        }
+        status.textContent = `Sent to ${data.recipient_email}.`;
+        showToast('Email sent');
+        closeEmailComposer();
+    } catch (e) {
+        status.textContent = e.message || 'Failed to send email.';
+    } finally {
+        btn.disabled = false;
+        renderEmailPreview();
+    }
+}
 
 // ─── Call Detail ───────────────────────────────────────────────────────────
 function openCallDetail(item) {
@@ -834,6 +1165,43 @@ function fmtTime(date) {
 function fmtDur(s) {
     const sec = parseInt(s), m = Math.floor(sec/60), r = sec%60;
     return `${m}:${r.toString().padStart(2,'0')}`;
+}
+
+function digitsOnly(value) {
+    return String(value || '').replace(/\D/g, '').slice(-10);
+}
+
+function applyInboxTemplateVars(text) {
+    if (!text) return '';
+    const customerName = currentCustomerContext?.name || currentThreadItem?.name || fmtPhone(currentThreadItem?.from || '') || 'Customer';
+    const firstName = customerName.split(' ')[0] || customerName;
+    const vars = {
+        customer_name: customerName,
+        customer_first_name: firstName,
+        customer_email: currentCustomerContext?.email || emailComposerState.to || '',
+        customer_phone: fmtPhone(currentThreadItem?.from || ''),
+        customer_address: currentCustomerContext?.address || currentCustomerContext?.customer_address || '',
+        address: currentCustomerContext?.address || currentCustomerContext?.customer_address || '',
+        company_name: 'Pappas & Co. Landscaping',
+        company_phone: '(440) 886-7318',
+        company_email: 'hello@pappaslandscaping.com',
+        company_website: 'pappaslandscaping.com',
+        portal_link: 'https://app.pappaslandscaping.com/customer-portal.html'
+    };
+    let result = String(text);
+    Object.entries(vars).forEach(([key, value]) => {
+        const safeValue = value == null ? '' : String(value);
+        result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), safeValue);
+        result = result.replace(new RegExp(`#\\{${key}\\}`, 'g'), safeValue);
+    });
+    return result;
+}
+
+function stripHtmlToText(html) {
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return (div.textContent || div.innerText || '').trim();
 }
 
 // Convert Twilio recording URL to proxied URL that doesn't require login

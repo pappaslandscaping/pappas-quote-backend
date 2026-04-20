@@ -487,50 +487,6 @@
         .feed-empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: 0.35; display: block; margin-left: auto; margin-right: auto; }
         .feed-empty p { font-size: 13px; }
 
-        .boundary-strip {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 12px 32px;
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
-            flex-wrap: wrap;
-        }
-
-        .boundary-copy {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .boundary-title {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--gray-700);
-        }
-
-        .boundary-text {
-            font-size: 12px;
-            line-height: 1.5;
-            color: var(--gray-500);
-        }
-
-        .boundary-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .handoff-label {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            color: var(--gray-400);
-        }
-
         @media (max-width: 768px) {
             .comms-layout { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
@@ -545,7 +501,6 @@
             .email-modal-actions { flex-direction: column; align-items: stretch; }
             .email-modal-buttons { width: 100%; }
             .email-secondary-btn, .email-primary-btn { justify-content: center; width: 100%; }
-            .boundary-strip { padding: 12px 20px; }
         }
     </style>
 </head>
@@ -569,16 +524,17 @@
         </div>
     </div>
 
-    <div class="boundary-strip">
-        <div class="boundary-copy">
-            <div class="boundary-title">Texts, calls, and voicemails only</div>
-            <div class="boundary-text">Use this inbox for operational conversation follow-up. Email campaigns, templates, automations, and social content live in the dedicated marketing surfaces.</div>
+    <div class="page-intro-strip">
+        <div class="page-intro-copy">
+            <div class="page-intro-label">Operational Communications</div>
+            <div class="page-intro-note">Texts, calls, and voicemails stay here. Email campaigns, templates, automations, and social content live in the dedicated marketing surfaces.</div>
         </div>
-        <div class="boundary-actions">
-            <span class="handoff-label">Email & Marketing</span>
-            <a href="broadcasts.html" class="btn btn-secondary">Broadcasts</a>
-            <a href="templates.html" class="btn btn-secondary">Templates</a>
-            <a href="campaigns.html" class="btn btn-secondary">Campaigns</a>
+        <div class="page-handoff-links">
+            <a class="page-handoff-link active" href="communications.html">Communications Inbox</a>
+            <a class="page-handoff-link" href="templates.html">Templates</a>
+            <a class="page-handoff-link" href="campaigns.html">Campaigns</a>
+            <a class="page-handoff-link" href="automations.html">Automations</a>
+            <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
         </div>
     </div>
 

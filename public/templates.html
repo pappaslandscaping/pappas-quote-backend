@@ -2102,6 +2102,8 @@ async function loadTemplates() {
         if (selectedId) {
             const t = templates.find(t => t.id === selectedId);
             if (t) openTemplate(t);
+        } else if (templates.length > 0) {
+            openTemplate(templates[0]);
         }
     } catch (err) {
         showToast('Failed to load templates: ' + err.message, 'error');

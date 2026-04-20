@@ -2587,12 +2587,9 @@ function wrapEmail(bodyHtml, subject) {
 
     const isMinimal = currentWrapper === 'minimal';
     const baseOrigin = window.location.origin;
-    const socialFb = `${baseOrigin}/email-assets/fb-white.png`;
-    const socialIg = `${baseOrigin}/email-assets/ig-white.png`;
-    const socialNd = `${baseOrigin}/email-assets/nd-white.png`;
     const unsubscribeUrl = `${baseOrigin}/unsubscribe.html?email=preview%40example.com`;
     const signatureImage = 'https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/White%20Modern%20Minimalist%20Signature%20Brand%20Logo%20%281200%20x%20300%20px%29%20%281%29.png';
-    const signatureBlock = `<div style="margin-top:38px;padding-top:22px;border-top:1px solid #e7e1d5;"><p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#7b8d73;font-weight:700;">With appreciation</p><img src="${signatureImage}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;"></div>`;
+    const signatureBlock = `<div style="margin-top:34px;padding-top:20px;border-top:1px solid #dde6de;"><p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;">With appreciation</p><img src="${signatureImage}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;"></div>`;
     const logo = `${baseOrigin}/logo.png`;
 
     if (isMinimal) {
@@ -2602,20 +2599,20 @@ function wrapEmail(bodyHtml, subject) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>body{margin:0;padding:0;background:#f5f8f4;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;}</style>
+    <style>body{margin:0;padding:0;background:#f7f9f7;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;}</style>
 </head>
 <body>
-    <div style="max-width:620px;margin:0 auto;padding:28px 14px;">
-        <div style="background:#ffffff;border:1px solid #dde4db;border-radius:24px;overflow:hidden;box-shadow:0 14px 36px rgba(35,51,48,0.08);">
-            <div style="padding:22px 34px 0;">
-                <div style="border-bottom:1px solid #e6ebe3;padding:0 0 16px;">
-                    <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#7b8d73;font-weight:700;">Pappas &amp; Co. Landscaping</p>
+    <div style="max-width:620px;margin:0 auto;padding:22px 12px;">
+        <div style="background:#ffffff;border:1px solid #dde6de;border-radius:18px;overflow:hidden;">
+            <div style="padding:20px 30px 0;">
+                <div style="border-bottom:1px solid #e6ece8;padding:0 0 16px;">
+                    <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;">Pappas &amp; Co. Landscaping</p>
                     <p style="margin:0;font-size:13px;line-height:1.6;color:#68796f;">Clear communication, thoughtful care, and direct customer support.</p>
                 </div>
             </div>
-            <div style="padding:34px 34px 28px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
-            <div style="padding:0 34px 28px;">
-                <div style="border-top:1px solid #e6ebe3;padding:18px 0 0;">
+            <div style="padding:28px 30px 24px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
+            <div style="padding:0 30px 24px;">
+                <div style="border-top:1px solid #e6ece8;padding:18px 0 0;">
                     <p style="margin:0 0 6px;font-size:12px;color:#57694e;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
                     <p style="margin:0;font-size:11px;color:#8aa083;">Pappas &amp; Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
                 </div>
@@ -2632,39 +2629,45 @@ function wrapEmail(bodyHtml, subject) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>body{margin:0;padding:0;background:#edf1ea;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;}</style>
+    <style>body{margin:0;padding:0;background:#f4f7f4;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;}</style>
 </head>
 <body>
-    <div style="max-width:640px;margin:0 auto;padding:34px 0;">
-        <div style="padding:0 16px;">
-            <div style="background:#223330;border-radius:32px 32px 0 0;text-align:center;padding:18px 36px 12px;">
-                <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#c9dd80;font-weight:700;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p>
-                <img src="${logo}" alt="Pappas & Co. Landscaping" style="display:block;max-height:86px;max-width:360px;width:auto;margin:0 auto 12px;">
-                <p style="margin:0;font-size:14px;line-height:1.65;color:#d8e2d0;">Seasonal service, thoughtful communication, and a cleaner customer experience from quote to follow-up.</p>
+    <div style="max-width:640px;margin:0 auto;padding:20px 0 24px;">
+        <div style="padding:0 22px;">
+            <div style="background:#ffffff;border:1px solid #dde6de;border-bottom:none;border-radius:22px 22px 0 0;padding:18px 28px 16px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td style="vertical-align:middle;"><img src="${logo}" alt="Pappas & Co. Landscaping" style="display:block;max-height:44px;max-width:190px;width:auto;"></td>
+                        <td align="right" style="vertical-align:middle;"><p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p></td>
+                    </tr>
+                </table>
             </div>
         </div>
-        <div style="padding:0 16px 18px;">
-            <div style="background:#efe7d8;border-radius:0 0 32px 32px;">
-                <div style="padding:14px 28px;border-bottom:1px solid #ddd3c1;text-align:center;">
-                    <p style="margin:0;font-size:12px;line-height:1.6;color:#5f6f68;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
-                </div>
-                <div style="padding:18px 28px 0;">
-                    <div style="background:#ffffff;border:1px solid #e5ddd0;border-radius:24px;overflow:hidden;">
-                        <div style="padding:38px 40px 30px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
+        <div style="padding:0 22px 18px;">
+            <div style="background:#ffffff;border:1px solid #dde6de;border-radius:0 0 22px 22px;overflow:hidden;">
+                <div style="padding:0 34px;">
+                    <div style="border-bottom:1px solid #e6ece8;padding:14px 0 13px;">
+                        <p style="margin:0;font-size:12px;line-height:1.6;color:#5f6f68;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
                     </div>
                 </div>
-                <div style="padding:26px 28px 28px;text-align:center;">
-                    <table cellpadding="0" cellspacing="0" style="margin:0 auto 18px;">
-                        <tr>
-                            <td style="padding:0 10px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:30px;height:30px;"></a></td>
-                            <td style="padding:0 10px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:30px;height:30px;"></a></td>
-                            <td style="padding:0 10px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:30px;height:30px;"></a></td>
-                        </tr>
-                    </table>
-                    <p style="margin:0 0 4px;font-size:13px;color:#223330;font-weight:700;">Pappas &amp; Co. Landscaping</p>
-                    <p style="margin:0 0 4px;font-size:11px;color:#6f8076;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-                    <p style="margin:0 0 12px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#223330;text-decoration:none;font-weight:600;">pappaslandscaping.com</a></p>
-                    <p style="margin:0;font-size:10px;color:#8aa083;"><a href="${unsubscribeUrl}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+                <div style="padding:30px 34px 24px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
+                <div style="padding:0 34px 28px;">
+                    <div style="border-top:1px solid #e6ece8;padding:16px 0 0;">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="text-align:left;vertical-align:top;">
+                                    <p style="margin:0 0 6px;font-size:12px;color:#223330;font-weight:700;">Pappas &amp; Co. Landscaping</p>
+                                    <p style="margin:0 0 6px;font-size:11px;color:#6f8076;">PO Box 770057 &bull; Lakewood, Ohio 44107 &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
+                                    <p style="margin:0;font-size:10px;color:#8aa083;"><a href="${unsubscribeUrl}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+                                </td>
+                                <td align="right" style="vertical-align:top;">
+                                    <p style="margin:0 0 6px;font-size:11px;color:#6f8076;"><a href="https://www.facebook.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Facebook</a></p>
+                                    <p style="margin:0 0 6px;font-size:11px;color:#6f8076;"><a href="https://www.instagram.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Instagram</a></p>
+                                    <p style="margin:0;font-size:11px;color:#6f8076;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="color:#57694e;text-decoration:none;">Nextdoor</a></p>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

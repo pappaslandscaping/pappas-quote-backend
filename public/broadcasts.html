@@ -7,12 +7,100 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
     <style>
+        body.broadcasts-marketing-page .page-intro-strip {
+            margin: 18px 24px 0;
+            padding: 24px 26px;
+            border: none;
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at top right, rgba(201, 221, 128, 0.22), transparent 28%),
+                linear-gradient(135deg, #243330 0%, #314540 48%, #f3f6ef 48%, #f3f6ef 100%);
+            box-shadow: 0 28px 48px rgba(36, 51, 48, 0.16);
+            align-items: stretch;
+        }
+
+        body.broadcasts-marketing-page .page-intro-copy {
+            max-width: 640px;
+            gap: 8px;
+        }
+
+        body.broadcasts-marketing-page .page-intro-label {
+            color: rgba(201, 221, 128, 0.88);
+            letter-spacing: 0.16em;
+        }
+
+        body.broadcasts-marketing-page .page-intro-note {
+            color: #f5f8f2;
+            font-size: 15px;
+            line-height: 1.6;
+            max-width: 520px;
+        }
+
+        body.broadcasts-marketing-page .page-handoff-links {
+            justify-content: flex-start;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        body.broadcasts-marketing-page .page-handoff-link {
+            background: rgba(255,255,255,0.78);
+            border-color: rgba(36,51,48,0.08);
+            color: #314540;
+        }
+
+        body.broadcasts-marketing-page .page-handoff-link.active {
+            background: #243330;
+            border-color: #243330;
+            color: #f4f7ef;
+        }
+
+        .marketing-hero-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            width: 100%;
+            align-items: start;
+        }
+
+        .marketing-hero-kpis {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .marketing-hero-kpi {
+            min-width: 132px;
+            padding: 14px 14px 12px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.74);
+            border: 1px solid rgba(36,51,48,0.08);
+        }
+
+        .marketing-hero-kpi-value {
+            font-size: 21px;
+            font-weight: 700;
+            color: #243330;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .marketing-hero-kpi-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #5b6f69;
+        }
+
         /* ─── Two-Column Layout ─────────────────────────────── */
         .broadcast-layout {
             display: flex;
             gap: 24px;
             padding: 24px;
             min-height: calc(100vh - var(--topbar-h));
+            background: linear-gradient(180deg, #eef2ec 0%, #f7f9f4 100%);
+            border-radius: 28px;
         }
 
         .builder-col {
@@ -32,15 +120,18 @@
 
         /* ─── Cards ─────────────────────────────────────────── */
         .bc-card {
-            background: var(--white);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            background:
+                radial-gradient(circle at top right, rgba(201, 221, 128, 0.16), transparent 24%),
+                linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(249,251,247,0.98) 100%);
+            border-radius: 22px;
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            box-shadow: 0 18px 40px rgba(46,64,61,0.08);
             overflow: hidden;
         }
 
         .bc-card-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--gray-100);
+            padding: 18px 22px;
+            border-bottom: 1px solid rgba(46, 64, 61, 0.08);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -72,7 +163,7 @@
         }
 
         .bc-card-body {
-            padding: 20px;
+            padding: 22px;
         }
 
         .bc-card-body.collapsed {
@@ -113,11 +204,12 @@
             flex-direction: column;
             align-items: center;
             gap: 8px;
-            padding: 16px 12px;
+            padding: 18px 14px;
             border: 2px solid var(--gray-200);
-            border-radius: 10px;
+            border-radius: 16px;
             text-align: center;
             transition: all 0.15s ease;
+            background: rgba(255,255,255,0.82);
         }
 
         .channel-option .channel-card:hover {
@@ -1117,6 +1209,20 @@
 
         /* ─── Responsive ────────────────────────────────────── */
         @media (max-width: 900px) {
+            body.broadcasts-marketing-page .page-intro-strip {
+                margin: 14px 18px 0;
+                padding: 18px;
+                border-radius: 22px;
+                background:
+                    radial-gradient(circle at top right, rgba(201, 221, 128, 0.2), transparent 24%),
+                    linear-gradient(180deg, #243330 0%, #314540 100%);
+            }
+            .marketing-hero-panel {
+                grid-template-columns: 1fr;
+            }
+            .marketing-hero-kpis {
+                justify-content: flex-start;
+            }
             .broadcast-layout {
                 flex-direction: column;
             }
@@ -1127,7 +1233,7 @@
         }
     </style>
 </head>
-<body>
+<body class="broadcasts-marketing-page">
 <script src="shell.js"></script>
 
 <div class="main">
@@ -1142,16 +1248,28 @@
     </div>
 
     <div class="page-intro-strip">
-        <div class="page-intro-copy">
-            <div class="page-intro-label">Marketing Broadcasts</div>
-            <div class="page-intro-note">Compose and review targeted email or SMS sends here, with the same handoff strip used across the marketing workflow.</div>
-        </div>
-        <div class="page-handoff-links">
-            <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
-            <a class="page-handoff-link" href="templates.html">Templates</a>
-            <a class="page-handoff-link" href="campaigns.html">Campaigns</a>
-            <a class="page-handoff-link" href="automations.html">Automations</a>
-            <a class="page-handoff-link active" href="broadcasts.html">Broadcasts</a>
+        <div class="marketing-hero-panel">
+            <div class="page-intro-copy">
+                <div class="page-intro-label">Marketing Broadcasts</div>
+                <div class="page-intro-note">Build targeted sends inside a dedicated campaign surface, with stronger template staging, bigger preview context, and clearer audience-to-message handoff.</div>
+                <div class="page-handoff-links">
+                    <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
+                    <a class="page-handoff-link" href="templates.html">Templates</a>
+                    <a class="page-handoff-link" href="campaigns.html">Campaigns</a>
+                    <a class="page-handoff-link" href="automations.html">Automations</a>
+                    <a class="page-handoff-link active" href="broadcasts.html">Broadcasts</a>
+                </div>
+            </div>
+            <div class="marketing-hero-kpis">
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Audience</div>
+                    <div class="marketing-hero-kpi-label">Filter + Target</div>
+                </div>
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Stage</div>
+                    <div class="marketing-hero-kpi-label">Template Render</div>
+                </div>
+            </div>
         </div>
     </div>
 

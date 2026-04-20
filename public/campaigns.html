@@ -12,6 +12,92 @@
             transform: translateY(-2px);
         }
 
+        body.campaigns-marketing-page .page-intro-strip {
+            margin: 18px 18px 0;
+            padding: 24px 26px;
+            border: none;
+            border-radius: 26px 26px 0 0;
+            background:
+                linear-gradient(140deg, rgba(33, 49, 47, 0.98), rgba(58, 86, 77, 0.92)),
+                linear-gradient(180deg, rgba(247, 244, 235, 0.22), rgba(247, 244, 235, 0));
+            box-shadow: 0 24px 48px rgba(19, 28, 27, 0.18);
+        }
+
+        body.campaigns-marketing-page .page-intro-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        body.campaigns-marketing-page .page-intro-label {
+            color: rgba(247, 244, 235, 0.72);
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        body.campaigns-marketing-page .page-intro-note {
+            color: #f4efe2;
+            max-width: 700px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .marketing-hero-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.85fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .marketing-hero-kpis {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .marketing-hero-kpi {
+            border-radius: 20px;
+            padding: 18px 18px 16px;
+            background: rgba(247, 244, 235, 0.12);
+            border: 1px solid rgba(247, 244, 235, 0.14);
+            backdrop-filter: blur(10px);
+        }
+
+        .marketing-hero-kpi-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f7f4eb;
+            margin-bottom: 6px;
+        }
+
+        .marketing-hero-kpi-label {
+            font-size: 12px;
+            line-height: 1.45;
+            color: rgba(247, 244, 235, 0.72);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        body.campaigns-marketing-page .page-handoff-links {
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        body.campaigns-marketing-page .page-handoff-link {
+            background: rgba(247, 244, 235, 0.12);
+            color: rgba(247, 244, 235, 0.86);
+            border-color: rgba(247, 244, 235, 0.14);
+        }
+
+        body.campaigns-marketing-page .page-handoff-link.active {
+            background: #f1d77c;
+            color: #223230;
+            border-color: transparent;
+            box-shadow: 0 12px 26px rgba(241, 215, 124, 0.26);
+        }
+
         /* ─── Stats Row ─────────────────────────────────────── */
         .stats-row {
             display: grid;
@@ -21,10 +107,13 @@
         }
 
         .stat-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
-            padding: 20px;
+            background:
+                radial-gradient(circle at top right, rgba(214, 230, 202, 0.34), transparent 55%),
+                linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245, 242, 234, 0.96));
+            box-shadow: 0 18px 38px rgba(25, 35, 34, 0.08);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 22px;
+            padding: 22px 22px 20px;
             transition: all 0.15s ease;
         }
 
@@ -72,17 +161,20 @@
         }
 
         .campaign-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
+            background:
+                radial-gradient(circle at top right, rgba(215, 232, 196, 0.32), transparent 48%),
+                linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246, 243, 235, 0.96));
+            box-shadow: 0 22px 40px rgba(24, 33, 32, 0.09);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 22px;
             overflow: hidden;
             transition: all 0.15s ease;
             cursor: pointer;
         }
 
         .campaign-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
+            box-shadow: 0 26px 46px rgba(24, 33, 32, 0.12);
+            transform: translateY(-3px);
         }
 
         .campaign-header {
@@ -133,7 +225,7 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             padding: 16px 20px;
-            background: var(--gray-50);
+            background: rgba(245, 241, 232, 0.92);
         }
 
         .campaign-stat {
@@ -158,7 +250,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-top: 1px solid var(--gray-100);
+            border-top: 1px solid rgba(46, 64, 61, 0.08);
         }
 
         .campaign-date {
@@ -221,25 +313,32 @@
             align-items: flex-start;
             justify-content: space-between;
             margin-bottom: 24px;
+            padding: 28px 30px;
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at top right, rgba(241, 215, 124, 0.18), transparent 38%),
+                linear-gradient(135deg, rgba(31, 48, 46, 0.98), rgba(61, 88, 80, 0.94));
+            box-shadow: 0 26px 48px rgba(18, 27, 26, 0.18);
         }
 
         .detail-title {
             font-size: 24px;
             font-weight: 700;
-            color: var(--gray-700);
+            color: #f7f4eb;
             margin-bottom: 4px;
         }
 
         .detail-desc {
             font-size: 14px;
-            color: var(--gray-500);
+            color: rgba(247, 244, 235, 0.72);
         }
 
         /* ─── Table Card ────────────────────────────────────── */
         .table-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
+            background: rgba(255,255,255,0.96);
+            box-shadow: 0 24px 42px rgba(24, 33, 32, 0.08);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 24px;
             overflow: hidden;
             transition: all 0.15s ease;
         }
@@ -1074,16 +1173,30 @@
         /* ─── Responsive ────────────────────────────────────── */
         @media (max-width: 1024px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .marketing-hero-panel { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 768px) {
             .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
             .campaigns-grid { grid-template-columns: 1fr; }
             .search-input { width: 100%; }
+            body.campaigns-marketing-page .page-intro-strip {
+                margin: 14px 14px 0;
+                padding: 18px;
+                border-radius: 22px 22px 0 0;
+            }
+            .marketing-hero-panel { gap: 18px; }
+            .marketing-hero-kpis { grid-template-columns: 1fr; }
+            .detail-header {
+                padding: 22px 22px 20px;
+                border-radius: 22px;
+                gap: 16px;
+                flex-direction: column;
+            }
         }
     </style>
 </head>
-<body>
+<body class="campaigns-marketing-page">
 <script src="shell.js"></script>
 
 <div class="main">
@@ -1103,16 +1216,28 @@
     </div>
 
     <div class="page-intro-strip">
-        <div class="page-intro-copy">
-            <div class="page-intro-label">Marketing Campaigns</div>
-            <div class="page-intro-note">Track campaign performance and move into templates, automations, or broadcasts without switching to a different top-of-page pattern.</div>
-        </div>
-        <div class="page-handoff-links">
-            <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
-            <a class="page-handoff-link" href="templates.html">Templates</a>
-            <a class="page-handoff-link active" href="campaigns.html">Campaigns</a>
-            <a class="page-handoff-link" href="automations.html">Automations</a>
-            <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+        <div class="marketing-hero-panel">
+            <div class="page-intro-copy">
+                <div class="page-intro-label">Marketing Campaigns</div>
+                <div class="page-intro-note">Track live campaign performance in a premium send surface that feels tied to the branded email experience, not a recycled admin dashboard.</div>
+                <div class="page-handoff-links">
+                    <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
+                    <a class="page-handoff-link" href="templates.html">Templates</a>
+                    <a class="page-handoff-link active" href="campaigns.html">Campaigns</a>
+                    <a class="page-handoff-link" href="automations.html">Automations</a>
+                    <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+                </div>
+            </div>
+            <div class="marketing-hero-kpis">
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Campaigns</div>
+                    <div class="marketing-hero-kpi-label">Live plus track performance in the same elevated marketing workspace.</div>
+                </div>
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Sends</div>
+                    <div class="marketing-hero-kpi-label">Template-linked email presentation stays visible in-product instead of dropping to plain utility cards.</div>
+                </div>
+            </div>
         </div>
     </div>
 

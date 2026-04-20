@@ -335,24 +335,142 @@
         /* ─── Template Section ──────────────────────────────── */
         .template-preview-box {
             margin-top: 12px;
-            padding: 14px 16px;
+            padding: 16px;
             border: 1px solid var(--gray-200);
-            border-radius: 8px;
+            border-radius: 14px;
             background: var(--gray-50);
             font-size: 13px;
             color: var(--gray-600);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 170px;
+        }
+
+        .template-preview-box .tpl-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .template-preview-box .tpl-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(201, 221, 128, 0.2);
+            color: var(--primary);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-label {
+            font-size: 11px;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+
+        .template-preview-box .tpl-subject-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 12px 14px;
         }
 
         .template-preview-box .tpl-subject {
             font-weight: 700;
             color: var(--gray-700);
-            margin-bottom: 4px;
+            line-height: 1.4;
         }
 
-        .template-preview-box .tpl-snippet {
-            font-size: 12px;
-            color: var(--gray-500);
-            line-height: 1.6;
+        .template-preview-box .tpl-stage {
+            background: linear-gradient(180deg, #eef3ea 0%, #f8faf7 100%);
+            border: 1px solid #d9e4d5;
+            border-radius: 16px;
+            padding: 14px;
+        }
+
+        .template-preview-box .tpl-email {
+            background: var(--white);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 12px 30px rgba(46, 64, 61, 0.08);
+        }
+
+        .template-preview-box .tpl-email.full .tpl-email-header {
+            background: #2e403d;
+            color: #f4f7ee;
+            padding: 18px 20px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-email.minimal .tpl-email-header {
+            padding: 16px 20px 0;
+            color: #7a9477;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-email.none {
+            box-shadow: none;
+            border: 1px dashed var(--gray-300);
+        }
+
+        .template-preview-box .tpl-email-body {
+            padding: 22px 20px;
+            color: var(--gray-600);
+            line-height: 1.7;
+        }
+
+        .template-preview-box .tpl-email-body h1,
+        .template-preview-box .tpl-email-body h2,
+        .template-preview-box .tpl-email-body h3 {
+            color: var(--primary);
+            margin: 0 0 12px;
+            line-height: 1.2;
+        }
+
+        .template-preview-box .tpl-email-body p {
+            margin: 0 0 14px;
+        }
+
+        .template-preview-box .tpl-email-body p:last-child {
+            margin-bottom: 0;
+        }
+
+        .template-preview-box .tpl-email-body table {
+            max-width: 100%;
+        }
+
+        .template-preview-box .tpl-email-body a {
+            color: inherit;
+        }
+
+        .template-preview-box .tpl-email-footer {
+            padding: 14px 20px 18px;
+            text-align: center;
+            font-size: 11px;
+            color: #7a9477;
+            border-top: 1px solid #edf2ea;
+        }
+
+        .template-preview-box .tpl-email.full .tpl-email-footer {
+            background: #2e403d;
+            border-top: none;
+            color: #a3b8a0;
         }
 
         .template-preview-box.empty {
@@ -1328,6 +1446,24 @@ let selectedCustomerIds = new Set();
 let currentChannel = 'email';
 let debounceTimer = null;
 let selectedTemplate = null;
+const TEMPLATE_PREVIEW_VARS = {
+    customer_first_name: 'Jane',
+    customer_name: 'Jane Smith',
+    quote_number: 'Q-5678',
+    quote_total: '$1,250.00',
+    quote_link: '#',
+    invoice_number: 'INV-1234',
+    invoice_total: '$285.00',
+    invoice_due_date: 'March 15, 2026',
+    balance_due: '$285.00',
+    payment_link: '#',
+    portal_link: '#',
+    service_type: 'Weekly Mowing',
+    job_date: 'Tuesday, March 10',
+    address: '123 Main St, Lakewood OH',
+    services_list: 'Weekly Mowing, Spring Cleanup',
+    service_list: 'Weekly Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave'
+};
 let currentPreviewSummary = {};
 let currentFilterSummary = [];
 
@@ -1811,35 +1947,12 @@ function previewTemplate() {
     selectedTemplate = templates.find(t => String(t.id) === id);
     if (!selectedTemplate) return;
 
-    const subject = selectedTemplate.subject || 'No subject';
-    const body = selectedTemplate.body || selectedTemplate.html_body || '';
-    const catClass = 'cat-' + (selectedTemplate.category || 'system');
-
-    // Show subject + category badge
     preview.className = 'template-preview-box';
-    preview.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span class="category-badge ${catClass}" style="font-size:9px;padding:2px 6px;">${escHtml(selectedTemplate.category || 'system')}</span>
-            <span style="font-size:10px;color:var(--gray-400);">${selectedTemplate.channel === 'both' ? 'Email + SMS' : selectedTemplate.channel === 'sms' ? 'SMS Only' : 'Email'}</span>
-        </div>
-        <div class="tpl-subject">${escHtml(subject)}</div>
-    `;
+    preview.innerHTML = buildTemplatePreviewMarkup(selectedTemplate);
 
     // Render wrapped email preview in iframe
-    const sampleVars = {
-        customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com',
-        customer_phone: '(555) 234-5678', customer_address: '742 Evergreen Terrace, Springfield, IL 62704',
-        services_list: 'Spring Cleanup, Lawn Mowing', service_type: 'Lawn Maintenance',
-        job_date: 'Monday, March 9, 2026', address: '742 Evergreen Terrace', crew_name: 'Alpha Crew',
-        company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318',
-        portal_link: '#', quote_link: '#', payment_link: '#',
-        invoice_number: 'INV-2024-0042', invoice_total: '$1,250.00', quote_total: '$3,400.00'
-    };
-    let html = body;
-    for (const [key, val] of Object.entries(sampleVars)) {
-        html = html.replace(new RegExp('\\{' + key + '\\}', 'g'), val);
-    }
-    const wrapped = wrapBroadcastPreview(html);
+    const html = applyPreviewVars(selectedTemplate.body || selectedTemplate.html_body || '');
+    const wrapped = wrapBroadcastPreview(html, normalizeWrapper(selectedTemplate.options && selectedTemplate.options.wrapper));
     const iframe = document.getElementById('templatePreviewFrame');
     const doc = iframe.contentDocument || iframe.contentWindow.document;
     doc.open();
@@ -1855,24 +1968,87 @@ function previewTemplate() {
     }
 }
 
-function wrapBroadcastPreview(bodyHtml) {
+function buildTemplatePreviewMarkup(template) {
+    const subject = applyPreviewVars(template.subject || 'No subject');
+    const body = sanitizePreviewHtml(applyPreviewVars(template.body || template.html_body || '<p>No email body on this template.</p>'));
+    const wrapper = normalizeWrapper(template.options && template.options.wrapper);
+    const wrapperLabel = wrapper === 'minimal' ? 'Minimal Wrapper' : wrapper === 'none' ? 'No Wrapper' : 'Full Wrapper';
+    const footer = wrapper === 'full'
+        ? 'Questions? Reply to this email or call (440) 886-7318'
+        : wrapper === 'minimal'
+            ? 'Pappas & Co. Landscaping • pappaslandscaping.com'
+            : 'Template body only';
+
+    return `
+        <div class="tpl-meta">
+            <span class="tpl-chip">${escHtml(wrapperLabel)}</span>
+            <span style="font-size:12px;color:var(--gray-400);">${escHtml(template.name || 'Template')}</span>
+        </div>
+        <div class="tpl-subject-card">
+            <div class="tpl-label">Subject</div>
+            <div class="tpl-subject">${escHtml(subject)}</div>
+        </div>
+        <div class="tpl-stage">
+            <div class="tpl-email ${escHtml(wrapper)}">
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-header">Pappas & Co. Landscaping</div>`}
+                <div class="tpl-email-body">${body}</div>
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-footer">${escHtml(footer)}</div>`}
+            </div>
+        </div>
+    `;
+}
+
+function applyPreviewVars(text) {
+    let output = text || '';
+    Object.entries(TEMPLATE_PREVIEW_VARS).forEach(([key, value]) => {
+        output = output.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+        output = output.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), value);
+    });
+    return output;
+}
+
+function normalizeWrapper(value) {
+    const normalized = String(value || 'full').trim().toLowerCase();
+    return ['full', 'minimal', 'none'].includes(normalized) ? normalized : 'full';
+}
+
+function sanitizePreviewHtml(html) {
+    return (html || '')
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/\son\w+=(["']).*?\1/gi, '')
+        .replace(/\son\w+=([^\s>]+)/gi, '')
+        .replace(/javascript:/gi, '');
+}
+
+function wrapBroadcastPreview(bodyHtml, wrapper = 'full') {
+    const mode = normalizeWrapper(wrapper);
+    const baseOrigin = window.location.origin;
+    const socialFb = `${baseOrigin}/email-assets/fb-white.png`;
+    const socialIg = `${baseOrigin}/email-assets/ig-white.png`;
+    const socialNd = `${baseOrigin}/email-assets/nd-white.png`;
+    const unsubscribeUrl = `${baseOrigin}/unsubscribe.html?email=preview%40example.com`;
+    const header = mode === 'minimal'
+        ? `<div style="padding:22px 40px 0;"><p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#7a9477;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p></div>`
+        : mode === 'none'
+            ? ''
+            : `<div style="background:#2e403d;padding:36px 48px;text-align:center;"><img src="${baseOrigin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;"></div><div style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</div>`;
+    const footer = mode === 'none'
+        ? ''
+        : mode === 'minimal'
+            ? `<div style="padding:0 40px 26px;text-align:center;"><p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:700;text-decoration:none;">(440) 886-7318</a></p><p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p></div>`
+            : `<div style="background:#243330;padding:32px 40px;text-align:center;"><p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p><table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;"><tr><td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:30px;height:30px;"></a></td><td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:30px;height:30px;"></a></td><td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:30px;height:30px;"></a></td></tr></table><p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',Arial,sans-serif;">Pappas & Co. Landscaping</p><p style="margin:0 0 4px;font-size:11px;color:#5f8a5c;font-family:'DM Sans',Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p><p style="margin:0 0 14px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-weight:500;font-family:'DM Sans',Arial,sans-serif;">pappaslandscaping.com</a></p><p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',Arial,sans-serif;"><a href="${unsubscribeUrl}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p></div>`;
+    const bodyPadding = mode === 'minimal' ? '34px 40px' : mode === 'none' ? '24px' : '44px 48px 36px';
+
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>body{margin:0;padding:0;background:#f2f4f3;font-family:'DM Sans',-apple-system,sans-serif;}</style>
+<style>body{margin:0;padding:${mode === 'none' ? '0' : '24px 0'};background:${mode === 'none' ? '#ffffff' : '#f2f4f3'};font-family:'DM Sans',-apple-system,sans-serif;}</style>
 </head><body>
-<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
-    <div style="background:#2e403d;padding:36px 48px;text-align:center;">
-        <img src="/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;">
-    </div>
-    <div style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</div>
-    <div style="padding:44px 48px 36px;color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,sans-serif;">
+<div style="max-width:600px;margin:0 auto;background:#fff;${mode === 'none' ? '' : 'border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);'}">
+    ${header}
+    <div style="padding:${bodyPadding};color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,sans-serif;">
         ${bodyHtml}
     </div>
-    <div style="background:#243330;padding:32px 40px;text-align:center;">
-        <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',Arial,sans-serif;">Questions? Reply or call <span style="color:#c9dd80;font-weight:600;">(440) 886-7318</span></p>
-        <p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',Arial,sans-serif;">Pappas & Co. Landscaping</p>
-        <p style="margin:0;font-size:11px;color:#5f8a5c;font-family:'DM Sans',Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-    </div>
+    ${footer}
 </div>
 </body></html>`;
 }

@@ -83,21 +83,32 @@ router.post('/api/templates/:id/duplicate', async (req, res) => {
 
 router.post('/api/templates/preview', async (req, res) => {
   try {
-    const { slug, vars = {} } = req.body;
-    const template = await getTemplate(slug);
-    if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
-    const subject = replaceTemplateVars(template.subject, vars);
-    const body = replaceTemplateVars(template.body, vars);
-    res.json({ success: true, subject, html: emailTemplate(body) });
+    const { slug, vars = {}, subject: directSubject, body: directBody, wrapper, options } = req.body;
+    let template = null;
+    let sourceSubject = directSubject;
+    let sourceBody = directBody;
+    if (slug) {
+      template = await getTemplate(slug);
+      if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
+      sourceSubject = template.subject;
+      sourceBody = template.body;
+    }
+    if (!sourceBody && !sourceSubject) {
+      return res.status(400).json({ success: false, error: 'Template content required' });
+    }
+    const resolvedWrapper = wrapper || options?.wrapper || template?.options?.wrapper || 'full';
+    const subject = replaceTemplateVars(sourceSubject || '', vars);
+    const body = replaceTemplateVars(sourceBody || '', vars);
+    res.json({ success: true, subject, html: emailTemplate(body, { wrapper: resolvedWrapper }) });
   } catch (error) { serverError(res, error); }
 });
 
 router.post('/api/templates/send-preview', async (req, res) => {
   try {
-    const { template_id, slug, subject: directSubject, html_content: directHtml, to } = req.body;
+    const { template_id, slug, subject: directSubject, html_content: directHtml, to, wrapper, options } = req.body;
     const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
 
-    let subject, body;
+    let subject, body, wrapperMode = wrapper || options?.wrapper || 'full';
 
     if (directSubject && directHtml) {
       // Direct content from the new templates editor
@@ -121,12 +132,13 @@ router.post('/api/templates/send-preview', async (req, res) => {
       if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
       subject = template.subject;
       body = template.body || template.html_content;
+      wrapperMode = template.options?.wrapper || wrapperMode;
     }
 
     const finalSubject = replaceTemplateVars(subject, sampleVars);
     const finalBody = replaceTemplateVars(body, sampleVars);
     const recipient = to || 'hello@pappaslandscaping.com';
-    await sendEmail(recipient, `[TEST] ${finalSubject}`, emailTemplate(finalBody));
+    await sendEmail(recipient, `[TEST] ${finalSubject}`, emailTemplate(finalBody, { wrapper: wrapperMode }));
     res.json({ success: true, message: 'Test email sent to ' + recipient });
   } catch (error) { serverError(res, error); }
 });

@@ -167,7 +167,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars }) {
   const router = express.Router();
 
   async function findCustomerContext({ customerId, phoneNumber }) {
@@ -830,7 +830,7 @@ router.post('/api/broadcasts/send', async (req, res) => {
             const subject = replaceTemplateVars(tmpl.subject, vars);
             let body = replaceTemplateVars(tmpl.body, vars);
             body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-            const finalHtml = replaceTemplateVars(emailTemplate(body), vars);
+            const finalHtml = replaceTemplateVars(emailTemplate(body, { wrapper: tmpl.options?.wrapper || 'full' }), vars);
             await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
             // Track in campaign_sends if campaign_id provided
             if (campaign_id) {

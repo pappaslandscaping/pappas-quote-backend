@@ -2133,7 +2133,8 @@ async function sendTestEmail() {
             body: JSON.stringify({
                 subject: subject || document.getElementById('editorName').value || 'Test Template',
                 html_content: body,
-                template_id: selectedId
+                template_id: selectedId,
+                wrapper: currentWrapper
             })
         });
         const data = await res.json();
@@ -2184,8 +2185,17 @@ function wrapEmail(bodyHtml, subject) {
     }
 
     const isMinimal = currentWrapper === 'minimal';
+    const baseOrigin = window.location.origin;
+    const socialFb = `${baseOrigin}/email-assets/fb-white.png`;
+    const socialIg = `${baseOrigin}/email-assets/ig-white.png`;
+    const socialNd = `${baseOrigin}/email-assets/nd-white.png`;
+    const unsubscribeUrl = `${baseOrigin}/unsubscribe.html?email=preview%40example.com`;
 
-    const header = isMinimal ? '' : `
+    const header = isMinimal ? `
+        <div style="padding:22px 40px 0;">
+            <p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#7a9477;font-weight:700;font-family:-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
+        </div>
+    ` : `
         <div style="background:#2e403d;padding:36px 48px;text-align:center;">
             <img src="${window.location.origin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;">
         </div>
@@ -2193,21 +2203,24 @@ function wrapEmail(bodyHtml, subject) {
     `;
 
     const footer = isMinimal ? `
-        <div style="padding:20px 32px;text-align:center;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">
-            Pappas & Co. Landscaping &bull; hello@pappaslandscaping.com
+        <div style="padding:0 40px 26px;text-align:center;">
+            <p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
+            <p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
         </div>
     ` : `
         <div style="background:#243330;padding:32px 40px;text-align:center;">
-            <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <span style="color:#c9dd80;font-weight:600;">(440) 886-7318</span></p>
-            <div style="margin:0 0 20px;">
-                <span style="display:inline-block;width:30px;height:30px;background:#3d5a4e;border-radius:50%;margin:0 5px;line-height:30px;text-align:center;font-size:14px;color:white;">f</span>
-                <span style="display:inline-block;width:30px;height:30px;background:#3d5a4e;border-radius:50%;margin:0 5px;line-height:30px;text-align:center;font-size:14px;color:white;">ig</span>
-                <span style="display:inline-block;width:30px;height:30px;background:#3d5a4e;border-radius:50%;margin:0 5px;line-height:30px;text-align:center;font-size:14px;color:white;">nd</span>
-            </div>
+            <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
+                <tr>
+                    <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:30px;height:30px;"></a></td>
+                    <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:30px;height:30px;"></a></td>
+                    <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:30px;height:30px;"></a></td>
+                </tr>
+            </table>
             <p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
             <p style="margin:0 0 4px;font-size:11px;color:#5f8a5c;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
             <p style="margin:0 0 14px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-weight:500;font-family:'DM Sans',-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
-            <p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="#" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+            <p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${unsubscribeUrl}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
         </div>
     `;
 
@@ -2224,7 +2237,7 @@ function wrapEmail(bodyHtml, subject) {
 <body>
     <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
         ${header}
-        <div style="padding:44px 48px 36px;color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+        <div style="padding:${isMinimal ? '34px 40px' : '44px 48px 36px'};color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
             ${bodyHtml}
         </div>
         ${footer}

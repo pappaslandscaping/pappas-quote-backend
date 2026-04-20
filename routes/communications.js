@@ -8,7 +8,101 @@ const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
 
-module.exports = function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL }) {
+function getBroadcastEligibility(customer, prefs, channel) {
+  const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
+  const smsEligible = !!(customer.mobile && customer.mobile.trim()) && (!prefs || prefs.sms_marketing !== false);
+
+  const emailBlockedReason = !customer.email || !customer.email.trim()
+    ? 'Missing email'
+    : (prefs && prefs.email_marketing === false ? 'Email opted out' : null);
+  const smsBlockedReason = !customer.mobile || !customer.mobile.trim()
+    ? 'Missing mobile'
+    : (prefs && prefs.sms_marketing === false ? 'SMS opted out' : null);
+
+  let channelEligible = false;
+  let channelLabel = 'Needs review';
+  let channelBlockedReason = null;
+
+  if (channel === 'email') {
+    channelEligible = emailEligible;
+    channelLabel = emailEligible ? 'Email ready' : 'Email blocked';
+    channelBlockedReason = emailBlockedReason;
+  } else if (channel === 'sms') {
+    channelEligible = smsEligible;
+    channelLabel = smsEligible ? 'SMS ready' : 'SMS blocked';
+    channelBlockedReason = smsBlockedReason;
+  } else {
+    channelEligible = emailEligible || smsEligible;
+    if (emailEligible && smsEligible) channelLabel = 'Email + SMS ready';
+    else if (emailEligible) channelLabel = 'Email only';
+    else if (smsEligible) channelLabel = 'SMS only';
+    else channelLabel = 'Needs review';
+
+    if (!channelEligible) {
+      channelBlockedReason = [emailBlockedReason, smsBlockedReason].filter(Boolean).join(' · ') || 'No reachable channel';
+    }
+  }
+
+  return {
+    email_eligible: emailEligible,
+    sms_eligible: smsEligible,
+    email_blocked_reason: emailBlockedReason,
+    sms_blocked_reason: smsBlockedReason,
+    channel_eligible: channelEligible,
+    channel_label: channelLabel,
+    channel_blocked_reason: channelBlockedReason
+  };
+}
+
+function getBroadcastInclusionReasons(customer, filters) {
+  const reasons = [];
+  const rawTags = (customer.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+  const loweredTags = rawTags.map(t => t.toLowerCase());
+
+  if (filters.tags && filters.tags.length > 0) {
+    const matchedTags = filters.tags.filter(tag => loweredTags.includes(String(tag).toLowerCase()));
+    matchedTags.forEach(tag => reasons.push(`Tag: ${tag}`));
+  }
+  if (filters.postal_codes && filters.postal_codes.length > 0 && customer.postal_code) {
+    reasons.push(`ZIP: ${customer.postal_code}`);
+  }
+  if (filters.cities && filters.cities.length > 0 && customer.city) {
+    reasons.push(`City: ${customer.city}`);
+  }
+  if (filters.status && customer.status) {
+    reasons.push(`Status: ${customer.status}`);
+  }
+  if (filters.customer_type && customer.customer_type) {
+    reasons.push(`Type: ${customer.customer_type}`);
+  }
+  if (filters.monthly_plan) {
+    reasons.push('Monthly plan customer');
+  }
+  if (filters.active_since_months) {
+    reasons.push(`Active in last ${filters.active_since_months} months`);
+  }
+  if (filters.job_date) {
+    reasons.push(`Scheduled on ${filters.job_date}`);
+  }
+
+  return reasons.length ? reasons : ['Matches current audience filters'];
+}
+
+function getBroadcastFilterSummary(filters) {
+  const summary = [];
+  if (filters.tags && filters.tags.length) summary.push(`Tags: ${filters.tags.join(', ')}`);
+  if (filters.exclude_tags && filters.exclude_tags.length) summary.push(`Exclude tags: ${filters.exclude_tags.join(', ')}`);
+  if (filters.postal_codes && filters.postal_codes.length) summary.push(`ZIPs: ${filters.postal_codes.join(', ')}`);
+  if (filters.cities && filters.cities.length) summary.push(`Cities: ${filters.cities.join(', ')}`);
+  if (filters.status) summary.push(`Status: ${filters.status}`);
+  if (filters.customer_type) summary.push(`Type: ${filters.customer_type}`);
+  if (filters.monthly_plan) summary.push('Monthly plan only');
+  if (filters.active_since_months) summary.push(`Active in last ${filters.active_since_months} months`);
+  if (filters.job_date) summary.push(`Scheduled on ${filters.job_date}`);
+  return summary;
+}
+
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL }) {
   const router = express.Router();
 
 router.get('/api/messages/conversations', async (req, res) => {
@@ -300,17 +394,28 @@ router.post('/api/broadcasts/preview', async (req, res) => {
   // Auth already verified by global middleware
   try {
     const filters = req.body.filters || {};
+    const channel = req.body.channel || 'email';
     const conditions = [];
     const params = [];
     let paramIdx = 1;
 
     // Tags filter (comma-separated text field, match ANY of the provided tags)
     if (filters.tags && filters.tags.length > 0) {
-      const tagConditions = filters.tags.map(tag => {
-        params.push(`%${tag}%`);
-        return `c.tags ILIKE $${paramIdx++}`;
-      });
-      conditions.push(`(${tagConditions.join(' OR ')})`);
+      params.push(filters.tags.map(tag => String(tag).toLowerCase()));
+      conditions.push(`EXISTS (
+        SELECT 1
+        FROM unnest(string_to_array(lower(COALESCE(c.tags, '')), ',')) AS tag_value
+        WHERE btrim(tag_value) = ANY($${paramIdx++})
+      )`);
+    }
+
+    if (filters.exclude_tags && filters.exclude_tags.length > 0) {
+      params.push(filters.exclude_tags.map(tag => String(tag).toLowerCase()));
+      conditions.push(`NOT EXISTS (
+        SELECT 1
+        FROM unnest(string_to_array(lower(COALESCE(c.tags, '')), ',')) AS tag_value
+        WHERE btrim(tag_value) = ANY($${paramIdx++})
+      )`);
     }
 
     // Postal codes
@@ -365,46 +470,83 @@ router.post('/api/broadcasts/preview', async (req, res) => {
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-    const query = `SELECT c.id, c.name, c.first_name, c.last_name, c.email, c.mobile, c.city, c.postal_code, c.tags FROM customers c ${whereClause} ORDER BY c.name`;
+    const query = `SELECT c.id, c.name, c.first_name, c.last_name, c.email, c.mobile, c.city, c.postal_code, c.tags, c.status, c.customer_type, c.monthly_plan_amount
+      FROM customers c ${whereClause} ORDER BY c.name`;
     const result = await pool.query(query, params);
 
     // Normalize names
-    const customers = result.rows.map(c => ({
+    const baseCustomers = result.rows.map(c => ({
       id: c.id,
       name: c.name || ((c.first_name || '') + (c.last_name ? ' ' + c.last_name : '')).trim() || 'Unknown',
       email: c.email,
       mobile: c.mobile,
       city: c.city,
       postal_code: c.postal_code,
-      tags: c.tags
+      tags: c.tags,
+      status: c.status,
+      customer_type: c.customer_type,
+      monthly_plan_amount: c.monthly_plan_amount
     }));
 
-    // Build summary stats
+    let customers = baseCustomers;
     const summary = {
       total: customers.length,
+      eligible_current_channel: 0,
       with_email: customers.filter(c => c.email && c.email.trim()).length,
       with_mobile: customers.filter(c => c.mobile && c.mobile.trim()).length,
-      email_opted_in: customers.length, // default: assume opted in
-      sms_opted_in: 0
+      email_opted_in: 0,
+      sms_opted_in: 0,
+      blocked_for_channel: 0,
+      blocked_missing_contact: 0,
+      blocked_opted_out: 0
     };
 
-    // Check communication prefs for opted-in counts
     if (customers.length > 0) {
       const custIds = customers.map(c => c.id);
       const prefs = await pool.query('SELECT customer_id, email_marketing, sms_marketing FROM customer_communication_prefs WHERE customer_id = ANY($1)', [custIds]);
       const prefsMap = {};
       prefs.rows.forEach(p => { prefsMap[p.customer_id] = p; });
       let emailOptIn = 0, smsOptIn = 0;
-      customers.forEach(c => {
-        const p = prefsMap[c.id];
+      customers = customers.map(c => {
+        const p = prefsMap[c.id] || null;
         if (!p || p.email_marketing !== false) emailOptIn++;
         if (p && p.sms_marketing === true) smsOptIn++;
+        const eligibility = getBroadcastEligibility(c, p, channel);
+        return {
+          ...c,
+          communication_prefs: {
+            email_marketing: p ? p.email_marketing !== false : true,
+            sms_marketing: p ? p.sms_marketing === true : false
+          },
+          inclusion_reasons: getBroadcastInclusionReasons(c, filters),
+          ...eligibility
+        };
       });
       summary.email_opted_in = emailOptIn;
       summary.sms_opted_in = smsOptIn;
+      summary.eligible_current_channel = customers.filter(c => c.channel_eligible).length;
+      summary.blocked_for_channel = customers.filter(c => !c.channel_eligible).length;
+      summary.blocked_missing_contact = customers.filter(c => !c.channel_eligible && (
+        c.email_blocked_reason === 'Missing email' ||
+        c.sms_blocked_reason === 'Missing mobile'
+      )).length;
+      summary.blocked_opted_out = customers.filter(c => !c.channel_eligible && (
+        c.email_blocked_reason === 'Email opted out' ||
+        c.sms_blocked_reason === 'SMS opted out'
+      )).length;
+    } else {
+      summary.email_opted_in = 0;
+      summary.sms_opted_in = 0;
     }
 
-    res.json({ success: true, count: customers.length, customers, summary });
+    res.json({
+      success: true,
+      count: customers.length,
+      customers,
+      summary,
+      filter_summary: getBroadcastFilterSummary(filters),
+      channel
+    });
   } catch (error) {
     console.error('Broadcast preview error:', error);
     serverError(res, error);
@@ -647,4 +789,12 @@ router.get('/api/email-log/stats', async (req, res) => {
 
 
   return router;
+}
+
+createCommunicationRoutes._helpers = {
+  getBroadcastEligibility,
+  getBroadcastInclusionReasons,
+  getBroadcastFilterSummary
 };
+
+module.exports = createCommunicationRoutes;

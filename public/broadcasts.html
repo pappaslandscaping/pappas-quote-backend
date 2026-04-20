@@ -549,6 +549,29 @@
             gap: 12px;
         }
 
+        .audience-state {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            background: var(--gray-50);
+        }
+
+        .audience-state-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 6px;
+        }
+
+        .audience-state-text {
+            font-size: 12px;
+            color: var(--gray-600);
+            line-height: 1.55;
+        }
+
         .summary-stat {
             text-align: center;
             padding: 12px 8px;
@@ -675,6 +698,51 @@
             font-size: 11px;
             color: var(--gray-400);
             margin-top: 1px;
+        }
+
+        .cust-status-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .recipient-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .recipient-pill.ready {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .recipient-pill.limited {
+            background: var(--blue-bg);
+            color: var(--blue);
+        }
+
+        .recipient-pill.blocked {
+            background: var(--amber-bg);
+            color: var(--amber);
+        }
+
+        .inclusion-reasons {
+            font-size: 11px;
+            color: var(--gray-500);
+            line-height: 1.45;
+            margin-top: 6px;
+        }
+
+        .cust-row.blocked {
+            background: #fbfaf7;
         }
 
         .cust-icons {
@@ -1149,26 +1217,30 @@
                     </h3>
                 </div>
                 <div class="bc-card-body">
+                    <div class="audience-state">
+                        <div class="audience-state-title">Recipient targeting</div>
+                        <div class="audience-state-text" id="audienceStateText">Matched customers appear here with channel readiness and inclusion reasons before send.</div>
+                    </div>
                     <div class="summary-grid">
                         <div class="summary-stat total" onclick="filterAudienceBy('all')" title="Show all matching">
                             <div class="stat-num" id="totalMatching">0</div>
                             <div class="stat-desc">Total Matching</div>
                         </div>
-                        <div class="summary-stat" onclick="filterAudienceBy('has_email')" title="Show only customers with email">
+                        <div class="summary-stat" onclick="filterAudienceBy('ready')" title="Show only customers ready for the current channel">
+                            <div class="stat-num" id="readyCount">0</div>
+                            <div class="stat-desc">Ready Now</div>
+                        </div>
+                        <div class="summary-stat" onclick="filterAudienceBy('email_ready')" title="Show only customers ready for email">
                             <div class="stat-num" id="withEmail">0</div>
-                            <div class="stat-desc">With Email</div>
+                            <div class="stat-desc">Email Ready</div>
                         </div>
-                        <div class="summary-stat" onclick="filterAudienceBy('has_mobile')" title="Show only customers with mobile">
+                        <div class="summary-stat" onclick="filterAudienceBy('sms_ready')" title="Show only customers ready for SMS">
                             <div class="stat-num" id="withMobile">0</div>
-                            <div class="stat-desc">With Mobile</div>
+                            <div class="stat-desc">SMS Ready</div>
                         </div>
-                        <div class="summary-stat" onclick="filterAudienceBy('email_opted')" title="Show only email opted-in">
-                            <div class="stat-num" id="emailOptIn">0</div>
-                            <div class="stat-desc">Email Opted-In</div>
-                        </div>
-                        <div class="summary-stat" onclick="filterAudienceBy('sms_opted')" title="Show only SMS opted-in">
-                            <div class="stat-num" id="smsOptIn">0</div>
-                            <div class="stat-desc">SMS Opted-In</div>
+                        <div class="summary-stat" onclick="filterAudienceBy('blocked')" title="Show customers blocked for the current channel">
+                            <div class="stat-num" id="blockedCount">0</div>
+                            <div class="stat-desc">Needs Review</div>
                         </div>
                     </div>
                 </div>
@@ -1250,6 +1322,8 @@ let selectedCustomerIds = new Set();
 let currentChannel = 'email';
 let debounceTimer = null;
 let selectedTemplate = null;
+let currentPreviewSummary = {};
+let currentFilterSummary = [];
 
 // Multi-select state for chip-based filters
 const chipSelections = { tags: [], excludeTags: [], zips: [], cities: [] };
@@ -1368,6 +1442,7 @@ function setChannel(ch) {
     document.getElementById('emailSection').style.display = (ch === 'email' || ch === 'both') ? '' : 'none';
     document.getElementById('smsSection').style.display = (ch === 'sms' || ch === 'both') ? '' : 'none';
     updateSendButton();
+    refreshAudience();
 }
 
 // ─── Card Collapse ─────────────────────────────────────────
@@ -1552,8 +1627,9 @@ async function refreshAudience() {
         if (res.ok) {
             const data = await res.json();
             audienceResults = data.customers || [];
-            // Auto-select all by default
-            selectedCustomerIds = new Set(audienceResults.map(c => c.id));
+            currentPreviewSummary = data.summary || {};
+            currentFilterSummary = data.filter_summary || [];
+            selectedCustomerIds = new Set(audienceResults.filter(c => c.channel_eligible).map(c => c.id));
             renderAudienceSummary(data.summary || {});
             renderAudiencePreview();
             updateSendButton();
@@ -1566,10 +1642,17 @@ async function refreshAudience() {
 // ─── Render Audience Summary ───────────────────────────────
 function renderAudienceSummary(summary) {
     document.getElementById('totalMatching').textContent = summary.total || audienceResults.length;
+    document.getElementById('readyCount').textContent = summary.eligible_current_channel || 0;
     document.getElementById('withEmail').textContent = summary.with_email || 0;
     document.getElementById('withMobile').textContent = summary.with_mobile || 0;
-    document.getElementById('emailOptIn').textContent = summary.email_opted_in || 0;
-    document.getElementById('smsOptIn').textContent = summary.sms_opted_in || 0;
+    document.getElementById('blockedCount').textContent = summary.blocked_for_channel || 0;
+    const filterText = currentFilterSummary.length
+        ? currentFilterSummary.join(' • ')
+        : 'No audience filters are active, so this send is showing the full customer base.';
+    const blockedText = summary.blocked_for_channel
+        ? ` ${summary.blocked_for_channel} customer${summary.blocked_for_channel !== 1 ? 's are' : ' is'} blocked for the current channel.`
+        : ' All matched recipients are reachable on the current channel.';
+    document.getElementById('audienceStateText').textContent = filterText + blockedText;
 }
 
 // ─── Audience Filter by Summary Stat ──────────────────────
@@ -1580,7 +1663,7 @@ function filterAudienceBy(type) {
     // Update active state on summary stats
     document.querySelectorAll('.summary-stat').forEach(el => el.classList.remove('active-filter'));
     if (currentAudienceFilter !== 'all') {
-        const map = { has_email: 1, has_mobile: 2, email_opted: 3, sms_opted: 4 };
+        const map = { ready: 1, email_ready: 2, sms_ready: 3, blocked: 4 };
         const idx = map[currentAudienceFilter];
         if (idx !== undefined) {
             document.querySelectorAll('.summary-stat')[idx].classList.add('active-filter');
@@ -1589,7 +1672,7 @@ function filterAudienceBy(type) {
     // Re-select only visible customers
     renderAudiencePreview();
     // Auto-select only the filtered customers
-    const visible = getFilteredCustomers();
+    const visible = getFilteredCustomers().filter(c => c.channel_eligible);
     selectedCustomerIds = new Set(visible.map(c => c.id));
     renderAudiencePreview();
     updateSendButton();
@@ -1597,16 +1680,27 @@ function filterAudienceBy(type) {
 
 function getFilteredCustomers() {
     let results = audienceResults;
-    if (currentAudienceFilter === 'has_email') {
-        results = results.filter(c => c.email && c.email.trim());
-    } else if (currentAudienceFilter === 'has_mobile') {
-        results = results.filter(c => c.mobile && c.mobile.trim());
-    } else if (currentAudienceFilter === 'email_opted') {
-        results = results.filter(c => c.email && c.email.trim()); // prefs checked server-side
-    } else if (currentAudienceFilter === 'sms_opted') {
-        results = results.filter(c => c.mobile && c.mobile.trim());
+    if (currentAudienceFilter === 'ready') {
+        results = results.filter(c => c.channel_eligible);
+    } else if (currentAudienceFilter === 'email_ready') {
+        results = results.filter(c => c.email_eligible);
+    } else if (currentAudienceFilter === 'sms_ready') {
+        results = results.filter(c => c.sms_eligible);
+    } else if (currentAudienceFilter === 'blocked') {
+        results = results.filter(c => !c.channel_eligible);
     }
     return results;
+}
+
+function getRecipientPills(customer) {
+    const pills = [];
+    if (customer.channel_eligible) {
+        const cls = customer.channel_label === 'Email only' || customer.channel_label === 'SMS only' ? 'limited' : 'ready';
+        pills.push(`<span class="recipient-pill ${cls}">${escHtml(customer.channel_label)}</span>`);
+    } else {
+        pills.push(`<span class="recipient-pill blocked">${escHtml(customer.channel_blocked_reason || 'Needs review')}</span>`);
+    }
+    return pills.join('');
 }
 
 // ─── Render Audience List ──────────────────────────────────
@@ -1639,13 +1733,18 @@ function renderAudiencePreview() {
         const hasMobile = !!(c.mobile || c.phone);
         const meta = [c.city, c.postal_code].filter(Boolean).join(', ');
         const checked = selectedCustomerIds.has(c.id) ? 'checked' : '';
+        const disabled = c.channel_eligible ? '' : 'disabled';
+        const rowClass = c.channel_eligible ? '' : ' blocked';
+        const reasons = (c.inclusion_reasons || []).join(' • ');
 
         return `
-            <div class="cust-row">
-                <input type="checkbox" ${checked} onchange="toggleCustomer(${c.id}, this.checked)">
+            <div class="cust-row${rowClass}">
+                <input type="checkbox" ${checked} ${disabled} onchange="toggleCustomer(${c.id}, this.checked)">
                 <div class="cust-info">
                     <div class="cust-name">${escHtml(name)}</div>
                     ${meta ? `<div class="cust-meta">${escHtml(meta)}</div>` : ''}
+                    <div class="cust-status-row">${getRecipientPills(c)}</div>
+                    <div class="inclusion-reasons">Included because: ${escHtml(reasons)}</div>
                 </div>
                 <div class="cust-icons">
                     <svg class="${hasEmail ? 'has' : 'missing'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" title="${hasEmail ? c.email : 'No email'}"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -1672,7 +1771,7 @@ function toggleCustomer(id, checked) {
 }
 
 function selectAll() {
-    audienceResults.forEach(c => selectedCustomerIds.add(c.id));
+    getFilteredCustomers().filter(c => c.channel_eligible).forEach(c => selectedCustomerIds.add(c.id));
     renderAudiencePreview();
     updateSendButton();
 }
@@ -1685,7 +1784,8 @@ function deselectAll() {
 
 function updateSelCount() {
     const count = selectedCustomerIds.size;
-    document.getElementById('selCount').textContent = count + ' selected';
+    const blocked = currentPreviewSummary.blocked_for_channel || 0;
+    document.getElementById('selCount').textContent = count + ' selected' + (blocked ? ` · ${blocked} blocked` : '');
 }
 
 // ─── Template Preview ──────────────────────────────────────
@@ -1834,6 +1934,13 @@ function openConfirmModal() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
         <span>Sending to <strong>${count}</strong> customer${count !== 1 ? 's' : ''}</span>
     </div>`;
+
+    if (currentPreviewSummary.blocked_for_channel) {
+        html += `<div class="confirm-detail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span><strong>${currentPreviewSummary.blocked_for_channel}</strong> matched customer${currentPreviewSummary.blocked_for_channel !== 1 ? 's are' : ' is'} blocked for the current channel and excluded from the default send selection.</span>
+        </div>`;
+    }
 
     html += `<div class="confirm-detail">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>

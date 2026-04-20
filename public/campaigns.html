@@ -12,6 +12,93 @@
             transform: translateY(-2px);
         }
 
+        body.campaigns-marketing-page .page-intro-strip {
+            margin: 18px 18px 0;
+            padding: 24px 26px;
+            border: none;
+            border-radius: 26px 26px 0 0;
+            background:
+                radial-gradient(circle at top right, rgba(201, 221, 128, 0.2), transparent 28%),
+                linear-gradient(135deg, #243330 0%, #314540 48%, #f3f1e8 48%, #f3f1e8 100%);
+            box-shadow: 0 28px 48px rgba(36, 51, 48, 0.16);
+            align-items: stretch;
+        }
+
+        body.campaigns-marketing-page .page-intro-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        body.campaigns-marketing-page .page-intro-label {
+            color: rgba(201, 221, 128, 0.88);
+            letter-spacing: 0.16em;
+        }
+
+        body.campaigns-marketing-page .page-intro-note {
+            color: #f5f1e6;
+            max-width: 520px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .marketing-hero-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.85fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .marketing-hero-kpis {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .marketing-hero-kpi {
+            border-radius: 20px;
+            padding: 16px 16px 14px;
+            background: rgba(255,255,255,0.76);
+            border: 1px solid rgba(36, 51, 48, 0.08);
+            backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+        }
+
+        .marketing-hero-kpi-value {
+            font-size: 21px;
+            font-weight: 700;
+            color: #243330;
+            margin-bottom: 6px;
+        }
+
+        .marketing-hero-kpi-label {
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1.5;
+            color: #5f6f68;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        body.campaigns-marketing-page .page-handoff-links {
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        body.campaigns-marketing-page .page-handoff-link {
+            background: rgba(255,255,255,0.78);
+            color: #314540;
+            border-color: rgba(36, 51, 48, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+        }
+
+        body.campaigns-marketing-page .page-handoff-link.active {
+            background: #243330;
+            color: #f4f7ef;
+            border-color: #243330;
+            box-shadow: none;
+        }
+
         /* ─── Stats Row ─────────────────────────────────────── */
         .stats-row {
             display: grid;
@@ -21,10 +108,13 @@
         }
 
         .stat-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
-            padding: 20px;
+            background:
+                radial-gradient(circle at top right, rgba(214, 230, 202, 0.34), transparent 55%),
+                linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245, 242, 234, 0.96));
+            box-shadow: 0 18px 38px rgba(25, 35, 34, 0.08);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 22px;
+            padding: 22px 22px 20px;
             transition: all 0.15s ease;
         }
 
@@ -72,17 +162,20 @@
         }
 
         .campaign-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
+            background:
+                radial-gradient(circle at top right, rgba(215, 232, 196, 0.32), transparent 48%),
+                linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246, 243, 235, 0.96));
+            box-shadow: 0 22px 40px rgba(24, 33, 32, 0.09);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 22px;
             overflow: hidden;
             transition: all 0.15s ease;
             cursor: pointer;
         }
 
         .campaign-card:hover {
-            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
+            box-shadow: 0 26px 46px rgba(24, 33, 32, 0.12);
+            transform: translateY(-3px);
         }
 
         .campaign-header {
@@ -133,7 +226,7 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             padding: 16px 20px;
-            background: var(--gray-50);
+            background: rgba(245, 241, 232, 0.92);
         }
 
         .campaign-stat {
@@ -158,7 +251,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-top: 1px solid var(--gray-100);
+            border-top: 1px solid rgba(46, 64, 61, 0.08);
         }
 
         .campaign-date {
@@ -221,25 +314,32 @@
             align-items: flex-start;
             justify-content: space-between;
             margin-bottom: 24px;
+            padding: 28px 30px;
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at top right, rgba(241, 215, 124, 0.18), transparent 38%),
+                linear-gradient(135deg, rgba(31, 48, 46, 0.98), rgba(61, 88, 80, 0.94));
+            box-shadow: 0 26px 48px rgba(18, 27, 26, 0.18);
         }
 
         .detail-title {
             font-size: 24px;
             font-weight: 700;
-            color: var(--gray-700);
+            color: #f7f4eb;
             margin-bottom: 4px;
         }
 
         .detail-desc {
             font-size: 14px;
-            color: var(--gray-500);
+            color: rgba(247, 244, 235, 0.72);
         }
 
         /* ─── Table Card ────────────────────────────────────── */
         .table-card {
-            background: var(--white);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-radius: 12px;
+            background: rgba(255,255,255,0.96);
+            box-shadow: 0 24px 42px rgba(24, 33, 32, 0.08);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 24px;
             overflow: hidden;
             transition: all 0.15s ease;
         }
@@ -681,10 +781,12 @@
         }
 
         .template-preview-box {
-            background: var(--gray-50);
-            border: 1px solid var(--gray-200);
-            border-radius: 14px;
-            padding: 16px;
+            background:
+                radial-gradient(circle at top left, rgba(201, 221, 128, 0.24), transparent 30%),
+                linear-gradient(180deg, #ffffff 0%, #f7faf6 100%);
+            border: 1px solid rgba(46, 64, 61, 0.1);
+            border-radius: 20px;
+            padding: 18px;
             margin-top: 8px;
             min-height: 170px;
             max-height: 380px;
@@ -693,7 +795,8 @@
             color: var(--gray-600);
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 14px;
+            box-shadow: 0 18px 42px rgba(46, 64, 61, 0.08);
         }
 
         .template-preview-box .tpl-meta {
@@ -704,18 +807,33 @@
             flex-wrap: wrap;
         }
 
+        .template-preview-box .tpl-meta-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .template-preview-box .tpl-chip {
             display: inline-flex;
             align-items: center;
             gap: 6px;
             padding: 5px 10px;
             border-radius: 999px;
-            background: rgba(201, 221, 128, 0.2);
+            background: rgba(201, 221, 128, 0.28);
             color: var(--primary);
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 0.04em;
             text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-context {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--gray-500);
         }
 
         .template-preview-box .tpl-label {
@@ -727,10 +845,11 @@
         }
 
         .template-preview-box .tpl-subject-card {
-            background: var(--white);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 12px 14px;
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 16px;
+            padding: 14px 16px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
         }
 
         .template-preview-box .tpl-subject {
@@ -740,46 +859,71 @@
         }
 
         .template-preview-box .tpl-stage {
-            background: linear-gradient(180deg, #eef3ea 0%, #f8faf7 100%);
-            border: 1px solid #d9e4d5;
-            border-radius: 16px;
+            background: linear-gradient(180deg, #ecf2e7 0%, #dfe8dc 100%);
+            border: 1px solid rgba(122, 148, 119, 0.22);
+            border-radius: 22px;
             padding: 14px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+
+        .template-preview-box .tpl-stage-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #57694e;
         }
 
         .template-preview-box .tpl-email {
             background: var(--white);
-            border-radius: 14px;
+            border-radius: 18px;
             overflow: hidden;
-            box-shadow: 0 12px 30px rgba(46, 64, 61, 0.08);
+            border: 1px solid rgba(46, 64, 61, 0.06);
+            box-shadow: 0 24px 44px rgba(46, 64, 61, 0.12);
         }
 
         .template-preview-box .tpl-email.full .tpl-email-header {
-            background: #2e403d;
+            background:
+                radial-gradient(circle at top, rgba(201,221,128,0.22), transparent 42%),
+                #243330;
             color: #f4f7ee;
-            padding: 18px 20px;
-            text-align: center;
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
+            padding: 18px 20px 20px;
+            text-align: left;
         }
 
         .template-preview-box .tpl-email.minimal .tpl-email-header {
-            padding: 16px 20px 0;
+            padding: 18px 22px 0;
             color: #7a9477;
-            font-size: 11px;
+        }
+
+        .template-preview-box .tpl-brand-kicker {
+            display: block;
+            font-size: 10px;
             font-weight: 700;
-            letter-spacing: 0.12em;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .template-preview-box .tpl-email-header-main {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.3;
         }
 
         .template-preview-box .tpl-email.none {
             box-shadow: none;
-            border: 1px dashed var(--gray-300);
+            border: 1px dashed rgba(122, 148, 119, 0.55);
         }
 
         .template-preview-box .tpl-email-body {
-            padding: 22px 20px;
+            padding: 24px 22px;
             color: var(--gray-600);
             line-height: 1.7;
         }
@@ -817,7 +961,7 @@
         }
 
         .template-preview-box .tpl-email.full .tpl-email-footer {
-            background: #2e403d;
+            background: #243330;
             border-top: none;
             color: #a3b8a0;
         }
@@ -1030,16 +1174,33 @@
         /* ─── Responsive ────────────────────────────────────── */
         @media (max-width: 1024px) {
             .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .marketing-hero-panel { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 768px) {
             .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
             .campaigns-grid { grid-template-columns: 1fr; }
             .search-input { width: 100%; }
+            body.campaigns-marketing-page .page-intro-strip {
+                margin: 14px 14px 0;
+                padding: 18px;
+                border-radius: 22px 22px 0 0;
+                background:
+                    radial-gradient(circle at top right, rgba(201, 221, 128, 0.2), transparent 24%),
+                    linear-gradient(180deg, #243330 0%, #314540 100%);
+            }
+            .marketing-hero-panel { gap: 18px; }
+            .marketing-hero-kpis { grid-template-columns: 1fr; }
+            .detail-header {
+                padding: 22px 22px 20px;
+                border-radius: 22px;
+                gap: 16px;
+                flex-direction: column;
+            }
         }
     </style>
 </head>
-<body>
+<body class="campaigns-marketing-page">
 <script src="shell.js"></script>
 
 <div class="main">
@@ -1059,16 +1220,28 @@
     </div>
 
     <div class="page-intro-strip">
-        <div class="page-intro-copy">
-            <div class="page-intro-label">Marketing Campaigns</div>
-            <div class="page-intro-note">Track campaign performance and move into templates, automations, or broadcasts without switching to a different top-of-page pattern.</div>
-        </div>
-        <div class="page-handoff-links">
-            <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
-            <a class="page-handoff-link" href="templates.html">Templates</a>
-            <a class="page-handoff-link active" href="campaigns.html">Campaigns</a>
-            <a class="page-handoff-link" href="automations.html">Automations</a>
-            <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+        <div class="marketing-hero-panel">
+            <div class="page-intro-copy">
+                <div class="page-intro-label">Marketing Campaigns</div>
+                <div class="page-intro-note">Track live campaign performance in a premium send surface that feels tied to the branded email experience, not a recycled admin dashboard.</div>
+                <div class="page-handoff-links">
+                    <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
+                    <a class="page-handoff-link" href="templates.html">Templates</a>
+                    <a class="page-handoff-link active" href="campaigns.html">Campaigns</a>
+                    <a class="page-handoff-link" href="automations.html">Automations</a>
+                    <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+                </div>
+            </div>
+            <div class="marketing-hero-kpis">
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Campaigns</div>
+                    <div class="marketing-hero-kpi-label">Live plus track performance in the same elevated marketing workspace.</div>
+                </div>
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Sends</div>
+                    <div class="marketing-hero-kpi-label">Template-linked email presentation stays visible in-product instead of dropping to plain utility cards.</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2076,6 +2249,8 @@ function buildTemplatePreviewMarkup(template) {
     const subject = applyPreviewVars(template.subject || 'No subject');
     const body = sanitizePreviewHtml(applyPreviewVars(template.body || template.content || '<p>No email body on this template.</p>'));
     const wrapper = normalizeWrapper(template.options && template.options.wrapper);
+    const category = String(template.category || 'system').toLowerCase();
+    const channelLabel = template.channel === 'both' ? 'Email + SMS' : template.channel === 'sms' ? 'SMS Only' : 'Email';
     const wrapperLabel = wrapper === 'minimal' ? 'Minimal Wrapper' : wrapper === 'none' ? 'No Wrapper' : 'Full Wrapper';
     const footer = wrapper === 'full'
         ? 'Questions? Reply to this email or call (440) 886-7318'
@@ -2085,16 +2260,23 @@ function buildTemplatePreviewMarkup(template) {
 
     return `
         <div class="tpl-meta">
-            <span class="tpl-chip">${esc(wrapperLabel)}</span>
-            <span style="font-size:12px;color:var(--gray-400);">${esc(template.name || 'Template')}</span>
+            <div class="tpl-meta-left">
+                <span class="tpl-chip">${esc(wrapperLabel)}</span>
+                <span class="category-badge cat-${esc(category)}">${esc(category)}</span>
+            </div>
+            <span class="tpl-context">${esc(channelLabel)}</span>
         </div>
         <div class="tpl-subject-card">
             <div class="tpl-label">Subject</div>
             <div class="tpl-subject">${esc(subject)}</div>
         </div>
         <div class="tpl-stage">
+            <div class="tpl-stage-top">
+                <span>${esc(template.name || 'Template preview')}</span>
+                <span>Sample render</span>
+            </div>
             <div class="tpl-email ${esc(wrapper)}">
-                ${wrapper === 'none' ? '' : `<div class="tpl-email-header">Pappas & Co. Landscaping</div>`}
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-header"><span class="tpl-brand-kicker">Pappas &amp; Co. Landscaping</span>${wrapper === 'full' ? '<span class="tpl-email-header-main">Elevated customer email shell</span>' : ''}</div>`}
                 <div class="tpl-email-body">${body}</div>
                 ${wrapper === 'none' ? '' : `<div class="tpl-email-footer">${esc(footer)}</div>`}
             </div>

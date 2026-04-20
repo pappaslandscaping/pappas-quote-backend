@@ -8,28 +8,127 @@
     <link rel="stylesheet" href="shared.css">
     <script src="https://cdn.tiny.cloud/1/hxd1fqgv0xbzwdkr95ytux0o6wh24oukbvfoufkl2ukvduht/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
     <style>
+        body.templates-studio-page .page-intro-strip {
+            margin: 18px 18px 0;
+            padding: 24px 26px;
+            border: none;
+            border-radius: 26px 26px 0 0;
+            background:
+                radial-gradient(circle at top right, rgba(201, 221, 128, 0.22), transparent 28%),
+                linear-gradient(135deg, #243330 0%, #314540 48%, #f2f5ef 48%, #f2f5ef 100%);
+            box-shadow: 0 28px 48px rgba(36, 51, 48, 0.18);
+            align-items: stretch;
+        }
+
+        body.templates-studio-page .page-intro-copy {
+            max-width: 640px;
+            gap: 8px;
+        }
+
+        body.templates-studio-page .page-intro-label {
+            color: rgba(201, 221, 128, 0.88);
+            letter-spacing: 0.16em;
+        }
+
+        body.templates-studio-page .page-intro-note {
+            color: #f5f8f2;
+            font-size: 15px;
+            line-height: 1.6;
+            max-width: 520px;
+        }
+
+        .marketing-hero-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 18px;
+            width: 100%;
+            align-items: start;
+        }
+
+        .marketing-hero-kpis {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: stretch;
+        }
+
+        .marketing-hero-kpi {
+            min-width: 132px;
+            padding: 14px 14px 12px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.74);
+            border: 1px solid rgba(36, 51, 48, 0.08);
+            backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+        }
+
+        .marketing-hero-kpi-value {
+            font-size: 21px;
+            font-weight: 700;
+            color: #243330;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .marketing-hero-kpi-label {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #5b6f69;
+        }
+
+        body.templates-studio-page .page-handoff-links {
+            justify-content: flex-start;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        body.templates-studio-page .page-handoff-link {
+            background: rgba(255,255,255,0.78);
+            border-color: rgba(36, 51, 48, 0.08);
+            color: #314540;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+        }
+
+        body.templates-studio-page .page-handoff-link.active {
+            background: #243330;
+            border-color: #243330;
+            color: #f4f7ef;
+        }
         /* ─── Split Layout ─────────────────────────────────── */
         .workspace {
             flex: 1;
             display: flex;
             overflow: hidden;
-            height: calc(100vh - var(--topbar-h));
+            height: calc(100dvh - var(--topbar-h));
+            min-height: 0;
+            min-width: 0;
+            background:
+                radial-gradient(circle at top left, rgba(201, 221, 128, 0.2), transparent 28%),
+                linear-gradient(180deg, #f4f7f1 0%, #eef2ec 100%);
         }
 
         /* ─── Template List Panel ──────────────────────────── */
         .template-list-panel {
             width: 340px;
             min-width: 340px;
-            background: var(--white);
-            border-right: 1px solid var(--gray-200);
+            background:
+                linear-gradient(180deg, rgba(246,248,244,0.98) 0%, rgba(255,255,255,0.98) 22%);
+            border-right: 1px solid rgba(46, 64, 61, 0.08);
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-height: 0;
+            box-shadow: inset -1px 0 0 rgba(46, 64, 61, 0.05);
+            border-radius: 0 0 0 24px;
         }
 
         .list-header {
-            padding: 20px 16px 12px;
+            padding: 20px 16px 14px;
             border-bottom: 1px solid var(--gray-100);
+            background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,247,0.98) 100%);
         }
 
         .list-header-top {
@@ -149,25 +248,33 @@
         .template-cards {
             flex: 1;
             overflow-y: auto;
-            padding: 8px;
+            padding: 10px;
+            min-height: 0;
         }
 
         .template-card {
-            padding: 12px 14px;
-            border-radius: 10px;
+            padding: 14px 15px;
+            border-radius: 14px;
             cursor: pointer;
             transition: all 0.15s;
-            margin-bottom: 4px;
-            border: 2px solid transparent;
+            margin-bottom: 8px;
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            background: linear-gradient(180deg, #ffffff 0%, #fbfcfa 100%);
+            box-shadow: 0 8px 24px rgba(46, 64, 61, 0.04);
         }
 
         .template-card:hover {
-            background: var(--gray-50);
+            border-color: rgba(46, 64, 61, 0.16);
+            box-shadow: 0 14px 30px rgba(46, 64, 61, 0.08);
+            transform: translateY(-1px);
         }
 
         .template-card.selected {
-            background: var(--blue-bg);
-            border-color: var(--blue);
+            background:
+                linear-gradient(135deg, rgba(201, 221, 128, 0.2), rgba(255,255,255,0.95) 42%),
+                linear-gradient(180deg, #ffffff 0%, #f7fbf5 100%);
+            border-color: rgba(46, 64, 61, 0.2);
+            box-shadow: 0 18px 34px rgba(46, 64, 61, 0.12);
         }
 
         .template-card-header {
@@ -336,7 +443,9 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background: var(--gray-50);
+            background: transparent;
+            min-width: 0;
+            min-height: 0;
         }
 
         .editor-empty {
@@ -352,14 +461,31 @@
         .editor-empty span { font-size: 48px; }
         .editor-empty p { font-size: 14px; }
 
+        .editor-shell {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+            min-height: 0;
+        }
+
         .editor-toolbar {
             display: flex;
             flex-direction: column;
-            padding: 12px 20px;
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-200);
+            padding: 18px 22px;
+            margin: 18px 18px 0;
+            background:
+                radial-gradient(circle at top right, rgba(201,221,128,0.14), transparent 22%),
+                linear-gradient(180deg, rgba(36,51,48,0.98) 0%, rgba(49,69,64,0.98) 100%);
+            border: 1px solid rgba(36, 51, 48, 0.22);
+            border-radius: 18px 18px 0 0;
+            border-bottom: none;
+            box-shadow: 0 22px 42px rgba(36, 51, 48, 0.18);
             gap: 14px;
             flex-shrink: 0;
+            position: relative;
+            z-index: 2;
         }
 
         .editor-toolbar-top {
@@ -394,30 +520,30 @@
         }
 
         .editor-mode-badge {
-            background: rgba(46, 64, 61, 0.12);
-            color: var(--primary);
+            background: rgba(201, 221, 128, 0.18);
+            color: #dbe8a6;
         }
 
         .editor-status-pill {
-            background: var(--gray-100);
-            color: var(--gray-600);
+            background: rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.82);
         }
 
         .editor-status-pill.dirty {
-            background: #fef3c7;
-            color: #92400e;
+            background: rgba(250, 204, 21, 0.18);
+            color: #fcd34d;
         }
 
         .editor-slug-display {
             font-size: 11px;
-            color: var(--gray-500);
+            color: rgba(233, 239, 234, 0.72);
             font-family: 'DM Sans', monospace;
         }
 
         .editor-context-note {
             font-size: 12px;
             line-height: 1.5;
-            color: var(--gray-500);
+            color: rgba(233, 239, 234, 0.72);
         }
 
         .editor-toolbar-actions {
@@ -426,6 +552,23 @@
             gap: 8px;
             flex-wrap: wrap;
             justify-content: flex-end;
+        }
+
+        .editor-toolbar .form-label,
+        .editor-toolbar .toggle-label {
+            color: rgba(233, 239, 234, 0.72);
+        }
+
+        .editor-toolbar .form-input,
+        .editor-toolbar .form-select {
+            background: rgba(255,255,255,0.96);
+            border-color: rgba(255,255,255,0.12);
+        }
+
+        .editor-toolbar .btn-secondary {
+            background: rgba(255,255,255,0.08);
+            color: #f5f8f2;
+            border-color: rgba(255,255,255,0.12);
         }
 
         .editor-toolbar-bottom {
@@ -464,16 +607,26 @@
 
         .editor-content {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
-            padding: 20px;
+            padding: 0 18px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
         .editor-section {
             background: var(--white);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-radius: 18px;
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            box-shadow: 0 12px 28px rgba(46, 64, 61, 0.06);
             padding: 20px;
-            margin-bottom: 16px;
+            margin-bottom: 0;
+        }
+
+        .editor-section.email-section {
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,251,248,0.98) 100%);
         }
 
         .editor-section-title {
@@ -590,14 +743,33 @@
         /* TinyMCE Editor Container */
         .tinymce-wrap {
             border: 1px solid var(--gray-200);
-            border-radius: 8px;
+            border-radius: 14px;
             overflow: hidden;
-            min-height: 360px;
+            min-height: 420px;
+            display: flex;
+            flex-direction: column;
+            background: var(--white);
         }
 
         .tinymce-wrap .tox-tinymce {
             border: none !important;
             border-radius: 0 !important;
+            display: flex;
+            flex-direction: column;
+            min-height: 420px;
+        }
+
+        .tinymce-wrap .tox-editor-header {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+        }
+
+        .tinymce-wrap .tox-editor-container,
+        .tinymce-wrap .tox-sidebar-wrap,
+        .tinymce-wrap .tox-edit-area {
+            flex: 1 1 auto;
+            min-height: 0;
         }
 
         /* Preview Toggle */
@@ -641,15 +813,82 @@
 
         .preview-frame-container {
             border: 1px solid var(--gray-200);
-            border-radius: 8px;
+            border-radius: 18px;
             overflow: hidden;
-            background: var(--white);
-            height: 480px;
+            background: linear-gradient(180deg, #eef3ea 0%, #e7eee4 100%);
+            height: min(560px, calc(100dvh - 250px));
+            min-height: min(560px, calc(100dvh - 250px));
+            max-height: calc(100dvh - 250px);
             display: none;
+            flex-direction: column;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
         }
 
         .preview-frame-container.visible {
-            display: block;
+            display: flex;
+        }
+
+        .preview-frame-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 18px 14px;
+            border-bottom: 1px solid rgba(46, 64, 61, 0.08);
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(10px);
+        }
+
+        .preview-frame-meta {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .preview-frame-labels {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .preview-frame-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(46, 64, 61, 0.08);
+            color: var(--primary);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .preview-frame-pill.wrapper {
+            background: rgba(201, 221, 128, 0.3);
+        }
+
+        .preview-frame-subject {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-700);
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .preview-frame-note {
+            font-size: 11px;
+            line-height: 1.5;
+            color: var(--gray-500);
+            text-align: right;
+            max-width: 180px;
+        }
+
+        .preview-frame-canvas {
+            flex: 1;
+            min-height: 0;
+            padding: 18px;
         }
 
         .preview-frame {
@@ -657,6 +896,8 @@
             height: 100%;
             border: none;
             background: var(--white);
+            border-radius: 20px;
+            box-shadow: 0 22px 45px rgba(46, 64, 61, 0.14);
         }
 
         /* Block Palette */
@@ -861,6 +1102,17 @@
             padding: 0 20px 18px;
         }
 
+        .editor-actions-row {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0 4px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
         /* ─── Toast ───────────────────────────────────────── */
         .toast {
             position: fixed;
@@ -1030,7 +1282,39 @@
         }
 
         @media (max-width: 900px) {
-            .template-list-panel { width: 280px; min-width: 280px; }
+            body.templates-studio-page .page-intro-strip {
+                margin: 14px 14px 0;
+                padding: 18px;
+                border-radius: 22px 22px 0 0;
+                background:
+                    radial-gradient(circle at top right, rgba(201, 221, 128, 0.2), transparent 24%),
+                    linear-gradient(180deg, #243330 0%, #314540 100%);
+            }
+            .marketing-hero-panel {
+                grid-template-columns: 1fr;
+            }
+            .marketing-hero-kpis {
+                justify-content: flex-start;
+            }
+            .workspace {
+                flex-direction: column;
+                height: auto;
+                min-height: calc(100dvh - var(--topbar-h));
+            }
+            .template-list-panel {
+                width: 100%;
+                min-width: 0;
+                max-height: 38vh;
+                border-right: none;
+                border-bottom: 1px solid var(--gray-200);
+            }
+            .editor-toolbar {
+                margin: 14px 14px 0;
+                padding: 16px 16px 14px;
+            }
+            .editor-content {
+                padding: 0 14px 18px;
+            }
             .editor-toolbar-top,
             .editor-toolbar-bottom {
                 flex-direction: column;
@@ -1044,10 +1328,26 @@
                 grid-template-columns: 1fr;
                 min-width: 0;
             }
+            .preview-frame-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .preview-frame-note {
+                max-width: none;
+                text-align: left;
+            }
+            .preview-frame-container {
+                height: min(460px, calc(100dvh - 220px));
+                min-height: min(460px, calc(100dvh - 220px));
+                max-height: calc(100dvh - 220px);
+            }
+            .preview-frame-canvas {
+                padding: 14px;
+            }
         }
     </style>
 </head>
-<body>
+<body class="templates-studio-page">
 <script src="shell.js"></script>
 
 <!-- ─── Main ─────────────────────────────────────────────── -->
@@ -1066,16 +1366,28 @@
     </div>
 
     <div class="page-intro-strip">
-        <div class="page-intro-copy">
-            <div class="page-intro-label">Marketing Templates</div>
-            <div class="page-intro-note">Manage reusable email content here, with stable handoffs into campaigns, automations, and broadcasts.</div>
-        </div>
-        <div class="page-handoff-links">
-            <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
-            <a class="page-handoff-link active" href="templates.html">Templates</a>
-            <a class="page-handoff-link" href="campaigns.html">Campaigns</a>
-            <a class="page-handoff-link" href="automations.html">Automations</a>
-            <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+        <div class="marketing-hero-panel">
+            <div class="page-intro-copy">
+                <div class="page-intro-label">Messaging Templates Studio</div>
+                <div class="page-intro-note">Craft branded customer emails in a dedicated editorial workspace, with wrapper-aware live preview, sharper message hierarchy, and cleaner handoff into broadcasts and campaigns.</div>
+                <div class="page-handoff-links">
+                    <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
+                    <a class="page-handoff-link active" href="templates.html">Templates</a>
+                    <a class="page-handoff-link" href="campaigns.html">Campaigns</a>
+                    <a class="page-handoff-link" href="automations.html">Automations</a>
+                    <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+                </div>
+            </div>
+            <div class="marketing-hero-kpis">
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Live</div>
+                    <div class="marketing-hero-kpi-label">Wrapper Preview</div>
+                </div>
+                <div class="marketing-hero-kpi">
+                    <div class="marketing-hero-kpi-value">Email</div>
+                    <div class="marketing-hero-kpi-label">First Design Surface</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1128,7 +1440,7 @@
                 <p>Select a template to edit, or create a new one</p>
             </div>
 
-            <div id="editorContent" style="display:none; flex:1; display:none; flex-direction:column; overflow:hidden;">
+            <div id="editorContent" class="editor-shell">
                 <div class="editor-toolbar">
                     <div class="editor-toolbar-top">
                         <div class="editor-toolbar-meta">
@@ -1258,7 +1570,19 @@
                         </div>
 
                         <div class="preview-frame-container" id="previewContainer">
-                            <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
+                            <div class="preview-frame-header">
+                                <div class="preview-frame-meta">
+                                    <div class="preview-frame-labels">
+                                        <span class="preview-frame-pill">Live Preview</span>
+                                        <span class="preview-frame-pill wrapper" id="previewWrapperPill">Full Wrapper</span>
+                                    </div>
+                                    <div class="preview-frame-subject" id="previewSubjectLine">Subject preview will appear here</div>
+                                </div>
+                                <div class="preview-frame-note">Preview uses sample merge data and the current wrapper selection.</div>
+                            </div>
+                            <div class="preview-frame-canvas">
+                                <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
+                            </div>
                         </div>
                     </div>
 
@@ -1373,7 +1697,7 @@
                         </div>
                     </details>
 
-                    <div class="editor-section" style="background:transparent; border:none; box-shadow:none; padding:0; display:flex; gap:8px; flex-wrap:wrap;">
+                    <div class="editor-section editor-actions-row">
                         <button class="btn btn-primary" data-action="save-template" onclick="saveTemplate()">Save Template</button>
                         <button class="btn btn-lime" data-action="duplicate-template" onclick="duplicateTemplate()">Duplicate</button>
                         <button class="btn btn-secondary test-email-action" onclick="sendTestEmail()">Send Test Email</button>
@@ -2218,12 +2542,18 @@ function refreshPreview() {
 
     // Wrap with email wrapper
     const wrapped = wrapEmail(html, subj);
+    document.getElementById('previewSubjectLine').textContent = subj || 'No subject yet';
+    document.getElementById('previewWrapperPill').textContent = getWrapperLabel(currentWrapper);
 
     const iframe = document.getElementById('previewFrame');
     const doc = iframe.contentDocument || iframe.contentWindow.document;
     doc.open();
     doc.write(wrapped);
     doc.close();
+}
+
+function getWrapperLabel(wrapper) {
+    return wrapper === 'minimal' ? 'Minimal Wrapper' : wrapper === 'none' ? 'No Wrapper' : 'Full Wrapper';
 }
 
 function wrapEmail(bodyHtml, subject) {
@@ -2240,7 +2570,7 @@ function wrapEmail(bodyHtml, subject) {
 
     const header = isMinimal ? `
         <div style="padding:22px 40px 0;">
-            <p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#7a9477;font-weight:700;font-family:-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
+            <p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#7a9477;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
         </div>
     ` : `
         <div style="background:#2e403d;padding:36px 48px;text-align:center;">
@@ -2386,6 +2716,9 @@ function markDirty() {
     isDirty = true;
     document.getElementById('unsavedDot').classList.add('show');
     syncEditorChrome();
+    if (document.getElementById('previewContainer').classList.contains('visible')) {
+        debouncedPreview();
+    }
 }
 
 /* ==============================================================

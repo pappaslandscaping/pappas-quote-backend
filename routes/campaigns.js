@@ -8,7 +8,41 @@ const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
 
-module.exports = function createCampaignRoutes({ pool, sendEmail, emailTemplate, serverError, NOTIFICATION_EMAIL }) {
+function buildCampaignCustomerActivityCondition({ liveDateClause, scheduledDateClause }) {
+  return `(
+    EXISTS (
+      SELECT 1
+      FROM copilot_live_jobs clj
+      LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
+      LEFT JOIN customers live_customer
+        ON live_customer.customer_number IS NOT NULL
+       AND clj.source_customer_id IS NOT NULL
+       AND live_customer.customer_number = clj.source_customer_id
+      WHERE clj.source_deleted_at IS NULL
+        AND COALESCE(yjo.customer_link_id, live_customer.id) = c.id
+        AND ${liveDateClause}
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM scheduled_jobs sj
+      WHERE sj.customer_id = c.id
+        AND ${scheduledDateClause}
+    )
+  )`;
+}
+
+function buildActiveCampaignCustomerQuery({ liveMonthsPlaceholder = '$1', scheduledMonthsPlaceholder = '$2' } = {}) {
+  return `SELECT DISTINCT c.*
+    FROM customers c
+    WHERE c.email IS NOT NULL
+      AND c.email != ''
+      AND ${buildCampaignCustomerActivityCondition({
+        liveDateClause: `clj.service_date >= CURRENT_DATE - (${liveMonthsPlaceholder}::text || ' months')::INTERVAL`,
+        scheduledDateClause: `COALESCE(sj.job_date::date, sj.created_at::date) >= CURRENT_DATE - (${scheduledMonthsPlaceholder}::text || ' months')::INTERVAL`
+      })}`;
+}
+
+function createCampaignRoutes({ pool, sendEmail, emailTemplate, serverError, NOTIFICATION_EMAIL }) {
   const router = express.Router();
 
 router.get('/api/campaigns', async (req, res) => {
@@ -262,7 +296,7 @@ router.post('/api/campaigns/:id/send', async (req, res) => {
     } else if (segment === 'monthly_plan') {
       customers = await pool.query('SELECT * FROM customers WHERE monthly_plan_amount > 0 AND email IS NOT NULL');
     } else if (segment === 'active') {
-      customers = await pool.query(`SELECT DISTINCT c.* FROM customers c JOIN scheduled_jobs j ON c.id = j.customer_id WHERE j.created_at >= NOW() - INTERVAL '6 months' AND c.email IS NOT NULL`);
+      customers = await pool.query(buildActiveCampaignCustomerQuery(), [6, 6]);
     } else {
       return res.status(400).json({ success: false, error: 'customer_ids or segment required' });
     }
@@ -377,4 +411,11 @@ router.get('/api/t/:trackingId/click', async (req, res) => {
 
 
   return router;
+}
+
+createCampaignRoutes._helpers = {
+  buildCampaignCustomerActivityCondition,
+  buildActiveCampaignCustomerQuery
 };
+
+module.exports = createCampaignRoutes;

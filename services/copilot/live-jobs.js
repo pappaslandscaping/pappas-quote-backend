@@ -118,7 +118,7 @@ function normalizeRouteTemplateText(value) {
 function buildRouteTemplateAddressFingerprint(value) {
   return normalizeRouteTemplateText(value)
     .replace(/\b(oh|us)\b/g, ' ')
-    .replace(/\b\d{5}(?:-\d{4})?\b/g, ' ')
+    .replace(/\b\d{5}(?:-\d{4})?\b\s*$/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -568,6 +568,8 @@ function scoreDispatchRouteTemplateMatch(templateStop, job) {
   }
 
   if (score === 0) return 0;
+  // Let an exact address break ties between duplicate customer/service stops.
+  if (stopAddress && stopAddress === jobAddress) score += 10;
   if (stopFrequency && stopFrequency === jobFrequency) score += 3;
   if (stopEventType && stopEventType === jobEventType) score += 1;
   return score;

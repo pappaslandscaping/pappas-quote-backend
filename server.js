@@ -1187,12 +1187,12 @@ const SOCIAL_NEXTDOOR = 'https://prod-beefree-images.s3.amazonaws.com/images/cop
 function emailTemplate(content, options = {}) {
   const wrapperMode = ['full', 'minimal', 'none'].includes(options.wrapper) ? options.wrapper : 'full';
   const showFooterFeatures = options.showFeatures || false;
-  const showSignature = options.showSignature !== false;
+  const showSignature = options.showSignature === true;
 
   const signatureHtml = showSignature ? `
-    <div style="margin-top:34px;padding-top:20px;border-top:1px solid #dde6de;">
-      <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">With appreciation</p>
-      <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;">
+    <div style="margin-top:28px;padding-top:18px;border-top:1px solid #e4e9e4;">
+      <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="display:block;max-width:220px;width:100%;height:auto;">
+      <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#6d7a72;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Timothy Pappas &bull; Pappas &amp; Co. Landscaping</p>
     </div>
   ` : '';
 
@@ -1201,9 +1201,9 @@ function emailTemplate(content, options = {}) {
   const SOCIAL_FB_WHITE = `${assetsUrl}/email-assets/fb-white.png`;
   const SOCIAL_IG_WHITE = `${assetsUrl}/email-assets/ig-white.png`;
   const SOCIAL_ND_WHITE = `${assetsUrl}/email-assets/nd-white.png`;
-  const contentPadding = wrapperMode === 'minimal' ? '28px 30px 24px' : '30px 34px 24px';
+  const contentPadding = wrapperMode === 'minimal' ? '28px 30px 24px' : '26px 30px 24px';
   const contentBlock = `
-  <tr><td style="padding:${contentPadding};font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#465464;font-size:15px;line-height:1.78;">
+  <tr><td style="padding:${contentPadding};font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#4a5751;font-size:15px;line-height:1.78;">
     ${content}
     ${showSignature && wrapperMode !== 'none' ? signatureHtml : ''}
   </td></tr>
@@ -1214,21 +1214,21 @@ function emailTemplate(content, options = {}) {
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:24px;background:#ffffff;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#465464;font-size:15px;line-height:1.78;">
+<body style="margin:0;padding:24px;background:#ffffff;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#4a5751;font-size:15px;line-height:1.78;">
 ${content}
 </body>
 </html>`;
   }
 
   const featuresSection = showFooterFeatures ? `
-      <tr><td style="padding:8px 34px 0;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fbf9;border:1px solid #dde6de;border-radius:18px;">
+      <tr><td style="padding:4px 30px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f8f4;border:1px solid #e3e8e2;border-radius:16px;">
           <tr><td style="padding:20px 22px;">
-            <p style="text-align:left;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;margin:0 0 8px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Inside your account</p>
-            <p style="text-align:left;font-family:'DM Sans',-apple-system,Arial,sans-serif;font-size:22px;line-height:1.2;color:#223330;font-weight:700;margin:0 0 18px;">Everything stays organized in one place</p>
+            <p style="text-align:left;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#728076;font-weight:700;margin:0 0 8px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Inside your account</p>
+            <p style="text-align:left;font-family:'DM Sans',-apple-system,Arial,sans-serif;font-size:20px;line-height:1.25;color:#223330;font-weight:700;margin:0 0 18px;">Everything stays organized in one place</p>
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td style="padding:12px 0;border-bottom:1px solid #e8eeea;">
+                <td style="padding:12px 0;border-bottom:1px solid #e3e8e2;">
                   <table cellpadding="0" cellspacing="0"><tr>
                     <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Service Schedule</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">View upcoming visits and service history</span></td>
@@ -1236,7 +1236,7 @@ ${content}
                 </td>
               </tr>
               <tr>
-                <td style="padding:12px 0;border-bottom:1px solid #e8eeea;">
+                <td style="padding:12px 0;border-bottom:1px solid #e3e8e2;">
                   <table cellpadding="0" cellspacing="0"><tr>
                     <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Easy Payments</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pay invoices securely online anytime</span></td>
@@ -1244,7 +1244,7 @@ ${content}
                 </td>
               </tr>
               <tr>
-                <td style="padding:12px 0;border-bottom:1px solid #e8eeea;">
+                <td style="padding:12px 0;border-bottom:1px solid #e3e8e2;">
                   <table cellpadding="0" cellspacing="0"><tr>
                     <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Direct Messaging</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Send questions or requests to our team</span></td>
@@ -1266,18 +1266,25 @@ ${content}
   ` : '';
 
   const headerHtml = wrapperMode === 'minimal' ? `
-  <tr><td style="padding:20px 30px 0;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e6ece8;">
-      <tr><td style="padding:0 0 16px;">
+  <tr><td style="padding:18px 28px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e4e9e4;">
+      <tr><td style="padding:0 0 14px;">
         <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:34px;max-width:156px;width:auto;">
       </td></tr>
     </table>
   </td></tr>
   ` : `
-  <tr><td style="padding:0 22px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dde6de;border-bottom:none;border-radius:22px 22px 0 0;">
-      <tr><td style="padding:18px 28px 16px;">
-        <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:40px;max-width:180px;width:auto;">
+  <tr><td style="padding:0 18px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dfe5de;border-bottom:none;border-radius:22px 22px 0 0;">
+      <tr><td style="padding:18px 28px 14px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="vertical-align:middle;"><img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:38px;max-width:168px;width:auto;"></td>
+            <td align="right" style="vertical-align:middle;">
+              <p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#7b877f;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
+            </td>
+          </tr>
+        </table>
       </td></tr>
     </table>
   </td></tr>
@@ -1289,24 +1296,24 @@ ${content}
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');</style>
 </head>
-<body style="margin:0;padding:0;background:#f7f9f7;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f9f7;padding:22px 12px;">
+<body style="margin:0;padding:0;background:#f4f5f1;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f1;padding:22px 12px;">
 <tr><td align="center">
-<table width="620" cellpadding="0" cellspacing="0" style="width:620px;max-width:620px;background:#ffffff;border:1px solid #dde6de;border-radius:18px;overflow:hidden;">
+<table width="620" cellpadding="0" cellspacing="0" style="width:620px;max-width:620px;background:#ffffff;border:1px solid #dfe5de;border-radius:20px;overflow:hidden;">
   ${headerHtml}
   ${contentBlock}
   <tr><td style="padding:0 30px 24px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6ece8;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e4e9e4;">
       <tr><td style="padding:18px 0 0;text-align:left;">
-        <p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
+        <p style="margin:0 0 8px;font-size:12px;line-height:1.65;color:#69756f;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a>.</p>
         <table cellpadding="0" cellspacing="0" style="margin:10px 0 10px;">
           <tr>
-            <td style="padding:0 8px 0 0;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
-            <td style="padding:0 8px 0 0;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
-            <td style="padding:0;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0 8px 0 0;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#2d3934;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0 8px 0 0;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#2d3934;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:30px;height:30px;background:#2d3934;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
           </tr>
         </table>
-        <p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
+        <p style="margin:0;font-size:11px;color:#77827c;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://pappaslandscaping.com" style="color:#556760;text-decoration:none;">pappaslandscaping.com</a></p>
       </td></tr>
     </table>
   </td></tr>
@@ -1322,39 +1329,39 @@ ${content}
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');</style>
 </head>
-<body style="margin:0;padding:0;background:#f4f7f4;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7f4;padding:20px 0 24px;">
+<body style="margin:0;padding:0;background:#f3f4ef;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4ef;padding:20px 0 24px;">
 <tr><td align="center">
 <table width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;">
   ${headerHtml}
-  <tr><td style="padding:0 22px 18px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dde6de;border-radius:0 0 22px 22px;overflow:hidden;">
-      <tr><td style="padding:0 34px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e6ece8;">
+  <tr><td style="padding:0 18px 18px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dfe5de;border-radius:0 0 22px 22px;overflow:hidden;">
+      <tr><td style="padding:0 30px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e4e9e4;">
           <tr><td style="padding:14px 0 13px;text-align:left;">
-            <p style="margin:0;font-size:12px;line-height:1.6;color:#5f6f68;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#69756f;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
           </td></tr>
         </table>
       </td></tr>
       ${contentBlock}
       ${featuresSection}
-      <tr><td style="padding:22px 34px 28px;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6ece8;">
+      <tr><td style="padding:20px 30px 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e4e9e4;">
           <tr>
             <td style="padding:16px 0 0;text-align:left;">
               <p style="margin:0 0 6px;font-size:12px;color:#223330;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
-              <p style="margin:0 0 6px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107 &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
-              <p style="margin:0;font-size:10px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#77827c;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Reply here or call <a href="tel:4408867318" style="color:#556760;text-decoration:none;">(440) 886-7318</a> &bull; <a href="https://pappaslandscaping.com" style="color:#556760;text-decoration:none;">pappaslandscaping.com</a></p>
+              <p style="margin:0;font-size:10px;color:#8a948e;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#67756d;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
             </td>
             <td align="right" style="padding:16px 0 0;vertical-align:top;">
               <table cellpadding="0" cellspacing="0" style="margin-left:auto;">
                 <tr>
-                  <td style="padding:0 0 0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
-                  <td style="padding:0 0 0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
-                  <td style="padding:0 0 0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                  <td style="padding:0 0 0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:32px;height:32px;background:#2d3934;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="display:block;width:14px;height:14px;margin:9px auto;"></a></td>
+                  <td style="padding:0 0 0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:32px;height:32px;background:#2d3934;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="display:block;width:14px;height:14px;margin:9px auto;"></a></td>
+                  <td style="padding:0 0 0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:32px;height:32px;background:#2d3934;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="display:block;width:14px;height:14px;margin:9px auto;"></a></td>
                 </tr>
               </table>
-              <p style="margin:10px 0 0;font-size:10px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Connect with us</p>
+              <p style="margin:10px 0 0;font-size:10px;color:#8a948e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Follow along</p>
             </td>
           </tr>
         </table>
@@ -8597,80 +8604,80 @@ async function renderSmsTemplate(slug, vars, fallbackText) {
 
 function premiumEmailIntro({ eyebrow, title, subtitle }) {
   return `
-    <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;">${eyebrow}</p>
-    <h1 style="margin:0 0 12px;font-size:34px;line-height:1.08;color:#223330;font-weight:700;">${title}</h1>
-    ${subtitle ? `<p style="margin:0 0 24px;font-size:16px;line-height:1.72;color:#5f6f68;">${subtitle}</p>` : ''}
+    ${eyebrow ? `<p style="margin:0 0 8px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#77837b;font-weight:700;">${eyebrow}</p>` : ''}
+    <h1 style="margin:0 0 12px;font-size:31px;line-height:1.12;color:#223330;font-weight:700;">${title}</h1>
+    ${subtitle ? `<p style="margin:0 0 22px;font-size:16px;line-height:1.72;color:#65726c;">${subtitle}</p>` : ''}
   `;
 }
 
 function premiumEmailBody(text) {
-  return `<p style="margin:0 0 16px;font-size:15px;line-height:1.78;color:#465464;">${text}</p>`;
+  return `<p style="margin:0 0 16px;font-size:15px;line-height:1.8;color:#4a5751;">${text}</p>`;
 }
 
 function premiumEmailPanel({ eyebrow, title, body, meta = '', tone = 'sage', align = 'left' }) {
   const tones = {
-    sage: { bg: '#f7faf8', border: '#dbe5de', eyebrow: '#6e7e74' },
-    sand: { bg: '#fbfaf7', border: '#e8e0d4', eyebrow: '#857458' },
-    cream: { bg: '#fbfcfb', border: '#dde6de', eyebrow: '#6e7e74' }
+    sage: { bg: '#f7f8f4', border: '#e2e7e1', eyebrow: '#76827a' },
+    sand: { bg: '#faf7f1', border: '#e7e0d4', eyebrow: '#8b785f' },
+    cream: { bg: '#fbfcfb', border: '#e3e8e2', eyebrow: '#76827a' }
   };
   const palette = tones[tone] || tones.sage;
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:${palette.bg};border:1px solid ${palette.border};border-radius:16px;">
-      <tr><td style="padding:20px 22px;text-align:${align};">
-        <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${palette.eyebrow};font-weight:700;">${eyebrow}</p>
-        <p style="margin:0 0 8px;font-size:24px;line-height:1.15;color:#223330;font-weight:700;">${title}</p>
-        ${meta ? `<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6f8076;">${meta}</p>` : ''}
-        <div style="font-size:14px;line-height:1.75;color:#465464;">${body}</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:${palette.bg};border:1px solid ${palette.border};border-radius:14px;">
+      <tr><td style="padding:18px 20px;text-align:${align};">
+        ${eyebrow ? `<p style="margin:0 0 6px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${palette.eyebrow};font-weight:700;">${eyebrow}</p>` : ''}
+        <p style="margin:0 0 8px;font-size:22px;line-height:1.18;color:#223330;font-weight:700;">${title}</p>
+        ${meta ? `<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6d7a72;">${meta}</p>` : ''}
+        <div style="font-size:14px;line-height:1.75;color:#4f5c56;">${body}</div>
       </td></tr>
     </table>
   `;
 }
 
 function premiumEmailSummaryGrid(items) {
-  const cells = items.map(item => `
-    <td style="width:50%;padding:${item.isLast ? '0 0 0 6px' : '0 6px 0 0'};vertical-align:top;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faf8;border:1px solid #dde6de;border-radius:14px;">
-        <tr><td style="padding:16px 16px 14px;">
-          <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#6e7e74;font-weight:700;">${item.label}</p>
-          <p style="margin:0;font-size:${item.emphasis ? '22px' : '15px'};line-height:1.2;color:#223330;font-weight:${item.emphasis ? '700' : '600'};">${item.value}</p>
-          ${item.note ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#6f8076;">${item.note}</p>` : ''}
-        </td></tr>
-      </table>
-    </td>
-  `);
+  const rows = items.map(item => `
+    <tr>
+      <td style="padding:12px 0;border-bottom:1px solid #e6ebe7;vertical-align:top;width:34%;">
+        <p style="margin:0;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#7a857d;font-weight:700;">${item.label}</p>
+      </td>
+      <td style="padding:12px 0;border-bottom:1px solid #e6ebe7;vertical-align:top;">
+        <p style="margin:0;font-size:${item.emphasis ? '21px' : '15px'};line-height:1.35;color:#223330;font-weight:${item.emphasis ? '700' : '600'};">${item.value}</p>
+        ${item.note ? `<p style="margin:6px 0 0;font-size:12px;line-height:1.65;color:#6d7a72;">${item.note}</p>` : ''}
+      </td>
+    </tr>
+  `).join('');
 
-  const rows = [];
-  for (let i = 0; i < cells.length; i += 2) {
-    rows.push(`<tr>${cells[i]}${cells[i + 1] || '<td style="width:50%;padding:0 0 0 6px;"></td>'}</tr>`);
-    if (i + 2 < cells.length) rows.push('<tr><td colspan="2" style="height:12px;"></td></tr>');
-  }
-
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">${rows.join('')}</table>`;
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#ffffff;border:1px solid #e3e8e2;border-radius:14px;overflow:hidden;">
+      <tr><td style="padding:4px 18px;">
+        <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+      </td></tr>
+    </table>
+  `;
 }
 
 function premiumEmailSection({ title, body, eyebrow = '' }) {
   return `
     <div style="margin:0 0 24px;">
-      ${eyebrow ? `<p style="margin:0 0 8px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;">${eyebrow}</p>` : ''}
-      <h2 style="margin:0 0 10px;font-size:24px;line-height:1.18;color:#223330;font-weight:700;">${title}</h2>
-      <div style="font-size:15px;line-height:1.78;color:#465464;">${body}</div>
+      ${eyebrow ? `<p style="margin:0 0 8px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#76827a;font-weight:700;">${eyebrow}</p>` : ''}
+      <h2 style="margin:0 0 10px;font-size:22px;line-height:1.2;color:#223330;font-weight:700;">${title}</h2>
+      <div style="font-size:15px;line-height:1.78;color:#4a5751;">${body}</div>
     </div>
   `;
 }
 
 function premiumEmailNote(text) {
-  return `<div style="margin:0 0 24px;padding:14px 16px;background:#f8faf8;border-left:3px solid #223330;border-radius:0 12px 12px 0;font-size:14px;line-height:1.72;color:#465464;">${text}</div>`;
+  return `<div style="margin:0 0 24px;padding:14px 16px;background:#f7f8f4;border-left:3px solid #2d3934;border-radius:0 12px 12px 0;font-size:14px;line-height:1.72;color:#4a5751;">${text}</div>`;
 }
 
 function premiumEmailChecklist(title, items) {
   const rows = items.map(item => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #e7ece8;vertical-align:top;width:24px;color:#223330;font-weight:700;">•</td>
-      <td style="padding:10px 0;border-bottom:1px solid #e7ece8;font-size:14px;line-height:1.7;color:#465464;">${item}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e6ebe7;vertical-align:top;width:26px;color:#223330;font-weight:700;">•</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e6ebe7;font-size:14px;line-height:1.72;color:#4a5751;">${item}</td>
     </tr>
   `).join('');
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#ffffff;border:1px solid #dde6de;border-radius:16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#ffffff;border:1px solid #e3e8e2;border-radius:14px;">
       <tr><td style="padding:18px 20px 8px;">
         <p style="margin:0 0 10px;font-size:13px;line-height:1.5;color:#223330;font-weight:700;">${title}</p>
         <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
@@ -8682,44 +8689,42 @@ function premiumEmailChecklist(title, items) {
 function premiumEmailCta(label, href, secondary = '') {
   return `
     <div style="margin:0 0 22px;">
-      <a href="${href}" style="display:inline-block;padding:14px 24px;background:#223330;color:#ffffff;border-radius:12px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.01em;">${label}</a>
+      <a href="${href}" style="display:inline-block;padding:13px 22px;background:#2d3934;color:#ffffff;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.01em;">${label}</a>
     </div>
-    ${secondary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#6f8076;">${secondary}</p>` : ''}
+    ${secondary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#6d7a72;">${secondary}</p>` : ''}
   `;
 }
 
 function buildQuoteSentBody() {
   return `
-    ${premiumEmailIntro({ eyebrow: 'Quote ready', title: 'Your proposal is ready to review', subtitle: 'A polished summary of the work, pricing, and next steps for {customer_name}.' })}
-    ${premiumEmailBody('Hi {customer_first_name}, we put your proposal into a clean review format so you can see the scope, pricing, and approval steps without digging through a long email.')}
+    ${premiumEmailIntro({ eyebrow: 'Proposal ready', title: 'Your quote is ready to review', subtitle: 'The scope, pricing, and next steps are all in one place so you can make a decision quickly.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, we put your proposal together so you can review the details without digging through a long email thread. Everything you need is below, and the full quote is one click away.') }
     ${premiumEmailSummaryGrid([
       { label: 'Quote', value: '#{quote_number}' },
       { label: 'Total', value: '${quote_total}', emphasis: true, isLast: true },
-      { label: 'Prepared for', value: '{customer_name}' },
-      { label: 'Action', value: 'Review and approve online', note: 'Reply if you want anything adjusted first.', isLast: true }
+      { label: 'Prepared for', value: '{customer_name}' }
     ])}
-    ${premiumEmailSection({ eyebrow: 'Scope of work', title: 'What is included', body: '<p style="margin:0;">{services_list}</p>' })}
-    ${premiumEmailNote('If you want to talk through the quote before approving it, reply here and we can make changes without restarting the process.')}
+    ${premiumEmailSection({ eyebrow: 'Included in this proposal', title: 'What this quote covers', body: '<p style="margin:0;">{services_list}</p>' })}
     ${premiumEmailChecklist('What happens next', [
       'Open the quote to review service details and pricing.',
       'Approve it online when you are ready to move forward.',
       'We will follow up with scheduling once everything is signed off.'
     ])}
-    ${premiumEmailCta('Review Your Quote', '{quote_link}', 'If anything needs to be adjusted first, reply here and we will walk through it with you.')}
+    ${premiumEmailNote('If anything needs to be adjusted before you approve it, reply here and we will walk through it with you.') }
+    ${premiumEmailCta('Review Your Quote', '{quote_link}', 'Prefer to talk it through first? Reply to this email and we will help.') }
   `;
 }
 
 function buildInvoiceSentBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Invoice ready', title: 'Your invoice is ready', subtitle: 'A secure payment link and the key billing details are laid out below.' })}
-    ${premiumEmailBody('Hi {customer_first_name}, thanks again for choosing Pappas & Co. Your service is complete, and your invoice is ready whenever you are ready to take care of it.')}
+    ${premiumEmailBody('Hi {customer_first_name}, thank you again for choosing Pappas & Co. Your service is complete, and your invoice is ready whenever you are.') }
     ${premiumEmailSummaryGrid([
       { label: 'Invoice', value: '{invoice_number}' },
       { label: 'Amount due', value: '${invoice_total}', emphasis: true, isLast: true },
-      { label: 'Due date', value: '{invoice_due_date}' },
-      { label: 'Payment', value: 'Secure online checkout', note: 'The button below takes you directly to the invoice page.', isLast: true }
+      { label: 'Due date', value: '{invoice_due_date}' }
     ])}
-    ${premiumEmailPanel({ eyebrow: 'Payment details', title: 'Everything is ready for payment', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">If you would like us to review the invoice with you before payment, just reply to this email and we will help.</p>', tone: 'cream' })}
+    ${premiumEmailPanel({ eyebrow: 'Before payment', title: 'Need anything reviewed first?', body: '<p style="margin:0;">If you would like us to walk through the invoice with you before payment, just reply to this email and we will help.</p>', tone: 'cream' })}
     ${premiumEmailChecklist('Need to know', [
       'If payment is already on the way, no further action is needed.',
       'You can reply directly if you want us to review the invoice before payment.',
@@ -8731,13 +8736,12 @@ function buildInvoiceSentBody() {
 
 function buildPaymentReminderBody() {
   return `
-    ${premiumEmailIntro({ eyebrow: 'Friendly reminder', title: 'A balance is still open on your invoice', subtitle: 'A quick reminder so this does not get buried in your inbox.' })}
+    ${premiumEmailIntro({ eyebrow: 'Payment reminder', title: 'A balance is still open on your invoice', subtitle: 'A quick follow-up so this does not get buried in your inbox.' })}
     ${premiumEmailBody('Hi {customer_first_name}, there is still a remaining balance of <strong>${balance_due}</strong> on invoice <strong>{invoice_number}</strong>{invoice_due_date}.')}
     ${premiumEmailSummaryGrid([
-      { label: 'Balance due', value: '${balance_due}', emphasis: true },
-      { label: 'Invoice', value: '{invoice_number}', isLast: true },
-      { label: 'Due date', value: '{invoice_due_date}' },
-      { label: 'Need help?', value: 'Reply to this email', note: 'We can answer billing or timing questions directly.', isLast: true }
+      { label: 'Invoice', value: '{invoice_number}' },
+      { label: 'Balance due', value: '${balance_due}', emphasis: true, isLast: true },
+      { label: 'Due date', value: '{invoice_due_date}' }
     ])}
     ${premiumEmailNote('If payment is already in motion, you can ignore this reminder. Otherwise the link below will take you straight to the invoice.')}
     ${premiumEmailCta('Pay Now', '{payment_link}', 'Questions about billing or timing? Reply to this email and we will help.')}
@@ -8782,8 +8786,9 @@ function buildWelcomeEmailBody() {
 
 function buildSeasonalPromoBody() {
   return `
-    ${premiumEmailIntro({ eyebrow: 'Spring special', title: 'Start the season with a clean, fresh reset', subtitle: 'Now is the right time to get ahead on cleanup and lawn care before the schedule fills up.' })}
-    ${premiumEmailPanel({ eyebrow: 'Limited-time offer', title: '10% Off Spring Cleanup', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Book now and we will apply the seasonal discount to your spring cleanup service.</p>', tone: 'sand', align: 'center' })}
+    ${premiumEmailIntro({ eyebrow: 'Seasonal offer', title: 'Start the season with a clean, fresh reset', subtitle: 'Now is the right time to get ahead on cleanup and lawn care before the schedule fills up.' })}
+    ${premiumEmailBody('If spring cleanup is still on your list, this is a good time to get it scheduled. We are offering 10% off spring cleanup services for a limited time.') }
+    ${premiumEmailPanel({ eyebrow: 'Limited-time offer', title: '10% Off Spring Cleanup', body: '<p style="margin:0;">Book now and we will apply the seasonal discount to your spring cleanup service.</p>', tone: 'sand', align: 'left' })}
     ${premiumEmailSection({ eyebrow: 'Why now', title: 'A strong start makes the season easier', body: '<p style="margin:0;">Spring cleanup is the moment to reset the property, clear winter buildup, and make the rest of the season easier to maintain.</p>' })}
     ${premiumEmailChecklist('Good fit for', [
       'Properties with leftover winter debris and leaves.',
@@ -8791,14 +8796,14 @@ function buildSeasonalPromoBody() {
       'Homeowners who want the lawn ready before the busy part of spring.'
     ])}
     ${premiumEmailNote('If you want pricing or availability, reply to this email and we can put together the right next step without a long back-and-forth.')}
-    ${premiumEmailCta('Call to Book', 'tel:4408867318')}`;
+    ${premiumEmailCta('Request Your Quote', 'https://app.pappaslandscaping.com/requests.html', 'Prefer to talk first? Call us at (440) 886-7318.')}`;
 }
 
 function buildReviewRequestBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Quick favor', title: 'If we earned it, we would love your review', subtitle: 'A thoughtful review helps future customers feel confident reaching out.' })}
     ${premiumEmailBody('Hi {customer_first_name}, thanks again for choosing Pappas & Co. We hope you felt well taken care of from the first conversation through the finished service.')}
-    ${premiumEmailPanel({ eyebrow: 'Why it matters', title: 'A short review goes a long way', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Reviews help neighbors trust who they hire, and they help our small business keep growing in the communities we serve.</p>', tone: 'cream' })}
+    ${premiumEmailPanel({ eyebrow: 'Why it matters', title: 'A short review goes a long way', body: '<p style="margin:0;">Reviews help neighbors trust who they hire, and they help our small business keep growing in the communities we serve.</p>', tone: 'cream' })}
     ${premiumEmailChecklist('If you leave one, a few details help most', [
       'What service we completed for you.',
       'How communication and follow-through felt during the process.',
@@ -8825,13 +8830,61 @@ function buildAppointmentReminderBody() {
   `;
 }
 
+function buildFollowupStage1Body() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Quote follow-up', title: 'Still interested in moving forward?', subtitle: 'A quick check-in in case your proposal got buried.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, I wanted to follow up on quote <strong>#{quote_number}</strong>. If you are still considering it, the full proposal is ready whenever you want to revisit it.') }
+    ${premiumEmailSummaryGrid([
+      { label: 'Quote', value: '#{quote_number}' },
+      { label: 'Quoted total', value: '${quote_total}', emphasis: true, isLast: true }
+    ])}
+    ${premiumEmailSection({ title: 'If timing is the only holdup, that is okay', body: '<p style="margin:0;">If you want to talk through scope, timing, or budget before deciding, just reply here and we can work through it with you.</p>' })}
+    ${premiumEmailCta('Review Quote', '{quote_link}', 'Questions first? Reply directly to this email and we will help.') }
+  `;
+}
+
+function buildFollowupStage2Body() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Second follow-up', title: 'Your quote is still available', subtitle: 'Availability tends to tighten as the schedule fills, so I wanted to check in again.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, your quote <strong>#{quote_number}</strong> is still open. If the project is still on your list, now is a good time to lock in your spot.') }
+    ${premiumEmailChecklist('If you are still considering it', [
+      'Open the quote to review the scope and pricing again.',
+      'Reply if you want us to adjust anything before you decide.',
+      'Approve online when you are ready to move forward.'
+    ])}
+    ${premiumEmailCta('Accept Quote', '{quote_link}', 'If this is not the right timing, a quick reply is always helpful.') }
+  `;
+}
+
+function buildFollowupStage3Body() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Final follow-up', title: 'One last check-in on your quote', subtitle: 'I did not want to let your proposal expire without reaching out one more time.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, this is my final follow-up on quote <strong>#{quote_number}</strong>. If you are still interested, we would love to work with you.') }
+    ${premiumEmailNote('If you want to move forward, the link below will take you straight back to the quote. If not, no problem at all.') }
+    ${premiumEmailCta('View Quote', '{quote_link}', 'You can also reply with any feedback about the quote or timing.') }
+  `;
+}
+
+function buildFollowupStage4Body() {
+  return `
+    ${premiumEmailIntro({ eyebrow: 'Feedback request', title: 'Was there anything we could have done better?', subtitle: 'A quick note back helps us improve how we quote and communicate.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, I noticed quote <strong>#{quote_number}</strong> was not approved, and I wanted to ask whether there was anything we could have done better.') }
+    ${premiumEmailChecklist('A quick reply is especially helpful if', [
+      'the scope was not quite the right fit',
+      'the timing was off',
+      'the pricing or communication could have been clearer'
+    ])}
+    ${premiumEmailNote('Your feedback helps us serve customers better, even if you decided not to move forward this time.') }
+  `;
+}
+
 // Default template seeds
 const DEFAULT_TEMPLATES = [
   { name: 'Quote Sent', slug: 'quote_sent', category: 'quotes', subject: 'Your Quote from Pappas & Co. Landscaping', body: buildQuoteSentBody(), sms_body: 'Hi {customer_first_name}, your quote #{quote_number} for ${quote_total} from Pappas & Co. is ready! View it here: {quote_link}', variables: '["customer_name","customer_first_name","quote_number","quote_total","quote_link","services_list"]' },
-  { name: 'Follow-up Stage 1', slug: 'followup_stage_1', category: 'followups', subject: 'Following up on your quote — Pappas & Co.', body: '<h2 style="color:#2e403d">Still Interested?</h2><p>Hi {customer_first_name},</p><p>Just checking in on your quote #{quote_number}. We\'d love to get your lawn looking great!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Review Quote</a></p>', sms_body: 'Hi {customer_first_name}, just following up on your Pappas & Co. quote #{quote_number}. Any questions? Reply here or call (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_total","quote_link"]' },
-  { name: 'Follow-up Stage 2', slug: 'followup_stage_2', category: 'followups', subject: 'Your lawn care quote expires soon', body: '<h2 style="color:#2e403d">Don\'t Miss Out</h2><p>Hi {customer_first_name},</p><p>Your quote #{quote_number} is still available. We have limited availability this season — lock in your spot!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">Accept Quote</a></p>', sms_body: 'Hi {customer_first_name}, your Pappas & Co. quote #{quote_number} expires soon! Lock in your spot: {quote_link}', variables: '["customer_first_name","quote_number","quote_link"]' },
-  { name: 'Follow-up Stage 3', slug: 'followup_stage_3', category: 'followups', subject: 'Last chance — lawn care quote', body: '<h2 style="color:#2e403d">Last Chance</h2><p>Hi {customer_first_name},</p><p>This is our final follow-up on quote #{quote_number}. If you\'re still interested, we\'d love to work with you!</p><p><a href="{quote_link}" style="display:inline-block;padding:14px 32px;background:#2e403d;color:white;border-radius:8px;font-weight:700;text-decoration:none;">View Quote</a></p>', sms_body: 'Last call, {customer_first_name}! Your Pappas & Co. quote #{quote_number} expires soon. Questions? Call us at (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_link"]' },
-  { name: 'Follow-up Stage 4', slug: 'followup_stage_4', category: 'followups', subject: 'We\'d love your feedback — Pappas & Co.', body: '<h2 style="color:#2e403d">We Value Your Feedback</h2><p>Hi {customer_first_name},</p><p>We noticed you haven\'t accepted quote #{quote_number}. Was there something we could improve? Your feedback helps us serve our community better.</p>', sms_body: '', variables: '["customer_first_name","quote_number"]' },
+  { name: 'Follow-up Stage 1', slug: 'followup_stage_1', category: 'followups', subject: 'Following up on your quote — Pappas & Co.', body: buildFollowupStage1Body(), sms_body: 'Hi {customer_first_name}, just following up on your Pappas & Co. quote #{quote_number}. Any questions? Reply here or call (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_total","quote_link"]' },
+  { name: 'Follow-up Stage 2', slug: 'followup_stage_2', category: 'followups', subject: 'Your lawn care quote expires soon', body: buildFollowupStage2Body(), sms_body: 'Hi {customer_first_name}, your Pappas & Co. quote #{quote_number} expires soon! Lock in your spot: {quote_link}', variables: '["customer_first_name","quote_number","quote_link"]' },
+  { name: 'Follow-up Stage 3', slug: 'followup_stage_3', category: 'followups', subject: 'Last chance — lawn care quote', body: buildFollowupStage3Body(), sms_body: 'Last call, {customer_first_name}! Your Pappas & Co. quote #{quote_number} expires soon. Questions? Call us at (440) 886-7318.', variables: '["customer_first_name","quote_number","quote_link"]' },
+  { name: 'Follow-up Stage 4', slug: 'followup_stage_4', category: 'followups', subject: 'We\'d love your feedback — Pappas & Co.', body: buildFollowupStage4Body(), sms_body: '', variables: '["customer_first_name","quote_number"]' },
   { name: 'Invoice Sent', slug: 'invoice_sent', category: 'invoices', subject: 'Invoice {invoice_number} from Pappas & Co.', body: buildInvoiceSentBody(), sms_body: 'Hi {customer_first_name}, invoice {invoice_number} for ${invoice_total} from Pappas & Co. is ready. Pay here: {payment_link}', variables: '["customer_first_name","invoice_number","invoice_total","invoice_due_date","payment_link","balance_due"]' },
   { name: 'Payment Confirmation — Customer', slug: 'payment_confirmation_customer', category: 'payments', subject: 'Payment received — Thank you!', body: '<h2 style="color:#2e403d">Payment Received!</h2><p>Hi {customer_first_name},</p><p>We\'ve received your payment of <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p><p>Thank you for your business!</p>', sms_body: 'Thanks {customer_first_name}! We received your ${amount_paid} payment for invoice {invoice_number}. - Pappas & Co.', variables: '["customer_first_name","invoice_number","amount_paid"]' },
   { name: 'Payment Confirmation — Admin', slug: 'payment_confirmation_admin', category: 'payments', subject: 'Payment received: {invoice_number}', body: '<h2 style="color:#2e403d">Payment Received</h2><p><strong>{customer_name}</strong> paid <strong>${amount_paid}</strong> for invoice <strong>{invoice_number}</strong>.</p>', sms_body: '', variables: '["customer_name","invoice_number","amount_paid"]' },

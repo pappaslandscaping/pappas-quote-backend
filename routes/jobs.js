@@ -7,6 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
+const { DISPATCH_ROUTE_TEMPLATE_SEEDS } = require('../lib/dispatch-route-template-seeds');
 const {
   getCopilotToken,
   fetchCopilotRouteJobsForDate,
@@ -1017,6 +1018,9 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     return normalized.startsWith('copilot:') ? normalized : null;
   }
 
+  const CANONICAL_ROUTE_TEMPLATE_SEED_KEYS = DISPATCH_ROUTE_TEMPLATE_SEEDS.map((seed) => seed.seed_key);
+  const DISPATCH_AUTO_APPLY_NAME = 'YardDesk Auto Apply';
+
   function getDispatchActor(req) {
     const user = req?.user || {};
     return {
@@ -1045,6 +1049,127 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     });
 
     return (livePayload.jobs || []).filter((job) => !job?.hold_from_dispatch && !job?.source_deleted);
+  }
+
+  async function fetchApplicableCanonicalTemplates(targetDate) {
+    if (!targetDate || CANONICAL_ROUTE_TEMPLATE_SEED_KEYS.length === 0) return [];
+    const result = await pool.query(
+      `SELECT *
+         FROM dispatch_route_templates
+        WHERE active = true
+          AND seed_key = ANY($1::text[])
+        ORDER BY crew_name ASC, name ASC`,
+      [CANONICAL_ROUTE_TEMPLATE_SEED_KEYS]
+    );
+    return result.rows.filter((row) => isDispatchRouteTemplateApplicable(row, targetDate));
+  }
+
+  async function getRouteOverrideStateForCrewDate(targetDate, crewName) {
+    const result = await pool.query(
+      `SELECT dpi.updated_by_name
+         FROM copilot_live_jobs clj
+         JOIN dispatch_plan_items dpi ON dpi.job_key = clj.job_key
+        WHERE clj.service_date = $1::date
+          AND dpi.route_order_override IS NOT NULL
+          AND COALESCE(dpi.crew_override_name, clj.source_crew_name) = $2`,
+      [targetDate, crewName]
+    );
+
+    const rows = result.rows || [];
+    return {
+      hasOverrides: rows.length > 0,
+      autoAppliedOnly: rows.length > 0 && rows.every((row) => (row.updated_by_name || '') === DISPATCH_AUTO_APPLY_NAME),
+    };
+  }
+
+  async function maybeAutoApplyCanonicalTemplates({ targetDate, startDate, endDate, livePayload }) {
+    if (!targetDate || targetDate !== startDate || targetDate !== endDate) {
+      return { livePayload, statuses: [] };
+    }
+
+    const templates = await fetchApplicableCanonicalTemplates(targetDate);
+    if (!templates.length) return { livePayload, statuses: [] };
+
+    const statuses = [];
+    let didApply = false;
+
+    for (const template of templates) {
+      const liveJobs = livePayload.jobs || [];
+      const candidateCount = liveJobs.filter((job) => (job.crew_assigned || null) === template.crew_name || !job.crew_assigned).length;
+      if (candidateCount === 0) continue;
+
+      const overrideState = await getRouteOverrideStateForCrewDate(targetDate, template.crew_name);
+      if (overrideState.hasOverrides) {
+        statuses.push({
+          crew_name: template.crew_name,
+          template_name: template.name,
+          status: overrideState.autoAppliedOnly ? 'already_applied' : 'manual_overrides',
+          message: overrideState.autoAppliedOnly
+            ? `Canonical Monday pattern already applied for ${template.crew_name}.`
+            : `Manual route overrides already exist for ${template.crew_name}; canonical Monday auto-apply skipped.`,
+        });
+        continue;
+      }
+
+      const stopsResult = await pool.query(
+        `SELECT * FROM dispatch_route_template_stops WHERE template_id = $1 ORDER BY position ASC`,
+        [template.id]
+      );
+      const applyResult = applyDispatchRouteTemplate({
+        template,
+        templateStops: stopsResult.rows,
+        liveJobs,
+      });
+
+      if (applyResult.patches.length === 0) {
+        statuses.push({
+          crew_name: template.crew_name,
+          template_name: template.name,
+          status: 'partial_match',
+          message: `Canonical Monday pattern exists for ${template.crew_name}, but no live stops could be matched automatically.`,
+          matched_count: 0,
+          appended_count: 0,
+          unmatched_count: applyResult.unmatched_template_stops.length,
+          ambiguous_count: applyResult.ambiguous.length,
+          ambiguous: applyResult.ambiguous,
+          unmatched_template_stops: applyResult.unmatched_template_stops,
+        });
+        continue;
+      }
+
+      await patchDispatchPlanItems(pool, {
+        patches: applyResult.patches,
+        updatedByUserId: null,
+        updatedByName: DISPATCH_AUTO_APPLY_NAME,
+      });
+      didApply = true;
+      const partial = applyResult.unmatched_template_stops.length > 0 || applyResult.ambiguous.length > 0;
+      statuses.push({
+        crew_name: template.crew_name,
+        template_name: template.name,
+        status: partial ? 'partial_match' : 'applied',
+        message: partial
+          ? `Canonical Monday pattern auto-applied for ${template.crew_name} with ${applyResult.unmatched_template_stops.length} unmatched and ${applyResult.ambiguous.length} ambiguous stop(s).`
+          : `Canonical Monday pattern auto-applied for ${template.crew_name}.`,
+        matched_count: applyResult.matched.length,
+        appended_count: applyResult.appended.length,
+        unmatched_count: applyResult.unmatched_template_stops.length,
+        ambiguous_count: applyResult.ambiguous.length,
+        ambiguous: applyResult.ambiguous,
+        unmatched_template_stops: applyResult.unmatched_template_stops,
+      });
+    }
+
+    if (!didApply) return { livePayload, statuses };
+
+    const refreshedPayload = await getCopilotLiveJobs({
+      poolClient: pool,
+      date: targetDate,
+      startDate,
+      endDate,
+      fetchImpl,
+    });
+    return { livePayload: refreshedPayload, statuses };
   }
 
   function getCrewDispatchJobs(jobs, crewName) {
@@ -2576,21 +2701,30 @@ router.get('/api/dispatch/board', async (req, res) => {
       endDate = targetDate;
     }
 
-    const livePayload = await getCopilotLiveJobs({
+    let livePayload = await getCopilotLiveJobs({
       poolClient: pool,
       date: startDate === endDate ? targetDate : null,
       startDate,
       endDate,
       fetchImpl,
     });
+    const autoApply = await maybeAutoApplyCanonicalTemplates({
+      targetDate,
+      startDate,
+      endDate,
+      livePayload,
+    });
+    livePayload = autoApply.livePayload;
     const crews = await pool.query('SELECT * FROM crews ORDER BY name');
-    res.json(buildDispatchBoardPayload({
+    const payload = buildDispatchBoardPayload({
       targetDate,
       view,
       jobs: livePayload.jobs || [],
       crews: crews.rows || [],
       freshness: livePayload.freshness || null,
-    }));
+    });
+    payload.canonical_template_statuses = autoApply.statuses;
+    res.json(payload);
   } catch (error) { serverError(res, error); }
 });
 
@@ -2603,13 +2737,20 @@ router.get('/api/dispatch/route-sheet-export', async (req, res) => {
       .filter(Boolean);
     const visibleSet = new Set(visibleCrews);
 
-    const livePayload = await getCopilotLiveJobs({
+    let livePayload = await getCopilotLiveJobs({
       poolClient: pool,
       date: targetDate,
       startDate: targetDate,
       endDate: targetDate,
       fetchImpl,
     });
+    const autoApply = await maybeAutoApplyCanonicalTemplates({
+      targetDate,
+      startDate: targetDate,
+      endDate: targetDate,
+      livePayload,
+    });
+    livePayload = autoApply.livePayload;
     const crews = await pool.query('SELECT * FROM crews ORDER BY name');
     const boardPayload = buildDispatchBoardPayload({
       targetDate,

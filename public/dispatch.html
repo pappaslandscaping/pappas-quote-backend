@@ -147,6 +147,49 @@
         }
         .dispatch-status-panel svg { flex-shrink: 0; margin-top: 2px; }
         .dispatch-status-panel strong { color: #9a6700; }
+        .dispatch-template-status-panel {
+            display: none;
+            border: 1px solid rgba(191, 219, 254, 0.9);
+            border-radius: 14px;
+            background: linear-gradient(180deg, #f8fbff, #eef5ff);
+            padding: 12px 14px;
+            color: var(--blue);
+        }
+        .dispatch-template-status-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #1d4ed8;
+        }
+        .dispatch-template-status-list { display: flex; flex-direction: column; gap: 8px; }
+        .dispatch-template-status-item {
+            border-radius: 10px;
+            padding: 10px 11px;
+            background: rgba(255,255,255,0.82);
+            border: 1px solid rgba(191, 219, 254, 0.55);
+            font-size: 12px;
+            color: var(--gray-700);
+        }
+        .dispatch-template-status-item.success { border-color: rgba(34,197,94,0.35); background: rgba(240,253,244,0.95); }
+        .dispatch-template-status-item.warning { border-color: rgba(245, 158, 11, 0.35); background: rgba(255,251,235,0.96); }
+        .dispatch-template-status-item.neutral { border-color: rgba(148,163,184,0.3); background: rgba(248,250,252,0.96); }
+        .dispatch-template-status-title { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 3px; }
+        .dispatch-template-status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: rgba(59,130,246,0.12);
+            color: #1d4ed8;
+        }
+        .dispatch-template-status-detail { color: var(--gray-500); font-size: 11px; margin-top: 4px; }
         .crew-filter-panel {
             border: 1px solid var(--gray-200); border-radius: 14px; background: linear-gradient(180deg, #fbfcfb, #f6f8f6);
             padding: 12px 14px;
@@ -652,6 +695,13 @@
                         <span id="dispatchModeBannerText">Dispatch is reading the shared live Copilot-backed job set.</span>
                     </div>
                 </div>
+                <div class="dispatch-template-status-panel" id="dispatchTemplateStatusPanel">
+                    <div class="dispatch-template-status-head">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        <span>Canonical route patterns</span>
+                    </div>
+                    <div class="dispatch-template-status-list" id="dispatchTemplateStatusList"></div>
+                </div>
             </div>
             <div class="dispatch-overview-right">
                 <div class="crew-filter-panel">
@@ -1081,6 +1131,7 @@ let crewVisibility = {}; // crew name → bool (true = visible)
 let liveRouteTemplates = [];
 let dispatchBoardReadOnly = false;
 let dispatchReadOnlyReason = '';
+let dispatchCanonicalTemplateStatuses = [];
 let dispatchCapabilities = {
     assign: false,
     route_order: false,
@@ -1252,6 +1303,44 @@ function renderDispatchSummaryStrip(data) {
             <div class="subtext">${esc(card.subtext)}</div>
         </div>
     `).join('');
+}
+
+function renderCanonicalTemplateStatuses(statuses) {
+    dispatchCanonicalTemplateStatuses = Array.isArray(statuses) ? statuses : [];
+    const panel = document.getElementById('dispatchTemplateStatusPanel');
+    const list = document.getElementById('dispatchTemplateStatusList');
+    if (!panel || !list) return;
+
+    if (dispatchCanonicalTemplateStatuses.length === 0) {
+        panel.style.display = 'none';
+        list.innerHTML = '';
+        return;
+    }
+
+    panel.style.display = 'block';
+    list.innerHTML = dispatchCanonicalTemplateStatuses.map((status) => {
+        const kind = status.status === 'applied'
+            ? 'success'
+            : (status.status === 'partial_match' ? 'warning' : 'neutral');
+        const badge = status.status === 'applied'
+            ? 'Auto-applied'
+            : (status.status === 'manual_overrides' ? 'Manual overrides' : (status.status === 'already_applied' ? 'Already applied' : 'Needs review'));
+        const detailParts = [];
+        if (Number.isFinite(Number(status.matched_count))) detailParts.push(`${Number(status.matched_count)} matched`);
+        if (Number.isFinite(Number(status.appended_count)) && Number(status.appended_count) > 0) detailParts.push(`${Number(status.appended_count)} appended`);
+        if (Number.isFinite(Number(status.unmatched_count)) && Number(status.unmatched_count) > 0) detailParts.push(`${Number(status.unmatched_count)} unmatched`);
+        if (Number.isFinite(Number(status.ambiguous_count)) && Number(status.ambiguous_count) > 0) detailParts.push(`${Number(status.ambiguous_count)} ambiguous`);
+        return `
+            <div class="dispatch-template-status-item ${kind}">
+                <div class="dispatch-template-status-title">
+                    <span class="dispatch-template-status-badge">${esc(badge)}</span>
+                    <span>${esc(status.crew_name || status.template_name || 'Canonical route pattern')}</span>
+                </div>
+                <div>${esc(status.message || '')}</div>
+                ${detailParts.length ? `<div class="dispatch-template-status-detail">${esc(detailParts.join(' · '))}</div>` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
 function formatCadenceLabel(cadence) {
@@ -2193,12 +2282,14 @@ async function loadBoard() {
             add_job: false,
             ...(data.write_capabilities || {})
         };
+        dispatchCanonicalTemplateStatuses = data.canonical_template_statuses || [];
         allCrews = data.crews || [];
         loading.style.display = 'none';
 
         updateUnassignedPanel(data.unassigned || []);
         populateCrewSelect(data.crews || []);
         renderDispatchSummaryStrip(data);
+        renderCanonicalTemplateStatuses(data.canonical_template_statuses || []);
 
         // Collect all jobs for map (assigned + unassigned), tagging crew name
         const allJobs = [];

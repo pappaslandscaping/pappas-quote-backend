@@ -98,9 +98,11 @@ describe('dispatch live board route', () => {
 
   test('derives the dispatch board from the shared live Copilot job model', async () => {
     const pool = {
-      query: jest.fn().mockResolvedValueOnce({
-        rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
-      }),
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+        }),
     };
 
     getCopilotLiveJobs.mockResolvedValue({
@@ -194,11 +196,216 @@ describe('dispatch live board route', () => {
     });
   });
 
+  test('auto-applies a canonical Monday template when no route overrides exist yet', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 21,
+            seed_key: 'monday-crew-a',
+            name: 'Monday - Crew A',
+            crew_name: 'Crew A',
+            cadence: 'weekly',
+            anchor_date: '2026-04-20',
+            day_of_week: 1,
+            active: true,
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{
+            template_id: 21,
+            position: 1,
+            source_customer_id: '9002',
+            customer_link_id: null,
+            property_link_id: null,
+            customer_name: 'John Doe',
+            address_fingerprint: '45 elm st rocky river',
+            service_title: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            source_event_type: 'Visit',
+          }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+        }),
+    };
+
+    getCopilotLiveJobs
+      .mockResolvedValueOnce({
+        freshness: null,
+        jobs: [
+          {
+            id: 'copilot:2026-04-20:job-1',
+            job_key: 'copilot:2026-04-20:job-1',
+            customer_name: 'Jane Smith',
+            address: '123 Main St, Lakewood OH',
+            service_title: 'Spring Cleanup',
+            service_type: 'Spring Cleanup',
+            service_frequency: 'Weekly',
+            crew_assigned: 'Crew A',
+            route_order: 1,
+            hold_from_dispatch: false,
+          },
+          {
+            id: 'copilot:2026-04-20:job-2',
+            job_key: 'copilot:2026-04-20:job-2',
+            customer_name: 'John Doe',
+            address: '45 Elm St, Rocky River OH',
+            service_title: 'Mulch Refresh',
+            service_type: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            copilot_customer_id: '9002',
+            crew_assigned: null,
+            route_order: null,
+            hold_from_dispatch: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        freshness: null,
+        jobs: [
+          {
+            id: 'copilot:2026-04-20:job-2',
+            job_key: 'copilot:2026-04-20:job-2',
+            customer_name: 'John Doe',
+            address: '45 Elm St, Rocky River OH',
+            service_title: 'Mulch Refresh',
+            service_type: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            copilot_customer_id: '9002',
+            crew_assigned: 'Crew A',
+            route_order: 1,
+            hold_from_dispatch: false,
+          },
+          {
+            id: 'copilot:2026-04-20:job-1',
+            job_key: 'copilot:2026-04-20:job-1',
+            customer_name: 'Jane Smith',
+            address: '123 Main St, Lakewood OH',
+            service_title: 'Spring Cleanup',
+            service_type: 'Spring Cleanup',
+            service_frequency: 'Weekly',
+            crew_assigned: 'Crew A',
+            route_order: 2,
+            hold_from_dispatch: false,
+          },
+        ],
+      });
+    patchDispatchPlanItems.mockResolvedValue([]);
+
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/board', 'get', {
+      query: { date: '2026-04-20', view: 'day' },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledTimes(2);
+    expect(patchDispatchPlanItems).toHaveBeenCalledWith(pool, expect.objectContaining({
+      updatedByName: 'YardDesk Auto Apply',
+      patches: [
+        {
+          jobKey: 'copilot:2026-04-20:job-2',
+          patch: { crew_override_name: 'Crew A', route_order_override: 1 },
+        },
+        {
+          jobKey: 'copilot:2026-04-20:job-1',
+          patch: { crew_override_name: 'Crew A', route_order_override: 2 },
+        },
+      ],
+    }));
+    expect(res.body.crews[0].jobs.map((job) => job.id)).toEqual([
+      'copilot:2026-04-20:job-2',
+      'copilot:2026-04-20:job-1',
+    ]);
+    expect(res.body.canonical_template_statuses).toEqual([
+      expect.objectContaining({
+        crew_name: 'Crew A',
+        status: 'applied',
+        matched_count: 1,
+        appended_count: 1,
+      }),
+    ]);
+  });
+
+  test('skips Monday canonical auto-apply when route overrides already exist for that crew/date', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 21,
+            seed_key: 'monday-crew-a',
+            name: 'Monday - Crew A',
+            crew_name: 'Crew A',
+            cadence: 'weekly',
+            anchor_date: '2026-04-20',
+            day_of_week: 1,
+            active: true,
+          }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ updated_by_name: 'Theresa' }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+        }),
+    };
+
+    getCopilotLiveJobs.mockResolvedValue({
+      freshness: null,
+      jobs: [
+        {
+          id: 'copilot:2026-04-20:job-1',
+          job_key: 'copilot:2026-04-20:job-1',
+          customer_name: 'Jane Smith',
+          address: '123 Main St, Lakewood OH',
+          service_title: 'Spring Cleanup',
+          service_type: 'Spring Cleanup',
+          service_frequency: 'Weekly',
+          crew_assigned: 'Crew A',
+          route_order: 2,
+          hold_from_dispatch: false,
+        },
+      ],
+    });
+
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/board', 'get', {
+      query: { date: '2026-04-20', view: 'day' },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledTimes(1);
+    expect(patchDispatchPlanItems).not.toHaveBeenCalled();
+    expect(res.body.canonical_template_statuses).toEqual([
+      expect.objectContaining({
+        crew_name: 'Crew A',
+        status: 'manual_overrides',
+      }),
+    ]);
+  });
+
   test('exports a multi-sheet route workbook from the live visible crew set', async () => {
     const pool = {
-      query: jest.fn().mockResolvedValueOnce({
-        rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
-      }),
+      query: jest.fn()
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+        }),
     };
     getCopilotLiveJobs.mockResolvedValue({
       freshness: null,
@@ -273,6 +480,156 @@ describe('dispatch live board route', () => {
     expect(res.body).toContain('<Cell ss:StyleID="header"><Data ss:Type="String">Time</Data></Cell>');
     expect(res.body).toContain('Angela Ziegler');
     expect(res.body).toContain('Unassigned Customer');
+  });
+
+  test('route-sheet export auto-applies canonical Monday order before building workbook output', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 22,
+            seed_key: 'monday-crew-a',
+            name: 'Monday - Crew A',
+            crew_name: 'Crew A',
+            cadence: 'weekly',
+            anchor_date: '2026-04-20',
+            day_of_week: 1,
+            active: true,
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{
+            template_id: 22,
+            position: 1,
+            source_customer_id: '9002',
+            customer_link_id: null,
+            property_link_id: null,
+            customer_name: 'John Doe',
+            address_fingerprint: '45 elm st rocky river',
+            service_title: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            source_event_type: 'Visit',
+          }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: 7, name: 'Crew A', members: 'Tim, Rob', color: '#059669' }],
+        }),
+    };
+    getCopilotLiveJobs
+      .mockResolvedValueOnce({
+        freshness: null,
+        jobs: [
+          {
+            id: 'copilot:2026-04-20:job-1',
+            job_key: 'copilot:2026-04-20:job-1',
+            source_system: 'copilot',
+            source_kind: 'live_schedule',
+            job_date: '2026-04-20',
+            service_date: '2026-04-20',
+            visit_id: '45002620',
+            customer_name: 'Jane Smith',
+            address: '123 Main St, Lakewood OH',
+            service_type: 'Spring Cleanup',
+            service_price: 36,
+            crew_assigned: 'Crew A',
+            route_order: 1,
+            estimated_duration: 30,
+            status: 'pending',
+            special_notes: '',
+            hold_from_dispatch: false,
+          },
+          {
+            id: 'copilot:2026-04-20:job-2',
+            job_key: 'copilot:2026-04-20:job-2',
+            source_system: 'copilot',
+            source_kind: 'live_schedule',
+            job_date: '2026-04-20',
+            service_date: '2026-04-20',
+            visit_id: '45002621',
+            customer_name: 'John Doe',
+            address: '45 Elm St, Rocky River OH',
+            service_type: 'Mulch Refresh',
+            service_title: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            copilot_customer_id: '9002',
+            service_price: 120,
+            crew_assigned: null,
+            route_order: null,
+            estimated_duration: 45,
+            status: 'pending',
+            special_notes: '',
+            hold_from_dispatch: false,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        freshness: null,
+        jobs: [
+          {
+            id: 'copilot:2026-04-20:job-2',
+            job_key: 'copilot:2026-04-20:job-2',
+            source_system: 'copilot',
+            source_kind: 'live_schedule',
+            job_date: '2026-04-20',
+            service_date: '2026-04-20',
+            visit_id: '45002621',
+            customer_name: 'John Doe',
+            address: '45 Elm St, Rocky River OH',
+            service_type: 'Mulch Refresh',
+            service_title: 'Mulch Refresh',
+            service_frequency: 'One-time',
+            service_price: 120,
+            crew_assigned: 'Crew A',
+            route_order: 1,
+            estimated_duration: 45,
+            status: 'pending',
+            special_notes: '',
+            hold_from_dispatch: false,
+          },
+          {
+            id: 'copilot:2026-04-20:job-1',
+            job_key: 'copilot:2026-04-20:job-1',
+            source_system: 'copilot',
+            source_kind: 'live_schedule',
+            job_date: '2026-04-20',
+            service_date: '2026-04-20',
+            visit_id: '45002620',
+            customer_name: 'Jane Smith',
+            address: '123 Main St, Lakewood OH',
+            service_type: 'Spring Cleanup',
+            service_price: 36,
+            crew_assigned: 'Crew A',
+            route_order: 2,
+            estimated_duration: 30,
+            status: 'pending',
+            special_notes: '',
+            hold_from_dispatch: false,
+          },
+        ],
+      });
+    patchDispatchPlanItems.mockResolvedValue([]);
+
+    const router = createJobRoutes({
+      pool,
+      serverError: jest.fn(),
+      authenticateToken: (_req, _res, next) => next(),
+      nextInvoiceNumber: jest.fn(),
+      upload: { single: () => (_req, _res, next) => next() },
+      fetchImpl: jest.fn(),
+    });
+
+    const res = await invokeRoute(router, '/api/dispatch/route-sheet-export', 'get', {
+      query: {
+        date: '2026-04-20',
+        visible_crews: 'Crew A',
+      },
+    });
+
+    expect(getCopilotLiveJobs).toHaveBeenCalledTimes(2);
+    expect(patchDispatchPlanItems).toHaveBeenCalled();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.indexOf('John Doe')).toBeLessThan(res.body.indexOf('Jane Smith'));
   });
 
   test('persists live dispatch assignment overrides by Copilot job key', async () => {

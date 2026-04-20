@@ -2860,22 +2860,36 @@ app.get('/api/calls/:id', async (req, res) => {
 app.patch('/api/calls/:id', async (req, res) => {
   try {
     const { status, notes, transcription } = req.body;
-    const sets = [], vals = [];
-    let p = 1;
-    if (status) { sets.push(`status = $${p++}`); vals.push(status); }
-    if (notes) { sets.push(`notes = $${p++}`); vals.push(notes); }
-    if (transcription) { sets.push(`transcription = $${p++}`); vals.push(transcription); }
-    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields' });
-    sets.push('updated_at = CURRENT_TIMESTAMP');
-    vals.push(req.params.id);
-    const result = await pool.query(`UPDATE calls SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
-    res.json({ success: true, call: result.rows[0] });
+    const { error, call } = await updateCallRecord(req.params.id, { status, notes, transcription });
+    if (error) return res.status(400).json({ success: false, error });
+    if (!call) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, call });
+  } catch (error) { serverError(res, error); }
+});
+
+app.patch('/api/calls/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!status) return res.status(400).json({ success: false, error: 'Status is required' });
+    const { call } = await updateCallRecord(req.params.id, { status });
+    if (!call) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, call });
+  } catch (error) { serverError(res, error); }
+});
+
+app.patch('/api/calls/:id/read', async (req, res) => {
+  try {
+    const read = typeof req.body?.read === 'boolean' ? req.body.read : true;
+    const { call } = await updateCallRecord(req.params.id, { read });
+    if (!call) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, call });
   } catch (error) { serverError(res, error); }
 });
 
 app.delete('/api/calls/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM calls WHERE id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, deleted: result.rows[0] });
   } catch (error) { serverError(res, error); }
 });
@@ -4014,9 +4028,11 @@ async function createCallsTable() {
         option_selected VARCHAR(100),
         recording_url TEXT,
         transcription TEXT,
+        notes TEXT,
         customer_id INTEGER,
         read BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_calls_from ON calls(from_number)`);
@@ -4027,6 +4043,52 @@ async function createCallsTable() {
   }
 }
 createCallsTable();
+
+async function ensureCallsTableColumns() {
+  try {
+    await pool.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS notes TEXT`);
+    await pool.query(`ALTER TABLE calls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  } catch (err) {
+    console.log('ℹ️ Calls table column sync:', err.message);
+  }
+}
+ensureCallsTableColumns();
+
+async function updateCallRecord(callId, fields = {}) {
+  const sets = [];
+  const vals = [];
+  let p = 1;
+
+  if (Object.prototype.hasOwnProperty.call(fields, 'status')) {
+    sets.push(`status = $${p++}`);
+    vals.push(fields.status);
+  }
+  if (Object.prototype.hasOwnProperty.call(fields, 'notes')) {
+    sets.push(`notes = $${p++}`);
+    vals.push(fields.notes);
+  }
+  if (Object.prototype.hasOwnProperty.call(fields, 'transcription')) {
+    sets.push(`transcription = $${p++}`);
+    vals.push(fields.transcription);
+  }
+  if (Object.prototype.hasOwnProperty.call(fields, 'read')) {
+    sets.push(`read = $${p++}`);
+    vals.push(Boolean(fields.read));
+  }
+  if (sets.length === 0) {
+    return { error: 'No fields' };
+  }
+
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  vals.push(callId);
+
+  const result = await pool.query(
+    `UPDATE calls SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`,
+    vals
+  );
+
+  return { call: result.rows[0] || null };
+}
 
 // Send Expo Push Notification
 async function sendPushNotification(expoPushToken, title, body, data = {}, badge = undefined) {

@@ -165,13 +165,20 @@ const DEFAULT_WRITING_PROVIDER = (process.env.AI_WRITING_PROVIDER || '').trim().
 const DEFAULT_WRITING_OPENAI_MODEL = process.env.AI_WRITING_OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 const DEFAULT_WRITING_OPENAI_FALLBACK_MODEL = process.env.AI_WRITING_OPENAI_FALLBACK_MODEL || 'gpt-5-mini';
 
-function getWritingAiProvider() {
+function resolveWritingAiProvider(providerOverride) {
+  if (providerOverride === 'openai' || providerOverride === 'anthropic') {
+    return providerOverride;
+  }
   if (DEFAULT_WRITING_PROVIDER === 'openai' || DEFAULT_WRITING_PROVIDER === 'anthropic') {
     return DEFAULT_WRITING_PROVIDER;
   }
   if (OPENAI_API_KEY) return 'openai';
   if (anthropicClient) return 'anthropic';
   return null;
+}
+
+function getWritingAiProvider() {
+  return resolveWritingAiProvider();
 }
 
 function isWritingAiConfigured() {
@@ -351,7 +358,7 @@ async function createAnthropicWritingResponse({ systemPrompt, messages, maxOutpu
 }
 
 async function generateWritingText(options) {
-  const provider = getWritingAiProvider();
+  const provider = resolveWritingAiProvider(options?.providerOverride);
   if (provider === 'openai') {
     return createOpenAIWritingResponse(options);
   }
@@ -362,7 +369,7 @@ async function generateWritingText(options) {
 }
 
 async function generateWritingJson(options) {
-  const provider = getWritingAiProvider();
+  const provider = resolveWritingAiProvider(options?.providerOverride);
   const response = provider === 'openai'
     ? await createOpenAIWritingResponse(options)
     : provider === 'anthropic'
@@ -380,6 +387,7 @@ async function generateWritingJsonWithTextFallback(options) {
     return await generateWritingJson(options);
   } catch (structuredError) {
     const fallback = await generateWritingText({
+      providerOverride: options.providerOverride,
       systemPrompt: options.systemPrompt,
       messages: options.messages,
       maxOutputTokens: options.maxOutputTokens
@@ -395,6 +403,20 @@ async function generateWritingJsonWithTextFallback(options) {
       throw parseError;
     }
   }
+}
+
+function isOpenAIWritingRuntimeError(error) {
+  if (!error) return false;
+  const normalized = String(error?.message || '').toLowerCase();
+  return error?.statusCode === 429 ||
+    error?.statusCode === 401 ||
+    normalized.includes('quota') ||
+    normalized.includes('billing') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('insufficient_quota') ||
+    normalized.includes('incorrect api key') ||
+    normalized.includes('invalid api key') ||
+    normalized.includes('organization');
 }
 
 const upload = multer({
@@ -11296,14 +11318,33 @@ Reminder:
 - For non-button blocks, set "url" to ""
 - For divider blocks, set "content" to ""`;
 
-    const response = await generateWritingJsonWithTextFallback({
-      systemPrompt,
-      maxOutputTokens: 2048,
-      schemaName: 'marketing_campaign_bundle',
-      schemaDescription: 'A structured marketing campaign bundle for templates and broadcasts.',
-      jsonSchema: CAMPAIGN_BUNDLE_SCHEMA,
-      messages: [{ role: 'user', content: userPrompt }]
-    });
+    const primaryProvider = OPENAI_API_KEY ? 'openai' : (anthropicClient ? 'anthropic' : 'openai');
+    let response;
+    try {
+      response = await generateWritingJsonWithTextFallback({
+        providerOverride: primaryProvider,
+        systemPrompt,
+        maxOutputTokens: 2048,
+        schemaName: 'marketing_campaign_bundle',
+        schemaDescription: 'A structured marketing campaign bundle for templates and broadcasts.',
+        jsonSchema: CAMPAIGN_BUNDLE_SCHEMA,
+        messages: [{ role: 'user', content: userPrompt }]
+      });
+    } catch (openAiError) {
+      const shouldFallbackToAnthropic = primaryProvider === 'openai' && Boolean(anthropicClient) && isOpenAIWritingRuntimeError(openAiError);
+      if (!shouldFallbackToAnthropic) throw openAiError;
+
+      console.warn(`[Marketing AI] campaign-bundle OpenAI fallback triggered: ${openAiError.statusCode || 'unknown'} ${openAiError.message}`);
+      response = await generateWritingJsonWithTextFallback({
+        providerOverride: 'anthropic',
+        systemPrompt,
+        maxOutputTokens: 2048,
+        schemaName: 'marketing_campaign_bundle',
+        schemaDescription: 'A structured marketing campaign bundle for templates and broadcasts.',
+        jsonSchema: CAMPAIGN_BUNDLE_SCHEMA,
+        messages: [{ role: 'user', content: userPrompt }]
+      });
+    }
 
     const bundle = sanitizeCampaignBundleResult(response.json, audience, cta_goal, smsMaxChars);
 
@@ -11313,7 +11354,7 @@ Reminder:
     console.error('Marketing campaign bundle error:', error);
     res.status(502).json({
       success: false,
-      error: 'Campaign bundle generation failed. Please try again or continue editing the template manually.'
+      error: 'Campaign bundle generation is temporarily unavailable. Please try again or continue editing the template manually.'
     });
   }
 });

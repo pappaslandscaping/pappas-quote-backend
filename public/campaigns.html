@@ -2253,9 +2253,9 @@ function buildTemplatePreviewMarkup(template) {
     const channelLabel = template.channel === 'both' ? 'Email + SMS' : template.channel === 'sms' ? 'SMS Only' : 'Email';
     const wrapperLabel = wrapper === 'minimal' ? 'Minimal Wrapper' : wrapper === 'none' ? 'No Wrapper' : 'Full Wrapper';
     const footer = wrapper === 'full'
-        ? 'Questions? Reply to this email or call (440) 886-7318'
+        ? 'Reply directly or call (440) 886-7318'
         : wrapper === 'minimal'
-            ? 'Pappas & Co. Landscaping • pappaslandscaping.com'
+            ? 'Clear communication • Thoughtful care'
             : 'Template body only';
 
     return `
@@ -2276,7 +2276,7 @@ function buildTemplatePreviewMarkup(template) {
                 <span>Sample render</span>
             </div>
             <div class="tpl-email ${esc(wrapper)}">
-                ${wrapper === 'none' ? '' : `<div class="tpl-email-header"><span class="tpl-brand-kicker">Pappas &amp; Co. Landscaping</span>${wrapper === 'full' ? '<span class="tpl-email-header-main">Elevated customer email shell</span>' : ''}</div>`}
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-header"><span class="tpl-brand-kicker">Pappas &amp; Co. Landscaping</span>${wrapper === 'full' ? '<span class="tpl-email-header-main">Seasonal service with a cleaner customer experience</span>' : ''}</div>`}
                 <div class="tpl-email-body">${body}</div>
                 ${wrapper === 'none' ? '' : `<div class="tpl-email-footer">${esc(footer)}</div>`}
             </div>

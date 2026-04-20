@@ -1059,18 +1059,12 @@
             overflow: hidden;
         }
 
-        .assistant-panel summary {
-            list-style: none;
-            cursor: pointer;
+        .assistant-panel-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
             padding: 16px 20px;
-        }
-
-        .assistant-panel summary::-webkit-details-marker {
-            display: none;
         }
 
         .assistant-panel-copy {
@@ -1086,21 +1080,6 @@
             font-size: 12px;
             color: #4b6354;
             line-height: 1.5;
-        }
-
-        .assistant-panel-toggle {
-            font-size: 11px;
-            font-weight: 700;
-            color: #2e403d;
-            white-space: nowrap;
-        }
-
-        .assistant-panel[open] .assistant-panel-toggle::after {
-            content: 'Hide';
-        }
-
-        .assistant-panel:not([open]) .assistant-panel-toggle::after {
-            content: 'Open';
         }
 
         .assistant-panel-body {
@@ -1540,14 +1519,13 @@
                         <input type="text" class="form-input" id="editorSubject" placeholder="e.g. Your quote from {company_name} is ready" oninput="markDirty()">
                     </div>
 
-                    <details class="assistant-panel" open id="templateAiAssistant">
-                        <summary>
+                    <section class="assistant-panel" id="templateAiAssistant">
+                        <div class="assistant-panel-header">
                             <div class="assistant-panel-copy">
                                 <div class="editor-section-title">AI Assistant &amp; Campaign Bundle</div>
                                 <p>Use the campaign bundle builder or template rewrite tools here. The editor still stays primary, but the AI controls are visible before the main body editor.</p>
                             </div>
-                            <span class="assistant-panel-toggle" aria-hidden="true"></span>
-                        </summary>
+                        </div>
                         <div class="assistant-panel-body">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Assistant</div>
@@ -1616,7 +1594,7 @@
                                 <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Write an SMS version of this email')">SMS Version</button>
                             </div>
                         </div>
-                    </details>
+                    </section>
 
                     <div class="editor-section email-section">
                         <div class="preview-toggle-bar">

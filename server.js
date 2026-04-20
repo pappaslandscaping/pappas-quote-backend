@@ -10679,6 +10679,18 @@ const MARKETING_AI_ALLOWED_CTA_GOALS = new Set(['book-now', 'request-quote', 're
 const MARKETING_AI_ALLOWED_CTA_URLS = new Set(['{quote_link}', '{payment_link}', '{portal_link}', '{contract_link}']);
 const MARKETING_AI_ALLOWED_BLOCK_TYPES = new Set(['title', 'paragraph', 'button', 'list', 'divider']);
 
+const CAMPAIGN_BUNDLE_BLOCK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    type: { type: 'string', enum: ['title', 'paragraph', 'button', 'list', 'divider'] },
+    content: { type: 'string' },
+    items: { type: 'array', items: { type: 'string' } },
+    url: { type: 'string' }
+  },
+  required: ['type', 'content', 'items', 'url']
+};
+
 const CAMPAIGN_BUNDLE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -10698,7 +10710,7 @@ const CAMPAIGN_BUNDLE_SCHEMA = {
         },
         recommended_subject: { type: 'string' },
         preheader: { type: 'string' },
-        blocks: { type: 'array', minItems: 2, items: TEMPLATE_BLOCK_SCHEMA }
+        blocks: { type: 'array', minItems: 2, items: CAMPAIGN_BUNDLE_BLOCK_SCHEMA }
       },
       required: ['subject_options', 'recommended_subject', 'preheader', 'blocks']
     },
@@ -10771,7 +10783,7 @@ function sanitizeCampaignBundleBlocks(blocks, defaultCtaUrl, defaultCtaLabel) {
     }
 
     if (block.type === 'list') {
-      const items = (Array.isArray(block.content) ? block.content : [])
+      const items = (Array.isArray(block.items) ? block.items : [])
         .map((item) => normalizeSingleLineText(item))
         .filter(Boolean)
         .slice(0, 6);
@@ -11247,7 +11259,13 @@ Rules:
 - Write concise, production-ready marketing copy for Northeast Ohio.
 - Use the full business name "Pappas & Co. Landscaping".
 - SMS must stay within ${smsMaxChars} characters if possible.
-- Subject options should feel distinct, not minor rewrites of the same line.`;
+- Subject options should feel distinct, not minor rewrites of the same line.
+- Return ONLY valid JSON. Do not include markdown, commentary, or code fences.
+- For each block always include all fields:
+  - type
+  - content (empty string is allowed for divider)
+  - items (empty array unless type is list)
+  - url (empty string unless type is button)`;
 
     const userPrompt = `Build a structured campaign bundle with these inputs:
 
@@ -11269,7 +11287,14 @@ Return:
 - email.preheader
 - email.blocks
 - sms.body
-- cta_variants (3 to 5 options)`;
+- cta_variants (3 to 5 options)
+
+Reminder:
+- Return JSON only
+- For list blocks, use the "items" array
+- For non-list blocks, set "items" to []
+- For non-button blocks, set "url" to ""
+- For divider blocks, set "content" to ""`;
 
     const response = await generateWritingJsonWithTextFallback({
       systemPrompt,
@@ -11286,7 +11311,10 @@ Return:
     res.json({ success: true, bundle });
   } catch (error) {
     console.error('Marketing campaign bundle error:', error);
-    serverError(res, error);
+    res.status(502).json({
+      success: false,
+      error: 'Campaign bundle generation failed. Please try again or continue editing the template manually.'
+    });
   }
 });
 

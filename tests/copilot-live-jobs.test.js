@@ -284,6 +284,14 @@ describe('copilot live jobs service', () => {
     });
   });
 
+  test('buildDispatchRouteTemplateStop keeps the house number in address fingerprints', () => {
+    expect(buildDispatchRouteTemplateStop({
+      customer_name: 'Ronald Menzing',
+      address: '14103 Saint James Avenue Cleveland OH 44135, US',
+      service_title: 'Mowing',
+    }, 25).address_fingerprint).toBe('14103 saint james avenue cleveland');
+  });
+
   test('applyDispatchRouteTemplate matches saved stops and appends remaining crew jobs', () => {
     const result = applyDispatchRouteTemplate({
       template: {
@@ -344,6 +352,96 @@ describe('copilot live jobs service', () => {
     ]);
     expect(result.unmatched_template_stops).toEqual([]);
     expect(result.ambiguous).toEqual([]);
+  });
+
+  test('applyDispatchRouteTemplate uses exact address to break ties for duplicate customer stops', () => {
+    const result = applyDispatchRouteTemplate({
+      template: {
+        crew_name: 'Rob Mowing Crew',
+      },
+      templateStops: [
+        {
+          position: 25,
+          source_customer_id: '9010',
+          customer_link_id: null,
+          property_link_id: null,
+          customer_name: 'Ronald Menzing',
+          address_fingerprint: '14103 saint james avenue cleveland',
+          service_title: 'Mowing',
+          service_frequency: null,
+          source_event_type: null,
+        },
+        {
+          position: 26,
+          source_customer_id: '9010',
+          customer_link_id: null,
+          property_link_id: null,
+          customer_name: 'Ronald Menzing',
+          address_fingerprint: '14023 saint james avenue cleveland',
+          service_title: 'Mowing',
+          service_frequency: null,
+          source_event_type: null,
+        },
+      ],
+      liveJobs: [
+        {
+          id: 'copilot:2026-04-20:45001834',
+          crew_assigned: 'Rob Mowing Crew',
+          route_order: 37,
+          customer_name: 'Ronald Menzing',
+          address: '14103 Saint James Avenue Cleveland OH 44135, US',
+          service_title: 'Mowing',
+          service_frequency: null,
+          copilot_customer_id: '9010',
+        },
+        {
+          id: 'copilot:2026-04-20:45001940',
+          crew_assigned: 'Rob Mowing Crew',
+          route_order: 38,
+          customer_name: 'Ronald Menzing',
+          address: '14023 Saint James Avenue Cleveland OH 44135, US',
+          service_title: 'Mowing',
+          service_frequency: null,
+          copilot_customer_id: '9010',
+        },
+        {
+          id: 'copilot:2026-04-20:45002046',
+          crew_assigned: 'Rob Mowing Crew',
+          route_order: 25,
+          customer_name: 'Monta Demchak',
+          address: '14015 Saint James Avenue Cleveland OH 44135, US',
+          service_title: 'Mowing',
+          service_frequency: null,
+          copilot_customer_id: '9020',
+        },
+      ],
+    });
+
+    expect(result.ambiguous).toEqual([]);
+    expect(result.unmatched_template_stops).toEqual([]);
+    expect(result.patches).toEqual([
+      {
+        jobKey: 'copilot:2026-04-20:45001834',
+        patch: {
+          crew_override_name: 'Rob Mowing Crew',
+          route_order_override: 1,
+        },
+      },
+      {
+        jobKey: 'copilot:2026-04-20:45001940',
+        patch: {
+          crew_override_name: 'Rob Mowing Crew',
+          route_order_override: 2,
+        },
+      },
+      {
+        jobKey: 'copilot:2026-04-20:45002046',
+        patch: {
+          crew_override_name: 'Rob Mowing Crew',
+          route_order_override: 3,
+        },
+      },
+    ]);
   });
 
   test('upsertCopilotLiveJobs upserts rows and marks missing jobs deleted for a sync date', async () => {

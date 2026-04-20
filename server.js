@@ -1197,6 +1197,10 @@ function emailTemplate(content, options = {}) {
   ` : '';
 
   const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+  const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
+  const SOCIAL_FB_WHITE = `${assetsUrl}/email-assets/fb-white.png`;
+  const SOCIAL_IG_WHITE = `${assetsUrl}/email-assets/ig-white.png`;
+  const SOCIAL_ND_WHITE = `${assetsUrl}/email-assets/nd-white.png`;
   const contentPadding = wrapperMode === 'minimal' ? '28px 30px 24px' : '30px 34px 24px';
   const contentBlock = `
   <tr><td style="padding:${contentPadding};font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#465464;font-size:15px;line-height:1.78;">
@@ -1265,8 +1269,7 @@ ${content}
   <tr><td style="padding:20px 30px 0;">
     <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e6ece8;">
       <tr><td style="padding:0 0 16px;">
-        <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
-        <p style="margin:0;font-size:13px;line-height:1.6;color:#68796f;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Clear communication, thoughtful care, and direct customer support.</p>
+        <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:34px;max-width:156px;width:auto;">
       </td></tr>
     </table>
   </td></tr>
@@ -1274,16 +1277,7 @@ ${content}
   <tr><td style="padding:0 22px;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dde6de;border-bottom:none;border-radius:22px 22px 0 0;">
       <tr><td style="padding:18px 28px 16px;">
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="vertical-align:middle;">
-              <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:44px;max-width:190px;width:auto;">
-            </td>
-            <td align="right" style="vertical-align:middle;">
-              <p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p>
-            </td>
-          </tr>
-        </table>
+        <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:40px;max-width:180px;width:auto;">
       </td></tr>
     </table>
   </td></tr>
@@ -1305,6 +1299,13 @@ ${content}
     <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6ece8;">
       <tr><td style="padding:18px 0 0;text-align:left;">
         <p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
+        <table cellpadding="0" cellspacing="0" style="margin:10px 0 10px;">
+          <tr>
+            <td style="padding:0 8px 0 0;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0 8px 0 0;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+          </tr>
+        </table>
         <p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
       </td></tr>
     </table>
@@ -1346,9 +1347,14 @@ ${content}
               <p style="margin:0;font-size:10px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
             </td>
             <td align="right" style="padding:16px 0 0;vertical-align:top;">
-              <p style="margin:0 0 6px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://www.facebook.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Facebook</a></p>
-              <p style="margin:0 0 6px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://www.instagram.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Instagram</a></p>
-              <p style="margin:0;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="color:#57694e;text-decoration:none;">Nextdoor</a></p>
+              <table cellpadding="0" cellspacing="0" style="margin-left:auto;">
+                <tr>
+                  <td style="padding:0 0 0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                  <td style="padding:0 0 0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                  <td style="padding:0 0 0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                </tr>
+              </table>
+              <p style="margin:10px 0 0;font-size:10px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Connect with us</p>
             </td>
           </tr>
         </table>
@@ -8620,6 +8626,42 @@ function premiumEmailPanel({ eyebrow, title, body, meta = '', tone = 'sage', ali
   `;
 }
 
+function premiumEmailSummaryGrid(items) {
+  const cells = items.map(item => `
+    <td style="width:50%;padding:${item.isLast ? '0 0 0 6px' : '0 6px 0 0'};vertical-align:top;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faf8;border:1px solid #dde6de;border-radius:14px;">
+        <tr><td style="padding:16px 16px 14px;">
+          <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:#6e7e74;font-weight:700;">${item.label}</p>
+          <p style="margin:0;font-size:${item.emphasis ? '22px' : '15px'};line-height:1.2;color:#223330;font-weight:${item.emphasis ? '700' : '600'};">${item.value}</p>
+          ${item.note ? `<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#6f8076;">${item.note}</p>` : ''}
+        </td></tr>
+      </table>
+    </td>
+  `);
+
+  const rows = [];
+  for (let i = 0; i < cells.length; i += 2) {
+    rows.push(`<tr>${cells[i]}${cells[i + 1] || '<td style="width:50%;padding:0 0 0 6px;"></td>'}</tr>`);
+    if (i + 2 < cells.length) rows.push('<tr><td colspan="2" style="height:12px;"></td></tr>');
+  }
+
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">${rows.join('')}</table>`;
+}
+
+function premiumEmailSection({ title, body, eyebrow = '' }) {
+  return `
+    <div style="margin:0 0 24px;">
+      ${eyebrow ? `<p style="margin:0 0 8px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;">${eyebrow}</p>` : ''}
+      <h2 style="margin:0 0 10px;font-size:24px;line-height:1.18;color:#223330;font-weight:700;">${title}</h2>
+      <div style="font-size:15px;line-height:1.78;color:#465464;">${body}</div>
+    </div>
+  `;
+}
+
+function premiumEmailNote(text) {
+  return `<div style="margin:0 0 24px;padding:14px 16px;background:#f8faf8;border-left:3px solid #223330;border-radius:0 12px 12px 0;font-size:14px;line-height:1.72;color:#465464;">${text}</div>`;
+}
+
 function premiumEmailChecklist(title, items) {
   const rows = items.map(item => `
     <tr>
@@ -8648,12 +8690,19 @@ function premiumEmailCta(label, href, secondary = '') {
 
 function buildQuoteSentBody() {
   return `
-    ${premiumEmailIntro({ eyebrow: 'Quote ready', title: 'Your proposal is ready to review', subtitle: 'A clear, polished summary of the work we discussed for {customer_name}.' })}
-    ${premiumEmailBody('Hi {customer_first_name}, we pulled your pricing, service scope, and next steps into one clean proposal so it is easy to review when you have a minute.')}
-    ${premiumEmailPanel({ eyebrow: 'Quote summary', title: 'Quote #{quote_number}', meta: '<strong>${quote_total}</strong>', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">{services_list}</p>' })}
+    ${premiumEmailIntro({ eyebrow: 'Quote ready', title: 'Your proposal is ready to review', subtitle: 'A polished summary of the work, pricing, and next steps for {customer_name}.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, we put your proposal into a clean review format so you can see the scope, pricing, and approval steps without digging through a long email.')}
+    ${premiumEmailSummaryGrid([
+      { label: 'Quote', value: '#{quote_number}' },
+      { label: 'Total', value: '${quote_total}', emphasis: true, isLast: true },
+      { label: 'Prepared for', value: '{customer_name}' },
+      { label: 'Action', value: 'Review and approve online', note: 'Reply if you want anything adjusted first.', isLast: true }
+    ])}
+    ${premiumEmailSection({ eyebrow: 'Scope of work', title: 'What is included', body: '<p style="margin:0;">{services_list}</p>' })}
+    ${premiumEmailNote('If you want to talk through the quote before approving it, reply here and we can make changes without restarting the process.')}
     ${premiumEmailChecklist('What happens next', [
-      'Open the quote to review the pricing and service details.',
-      'Approve the proposal online whenever you are ready.',
+      'Open the quote to review service details and pricing.',
+      'Approve it online when you are ready to move forward.',
       'We will follow up with scheduling once everything is signed off.'
     ])}
     ${premiumEmailCta('Review Your Quote', '{quote_link}', 'If anything needs to be adjusted first, reply here and we will walk through it with you.')}
@@ -8662,9 +8711,15 @@ function buildQuoteSentBody() {
 
 function buildInvoiceSentBody() {
   return `
-    ${premiumEmailIntro({ eyebrow: 'Invoice ready', title: 'Your invoice is ready', subtitle: 'A secure payment link and the key billing details are included below.' })}
-    ${premiumEmailBody('Hi {customer_first_name}, thanks again for choosing Pappas & Co. Your service is complete, and your invoice is now ready for payment whenever convenient.')}
-    ${premiumEmailPanel({ eyebrow: 'Payment details', title: '${invoice_total}', meta: 'Invoice {invoice_number} &bull; Due {invoice_due_date}', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Use the payment link below to pay online securely in just a few clicks.</p>', tone: 'cream', align: 'center' })}
+    ${premiumEmailIntro({ eyebrow: 'Invoice ready', title: 'Your invoice is ready', subtitle: 'A secure payment link and the key billing details are laid out below.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, thanks again for choosing Pappas & Co. Your service is complete, and your invoice is ready whenever you are ready to take care of it.')}
+    ${premiumEmailSummaryGrid([
+      { label: 'Invoice', value: '{invoice_number}' },
+      { label: 'Amount due', value: '${invoice_total}', emphasis: true, isLast: true },
+      { label: 'Due date', value: '{invoice_due_date}' },
+      { label: 'Payment', value: 'Secure online checkout', note: 'The button below takes you directly to the invoice page.', isLast: true }
+    ])}
+    ${premiumEmailPanel({ eyebrow: 'Payment details', title: 'Everything is ready for payment', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">If you would like us to review the invoice with you before payment, just reply to this email and we will help.</p>', tone: 'cream' })}
     ${premiumEmailChecklist('Need to know', [
       'If payment is already on the way, no further action is needed.',
       'You can reply directly if you want us to review the invoice before payment.',
@@ -8678,7 +8733,13 @@ function buildPaymentReminderBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Friendly reminder', title: 'A balance is still open on your invoice', subtitle: 'A quick reminder so this does not get buried in your inbox.' })}
     ${premiumEmailBody('Hi {customer_first_name}, there is still a remaining balance of <strong>${balance_due}</strong> on invoice <strong>{invoice_number}</strong>{invoice_due_date}.')}
-    ${premiumEmailPanel({ eyebrow: 'Balance due', title: '${balance_due}', meta: 'Invoice {invoice_number}', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">If payment is already in motion, you can ignore this reminder. Otherwise the payment link below will take you directly to the invoice.</p>', tone: 'sand' })}
+    ${premiumEmailSummaryGrid([
+      { label: 'Balance due', value: '${balance_due}', emphasis: true },
+      { label: 'Invoice', value: '{invoice_number}', isLast: true },
+      { label: 'Due date', value: '{invoice_due_date}' },
+      { label: 'Need help?', value: 'Reply to this email', note: 'We can answer billing or timing questions directly.', isLast: true }
+    ])}
+    ${premiumEmailNote('If payment is already in motion, you can ignore this reminder. Otherwise the link below will take you straight to the invoice.')}
     ${premiumEmailCta('Pay Now', '{payment_link}', 'Questions about billing or timing? Reply to this email and we will help.')}
   `;
 }
@@ -8686,13 +8747,18 @@ function buildPaymentReminderBody() {
 function buildPortalMagicLinkBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Customer portal', title: 'Your secure portal is ready', subtitle: 'Quotes, invoices, payments, and account details all stay in one place.' })}
-    ${premiumEmailBody('Hi {customer_first_name}, use the secure link below to open your customer portal and pick up exactly where you left off.')}
+    ${premiumEmailBody('Hi {customer_first_name}, use the secure link below to open your customer portal and pick up exactly where you left off without having to request another login email.')}
+    ${premiumEmailSummaryGrid([
+      { label: 'Access window', value: '30 days' },
+      { label: 'Best for', value: 'Quotes, invoices, payments', isLast: true }
+    ])}
+    ${premiumEmailSection({ eyebrow: 'Inside your portal', title: 'What you can do there', body: '<p style="margin:0 0 14px;">Your portal keeps the parts of your account that customers ask for most in one place.</p>' })}
     ${premiumEmailChecklist('Inside your portal', [
       'View current and past quotes in one place.',
       'Pay invoices online without requesting another link.',
       'Keep your account details up to date whenever needed.'
     ])}
-    ${premiumEmailPanel({ eyebrow: 'Secure access', title: 'Your link stays active for 30 days', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">You can bookmark the portal or come back through this link anytime during that window.</p>' })}
+    ${premiumEmailNote('You can bookmark the portal for easier return visits, or simply reuse this secure link anytime during the 30-day access window.')}
     ${premiumEmailCta('Open Customer Portal', '{portal_link}')}`;
 }
 
@@ -8700,24 +8766,31 @@ function buildWelcomeEmailBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Welcome to Pappas & Co.', title: 'We are excited to care for your property', subtitle: 'This is the start of a simpler, better-organized service experience.' })}
     ${premiumEmailBody('Hi {customer_first_name}, thanks for trusting us with your property. We are looking forward to keeping everything clean, healthy, and well cared for throughout the season.')}
+    ${premiumEmailSection({ eyebrow: 'How we work', title: 'Service should feel organized and easy', body: '<p style="margin:0;">From the first visit forward, our goal is to make the experience feel clear, responsive, and professionally handled.</p>' })}
+    ${premiumEmailSummaryGrid([
+      { label: 'Questions', value: 'Reply directly any time' },
+      { label: 'Support', value: '(440) 886-7318', isLast: true }
+    ])}
     ${premiumEmailChecklist('What you can expect from us', [
       'Consistent communication before and after important visits.',
       'A crew that arrives ready to work and easy ways to reach us when you need anything.',
       'Clear quotes, invoices, and account updates without extra back-and-forth.'
     ])}
-    ${premiumEmailPanel({ eyebrow: 'Need anything?', title: 'We keep communication simple', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Reply to this email or call <strong>(440) 886-7318</strong> anytime you want to ask a question, update a request, or talk through your property.</p>', tone: 'cream' })}`;
+    ${premiumEmailPanel({ eyebrow: 'Need anything?', title: 'We keep communication simple', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Reply to this email or call <strong>(440) 886-7318</strong> anytime you want to ask a question, update a request, or talk through your property.</p>', tone: 'cream' })}
+  `;
 }
 
 function buildSeasonalPromoBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Spring special', title: 'Start the season with a clean, fresh reset', subtitle: 'Now is the right time to get ahead on cleanup and lawn care before the schedule fills up.' })}
     ${premiumEmailPanel({ eyebrow: 'Limited-time offer', title: '10% Off Spring Cleanup', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Book now and we will apply the seasonal discount to your spring cleanup service.</p>', tone: 'sand', align: 'center' })}
+    ${premiumEmailSection({ eyebrow: 'Why now', title: 'A strong start makes the season easier', body: '<p style="margin:0;">Spring cleanup is the moment to reset the property, clear winter buildup, and make the rest of the season easier to maintain.</p>' })}
     ${premiumEmailChecklist('Good fit for', [
       'Properties with leftover winter debris and leaves.',
       'Beds that need edging, cleanup, or prep before mulch.',
       'Homeowners who want the lawn ready before the busy part of spring.'
     ])}
-    ${premiumEmailBody('If you want pricing or availability, reply to this email and we can put together the right next step.')}
+    ${premiumEmailNote('If you want pricing or availability, reply to this email and we can put together the right next step without a long back-and-forth.')}
     ${premiumEmailCta('Call to Book', 'tel:4408867318')}`;
 }
 
@@ -8726,6 +8799,11 @@ function buildReviewRequestBody() {
     ${premiumEmailIntro({ eyebrow: 'Quick favor', title: 'If we earned it, we would love your review', subtitle: 'A thoughtful review helps future customers feel confident reaching out.' })}
     ${premiumEmailBody('Hi {customer_first_name}, thanks again for choosing Pappas & Co. We hope you felt well taken care of from the first conversation through the finished service.')}
     ${premiumEmailPanel({ eyebrow: 'Why it matters', title: 'A short review goes a long way', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Reviews help neighbors trust who they hire, and they help our small business keep growing in the communities we serve.</p>', tone: 'cream' })}
+    ${premiumEmailChecklist('If you leave one, a few details help most', [
+      'What service we completed for you.',
+      'How communication and follow-through felt during the process.',
+      'Anything that made the experience especially easy or professional.'
+    ])}
     ${premiumEmailCta('Leave a Review', 'https://g.page/r/CXOm9gkatDbPEAE/review', 'We appreciate the support more than you know.')}
   `;
 }
@@ -8734,7 +8812,11 @@ function buildAppointmentReminderBody() {
   return `
     ${premiumEmailIntro({ eyebrow: 'Service reminder', title: 'We are on deck for your upcoming visit', subtitle: 'A quick confirmation so you know exactly when we are scheduled.' })}
     ${premiumEmailBody('Hi {customer_first_name}, this is a reminder that your <strong>{service_type}</strong> service is scheduled for <strong>{job_date}</strong> at <strong>{address}</strong>.')}
-    ${premiumEmailPanel({ eyebrow: 'Scheduled visit', title: '{service_type}', meta: '{job_date} &bull; {address}', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">If anything changed on your end, just reply here and let us know before the crew arrives.</p>' })}
+    ${premiumEmailSummaryGrid([
+      { label: 'Service', value: '{service_type}' },
+      { label: 'Scheduled for', value: '{job_date}', isLast: true },
+      { label: 'Property', value: '{address}', note: 'Reply if access instructions changed.', isLast: true }
+    ])}
     ${premiumEmailChecklist('Before we arrive', [
       'Please make sure gates are unlocked if we need access.',
       'Keep the work area clear so the crew can get started right away.',

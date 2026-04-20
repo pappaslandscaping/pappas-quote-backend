@@ -2196,6 +2196,9 @@ function sanitizePreviewHtml(html) {
 function wrapBroadcastPreview(bodyHtml, wrapper = 'full') {
     const mode = normalizeWrapper(wrapper);
     const baseOrigin = window.location.origin;
+    const socialFb = `${baseOrigin}/email-assets/fb-white.png`;
+    const socialIg = `${baseOrigin}/email-assets/ig-white.png`;
+    const socialNd = `${baseOrigin}/email-assets/nd-white.png`;
     const unsubscribeUrl = `${baseOrigin}/unsubscribe.html?email=preview%40example.com`;
     const signatureImage = 'https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/White%20Modern%20Minimalist%20Signature%20Brand%20Logo%20%281200%20x%20300%20px%29%20%281%29.png';
     const signatureBlock = `<div style="margin-top:34px;padding-top:20px;border-top:1px solid #dde6de;"><p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;">With appreciation</p><img src="${signatureImage}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;"></div>`;
@@ -2217,14 +2220,20 @@ function wrapBroadcastPreview(bodyHtml, wrapper = 'full') {
   <div style="background:#ffffff;border:1px solid #dde6de;border-radius:18px;overflow:hidden;">
     <div style="padding:20px 30px 0;">
       <div style="border-bottom:1px solid #e6ece8;padding:0 0 16px;">
-        <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;">Pappas &amp; Co. Landscaping</p>
-        <p style="margin:0;font-size:13px;line-height:1.6;color:#68796f;">Clear communication, thoughtful care, and direct customer support.</p>
+        <img src="${logo}" alt="Pappas &amp; Co. Landscaping" style="display:block;max-height:34px;max-width:156px;width:auto;">
       </div>
     </div>
     <div style="padding:28px 30px 24px;color:#465464;font-size:15px;line-height:1.78;">${bodyHtml}${signatureBlock}</div>
     <div style="padding:0 30px 24px;">
       <div style="border-top:1px solid #e6ece8;padding:18px 0 0;">
         <p style="margin:0 0 6px;font-size:12px;color:#57694e;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
+        <table cellpadding="0" cellspacing="0" style="margin:10px 0 10px;">
+          <tr>
+            <td style="padding:0 8px 0 0;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0 8px 0 0;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+            <td style="padding:0;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:30px;height:30px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="display:block;width:14px;height:14px;margin:8px auto;"></a></td>
+          </tr>
+        </table>
         <p style="margin:0;font-size:11px;color:#8aa083;">Pappas &amp; Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
       </div>
     </div>
@@ -2240,12 +2249,7 @@ function wrapBroadcastPreview(bodyHtml, wrapper = 'full') {
 <div style="max-width:640px;margin:0 auto;padding:20px 0 24px;">
   <div style="padding:0 22px;">
     <div style="background:#ffffff;border:1px solid #dde6de;border-bottom:none;border-radius:22px 22px 0 0;padding:18px 28px 16px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="vertical-align:middle;"><img src="${logo}" alt="Pappas & Co. Landscaping" style="display:block;max-height:44px;max-width:190px;width:auto;"></td>
-          <td align="right" style="vertical-align:middle;"><p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p></td>
-        </tr>
-      </table>
+      <img src="${logo}" alt="Pappas &amp; Co. Landscaping" style="display:block;max-height:40px;max-width:180px;width:auto;">
     </div>
   </div>
   <div style="padding:0 22px 18px;">
@@ -2266,9 +2270,14 @@ function wrapBroadcastPreview(bodyHtml, wrapper = 'full') {
                 <p style="margin:0;font-size:10px;color:#8aa083;"><a href="${unsubscribeUrl}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
               </td>
               <td align="right" style="vertical-align:top;">
-                <p style="margin:0 0 6px;font-size:11px;color:#6f8076;"><a href="https://www.facebook.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Facebook</a></p>
-                <p style="margin:0 0 6px;font-size:11px;color:#6f8076;"><a href="https://www.instagram.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Instagram</a></p>
-                <p style="margin:0;font-size:11px;color:#6f8076;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="color:#57694e;text-decoration:none;">Nextdoor</a></p>
+                <table cellpadding="0" cellspacing="0" style="margin-left:auto;">
+                  <tr>
+                    <td style="padding:0 0 0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                    <td style="padding:0 0 0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                    <td style="padding:0 0 0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="display:block;width:34px;height:34px;background:#223330;border-radius:999px;text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="display:block;width:16px;height:16px;margin:9px auto;"></a></td>
+                  </tr>
+                </table>
+                <p style="margin:10px 0 0;font-size:10px;color:#8aa083;">Connect with us</p>
               </td>
             </tr>
           </table>

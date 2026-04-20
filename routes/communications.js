@@ -125,6 +125,48 @@ function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDate
   )`;
 }
 
+async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
+  if (!customerId || !jobDate) return [];
+
+  const liveResult = await pool.query(
+    `SELECT
+       COALESCE(
+         NULLIF(clj.job_title, ''),
+         NULLIF(clj.raw_payload->>'job_title', ''),
+         NULLIF(clj.raw_payload->>'service_type', ''),
+         'Service'
+       ) AS service_type,
+       COALESCE(yjo.address_override, clj.address_raw) AS address,
+       clj.visit_total AS service_price,
+       clj.service_date AS job_date
+     FROM copilot_live_jobs clj
+     LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
+     LEFT JOIN customers live_customer
+       ON live_customer.customer_number IS NOT NULL
+      AND clj.source_customer_id IS NOT NULL
+      AND live_customer.customer_number = clj.source_customer_id
+     WHERE clj.source_deleted_at IS NULL
+       AND COALESCE(yjo.customer_link_id, live_customer.id) = $1
+       AND clj.service_date = $2::date
+     ORDER BY clj.source_event_id ASC`,
+    [customerId, jobDate]
+  );
+
+  if (liveResult.rows.length > 0) {
+    return liveResult.rows;
+  }
+
+  const scheduledResult = await pool.query(
+    `SELECT service_type, address, service_price, job_date
+     FROM scheduled_jobs
+     WHERE customer_id = $1 AND job_date::date = $2::date
+     ORDER BY id ASC`,
+    [customerId, jobDate]
+  );
+
+  return scheduledResult.rows;
+}
+
 function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL }) {
   const router = express.Router();
 
@@ -739,16 +781,11 @@ router.post('/api/broadcasts/send', async (req, res) => {
       // If job_date provided, look up ALL job details for this customer on that date
       if (job_date) {
         try {
-          const jobResult = await pool.query(
-            `SELECT service_type, address, service_price, job_date FROM scheduled_jobs
-             WHERE customer_id = $1 AND job_date::date = $2::date
-             ORDER BY id ASC`,
-            [cust.id, job_date]
-          );
-          if (jobResult.rows.length > 0) {
-            if (jobResult.rows.length === 1) {
+          const jobs = await lookupBroadcastJobsForCustomerOnDate(pool, cust.id, job_date);
+          if (jobs.length > 0) {
+            if (jobs.length === 1) {
               // Single job — keep simple format
-              const job = jobResult.rows[0];
+              const job = jobs[0];
               vars.service_type = job.service_type || '';
               const fullAddr = job.address || vars.customer_address || '';
               vars.address = fullAddr.split(',')[0].trim();
@@ -757,7 +794,7 @@ router.post('/api/broadcasts/send', async (req, res) => {
               vars.service_price = job.service_price ? '$' + Number(job.service_price).toFixed(2) : '';
             } else {
               // Multiple jobs — build "Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave"
-              const jobParts = jobResult.rows.map(j => {
+              const jobParts = jobs.map(j => {
                 const svc = j.service_type || '';
                 const fa = j.address || vars.customer_address || '';
                 const street = fa.split(',')[0].trim();
@@ -765,15 +802,15 @@ router.post('/api/broadcasts/send', async (req, res) => {
               });
               vars.service_list = jobParts.join(' and ');
               vars.services_list = vars.service_list;
-              vars.service_type = jobResult.rows.map(j => j.service_type || '').join(' & ');
-              vars.address = jobResult.rows.map(j => {
+              vars.service_type = jobs.map(j => j.service_type || '').join(' & ');
+              vars.address = jobs.map(j => {
                 const fa = j.address || vars.customer_address || '';
                 return fa.split(',')[0].trim();
               }).join(' & ');
-              const total = jobResult.rows.reduce((sum, j) => sum + (j.service_price ? Number(j.service_price) : 0), 0);
+              const total = jobs.reduce((sum, j) => sum + (j.service_price ? Number(j.service_price) : 0), 0);
               vars.service_price = total > 0 ? '$' + total.toFixed(2) : '';
             }
-            const firstJob = jobResult.rows[0];
+            const firstJob = jobs[0];
             vars.job_date = firstJob.job_date ? new Date(firstJob.job_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '';
           }
         } catch (e) { console.error('Job lookup error:', e.message); }
@@ -923,7 +960,9 @@ router.get('/api/email-log/stats', async (req, res) => {
 createCommunicationRoutes._helpers = {
   getBroadcastEligibility,
   getBroadcastInclusionReasons,
-  getBroadcastFilterSummary
+  getBroadcastFilterSummary,
+  buildBroadcastCustomerActivityCondition,
+  lookupBroadcastJobsForCustomerOnDate
 };
 
 module.exports = createCommunicationRoutes;

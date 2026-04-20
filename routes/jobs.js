@@ -1261,7 +1261,6 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
     });
     const worksheets = groups.map((group, groupIndex) => {
       const sheetName = sanitizeWorksheetName(group.crewName, groupIndex);
-      const totalPrice = group.jobs.reduce((sum, job) => sum + (Number(job.service_price) || 0), 0);
       const rows = group.jobs.map((job, index) => `
         <Row>
           <Cell ss:StyleID="cell-center"><Data ss:Type="Number">${index + 1}</Data></Cell>
@@ -1303,7 +1302,7 @@ function createJobRoutes({ pool, serverError, authenticateToken, nextInvoiceNumb
             ${rows}
             <Row/>
             <Row>
-              <Cell ss:MergeAcross="5" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(`${group.jobs.length} stops · $${Number(totalPrice || 0).toFixed(0)}`)}</Data></Cell>
+              <Cell ss:MergeAcross="5" ss:StyleID="meta"><Data ss:Type="String">${escapeXml(`${group.jobs.length} stops`)}</Data></Cell>
             </Row>
           </Table>
         </Worksheet>

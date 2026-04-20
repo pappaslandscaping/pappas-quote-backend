@@ -1540,6 +1540,84 @@
                         <input type="text" class="form-input" id="editorSubject" placeholder="e.g. Your quote from {company_name} is ready" oninput="markDirty()">
                     </div>
 
+                    <details class="assistant-panel" open id="templateAiAssistant">
+                        <summary>
+                            <div class="assistant-panel-copy">
+                                <div class="editor-section-title">AI Assistant &amp; Campaign Bundle</div>
+                                <p>Use the campaign bundle builder or template rewrite tools here. The editor still stays primary, but the AI controls are visible before the main body editor.</p>
+                            </div>
+                            <span class="assistant-panel-toggle" aria-hidden="true"></span>
+                        </summary>
+                        <div class="assistant-panel-body">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Assistant</div>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="clearAiChat()" title="Clear conversation">Clear Chat</button>
+                            </div>
+                            <div style="margin-top:12px;padding:14px;border:1px solid #d1fae5;border-radius:12px;background:#f8fffb;">
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                                    <div>
+                                        <div class="editor-section-title" style="margin:0;color:#2e403d;">Campaign Bundle Builder</div>
+                                        <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#64748b;">Generate a structured email + SMS marketing draft with subject lines and CTA options, then apply only the parts you want.</p>
+                                    </div>
+                                    <button class="btn btn-primary" id="campaignBundleBtn" onclick="generateCampaignBundle()">Generate Campaign Bundle</button>
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleServiceType">Service Type</label>
+                                        <input type="text" class="form-input" id="bundleServiceType" placeholder="Spring Cleanup">
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleTone">Tone</label>
+                                        <select class="form-select" id="bundleTone">
+                                            <option value="friendly">Friendly</option>
+                                            <option value="premium">Premium</option>
+                                            <option value="urgent">Urgent</option>
+                                            <option value="seasonal">Seasonal</option>
+                                            <option value="local">Local</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleAudience">Audience</label>
+                                        <select class="form-select" id="bundleAudience">
+                                            <option value="all">All Customers</option>
+                                            <option value="monthly_plan">Monthly Plan</option>
+                                            <option value="active">Active Customers</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label class="form-label" for="bundleCtaGoal">CTA Goal</label>
+                                        <select class="form-select" id="bundleCtaGoal">
+                                            <option value="request-quote">Request Quote</option>
+                                            <option value="book-now">Book Now</option>
+                                            <option value="reply-text">Reply / Portal</option>
+                                            <option value="learn-more">Learn More</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin:0;grid-column:1/-1;">
+                                        <label class="form-label" for="bundleOffer">Offer</label>
+                                        <input type="text" class="form-input" id="bundleOffer" placeholder="10% off spring cleanup if booked this week">
+                                    </div>
+                                </div>
+                                <div id="campaignBundleResult" style="display:none;margin-top:14px;padding:14px;border:1px solid #dcfce7;border-radius:12px;background:#ffffff;"></div>
+                            </div>
+                            <div id="aiChatMessages" style="max-height:320px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px;"></div>
+                            <div style="display:flex; gap:8px; align-items:end;">
+                                <textarea class="form-textarea" id="aiPrompt" rows="2" placeholder="Ask me to generate, rewrite, tweak, or suggest subjects..." style="flex:1; resize:vertical; min-height:40px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <button class="btn btn-primary" onclick="aiSend()" id="aiSendBtn" style="white-space:nowrap;">Send</button>
+                                    <button class="btn btn-secondary" onclick="aiSend('apply')" id="aiApplyBtn" style="white-space:nowrap; font-size:11px; padding:4px 10px;" title="Generate and apply to template">Apply</button>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Rewrite and improve the current email template')">Rewrite</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Suggest 5 subject lines for this email')">Suggest Subject</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make the tone more friendly and casual')">More Casual</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make it shorter and more concise')">Shorter</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Write an SMS version of this email')">SMS Version</button>
+                            </div>
+                        </div>
+                    </details>
+
                     <div class="editor-section email-section">
                         <div class="preview-toggle-bar">
                             <div class="editor-section-title" style="margin-bottom:0;">Email Body</div>
@@ -1642,84 +1720,6 @@
                         <textarea class="form-textarea" id="editorSms" rows="3" placeholder="Hi {customer_first_name}, your quote is ready: {quote_link}" oninput="markDirty(); updateSmsCounter();"></textarea>
                         <div class="sms-counter" id="smsCounter">0 / 160</div>
                     </div>
-
-                    <details class="assistant-panel" open id="templateAiAssistant">
-                        <summary>
-                            <div class="assistant-panel-copy">
-                                <div class="editor-section-title">AI Assistant &amp; Campaign Bundle</div>
-                                <p>Use the campaign bundle builder or template rewrite tools here. The editor still stays primary, but the AI controls are visible by default on the redesigned page.</p>
-                            </div>
-                            <span class="assistant-panel-toggle" aria-hidden="true"></span>
-                        </summary>
-                        <div class="assistant-panel-body">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Assistant</div>
-                                <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="clearAiChat()" title="Clear conversation">Clear Chat</button>
-                            </div>
-                            <div style="margin-top:12px;padding:14px;border:1px solid #d1fae5;border-radius:12px;background:#f8fffb;">
-                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-                                    <div>
-                                        <div class="editor-section-title" style="margin:0;color:#2e403d;">Campaign Bundle Builder</div>
-                                        <p style="margin:4px 0 0;font-size:12px;line-height:1.5;color:#64748b;">Generate a structured email + SMS marketing draft with subject lines and CTA options, then apply only the parts you want.</p>
-                                    </div>
-                                    <button class="btn btn-primary" id="campaignBundleBtn" onclick="generateCampaignBundle()">Generate Campaign Bundle</button>
-                                </div>
-                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px;">
-                                    <div class="form-group" style="margin:0;">
-                                        <label class="form-label" for="bundleServiceType">Service Type</label>
-                                        <input type="text" class="form-input" id="bundleServiceType" placeholder="Spring Cleanup">
-                                    </div>
-                                    <div class="form-group" style="margin:0;">
-                                        <label class="form-label" for="bundleTone">Tone</label>
-                                        <select class="form-select" id="bundleTone">
-                                            <option value="friendly">Friendly</option>
-                                            <option value="premium">Premium</option>
-                                            <option value="urgent">Urgent</option>
-                                            <option value="seasonal">Seasonal</option>
-                                            <option value="local">Local</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group" style="margin:0;">
-                                        <label class="form-label" for="bundleAudience">Audience</label>
-                                        <select class="form-select" id="bundleAudience">
-                                            <option value="all">All Customers</option>
-                                            <option value="monthly_plan">Monthly Plan</option>
-                                            <option value="active">Active Customers</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group" style="margin:0;">
-                                        <label class="form-label" for="bundleCtaGoal">CTA Goal</label>
-                                        <select class="form-select" id="bundleCtaGoal">
-                                            <option value="request-quote">Request Quote</option>
-                                            <option value="book-now">Book Now</option>
-                                            <option value="reply-text">Reply / Portal</option>
-                                            <option value="learn-more">Learn More</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group" style="margin:0;grid-column:1/-1;">
-                                        <label class="form-label" for="bundleOffer">Offer</label>
-                                        <input type="text" class="form-input" id="bundleOffer" placeholder="10% off spring cleanup if booked this week">
-                                    </div>
-                                </div>
-                                <div id="campaignBundleResult" style="display:none;margin-top:14px;padding:14px;border:1px solid #dcfce7;border-radius:12px;background:#ffffff;"></div>
-                            </div>
-                            <div id="aiChatMessages" style="max-height:320px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px;"></div>
-                            <div style="display:flex; gap:8px; align-items:end;">
-                                <textarea class="form-textarea" id="aiPrompt" rows="2" placeholder="Ask me to generate, rewrite, tweak, or suggest subjects..." style="flex:1; resize:vertical; min-height:40px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
-                                <div style="display:flex; flex-direction:column; gap:4px;">
-                                    <button class="btn btn-primary" onclick="aiSend()" id="aiSendBtn" style="white-space:nowrap;">Send</button>
-                                    <button class="btn btn-secondary" onclick="aiSend('apply')" id="aiApplyBtn" style="white-space:nowrap; font-size:11px; padding:4px 10px;" title="Generate and apply to template">Apply</button>
-                                </div>
-                            </div>
-                            <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
-                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Rewrite and improve the current email template')">Rewrite</button>
-                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Suggest 5 subject lines for this email')">Suggest Subject</button>
-                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make the tone more friendly and casual')">More Casual</button>
-                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make it shorter and more concise')">Shorter</button>
-                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Write an SMS version of this email')">SMS Version</button>
-                            </div>
-                        </div>
-                    </details>
 
                     <div class="editor-section editor-actions-row">
                         <button class="btn btn-primary" data-action="save-template" onclick="saveTemplate()">Save Template</button>

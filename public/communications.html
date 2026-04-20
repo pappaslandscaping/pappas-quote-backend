@@ -10,15 +10,52 @@
         body { overflow: hidden; }
         .main { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
 
+        .communications-topbar {
+            height: 56px;
+            padding: 0 20px;
+        }
+        .communications-topbar .topbar-left {
+            gap: 12px;
+        }
+        .communications-topbar .topbar-left h1 {
+            font-size: 17px;
+        }
+        .communications-topbar .btn {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .communications-intro {
+            padding: 9px 20px;
+            gap: 14px;
+        }
+        .communications-intro .page-intro-copy {
+            gap: 2px;
+        }
+        .communications-intro .page-intro-label {
+            font-size: 10px;
+            letter-spacing: 0.28px;
+        }
+        .communications-intro .page-intro-note {
+            font-size: 12px;
+            line-height: 1.35;
+        }
+        .communications-intro .page-handoff-links {
+            gap: 6px;
+        }
+        .communications-intro .page-handoff-link {
+            padding: 5px 9px;
+            font-size: 11px;
+        }
+
         /* Stats Bar */
-        --stats-h: 89px;
         .stats-bar {
             display: grid; grid-template-columns: repeat(4, 1fr);
             background: var(--white); border-bottom: 1px solid var(--gray-200);
             flex-shrink: 0;
         }
         .stat-item {
-            padding: 18px 24px; border-right: 1px solid var(--gray-200);
+            padding: 12px 18px; border-right: 1px solid var(--gray-200);
             cursor: pointer; transition: background 0.15s ease; position: relative;
         }
         .stat-item:last-child { border-right: none; }
@@ -28,11 +65,11 @@
             height: 2px; background: var(--primary);
         }
         .stat-num {
-            font-size: 26px; font-weight: 700; color: var(--gray-700);
-            line-height: 1; margin-bottom: 4px;
+            font-size: 22px; font-weight: 700; color: var(--gray-700);
+            line-height: 1; margin-bottom: 2px;
         }
         .stat-item.highlight .stat-num { color: var(--primary); }
-        .stat-label { font-size: 12px; color: var(--gray-400); font-weight: 500; }
+        .stat-label { font-size: 11px; color: var(--gray-400); font-weight: 500; }
 
         /* Communications Layout */
         .comms-layout {
@@ -636,6 +673,13 @@
         .feed-empty p { font-size: 13px; }
 
         @media (max-width: 768px) {
+            .communications-topbar {
+                height: 52px;
+                padding: 0 14px;
+            }
+            .communications-intro {
+                padding: 8px 14px;
+            }
             .comms-layout { grid-template-columns: 1fr; }
             .stats-bar { grid-template-columns: repeat(2, 1fr); }
             .feed-panel { display: flex; }
@@ -659,7 +703,7 @@
 
 <div class="main">
     <!-- Topbar -->
-    <div class="topbar">
+    <div class="topbar communications-topbar">
         <div class="topbar-left">
             <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -674,7 +718,7 @@
         </div>
     </div>
 
-    <div class="page-intro-strip">
+    <div class="page-intro-strip communications-intro">
         <div class="page-intro-copy">
             <div class="page-intro-label">Operational Communications</div>
             <div class="page-intro-note">Texts, calls, and voicemails stay here. Email campaigns, templates, automations, and social content live in the dedicated marketing surfaces.</div>

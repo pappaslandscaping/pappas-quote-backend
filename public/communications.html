@@ -1050,8 +1050,8 @@ function renderFeed() {
         if (currentFilter === 'voicemail' && item.type!=='voicemail') return false;
         if (currentFilter === 'unread' && item.read) return false;
         if (currentFilter === 'archived' && item.status !== 'archived' && item.status !== 'handled') return false;
-        // Don't hide archived items from Calls view - only hide from All, Voicemail, Unread
-        if (currentFilter !== 'archived' && currentFilter !== 'calls' && (item.status === 'archived' || item.status === 'handled')) return false;
+        // Keep handled and archived items out of active triage views after they persist.
+        if (currentFilter !== 'archived' && (item.status === 'archived' || item.status === 'handled')) return false;
         if (search) {
             const s = `${item.from} ${item.name||''} ${item.body||''}`.toLowerCase();
             if (!s.includes(search)) return false;
@@ -1596,35 +1596,51 @@ async function copyCallNumber(value) {
 // ─── Voicemail Actions ──────────────────────────────────────────────────────
 async function markCallHandled(callId) {
     try {
-        await fetch(`${API}/api/calls/${callId}/status`, {
+        const res = await fetch(`${API}/api/calls/${callId}/status`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ status: 'handled' })
         });
-        const item = updateCallItem(callId, { status: 'handled', read: true });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) {
+            throw new Error(data.error || 'Failed to update call status');
+        }
+        const item = updateCallItem(callId, {
+            status: data.call?.status || 'handled',
+            read: data.call?.read !== false
+        });
         clearSelectedDetail();
         renderFeed();
         updateStats();
         showToast(item && item.type === 'call' ? 'Call marked as reviewed' : 'Voicemail marked as handled');
     } catch(e) {
         console.error(e);
+        alert(e.message || 'Failed to mark this item as handled');
     }
 }
 
 async function archiveCall(callId) {
     try {
-        await fetch(`${API}/api/calls/${callId}/status`, {
+        const res = await fetch(`${API}/api/calls/${callId}/status`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ status: 'archived' })
         });
-        const item = updateCallItem(callId, { status: 'archived', read: true });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) {
+            throw new Error(data.error || 'Failed to archive call');
+        }
+        const item = updateCallItem(callId, {
+            status: data.call?.status || 'archived',
+            read: data.call?.read !== false
+        });
         clearSelectedDetail();
         renderFeed();
         updateStats();
         showToast(item && item.type === 'call' ? 'Call archived' : 'Voicemail archived');
     } catch(e) {
         console.error(e);
+        alert(e.message || 'Failed to archive this item');
     }
 }
 

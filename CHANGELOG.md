@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026-04-18
+
+### Live Copilot Schedule Historical Date Fetch Fix
+- Fixed `GET /api/copilot/live-jobs` so Schedule attempts a live Copilot fetch for each selected date before consulting mirrored rows
+- Mirror data is now used only when the live Copilot fetch fails or times out, and empty mirror reads no longer silently masquerade as successful live Schedule results
+- Added a parse-mismatch guard for selected-date live reads so Copilot responses that report events but parse zero jobs fail closed instead of showing misleading empty Schedule days
+
+### Live Copilot Schedule Read Model
+- Added `GET /api/copilot/live-jobs` as the Schedule-facing read path backed by the merged live Copilot mirror/resolver foundation
+- Migrated Schedule day/week/month views to the shared Copilot-backed read model with freshness metadata and a read-only YardDesk office view
+- Kept import-based scheduling flows available as explicit legacy fallback paths while preventing the primary Schedule view from acting like a second operational source of truth
+
+### Tax Transfer Instruction Snapshot Lookup Fix
+- Fixed transfer-instruction generation and yesterday-status reads to recognize persisted Copilot tax summary snapshots stored under the current `live_copilot` source
+- This keeps snapshot-backed instruction generation aligned with the same persisted recommendation rows used after Tax Summary sync, without changing transfer math or recommendation source of truth
+
+### Dispatch Execution Status Workflow Foundation
+- Added additive dispatch execution fields on `scheduled_jobs` for started/completed metadata, proof-of-work coordinates, last-status tracking, and dispatch issue flags
+- Added a canonical job status transition workflow with support for `pending`, `in_progress`, `completed`, `skipped`, and `cancelled`
+- Added `PATCH /api/jobs/:id/status` for dispatch/crew status updates without changing existing board UI behavior
+- Expanded `PATCH /api/jobs/:id/complete` to persist crew proof-of-work fields already being sent while preserving the existing invoice side effects and direct pending-to-completed flow
+
+### Copilot Dispatch Execution Sync Mirror
+- Added additive `copilot_*` mirror and provenance columns on `scheduled_jobs` so Copilot-authored execution state can be mirrored without changing YardDesk’s canonical execution or billing fields
+- Added a protected manual `POST /api/copilot/dispatch-execution/sync` endpoint that fetches Copilot route status data, applies exact visit/job matching, supports `dry_run` and `force`, and updates only Copilot mirror fields
+- Added stale-event and unchanged-payload hash protections so older or identical Copilot execution payloads are skipped instead of rewriting local rows
+
+### Copilot Schedule Import Linkage
+- Added import-time Copilot route hydration for imported schedule dates so Copilot-origin CSV imports can persist the matching route snapshot into `copilot_sync_jobs` before linkage
+- Added strict deterministic schedule-import linkage that writes `copilot_visit_id` only when a CSV row has exactly one one-to-one match on service date, normalized customer name, normalized service title, normalized address, and optional exact price
+- Added import response diagnostics and operator-facing import UI messaging for linked, already-linked, unmatched, ambiguous, conflict, and hydration-failure outcomes without changing billing or canonical execution fields
+
+## 2026-04-17
+
+### Tax Transfers Automation Health
+- Added a read-only automation health panel on Tax Transfers showing the latest freshness-sync and transfer-instruction runs, last failures, next expected scheduled run times, and whether the most recent run was manual or scheduled
+- Persisted transfer-instruction generation run history in the same snapshot-settings store used for freshness status so failed cron/manual runs remain visible on the dashboard
+
+### Payments Display Normalization
+- Payments now prefer customer-facing invoice references from normalized invoice metadata instead of falling back to raw Copilot internal invoice ids
+- Legacy Copilot-linked rows with bad placeholder invoice labels now show `—` unless a real customer-facing invoice number is available
+
+### Tax Transfer Instruction Workflow
+- Added a phase-1 tax transfer instruction workflow on Tax Transfers for yesterday's Chase-to-Huntington sales tax move
+- Added approval-only instruction generation, history, and audit fields without changing Copilot collected-tax recommendation logic
+- Added cron-safe instruction generation that reads persisted Copilot tax snapshots only and never initiates bank transfers directly
+- Added cutoff-aware Yesterday instruction alerts on Tax Transfers so missing, unapproved, and unsubmitted Chase steps are obvious before and after the Eastern-time deadline
+- Added CSV export and exception reporting for transfer operations so accounting and ops can review missing, late, superseded, canceled, and changed-submission instruction states outside the page
+
+### Tax Transfer Payment Reconciliation
+- Fixed payment tax reconstruction to allocate against the taxed line-item gross total when available instead of the full invoice total
+- This prevents non-taxable invoice surcharges and fee-style adjustments from understating backend reconstructed tax on Tax Transfers
+
+### Daily Tax Transfer Freshness Sync
+- Added a protected daily tax-transfer freshness sync endpoint for Copilot payments and Copilot Tax Summary collected snapshots
+- Added persisted automation status plus same-day freshness indicators and failure messaging on the Tax Transfers page
+- Excluded leaked Copilot `Page Total` footer rows from Tax Transfers reconciliation and added cleanup on payments sync
+
+### Copilot Payment Review
+- Added a read-only Copilot payment review section to Tax Transfer Reconciliation for inspecting unresolved payment rows by date range
+- Added `GET /api/copilot/payment-review` to explain linkage failures without changing Copilot Tax Summary recommendation behavior
+- Added a Reports quick link to Tax Transfer Reconciliation so the review flow is easier to reach
+
+## 2026-04-15
+
+### Startup Schema Extraction
+- Added Railway-friendly database config fallback so `DATABASE_URL` can be derived from `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, and `PGDATABASE`
+- Added reusable `npm run migrate` and `npm run bootstrap` scripts for core database startup/bootstrap work
+- Extracted the large startup schema/bootstrap logic into `lib/startup-schema.js` so app boot and manual DB setup share the same code path
+
 ## 2026-04-14
 
 ### Route Sheet — Name & Address Parsing Fixes
@@ -49,3 +119,5 @@
 - Built `GET /api/social-media/history` — returns recent generated posts
 - New `social_media_posts` table stores generation history
 - Chat is now fully conversational — follow-ups refine in-place, say "new post" to start fresh
+
+B

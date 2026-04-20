@@ -6,6 +6,7 @@
     <title>Templates — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
+    <script src="https://cdn.tiny.cloud/1/hxd1fqgv0xbzwdkr95ytux0o6wh24oukbvfoufkl2ukvduht/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
     <style>
         /* ─── Split Layout ─────────────────────────────────── */
         .workspace {
@@ -42,6 +43,24 @@
             font-size: 15px;
             font-weight: 700;
             color: var(--gray-700);
+        }
+
+        .list-summary {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 12px;
+        }
+
+        .list-summary-count {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+
+        .list-summary-note {
+            font-size: 11px;
+            color: var(--gray-500);
         }
 
         .search-box {
@@ -107,6 +126,25 @@
             border-color: var(--primary);
         }
 
+        .category-pill-count {
+            opacity: 0.7;
+            margin-left: 3px;
+        }
+
+        .filter-state {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 11px;
+            color: var(--gray-500);
+        }
+
+        .filter-state strong {
+            color: var(--gray-700);
+        }
+
         /* Template Cards */
         .template-cards {
             flex: 1;
@@ -132,24 +170,70 @@
             border-color: var(--blue);
         }
 
+        .template-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .template-card-title-wrap {
+            min-width: 0;
+            flex: 1;
+        }
+
         .template-card-name {
             font-size: 13px;
             font-weight: 600;
             color: var(--gray-700);
-            margin-bottom: 4px;
             display: flex;
             align-items: center;
             gap: 6px;
+            margin-bottom: 2px;
         }
 
         .template-card-slug {
             font-size: 11px;
             color: var(--gray-400);
             font-family: 'DM Sans', monospace;
-            margin-bottom: 6px;
+            margin-bottom: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .template-card-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            flex-shrink: 0;
+            max-width: 42%;
+        }
+
+        .template-card-snippet {
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--gray-600);
+            margin-bottom: 10px;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow: hidden;
+            min-height: 34px;
         }
 
         .template-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+
+        .template-card-meta-left {
             display: flex;
             align-items: center;
             gap: 6px;
@@ -178,6 +262,35 @@
         .template-card-date {
             font-size: 10px;
             color: var(--gray-400);
+            white-space: nowrap;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            background: var(--gray-100);
+            color: var(--gray-600);
+            text-transform: uppercase;
+        }
+
+        .status-chip.default {
+            background: rgba(46, 64, 61, 0.12);
+            color: var(--primary);
+        }
+
+        .status-chip.inactive {
+            background: #f3f4f6;
+            color: var(--gray-500);
+        }
+
+        .status-chip.channel {
+            background: #ecfdf5;
+            color: #166534;
         }
 
         .inactive-indicator {
@@ -241,28 +354,112 @@
 
         .editor-toolbar {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             padding: 12px 20px;
             background: var(--white);
             border-bottom: 1px solid var(--gray-200);
-            gap: 12px;
+            gap: 14px;
             flex-shrink: 0;
         }
 
-        .editor-toolbar-left {
+        .editor-toolbar-top {
             display: flex;
-            align-items: center;
-            gap: 12px;
-            flex: 1;
-            min-width: 0;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            width: 100%;
         }
 
-        .editor-toolbar-right {
+        .editor-toolbar-meta {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .editor-mode-row {
             display: flex;
             align-items: center;
             gap: 8px;
-            flex-shrink: 0;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .editor-mode-badge,
+        .editor-status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .editor-mode-badge {
+            background: rgba(46, 64, 61, 0.12);
+            color: var(--primary);
+        }
+
+        .editor-status-pill {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        .editor-status-pill.dirty {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .editor-slug-display {
+            font-size: 11px;
+            color: var(--gray-500);
+            font-family: 'DM Sans', monospace;
+        }
+
+        .editor-context-note {
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--gray-500);
+        }
+
+        .editor-toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .editor-toolbar-bottom {
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .editor-name-field {
+            flex: 1.3;
+            min-width: 220px;
+        }
+
+        .editor-meta-grid {
+            flex: 1;
+            min-width: 280px;
+            display: grid;
+            grid-template-columns: minmax(140px, 1.2fr) minmax(120px, 1fr) minmax(120px, 1fr);
+            gap: 10px;
+        }
+
+        .editor-meta-grid .form-group,
+        .editor-name-field .form-group {
+            margin-bottom: 0;
+        }
+
+        .editor-toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            padding-bottom: 2px;
         }
 
         .editor-content {
@@ -390,59 +587,69 @@
             color: var(--gray-600);
         }
 
-        /* Split Pane for HTML + Preview */
-        .split-pane {
-            display: flex;
-            gap: 16px;
-            min-height: 340px;
+        /* TinyMCE Editor Container */
+        .tinymce-wrap {
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 360px;
         }
 
-        .split-pane-left, .split-pane-right {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
+        .tinymce-wrap .tox-tinymce {
+            border: none !important;
+            border-radius: 0 !important;
         }
 
-        .split-pane-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--gray-400);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 6px;
+        /* Preview Toggle */
+        .preview-toggle-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            margin-bottom: 10px;
         }
 
-        .html-textarea {
-            flex: 1;
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--gray-200);
+        .preview-toggle-bar .editor-section-title {
+            margin-bottom: 0;
+        }
+
+        .preview-btn-group {
+            display: flex;
+            gap: 4px;
+            background: var(--gray-100);
             border-radius: 8px;
-            font-family: 'DM Sans', monospace;
-            font-size: 12px;
-            color: var(--gray-700);
-            background: var(--gray-50);
-            resize: none;
-            line-height: 1.6;
-            tab-size: 2;
+            padding: 3px;
         }
 
-        .html-textarea:focus {
-            outline: none;
-            border-color: var(--primary);
+        .preview-btn-group button {
+            padding: 5px 14px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+
+        .preview-btn-group button.active {
             background: var(--white);
+            color: var(--gray-700);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .preview-frame-container {
-            flex: 1;
             border: 1px solid var(--gray-200);
             border-radius: 8px;
             overflow: hidden;
             background: var(--white);
+            height: 480px;
+            display: none;
+        }
+
+        .preview-frame-container.visible {
+            display: block;
         }
 
         .preview-frame {
@@ -450,6 +657,43 @@
             height: 100%;
             border: none;
             background: var(--white);
+        }
+
+        /* Block Palette */
+        .block-palette {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .block-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--gray-500);
+            transition: all 0.15s;
+            min-width: 64px;
+        }
+
+        .block-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #f0fdf4;
+        }
+
+        .block-btn svg {
+            width: 18px;
+            height: 18px;
         }
 
         /* Variables Pills */
@@ -551,6 +795,70 @@
 
         .radio-option input[type="radio"] {
             display: none;
+        }
+
+        .section-helper {
+            font-size: 11px;
+            color: var(--gray-500);
+            line-height: 1.5;
+            margin-top: -6px;
+            margin-bottom: 12px;
+        }
+
+        .assistant-panel {
+            background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .assistant-panel summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 20px;
+        }
+
+        .assistant-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .assistant-panel-copy {
+            min-width: 0;
+        }
+
+        .assistant-panel-copy .editor-section-title {
+            color: #2e403d;
+            margin-bottom: 4px;
+        }
+
+        .assistant-panel-copy p {
+            font-size: 12px;
+            color: #4b6354;
+            line-height: 1.5;
+        }
+
+        .assistant-panel-toggle {
+            font-size: 11px;
+            font-weight: 700;
+            color: #2e403d;
+            white-space: nowrap;
+        }
+
+        .assistant-panel[open] .assistant-panel-toggle::after {
+            content: 'Hide';
+        }
+
+        .assistant-panel:not([open]) .assistant-panel-toggle::after {
+            content: 'Open';
+        }
+
+        .assistant-panel-body {
+            padding: 0 20px 18px;
         }
 
         /* ─── Toast ───────────────────────────────────────── */
@@ -723,6 +1031,19 @@
 
         @media (max-width: 900px) {
             .template-list-panel { width: 280px; min-width: 280px; }
+            .editor-toolbar-top,
+            .editor-toolbar-bottom {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .editor-toolbar-actions,
+            .editor-toggle-group {
+                justify-content: flex-start;
+            }
+            .editor-meta-grid {
+                grid-template-columns: 1fr;
+                min-width: 0;
+            }
         }
     </style>
 </head>
@@ -744,12 +1065,18 @@
         </div>
     </div>
 
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="communications.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Communications</a>
-        <a href="templates.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Templates</a>
-        <a href="campaigns.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Campaigns</a>
-        <a href="automations.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Automations</a>
-        <a href="broadcasts.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Broadcasts</a>
+    <div class="page-intro-strip">
+        <div class="page-intro-copy">
+            <div class="page-intro-label">Marketing Templates</div>
+            <div class="page-intro-note">Manage reusable email content here, with stable handoffs into campaigns, automations, and broadcasts.</div>
+        </div>
+        <div class="page-handoff-links">
+            <a class="page-handoff-link" href="communications.html">Communications Inbox</a>
+            <a class="page-handoff-link active" href="templates.html">Templates</a>
+            <a class="page-handoff-link" href="campaigns.html">Campaigns</a>
+            <a class="page-handoff-link" href="automations.html">Automations</a>
+            <a class="page-handoff-link" href="broadcasts.html">Broadcasts</a>
+        </div>
     </div>
 
     <div class="workspace">
@@ -758,21 +1085,32 @@
             <div class="list-header">
                 <div class="list-header-top">
                     <h3>Templates</h3>
-                    <button class="btn btn-primary btn-sm" onclick="createNewTemplate()">+ New Template</button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="openLibrary()" title="Browse pre-built templates">Library</button>
+                        <button class="btn btn-primary btn-sm" onclick="createNewTemplate()">+ New</button>
+                    </div>
+                </div>
+                <div class="list-summary">
+                    <div class="list-summary-count" id="templateCountSummary">Loading templates...</div>
+                    <div class="list-summary-note" id="templateCountNote">Browse reusable email and SMS content by category, channel, or name.</div>
                 </div>
                 <div class="search-box">
                     <span class="search-icon">&#x1F50D;</span>
                     <input type="text" id="searchInput" placeholder="Search templates..." oninput="filterTemplates()">
                 </div>
                 <div class="category-pills" id="categoryPills">
-                    <button class="category-pill active" data-cat="all" onclick="setCategory('all', this)">All</button>
-                    <button class="category-pill" data-cat="quotes" onclick="setCategory('quotes', this)">Quotes</button>
-                    <button class="category-pill" data-cat="invoices" onclick="setCategory('invoices', this)">Invoices</button>
-                    <button class="category-pill" data-cat="payments" onclick="setCategory('payments', this)">Payments</button>
-                    <button class="category-pill" data-cat="followups" onclick="setCategory('followups', this)">Followups</button>
-                    <button class="category-pill" data-cat="portal" onclick="setCategory('portal', this)">Portal</button>
-                    <button class="category-pill" data-cat="marketing" onclick="setCategory('marketing', this)">Marketing</button>
-                    <button class="category-pill" data-cat="system" onclick="setCategory('system', this)">System</button>
+                    <button class="category-pill active" data-cat="all" data-label="All" onclick="setCategory('all', this)">All</button>
+                    <button class="category-pill" data-cat="quotes" data-label="Quotes" onclick="setCategory('quotes', this)">Quotes</button>
+                    <button class="category-pill" data-cat="invoices" data-label="Invoices" onclick="setCategory('invoices', this)">Invoices</button>
+                    <button class="category-pill" data-cat="payments" data-label="Payments" onclick="setCategory('payments', this)">Payments</button>
+                    <button class="category-pill" data-cat="followups" data-label="Followups" onclick="setCategory('followups', this)">Followups</button>
+                    <button class="category-pill" data-cat="portal" data-label="Portal" onclick="setCategory('portal', this)">Portal</button>
+                    <button class="category-pill" data-cat="marketing" data-label="Marketing" onclick="setCategory('marketing', this)">Marketing</button>
+                    <button class="category-pill" data-cat="system" data-label="System" onclick="setCategory('system', this)">System</button>
+                </div>
+                <div class="filter-state">
+                    <span id="filterStateLabel">Showing all templates</span>
+                    <span id="filterStateCount">0 results</span>
                 </div>
             </div>
             <div class="template-cards" id="templateCards">
@@ -791,77 +1129,142 @@
             </div>
 
             <div id="editorContent" style="display:none; flex:1; display:none; flex-direction:column; overflow:hidden;">
-                <!-- Toolbar -->
                 <div class="editor-toolbar">
-                    <div class="editor-toolbar-left">
-                        <input type="text" class="form-input" id="editorName" placeholder="Template Name" style="font-weight:600; font-size:15px; max-width:260px;" oninput="markDirty()">
-                        <input type="hidden" id="editorSlug">
-                        <select class="form-select" id="editorCategory" style="max-width:130px; font-size:12px;" onchange="markDirty()">
-                            <option value="quotes">Quotes</option>
-                            <option value="invoices">Invoices</option>
-                            <option value="payments">Payments</option>
-                            <option value="followups">Followups</option>
-                            <option value="portal">Portal</option>
-                            <option value="marketing">Marketing</option>
-                            <option value="system">System</option>
-                        </select>
-                        <select class="form-select" id="editorChannel" style="max-width:140px; font-size:12px;" onchange="setTemplateChannel(this.value); markDirty()">
-                            <option value="email">Email</option>
-                            <option value="sms">SMS Only</option>
-                            <option value="both">Email + SMS</option>
-                        </select>
-                    </div>
-                    <div class="editor-toolbar-right">
-                        <div class="toggle-row">
-                            <label class="toggle">
-                                <input type="checkbox" id="editorActive" onchange="markDirty()">
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <span class="toggle-label">Active</span>
+                    <div class="editor-toolbar-top">
+                        <div class="editor-toolbar-meta">
+                            <div class="editor-mode-row">
+                                <span class="editor-mode-badge" id="editorModeBadge">New template</span>
+                                <span class="editor-slug-display" id="editorSlugDisplay">Slug will be generated on save</span>
+                                <span class="editor-status-pill" id="editorStatusPill">Saved</span>
+                            </div>
+                            <div class="editor-context-note" id="editorContextNote">Select a template to review or create a new one to start drafting reusable content.</div>
                         </div>
-                        <div class="toggle-row">
-                            <label class="toggle">
-                                <input type="checkbox" id="editorDefault" onchange="markDirty()">
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <span class="toggle-label">Default</span>
+                        <div class="editor-toolbar-actions">
+                            <button class="btn btn-primary" data-action="save-template" onclick="saveTemplate()">Save Template</button>
+                            <button class="btn btn-lime" data-action="duplicate-template" onclick="duplicateTemplate()">Duplicate</button>
+                            <button class="btn btn-secondary test-email-action" onclick="sendTestEmail()">Send Test Email</button>
+                            <button class="btn btn-danger" data-action="delete-template" onclick="confirmDelete()">Delete</button>
+                        </div>
+                    </div>
+                    <div class="editor-toolbar-bottom">
+                        <div class="editor-name-field">
+                            <div class="form-group">
+                                <label class="form-label" for="editorName">Template Name</label>
+                                <input type="text" class="form-input" id="editorName" placeholder="Template Name" style="font-weight:600; font-size:15px;" oninput="handleTemplateNameInput()">
+                            </div>
+                        </div>
+                        <div class="editor-meta-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="editorSlug">Slug</label>
+                                <input type="text" class="form-input" id="editorSlug" placeholder="Auto-generated on save" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="editorCategory">Category</label>
+                                <select class="form-select" id="editorCategory" onchange="markDirty(); syncEditorChrome()">
+                                    <option value="quotes">Quotes</option>
+                                    <option value="invoices">Invoices</option>
+                                    <option value="payments">Payments</option>
+                                    <option value="followups">Followups</option>
+                                    <option value="portal">Portal</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="system">System</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="editorChannel">Channel</label>
+                                <select class="form-select" id="editorChannel" onchange="setTemplateChannel(this.value); markDirty()">
+                                    <option value="email">Email</option>
+                                    <option value="sms">SMS Only</option>
+                                    <option value="both">Email + SMS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="editor-toggle-group">
+                            <div class="toggle-row">
+                                <label class="toggle">
+                                    <input type="checkbox" id="editorActive" onchange="markDirty(); syncEditorChrome()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Active</span>
+                            </div>
+                            <div class="toggle-row">
+                                <label class="toggle">
+                                    <input type="checkbox" id="editorDefault" onchange="markDirty(); syncEditorChrome()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">Default</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Scrollable Editor Body -->
                 <div class="editor-content">
-                    <!-- Subject -->
                     <div class="editor-section email-section">
                         <div class="editor-section-title">&#x2709;&#xFE0F; Email Subject</div>
                         <input type="text" class="form-input" id="editorSubject" placeholder="e.g. Your quote from {company_name} is ready" oninput="markDirty()">
                     </div>
 
-                    <!-- HTML Body + Preview -->
                     <div class="editor-section email-section">
-                        <div class="editor-section-title">&#x1F4E7; Email Body &amp; Preview</div>
-                        <div class="split-pane">
-                            <div class="split-pane-left">
-                                <div class="split-pane-label">
-                                    <span>HTML SOURCE</span>
-                                </div>
-                                <textarea class="html-textarea" id="editorBody" placeholder="<h2>Hello {customer_name},</h2>&#10;<p>Your quote is ready...</p>" oninput="markDirty(); debouncedPreview();"></textarea>
+                        <div class="preview-toggle-bar">
+                            <div class="editor-section-title" style="margin-bottom:0;">Email Body</div>
+                            <div class="preview-btn-group">
+                                <button class="active" onclick="setEditorView('edit', this)">Edit</button>
+                                <button onclick="setEditorView('preview', this)">Preview</button>
                             </div>
-                            <div class="split-pane-right">
-                                <div class="split-pane-label">
-                                    <span>LIVE PREVIEW</span>
-                                    <button class="btn btn-xs btn-secondary" onclick="refreshPreview()">&#x21BB; Refresh</button>
-                                </div>
-                                <div class="preview-frame-container">
-                                    <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
-                                </div>
-                            </div>
+                        </div>
+                        <div class="section-helper">Use blocks for faster layout changes, or edit the content directly when you already know what you want.</div>
+
+                        <div class="block-palette" id="blockPalette">
+                            <button class="block-btn" onclick="insertBlock('heading')" title="Heading block">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17 12l3-2v8"/></svg>
+                                Heading
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('text')" title="Text paragraph">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 6H3"/><path d="M21 12H3"/><path d="M15.5 18H3"/></svg>
+                                Text
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('button')" title="Call-to-action button">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M9 12h6"/></svg>
+                                Button
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('image')" title="Image block">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                Image
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('divider')" title="Horizontal divider">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>
+                                Divider
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('two-column')" title="Two-column layout">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+                                2 Column
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('feature-list')" title="Feature list with icons">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                                Features
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('testimonial')" title="Quote / testimonial block">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
+                                Quote
+                            </button>
+                            <button class="block-btn" onclick="insertBlock('callout')" title="Callout / highlight box">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                                Callout
+                            </button>
+                        </div>
+
+                        <div class="tinymce-wrap" id="editorWrap">
+                            <textarea id="editorBody"></textarea>
+                        </div>
+
+                        <div class="preview-frame-container" id="previewContainer">
+                            <iframe class="preview-frame" id="previewFrame" sandbox="allow-same-origin"></iframe>
                         </div>
                     </div>
 
-                    <!-- Wrapper Selection -->
                     <div class="editor-section email-section">
                         <div class="editor-section-title">&#x1F3A8; Email Wrapper</div>
+                        <div class="section-helper">Wrapper choice changes the shell around the same message body. Pick the one that matches how polished this template needs to feel.</div>
                         <div class="radio-group" id="wrapperOptions">
                             <label class="radio-option selected" onclick="selectWrapper('full', this)">
                                 <input type="radio" name="wrapper" value="full" checked>
@@ -878,7 +1281,6 @@
                         </div>
                     </div>
 
-                    <!-- Variables -->
                     <div class="editor-section variables-section">
                         <div class="editor-section-title">&#x1F3F7;&#xFE0F; Insert Variable <span style="font-weight:400; color:var(--gray-400); font-size:11px; margin-left:4px;">Click to insert at cursor</span></div>
                         <div id="variablesContainer">
@@ -886,46 +1288,86 @@
                         </div>
                     </div>
 
-                    <!-- SMS Body -->
                     <div class="editor-section sms-section">
                         <div class="editor-section-title">&#x1F4F1; SMS Body</div>
+                        <div class="section-helper">Keep the SMS version short and action-oriented so it works cleanly alongside the email version.</div>
                         <textarea class="form-textarea" id="editorSms" rows="3" placeholder="Hi {customer_first_name}, your quote is ready: {quote_link}" oninput="markDirty(); updateSmsCounter();"></textarea>
                         <div class="sms-counter" id="smsCounter">0 / 160</div>
                     </div>
 
-                    <!-- AI Assistant Chat -->
-                    <div class="editor-section" style="background:linear-gradient(135deg, #f0fdf4, #ecfdf5); border:1px solid #bbf7d0;">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Template Assistant</div>
-                            <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="clearAiChat()" title="Clear conversation">Clear Chat</button>
-                        </div>
-                        <div id="aiChatMessages" style="max-height:320px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px;"></div>
-                        <div style="display:flex; gap:8px; align-items:end;">
-                            <textarea class="form-textarea" id="aiPrompt" rows="2" placeholder="Ask me to generate, rewrite, tweak, or suggest subjects..." style="flex:1; resize:vertical; min-height:40px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
-                            <div style="display:flex; flex-direction:column; gap:4px;">
-                                <button class="btn btn-primary" onclick="aiSend()" id="aiSendBtn" style="white-space:nowrap;">Send</button>
-                                <button class="btn btn-secondary" onclick="aiSend('apply')" id="aiApplyBtn" style="white-space:nowrap; font-size:11px; padding:4px 10px;" title="Generate and apply to template">Apply</button>
+                    <details class="assistant-panel">
+                        <summary>
+                            <div class="assistant-panel-copy">
+                                <div class="editor-section-title">AI Template Assistant</div>
+                                <p>Use this when you want help rewriting, shortening, or generating a version of the current template. It stays secondary to the core editor.</p>
+                            </div>
+                            <span class="assistant-panel-toggle" aria-hidden="true"></span>
+                        </summary>
+                        <div class="assistant-panel-body">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div class="editor-section-title" style="color:#2e403d; margin:0;">AI Template Assistant</div>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="clearAiChat()" title="Clear conversation">Clear Chat</button>
+                            </div>
+                            <div id="aiChatMessages" style="max-height:320px; overflow-y:auto; margin:10px 0; display:flex; flex-direction:column; gap:8px;"></div>
+                            <div style="display:flex; gap:8px; align-items:end;">
+                                <textarea class="form-textarea" id="aiPrompt" rows="2" placeholder="Ask me to generate, rewrite, tweak, or suggest subjects..." style="flex:1; resize:vertical; min-height:40px;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"></textarea>
+                                <div style="display:flex; flex-direction:column; gap:4px;">
+                                    <button class="btn btn-primary" onclick="aiSend()" id="aiSendBtn" style="white-space:nowrap;">Send</button>
+                                    <button class="btn btn-secondary" onclick="aiSend('apply')" id="aiApplyBtn" style="white-space:nowrap; font-size:11px; padding:4px 10px;" title="Generate and apply to template">Apply</button>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Rewrite and improve the current email template')">Rewrite</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Suggest 5 subject lines for this email')">Suggest Subject</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make the tone more friendly and casual')">More Casual</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make it shorter and more concise')">Shorter</button>
+                                <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Write an SMS version of this email')">SMS Version</button>
                             </div>
                         </div>
-                        <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
-                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Rewrite and improve the current email template')">Rewrite</button>
-                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Suggest 5 subject lines for this email')">Suggest Subject</button>
-                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make the tone more friendly and casual')">More Casual</button>
-                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Make it shorter and more concise')">Shorter</button>
-                            <button class="btn btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="aiQuickAction('Write an SMS version of this email')">SMS Version</button>
-                        </div>
-                    </div>
+                    </details>
 
-                    <!-- Actions -->
                     <div class="editor-section" style="background:transparent; border:none; box-shadow:none; padding:0; display:flex; gap:8px; flex-wrap:wrap;">
-                        <button class="btn btn-primary" id="btnSave" onclick="saveTemplate()">Save Template</button>
-                        <button class="btn btn-lime" onclick="duplicateTemplate()">Duplicate</button>
-                        <button class="btn btn-secondary" onclick="sendTestEmail()">Send Test Email</button>
+                        <button class="btn btn-primary" data-action="save-template" onclick="saveTemplate()">Save Template</button>
+                        <button class="btn btn-lime" data-action="duplicate-template" onclick="duplicateTemplate()">Duplicate</button>
+                        <button class="btn btn-secondary test-email-action" onclick="sendTestEmail()">Send Test Email</button>
                         <div style="flex:1;"></div>
-                        <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+                        <button class="btn btn-danger" data-action="delete-template" onclick="confirmDelete()">Delete</button>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Template Library Modal ───────────────────────────── -->
+<div class="modal-overlay" id="libraryModal">
+    <div class="modal" style="max-width:780px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+        <div class="modal-header">
+            <h3>Template Library</h3>
+            <button class="modal-close" onclick="closeLibrary()">&times;</button>
+        </div>
+        <div class="modal-body" style="overflow-y:auto;flex:1;">
+            <p style="color:var(--gray-500);font-size:13px;margin:0 0 16px;">Professional templates ready to use. Click one to preview, then use it as a starting point.</p>
+            <div id="libraryGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                <div style="text-align:center;padding:40px;color:var(--gray-400);">Loading templates...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Library Preview Modal ───────────────────────────── -->
+<div class="modal-overlay" id="libraryPreviewModal" style="z-index:1001;">
+    <div class="modal" style="max-width:680px;width:95%;max-height:85vh;display:flex;flex-direction:column;">
+        <div class="modal-header">
+            <h3 id="libraryPreviewName">Template Preview</h3>
+            <button class="modal-close" onclick="closeLibraryPreview()">&times;</button>
+        </div>
+        <div class="modal-body" style="overflow-y:auto;flex:1;padding:0;">
+            <iframe id="libraryPreviewFrame" sandbox="allow-same-origin" style="width:100%;height:480px;border:none;"></iframe>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeLibraryPreview()">Back</button>
+            <button class="btn btn-primary" id="useTemplateBtn">Use This Template</button>
         </div>
     </div>
 </div>
@@ -962,6 +1404,16 @@ let variablesByCategory = {};
 let lastFocusedTextarea = null;
 let previewTimer = null;
 let currentWrapper = 'full';
+const CATEGORY_LABELS = {
+    all: 'All',
+    quotes: 'Quotes',
+    invoices: 'Invoices',
+    payments: 'Payments',
+    followups: 'Followups',
+    portal: 'Portal',
+    marketing: 'Marketing',
+    system: 'System'
+};
 
 const SAMPLE_VARS = {
     customer_name: 'Jane Smith',
@@ -993,13 +1445,16 @@ const SAMPLE_VARS = {
 /* ==============================================================
    Init
    ============================================================== */
+let editorReady = false;
+
 document.addEventListener('DOMContentLoaded', () => {
     loadTemplates();
     loadVariables();
+    initTinyMCE();
 
     // Track which textarea last had focus
     document.addEventListener('focusin', (e) => {
-        if (e.target.id === 'editorBody' || e.target.id === 'editorSms' || e.target.id === 'editorSubject') {
+        if (e.target.id === 'editorSms' || e.target.id === 'editorSubject') {
             lastFocusedTextarea = e.target;
         }
     });
@@ -1012,6 +1467,216 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/* ==============================================================
+   TinyMCE Init
+   ============================================================== */
+function initTinyMCE() {
+    tinymce.init({
+        selector: '#editorBody',
+        height: 420,
+        menubar: false,
+        plugins: 'link image lists code table',
+        toolbar: 'undo redo | blocks | bold italic underline | forecolor backcolor | alignleft aligncenter alignright | bullist numlist | link image | table | mergevars | code',
+        valid_elements: 'a[href|style|target],strong/b,em/i,u,p[style],h1[style],h2[style],h3[style],h4[style],br,hr[style],ul[style],ol[style],li[style],table[style|width|cellpadding|cellspacing|border|role],tr[style],td[style|colspan|rowspan|width|align|valign],th[style],img[src|alt|style|width|height],div[style],span[style],blockquote[style],sup,sub',
+        valid_styles: {
+            '*': 'color,background-color,background,font-size,font-weight,font-family,text-align,text-decoration,line-height,padding,padding-top,padding-bottom,padding-left,padding-right,margin,margin-top,margin-bottom,margin-left,margin-right,border,border-top,border-bottom,border-left,border-right,border-radius,border-collapse,border-spacing,display,width,max-width,height,vertical-align,list-style-type,letter-spacing,font-style,text-transform'
+        },
+        content_style: `
+            @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+            body {
+                font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 15px;
+                line-height: 1.8;
+                color: #374151;
+                padding: 16px;
+                max-width: 560px;
+                margin: 0 auto;
+            }
+            h1, h2, h3 { color: #2e403d; font-weight: 700; }
+            h1 { font-size: 28px; }
+            h2 { font-size: 22px; }
+            h3 { font-size: 18px; }
+            a { color: #2e403d; }
+            p { margin: 0 0 16px; }
+            table { border-collapse: collapse; }
+            td { vertical-align: top; }
+            .mce-mergevar {
+                background: #c9dd80;
+                color: #2e403d;
+                padding: 1px 6px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 13px;
+                display: inline-block;
+            }
+        `,
+        forced_root_block: 'p',
+        entity_encoding: 'raw',
+        convert_urls: false,
+        relative_urls: false,
+        skin: 'oxide',
+        promotion: false,
+        branding: false,
+        color_map: [
+            '#2e403d', 'Forest Green (Brand)',
+            '#c9dd80', 'Lime (Brand)',
+            '#374151', 'Body Text',
+            '#1e293b', 'Dark Heading',
+            '#4a5568', 'Muted Text',
+            '#64748b', 'Light Text',
+            '#ffffff', 'White',
+            '#f0fdf4', 'Green Tint BG',
+            '#f8fafc', 'Light BG',
+            '#ef4444', 'Red',
+            '#f59e0b', 'Amber'
+        ],
+        setup: function(editor) {
+            // Merge variables toolbar button
+            editor.ui.registry.addMenuButton('mergevars', {
+                text: '{x}',
+                tooltip: 'Insert merge variable',
+                fetch: function(callback) {
+                    const items = [];
+                    for (const [group, vars] of Object.entries(variablesByCategory)) {
+                        items.push({
+                            type: 'nestedmenuitem',
+                            text: group.charAt(0).toUpperCase() + group.slice(1),
+                            getSubmenuItems: function() {
+                                return vars.map(v => ({
+                                    type: 'menuitem',
+                                    text: '{' + v + '}',
+                                    onAction: function() {
+                                        editor.insertContent('<span class="mce-mergevar">{' + v + '}</span>');
+                                    }
+                                }));
+                            }
+                        });
+                    }
+                    callback(items);
+                }
+            });
+
+            editor.on('change keyup', function() {
+                markDirty();
+            });
+
+            editor.on('init', function() {
+                editorReady = true;
+            });
+        }
+    });
+}
+
+/* ==============================================================
+   Editor Helpers — get/set content with TinyMCE
+   ============================================================== */
+function getEditorContent() {
+    const editor = tinymce.get('editorBody');
+    if (editor && editorReady) {
+        let html = editor.getContent();
+        // Convert merge variable spans back to plain {var} text for storage
+        html = html.replace(/<span class="mce-mergevar">\{([^}]+)\}<\/span>/g, '{$1}');
+        return html;
+    }
+    return document.getElementById('editorBody').value || '';
+}
+
+function setEditorContent(html) {
+    // Highlight merge variables in text nodes only (not inside href or other attributes)
+    const styledHtml = highlightMergeVars(html || '');
+    const editor = tinymce.get('editorBody');
+    if (editor && editorReady) {
+        editor.setContent(styledHtml);
+    } else {
+        document.getElementById('editorBody').value = html || '';
+        // Retry once TinyMCE is ready
+        const check = setInterval(() => {
+            const e = tinymce.get('editorBody');
+            if (e && editorReady) {
+                e.setContent(styledHtml);
+                clearInterval(check);
+            }
+        }, 200);
+        setTimeout(() => clearInterval(check), 5000);
+    }
+}
+
+function highlightMergeVars(html) {
+    // Parse HTML and only wrap {var} in text nodes, not inside attributes
+    const parser = new DOMParser();
+    const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+    const walker = document.createTreeWalker(doc.body.firstChild, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    for (const node of textNodes) {
+        if (/\{[a-z_]+\}/.test(node.textContent)) {
+            const frag = document.createDocumentFragment();
+            const parts = node.textContent.split(/(\{[a-z_]+\})/g);
+            for (const part of parts) {
+                if (/^\{[a-z_]+\}$/.test(part)) {
+                    const span = document.createElement('span');
+                    span.className = 'mce-mergevar';
+                    span.textContent = part;
+                    frag.appendChild(span);
+                } else {
+                    frag.appendChild(document.createTextNode(part));
+                }
+            }
+            node.parentNode.replaceChild(frag, node);
+        }
+    }
+    return doc.body.firstChild.innerHTML;
+}
+
+/* ==============================================================
+   Edit / Preview Toggle
+   ============================================================== */
+function setEditorView(view, btn) {
+    const wrap = document.getElementById('editorWrap');
+    const palette = document.getElementById('blockPalette');
+    const preview = document.getElementById('previewContainer');
+
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    if (view === 'preview') {
+        wrap.style.display = 'none';
+        palette.style.display = 'none';
+        preview.classList.add('visible');
+        refreshPreview();
+    } else {
+        wrap.style.display = '';
+        palette.style.display = '';
+        preview.classList.remove('visible');
+    }
+}
+
+/* ==============================================================
+   Block Insertion
+   ============================================================== */
+function insertBlock(type) {
+    const editor = tinymce.get('editorBody');
+    if (!editor) return;
+
+    const blocks = {
+        heading: '<h2 style="color: #2e403d; font-size: 22px; font-weight: 700; margin: 0 0 16px;">Your Heading Here</h2>',
+        text: '<p style="color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 16px;">Your text goes here. Write something great.</p>',
+        button: '<div style="text-align: center; margin: 28px 0;"><a href="#" style="background: #2e403d; color: #c9dd80; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">Button Text</a></div>',
+        image: '<div style="text-align: center; margin: 20px 0;"><img src="https://placehold.co/540x200/2e403d/c9dd80?text=Your+Image" alt="Image" style="max-width: 100%; height: auto; border-radius: 8px;"></div>',
+        divider: '<hr style="border: none; border-top: 2px solid #e5e7eb; margin: 28px 0;">',
+        'two-column': '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;" role="presentation"><tr><td style="width: 48%; vertical-align: top; padding-right: 12px;"><h3 style="color: #2e403d; font-size: 16px; margin: 0 0 8px;">Left Column</h3><p style="color: #374151; font-size: 14px; line-height: 1.7; margin: 0;">Content for the left side.</p></td><td style="width: 4%;"></td><td style="width: 48%; vertical-align: top; padding-left: 12px;"><h3 style="color: #2e403d; font-size: 16px; margin: 0 0 8px;">Right Column</h3><p style="color: #374151; font-size: 14px; line-height: 1.7; margin: 0;">Content for the right side.</p></td></tr></table>',
+        'feature-list': '<table width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;" role="presentation"><tr><td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width: 40px; vertical-align: top; font-size: 20px;">&#x2705;</td><td><strong style="color: #2e403d;">Feature One</strong><br><span style="color: #64748b; font-size: 13px;">Description of this feature</span></td></tr></table></td></tr><tr><td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width: 40px; vertical-align: top; font-size: 20px;">&#x2705;</td><td><strong style="color: #2e403d;">Feature Two</strong><br><span style="color: #64748b; font-size: 13px;">Description of this feature</span></td></tr></table></td></tr><tr><td style="padding: 12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width: 40px; vertical-align: top; font-size: 20px;">&#x2705;</td><td><strong style="color: #2e403d;">Feature Three</strong><br><span style="color: #64748b; font-size: 13px;">Description of this feature</span></td></tr></table></td></tr></table>',
+        testimonial: '<blockquote style="border-left: 4px solid #c9dd80; padding: 16px 20px; margin: 24px 0; background: #f8fafc; border-radius: 0 8px 8px 0;"><p style="color: #374151; font-size: 15px; line-height: 1.8; margin: 0 0 8px; font-style: italic;">"Your testimonial or quote text goes here."</p><p style="color: #64748b; font-size: 13px; margin: 0; font-weight: 600;">&mdash; Customer Name</p></blockquote>',
+        callout: '<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px 24px; margin: 24px 0; text-align: center;"><p style="color: #2e403d; font-size: 18px; font-weight: 700; margin: 0 0 6px;">Important Info</p><p style="color: #374151; font-size: 14px; margin: 0;">Highlight key information, amounts, or dates here.</p></div>'
+    };
+
+    const html = blocks[type];
+    if (html) {
+        editor.insertContent(html);
+        markDirty();
+    }
+}
 
 /* ==============================================================
    API Helpers
@@ -1090,35 +1755,117 @@ function renderTemplateList() {
         filtered = filtered.filter(t =>
             t.name.toLowerCase().includes(search) ||
             t.slug.toLowerCase().includes(search) ||
-            (t.subject || '').toLowerCase().includes(search)
+            (t.subject || '').toLowerCase().includes(search) ||
+            (t.sms_body || '').toLowerCase().includes(search)
         );
     }
 
+    updateCategoryPillCounts();
+    updateTemplateListChrome(filtered, search);
+
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty-list"><span>&#x1F4ED;</span><p>No templates found</p></div>';
+        const emptyMessage = search
+            ? `No templates match "${escapeHtml(search)}"`
+            : (activeCategory === 'all'
+                ? 'No templates yet'
+                : `No ${formatCategoryLabel(activeCategory).toLowerCase()} templates yet`);
+        container.innerHTML = `<div class="empty-list"><span>&#x1F4ED;</span><p>${emptyMessage}</p></div>`;
         return;
     }
 
     container.innerHTML = filtered.map(t => {
         const isSelected = t.id === selectedId;
         const catClass = 'cat-' + (t.category || 'system');
-        const updated = t.updated_at ? timeAgo(t.updated_at) : '';
+        const updated = t.updated_at ? `Updated ${timeAgo(t.updated_at)}` : 'Recently added';
+        const snippet = buildTemplateSnippet(t);
+        const channelLabel = formatChannelLabel(t.channel || 'email');
         return `
             <div class="template-card ${isSelected ? 'selected' : ''}" onclick="selectTemplate(${t.id})" data-id="${t.id}">
-                <div class="template-card-name">
-                    <span class="${t.is_active ? 'active-indicator' : 'inactive-indicator'}"></span>
-                    ${escapeHtml(t.name)}
-                    ${t.is_default ? '<span class="default-badge">Default</span>' : ''}
+                <div class="template-card-header">
+                    <div class="template-card-title-wrap">
+                        <div class="template-card-name">
+                            <span class="${t.is_active ? 'active-indicator' : 'inactive-indicator'}"></span>
+                            ${escapeHtml(t.name)}
+                        </div>
+                        <div class="template-card-slug">${escapeHtml(t.slug)}</div>
+                    </div>
+                    <div class="template-card-status">
+                        <span class="status-chip channel">${escapeHtml(channelLabel)}</span>
+                        ${t.is_default ? '<span class="status-chip default">Default</span>' : ''}
+                        ${t.is_active ? '' : '<span class="status-chip inactive">Inactive</span>'}
+                    </div>
                 </div>
-                <div class="template-card-slug">${escapeHtml(t.slug)}</div>
+                <div class="template-card-snippet">${escapeHtml(snippet)}</div>
                 <div class="template-card-meta">
-                    <span class="category-badge ${catClass}">${escapeHtml(t.category)}</span>
-                    ${t.channel === 'sms' ? '<span style="font-size:10px;color:#2e403d;background:#c9dd80;padding:1px 5px;border-radius:4px;font-weight:600;">SMS</span>' : t.channel === 'both' ? '<span style="font-size:10px;color:#2e403d;background:#c9dd80;padding:1px 5px;border-radius:4px;font-weight:600;">Email+SMS</span>' : ''}
+                    <div class="template-card-meta-left">
+                        <span class="category-badge ${catClass}">${escapeHtml(formatCategoryLabel(t.category))}</span>
+                    </div>
                     <span class="template-card-date">${updated}</span>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function updateCategoryPillCounts() {
+    document.querySelectorAll('.category-pill').forEach(pill => {
+        const category = pill.dataset.cat;
+        const label = pill.dataset.label || CATEGORY_LABELS[category] || category;
+        const count = category === 'all'
+            ? templates.length
+            : templates.filter(template => template.category === category).length;
+        pill.innerHTML = `${label}<span class="category-pill-count">${count}</span>`;
+    });
+}
+
+function updateTemplateListChrome(filtered, search) {
+    const countSummary = document.getElementById('templateCountSummary');
+    const countNote = document.getElementById('templateCountNote');
+    const filterLabel = document.getElementById('filterStateLabel');
+    const filterCount = document.getElementById('filterStateCount');
+    const categoryLabel = formatCategoryLabel(activeCategory);
+    const resultLabel = `${filtered.length} result${filtered.length === 1 ? '' : 's'}`;
+
+    countSummary.textContent = `${templates.length} template${templates.length === 1 ? '' : 's'} in library`;
+    if (search) {
+        countNote.textContent = `Searching ${categoryLabel.toLowerCase()} templates for "${search}".`;
+        filterLabel.innerHTML = `Showing <strong>${categoryLabel}</strong> matches`;
+    } else if (activeCategory === 'all') {
+        countNote.textContent = 'Browse reusable email and SMS content by category, channel, or name.';
+        filterLabel.innerHTML = 'Showing <strong>all templates</strong>';
+    } else {
+        countNote.textContent = `Focused on the ${categoryLabel.toLowerCase()} category.`;
+        filterLabel.innerHTML = `Showing <strong>${categoryLabel}</strong>`;
+    }
+    filterCount.textContent = resultLabel;
+}
+
+function buildTemplateSnippet(template) {
+    const subject = (template.subject || '').trim();
+    const sms = (template.sms_body || '').trim();
+    const body = htmlToPlainText(template.body || '');
+    const channel = template.channel || 'email';
+
+    if (channel === 'sms') return sms || 'SMS-only template with no message body yet.';
+    if (channel === 'both') return subject || sms || body || 'Combined email and SMS template.';
+    return subject || body || 'Email template with no subject or body preview yet.';
+}
+
+function htmlToPlainText(html) {
+    if (!html) return '';
+    const scratch = document.createElement('div');
+    scratch.innerHTML = html;
+    return (scratch.textContent || scratch.innerText || '').replace(/\s+/g, ' ').trim();
+}
+
+function formatCategoryLabel(category) {
+    return CATEGORY_LABELS[category] || 'System';
+}
+
+function formatChannelLabel(channel) {
+    if (channel === 'sms') return 'SMS';
+    if (channel === 'both') return 'Email + SMS';
+    return 'Email';
 }
 
 /* ==============================================================
@@ -1170,7 +1917,7 @@ function openTemplate(t) {
     document.getElementById('editorChannel').value = channel;
     setTemplateChannel(channel);
     document.getElementById('editorSubject').value = t.subject || '';
-    document.getElementById('editorBody').value = t.body || '';
+    setEditorContent(t.body || '');
     document.getElementById('editorSms').value = t.sms_body || '';
     document.getElementById('editorActive').checked = !!t.is_active;
     document.getElementById('editorDefault').checked = !!t.is_default;
@@ -1187,6 +1934,7 @@ function openTemplate(t) {
     updateSmsCounter();
     renderTemplateList();
     refreshPreview();
+    syncEditorChrome();
 }
 
 /* ==============================================================
@@ -1211,7 +1959,7 @@ function createNewTemplate() {
     document.getElementById('editorChannel').value = 'email';
     setTemplateChannel('email');
     document.getElementById('editorSubject').value = '';
-    document.getElementById('editorBody').value = defaultBodyTemplate();
+    setEditorContent(defaultBodyTemplate());
     document.getElementById('editorSms').value = '';
     document.getElementById('editorActive').checked = true;
     document.getElementById('editorDefault').checked = false;
@@ -1226,8 +1974,20 @@ function createNewTemplate() {
     updateSmsCounter();
     renderTemplateList();
     refreshPreview();
+    syncEditorChrome();
 
     document.getElementById('editorName').focus();
+}
+
+function handleTemplateNameInput() {
+    if (!selectedId) {
+        document.getElementById('editorSlug').value = slugify(document.getElementById('editorName').value);
+    }
+    markDirty();
+}
+
+function slugify(value) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
 function defaultBodyTemplate() {
@@ -1267,16 +2027,18 @@ async function saveTemplate() {
         category: document.getElementById('editorCategory').value,
         channel: document.getElementById('editorChannel').value,
         subject: document.getElementById('editorSubject').value,
-        body: document.getElementById('editorBody').value,
+        body: getEditorContent(),
         sms_body: document.getElementById('editorSms').value,
         is_active: document.getElementById('editorActive').checked,
         is_default: document.getElementById('editorDefault').checked,
         options: { wrapper: currentWrapper }
     };
 
-    const btn = document.getElementById('btnSave');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
+    const saveButtons = Array.from(document.querySelectorAll('[data-action="save-template"]'));
+    saveButtons.forEach(btn => {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+    });
 
     try {
         if (selectedId) {
@@ -1293,8 +2055,11 @@ async function saveTemplate() {
     } catch (err) {
         showToast('Save failed: ' + err.message, 'error');
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = '&#x1F4BE; Save Template';
+        saveButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = 'Save Template';
+        });
+        syncEditorChrome();
     }
 }
 
@@ -1356,7 +2121,7 @@ async function deleteTemplate() {
    ============================================================== */
 async function sendTestEmail() {
     const subject = document.getElementById('editorSubject').value;
-    const body = document.getElementById('editorBody').value;
+    const body = getEditorContent();
     if (!subject && !body) {
         showToast('Add a subject and body first', 'error');
         return;
@@ -1392,7 +2157,7 @@ function debouncedPreview() {
 }
 
 function refreshPreview() {
-    const body = document.getElementById('editorBody').value;
+    const body = getEditorContent();
     const subject = document.getElementById('editorSubject').value;
 
     // Replace variables with sample data
@@ -1416,7 +2181,7 @@ function refreshPreview() {
 
 function wrapEmail(bodyHtml, subject) {
     if (currentWrapper === 'none') {
-        return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:'DM Sans',-apple-system,sans-serif;margin:0;padding:20px;color:#333633;}</style></head><body>${bodyHtml}</body></html>`;
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body{font-family:'DM Sans',-apple-system,sans-serif;margin:0;padding:20px;color:#374151;font-size:15px;line-height:1.8;}</style></head><body>${bodyHtml}</body></html>`;
     }
 
     const isMinimal = currentWrapper === 'minimal';
@@ -1432,29 +2197,30 @@ function wrapEmail(bodyHtml, subject) {
         </div>
     ` : `
         <div style="background:#2e403d;padding:36px 48px;text-align:center;">
-            <img src="${window.location.origin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:100px;max-width:400px;width:auto;">
+            <img src="${window.location.origin}/logo.png" alt="Pappas & Co. Landscaping" style="max-height:90px;max-width:360px;width:auto;">
         </div>
+        <div style="background:#c9dd80;height:3px;font-size:0;line-height:0;">&nbsp;</div>
     `;
 
     const footer = isMinimal ? `
         <div style="padding:0 40px 26px;text-align:center;">
-            <p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
-            <p style="margin:0;font-size:11px;color:#8aa083;font-family:-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
+            <p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#2e403d;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
+            <p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
         </div>
     ` : `
-        <div style="background:#2e403d;padding:28px 40px;text-align:center;">
-            <p style="margin:0 0 14px;font-size:13px;color:#a3b8a0;font-family:-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
-            <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+        <div style="background:#243330;padding:32px 40px;text-align:center;">
+            <p style="margin:0 0 16px;font-size:13px;color:#a3b8a0;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#c9dd80;font-weight:600;text-decoration:none;">(440) 886-7318</a></p>
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
                 <tr>
-                    <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:28px;height:28px;"></a></td>
-                    <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:28px;height:28px;"></a></td>
-                    <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:28px;height:28px;"></a></td>
+                    <td style="padding:0 8px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialFb}" alt="Facebook" style="width:30px;height:30px;"></a></td>
+                    <td style="padding:0 8px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${socialIg}" alt="Instagram" style="width:30px;height:30px;"></a></td>
+                    <td style="padding:0 8px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${socialNd}" alt="Nextdoor" style="width:30px;height:30px;"></a></td>
                 </tr>
             </table>
-            <p style="margin:0 0 3px;font-size:12px;color:#7a9477;font-family:-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
-            <p style="margin:0 0 3px;font-size:11px;color:#5a7a57;font-family:-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-            <p style="margin:0 0 10px;font-size:11px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-family:-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
-            <p style="margin:0;font-size:10px;color:#5a7a57;font-family:-apple-system,Arial,sans-serif;"><a href="${unsubscribeUrl}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+            <p style="margin:0 0 4px;font-size:13px;color:#8fad8c;font-weight:600;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas & Co. Landscaping</p>
+            <p style="margin:0 0 4px;font-size:11px;color:#5f8a5c;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
+            <p style="margin:0 0 14px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#c9dd80;text-decoration:none;font-weight:500;font-family:'DM Sans',-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
+            <p style="margin:0;font-size:10px;color:#5a7a57;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${unsubscribeUrl}" style="color:#7a9477;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
         </div>
     `;
 
@@ -1463,14 +2229,15 @@ function wrapEmail(bodyHtml, subject) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; background: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+        body { margin: 0; padding: 0; background: #f2f4f3; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
     </style>
 </head>
 <body>
-    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+    <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
         ${header}
-        <div style="padding:${isMinimal ? '34px 40px' : '40px 48px'};color:#4a5568;font-size:15px;line-height:1.8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+        <div style="padding:${isMinimal ? '34px 40px' : '44px 48px 36px'};color:#374151;font-size:15px;line-height:1.8;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
             ${bodyHtml}
         </div>
         ${footer}
@@ -1483,27 +2250,29 @@ function wrapEmail(bodyHtml, subject) {
    Insert Variable at Cursor
    ============================================================== */
 function insertVariable(varName) {
-    const target = lastFocusedTextarea || document.getElementById('editorBody');
     const text = '{' + varName + '}';
 
-    // Focus the target
-    target.focus();
-
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    const before = target.value.substring(0, start);
-    const after = target.value.substring(end);
-
-    target.value = before + text + after;
-    target.selectionStart = target.selectionEnd = start + text.length;
-
-    markDirty();
-
-    if (target.id === 'editorBody') {
-        debouncedPreview();
+    // If last focused was SMS or Subject, insert into that textarea
+    if (lastFocusedTextarea && lastFocusedTextarea.id !== 'editorBody') {
+        const target = lastFocusedTextarea;
+        target.focus();
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        const before = target.value.substring(0, start);
+        const after = target.value.substring(end);
+        target.value = before + text + after;
+        target.selectionStart = target.selectionEnd = start + text.length;
+        markDirty();
+        if (target.id === 'editorSms') updateSmsCounter();
+        return;
     }
-    if (target.id === 'editorSms') {
-        updateSmsCounter();
+
+    // Default: insert into TinyMCE
+    const editor = tinymce.get('editorBody');
+    if (editor) {
+        editor.focus();
+        editor.insertContent('<span class="mce-mergevar">' + text + '</span>');
+        markDirty();
     }
 }
 
@@ -1528,9 +2297,10 @@ function setTemplateChannel(ch) {
     const showSms = ch === 'sms' || ch === 'both';
     document.querySelectorAll('.email-section').forEach(el => el.style.display = showEmail ? '' : 'none');
     document.querySelectorAll('.sms-section').forEach(el => el.style.display = showSms ? '' : 'none');
-    // Update Send Test button text
-    const testBtn = document.querySelector('[onclick="sendTestEmail()"]');
-    if (testBtn) testBtn.style.display = showEmail ? '' : 'none';
+    document.querySelectorAll('.test-email-action').forEach(btn => {
+        btn.style.display = showEmail ? '' : 'none';
+    });
+    syncEditorChrome();
 }
 
 function updateSmsCounter() {
@@ -1568,6 +2338,7 @@ function filterTemplates() {
 function markDirty() {
     isDirty = true;
     document.getElementById('unsavedDot').classList.add('show');
+    syncEditorChrome();
 }
 
 /* ==============================================================
@@ -1600,6 +2371,43 @@ function timeAgo(dateStr) {
     if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
     if (diff < 2592000) return Math.floor(diff / 86400) + 'd ago';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function syncEditorChrome() {
+    const editorContent = document.getElementById('editorContent');
+    if (!editorContent || editorContent.style.display !== 'flex') return;
+
+    const modeBadge = document.getElementById('editorModeBadge');
+    const slugDisplay = document.getElementById('editorSlugDisplay');
+    const statusPill = document.getElementById('editorStatusPill');
+    const contextNote = document.getElementById('editorContextNote');
+    const name = document.getElementById('editorName').value.trim();
+    const slugInput = document.getElementById('editorSlug');
+    const category = formatCategoryLabel(document.getElementById('editorCategory').value);
+    const channel = formatChannelLabel(document.getElementById('editorChannel').value);
+    const isActive = document.getElementById('editorActive').checked;
+    const isDefault = document.getElementById('editorDefault').checked;
+
+    if (!selectedId && !slugInput.value.trim()) {
+        slugInput.value = slugify(name);
+    }
+
+    modeBadge.textContent = selectedId ? 'Editing template' : 'New template';
+    slugDisplay.textContent = slugInput.value.trim()
+        ? `Slug: ${slugInput.value.trim()}`
+        : 'Slug will be generated on save';
+    statusPill.textContent = isDirty ? 'Unsaved changes' : (selectedId ? 'Saved' : 'Draft');
+    statusPill.classList.toggle('dirty', isDirty);
+    document.querySelectorAll('[data-action="duplicate-template"], [data-action="delete-template"]').forEach(btn => {
+        btn.disabled = !selectedId;
+    });
+
+    const stateSummary = [isActive ? 'active' : 'inactive'];
+    if (isDefault) stateSummary.push('default');
+    const baseText = name
+        ? `${selectedId ? 'Editing' : 'Creating'} ${channel.toLowerCase()} template "${name}" in ${category}.`
+        : `${selectedId ? 'Editing' : 'Creating'} a ${channel.toLowerCase()} template in ${category}.`;
+    contextNote.textContent = `${baseText} Currently ${stateSummary.join(', ')}.`;
 }
 
 /* ==============================================================
@@ -1652,7 +2460,7 @@ async function aiSend(mode) {
     const shouldApply = mode === 'apply';
 
     // Include current template context
-    const currentBody = document.getElementById('editorBody').value.trim();
+    const currentBody = getEditorContent().trim();
     const currentSubject = document.getElementById('editorSubject').value.trim();
     const currentSms = document.getElementById('editorSms').value.trim();
     const templateName = document.getElementById('editorName').value.trim();
@@ -1725,9 +2533,8 @@ async function aiSend(mode) {
                 }
             });
             if (result.subject) document.getElementById('editorSubject').value = result.subject;
-            document.getElementById('editorBody').value = emailHtml;
+            setEditorContent(emailHtml);
             markDirty();
-            refreshPreview();
             replyHtml = (result.message || 'Template applied!') + '<br><span style="color:#16a34a;font-size:11px;">Applied to editor above</span>';
         } else if (result.subjects) {
             // Subject line suggestions
@@ -1819,9 +2626,8 @@ function applyAiBlocks() {
         }
     });
     if (result.subject) document.getElementById('editorSubject').value = result.subject;
-    document.getElementById('editorBody').value = emailHtml;
+    setEditorContent(emailHtml);
     markDirty();
-    refreshPreview();
     showToast('Template applied!', 'success');
     window._pendingAiBlocks = null;
 }
@@ -1902,6 +2708,121 @@ async function createAiCampaign(andSend) {
     }
 }
 function createAndSendAiCampaign() { createAiCampaign(true); }
+
+/* ==============================================================
+   Template Library
+   ============================================================== */
+let libraryTemplates = [];
+
+async function openLibrary() {
+    document.getElementById('libraryModal').classList.add('show');
+    const grid = document.getElementById('libraryGrid');
+    grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);grid-column:1/-1;">Loading...</div>';
+    try {
+        const res = await fetch('/api/templates/library');
+        const data = await res.json();
+        libraryTemplates = data.templates || [];
+        renderLibraryGrid();
+    } catch (err) {
+        grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red);grid-column:1/-1;">Failed to load library</div>';
+    }
+}
+
+function closeLibrary() {
+    document.getElementById('libraryModal').classList.remove('show');
+}
+
+function renderLibraryGrid() {
+    const grid = document.getElementById('libraryGrid');
+    const catColors = {
+        marketing: { bg: '#f0fdf4', color: '#2e403d' },
+        system: { bg: 'var(--gray-100)', color: 'var(--gray-600)' },
+        portal: { bg: 'var(--purple-bg)', color: 'var(--purple)' },
+        invoices: { bg: 'var(--green-bg)', color: 'var(--green)' },
+        quotes: { bg: 'var(--blue-bg)', color: 'var(--blue)' }
+    };
+    grid.innerHTML = libraryTemplates.map((t, i) => {
+        const cc = catColors[t.category] || catColors.system;
+        return `
+        <div style="border:1px solid var(--gray-200);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.15s;"
+             onmouseover="this.style.borderColor='var(--primary)';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'"
+             onmouseout="this.style.borderColor='var(--gray-200)';this.style.boxShadow='none'"
+             onclick="previewLibraryTemplate(${i})">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;padding:2px 8px;border-radius:10px;background:${cc.bg};color:${cc.color};">${escHtml(t.category)}</span>
+            </div>
+            <div style="font-size:14px;font-weight:700;color:var(--gray-700);margin-bottom:4px;">${escHtml(t.name)}</div>
+            <div style="font-size:12px;color:var(--gray-400);line-height:1.4;">${escHtml(t.description)}</div>
+        </div>`;
+    }).join('');
+}
+
+function previewLibraryTemplate(index) {
+    const t = libraryTemplates[index];
+    if (!t) return;
+    document.getElementById('libraryPreviewName').textContent = t.name;
+    document.getElementById('useTemplateBtn').onclick = () => useLibraryTemplate(index);
+
+    // Render preview with sample vars
+    let html = t.body;
+    for (const [key, val] of Object.entries(SAMPLE_VARS)) {
+        html = html.replace(new RegExp('\\{' + key + '\\}', 'g'), val);
+    }
+    const wrapped = wrapEmail(html, t.subject);
+    const iframe = document.getElementById('libraryPreviewFrame');
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(wrapped);
+    doc.close();
+
+    document.getElementById('libraryPreviewModal').classList.add('show');
+}
+
+function closeLibraryPreview() {
+    document.getElementById('libraryPreviewModal').classList.remove('show');
+}
+
+async function useLibraryTemplate(index) {
+    const t = libraryTemplates[index];
+    if (!t) return;
+
+    closeLibraryPreview();
+    closeLibrary();
+
+    // Create a new template pre-filled with the library content
+    if (isDirty && selectedId) {
+        if (!confirm('You have unsaved changes. Discard them?')) return;
+    }
+
+    selectedId = null;
+    isDirty = true;
+    document.getElementById('unsavedDot').classList.add('show');
+
+    document.getElementById('editorEmpty').style.display = 'none';
+    document.getElementById('editorContent').style.display = 'flex';
+
+    document.getElementById('editorName').value = t.name;
+    document.getElementById('editorSlug').value = t.id;
+    document.getElementById('editorCategory').value = t.category || 'marketing';
+    document.getElementById('editorChannel').value = t.sms_body ? 'both' : 'email';
+    setTemplateChannel(t.sms_body ? 'both' : 'email');
+    document.getElementById('editorSubject').value = t.subject || '';
+    setEditorContent(t.body || '');
+    document.getElementById('editorSms').value = t.sms_body || '';
+    document.getElementById('editorActive').checked = true;
+    document.getElementById('editorDefault').checked = false;
+
+    currentWrapper = 'full';
+    document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
+        const val = opt.querySelector('input').value;
+        opt.classList.toggle('selected', val === 'full');
+        opt.querySelector('input').checked = (val === 'full');
+    });
+
+    updateSmsCounter();
+    renderTemplateList();
+    showToast('Template loaded from library — customize and save!', 'success');
+}
 
 function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 </script>

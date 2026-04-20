@@ -376,17 +376,11 @@
             </div>
         </div>
         <div class="topbar-actions">
-            <button class="btn btn-secondary" onclick="exportToCSV()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export
-            </button>
-            <button class="btn btn-primary" onclick="loadQuotes(); loadStats();">
+            <button class="btn btn-ghost btn-sm" onclick="loadQuotes(); loadStats();" title="Refresh">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                Refresh
             </button>
-            <button class="btn btn-primary" onclick="openNewRequestModal()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New Request
+            <button class="btn btn-ghost btn-sm" onclick="exportToCSV()" title="Export CSV">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </button>
         </div>
         <div class="universal-search-wrapper">
@@ -400,15 +394,23 @@
         
     </div>
 
-    <!-- Sub-navigation tabs -->
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-200);background:var(--white);padding:0 32px;">
-        <a href="quotes.html" style="padding:10px 20px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);text-decoration:none;">Requests</a>
-        <a href="sent-quotes.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Sent Quotes</a>
-        <a href="quote-generator.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Quote Generator</a>
-        <a href="quote-calculator.html" style="padding:10px 20px;font-size:13px;font-weight:500;color:var(--gray-500);border-bottom:2px solid transparent;text-decoration:none;">Calculator</a>
-    </div>
-
     <div class="page-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2 class="page-title">Leads &amp; Quotes</h2>
+                <p class="page-subtitle">Incoming requests, sent quotes, and the conversion pipeline</p>
+            </div>
+            <div style="display:flex;gap:var(--space-3);align-items:center;flex-wrap:wrap;">
+                <a href="sent-quotes.html" class="btn btn-secondary">Sent Quotes</a>
+                <a href="quote-generator.html" class="btn btn-secondary">Generator</a>
+                <button class="btn btn-primary" onclick="openNewRequestModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    New Request
+                </button>
+            </div>
+        </div>
+
         <!-- Stats -->
         <div class="stats-row">
             <div class="stat-card" onclick="filterByCard('all')">

@@ -80,6 +80,8 @@
             font-size: 12px; font-weight: 600; text-transform: capitalize;
         }
         .status-badge.draft { background: var(--gray-100); color: var(--gray-500); }
+        .status-badge.pending { background: var(--amber-bg); color: var(--amber); }
+        .status-badge.partial { background: #fff7ed; color: #c2410c; }
         .status-badge.sent { background: var(--blue-bg); color: var(--blue); }
         .status-badge.viewed { background: var(--amber-bg); color: var(--amber); }
         .status-badge.paid { background: var(--green-bg); color: var(--green); }
@@ -159,6 +161,15 @@
         .payment-entry:last-child { border-bottom: none; }
         .payment-entry .method { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: var(--gray-100); font-size: 11px; font-weight: 600; color: var(--gray-600); }
         .payment-entry .amount { font-weight: 700; color: var(--green); }
+        .payment-entry-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .payment-status {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .payment-status.completed { background: var(--green-bg); color: var(--green); }
+        .payment-status.pending { background: var(--amber-bg); color: var(--amber); }
+        .payment-status.failed { background: var(--red-bg); color: var(--red); }
 
         /* Pay Link */
         .pay-link-box {
@@ -253,6 +264,11 @@
         .history-event.paid::before { background: var(--green); }
         .history-event.reminder::before { background: #8b5cf6; }
         .history-event.overdue::before { background: var(--red); }
+        .history-event.payment-pending::before { background: var(--amber); }
+        .history-event.payment-failed::before { background: var(--red); }
+        .history-event.email-failed::before { background: var(--red); }
+        .history-event.receipt::before { background: var(--green); }
+        .history-event.notice::before { background: var(--forest-light); }
         .history-event-badge {
             display: inline-flex; padding: 2px 8px; border-radius: 4px;
             font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
@@ -263,6 +279,11 @@
         .history-event-badge.paid { background: var(--green-bg); color: var(--green); }
         .history-event-badge.reminder { background: #f5f3ff; color: #8b5cf6; }
         .history-event-badge.overdue { background: var(--red-bg); color: var(--red); }
+        .history-event-badge.payment-pending { background: var(--amber-bg); color: var(--amber); }
+        .history-event-badge.payment-failed,
+        .history-event-badge.email-failed { background: var(--red-bg); color: var(--red); }
+        .history-event-badge.receipt { background: var(--green-bg); color: var(--green); }
+        .history-event-badge.notice { background: #eef2f2; color: var(--forest-light); }
         .history-event-title { font-size: 13px; font-weight: 500; color: var(--gray-700); margin-top: 4px; }
         .history-event-detail { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
         .history-event-date { font-size: 11px; color: var(--gray-400); margin-left: 8px; }
@@ -460,6 +481,7 @@
             const custEmail = inv.customer_email || '';
             const custAddress = inv.customer_address || '';
             const status = inv.status || 'draft';
+            const sentStatus = (inv.sent_status || (inv.external_metadata && inv.external_metadata.sent_status) || '').toLowerCase();
             const total = parseFloat(inv.total) || 0;
             const amountPaid = parseFloat(inv.amount_paid) || 0;
             const balance = total - amountPaid;
@@ -468,7 +490,10 @@
             const sentAt = inv.sent_at;
             const createdAt = inv.created_at;
             const notes = inv.notes || '';
+            const terms = inv.terms || (inv.external_metadata && inv.external_metadata.terms_raw) || '';
             const qbId = inv.qb_invoice_id;
+            const statusLabel = humanizeLabel(status);
+            const sentStatusLabel = humanizeLabel(sentStatus);
 
             let lineItems = inv.line_items || [];
             if (typeof lineItems === 'string') {
@@ -520,6 +545,14 @@
                         ${qbId ? `<div class="detail"><strong>QuickBooks ID:</strong> ${qbId}</div>` : ''}
                     </div>
                 </div>`;
+            } else if (status === 'pending') {
+                paymentHtml = `<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:16px; margin-bottom:20px;">
+                    <h4 style="color:#b45309; font-size:13px; margin-bottom:8px;">📝 Invoice Pending${sentStatus === 'not sent' ? ' — Not Sent' : ''}</h4>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px 24px;">
+                        <div class="detail" style="color:#92400e;"><strong>Amount due:</strong> ${formatCurrency(balance || total)}</div>
+                        ${dueDate ? `<div class="detail" style="color:#92400e;"><strong>Due date:</strong> ${formatDate(dueDate)}</div>` : ''}
+                    </div>
+                </div>`;
             } else if (status === 'sent') {
                 paymentHtml = `<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:16px; margin-bottom:20px;">
                     <h4 style="color:#1d4ed8; font-size:13px; margin-bottom:8px;">📬 Invoice Sent — Awaiting Payment</h4>
@@ -537,7 +570,7 @@
                     const name = item.name || item.description || 'Service';
                     const qty = item.quantity || item.qty || 1;
                     const rate = parseFloat(item.rate || item.unit_price || item.amount || 0);
-                    const amount = parseFloat(item.amount || (qty * rate) || 0);
+                    const amount = parseFloat(item.line_total || item.amount || (qty * rate) || 0);
                     const dateStr = item.service_date ? new Date(item.service_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
                     return `<tr>
                         <td>
@@ -604,8 +637,9 @@
                         <h3>Invoice Info</h3>
                         <div class="detail-field">
                             <div class="label">Status</div>
-                            <div class="value"><span class="status-badge ${status}">${status}</span></div>
+                            <div class="value"><span class="status-badge ${status}">${esc(statusLabel)}</span></div>
                         </div>
+                        ${sentStatus ? `<div class="detail-field"><div class="label">Sending</div><div class="value">${esc(sentStatusLabel)}</div></div>` : ''}
                         <div class="detail-field">
                             <div class="label">Invoice #</div>
                             <div class="value">${esc(invNum)}</div>
@@ -632,8 +666,11 @@
                             <div class="payment-entry">
                                 <div>
                                     <span class="method">${{'card':'💳 Card','credit_card':'💳 Credit Card','debit_card':'💳 Debit Card','ach':'🏦 ACH','apple_pay':'🍎 Apple Pay','cash':'💵 Cash','check':'📝 Check','venmo':'Venmo','zelle':'Zelle','money_order':'📝 Money Order'}[p.method] || '💰 ' + (p.method || 'Payment')}</span>
-                                    ${p.card_last4 ? '<span style="font-size:11px;color:var(--gray-400);margin-left:4px;">•••• ' + p.card_last4 + '</span>' : ''}
-                                    ${p.square_receipt_url ? '<a href="' + p.square_receipt_url + '" target="_blank" style="font-size:11px;color:var(--blue);margin-left:8px;">Receipt</a>' : ''}
+                                    <div class="payment-entry-meta">
+                                        <span class="payment-status ${paymentStatusClass(p.status)}">${esc(paymentStatusLabel(p.status))}</span>
+                                        ${p.card_last4 ? '<span style="font-size:11px;color:var(--gray-400);">•••• ' + esc(p.card_last4) + '</span>' : ''}
+                                        ${p.square_receipt_url ? '<a href="' + p.square_receipt_url + '" target="_blank" style="font-size:11px;color:var(--blue);">Receipt</a>' : ''}
+                                    </div>
                                 </div>
                                 <div style="text-align:right;">
                                     <div class="amount">${formatCurrency(p.amount)}</div>
@@ -659,6 +696,11 @@
                     <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(notes)}</p>
                 </div>` : ''}
 
+                ${terms ? `<div class="detail-card full-width" style="margin-bottom:20px;">
+                    <h3>Terms</h3>
+                    <p style="font-size:14px;color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">${esc(terms)}</p>
+                </div>` : ''}
+
                 <div class="detail-card full-width" style="margin-bottom:20px;">
                     <h3>Invoice History</h3>
                     <div class="history-timeline">
@@ -667,15 +709,15 @@
                 </div>
 
                 <div class="actions">
-                    ${status === 'draft' ? `<button class="btn btn-primary" onclick="sendInvoice()">📤 Send Invoice</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
+                    ${status === 'draft' || (status === 'pending' && sentStatus === 'not sent') ? `<button class="btn btn-primary" onclick="sendInvoice()">📤 Send Invoice</button>` : ''}
+                    ${['pending', 'partial', 'sent', 'overdue'].includes(status) ? `<button class="btn btn-success" onclick="markPaid()">💰 Mark as Paid</button>` : ''}
+                    ${status === 'sent' || status === 'overdue' || (status === 'pending' && sentStatus && sentStatus !== 'not sent') ? `<button class="btn btn-outline" onclick="sendInvoice()">📤 Resend</button>` : ''}
                     <button class="btn btn-outline" onclick="showEditModal()">✏️ Edit</button>
                     <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showRecordPayment()">💵 Record Payment</button>` : ''}
                     ${status !== 'paid' && status !== 'void' ? `<button class="btn btn-outline" onclick="showSplitPayment()">📅 Split Payments</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="showChargeCard()">💳 Charge Card on File</button>` : ''}
-                    ${status === 'sent' || status === 'overdue' ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
+                    ${['pending', 'partial', 'sent', 'overdue'].includes(status) ? `<button class="btn btn-outline" onclick="showChargeCard()">💳 Charge Card on File</button>` : ''}
+                    ${['partial', 'sent', 'overdue'].includes(status) ? `<button class="btn btn-outline" onclick="sendReminder()">🔔 Send Reminder</button>` : ''}
                     <button class="btn btn-outline" onclick="downloadPDF()">📥 Download PDF</button>
                     <button class="btn btn-danger" onclick="deleteInvoice()">Delete</button>
                 </div>
@@ -735,7 +777,43 @@
             return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
         }
 
+        function humanizeLabel(value) {
+            return String(value || '')
+                .trim()
+                .replace(/[_-]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .split(' ')
+                .filter(Boolean)
+                .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(' ');
+        }
+
+        function paymentStatusClass(status) {
+            const normalized = String(status || '').trim().toLowerCase();
+            if (normalized === 'pending') return 'pending';
+            if (normalized === 'failed') return 'failed';
+            return 'completed';
+        }
+
+        function paymentStatusLabel(status) {
+            const normalized = String(status || '').trim().toLowerCase();
+            if (normalized === 'pending') return 'Pending';
+            if (normalized === 'failed') return 'Failed';
+            return 'Completed';
+        }
+
         function buildInvoiceHistory(inv) {
+            if (Array.isArray(inv.history_events) && inv.history_events.length > 0) {
+                return inv.history_events.map(e => `
+                    <div class="history-event ${esc(e.type || 'created')}">
+                        <span class="history-event-badge ${esc(e.type || 'created')}">${esc(e.badge || 'Update')}</span>
+                        <span class="history-event-date">${formatDateTime(e.date)}</span>
+                        <div class="history-event-title">${esc(e.title || '')}</div>
+                        ${e.detail ? `<div class="history-event-detail">${esc(e.detail)}</div>` : ''}
+                    </div>
+                `).join('');
+            }
+
             const events = [];
 
             // Created

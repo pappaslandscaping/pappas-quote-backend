@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tax Transfers - YardDesk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="shared.css">
+    <style>
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .hero-copy h2 {
+            font-size: 28px;
+            line-height: 1.1;
+            color: var(--gray-800);
+            margin-bottom: 8px;
+        }
+        .hero-copy p {
+            max-width: 760px;
+            color: var(--gray-500);
+            font-size: 14px;
+        }
+        .hero-kicker {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 10px;
+        }
+        .panel {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            margin-bottom: 20px;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.2fr auto auto auto;
+            gap: 12px;
+            align-items: end;
+        }
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .field input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--gray-300);
+            font: inherit;
+            background: #fff;
+            color: var(--gray-800);
+        }
+        .field input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(46, 64, 61, 0.12);
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 10px;
+            border: 1px solid var(--gray-300);
+            background: #fff;
+            color: var(--gray-700);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn:hover:not(:disabled) {
+            border-color: var(--gray-400);
+            transform: translateY(-1px);
+        }
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: wait;
+            transform: none;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .btn-secondary {
+            background: var(--gray-50);
+        }
+        .meta-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+        .meta-note {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .meta-status {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+        }
+        .meta-status.loading {
+            color: var(--primary);
+        }
+        .meta-status.success {
+            color: #166534;
+        }
+        .meta-status.error {
+            color: #b91c1c;
+        }
+        .meta-status.warn {
+            color: #92400e;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .summary-card {
+            background: linear-gradient(180deg, #ffffff 0%, #f8faf8 100%);
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 18px;
+        }
+        .summary-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-bottom: 8px;
+        }
+        .summary-value {
+            font-size: 30px;
+            line-height: 1;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .summary-sub {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        .summary-card.variance-positive .summary-value {
+            color: #b45309;
+        }
+        .summary-card.variance-negative .summary-value {
+            color: #b91c1c;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(180px, 1fr));
+            gap: 16px;
+        }
+        .status-grid.compact .status-card {
+            padding: 14px;
+            background: var(--gray-50);
+        }
+        .status-card {
+            background: #fff;
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 16px;
+        }
+        .status-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-card-value {
+            margin-top: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .status-card-sub {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--gray-500);
+            line-height: 1.45;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid var(--gray-200);
+            background: var(--gray-50);
+            color: var(--gray-600);
+            white-space: nowrap;
+        }
+        .status-pill.success {
+            background: #ecfdf5;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+        .status-pill.warn {
+            background: #fffbeb;
+            border-color: #fcd34d;
+            color: #92400e;
+        }
+        .status-pill.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+        .status-pill.muted {
+            background: var(--gray-50);
+            border-color: var(--gray-200);
+            color: var(--gray-600);
+        }
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .section-head h3 {
+            font-size: 16px;
+            color: var(--gray-800);
+        }
+        .section-head .sub {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+        thead th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: left;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        tbody td {
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+            color: var(--gray-700);
+            vertical-align: top;
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        tbody tr.row-button {
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+        tbody tr.row-button:hover {
+            background: var(--gray-50);
+        }
+        tbody tr.row-button.selected {
+            background: #eef4ef;
+        }
+        .money {
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .variance-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .variance-pill.good {
+            color: #166534;
+            background: #ecfdf5;
+        }
+        .variance-pill.warn {
+            color: #92400e;
+            background: #fffbeb;
+        }
+        .source-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            background: var(--gray-50);
+            color: var(--gray-600);
+            border: 1px solid var(--gray-200);
+        }
+        .callout {
+            display: flex;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8faf8;
+            border: 1px solid var(--gray-200);
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: 18px;
+        }
+        .callout strong {
+            color: var(--gray-800);
+        }
+        .callout.warning {
+            background: #fffbeb;
+            border-color: #fcd34d;
+        }
+        .callout.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+        .callout.success {
+            background: #ecfdf5;
+            border-color: #86efac;
+        }
+        .callout.tight {
+            margin-bottom: 12px;
+        }
+        .callout.hidden {
+            display: none;
+        }
+        .callout-content {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .callout-meta {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        .split-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+        }
+        .empty-state {
+            padding: 36px 18px;
+            text-align: center;
+            color: var(--gray-500);
+            font-size: 14px;
+        }
+        .status-inline {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-500);
+            margin-left: 8px;
+        }
+        .detail-cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(120px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .detail-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .detail-card-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .detail-card-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .inline-note {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        .inline-note strong {
+            color: var(--gray-700);
+        }
+        .helper-line {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 8px;
+        }
+        .helper-line.variance-helper {
+            margin-top: 14px;
+            max-width: 780px;
+            line-height: 1.5;
+        }
+        .disclosure {
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            background: #fff;
+            margin-top: 14px;
+            overflow: hidden;
+        }
+        .disclosure summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .disclosure summary::-webkit-details-marker {
+            display: none;
+        }
+        .disclosure summary::after {
+            content: '+';
+            color: var(--gray-500);
+            font-size: 18px;
+            line-height: 1;
+        }
+        .disclosure[open] summary::after {
+            content: '−';
+        }
+        .disclosure-body {
+            border-top: 1px solid var(--gray-200);
+            padding: 16px;
+        }
+        .review-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .toggle-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--gray-200);
+            background: var(--gray-50);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+        .toggle-chip input {
+            accent-color: var(--primary);
+        }
+        .review-meta {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-bottom: 14px;
+        }
+        .instruction-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .instruction-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .instruction-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-800);
+            line-height: 1.1;
+        }
+        .instruction-meta {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--gray-500);
+            line-height: 1.5;
+        }
+        .instruction-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .history-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .history-export-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .history-export-controls select {
+            min-width: 220px;
+            padding: 9px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--gray-200);
+            background: #fff;
+            color: var(--gray-700);
+            font: inherit;
+        }
+        .history-meta {
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .status-pill-linked {
+            background: #ecfdf5;
+            color: #166534;
+            border-color: #bbf7d0;
+        }
+        .status-pill-unresolved {
+            background: #fffbeb;
+            color: #92400e;
+            border-color: #fcd34d;
+        }
+        .details-cell {
+            min-width: 280px;
+        }
+        .reason-text {
+            min-width: 260px;
+        }
+        @media (max-width: 1180px) {
+            .controls-grid,
+            .status-grid,
+            .summary-grid,
+            .split-grid,
+            .instruction-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<script src="shell.js"></script>
+<main class="main">
+    <div class="page-content">
+        <section class="hero">
+            <div class="hero-copy">
+                <h2>Daily Tax Transfer Reconciliation</h2>
+                <p>
+                    Recommended transfer amounts come from <strong>Copilot Tax Summary collected</strong>.
+                    Backend payment tax is shown only as a reconciliation cross-check against linked payments.
+                </p>
+                <div class="hero-kicker">Use Copilot collected tax as the amount to move. Use backend reconstruction only to inspect variance.</div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="controls-grid">
+                <div class="field">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="field">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate">
+                </div>
+                <button class="btn btn-primary" id="loadBtn" type="button" onclick="loadReport()">Load Report</button>
+                <button class="btn btn-secondary" id="syncTaxBtn" type="button" onclick="syncTaxSummary()">Sync Tax Summary</button>
+                <button class="btn btn-secondary" id="syncPaymentsBtn" type="button" onclick="syncPayments()">Sync Payments</button>
+            </div>
+            <div class="meta-line">
+                <div class="meta-note" id="freshnessNote">Choose a date range and load the report.</div>
+                <div class="meta-status" id="syncStatus">Idle</div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-head">
+                <div>
+                    <h3>Status</h3>
+                    <div class="sub">Freshness, automation, and yesterday instruction alerting for the current workflow.</div>
+                </div>
+            </div>
+            <div class="callout hidden tight" id="automationAlert" style="margin-bottom:12px;">
+                <div id="automationAlertIcon">⚠️</div>
+                <div id="automationAlertText"></div>
+            </div>
+            <div class="callout hidden tight" id="instructionAlert">
+                <div id="instructionAlertIcon">⚠️</div>
+                <div class="callout-content">
+                    <strong id="instructionAlertTitle">Checking yesterday instruction</strong>
+                    <div id="instructionAlertText">Checking the current operational status for yesterday&apos;s manual Chase transfer.</div>
+                    <div class="callout-meta" id="instructionAlertMeta"></div>
+                </div>
+            </div>
+            <div class="status-grid compact">
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Automation</div>
+                        <span class="status-pill muted" id="automationPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="automationValue">No automated run recorded</div>
+                    <div class="status-card-sub" id="automationSub">The daily freshness sync has not completed successfully yet.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Tax Summary Today</div>
+                        <span class="status-pill muted" id="taxFreshnessPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="taxFreshnessValue">No same-day snapshot</div>
+                    <div class="status-card-sub" id="taxFreshnessSub">Copilot collected-tax freshness for today.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Payments Sync</div>
+                        <span class="status-pill muted" id="paymentsFreshnessPill">Unknown</span>
+                    </div>
+                    <div class="status-card-value" id="paymentsFreshnessValue">No same-day payment import</div>
+                    <div class="status-card-sub" id="paymentsFreshnessSub">Copilot payment import freshness for reconciliation.</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-card-header">
+                        <div class="summary-label">Automation Scope</div>
+                        <span class="status-pill muted" id="scopePill">Daily</span>
+                    </div>
+                    <div class="status-card-value" id="scopeValue">Today + 1 day back</div>
+                    <div class="status-card-sub" id="scopeSub">Backend-triggered sync scope in America/New_York.</div>
+                </div>
+            </div>
+            <details class="disclosure">
+                <summary>Automation details</summary>
+                <div class="disclosure-body">
+                    <div class="helper-line" style="margin-top:0;margin-bottom:14px;">Read-only run history for the two scheduled tax-transfer jobs in America/New_York.</div>
+                    <div class="status-grid">
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Freshness Sync Run</div>
+                                <span class="status-pill muted" id="freshnessRunPill">Unknown</span>
+                            </div>
+                            <div class="status-card-value" id="freshnessRunValue">No run recorded</div>
+                            <div class="status-card-sub" id="freshnessRunSub">This scheduled job refreshes Copilot Tax Summary and Copilot payments for Tax Transfers.</div>
+                            <div class="history-meta" id="freshnessRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Instruction Generation Run</div>
+                                <span class="status-pill muted" id="instructionRunPill">Unknown</span>
+                            </div>
+                            <div class="status-card-value" id="instructionRunValue">No run recorded</div>
+                            <div class="status-card-sub" id="instructionRunSub">This scheduled job generates yesterday&apos;s Chase-to-Huntington transfer instruction using Copilot collected tax.</div>
+                            <div class="history-meta" id="instructionRunMeta" style="margin:12px 0 0;">No successful run recorded yet.</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Next Freshness Sync</div>
+                                <span class="status-pill muted" id="nextFreshnessPill">Scheduled</span>
+                            </div>
+                            <div class="status-card-value" id="nextFreshnessValue">Unknown</div>
+                            <div class="status-card-sub" id="nextFreshnessSub">Expected scheduler target for the daily freshness refresh.</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-header">
+                                <div class="summary-label">Next Instruction Run</div>
+                                <span class="status-pill muted" id="nextInstructionPill">Scheduled</span>
+                            </div>
+                            <div class="status-card-value" id="nextInstructionValue">Unknown</div>
+                            <div class="status-card-sub" id="nextInstructionSub">Expected scheduler target for daily transfer-instruction generation.</div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <section class="panel">
+            <div class="section-head">
+                <div>
+                    <h3>Yesterday's Transfer Instruction</h3>
+                    <div class="sub">Approval workflow only. Chase submission still happens manually outside YardDesk.</div>
+                </div>
+                <div class="sub" id="instructionStatusMeta">Loading yesterday&apos;s instruction…</div>
+            </div>
+            <div class="instruction-grid">
+                <div class="instruction-card">
+                    <div class="detail-card-label">Instruction</div>
+                    <div class="instruction-value" id="instructionAmount">$0.00</div>
+                    <div class="instruction-meta" id="instructionMeta">No instruction loaded yet.</div>
+                </div>
+                <div class="instruction-card">
+                    <div class="detail-card-label">Status</div>
+                    <div><span class="status-pill muted" id="instructionStatusPill">Unknown</span></div>
+                    <div class="instruction-meta" id="instructionStatusDetail">Loading current approval status…</div>
+                </div>
+            </div>
+            <div class="instruction-actions">
+                <button class="btn btn-primary" id="generateInstructionBtn" type="button" onclick="generateTransferInstruction()">Generate Instruction</button>
+                <button class="btn btn-secondary" id="approveInstructionBtn" type="button" onclick="approveTransferInstruction()">Approve for Chase Submission</button>
+                <button class="btn btn-secondary" id="submitInstructionBtn" type="button" onclick="markTransferInstructionSubmitted()">Mark Submitted in Chase</button>
+                <button class="btn btn-secondary" id="cancelInstructionBtn" type="button" onclick="cancelTransferInstruction()">Cancel Instruction</button>
+            </div>
+            <details class="disclosure">
+                <summary>Instruction history</summary>
+                <div class="disclosure-body">
+                    <div class="history-toolbar">
+                        <div class="history-meta" id="instructionHistoryMeta">Choose a date range and load the report to inspect transfer instruction history.</div>
+                        <div class="history-export-controls">
+                            <select id="instructionExportFilter">
+                                <option value="all">All instruction rows</option>
+                                <option value="exceptions">Exceptions only</option>
+                                <option value="missing_instruction">Missing instruction</option>
+                                <option value="pending_approval">Pending approval</option>
+                                <option value="approved_not_submitted">Approved not submitted</option>
+                                <option value="submitted_after_cutoff">Submitted after cutoff</option>
+                                <option value="superseded">Superseded</option>
+                                <option value="canceled">Canceled</option>
+                                <option value="recommendation_changed_after_submission">Recommendation changed after submission</option>
+                            </select>
+                            <button class="btn btn-secondary" id="exportInstructionBtn" type="button" onclick="downloadTransferInstructionExport()">Export CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tax Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Recommendation As Of</th>
+                                    <th>Generated</th>
+                                    <th>Approved</th>
+                                    <th>Submitted</th>
+                                    <th>Bank Ref</th>
+                                </tr>
+                            </thead>
+                            <tbody id="instructionHistoryBody">
+                                <tr><td colspan="8" class="empty-state">Load the report to inspect transfer instruction history.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        </section>
+
+        <section class="panel">
+            <div class="summary-grid" id="summaryGrid">
+                <div class="summary-card">
+                    <div class="summary-label">Recommended Transfer</div>
+                    <div class="summary-value" id="sumRecommended">$0.00</div>
+                    <div class="summary-sub">Sum of Copilot collected tax for the selected range</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Copilot Collected Tax</div>
+                    <div class="summary-value" id="sumCopilot">$0.00</div>
+                    <div class="summary-sub">Primary source of truth</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Backend Reconstructed Tax</div>
+                    <div class="summary-value" id="sumBackend">$0.00</div>
+                    <div class="summary-sub">From linked payment tax reconstruction</div>
+                </div>
+                <div class="summary-card" id="varianceCard">
+                    <div class="summary-label">Variance</div>
+                    <div class="summary-value" id="sumVariance">$0.00</div>
+                    <div class="summary-sub">Copilot collected tax minus backend reconstructed tax</div>
+                </div>
+            </div>
+            <div class="helper-line variance-helper">
+                Negative variance can happen when Copilot&apos;s collected-tax basis differs from payment-level reconstruction. One common reason is Copilot netting processing fees before extracting collected tax, while backend reconstruction uses the full linked taxable gross basis.
+            </div>
+        </section>
+
+        <section class="split-grid">
+            <div class="panel">
+                <div class="section-head">
+                    <div>
+                        <h3>Daily Transfer Recommendations</h3>
+                        <div class="sub">Historical day-by-day view for the selected date range.</div>
+                        <div class="helper-line">Click any day to load the reconciliation detail on the right.</div>
+                    </div>
+                    <div class="sub" id="tableMeta">No data loaded</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Recommended</th>
+                                <th>Copilot Tax</th>
+                                <th>Backend Tax</th>
+                                <th>Variance</th>
+                                <th>Source</th>
+                                <th>Freshness</th>
+                                <th>Snapshot As Of</th>
+                            </tr>
+                        </thead>
+                        <tbody id="daysBody">
+                            <tr><td colspan="8" class="empty-state">Load a date range to view daily tax transfer recommendations.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="section-head">
+                    <div>
+                        <h3>Payment Reconciliation Detail</h3>
+                        <div class="sub">Optional drill-down using real payment records for the selected day.</div>
+                    </div>
+                    <div class="sub" id="detailMeta">Select a day</div>
+                </div>
+                <div class="detail-cards">
+                    <div class="detail-card">
+                        <div class="detail-card-label">Payments</div>
+                        <div class="detail-card-value" id="detailPayments">0</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-card-label">Linked</div>
+                        <div class="detail-card-value" id="detailLinked">0</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-card-label">Unresolved</div>
+                        <div class="detail-card-value" id="detailUnresolved">0</div>
+                    </div>
+                </div>
+                <div class="callout tight" style="margin-bottom:14px;">
+                    <div>↳</div>
+                    <div>
+                        This drill-down is for reconciliation. It helps explain the variance, but it does not replace the Copilot collected-tax recommendation.
+                    </div>
+                </div>
+                <div class="callout hidden" id="detailVarianceExplanation" style="margin-bottom:14px;">
+                    <div id="detailVarianceExplanationIcon">ℹ️</div>
+                    <div id="detailVarianceExplanationText"></div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Payer</th>
+                                <th>Invoice</th>
+                                <th>Applied</th>
+                                <th>Tax Portion</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailBody">
+                            <tr><td colspan="5" class="empty-state">Select a day in the table to inspect payment-level reconciliation.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <details class="disclosure">
+                <summary>Advanced reconciliation</summary>
+                <div class="disclosure-body">
+                    <div class="section-head">
+                        <div>
+                            <h3>Copilot Payment Review</h3>
+                            <div class="sub">Read-only review of Copilot payment rows in the selected date range.</div>
+                        </div>
+                        <div class="review-toolbar">
+                            <label class="toggle-chip">
+                                <input type="checkbox" id="unresolvedOnlyToggle" checked onchange="loadPaymentReview()">
+                                Unresolved only
+                            </label>
+                            <span class="source-pill" id="reviewCount">0 unresolved rows</span>
+                        </div>
+                    </div>
+                    <div class="helper-line" style="margin-top:0;margin-bottom:14px;">
+                        Use this table to inspect payment rows that are missing an invoice link. It helps explain reconciliation variance without changing the Copilot collected-tax recommendation.
+                    </div>
+                    <div class="review-meta" id="reviewMeta">Choose a date range and load the report to inspect Copilot payment rows.</div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Payment Date</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Details</th>
+                                    <th>Extracted Invoice</th>
+                                    <th>Linkage</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reviewBody">
+                                <tr><td colspan="7" class="empty-state">Load the report to inspect Copilot payment linkage.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        </section>
+    </div>
+</main>
+
+<script>
+    const money = (value) => Number(value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    const shortDate = (value) => value ? new Date(value + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    const longDateTime = (value) => value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+    const fmtSource = (value) => {
+        switch (value) {
+            case 'copilotcrm':
+            case 'live_copilot':
+                return 'Live Copilot';
+            case 'persisted_copilot_snapshot':
+                return 'Stored Copilot snapshot';
+            case 'database_fallback':
+                return 'Database fallback';
+            case 'missing_copilot_snapshot':
+                return 'Missing Copilot snapshot';
+            default:
+                return value || '—';
+        }
+    };
+
+    let currentReport = null;
+    let currentFreshnessStatus = null;
+    let selectedDay = null;
+    let currentYesterdayInstructionStatus = null;
+    let currentYesterdayInstructionAlert = null;
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function describeInstructionStatus(status) {
+        switch (status) {
+            case 'pending_approval':
+                return { label: 'Pending approval', tone: 'warn' };
+            case 'approved':
+                return { label: 'Approved', tone: 'success' };
+            case 'submitted':
+                return { label: 'Submitted', tone: 'success' };
+            case 'superseded':
+                return { label: 'Superseded', tone: 'muted' };
+            case 'canceled':
+                return { label: 'Canceled', tone: 'muted' };
+            default:
+                return { label: 'Unknown', tone: 'muted' };
+        }
+    }
+
+    function formatInstructionAccount(code) {
+        switch (code) {
+            case 'chase_business_checking':
+                return 'Chase';
+            case 'huntington_tax':
+                return 'Huntington';
+            default:
+                return code || '—';
+        }
+    }
+
+    function formatInstructionMethod(code) {
+        if (code === 'chase_linked_external_transfer') return 'Linked external transfer';
+        return code || '—';
+    }
+
+    function paymentDetailNote(payment) {
+        const meta = payment && payment.external_metadata && typeof payment.external_metadata === 'object'
+            ? payment.external_metadata
+            : {};
+        const bits = [];
+        if (payment.method) bits.push(escapeHtml(payment.method));
+        const invoiceRef = payment.display_invoice_number || payment.invoice_number || meta.extracted_invoice_number || null;
+        if (invoiceRef) bits.push(`Copilot ref #${escapeHtml(invoiceRef)}`);
+        if (meta.extracted_invoice_date) bits.push(escapeHtml(shortDate(meta.extracted_invoice_date)));
+        return bits.length ? `<div class="inline-note">${bits.join(' • ')}</div>` : '';
+    }
+
+    function getDayReport(date) {
+        return Array.isArray(currentReport?.days)
+            ? currentReport.days.find((day) => day.date === date) || null
+            : null;
+    }
+
+    function describeVarianceTooltip(day) {
+        const variance = Number(day?.variance || 0);
+        if (variance < -0.009 && Number(day?.processing_fees || 0) > 0) {
+            return `Negative variance may reflect Copilot netting ${money(day.processing_fees)} of processing fees before tax extraction.`;
+        }
+        if (variance < -0.009) {
+            return 'Negative variance means backend reconstructed tax is higher than Copilot collected tax for this day.';
+        }
+        if (variance > 0.009) {
+            return 'Positive variance means Copilot collected tax is higher than backend reconstructed tax for this day.';
+        }
+        return 'Copilot collected tax and backend reconstructed tax are aligned for this day.';
+    }
+
+    function renderDetailVarianceExplanation(day, detailSummary = {}) {
+        const callout = document.getElementById('detailVarianceExplanation');
+        const icon = document.getElementById('detailVarianceExplanationIcon');
+        const text = document.getElementById('detailVarianceExplanationText');
+        callout.classList.remove('warning', 'error', 'success', 'hidden');
+
+        const variance = Number(day?.variance || 0);
+        const processingFees = Number(day?.processing_fees || 0);
+        const linkedCount = Number(detailSummary?.linked_count || 0);
+
+        if (variance < -0.009 && processingFees > 0 && linkedCount > 0) {
+            callout.classList.add('warning');
+            icon.textContent = 'ℹ️';
+            text.textContent = `This negative variance likely comes from a basis mismatch: Copilot collected tax appears to net ${money(processingFees)} of processing fees before tax extraction, while backend reconstruction uses the full linked taxable gross basis from the payment and invoice link.`;
+            return;
+        }
+
+        if (variance < -0.009) {
+            callout.classList.add('warning');
+            icon.textContent = 'ℹ️';
+            text.textContent = 'This negative variance means backend reconstructed tax is higher than Copilot collected tax for the selected day because the two sides are using different reconciliation bases.';
+            return;
+        }
+
+        if (variance > 0.009) {
+            callout.classList.add('warning');
+            icon.textContent = 'ℹ️';
+            text.textContent = 'This positive variance means Copilot collected tax is higher than backend reconstructed tax for the selected day. Review linked and unresolved payment rows to see which basis is missing from the backend cross-check.';
+            return;
+        }
+
+        callout.classList.add('success');
+        icon.textContent = '✓';
+        text.textContent = 'No material variance is showing for the selected day. Copilot collected tax and backend payment reconstruction are effectively aligned.';
+    }
+
+    function setDefaultDates() {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 6);
+        document.getElementById('startDate').value = start.toISOString().slice(0, 10);
+        document.getElementById('endDate').value = end.toISOString().slice(0, 10);
+    }
+
+    function setBusy(buttonId, isBusy, label) {
+        const btn = document.getElementById(buttonId);
+        if (!btn) return;
+        if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+        btn.disabled = isBusy;
+        btn.textContent = isBusy ? label : btn.dataset.label;
+    }
+
+    function setSyncStatus(message, tone) {
+        const el = document.getElementById('syncStatus');
+        el.textContent = message;
+        el.classList.remove('loading', 'success', 'error', 'warn');
+        if (tone) el.classList.add(tone);
+    }
+
+    function setPill(id, label, tone) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = label;
+        el.classList.remove('success', 'warn', 'error', 'muted');
+        el.classList.add(tone || 'muted');
+    }
+
+    function formatTrigger(value) {
+        return value === 'cron' ? 'scheduled' : value === 'manual' ? 'manual' : 'unknown';
+    }
+
+    function renderAutomationJob(prefix, job, nextRun, fallbackDescription) {
+        const currentStatus = job?.status || 'never_run';
+        const recentTrigger = formatTrigger(job?.trigger);
+        if (currentStatus === 'success') {
+            setPill(`${prefix}Pill`, 'Healthy', 'success');
+            document.getElementById(`${prefix}Value`).textContent = `Last success ${longDateTime(job.last_success_at)}`;
+            document.getElementById(`${prefix}Sub`).textContent = `Most recent run completed via ${recentTrigger}${job?.action ? ` (${job.action.replace(/_/g, ' ')})` : ''}.`;
+        } else if (currentStatus === 'degraded') {
+            setPill(`${prefix}Pill`, 'Needs attention', 'warn');
+            document.getElementById(`${prefix}Value`).textContent = `Last attempt ${longDateTime(job.last_attempt_at)}`;
+            document.getElementById(`${prefix}Sub`).textContent = job?.last_error || 'The most recent run completed with one or more failed components.';
+        } else if (currentStatus === 'failed') {
+            setPill(`${prefix}Pill`, 'Failed', 'error');
+            document.getElementById(`${prefix}Value`).textContent = `Last failure ${longDateTime(job.last_failure_at || job.last_attempt_at)}`;
+            document.getElementById(`${prefix}Sub`).textContent = job?.last_failure_error || job?.last_error || 'The most recent run failed.';
+        } else if (currentStatus === 'never_run') {
+            setPill(`${prefix}Pill`, 'Not run', 'muted');
+            document.getElementById(`${prefix}Value`).textContent = 'No run recorded';
+            document.getElementById(`${prefix}Sub`).textContent = fallbackDescription;
+        } else {
+            setPill(`${prefix}Pill`, 'Unknown', 'muted');
+            document.getElementById(`${prefix}Value`).textContent = 'Run state unavailable';
+            document.getElementById(`${prefix}Sub`).textContent = fallbackDescription;
+        }
+
+        const meta = [];
+        if (job?.last_success_at) {
+            meta.push(`Last successful run: ${longDateTime(job.last_success_at)} via ${formatTrigger(job.last_success_trigger || job.trigger)}`);
+        } else {
+            meta.push('No successful run recorded yet.');
+        }
+        if (job?.last_failure_at) {
+            const failureLabel = `Last failed run: ${longDateTime(job.last_failure_at)} via ${formatTrigger(job.last_failure_trigger)}`;
+            meta.push(job?.last_failure_error ? `${failureLabel} — ${job.last_failure_error}` : failureLabel);
+        } else {
+            meta.push('No failed run recorded.');
+        }
+        document.getElementById(`${prefix}Meta`).textContent = meta.join(' ');
+
+        const nextValue = nextRun?.label || 'Unknown';
+        document.getElementById(`next${prefix === 'freshnessRun' ? 'Freshness' : 'Instruction'}Value`).textContent = nextValue;
+        document.getElementById(`next${prefix === 'freshnessRun' ? 'Freshness' : 'Instruction'}Sub`).textContent = nextRun?.cron_expression
+            ? `${nextRun.cron_expression} in ${nextRun.time_zone || 'America/New_York'}`
+            : 'Expected scheduler target unavailable.';
+    }
+
+    function getRange() {
+        return {
+            start_date: document.getElementById('startDate').value,
+            end_date: document.getElementById('endDate').value
+        };
+    }
+
+    function isValidRange(range) {
+        return range.start_date && range.end_date && range.start_date <= range.end_date;
+    }
+
+    function renderSummary(summary) {
+        document.getElementById('sumRecommended').textContent = money(summary?.recommended_transfer_amount);
+        document.getElementById('sumCopilot').textContent = money(summary?.copilot_collected_tax);
+        document.getElementById('sumBackend').textContent = money(summary?.backend_reconstructed_tax);
+        document.getElementById('sumVariance').textContent = money(summary?.variance);
+
+        const varianceCard = document.getElementById('varianceCard');
+        varianceCard.classList.remove('variance-positive', 'variance-negative');
+        const variance = Number(summary?.variance || 0);
+        if (variance > 0.009) varianceCard.classList.add('variance-positive');
+        else if (variance < -0.009) varianceCard.classList.add('variance-negative');
+    }
+
+    function isIsoDateInRange(date, startDate, endDate) {
+        return Boolean(date && startDate && endDate && date >= startDate && date <= endDate);
+    }
+
+    function describeDayFreshness(day) {
+        const today = currentFreshnessStatus?.today || null;
+        const freshToday = Boolean(currentFreshnessStatus?.freshness?.today_tax_summary_fresh);
+        const taxSync = currentFreshnessStatus?.automation?.components?.tax_summary || null;
+        const inLatestTaxSyncWindow = taxSync?.status === 'success'
+            && isIsoDateInRange(day?.date, taxSync?.start_date, taxSync?.end_date);
+        if (day?.source === 'missing_copilot_snapshot') {
+            return { label: day?.date === today ? 'Missing today' : 'Missing', tone: 'error' };
+        }
+        if (day?.date === today) {
+            return freshToday
+                ? { label: 'Synced today', tone: 'success' }
+                : { label: 'Not synced today', tone: 'warn' };
+        }
+        if (inLatestTaxSyncWindow) {
+            return { label: 'In daily sync window', tone: 'success' };
+        }
+        if (day?.source === 'live_copilot' || day?.source === 'copilotcrm') {
+            return { label: 'Live fetch', tone: 'success' };
+        }
+        if (day?.source === 'persisted_copilot_snapshot') {
+            return { label: 'Stored snapshot', tone: 'muted' };
+        }
+        if (day?.source === 'database_fallback') {
+            return { label: 'Fallback', tone: 'warn' };
+        }
+        return { label: 'Unknown', tone: 'muted' };
+    }
+
+    function renderAutomationStatus(status) {
+        currentFreshnessStatus = status;
+
+        const automation = status?.automation || {};
+        const instructionAutomation = status?.instruction_automation || {};
+        const nextExpectedRuns = status?.next_expected_runs || {};
+        const freshness = status?.freshness || {};
+        const scopeDays = Number.isFinite(Number(automation.days_back)) ? Number(automation.days_back) : 1;
+
+        renderAutomationJob(
+            'freshnessRun',
+            automation,
+            nextExpectedRuns.freshness_sync,
+            'No scheduled freshness run has been recorded yet.'
+        );
+        renderAutomationJob(
+            'instructionRun',
+            instructionAutomation,
+            nextExpectedRuns.instruction_generation,
+            'No scheduled or manual transfer-instruction generation run has been recorded yet.'
+        );
+
+        if (automation.status === 'success') {
+            setPill('automationPill', 'Healthy', 'success');
+            document.getElementById('automationValue').textContent = `Last success ${longDateTime(automation.last_success_at)}`;
+            document.getElementById('automationSub').textContent = 'Daily backend sync completed for both tax summary and Copilot payments.';
+        } else if (automation.status === 'degraded') {
+            setPill('automationPill', 'Needs attention', 'warn');
+            document.getElementById('automationValue').textContent = `Last attempt ${longDateTime(automation.last_attempt_at)}`;
+            document.getElementById('automationSub').textContent = automation.last_error || 'One freshness sync step failed. Review the stored error below.';
+        } else if (automation.status === 'failed') {
+            setPill('automationPill', 'Failed', 'error');
+            document.getElementById('automationValue').textContent = `Last failure ${longDateTime(automation.last_attempt_at)}`;
+            document.getElementById('automationSub').textContent = automation.last_error || 'The automated freshness sync failed before completion.';
+        } else {
+            setPill('automationPill', 'Not run', 'muted');
+            document.getElementById('automationValue').textContent = 'No automated run recorded';
+            document.getElementById('automationSub').textContent = 'Configure the cron endpoint to keep same-day snapshots fresh automatically.';
+        }
+
+        if (freshness.today_tax_summary_fresh) {
+            setPill('taxFreshnessPill', 'Synced today', 'success');
+            document.getElementById('taxFreshnessValue').textContent = `Last sync ${longDateTime(freshness.today_tax_summary_last_imported_at)}`;
+            document.getElementById('taxFreshnessSub').textContent = 'Same-business-day Copilot collected-tax snapshot captured. This is not a live current reading between syncs.';
+        } else if (freshness.today_tax_summary_last_imported_at) {
+            setPill('taxFreshnessPill', 'Not synced today', 'warn');
+            document.getElementById('taxFreshnessValue').textContent = `Last sync ${longDateTime(freshness.today_tax_summary_last_imported_at)}`;
+            document.getElementById('taxFreshnessSub').textContent = 'A stored Copilot tax snapshot exists, but today has not been refreshed yet in America/New_York.';
+        } else {
+            setPill('taxFreshnessPill', 'Missing today', 'error');
+            document.getElementById('taxFreshnessValue').textContent = 'No today snapshot';
+            document.getElementById('taxFreshnessSub').textContent = 'Today does not have a stored Copilot collected-tax snapshot yet.';
+        }
+
+        if (freshness.payments_fresh_today) {
+            setPill('paymentsFreshnessPill', 'Synced today', 'success');
+            document.getElementById('paymentsFreshnessValue').textContent = `Last import ${longDateTime(freshness.payments_last_imported_at)}`;
+            document.getElementById('paymentsFreshnessSub').textContent = 'Reconciliation detail includes a same-business-day Copilot payment import. New payments after that import will not appear yet.';
+        } else if (freshness.payments_last_imported_at) {
+            setPill('paymentsFreshnessPill', 'Not synced today', 'warn');
+            document.getElementById('paymentsFreshnessValue').textContent = `Last import ${longDateTime(freshness.payments_last_imported_at)}`;
+            document.getElementById('paymentsFreshnessSub').textContent = 'Recommended transfer is still valid, but payment-based variance may lag until the next import.';
+        } else {
+            setPill('paymentsFreshnessPill', 'Missing', 'error');
+            document.getElementById('paymentsFreshnessValue').textContent = 'No Copilot payment import';
+            document.getElementById('paymentsFreshnessSub').textContent = 'Payment reconciliation has not been populated from Copilot yet.';
+        }
+
+        setPill('scopePill', 'Daily', 'muted');
+        document.getElementById('scopeValue').textContent = `Today + ${scopeDays} day${scopeDays === 1 ? '' : 's'} back`;
+        document.getElementById('scopeSub').textContent = `Automation sync window in ${status?.time_zone || 'America/New_York'}. Manual buttons still allow ad hoc refreshes.`;
+
+        const alert = document.getElementById('automationAlert');
+        const alertText = document.getElementById('automationAlertText');
+        const alertIcon = document.getElementById('automationAlertIcon');
+        alert.classList.remove('warning', 'error');
+        if (automation.status === 'failed') {
+            alert.classList.remove('hidden');
+            alert.classList.add('error');
+            alertIcon.textContent = '⛔';
+            alertText.textContent = `Automated freshness sync failed. ${automation.last_error || 'Check Copilot auth and cron configuration.'}`;
+        } else if (automation.status === 'degraded') {
+            alert.classList.remove('hidden');
+            alert.classList.add('warning');
+            alertIcon.textContent = '⚠️';
+            alertText.textContent = `Automated freshness sync completed with errors. ${automation.last_error || 'At least one component did not finish cleanly.'}`;
+        } else if (!freshness.today_tax_summary_fresh) {
+            alert.classList.remove('hidden');
+            alert.classList.add('warning');
+            alertIcon.textContent = '⚠️';
+            alertText.textContent = 'Today’s Copilot tax summary is not fresh yet. Use the manual sync button if you need an updated same-day recommendation before the next scheduled run.';
+        } else {
+            alert.classList.add('hidden');
+            alertText.textContent = '';
+        }
+
+        if (currentReport?.days) {
+            renderDays(currentReport.days);
+            renderFreshness(currentReport.days, getRange());
+        }
+    }
+
+    function renderAutomationStatusUnavailable(message) {
+        currentFreshnessStatus = null;
+        setPill('freshnessRunPill', 'Unavailable', 'error');
+        document.getElementById('freshnessRunValue').textContent = 'Status unavailable';
+        document.getElementById('freshnessRunSub').textContent = message || 'Unable to load automation run history.';
+        document.getElementById('freshnessRunMeta').textContent = 'Last successful and failed run state could not be loaded.';
+
+        setPill('instructionRunPill', 'Unavailable', 'error');
+        document.getElementById('instructionRunValue').textContent = 'Status unavailable';
+        document.getElementById('instructionRunSub').textContent = message || 'Unable to load instruction run history.';
+        document.getElementById('instructionRunMeta').textContent = 'Last successful and failed run state could not be loaded.';
+
+        document.getElementById('nextFreshnessValue').textContent = 'Unknown';
+        document.getElementById('nextFreshnessSub').textContent = 'Expected scheduler target unavailable.';
+        document.getElementById('nextInstructionValue').textContent = 'Unknown';
+        document.getElementById('nextInstructionSub').textContent = 'Expected scheduler target unavailable.';
+
+        setPill('automationPill', 'Unavailable', 'error');
+        document.getElementById('automationValue').textContent = 'Status unavailable';
+        document.getElementById('automationSub').textContent = message || 'Unable to load freshness status.';
+
+        setPill('taxFreshnessPill', 'Unknown', 'muted');
+        document.getElementById('taxFreshnessValue').textContent = 'Status unavailable';
+        document.getElementById('taxFreshnessSub').textContent = 'Freshness could not be loaded, so today\'s Copilot tax snapshot state is unknown.';
+
+        setPill('paymentsFreshnessPill', 'Unknown', 'muted');
+        document.getElementById('paymentsFreshnessValue').textContent = 'Status unavailable';
+        document.getElementById('paymentsFreshnessSub').textContent = 'Freshness could not be loaded, so Copilot payment import recency is unknown.';
+
+        setPill('scopePill', 'Unknown', 'muted');
+        document.getElementById('scopeValue').textContent = 'Status unavailable';
+        document.getElementById('scopeSub').textContent = 'Automation scope is unavailable until the freshness endpoint responds again.';
+
+        const alert = document.getElementById('automationAlert');
+        alert.classList.add('hidden');
+        alert.classList.remove('warning', 'error');
+        document.getElementById('automationAlertText').textContent = '';
+
+        if (currentReport?.days) {
+            renderDays(currentReport.days);
+            renderFreshness(currentReport.days, getRange());
+        }
+    }
+
+    function resetTransferInstructionStatus(message) {
+        currentYesterdayInstructionStatus = null;
+        setPill('instructionStatusPill', 'Unknown', 'muted');
+        document.getElementById('instructionAmount').textContent = '$0.00';
+        document.getElementById('instructionMeta').textContent = message || 'No instruction loaded yet.';
+        document.getElementById('instructionStatusMeta').textContent = 'Instruction unavailable';
+        document.getElementById('instructionStatusDetail').textContent = message || 'Unable to load yesterday\'s transfer instruction.';
+        document.getElementById('generateInstructionBtn').disabled = false;
+        document.getElementById('approveInstructionBtn').disabled = true;
+        document.getElementById('submitInstructionBtn').disabled = true;
+        document.getElementById('cancelInstructionBtn').disabled = true;
+    }
+
+    function resetTransferInstructionAlert(message) {
+        currentYesterdayInstructionAlert = null;
+        const alert = document.getElementById('instructionAlert');
+        alert.classList.remove('hidden', 'warning', 'error', 'success');
+        alert.classList.add('error');
+        document.getElementById('instructionAlertIcon').textContent = '⚠️';
+        document.getElementById('instructionAlertTitle').textContent = 'Instruction alert unavailable';
+        document.getElementById('instructionAlertText').textContent = message || 'Yesterday\'s transfer instruction alert could not be loaded.';
+        document.getElementById('instructionAlertMeta').textContent = 'Refresh the page or retry after the instruction endpoints are available again.';
+    }
+
+    function renderTransferInstructionAlert(data) {
+        currentYesterdayInstructionAlert = data;
+        const alert = document.getElementById('instructionAlert');
+        alert.classList.remove('hidden', 'warning', 'error', 'success');
+        const tone = data.tone === 'success'
+            ? 'success'
+            : data.tone === 'error'
+                ? 'error'
+                : 'warning';
+        alert.classList.add(tone);
+        document.getElementById('instructionAlertIcon').textContent = data.alert_state === 'submitted' ? '✓' : tone === 'error' ? '⚠️' : '↳';
+        document.getElementById('instructionAlertTitle').textContent = data.title || 'Yesterday instruction status';
+        document.getElementById('instructionAlertText').textContent = data.message || 'Yesterday instruction status is available below.';
+
+        const metaBits = [];
+        if (data.tax_date) metaBits.push(`Yesterday tax date ${shortDate(data.tax_date)}`);
+        if (data.cutoff_time_label && data.time_zone) {
+            metaBits.push(`Cutoff ${data.cutoff_time_label} ${data.time_zone}`);
+            metaBits.push(data.cutoff_passed ? 'Cutoff passed' : 'Before cutoff');
+        }
+        if (data.instruction_status) {
+            metaBits.push(`Workflow status ${describeInstructionStatus(data.instruction_status).label}`);
+        }
+        document.getElementById('instructionAlertMeta').textContent = metaBits.join(' • ');
+    }
+
+    function renderTransferInstructionStatus(data) {
+        currentYesterdayInstructionStatus = data;
+        const instruction = data.instruction || null;
+        const recommendation = data.recommendation || null;
+        const activeStatus = instruction ? describeInstructionStatus(instruction.status) : describeInstructionStatus(null);
+
+        document.getElementById('instructionStatusMeta').textContent = `Yesterday in ${data.time_zone || 'America/New_York'}: ${shortDate(data.tax_date)}`;
+        document.getElementById('instructionAmount').textContent = recommendation ? money(recommendation.recommended_transfer_amount) : '$0.00';
+
+        let meta = `Tax date ${shortDate(data.tax_date)}. Source ${formatInstructionAccount(instruction?.source_account_code || 'chase_business_checking')} to ${formatInstructionAccount(instruction?.destination_account_code || 'huntington_tax')}.`;
+        if (instruction) {
+            meta += ` Generated ${longDateTime(instruction.created_at)} via ${escapeHtml(instruction.generation_trigger || 'manual')}.`;
+        } else if (recommendation?.recommendation_as_of) {
+            meta += ` Recommendation as of ${longDateTime(recommendation.recommendation_as_of)}.`;
+        }
+        document.getElementById('instructionMeta').textContent = meta;
+
+        if (!instruction) {
+            if (data.ui_state === 'blocked_missing_recommendation') {
+                setPill('instructionStatusPill', 'Recommendation missing', 'error');
+                document.getElementById('instructionStatusDetail').textContent = 'No Copilot collected-tax snapshot is available for yesterday, so no instruction can be generated yet.';
+            } else if (data.ui_state === 'no_transfer_required') {
+                setPill('instructionStatusPill', 'No transfer required', 'muted');
+                document.getElementById('instructionStatusDetail').textContent = 'Yesterday\'s recommended transfer is $0.00, so no instruction is needed.';
+            } else {
+                setPill('instructionStatusPill', 'No instruction', 'warn');
+                document.getElementById('instructionStatusDetail').textContent = 'A recommendation exists for yesterday, but an instruction has not been generated yet.';
+            }
+        } else if (data.ui_state === 'submitted_recommendation_changed') {
+            setPill('instructionStatusPill', 'Submitted changed', 'warn');
+            document.getElementById('instructionStatusDetail').textContent = `Submitted in Chase, but the current recommendation now differs from the recorded submitted amount of ${money(instruction.amount)}.`;
+        } else {
+            setPill('instructionStatusPill', activeStatus.label, activeStatus.tone);
+            const detailBits = [
+                `${formatInstructionMethod(instruction.transfer_method)} from ${formatInstructionAccount(instruction.source_account_code)} to ${formatInstructionAccount(instruction.destination_account_code)}.`,
+            ];
+            if (instruction.approved_at) {
+                detailBits.push(`Approved ${longDateTime(instruction.approved_at)}${instruction.approved_by_name ? ` by ${instruction.approved_by_name}` : ''}.`);
+            }
+            if (instruction.submitted_at) {
+                detailBits.push(`Submitted ${longDateTime(instruction.submitted_at)}${instruction.submitted_by_name ? ` by ${instruction.submitted_by_name}` : ''}.`);
+            }
+            if (instruction.bank_confirmation_ref) {
+                detailBits.push(`Chase ref ${instruction.bank_confirmation_ref}.`);
+            }
+            if (instruction.superseded_by_instruction_id) {
+                detailBits.push(`Replaced by instruction #${instruction.superseded_by_instruction_id}.`);
+            }
+            if (instruction.cancellation_reason) {
+                detailBits.push(`Canceled: ${instruction.cancellation_reason}.`);
+            }
+            document.getElementById('instructionStatusDetail').textContent = detailBits.join(' ');
+        }
+
+        const canGenerate = data.ui_state === 'no_instruction'
+            || data.ui_state === 'blocked_missing_recommendation'
+            || data.ui_state === 'no_transfer_required'
+            || data.ui_state === 'submitted_recommendation_changed';
+        document.getElementById('generateInstructionBtn').disabled = !canGenerate;
+        document.getElementById('approveInstructionBtn').disabled = !(instruction && instruction.status === 'pending_approval');
+        document.getElementById('submitInstructionBtn').disabled = !(instruction && instruction.status === 'approved');
+        document.getElementById('cancelInstructionBtn').disabled = !(instruction && (instruction.status === 'pending_approval' || instruction.status === 'approved'));
+    }
+
+    function resetTransferInstructionHistory(message) {
+        document.getElementById('instructionHistoryMeta').textContent = message || 'Choose a date range and load the report to inspect transfer instruction history.';
+        document.getElementById('instructionHistoryBody').innerHTML = '<tr><td colspan="8" class="empty-state">Load the report to inspect transfer instruction history.</td></tr>';
+    }
+
+    function renderTransferInstructionHistory(data) {
+        const instructions = Array.isArray(data.instructions) ? data.instructions : [];
+        document.getElementById('instructionHistoryMeta').textContent = `Showing ${instructions.length} instruction row${instructions.length === 1 ? '' : 's'} from ${shortDate(data.start_date)} through ${shortDate(data.end_date)}.`;
+        document.getElementById('instructionHistoryBody').innerHTML = instructions.length
+            ? instructions.map((instruction) => {
+                const status = describeInstructionStatus(instruction.status);
+                const approved = instruction.approved_at
+                    ? `${longDateTime(instruction.approved_at)}${instruction.approved_by_name ? `<div class="inline-note">${escapeHtml(instruction.approved_by_name)}</div>` : ''}`
+                    : '—';
+                const submitted = instruction.submitted_at
+                    ? `${longDateTime(instruction.submitted_at)}${instruction.submitted_by_name ? `<div class="inline-note">${escapeHtml(instruction.submitted_by_name)}</div>` : ''}`
+                    : '—';
+                const statusNote = instruction.superseded_by_instruction_id
+                    ? `<div class="inline-note">Replaced by #${escapeHtml(instruction.superseded_by_instruction_id)}</div>`
+                    : instruction.cancellation_reason
+                        ? `<div class="inline-note">${escapeHtml(instruction.cancellation_reason)}</div>`
+                        : '';
+                return `
+                    <tr>
+                        <td><strong>${shortDate(instruction.tax_date)}</strong></td>
+                        <td class="money">${money(instruction.amount)}</td>
+                        <td><span class="status-pill ${status.tone}">${status.label}</span>${statusNote}</td>
+                        <td>${longDateTime(instruction.recommendation_as_of)}</td>
+                        <td>${longDateTime(instruction.created_at)}</td>
+                        <td>${approved}</td>
+                        <td>${submitted}</td>
+                        <td>${escapeHtml(instruction.bank_confirmation_ref || '—')}</td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="8" class="empty-state">No transfer instructions matched the current date range.</td></tr>';
+    }
+
+    async function loadTransferInstructionAlert() {
+        try {
+            const res = await fetch('/api/tax-transfer-instructions/yesterday-alert');
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load yesterday instruction alert');
+            renderTransferInstructionAlert(data);
+        } catch (error) {
+            resetTransferInstructionAlert(`Unable to load yesterday's instruction alert. ${error.message}`);
+        }
+    }
+
+    async function loadTransferInstructionStatus() {
+        document.getElementById('instructionStatusMeta').textContent = 'Loading yesterday\'s instruction…';
+        try {
+            const res = await fetch('/api/tax-transfer-instructions/yesterday-status');
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load yesterday\'s transfer instruction');
+            renderTransferInstructionStatus(data);
+        } catch (error) {
+            resetTransferInstructionStatus(`Unable to load yesterday's transfer instruction. ${error.message}`);
+        }
+    }
+
+    async function loadTransferInstructionHistory() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            resetTransferInstructionHistory('Choose a valid date range to inspect transfer instruction history.');
+            return;
+        }
+        document.getElementById('instructionHistoryMeta').textContent = `Loading transfer instructions for ${shortDate(range.start_date)} through ${shortDate(range.end_date)}…`;
+        document.getElementById('instructionHistoryBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading transfer instruction history…</td></tr>';
+        try {
+            const params = new URLSearchParams(range);
+            const res = await fetch('/api/tax-transfer-instructions?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load transfer instruction history');
+            renderTransferInstructionHistory(data);
+        } catch (error) {
+            document.getElementById('instructionHistoryMeta').textContent = `Unable to load transfer instruction history. ${error.message}`;
+            document.getElementById('instructionHistoryBody').innerHTML = `<tr><td colspan="8" class="empty-state">Unable to load transfer instruction history. ${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    async function downloadTransferInstructionExport() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            setSyncStatus('Choose a valid date range before exporting transfer instructions.', 'error');
+            return;
+        }
+        const exceptionFilter = document.getElementById('instructionExportFilter').value || 'all';
+        setBusy('exportInstructionBtn', true, 'Exporting…');
+        try {
+            const params = new URLSearchParams({
+                ...range,
+                exception_filter: exceptionFilter,
+            });
+            const url = '/api/tax-transfer-instructions/export?' + params.toString();
+            const res = await fetch(url);
+            if (!res.ok) {
+                let message = 'Unable to export transfer instructions';
+                try {
+                    const data = await res.json();
+                    message = data.error || message;
+                } catch (_error) {}
+                throw new Error(message);
+            }
+            const blob = await res.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = `tax-transfer-instructions-${range.start_date}-through-${range.end_date}-${exceptionFilter}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+            setSyncStatus('Transfer instruction export started.', 'success');
+        } catch (error) {
+            setSyncStatus(`Transfer instruction export failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('exportInstructionBtn', false);
+        }
+    }
+
+    async function generateTransferInstruction() {
+        setBusy('generateInstructionBtn', true, 'Generating…');
+        try {
+            const res = await fetch('/api/tax-transfer-instructions/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to generate transfer instruction');
+            setSyncStatus(`Transfer instruction result: ${data.action.replace(/_/g, ' ')}.`, 'success');
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Transfer instruction generation failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('generateInstructionBtn', false);
+        }
+    }
+
+    async function approveTransferInstruction() {
+        const instructionId = currentYesterdayInstructionStatus?.instruction?.id;
+        if (!instructionId) return;
+        setBusy('approveInstructionBtn', true, 'Approving…');
+        try {
+            const res = await fetch(`/api/tax-transfer-instructions/${instructionId}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to approve transfer instruction');
+            setSyncStatus('Transfer instruction approved for manual Chase submission.', 'success');
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Approve failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('approveInstructionBtn', false);
+        }
+    }
+
+    async function markTransferInstructionSubmitted() {
+        const instructionId = currentYesterdayInstructionStatus?.instruction?.id;
+        if (!instructionId) return;
+        const bankConfirmationRef = window.prompt('Optional Chase confirmation/reference:', currentYesterdayInstructionStatus?.instruction?.bank_confirmation_ref || '') || '';
+        const submissionNote = window.prompt('Optional submission note:', currentYesterdayInstructionStatus?.instruction?.submission_note || '') || '';
+        setBusy('submitInstructionBtn', true, 'Saving…');
+        try {
+            const res = await fetch(`/api/tax-transfer-instructions/${instructionId}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bank_confirmation_ref: bankConfirmationRef.trim(),
+                    submission_note: submissionNote.trim(),
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to mark transfer instruction submitted');
+            setSyncStatus('Recorded manual Chase submission.', 'success');
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Submit failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('submitInstructionBtn', false);
+        }
+    }
+
+    async function cancelTransferInstruction() {
+        const instructionId = currentYesterdayInstructionStatus?.instruction?.id;
+        if (!instructionId) return;
+        const cancellationReason = window.prompt('Optional cancellation reason:', currentYesterdayInstructionStatus?.instruction?.cancellation_reason || '') || '';
+        setBusy('cancelInstructionBtn', true, 'Canceling…');
+        try {
+            const res = await fetch(`/api/tax-transfer-instructions/${instructionId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cancellation_reason: cancellationReason.trim(),
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to cancel transfer instruction');
+            setSyncStatus('Transfer instruction canceled.', 'success');
+            await Promise.all([loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadTransferInstructionHistory()]);
+        } catch (error) {
+            setSyncStatus(`Cancel failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('cancelInstructionBtn', false);
+        }
+    }
+
+    async function loadFreshnessStatus() {
+        try {
+            const res = await fetch('/api/reports/tax-transfer-freshness-status');
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load freshness status');
+            renderAutomationStatus(data);
+        } catch (error) {
+            renderAutomationStatusUnavailable(error.message);
+        }
+    }
+
+    function renderDays(days) {
+        const body = document.getElementById('daysBody');
+        const meta = document.getElementById('tableMeta');
+        if (!Array.isArray(days) || !days.length) {
+            body.innerHTML = '<tr><td colspan="8" class="empty-state">No report rows found for this date range.</td></tr>';
+            meta.textContent = '0 days';
+            return;
+        }
+
+        meta.textContent = `${days.length} day${days.length === 1 ? '' : 's'} loaded`;
+        body.innerHTML = days.map((day) => {
+            const variance = Number(day.variance || 0);
+            const varianceClass = Math.abs(variance) < 0.01 ? 'good' : 'warn';
+            const selectedClass = selectedDay === day.date ? ' selected' : '';
+            const freshness = describeDayFreshness(day);
+            return `
+                <tr class="row-button${selectedClass}" onclick="selectDay('${day.date}')">
+                    <td><strong>${shortDate(day.date)}</strong></td>
+                    <td class="money">${money(day.recommended_transfer_amount)}</td>
+                    <td class="money">${money(day.copilot_collected_tax)}</td>
+                    <td class="money">${money(day.backend_reconstructed_tax)}</td>
+                    <td><span class="variance-pill ${varianceClass}" title="${escapeHtml(describeVarianceTooltip(day))}">${money(day.variance)}</span></td>
+                    <td><span class="source-pill">${fmtSource(day.source)}</span></td>
+                    <td><span class="status-pill ${freshness.tone}">${freshness.label}</span></td>
+                    <td>${longDateTime(day.snapshot_as_of)}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderFreshness(days, range) {
+        const note = document.getElementById('freshnessNote');
+        if (!days || !days.length) {
+            note.textContent = 'No tax-transfer data is loaded for the selected range yet.';
+            return;
+        }
+        const latest = days
+            .map((day) => day.snapshot_as_of)
+            .filter(Boolean)
+            .sort()
+            .slice(-1)[0];
+        const sources = Array.from(new Set(days.map((day) => fmtSource(day.source))));
+        const automation = currentFreshnessStatus?.automation;
+        const automationNote = automation?.last_success_at
+            ? ` Automation last full success: ${longDateTime(automation.last_success_at)}.`
+            : '';
+        note.textContent = `Showing ${shortDate(range.start_date)} through ${shortDate(range.end_date)}. Latest snapshot: ${longDateTime(latest)}. Sources: ${sources.join(', ')}.${automationNote}`;
+    }
+
+    async function loadReport() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            setSyncStatus('Choose a valid date range where the start date is not after the end date.', 'error');
+            resetPaymentReview('Choose a valid date range to inspect Copilot payment rows.');
+            resetTransferInstructionHistory('Choose a valid date range to inspect transfer instruction history.');
+            return;
+        }
+
+        setBusy('loadBtn', true, 'Loading…');
+        document.getElementById('daysBody').innerHTML = '<tr><td colspan="8" class="empty-state">Loading daily tax transfer recommendations…</td></tr>';
+        setSyncStatus('Loading tax transfer report…', 'loading');
+        loadTransferInstructionAlert();
+        loadPaymentReview();
+        loadTransferInstructionHistory();
+        try {
+            const params = new URLSearchParams(range);
+            const res = await fetch('/api/reports/tax-transfer-daily?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load report');
+
+            currentReport = data;
+            renderSummary(data.summary || {});
+            renderDays(data.days || []);
+            renderFreshness(data.days || [], range);
+            setSyncStatus('Report loaded.', 'success');
+
+            if (data.days && data.days.length) {
+                const dateToSelect = selectedDay && data.days.some((day) => day.date === selectedDay)
+                    ? selectedDay
+                    : data.days[0].date;
+                await selectDay(dateToSelect);
+            } else {
+                resetDetail();
+            }
+        } catch (error) {
+            setSyncStatus(`Load failed: ${error.message}`, 'error');
+            document.getElementById('daysBody').innerHTML = `<tr><td colspan="8" class="empty-state">Unable to load the tax transfer report. ${escapeHtml(error.message)}</td></tr>`;
+            resetDetail();
+        } finally {
+            setBusy('loadBtn', false);
+        }
+    }
+
+    async function syncTaxSummary() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            setSyncStatus('Choose a valid date range before syncing Tax Summary.', 'error');
+            return;
+        }
+        setBusy('syncTaxBtn', true, 'Syncing…');
+        setSyncStatus('Refreshing Copilot Tax Summary snapshots…', 'loading');
+        try {
+            const res = await fetch('/api/copilot/tax-summary/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...range, force: true })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync tax summary');
+            setSyncStatus(`Tax Summary synced for ${data.count || 0} day${data.count === 1 ? '' : 's'}.`, 'success');
+            await Promise.all([loadFreshnessStatus(), loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadReport()]);
+        } catch (error) {
+            setSyncStatus(`Tax Summary sync failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('syncTaxBtn', false);
+        }
+    }
+
+    async function syncPayments() {
+        setBusy('syncPaymentsBtn', true, 'Syncing…');
+        setSyncStatus('Refreshing Copilot payment records…', 'loading');
+        try {
+            const res = await fetch('/api/copilot/payments/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: true, pageSize: 100, maxPages: 25 })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to sync payments');
+            setSyncStatus(`Payments synced: ${data.sync?.inserted || 0} inserted, ${data.sync?.updated || 0} updated, ${data.sync?.unresolved || 0} unresolved.`, 'success');
+            await Promise.all([loadFreshnessStatus(), loadTransferInstructionAlert(), loadTransferInstructionStatus(), currentReport ? loadReport() : Promise.resolve()]);
+        } catch (error) {
+            setSyncStatus(`Payments sync failed: ${error.message}`, 'error');
+        } finally {
+            setBusy('syncPaymentsBtn', false);
+        }
+    }
+
+    function resetDetail() {
+        selectedDay = null;
+        document.getElementById('detailMeta').textContent = 'Select a day';
+        document.getElementById('detailPayments').textContent = '0';
+        document.getElementById('detailLinked').textContent = '0';
+        document.getElementById('detailUnresolved').textContent = '0';
+        document.getElementById('detailVarianceExplanation').classList.add('hidden');
+        document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Select a day in the table to inspect payment-level reconciliation.</td></tr>';
+    }
+
+    function resetPaymentReview(message) {
+        document.getElementById('reviewCount').textContent = '0 unresolved rows';
+        document.getElementById('reviewMeta').textContent = message || 'Choose a date range and load the report to inspect Copilot payment rows.';
+        document.getElementById('reviewBody').innerHTML = '<tr><td colspan="7" class="empty-state">Load the report to inspect Copilot payment linkage.</td></tr>';
+    }
+
+    function renderPaymentReview(data) {
+        const totalRows = Number(data.summary?.total_rows || 0);
+        const unresolvedRows = Number(data.summary?.unresolved_count || 0);
+        const linkedRows = Number(data.summary?.linked_count || 0);
+        const payments = Array.isArray(data.payments) ? data.payments : [];
+        const unresolvedOnly = Boolean(data.unresolved_only);
+
+        document.getElementById('reviewCount').textContent = `${unresolvedRows} unresolved row${unresolvedRows === 1 ? '' : 's'}`;
+        document.getElementById('reviewMeta').textContent = unresolvedOnly
+            ? `Showing ${payments.length} unresolved Copilot payment row${payments.length === 1 ? '' : 's'} from ${shortDate(data.start_date)} through ${shortDate(data.end_date)}. ${linkedRows} linked row${linkedRows === 1 ? '' : 's'} are hidden by the filter.`
+            : `Showing ${totalRows} Copilot payment row${totalRows === 1 ? '' : 's'} from ${shortDate(data.start_date)} through ${shortDate(data.end_date)}. ${unresolvedRows} unresolved, ${linkedRows} linked.`;
+
+        document.getElementById('reviewBody').innerHTML = payments.length
+            ? payments.map((payment) => {
+                const isLinked = payment.link_status === 'linked';
+                const statusClass = isLinked ? 'status-pill-linked' : 'status-pill-unresolved';
+                const details = payment.details || payment.notes || '—';
+                const notes = payment.notes && payment.notes !== payment.details ? `<div class="inline-note">Notes: ${escapeHtml(payment.notes)}</div>` : '';
+                const linkageNote = payment.current_invoice_match_number && !isLinked
+                    ? `<div class="inline-note">Current local match: ${escapeHtml(payment.current_invoice_match_number)}</div>`
+                    : '';
+                return `
+                    <tr>
+                        <td>${shortDate(String(payment.payment_date || '').slice(0, 10))}</td>
+                        <td><strong>${escapeHtml(payment.customer_name || 'Unknown customer')}</strong></td>
+                        <td class="money">${money(payment.amount)}</td>
+                        <td>${escapeHtml(payment.method || 'Unknown')}</td>
+                        <td class="details-cell">
+                            <div>${escapeHtml(details)}</div>
+                            ${notes}
+                        </td>
+                        <td>${escapeHtml(payment.extracted_invoice_number || '—')}</td>
+                        <td class="reason-text">
+                            <span class="source-pill ${statusClass}">${isLinked ? 'Linked' : 'Unresolved'}</span>
+                            <div class="inline-note" style="margin-top:8px;">${escapeHtml(payment.link_failure_reason || 'Linked successfully.')}</div>
+                            ${linkageNote}
+                        </td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="7" class="empty-state">No Copilot payment rows matched the current review filters.</td></tr>';
+    }
+
+    async function loadPaymentReview() {
+        const range = getRange();
+        if (!isValidRange(range)) {
+            resetPaymentReview('Choose a valid date range to inspect Copilot payment rows.');
+            return;
+        }
+
+        document.getElementById('reviewMeta').textContent = `Loading Copilot payment review for ${shortDate(range.start_date)} through ${shortDate(range.end_date)}…`;
+        document.getElementById('reviewBody').innerHTML = '<tr><td colspan="7" class="empty-state">Loading Copilot payment linkage…</td></tr>';
+
+        try {
+            const params = new URLSearchParams({
+                start_date: range.start_date,
+                end_date: range.end_date,
+                unresolved_only: document.getElementById('unresolvedOnlyToggle').checked ? 'true' : 'false',
+            });
+            const res = await fetch('/api/copilot/payment-review?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load Copilot payment review');
+            renderPaymentReview(data);
+        } catch (error) {
+            document.getElementById('reviewCount').textContent = 'Review unavailable';
+            document.getElementById('reviewMeta').textContent = `Unable to load Copilot payment review. ${error.message}`;
+            document.getElementById('reviewBody').innerHTML = `<tr><td colspan="7" class="empty-state">Unable to load Copilot payment linkage. ${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    async function selectDay(date) {
+        selectedDay = date;
+        const day = getDayReport(date);
+        if (currentReport?.days) renderDays(currentReport.days);
+        document.getElementById('detailMeta').textContent = `Loading ${shortDate(date)}…`;
+        document.getElementById('detailVarianceExplanation').classList.add('hidden');
+        document.getElementById('detailBody').innerHTML = '<tr><td colspan="5" class="empty-state">Loading payment reconciliation detail…</td></tr>';
+        try {
+            const params = new URLSearchParams({
+                start_date: date,
+                end_date: date,
+                source: 'copilotcrm'
+            });
+            const res = await fetch('/api/reports/tax-sweep?' + params.toString());
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load payment reconciliation detail');
+
+            document.getElementById('detailMeta').textContent = `Payment reconciliation for ${shortDate(date)}`;
+            document.getElementById('detailPayments').textContent = String(data.summary?.payment_count || 0);
+            document.getElementById('detailLinked').textContent = String(data.summary?.linked_count || 0);
+            document.getElementById('detailUnresolved').textContent = String(data.summary?.unresolved_count || 0);
+            renderDetailVarianceExplanation(day, data.summary || {});
+
+            const payments = data.payments || [];
+            document.getElementById('detailBody').innerHTML = payments.length
+                ? payments.map((payment) => `
+                    <tr>
+                        <td>
+                            <strong>${escapeHtml(payment.customer_name || 'Unknown payer')}</strong>
+                            ${paymentDetailNote(payment)}
+                        </td>
+                        <td>${escapeHtml(payment.display_invoice_number || payment.invoice_number || payment.external_metadata?.extracted_invoice_number || 'Unresolved')}</td>
+                        <td class="money">${money(payment.applied_amount)}</td>
+                        <td class="money">${money(payment.tax_portion_collected)}</td>
+                        <td>${payment.invoice_id ? '<span class="source-pill">Linked</span>' : '<span class="source-pill">Unresolved</span>'}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="5" class="empty-state">No Copilot-backed payment records were found for this day.</td></tr>';
+        } catch (error) {
+            document.getElementById('detailMeta').textContent = `Detail load failed for ${shortDate(date)}`;
+            document.getElementById('detailBody').innerHTML = `<tr><td colspan="5" class="empty-state">Unable to load payment reconciliation detail. ${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async function() {
+        setDefaultDates();
+        await Promise.all([loadFreshnessStatus(), loadTransferInstructionAlert(), loadTransferInstructionStatus(), loadReport()]);
+    });
+</script>
+</body>
+</html>

@@ -170,19 +170,19 @@
     <section class="content">
         <div class="stats-row">
             <div class="stat-card">
-                <div class="stat-label">Total Requests</div>
+                <div class="stat-label" id="statTotalLabel">Total Requests</div>
                 <div class="stat-value" id="statTotal">—</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">New / Pending</div>
+                <div class="stat-label" id="statPendingLabel">New / Pending</div>
                 <div class="stat-value" id="statPending" style="color:var(--blue)">—</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">In Progress</div>
+                <div class="stat-label" id="statInProgressLabel">In Progress</div>
                 <div class="stat-value" id="statInProgress" style="color:var(--amber)">—</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Completed</div>
+                <div class="stat-label" id="statCompletedLabel">Completed</div>
                 <div class="stat-value" id="statCompleted" style="color:var(--green)">—</div>
             </div>
         </div>
@@ -194,6 +194,7 @@
             </div>
             <select class="filter-select" id="statusFilter" onchange="loadRequests()">
                 <option value="">All Status</option>
+                <option value="open">Open</option>
                 <option value="pending">Pending</option>
                 <option value="in-progress">In Progress</option>
                 <option value="completed">Completed</option>
@@ -236,11 +237,70 @@
 let requests = [];
 let searchTimeout;
 let currentRequestId = null;
+let currentMode = 'database';
+let currentSource = null;
+let currentAsOf = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    applyInitialFiltersFromUrl();
     loadStats();
     loadRequests();
 });
+
+function applyInitialFiltersFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const source = params.get('source');
+    const status = params.get('status');
+    const filter = document.getElementById('statusFilter');
+    if (!filter) return;
+    if (source) filter.value = source;
+    else if (status) filter.value = status;
+}
+
+function setCopilotMode(enabled) {
+    currentMode = enabled ? 'copilot' : 'database';
+    document.querySelector('.table-header h2').textContent = enabled ? 'Copilot Work Requests' : 'Service Requests';
+    document.getElementById('statTotalLabel').textContent = 'Total Requests';
+    document.getElementById('statPendingLabel').textContent = enabled ? 'Client' : 'New / Pending';
+    document.getElementById('statInProgressLabel').textContent = enabled ? 'Lead' : 'In Progress';
+    document.getElementById('statCompletedLabel').textContent = enabled ? 'Preferred Date Set' : 'Completed';
+
+    const filter = document.getElementById('statusFilter');
+    const currentValue = filter.value;
+    if (enabled) {
+        filter.innerHTML = `
+            <option value="">All Sources</option>
+            <option value="client">Client</option>
+            <option value="lead">Lead</option>
+        `;
+        if (currentValue === 'client' || currentValue === 'lead') filter.value = currentValue;
+    } else {
+        filter.innerHTML = `
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="in-progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+        `;
+        if (currentValue) filter.value = currentValue;
+    }
+
+    const saveBtn = document.getElementById('saveStatusBtn');
+    if (saveBtn) saveBtn.style.display = enabled ? 'none' : '';
+}
+
+function formatAsOf(asOf) {
+    if (!asOf) return '';
+    const date = new Date(asOf);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+}
 
 async function loadStats() {
     try {
@@ -248,27 +308,40 @@ async function loadStats() {
         const data = await res.json();
         if (data.success) {
             const s = data.stats;
-            document.getElementById('statTotal').textContent = (s.total || 0).toLocaleString();
-            document.getElementById('statPending').textContent = (s.pending || 0).toLocaleString();
-            document.getElementById('statInProgress').textContent = (s.in_progress || 0).toLocaleString();
-            document.getElementById('statCompleted').textContent = (s.completed || 0).toLocaleString();
+            currentSource = data.source || null;
+            currentAsOf = data.as_of || null;
+            const copilotMode = data.mode === 'copilot';
+            setCopilotMode(copilotMode);
+            document.getElementById('statTotal').textContent = Number(s.total || 0).toLocaleString();
+            document.getElementById('statPending').textContent = Number((copilotMode ? s.client : s.pending) || 0).toLocaleString();
+            document.getElementById('statInProgress').textContent = Number((copilotMode ? s.lead : s.in_progress) || 0).toLocaleString();
+            document.getElementById('statCompleted').textContent = Number((copilotMode ? s.with_preferred_date : s.completed) || 0).toLocaleString();
+            document.getElementById('tableCount').textContent = copilotMode && currentAsOf
+                ? `Copilot snapshot as of ${formatAsOf(currentAsOf)}`
+                : 'Loading...';
         }
     } catch(e) { console.error('Stats error:', e); }
 }
 
 async function loadRequests() {
     const search = document.getElementById('searchInput').value;
-    const status = document.getElementById('statusFilter').value;
+    const filterValue = document.getElementById('statusFilter').value;
     const params = new URLSearchParams();
     if (search) params.set('search', search);
-    if (status) params.set('status', status);
+    if (filterValue) {
+        if (currentMode === 'copilot') params.set('source', filterValue);
+        else params.set('status', filterValue);
+    }
 
     try {
         const res = await fetch('/api/work-requests?' + params);
         const data = await res.json();
         if (data.success) {
+            currentSource = data.source || currentSource;
+            currentAsOf = data.as_of || currentAsOf;
+            setCopilotMode(data.mode === 'copilot');
             requests = data.requests || [];
-            document.getElementById('tableCount').textContent = (data.total || requests.length) + ' requests';
+            document.getElementById('tableCount').textContent = (data.total || requests.length) + ' requests' + (data.mode === 'copilot' && currentAsOf ? ` · Copilot as of ${formatAsOf(currentAsOf)}` : '');
             renderTable();
         }
     } catch(e) {
@@ -283,8 +356,38 @@ function renderTable() {
             <div class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 <h3>No work requests</h3>
-                <p>Customer-submitted service requests will appear here</p>
+                <p>${currentMode === 'copilot' ? 'No Copilot work requests matched this filter' : 'Customer-submitted service requests will appear here'}</p>
             </div>`;
+        return;
+    }
+
+    if (currentMode === 'copilot') {
+        const rows = requests.map((r, index) => {
+            const prefDate = r.preferred_work_date_raw || '—';
+            return `<tr onclick="openDetail('${escAttr(r.id)}')">
+                <td style="font-weight:500;color:var(--forest)">${esc(r.customer_name || 'Unknown')}</td>
+                <td>${esc(r.customer_phone || '—')}</td>
+                <td>${esc(r.customer_email || '—')}</td>
+                <td style="font-size:13px;color:var(--gray-600)">${esc(r.customer_address || '—')}</td>
+                <td>${esc(prefDate)}</td>
+                <td>${esc(r.work_requested || '—')}</td>
+                <td><span class="status-badge status-pending">${esc(r.source || '—')}</span></td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('tableContainer').innerHTML = `
+            <table>
+                <thead><tr>
+                    <th>Customer Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Address</th>
+                    <th>Preferred Work Date</th>
+                    <th>Work Requested</th>
+                    <th>Source</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
         return;
     }
 
@@ -321,9 +424,31 @@ function renderTable() {
 }
 
 function openDetail(id) {
-    const r = requests.find(x => x.id === id);
+    const r = requests.find(x => String(x.id) === String(id));
     if (!r) return;
     currentRequestId = id;
+
+    if (currentMode === 'copilot') {
+        document.getElementById('detailTitle').textContent = 'Copilot Work Request';
+        document.getElementById('detailBody').innerHTML = `
+            <div class="detail-row">
+                <div><div class="detail-label">Customer</div><div class="detail-value">${esc(r.customer_name || 'Unknown')}</div></div>
+                <div><div class="detail-label">Source</div><div class="detail-value">${esc(r.source || '—')}</div></div>
+            </div>
+            <div class="detail-row">
+                <div><div class="detail-label">Phone</div><div class="detail-value">${esc(r.customer_phone || '—')}</div></div>
+                <div><div class="detail-label">Email</div><div class="detail-value">${esc(r.customer_email || '—')}</div></div>
+            </div>
+            <div class="detail-row">
+                <div><div class="detail-label">Preferred Work Date</div><div class="detail-value">${esc(r.preferred_work_date_raw || 'No preference')}</div></div>
+                <div><div class="detail-label">Provenance</div><div class="detail-value">CopilotCRM${currentSource ? ' · ' + esc(currentSource) : ''}</div></div>
+            </div>
+            <div style="margin-bottom:16px"><div class="detail-label">Address</div><div class="detail-value">${esc(r.customer_address || '—')}</div></div>
+            <div style="margin-bottom:16px"><div class="detail-label">Work Requested</div><div class="detail-value">${esc(r.work_requested || '—')}</div></div>
+            <div style="margin-bottom:16px"><div class="detail-label">Notes</div><div class="detail-value">This request is read-only in the app and should be managed in CopilotCRM.</div></div>`;
+        document.getElementById('detailModal').classList.add('active');
+        return;
+    }
 
     const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
     const prefDate = r.preferred_date ? new Date(r.preferred_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'No preference';
@@ -366,6 +491,10 @@ function closeDetailModal() {
 }
 
 async function saveStatus() {
+    if (currentMode === 'copilot') {
+        showToast('Update Copilot work requests in CopilotCRM.', true);
+        return;
+    }
     if (!currentRequestId) return;
     const status = document.getElementById('detailStatus').value;
     const admin_notes = document.getElementById('detailNotes').value;
@@ -396,6 +525,11 @@ function debounceSearch() {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function showToast(message, isError = false) {

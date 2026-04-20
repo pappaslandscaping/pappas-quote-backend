@@ -1,0 +1,4001 @@
+// ═══════════════════════════════════════════════════════════
+// Invoice & Payment Routes — extracted from server.js
+// Handles: invoices CRUD, payments, Square processing,
+//          PDF generation, reminders, payment schedules
+// ═══════════════════════════════════════════════════════════
+
+const express = require('express');
+const crypto = require('crypto');
+const cheerio = require('cheerio');
+const { validate, schemas } = require('../lib/validate');
+const {
+  normalizeStoredInvoiceStatus,
+  isOutstandingInvoice,
+  cleanStatusValue,
+} = require('../lib/invoice-status');
+const {
+  LIVE_COPILOT_SOURCE,
+  PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+  DATABASE_FALLBACK_SOURCE,
+} = require('../lib/copilot-metric-sources');
+const {
+  AGING_BUCKET_KEYS,
+  hasValidAgingBuckets,
+  normalizeAgingSnapshot,
+  getAgingSnapshotExpiry,
+} = require('../lib/copilot-aging');
+const {
+  COPILOT_PAYMENTS_BASE_PATH,
+  parseCopilotPaymentsHtml,
+  normalizeCopilotPaymentsSnapshot,
+} = require('../lib/copilot-payments');
+const {
+  COPILOT_TAX_SUMMARY_BASE_PATH,
+  parseCopilotTaxSummaryHtml,
+  normalizeTaxSummarySnapshot,
+  buildDailyTaxRecommendation,
+} = require('../lib/copilot-tax-summary');
+const { buildInvoiceHistoryEvents } = require('../lib/invoice-history');
+const { parseInvoiceListHtml } = require('../scripts/parse-copilot-invoices');
+const {
+  roundMoney,
+  upsertCopilotPayments,
+  deleteLeakedCopilotSummaryRows,
+  hydratePaymentRecord,
+  loadInvoiceMatches,
+  getExtractedInvoiceNumberForPayment,
+  describeCopilotPaymentLinkage,
+  isLeakedCopilotSummaryRow,
+} = require('../scripts/import-copilot-payments');
+
+module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
+  const router = express.Router();
+
+let cachedCopilotStanding = null;
+let cachedCopilotAging = null;
+let cachedCopilotAgingPromise = null;
+let cachedCopilotPayments = null;
+let cachedCopilotTaxSummaries = new Map();
+const BUSINESS_TIME_ZONE = 'America/New_York';
+const COPILOT_STANDING_SNAPSHOT_KEY = 'copilot_invoice_last_account_standing';
+const COPILOT_AGING_SNAPSHOT_KEY = 'copilot_invoice_last_aging';
+const COPILOT_PAYMENTS_SNAPSHOT_KEY = 'copilot_payments_snapshot';
+const COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY = 'copilot_tax_transfer_freshness_status';
+const COPILOT_TAX_TRANSFER_INSTRUCTION_STATUS_KEY = 'copilot_tax_transfer_instruction_status';
+const COPILOT_TAX_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
+const ACCOUNT_STANDING_KEYS = ['total', 'outstanding', 'paid', 'past_due', 'credit'];
+const COPILOT_AGING_CACHE_TTL_MS = 5 * 60 * 1000;
+const COPILOT_PAYMENTS_CACHE_TTL_MS = 5 * 60 * 1000;
+const TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES = ['pending_approval', 'approved', 'submitted'];
+const TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT = 'chase_business_checking';
+const TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT = 'huntington_tax';
+const TAX_TRANSFER_INSTRUCTION_METHOD = 'chase_linked_external_transfer';
+const TAX_TRANSFER_ALERT_CUTOFF_HOUR = 12;
+const TAX_TRANSFER_ALERT_CUTOFF_MINUTE = 0;
+const TAX_TRANSFER_EXPORT_EXCEPTION_FILTERS = new Set([
+  'all',
+  'exceptions',
+  'missing_instruction',
+  'pending_approval',
+  'approved_not_submitted',
+  'submitted_after_cutoff',
+  'superseded',
+  'canceled',
+  'recommendation_changed_after_submission',
+]);
+const TAX_TRANSFER_FRESHNESS_SCHEDULE = {
+  hour: 20,
+  minute: 15,
+  cron_expression: '15 20 * * *',
+  label: '8:15 PM ET',
+};
+const TAX_TRANSFER_INSTRUCTION_SCHEDULE = {
+  hour: 20,
+  minute: 25,
+  cron_expression: '25 20 * * *',
+  label: '8:25 PM ET',
+};
+const COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES = [
+  LIVE_COPILOT_SOURCE,
+  'copilotcrm',
+];
+
+function outstandingBalance(inv) {
+  const total = parseFloat(inv.total) || 0;
+  const paid = parseFloat(inv.amount_paid) || 0;
+  return Math.max(0, total - paid);
+}
+
+function isDateLikeInvoiceLabel(value) {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  return /^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$/.test(s)
+    || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)
+    || /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function getDisplayInvoiceNumberForPaymentRow(row) {
+  const metadata = row?.external_metadata && typeof row.external_metadata === 'object'
+    ? row.external_metadata
+    : {};
+  const metadataInvoiceNumber = String(
+    metadata.extracted_invoice_number
+    || metadata.display_invoice_number
+    || metadata.source_invoice_number
+    || ''
+  ).trim();
+  if (metadataInvoiceNumber && !isDateLikeInvoiceLabel(metadataInvoiceNumber)) return metadataInvoiceNumber;
+
+  const invoiceNumber = String(row?.invoice_number || '').trim();
+  if (invoiceNumber && !isDateLikeInvoiceLabel(invoiceNumber)) return invoiceNumber;
+  return null;
+}
+
+function formatCopilotSyncError(error, fallback) {
+  const message = String(error?.message || '').trim();
+  if (!message) return fallback;
+  return message.replace(/\s+/g, ' ').slice(0, 300);
+}
+function normalizeCount(value) {
+  const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseStandingCount(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildTaxSummaryCacheKey({ startDate, endDate, basis = 'collected' }) {
+  return `${basis}:${startDate}:${endDate}`;
+}
+
+function isoDateInTimeZone(value = new Date(), timeZone = BUSINESS_TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(value);
+}
+
+function shiftIsoDate(isoDate, days) {
+  const cursor = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(cursor.getTime())) return isoDate;
+  cursor.setUTCDate(cursor.getUTCDate() + Number(days || 0));
+  return cursor.toISOString().slice(0, 10);
+}
+
+function normalizeIsoDateValue(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  if (typeof value.toISOString === 'function') return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+function businessTimeParts(value = new Date(), timeZone = BUSINESS_TIME_ZONE) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(value);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0);
+  return {
+    hour: Number.isFinite(hour) ? hour : 0,
+    minute: Number.isFinite(minute) ? minute : 0,
+  };
+}
+
+function isAtOrAfterBusinessCutoff(value = new Date(), {
+  cutoffHour = TAX_TRANSFER_ALERT_CUTOFF_HOUR,
+  cutoffMinute = TAX_TRANSFER_ALERT_CUTOFF_MINUTE,
+  timeZone = BUSINESS_TIME_ZONE,
+} = {}) {
+  const parts = businessTimeParts(value, timeZone);
+  const currentMinutes = (parts.hour * 60) + parts.minute;
+  const cutoffMinutes = (cutoffHour * 60) + cutoffMinute;
+  return currentMinutes >= cutoffMinutes;
+}
+
+function timestampFallsOnBusinessDate(timestamp, isoDate, timeZone = BUSINESS_TIME_ZONE) {
+  if (!timestamp || !isoDate) return false;
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return isoDateInTimeZone(parsed, timeZone) === isoDate;
+}
+
+function eachDayInclusive(startDate, endDate) {
+  const dates = [];
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  while (!Number.isNaN(cursor.getTime()) && cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function buildTaxTransferFreshnessWindow({ now = new Date(), daysBack = 1, timeZone = BUSINESS_TIME_ZONE } = {}) {
+  const boundedDaysBack = Math.max(0, Number(daysBack) || 0);
+  const today = isoDateInTimeZone(now, timeZone);
+  return {
+    time_zone: timeZone,
+    days_back: boundedDaysBack,
+    today,
+    start_date: shiftIsoDate(today, -boundedDaysBack),
+    end_date: today,
+  };
+}
+
+function readCronSecret(req) {
+  return req.get('x-cron-secret') || req.query.key || req.query.token || req.body?.key || req.body?.token || '';
+}
+
+function secretsEqual(provided, expected) {
+  const expectedString = String(expected || '');
+  const providedString = String(provided || '');
+  if (!expectedString || !providedString) return false;
+  const expectedBuffer = Buffer.from(expectedString);
+  const providedBuffer = Buffer.from(providedString);
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+  return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function assertCronSecret(req, res) {
+  const configuredSecret = process.env.CRON_SECRET || process.env.CRON_API_KEY || '';
+  if (!configuredSecret) {
+    res.status(503).json({ success: false, error: 'CRON_SECRET is not configured' });
+    return false;
+  }
+  if (secretsEqual(readCronSecret(req), configuredSecret)) return true;
+  res.status(401).json({ success: false, error: 'Invalid cron secret' });
+  return false;
+}
+
+function readBoundedInt(rawValue, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+async function writeTaxTransferFreshnessStatus(status) {
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY, JSON.stringify(status)]
+  );
+}
+
+async function readTaxTransferFreshnessStatus() {
+  const result = await pool.query(
+    `SELECT value
+       FROM copilot_sync_settings
+      WHERE key = $1`,
+    [COPILOT_TAX_TRANSFER_FRESHNESS_STATUS_KEY]
+  );
+  if (!result.rows[0]?.value) return null;
+  try {
+    return JSON.parse(result.rows[0].value);
+  } catch (error) {
+    console.error('Invalid stored tax transfer freshness status JSON:', error);
+    return null;
+  }
+}
+
+async function writeTaxTransferInstructionStatus(status) {
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_TAX_TRANSFER_INSTRUCTION_STATUS_KEY, JSON.stringify(status)]
+  );
+}
+
+async function readTaxTransferInstructionStatus() {
+  const result = await pool.query(
+    `SELECT value
+       FROM copilot_sync_settings
+      WHERE key = $1`,
+    [COPILOT_TAX_TRANSFER_INSTRUCTION_STATUS_KEY]
+  );
+  if (!result.rows[0]?.value) return null;
+  try {
+    return JSON.parse(result.rows[0].value);
+  } catch (error) {
+    console.error('Invalid stored tax transfer instruction status JSON:', error);
+    return null;
+  }
+}
+
+function formatScheduledRunLabel(isoDate, hour, minute) {
+  const date = new Date(`${isoDate}T12:00:00Z`);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? isoDate
+    : date.toLocaleDateString('en-US', {
+      timeZone: 'UTC',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  const timeSeed = new Date(`1970-01-01T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00Z`);
+  const timeLabel = timeSeed.toLocaleTimeString('en-US', {
+    timeZone: 'UTC',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateLabel}, ${timeLabel} ET`;
+}
+
+function buildNextExpectedRun(schedule, { now = new Date(), timeZone = BUSINESS_TIME_ZONE } = {}) {
+  const today = isoDateInTimeZone(now, timeZone);
+  const parts = businessTimeParts(now, timeZone);
+  const currentMinutes = (parts.hour * 60) + parts.minute;
+  const targetMinutes = (schedule.hour * 60) + schedule.minute;
+  const date = currentMinutes < targetMinutes ? today : shiftIsoDate(today, 1);
+  return {
+    date,
+    label: formatScheduledRunLabel(date, schedule.hour, schedule.minute),
+    time_zone: timeZone,
+    cron_expression: schedule.cron_expression,
+  };
+}
+
+function buildInstructionAutomationStatus({
+  previousStatus,
+  trigger,
+  taxDate,
+  startedAt,
+  completedAt,
+  result = null,
+  error = null,
+}) {
+  const succeeded = !error;
+  const normalizedError = error ? formatCopilotSyncError(error, 'Tax transfer instruction generation failed') : null;
+  const instructionId = Number(result?.instruction?.id) || null;
+  return {
+    status: succeeded ? 'success' : 'failed',
+    trigger: trigger || 'manual',
+    time_zone: BUSINESS_TIME_ZONE,
+    tax_date: taxDate || null,
+    action: result?.action || null,
+    instruction_id: instructionId,
+    last_attempt_at: startedAt,
+    completed_at: completedAt,
+    last_success_at: succeeded ? completedAt : previousStatus?.last_success_at || null,
+    last_success_trigger: succeeded ? (trigger || 'manual') : previousStatus?.last_success_trigger || null,
+    last_success_action: succeeded ? (result?.action || null) : previousStatus?.last_success_action || null,
+    last_success_instruction_id: succeeded ? instructionId : previousStatus?.last_success_instruction_id || null,
+    last_failure_at: succeeded ? previousStatus?.last_failure_at || null : completedAt,
+    last_failure_trigger: succeeded ? previousStatus?.last_failure_trigger || null : (trigger || 'manual'),
+    last_failure_error: succeeded ? previousStatus?.last_failure_error || null : normalizedError,
+    last_error: normalizedError,
+  };
+}
+
+async function readPersistedTaxSummarySnapshot({ startDate, endDate, basis = 'collected' }) {
+  const result = await pool.query(
+    `SELECT *
+       FROM copilot_tax_summary_snapshots
+      WHERE external_source = ANY($1::text[])
+        AND basis = $2
+        AND start_date = $3
+        AND end_date = $4
+      ORDER BY imported_at DESC NULLS LAST, updated_at DESC NULLS LAST
+      LIMIT 1`,
+    [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, basis, startDate, endDate]
+  );
+  if (!result.rows[0]) return null;
+  return normalizeTaxSummarySnapshot({
+    source: PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+    as_of: result.rows[0].imported_at || result.rows[0].updated_at,
+    basis: result.rows[0].basis,
+    start_date: result.rows[0].start_date?.toISOString
+      ? result.rows[0].start_date.toISOString().slice(0, 10)
+      : String(result.rows[0].start_date),
+    end_date: result.rows[0].end_date?.toISOString
+      ? result.rows[0].end_date.toISOString().slice(0, 10)
+      : String(result.rows[0].end_date),
+    rows: result.rows[0].rows || [],
+    total_sales: result.rows[0].total_sales,
+    taxable_amount: result.rows[0].taxable_amount,
+    discount: result.rows[0].discount,
+    tax_amount: result.rows[0].tax_amount,
+    processing_fees: result.rows[0].processing_fees,
+    tips: result.rows[0].tips,
+    external_metadata: result.rows[0].external_metadata || {},
+  }, PERSISTED_COPILOT_SNAPSHOT_SOURCE);
+}
+
+async function persistTaxSummarySnapshot(snapshot) {
+  const normalized = normalizeTaxSummarySnapshot(snapshot, LIVE_COPILOT_SOURCE);
+  if (!normalized) return null;
+  await pool.query(
+    `INSERT INTO copilot_tax_summary_snapshots (
+       external_source, basis, start_date, end_date, rows,
+       total_sales, taxable_amount, discount, tax_amount,
+       processing_fees, tips, external_metadata, imported_at, updated_at
+     ) VALUES (
+       $1, $2, $3, $4, $5,
+       $6, $7, $8, $9,
+       $10, $11, $12, NOW(), NOW()
+     )
+     ON CONFLICT (external_source, basis, start_date, end_date) DO UPDATE SET
+       rows = EXCLUDED.rows,
+       total_sales = EXCLUDED.total_sales,
+       taxable_amount = EXCLUDED.taxable_amount,
+       discount = EXCLUDED.discount,
+       tax_amount = EXCLUDED.tax_amount,
+       processing_fees = EXCLUDED.processing_fees,
+       tips = EXCLUDED.tips,
+       external_metadata = EXCLUDED.external_metadata,
+       imported_at = NOW(),
+       updated_at = NOW()`,
+    [
+      LIVE_COPILOT_SOURCE,
+      normalized.basis,
+      normalized.start_date,
+      normalized.end_date,
+      JSON.stringify(normalized.rows),
+      normalized.total_sales,
+      normalized.taxable_amount,
+      normalized.discount,
+      normalized.tax_amount,
+      normalized.processing_fees,
+      normalized.tips,
+      JSON.stringify(normalized.external_metadata || {}),
+    ]
+  );
+  return normalized;
+}
+
+async function fetchCopilotTaxSummarySnapshot({ startDate, endDate, basis = 'collected', forceRefresh = false } = {}) {
+  const cacheKey = buildTaxSummaryCacheKey({ startDate, endDate, basis });
+  const cached = cachedCopilotTaxSummaries.get(cacheKey);
+  if (!forceRefresh && cached?.expiresAt > Date.now()) return cached.value;
+
+  if (!forceRefresh) {
+    const persisted = await readPersistedTaxSummarySnapshot({ startDate, endDate, basis }).catch(() => null);
+    if (persisted) {
+      cachedCopilotTaxSummaries.set(cacheKey, {
+        value: persisted,
+        expiresAt: Date.now() + COPILOT_TAX_SUMMARY_CACHE_TTL_MS,
+      });
+      return persisted;
+    }
+  }
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
+
+  const url = new URL(`https://secure.copilotcrm.com${COPILOT_TAX_SUMMARY_BASE_PATH}`);
+  url.searchParams.set('type', basis);
+  url.searchParams.set('sdate', startDate);
+  url.searchParams.set('edate', endDate);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Cookie: tokenInfo.cookieHeader,
+      Origin: 'https://secure.copilotcrm.com',
+      Referer: `https://secure.copilotcrm.com${COPILOT_TAX_SUMMARY_BASE_PATH}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Copilot tax summary returned ${response.status}`);
+  }
+
+  const html = await response.text();
+  const parsed = parseCopilotTaxSummaryHtml(html, {
+    startDate,
+    endDate,
+    basis,
+    pageUrl: `${COPILOT_TAX_SUMMARY_BASE_PATH}?type=${basis}&sdate=${startDate}&edate=${endDate}`,
+  });
+  if (parsed?.parser_warning) {
+    throw new Error(parsed.parser_warning);
+  }
+  const normalized = normalizeTaxSummarySnapshot({
+    ...parsed,
+    as_of: new Date().toISOString(),
+    basis,
+    start_date: startDate,
+    end_date: endDate,
+  }, LIVE_COPILOT_SOURCE);
+  if (!normalized) throw new Error('Unable to parse Copilot Tax Summary');
+
+  await persistTaxSummarySnapshot(normalized);
+  cachedCopilotTaxSummaries.set(cacheKey, {
+    value: normalized,
+    expiresAt: Date.now() + COPILOT_TAX_SUMMARY_CACHE_TTL_MS,
+  });
+  return normalized;
+}
+
+async function computeBackendReconstructedTaxForDay(date) {
+  const result = await pool.query(
+    `SELECT
+       p.amount,
+       p.tip_amount,
+       p.external_metadata,
+       i.total AS invoice_total,
+       i.tax_amount AS invoice_tax_amount,
+       i.line_items
+     FROM payments p
+     LEFT JOIN invoices i ON p.invoice_id = i.id
+     WHERE COALESCE(p.paid_at, p.created_at) >= $1::date
+       AND COALESCE(p.paid_at, p.created_at) < ($1::date + INTERVAL '1 day')
+       AND p.invoice_id IS NOT NULL`,
+    [date]
+  );
+  return roundMoney(result.rows.reduce((sum, row) => {
+    const hydrated = hydratePaymentRecord(row);
+    return sum + (Number(hydrated.tax_portion_collected) || 0);
+  }, 0));
+}
+
+async function persistCopilotPaymentsSnapshot(snapshot) {
+  const normalized = normalizeCopilotPaymentsSnapshot(snapshot, LIVE_COPILOT_SOURCE);
+  if (!normalized) return null;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_PAYMENTS_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+  return normalized;
+}
+
+async function fetchCopilotPaymentsSnapshot({ pageSize = 100, maxPages = 25, forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && cachedCopilotPayments?.expiresAt > now) return cachedCopilotPayments.value;
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) throw new Error('CopilotCRM authentication is not configured');
+
+  const baseUrl = `https://secure.copilotcrm.com${COPILOT_PAYMENTS_BASE_PATH}?p=1&iop=${Math.max(1, Number(pageSize) || 100)}`;
+  const queue = [baseUrl];
+  const visited = new Set();
+  const seenKeys = new Set();
+  const payments = [];
+  let total = null;
+  let pagesFetched = 0;
+
+  while (queue.length && pagesFetched < Math.max(1, Number(maxPages) || 25)) {
+    const url = queue.shift();
+    if (!url || visited.has(url)) continue;
+    visited.add(url);
+    pagesFetched += 1;
+
+    const copilotRes = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Cookie: tokenInfo.cookieHeader,
+        Origin: 'https://secure.copilotcrm.com',
+        Referer: `https://secure.copilotcrm.com${COPILOT_PAYMENTS_BASE_PATH}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    if (!copilotRes.ok) {
+      throw new Error(`Copilot payments returned ${copilotRes.status}`);
+    }
+
+    const html = await copilotRes.text();
+    const parsed = parseCopilotPaymentsHtml(html, url);
+    if (parsed?.parser_warning) {
+      throw new Error(parsed.parser_warning);
+    }
+    if (total == null && Number.isFinite(Number(parsed.total))) {
+      total = Number(parsed.total);
+    }
+
+    parsed.payments.forEach((payment) => {
+      if (seenKeys.has(payment.external_payment_key)) return;
+      seenKeys.add(payment.external_payment_key);
+      payments.push(payment);
+    });
+
+    parsed.page_paths.forEach((pagePath) => {
+      const absolute = pagePath.startsWith('http')
+        ? pagePath
+        : `https://secure.copilotcrm.com${pagePath}`;
+      if (!visited.has(absolute)) queue.push(absolute);
+    });
+
+    if (total && payments.length >= total) break;
+  }
+
+  const normalized = normalizeCopilotPaymentsSnapshot({
+    as_of: new Date().toISOString(),
+    total: total || payments.length,
+    payments,
+  }, LIVE_COPILOT_SOURCE);
+  if (!normalized) throw new Error('Unable to parse Copilot payments');
+
+  await persistCopilotPaymentsSnapshot(normalized).catch((error) => {
+    console.error('Error persisting Copilot payments snapshot:', error);
+  });
+
+  cachedCopilotPayments = {
+    value: normalized,
+    expiresAt: Date.now() + COPILOT_PAYMENTS_CACHE_TTL_MS,
+  };
+
+  return normalized;
+}
+
+async function syncCopilotPaymentsRecords({ pageSize = 100, maxPages = 25, forceRefresh = false } = {}) {
+  const snapshot = await fetchCopilotPaymentsSnapshot({ pageSize, maxPages, forceRefresh });
+  const syncResult = await upsertCopilotPayments({
+    pool,
+    payments: snapshot.payments,
+  });
+  await deleteLeakedCopilotSummaryRows(pool);
+
+  return {
+    source: snapshot.source,
+    as_of: snapshot.as_of,
+    total: snapshot.total,
+    pages: Math.ceil((snapshot.total || snapshot.payments.length || 0) / Math.max(1, Number(pageSize) || 100)),
+    sync: {
+      total: syncResult.total,
+      inserted: syncResult.inserted,
+      updated: syncResult.updated,
+      linked: syncResult.linked,
+      unresolved: syncResult.unresolved,
+    },
+    unresolved: syncResult.payments.filter((payment) => payment.link_status === 'unresolved'),
+  };
+}
+
+async function syncCopilotTaxSummarySnapshots({ startDate, endDate, basis = 'collected', forceRefresh = false } = {}) {
+  if (!startDate || !endDate) {
+    throw new Error('start_date and end_date are required');
+  }
+
+  const dates = eachDayInclusive(startDate, endDate);
+  if (dates.length > 31) {
+    throw new Error('date range must be 31 days or fewer');
+  }
+
+  const snapshots = [];
+  for (const date of dates) {
+    const snapshot = await fetchCopilotTaxSummarySnapshot({
+      startDate: date,
+      endDate: date,
+      basis,
+      forceRefresh,
+    });
+    snapshots.push({
+      date,
+      source: snapshot.source,
+      snapshot_as_of: snapshot.as_of,
+      total_sales: snapshot.total_sales,
+      taxable_amount: snapshot.taxable_amount,
+      discount: snapshot.discount,
+      tax_amount: snapshot.tax_amount,
+      processing_fees: snapshot.processing_fees,
+      tips: snapshot.tips,
+      row_count: snapshot.rows.length,
+    });
+  }
+
+  return {
+    basis,
+    start_date: startDate,
+    end_date: endDate,
+    count: snapshots.length,
+    snapshots,
+  };
+}
+
+async function fetchTaxTransferFreshnessSnapshot(today) {
+  const [automation, instructionAutomation, latestPaymentsImport, latestTodayTaxSummary] = await Promise.all([
+    readTaxTransferFreshnessStatus(),
+    readTaxTransferInstructionStatus(),
+    pool.query(
+      `SELECT MAX(imported_at) AS last_imported_at
+         FROM payments
+        WHERE COALESCE(external_source, 'database') = 'copilotcrm'`
+    ),
+    pool.query(
+      `SELECT imported_at, updated_at, tax_amount, total_sales
+         FROM copilot_tax_summary_snapshots
+        WHERE external_source = ANY($1::text[])
+          AND basis = 'collected'
+          AND start_date = $2
+          AND end_date = $2
+        ORDER BY imported_at DESC NULLS LAST, updated_at DESC NULLS LAST
+        LIMIT 1`,
+      [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, today]
+    ),
+  ]);
+
+  const paymentsImportedAt = latestPaymentsImport.rows[0]?.last_imported_at || null;
+  const taxSummaryRow = latestTodayTaxSummary.rows[0] || null;
+  const taxSummaryImportedAt = taxSummaryRow?.imported_at || taxSummaryRow?.updated_at || null;
+
+  return {
+    success: true,
+    time_zone: BUSINESS_TIME_ZONE,
+    today,
+    automation: automation || {
+      status: 'never_run',
+      last_attempt_at: null,
+      last_success_at: null,
+      last_success_trigger: null,
+      last_failure_at: null,
+      last_failure_trigger: null,
+      last_failure_error: null,
+      last_error: null,
+      components: null,
+    },
+    instruction_automation: instructionAutomation || {
+      status: 'never_run',
+      trigger: null,
+      tax_date: null,
+      action: null,
+      instruction_id: null,
+      last_attempt_at: null,
+      completed_at: null,
+      last_success_at: null,
+      last_success_trigger: null,
+      last_success_action: null,
+      last_success_instruction_id: null,
+      last_failure_at: null,
+      last_failure_trigger: null,
+      last_failure_error: null,
+      last_error: null,
+    },
+    next_expected_runs: {
+      freshness_sync: buildNextExpectedRun(TAX_TRANSFER_FRESHNESS_SCHEDULE),
+      instruction_generation: buildNextExpectedRun(TAX_TRANSFER_INSTRUCTION_SCHEDULE),
+    },
+    freshness: {
+      payments_last_imported_at: paymentsImportedAt,
+      payments_fresh_today: timestampFallsOnBusinessDate(paymentsImportedAt, today),
+      today_tax_summary_last_imported_at: taxSummaryImportedAt,
+      today_tax_summary_fresh: timestampFallsOnBusinessDate(taxSummaryImportedAt, today),
+      today_tax_summary_tax_amount: taxSummaryRow ? Number(taxSummaryRow.tax_amount) || 0 : 0,
+      today_tax_summary_total_sales: taxSummaryRow ? Number(taxSummaryRow.total_sales) || 0 : 0,
+    },
+  };
+}
+
+async function runTaxTransferFreshnessSync({
+  daysBack = 1,
+  pageSize = 100,
+  maxPages = 25,
+  forceRefresh = true,
+  trigger = 'cron',
+} = {}) {
+  const previousStatus = await readTaxTransferFreshnessStatus();
+  const startedAt = new Date().toISOString();
+  const window = buildTaxTransferFreshnessWindow({ daysBack });
+
+  const taxSummary = {
+    status: 'pending',
+    basis: 'collected',
+    start_date: window.start_date,
+    end_date: window.end_date,
+    count: 0,
+    error: null,
+  };
+  const payments = {
+    status: 'pending',
+    pages: 0,
+    total: 0,
+    sync: null,
+    error: null,
+  };
+
+  try {
+    const taxSummaryResult = await syncCopilotTaxSummarySnapshots({
+      startDate: window.start_date,
+      endDate: window.end_date,
+      basis: 'collected',
+      forceRefresh,
+    });
+    taxSummary.status = 'success';
+    taxSummary.count = taxSummaryResult.count;
+    taxSummary.snapshots = taxSummaryResult.snapshots;
+  } catch (error) {
+    taxSummary.status = 'failed';
+    taxSummary.error = formatCopilotSyncError(error, 'Copilot tax summary sync failed');
+  }
+
+  try {
+    const paymentsResult = await syncCopilotPaymentsRecords({
+      pageSize,
+      maxPages,
+      forceRefresh,
+    });
+    payments.status = 'success';
+    payments.pages = paymentsResult.pages;
+    payments.total = paymentsResult.total;
+    payments.sync = paymentsResult.sync;
+    payments.as_of = paymentsResult.as_of;
+  } catch (error) {
+    payments.status = 'failed';
+    payments.error = formatCopilotSyncError(error, 'Copilot payments sync failed');
+  }
+
+  const completedAt = new Date().toISOString();
+  const componentStatuses = [taxSummary.status, payments.status];
+  const overallStatus = componentStatuses.every((status) => status === 'success')
+    ? 'success'
+    : componentStatuses.every((status) => status === 'failed')
+      ? 'failed'
+      : 'degraded';
+  const lastError = [taxSummary.error, payments.error].filter(Boolean).join(' | ') || null;
+
+  const statusPayload = {
+    status: overallStatus,
+    trigger,
+    time_zone: window.time_zone,
+    days_back: window.days_back,
+    start_date: window.start_date,
+    end_date: window.end_date,
+    today: window.today,
+    last_attempt_at: startedAt,
+    completed_at: completedAt,
+    last_success_at: overallStatus === 'success'
+      ? completedAt
+      : previousStatus?.last_success_at || null,
+    last_success_trigger: overallStatus === 'success'
+      ? trigger
+      : previousStatus?.last_success_trigger || null,
+    last_failure_at: overallStatus === 'success'
+      ? previousStatus?.last_failure_at || null
+      : completedAt,
+    last_failure_trigger: overallStatus === 'success'
+      ? previousStatus?.last_failure_trigger || null
+      : trigger,
+    last_failure_error: overallStatus === 'success'
+      ? previousStatus?.last_failure_error || null
+      : lastError,
+    last_error: lastError,
+    components: {
+      tax_summary: taxSummary,
+      payments,
+    },
+  };
+
+  await writeTaxTransferFreshnessStatus(statusPayload);
+  return statusPayload;
+}
+
+function moneyToCents(value) {
+  return Math.round((Number(value) || 0) * 100);
+}
+
+function centsToMoney(value) {
+  return roundMoney((Number(value) || 0) / 100);
+}
+
+function normalizeIsoDate(value) {
+  if (!value) return null;
+  return value?.toISOString ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
+function isHumanAdminUser(user) {
+  if (!user || user.isEmployee === true || user.isServiceToken === true) return false;
+  return Boolean(
+    user.isAdmin === true
+    || user.accountType === 'admin'
+    || user.role === 'admin'
+    || user.role === 'owner'
+  );
+}
+
+function assertHumanAdminUser(req, res) {
+  if (isHumanAdminUser(req.user)) return true;
+  res.status(403).json({ success: false, error: 'Human admin access required' });
+  return false;
+}
+
+function buildInstructionActor(user) {
+  return {
+    id: Number.isFinite(Number(user?.id)) ? Number(user.id) : null,
+    name: String(user?.name || '').trim() || null,
+    email: String(user?.email || '').trim() || null,
+  };
+}
+
+function mapTaxTransferInstructionRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    tax_date: normalizeIsoDate(row.tax_date),
+    instruction_date: normalizeIsoDate(row.instruction_date),
+    source_account_code: row.source_account_code,
+    destination_account_code: row.destination_account_code,
+    transfer_method: row.transfer_method,
+    amount_cents: Number(row.amount_cents) || 0,
+    amount: centsToMoney(row.amount_cents),
+    currency: row.currency,
+    recommendation_source: row.recommendation_source,
+    recommendation_as_of: row.recommendation_as_of,
+    tax_summary_snapshot_source: row.tax_summary_snapshot_source,
+    backend_reconstructed_tax_cents: Number(row.backend_reconstructed_tax_cents) || 0,
+    backend_reconstructed_tax: centsToMoney(row.backend_reconstructed_tax_cents),
+    variance_cents: Number(row.variance_cents) || 0,
+    variance: centsToMoney(row.variance_cents),
+    status: row.status,
+    memo: row.memo,
+    generation_trigger: row.generation_trigger,
+    approved_at: row.approved_at,
+    approved_by_user_id: row.approved_by_user_id,
+    approved_by_name: row.approved_by_name,
+    approved_by_email: row.approved_by_email,
+    submitted_at: row.submitted_at,
+    submitted_by_user_id: row.submitted_by_user_id,
+    submitted_by_name: row.submitted_by_name,
+    submitted_by_email: row.submitted_by_email,
+    bank_confirmation_ref: row.bank_confirmation_ref,
+    submission_note: row.submission_note,
+    canceled_at: row.canceled_at,
+    canceled_by_user_id: row.canceled_by_user_id,
+    canceled_by_name: row.canceled_by_name,
+    canceled_by_email: row.canceled_by_email,
+    cancellation_reason: row.cancellation_reason,
+    superseded_at: row.superseded_at,
+    superseded_by_instruction_id: row.superseded_by_instruction_id,
+    superseded_reason: row.superseded_reason,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    is_current_for_tax_date: TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES.includes(String(row.status || '').trim()),
+  };
+}
+
+async function withOptionalTransaction(db, fn) {
+  if (typeof db.connect !== 'function') {
+    return fn(db);
+  }
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (_rollbackError) {}
+    throw error;
+  } finally {
+    if (typeof client.release === 'function') client.release();
+  }
+}
+
+function buildTaxTransferRecommendationPayload({ date, snapshot, recommendation, source, snapshotAsOf }) {
+  const recommendedTransferAmount = roundMoney(Number(recommendation?.recommended_transfer_amount) || 0);
+  const backendReconstructedTax = roundMoney(Number(recommendation?.backend_reconstructed_tax) || 0);
+  const variance = roundMoney(Number(recommendation?.variance) || 0);
+  return {
+    tax_date: date,
+    snapshot_available: Boolean(snapshot),
+    recommended_transfer_amount: recommendedTransferAmount,
+    recommended_transfer_amount_cents: moneyToCents(recommendedTransferAmount),
+    recommendation_source: 'copilot_collected_tax',
+    recommendation_as_of: snapshotAsOf || null,
+    tax_summary_snapshot_source: source,
+    backend_reconstructed_tax: backendReconstructedTax,
+    backend_reconstructed_tax_cents: moneyToCents(backendReconstructedTax),
+    variance,
+    variance_cents: moneyToCents(variance),
+  };
+}
+
+async function fetchDailyTaxTransferRecommendation(date, { allowLiveFetch = false } = {}) {
+  const basis = 'collected';
+  let snapshot = await readPersistedTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+  if (!snapshot && allowLiveFetch) {
+    snapshot = await fetchCopilotTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+  }
+  const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
+  const recommendation = buildDailyTaxRecommendation({
+    snapshot: snapshot || { tax_amount: 0 },
+    backendReconstructedTax,
+  });
+  return buildTaxTransferRecommendationPayload({
+    date,
+    snapshot,
+    recommendation,
+    source: snapshot?.source || 'missing_copilot_snapshot',
+    snapshotAsOf: snapshot?.as_of || null,
+  });
+}
+
+async function fetchTransferInstructionById(db, id) {
+  const result = await db.query(
+    `SELECT *
+       FROM tax_transfer_instructions
+      WHERE id = $1
+      LIMIT 1`,
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
+async function fetchCurrentTransferInstructionForTaxDate(db, taxDate) {
+  const result = await db.query(
+    `SELECT *
+       FROM tax_transfer_instructions
+      WHERE tax_date = $1
+        AND status = ANY($2::text[])
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1`,
+    [taxDate, TAX_TRANSFER_INSTRUCTION_CURRENT_STATUSES]
+  );
+  return result.rows[0] || null;
+}
+
+async function listPersistedTaxSummaryRecommendationsForRange({ startDate, endDate, basis = 'collected' }) {
+  const result = await pool.query(
+    `SELECT start_date, end_date, tax_amount, imported_at, updated_at
+       FROM copilot_tax_summary_snapshots
+      WHERE external_source = ANY($1::text[])
+        AND basis = $2
+        AND start_date >= $3::date
+        AND start_date <= $4::date
+        AND start_date = end_date
+      ORDER BY start_date DESC, imported_at DESC NULLS LAST, updated_at DESC NULLS LAST`,
+    [COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES, basis, startDate, endDate]
+  );
+  const recommendationsByDate = new Map();
+  result.rows.forEach((row) => {
+    const taxDate = normalizeIsoDateValue(row.start_date);
+    if (recommendationsByDate.has(taxDate)) return;
+    const amount = roundMoney(Number(row.tax_amount) || 0);
+    recommendationsByDate.set(taxDate, {
+      tax_date: taxDate,
+      snapshot_available: true,
+      recommended_transfer_amount: amount,
+      recommended_transfer_amount_cents: moneyToCents(amount),
+      recommendation_as_of: row.imported_at || row.updated_at || null,
+      tax_summary_snapshot_source: PERSISTED_COPILOT_SNAPSHOT_SOURCE,
+    });
+  });
+  return recommendationsByDate;
+}
+
+async function listTransferInstructionsForRange(db, startDate, endDate) {
+  const result = await db.query(
+    `SELECT *
+       FROM tax_transfer_instructions
+      WHERE tax_date >= $1::date
+        AND tax_date <= $2::date
+      ORDER BY tax_date DESC, created_at DESC, id DESC`,
+    [startDate, endDate]
+  );
+  return result.rows.map(mapTaxTransferInstructionRow);
+}
+
+function listTransferInstructionExceptionStates({ instruction, recommendation }) {
+  const states = [];
+
+  if (!instruction) {
+    if (recommendation?.snapshot_available
+      && recommendation?.recommendation_as_of
+      && (Number(recommendation.recommended_transfer_amount_cents) || 0) > 0) {
+      states.push('missing_instruction');
+    }
+    return states;
+  }
+
+  switch (instruction.status) {
+    case 'pending_approval':
+      states.push('pending_approval');
+      break;
+    case 'approved':
+      states.push('approved_not_submitted');
+      break;
+    case 'superseded':
+      states.push('superseded');
+      break;
+    case 'canceled':
+      states.push('canceled');
+      break;
+    default:
+      break;
+  }
+
+  if (instruction.status === 'submitted') {
+    const submittedAt = instruction.submitted_at ? new Date(instruction.submitted_at) : null;
+    if (submittedAt && !Number.isNaN(submittedAt.getTime())) {
+      const submittedBusinessDate = isoDateInTimeZone(submittedAt, BUSINESS_TIME_ZONE);
+      const afterCutoff = isAtOrAfterBusinessCutoff(submittedAt, { timeZone: BUSINESS_TIME_ZONE });
+      if (submittedBusinessDate > instruction.instruction_date
+        || (submittedBusinessDate === instruction.instruction_date && afterCutoff)) {
+        states.push('submitted_after_cutoff');
+      }
+    }
+    if (recommendation?.snapshot_available
+      && recommendation?.recommendation_as_of
+      && instruction.amount_cents !== (Number(recommendation.recommended_transfer_amount_cents) || 0)) {
+      states.push('recommendation_changed_after_submission');
+    }
+  }
+
+  return Array.from(new Set(states));
+}
+
+function matchesTransferInstructionExceptionFilter(states, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'exceptions') return states.length > 0;
+  return states.includes(filter);
+}
+
+function buildTransferInstructionExportRecord({ taxDate, instruction, recommendation, exceptionStates }) {
+  const record = instruction || {};
+  const amount = instruction
+    ? Number(instruction.amount || 0)
+    : Number(recommendation?.recommended_transfer_amount || 0);
+  return {
+    tax_date: taxDate,
+    amount: roundMoney(amount).toFixed(2),
+    status: instruction ? String(instruction.status || '') : 'missing',
+    recommendation_as_of: recommendation?.recommendation_as_of || '',
+    approved_by: record.approved_by_name || record.approved_by_email || '',
+    approved_at: record.approved_at || '',
+    submitted_by: record.submitted_by_name || record.submitted_by_email || '',
+    submitted_at: record.submitted_at || '',
+    bank_confirmation_ref: record.bank_confirmation_ref || '',
+    superseded_reason: record.superseded_reason || '',
+    cancellation_reason: record.cancellation_reason || '',
+    exception_state: exceptionStates.length ? exceptionStates.join('|') : 'none',
+    source_account: record.source_account_code || TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT,
+    destination_account: record.destination_account_code || TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT,
+    transfer_method: record.transfer_method || TAX_TRANSFER_INSTRUCTION_METHOD,
+  };
+}
+
+function csvEscape(value) {
+  const stringValue = value == null ? '' : String(value);
+  if (!/[",\n]/.test(stringValue)) return stringValue;
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function buildTransferInstructionCsv(rows) {
+  const columns = [
+    'tax_date',
+    'amount',
+    'status',
+    'recommendation_as_of',
+    'approved_by',
+    'approved_at',
+    'submitted_by',
+    'submitted_at',
+    'bank_confirmation_ref',
+    'superseded_reason',
+    'cancellation_reason',
+    'exception_state',
+    'source_account',
+    'destination_account',
+    'transfer_method',
+  ];
+  const header = columns.join(',');
+  const lines = rows.map((row) => columns.map((column) => csvEscape(row[column])).join(','));
+  return `${header}\n${lines.join('\n')}`;
+}
+
+async function buildTransferInstructionExportRows({ startDate, endDate, exceptionFilter = 'all' }) {
+  const [instructions, recommendationsByDate] = await Promise.all([
+    listTransferInstructionsForRange(pool, startDate, endDate),
+    listPersistedTaxSummaryRecommendationsForRange({ startDate, endDate }),
+  ]);
+
+  const currentInstructionByDate = new Map();
+  instructions.forEach((instruction) => {
+    if (instruction.is_current_for_tax_date && !currentInstructionByDate.has(instruction.tax_date)) {
+      currentInstructionByDate.set(instruction.tax_date, instruction);
+    }
+  });
+
+  const exportRows = instructions.map((instruction) => {
+    const recommendation = recommendationsByDate.get(instruction.tax_date) || null;
+    const exceptionStates = listTransferInstructionExceptionStates({ instruction, recommendation });
+    return {
+      sort_tax_date: instruction.tax_date,
+      sort_created_at: instruction.created_at || '',
+      sort_id: Number(instruction.id) || 0,
+      row: buildTransferInstructionExportRecord({
+        taxDate: instruction.tax_date,
+        instruction,
+        recommendation,
+        exceptionStates,
+      }),
+      exceptionStates,
+    };
+  });
+
+  eachDayInclusive(startDate, endDate).forEach((taxDate) => {
+    const recommendation = recommendationsByDate.get(taxDate) || null;
+    if (currentInstructionByDate.has(taxDate)) return;
+    const exceptionStates = listTransferInstructionExceptionStates({ instruction: null, recommendation });
+    if (!exceptionStates.length) return;
+    exportRows.push({
+      sort_tax_date: taxDate,
+      sort_created_at: '',
+      sort_id: -1,
+      row: buildTransferInstructionExportRecord({
+        taxDate,
+        instruction: null,
+        recommendation,
+        exceptionStates,
+      }),
+      exceptionStates,
+    });
+  });
+
+  return exportRows
+    .filter((entry) => matchesTransferInstructionExceptionFilter(entry.exceptionStates, exceptionFilter))
+    .sort((a, b) => {
+      const dateCmp = String(b.sort_tax_date || '').localeCompare(String(a.sort_tax_date || ''));
+      if (dateCmp) return dateCmp;
+      const createdCmp = String(b.sort_created_at || '').localeCompare(String(a.sort_created_at || ''));
+      if (createdCmp) return createdCmp;
+      return (Number(b.sort_id) || 0) - (Number(a.sort_id) || 0);
+    })
+    .map((entry) => entry.row);
+}
+
+async function createTransferInstructionRow(db, {
+  taxDate,
+  instructionDate,
+  amountCents,
+  recommendationAsOf,
+  taxSummarySnapshotSource,
+  backendReconstructedTaxCents,
+  varianceCents,
+  generationTrigger,
+}) {
+  const result = await db.query(
+    `INSERT INTO tax_transfer_instructions (
+       tax_date,
+       instruction_date,
+       source_account_code,
+       destination_account_code,
+       transfer_method,
+       amount_cents,
+       currency,
+       recommendation_source,
+       recommendation_as_of,
+       tax_summary_snapshot_source,
+       backend_reconstructed_tax_cents,
+       variance_cents,
+       status,
+       memo,
+       generation_trigger
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6, 'USD', 'copilot_collected_tax', $7, $8, $9, $10, 'pending_approval', $11, $12
+     )
+     RETURNING *`,
+    [
+      taxDate,
+      instructionDate,
+      TAX_TRANSFER_INSTRUCTION_SOURCE_ACCOUNT,
+      TAX_TRANSFER_INSTRUCTION_DESTINATION_ACCOUNT,
+      TAX_TRANSFER_INSTRUCTION_METHOD,
+      amountCents,
+      recommendationAsOf,
+      taxSummarySnapshotSource,
+      backendReconstructedTaxCents,
+      varianceCents,
+      `Daily sales tax transfer for ${taxDate}`,
+      generationTrigger,
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function generateTransferInstructionForDate({
+  db,
+  taxDate,
+  trigger = 'manual',
+}) {
+  const instructionDate = isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE);
+  const recommendation = await fetchDailyTaxTransferRecommendation(taxDate);
+  const currentInstruction = await fetchCurrentTransferInstructionForTaxDate(db, taxDate);
+  const amountCents = Number(recommendation.recommended_transfer_amount_cents) || 0;
+
+  if (!recommendation.snapshot_available || !recommendation.recommendation_as_of) {
+    return {
+      action: 'skipped_missing_recommendation',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: currentInstruction ? mapTaxTransferInstructionRow(currentInstruction) : null,
+    };
+  }
+
+  if (amountCents <= 0) {
+    return {
+      action: 'skipped_no_transfer_required',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: currentInstruction ? mapTaxTransferInstructionRow(currentInstruction) : null,
+    };
+  }
+
+  if (currentInstruction?.status === 'submitted') {
+    return {
+      action: 'blocked_submitted_exists',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: mapTaxTransferInstructionRow(currentInstruction),
+    };
+  }
+
+  if (currentInstruction && Number(currentInstruction.amount_cents) === amountCents) {
+    const updated = await db.query(
+      `UPDATE tax_transfer_instructions
+          SET recommendation_as_of = $2,
+              tax_summary_snapshot_source = $3,
+              backend_reconstructed_tax_cents = $4,
+              variance_cents = $5,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [
+        currentInstruction.id,
+        recommendation.recommendation_as_of,
+        recommendation.tax_summary_snapshot_source,
+        recommendation.backend_reconstructed_tax_cents,
+        recommendation.variance_cents,
+      ]
+    );
+    return {
+      action: 'unchanged',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: mapTaxTransferInstructionRow(updated.rows[0] || currentInstruction),
+    };
+  }
+
+  if (currentInstruction && (currentInstruction.status === 'pending_approval' || currentInstruction.status === 'approved')) {
+    const inserted = await createTransferInstructionRow(db, {
+      taxDate,
+      instructionDate,
+      amountCents,
+      recommendationAsOf: recommendation.recommendation_as_of,
+      taxSummarySnapshotSource: recommendation.tax_summary_snapshot_source,
+      backendReconstructedTaxCents: recommendation.backend_reconstructed_tax_cents,
+      varianceCents: recommendation.variance_cents,
+      generationTrigger: trigger,
+    });
+    const superseded = await db.query(
+      `UPDATE tax_transfer_instructions
+          SET status = 'superseded',
+              superseded_at = NOW(),
+              superseded_by_instruction_id = $2,
+              superseded_reason = 'recommendation_changed_before_submission',
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+      [currentInstruction.id, inserted.id]
+    );
+    return {
+      action: 'superseded_and_created',
+      tax_date: taxDate,
+      instruction_date: instructionDate,
+      recommendation,
+      instruction: mapTaxTransferInstructionRow(inserted),
+      superseded_instruction: mapTaxTransferInstructionRow(superseded.rows[0] || currentInstruction),
+    };
+  }
+
+  const inserted = await createTransferInstructionRow(db, {
+    taxDate,
+    instructionDate,
+    amountCents,
+    recommendationAsOf: recommendation.recommendation_as_of,
+    taxSummarySnapshotSource: recommendation.tax_summary_snapshot_source,
+    backendReconstructedTaxCents: recommendation.backend_reconstructed_tax_cents,
+    varianceCents: recommendation.variance_cents,
+    generationTrigger: trigger,
+  });
+  return {
+    action: 'created',
+    tax_date: taxDate,
+    instruction_date: instructionDate,
+    recommendation,
+    instruction: mapTaxTransferInstructionRow(inserted),
+  };
+}
+
+async function buildYesterdayTransferInstructionStatus() {
+  const todayBusinessDate = isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE);
+  const taxDate = shiftIsoDate(todayBusinessDate, -1);
+  const recommendation = await fetchDailyTaxTransferRecommendation(taxDate);
+  const instructionRow = await fetchCurrentTransferInstructionForTaxDate(pool, taxDate);
+  const instruction = mapTaxTransferInstructionRow(instructionRow);
+
+  let uiState = 'no_instruction';
+  if (instruction && instruction.status === 'submitted'
+    && recommendation.snapshot_available
+    && recommendation.recommendation_as_of
+    && instruction.amount_cents !== (Number(recommendation.recommended_transfer_amount_cents) || 0)) {
+    uiState = 'submitted_recommendation_changed';
+  } else if (instruction) {
+    uiState = instruction.status;
+  } else if (!recommendation.snapshot_available || !recommendation.recommendation_as_of) {
+    uiState = 'blocked_missing_recommendation';
+  } else if ((Number(recommendation.recommended_transfer_amount_cents) || 0) <= 0) {
+    uiState = 'no_transfer_required';
+  } else {
+    uiState = 'no_instruction';
+  }
+
+  return {
+    success: true,
+    time_zone: BUSINESS_TIME_ZONE,
+    today_business_date: todayBusinessDate,
+    tax_date: taxDate,
+    recommendation,
+    instruction,
+    ui_state: uiState,
+  };
+}
+
+async function buildYesterdayTransferInstructionAlert(now = new Date()) {
+  const status = await buildYesterdayTransferInstructionStatus();
+  const afterCutoff = isAtOrAfterBusinessCutoff(now, { timeZone: BUSINESS_TIME_ZONE });
+  const cutoffLabel = '12:00 PM';
+  const alert = {
+    success: true,
+    time_zone: BUSINESS_TIME_ZONE,
+    cutoff_time_label: cutoffLabel,
+    cutoff_passed: afterCutoff,
+    tax_date: status.tax_date,
+    today_business_date: status.today_business_date,
+    instruction_id: status.instruction?.id || null,
+    instruction_status: status.instruction?.status || null,
+    ui_state: status.ui_state,
+    alert_state: 'missing_instruction',
+    tone: afterCutoff ? 'error' : 'warn',
+    title: 'Missing yesterday instruction',
+    message: 'Yesterday has a tax transfer recommendation, but no transfer instruction has been generated yet.',
+  };
+
+  if (status.ui_state === 'submitted' || status.ui_state === 'submitted_recommendation_changed') {
+    alert.alert_state = 'submitted';
+    alert.tone = 'success';
+    alert.title = 'Yesterday transfer submitted';
+    alert.message = status.ui_state === 'submitted_recommendation_changed'
+      ? 'Yesterday was submitted in Chase, but the current recommendation now differs from the submitted amount.'
+      : 'Yesterday was recorded as submitted in Chase.';
+    return alert;
+  }
+
+  if (status.ui_state === 'approved') {
+    alert.alert_state = 'approved_not_submitted';
+    alert.tone = afterCutoff ? 'error' : 'warn';
+    alert.title = afterCutoff ? 'Approved but not submitted' : 'Approved but not submitted yet';
+    alert.message = afterCutoff
+      ? `Yesterday was approved, but the manual Chase transfer has not been recorded as submitted by the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`
+      : `Yesterday is approved and waiting for the manual Chase transfer to be submitted before the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`;
+    return alert;
+  }
+
+  if (status.ui_state === 'pending_approval') {
+    alert.alert_state = 'awaiting_approval';
+    alert.tone = afterCutoff ? 'error' : 'warn';
+    alert.title = afterCutoff ? 'Awaiting approval past cutoff' : 'Awaiting approval';
+    alert.message = afterCutoff
+      ? `Yesterday's transfer instruction is still waiting for approval after the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`
+      : `Yesterday's transfer instruction still needs approval before the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`;
+    return alert;
+  }
+
+  if (status.ui_state === 'no_transfer_required') {
+    alert.alert_state = 'submitted';
+    alert.tone = 'success';
+    alert.title = 'No transfer required';
+    alert.message = 'Yesterday\'s recommended tax transfer is $0.00, so no Chase submission is required.';
+    return alert;
+  }
+
+  if (status.ui_state === 'blocked_missing_recommendation') {
+    alert.message = afterCutoff
+      ? `Yesterday is still missing a snapshot-backed recommendation and no instruction exists after the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`
+      : `Yesterday is missing a snapshot-backed recommendation, so no transfer instruction could be generated before the ${cutoffLabel} ${BUSINESS_TIME_ZONE} cutoff.`;
+    return alert;
+  }
+
+  return alert;
+}
+
+function buildPaymentRecordWhere({ search, year, month, source, linked } = {}, params) {
+  const where = [];
+  if (search) {
+    params.push(`%${search}%`);
+    where.push(`(
+      COALESCE(p.customer_name, '') ILIKE $${params.length}
+      OR COALESCE(i.invoice_number, '') ILIKE $${params.length}
+      OR COALESCE(p.details, '') ILIKE $${params.length}
+      OR COALESCE(p.notes, '') ILIKE $${params.length}
+    )`);
+  }
+  if (year) {
+    params.push(parseInt(year, 10));
+    where.push(`EXTRACT(YEAR FROM COALESCE(p.paid_at, p.created_at)) = $${params.length}`);
+  }
+  if (month) {
+    params.push(parseInt(month, 10));
+    where.push(`EXTRACT(MONTH FROM COALESCE(p.paid_at, p.created_at)) = $${params.length}`);
+  }
+  if (source) {
+    params.push(String(source));
+    where.push(`COALESCE(p.external_source, 'database') = $${params.length}`);
+  }
+  if (linked === 'true') where.push('p.invoice_id IS NOT NULL');
+  if (linked === 'false') where.push('p.invoice_id IS NULL');
+  return where;
+}
+
+function hasValidStandingShape(standing) {
+  if (!standing || typeof standing !== 'object') return false;
+  return ACCOUNT_STANDING_KEYS.every((key) => Number.isFinite(Number(standing[key])));
+}
+
+function isMeaningfulStanding(standing) {
+  if (!hasValidStandingShape(standing)) return false;
+  const total = parseStandingCount(standing.total);
+  if (total > 0) return true;
+  return ACCOUNT_STANDING_KEYS.some((key) => parseStandingCount(standing[key]) > 0);
+}
+
+function normalizeStandingSnapshot(standing, source) {
+  if (!hasValidStandingShape(standing)) return null;
+  const normalized = { source, as_of: standing.as_of || new Date().toISOString() };
+  for (const key of ACCOUNT_STANDING_KEYS) normalized[key] = parseStandingCount(standing[key]);
+  return normalized;
+}
+
+async function readPersistedCopilotStanding() {
+  try {
+    const result = await pool.query(
+      `SELECT value
+         FROM copilot_sync_settings
+        WHERE key = $1`,
+      [COPILOT_STANDING_SNAPSHOT_KEY]
+    );
+    if (!result.rows[0]?.value) return null;
+    return normalizeStandingSnapshot(JSON.parse(result.rows[0].value), 'copilot_snapshot');
+  } catch (error) {
+    return null;
+  }
+}
+
+async function persistCopilotStanding(standing) {
+  const normalized = normalizeStandingSnapshot(standing, 'copilot');
+  if (!normalized || !isMeaningfulStanding(normalized)) return;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_STANDING_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+}
+
+function usesInvoiceDateAsDueDate(terms) {
+  const normalized = cleanStatusValue(terms).toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('due upon receipt') ||
+    normalized.includes('due on receipt') ||
+    normalized.includes('payable upon receipt') ||
+    normalized.includes('payment due upon receipt') ||
+    normalized.includes('payment due on receipt')
+  );
+}
+
+function startOfDay(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+}
+
+function parseAgingAnchorDate(inv, referenceDate = new Date()) {
+  const dueDate = startOfDay(inv.due_date ? new Date(inv.due_date) : null);
+  if (dueDate) return dueDate;
+
+  if (usesInvoiceDateAsDueDate(inv.terms)) {
+    const invoiceDate = startOfDay(inv.created_at ? new Date(inv.created_at) : null);
+    if (invoiceDate) return invoiceDate;
+  }
+
+  return startOfDay(referenceDate);
+}
+
+function calculateAgingDays(inv, referenceDate = new Date()) {
+  const anchorDate = parseAgingAnchorDate(inv, referenceDate);
+  const today = startOfDay(referenceDate) || new Date();
+  return Math.floor((today - anchorDate) / (1000 * 60 * 60 * 24));
+}
+
+function initAgingBuckets() {
+  return {
+    within_30: { count: 0, total: 0, invoices: [] },
+    '31_60': { count: 0, total: 0, invoices: [] },
+    '61_90': { count: 0, total: 0, invoices: [] },
+    '90_plus': { count: 0, total: 0, invoices: [] },
+  };
+}
+
+async function readPersistedCopilotAging() {
+  try {
+    const result = await pool.query(
+      `SELECT value
+         FROM copilot_sync_settings
+        WHERE key = $1`,
+      [COPILOT_AGING_SNAPSHOT_KEY]
+    );
+    if (!result.rows[0]?.value) return null;
+    return normalizeAgingSnapshot(
+      JSON.parse(result.rows[0].value),
+      PERSISTED_COPILOT_SNAPSHOT_SOURCE
+    );
+  } catch (error) {
+    return null;
+  }
+}
+
+async function persistCopilotAging(snapshot) {
+  const normalized = normalizeAgingSnapshot(snapshot, LIVE_COPILOT_SOURCE);
+  if (!normalized) return;
+  await pool.query(
+    `INSERT INTO copilot_sync_settings (key, value, updated_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE
+       SET value = EXCLUDED.value,
+           updated_at = NOW()`,
+    [COPILOT_AGING_SNAPSHOT_KEY, JSON.stringify(normalized)]
+  );
+}
+
+function getAgingBucketKey(daysAged) {
+  if (daysAged <= 30) return 'within_30';
+  if (daysAged <= 60) return '31_60';
+  if (daysAged <= 90) return '61_90';
+  return '90_plus';
+}
+
+function calculateDaysFromInvoiceDate(invoiceDate, referenceDate = new Date()) {
+  const invoiceDay = startOfDay(invoiceDate ? new Date(invoiceDate) : null);
+  if (!invoiceDay) return null;
+  const today = startOfDay(referenceDate) || new Date();
+  return Math.max(0, Math.floor((today - invoiceDay) / (1000 * 60 * 60 * 24)));
+}
+
+function parseFallbackAgingDays(inv, referenceDate = new Date()) {
+  const rawStatus = cleanStatusValue(inv.raw_status).toLowerCase();
+  if (
+    inv.external_source === 'copilotcrm' &&
+    !inv.due_date &&
+    (rawStatus.includes('past due') || rawStatus.includes('overdue') || cleanStatusValue(inv.status).toLowerCase() === 'overdue')
+  ) {
+    const invoiceAge = calculateDaysFromInvoiceDate(inv.created_at, referenceDate);
+    if (Number.isFinite(invoiceAge)) return invoiceAge;
+  }
+  return Math.max(0, calculateAgingDays(inv, referenceDate));
+}
+
+async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {}) {
+  const nowMs = Date.now();
+  if (!cachedCopilotAging) {
+    const persistedSnapshot = await readPersistedCopilotAging();
+    if (persistedSnapshot) {
+      cachedCopilotAging = {
+        value: persistedSnapshot,
+        expiresAt: getAgingSnapshotExpiry(persistedSnapshot),
+      };
+    }
+  }
+  if (cachedCopilotAging?.expiresAt > nowMs) {
+    return cachedCopilotAging.value;
+  }
+  if (cachedCopilotAgingPromise) {
+    return cachedCopilotAging ? cachedCopilotAging.value : cachedCopilotAgingPromise;
+  }
+
+  const refreshPromise = (async () => {
+  if (typeof getCopilotToken !== 'function') return null;
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) return null;
+
+  const buckets = initAgingBuckets();
+  const now = new Date();
+  const seenIds = new Set();
+  const seenPageLeads = new Set();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const formData = new URLSearchParams();
+    formData.append('pagination[]', `p=${page}`);
+    formData.append('pagination[]', `iop=${pageSize}`);
+    formData.append('pagination[]', 'sort=datedesc');
+
+    const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': tokenInfo.cookieHeader,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData.toString(),
+    });
+
+    if (!copilotRes.ok) break;
+    const payload = await copilotRes.json();
+    const rows = parseInvoiceListHtml(payload.html || '');
+    if (!rows.length) break;
+
+    const pageLeadId = rows[0].external_invoice_id || rows[0].invoice_number || `page-${page}`;
+    if (seenPageLeads.has(pageLeadId)) break;
+    seenPageLeads.add(pageLeadId);
+
+    for (const row of rows) {
+      const id = String(row.external_invoice_id || row.invoice_number || '');
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+
+      const totalDue = parseFloat(row.total_due || 0) || 0;
+      if (totalDue <= 0) continue;
+      if (!isOutstandingInvoice(row.status, row.total ?? totalDue, row.amount_paid ?? 0)) continue;
+
+      const daysAged = calculateDaysFromInvoiceDate(row.invoice_date, now);
+      if (!Number.isFinite(daysAged)) continue;
+
+      const bucket = getAgingBucketKey(daysAged);
+      buckets[bucket].count += 1;
+      buckets[bucket].total += totalDue;
+      buckets[bucket].invoices.push({
+        external_invoice_id: row.external_invoice_id || null,
+        invoice_number: row.invoice_number || null,
+        customer_name: row.customer_name || null,
+        balance: totalDue,
+        days_overdue: daysAged,
+        status: row.status || null,
+      });
+    }
+
+    if (rows.length < pageSize) break;
+  }
+
+  const value = {
+    success: true,
+    source: LIVE_COPILOT_SOURCE,
+    as_of: now.toISOString(),
+    buckets,
+  };
+  await persistCopilotAging(value).catch((error) => {
+    console.error('Error persisting Copilot aging snapshot:', error);
+  });
+  cachedCopilotAging = {
+    value,
+    expiresAt: Date.now() + COPILOT_AGING_CACHE_TTL_MS,
+  };
+  return value;
+  })();
+  cachedCopilotAgingPromise = refreshPromise.finally(() => {
+    cachedCopilotAgingPromise = null;
+  });
+
+  try {
+    if (cachedCopilotAging) {
+      return cachedCopilotAging.value;
+    }
+    return await cachedCopilotAgingPromise;
+  } catch (error) {
+    if (cachedCopilotAging) return cachedCopilotAging.value;
+    throw error;
+  }
+}
+
+function deriveDbAccountStanding(rows) {
+  const standing = { total: 0, outstanding: 0, paid: 0, past_due: 0, credit: 0 };
+  const creditCustomers = new Set();
+  const now = new Date();
+
+  for (const inv of rows || []) {
+    const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+    const balance = outstandingBalance(inv);
+    const daysAged = calculateAgingDays(inv, now);
+    const isOutstanding = isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid);
+    standing.total += 1;
+    if (isOutstanding) standing.outstanding += 1;
+    if (!isOutstanding && balance <= 0 && !['void', 'draft'].includes(effectiveStatus)) standing.paid += 1;
+    if (balance > 0 && daysAged > 0 && !['paid', 'void', 'draft'].includes(effectiveStatus)) standing.past_due += 1;
+
+    const creditAvailable = parseFloat(inv.credit_available || 0);
+    if (creditAvailable > 0) {
+      const customerKey = String(
+        inv.copilot_customer_id ||
+        inv.customer_id ||
+        inv.customer_email ||
+        inv.customer_name ||
+        inv.id
+      );
+      creditCustomers.add(customerKey);
+    }
+  }
+
+  standing.credit = creditCustomers.size;
+  return standing;
+}
+
+async function fetchCopilotCreditCount(cookieHeader, { pageSize = 100, maxPages = 150 } = {}) {
+  const creditedCustomers = new Set();
+  const seenFirstIds = new Set();
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const formData = new URLSearchParams();
+    formData.append('pagination[]', `p=${page}`);
+    formData.append('pagination[]', `iop=${pageSize}`);
+    formData.append('pagination[]', 'sort=datedesc');
+
+    const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices/getInvoicesListAjax', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookieHeader,
+        'Origin': 'https://secure.copilotcrm.com',
+        'Referer': 'https://secure.copilotcrm.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData.toString(),
+    });
+
+    if (!copilotRes.ok) break;
+    const data = await copilotRes.json();
+    const html = data.html || '';
+    const rows = [];
+    const $ = cheerio.load(html);
+    $('tbody tr').each((_, row) => {
+      const tds = $(row).find('td');
+      if (tds.length < 12) return;
+      const invoiceNumber = tds.eq(0).text().replace(/\s+/g, ' ').trim();
+      const firstLink = $(row).find('a[href*="/finances/invoices/view/"]').first();
+      const firstId = firstLink.attr('href')?.match(/\/view\/(\d+)/)?.[1] || invoiceNumber;
+      rows.push({
+        firstId,
+        customerKey: $(row).find('a[href*="/customers/details/"]').first().attr('href')?.match(/\/details\/(\d+)/)?.[1]
+          || tds.eq(2).text().replace(/\s+/g, ' ').trim(),
+        creditAvailable: parseFloat((tds.eq(9).text() || '').replace(/[^0-9.-]/g, '')) || 0,
+      });
+    });
+
+    if (!rows.length) break;
+    if (rows[0].firstId && seenFirstIds.has(rows[0].firstId)) break;
+    if (rows[0].firstId) seenFirstIds.add(rows[0].firstId);
+
+    rows.forEach(row => {
+      if (row.creditAvailable > 0 && row.customerKey) creditedCustomers.add(String(row.customerKey));
+    });
+
+    if (rows.length < pageSize) break;
+  }
+
+  return creditedCustomers.size;
+}
+
+async function fetchCopilotAccountStanding() {
+  const persistedStanding = await readPersistedCopilotStanding();
+  if (typeof getCopilotToken !== 'function') return persistedStanding;
+
+  const now = Date.now();
+  if (cachedCopilotStanding && cachedCopilotStanding.expiresAt > now) {
+    return cachedCopilotStanding.value;
+  }
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) return persistedStanding;
+
+  const copilotRes = await fetch('https://secure.copilotcrm.com/finances/invoices', {
+    headers: {
+      'Cookie': tokenInfo.cookieHeader,
+      'Referer': 'https://secure.copilotcrm.com/',
+    },
+  });
+  if (!copilotRes.ok) return persistedStanding;
+
+  const html = await copilotRes.text();
+  const $ = cheerio.load(html);
+  const pillValues = {};
+  $('.page-stat-pill').each((_, pill) => {
+    const title = $(pill).find('.page-stat-title').text().replace(/\s+/g, ' ').trim().toLowerCase();
+    const value = normalizeCount($(pill).find('.page-stat-value').text());
+    if (!title) return;
+    pillValues[title] = value;
+  });
+  if (Object.keys(pillValues).length === 0) return persistedStanding;
+
+  let credit = 0;
+  if (Object.prototype.hasOwnProperty.call(pillValues, 'credit')) {
+    credit = pillValues.credit;
+  } else {
+    try {
+      credit = await fetchCopilotCreditCount(tokenInfo.cookieHeader);
+    } catch (error) {
+      credit = parseStandingCount(persistedStanding?.credit);
+    }
+  }
+
+  const value = normalizeStandingSnapshot({
+    source: 'copilot',
+    as_of: new Date().toISOString(),
+    total: pillValues.total || 0,
+    outstanding: pillValues.outstanding || 0,
+    paid: pillValues.paid || 0,
+    past_due: pillValues['past due'] || 0,
+    credit,
+  }, 'copilot');
+  if (!value) return persistedStanding;
+  if (!isMeaningfulStanding(value) && isMeaningfulStanding(persistedStanding)) return persistedStanding;
+
+  await persistCopilotStanding(value).catch((error) => {
+    console.error('Error persisting Copilot account standing:', error);
+  });
+
+  cachedCopilotStanding = {
+    value,
+    expiresAt: now + (60 * 1000),
+  };
+
+  return value;
+}
+
+// GET /api/payments - List received payments (paid/partial invoices)
+router.get('/api/payments', async (req, res) => {
+  try {
+    const { search, year, month, limit = 200, offset = 0 } = req.query;
+
+    const params = [];
+    const where = ['amount_paid > 0'];
+    let p = 1;
+
+    if (search) {
+      where.push(`(customer_name ILIKE $${p} OR invoice_number ILIKE $${p})`);
+      params.push('%' + search + '%'); p++;
+    }
+    if (year) {
+      where.push(`EXTRACT(YEAR FROM COALESCE(paid_at, updated_at)) = $${p}`);
+      params.push(parseInt(year)); p++;
+    }
+    if (month) {
+      where.push(`EXTRACT(MONTH FROM COALESCE(paid_at, updated_at)) = $${p}`);
+      params.push(parseInt(month)); p++;
+    }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    params.push(parseInt(limit)); params.push(parseInt(offset));
+
+    const [result, countResult, monthly] = await Promise.all([
+      pool.query(
+        `SELECT id, invoice_number, external_source, external_invoice_id, external_metadata,
+                customer_id, customer_name, customer_email,
+                total, amount_paid, status, paid_at, due_date, created_at, updated_at,
+                COALESCE(paid_at, updated_at, created_at) AS payment_date,
+                qb_invoice_id, payment_token
+         FROM invoices ${whereClause}
+         ORDER BY COALESCE(paid_at, updated_at, created_at) DESC, id DESC
+         LIMIT $${p} OFFSET $${p+1}`,
+        params
+      ),
+      pool.query(
+        `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_paid),0) as total_received
+         FROM invoices ${whereClause}`,
+        params.slice(0, -2)
+      ),
+      pool.query(`
+        SELECT to_char(COALESCE(paid_at, updated_at),'YYYY-MM') as month,
+               COUNT(*) as count, SUM(amount_paid) as total
+        FROM invoices
+        WHERE amount_paid > 0 AND COALESCE(paid_at, updated_at) >= NOW() - INTERVAL '12 months'
+        GROUP BY month ORDER BY month
+      `)
+    ]);
+
+    const payments = result.rows.map((row) => ({
+      ...row,
+      display_invoice_number: getDisplayInvoiceNumberForPaymentRow(row),
+    }));
+
+    res.json({
+      success: true,
+      payments,
+      total: parseInt(countResult.rows[0].cnt),
+      totalReceived: parseFloat(countResult.rows[0].total_received),
+      monthly: monthly.rows
+    });
+  } catch (e) {
+    console.error('Payments API error:', e);
+    serverError(res, e);
+  }
+});
+
+// POST /api/copilot/payments/sync - Sync live Copilot payments into payment records
+router.post('/api/copilot/payments/sync', authenticateToken, async (req, res) => {
+  try {
+    const result = await syncCopilotPaymentsRecords({
+      pageSize: Number(req.body?.pageSize || req.query.pageSize || 100),
+      maxPages: Number(req.body?.maxPages || req.query.maxPages || 25),
+      forceRefresh: req.body?.force !== false && req.query.force !== 'false',
+    });
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Copilot payments sync error:', error);
+    res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Copilot payments sync failed'),
+    });
+  }
+});
+
+// GET /api/reports/tax-transfer-freshness-status - Automation and same-day freshness state
+router.get('/api/reports/tax-transfer-freshness-status', authenticateToken, async (req, res) => {
+  try {
+    const today = isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE);
+    const status = await fetchTaxTransferFreshnessSnapshot(today);
+    res.json(status);
+  } catch (error) {
+    console.error('Tax transfer freshness status error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions/yesterday-status - Current transfer instruction state for yesterday
+router.get('/api/tax-transfer-instructions/yesterday-status', authenticateToken, async (_req, res) => {
+  try {
+    const status = await buildYesterdayTransferInstructionStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Tax transfer yesterday-status error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions/yesterday-alert - Cutoff-aware operational alert for yesterday
+router.get('/api/tax-transfer-instructions/yesterday-alert', authenticateToken, async (_req, res) => {
+  try {
+    const alert = await buildYesterdayTransferInstructionAlert();
+    res.json(alert);
+  } catch (error) {
+    console.error('Tax transfer yesterday-alert error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions - History for the selected date range
+router.get('/api/tax-transfer-instructions', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+    const instructions = await listTransferInstructionsForRange(pool, startDate, endDate);
+    res.json({
+      success: true,
+      start_date: startDate,
+      end_date: endDate,
+      total: instructions.length,
+      instructions,
+    });
+  } catch (error) {
+    console.error('Tax transfer instructions list error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/tax-transfer-instructions/export - CSV export for transfer operations review
+router.get('/api/tax-transfer-instructions/export', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    const exceptionFilter = String(req.query.exception_filter || 'all').trim() || 'all';
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+    if (!TAX_TRANSFER_EXPORT_EXCEPTION_FILTERS.has(exceptionFilter)) {
+      return res.status(400).json({ success: false, error: 'Invalid exception_filter' });
+    }
+
+    const rows = await buildTransferInstructionExportRows({
+      startDate,
+      endDate,
+      exceptionFilter,
+    });
+    const csv = buildTransferInstructionCsv(rows);
+    const filename = `tax-transfer-instructions-${startDate}-through-${endDate}-${exceptionFilter}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Tax transfer instructions export error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/generate - Generate or refresh yesterday's transfer instruction
+router.post('/api/tax-transfer-instructions/generate', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  const startedAt = new Date().toISOString();
+  try {
+    const requestedTaxDate = String(req.body?.tax_date || req.query.tax_date || '').trim();
+    const taxDate = requestedTaxDate || shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+    const previousStatus = await readTaxTransferInstructionStatus();
+    const result = await withOptionalTransaction(pool, (db) => generateTransferInstructionForDate({
+      db,
+      taxDate,
+      trigger: 'manual',
+    }));
+    const completedAt = new Date().toISOString();
+    await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+      previousStatus,
+      trigger: 'manual',
+      taxDate,
+      startedAt,
+      completedAt,
+      result,
+    }));
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Tax transfer instruction generate error:', error);
+    const completedAt = new Date().toISOString();
+    try {
+      const previousStatus = await readTaxTransferInstructionStatus();
+      const requestedTaxDate = String(req.body?.tax_date || req.query.tax_date || '').trim();
+      const taxDate = requestedTaxDate || shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+      await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+        previousStatus,
+        trigger: 'manual',
+        taxDate,
+        startedAt,
+        completedAt,
+        error,
+      }));
+    } catch (statusError) {
+      console.error('Tax transfer instruction status persistence error:', statusError);
+    }
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/:id/approve - Human approval for Chase submission
+router.post('/api/tax-transfer-instructions/:id/approve', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const instructionId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid instruction id is required' });
+    }
+    const actor = buildInstructionActor(req.user);
+    const result = await withOptionalTransaction(pool, async (db) => {
+      const current = await fetchTransferInstructionById(db, instructionId);
+      if (!current) return { statusCode: 404, payload: { success: false, error: 'Instruction not found' } };
+      if (current.status !== 'pending_approval') {
+        return { statusCode: 409, payload: { success: false, error: 'Only pending instructions can be approved' } };
+      }
+      const updated = await db.query(
+        `UPDATE tax_transfer_instructions
+            SET status = 'approved',
+                approved_at = NOW(),
+                approved_by_user_id = $2,
+                approved_by_name = $3,
+                approved_by_email = $4,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [instructionId, actor.id, actor.name, actor.email]
+      );
+      return { statusCode: 200, payload: { success: true, instruction: mapTaxTransferInstructionRow(updated.rows[0]) } };
+    });
+    return res.status(result.statusCode).json(result.payload);
+  } catch (error) {
+    console.error('Tax transfer instruction approve error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/:id/submit - Record manual Chase submission
+router.post('/api/tax-transfer-instructions/:id/submit', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const instructionId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid instruction id is required' });
+    }
+    const actor = buildInstructionActor(req.user);
+    const bankConfirmationRef = String(req.body?.bank_confirmation_ref || '').trim() || null;
+    const submissionNote = String(req.body?.submission_note || '').trim() || null;
+    const result = await withOptionalTransaction(pool, async (db) => {
+      const current = await fetchTransferInstructionById(db, instructionId);
+      if (!current) return { statusCode: 404, payload: { success: false, error: 'Instruction not found' } };
+      if (current.status !== 'approved') {
+        return { statusCode: 409, payload: { success: false, error: 'Only approved instructions can be marked submitted' } };
+      }
+      const updated = await db.query(
+        `UPDATE tax_transfer_instructions
+            SET status = 'submitted',
+                submitted_at = NOW(),
+                submitted_by_user_id = $2,
+                submitted_by_name = $3,
+                submitted_by_email = $4,
+                bank_confirmation_ref = $5,
+                submission_note = $6,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [instructionId, actor.id, actor.name, actor.email, bankConfirmationRef, submissionNote]
+      );
+      return { statusCode: 200, payload: { success: true, instruction: mapTaxTransferInstructionRow(updated.rows[0]) } };
+    });
+    return res.status(result.statusCode).json(result.payload);
+  } catch (error) {
+    console.error('Tax transfer instruction submit error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/tax-transfer-instructions/:id/cancel - Cancel an unsubmitted instruction
+router.post('/api/tax-transfer-instructions/:id/cancel', authenticateToken, async (req, res) => {
+  if (!assertHumanAdminUser(req, res)) return;
+  try {
+    const instructionId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(instructionId) || instructionId <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid instruction id is required' });
+    }
+    const actor = buildInstructionActor(req.user);
+    const cancellationReason = String(req.body?.cancellation_reason || '').trim() || null;
+    const result = await withOptionalTransaction(pool, async (db) => {
+      const current = await fetchTransferInstructionById(db, instructionId);
+      if (!current) return { statusCode: 404, payload: { success: false, error: 'Instruction not found' } };
+      if (!['pending_approval', 'approved'].includes(current.status)) {
+        return { statusCode: 409, payload: { success: false, error: 'Only pending or approved instructions can be canceled' } };
+      }
+      const updated = await db.query(
+        `UPDATE tax_transfer_instructions
+            SET status = 'canceled',
+                canceled_at = NOW(),
+                canceled_by_user_id = $2,
+                canceled_by_name = $3,
+                canceled_by_email = $4,
+                cancellation_reason = $5,
+                updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+        [instructionId, actor.id, actor.name, actor.email, cancellationReason]
+      );
+      return { statusCode: 200, payload: { success: true, instruction: mapTaxTransferInstructionRow(updated.rows[0]) } };
+    });
+    return res.status(result.statusCode).json(result.payload);
+  } catch (error) {
+    console.error('Tax transfer instruction cancel error:', error);
+    serverError(res, error);
+  }
+});
+
+async function handleTaxTransferFreshnessCron(req, res) {
+  if (!assertCronSecret(req, res)) return;
+
+  try {
+    const daysBack = readBoundedInt(req.body?.daysBack ?? req.query.daysBack, 1, { min: 0, max: 7 });
+    const pageSize = readBoundedInt(req.body?.pageSize ?? req.query.pageSize, 100, { min: 1, max: 250 });
+    const maxPages = readBoundedInt(req.body?.maxPages ?? req.query.maxPages, 25, { min: 1, max: 150 });
+    const forceRefresh = req.body?.force !== false && req.query.force !== 'false';
+
+    const result = await runTaxTransferFreshnessSync({
+      daysBack,
+      pageSize,
+      maxPages,
+      forceRefresh,
+      trigger: 'cron',
+    });
+
+    const responseBody = {
+      success: result.status === 'success',
+      ...result,
+    };
+    if (result.status === 'success') {
+      return res.json(responseBody);
+    }
+    return res.status(500).json(responseBody);
+  } catch (error) {
+    const previousStatus = await readTaxTransferFreshnessStatus();
+    const completedAt = new Date().toISOString();
+    const formattedError = formatCopilotSyncError(error, 'Tax transfer freshness sync failed');
+    const statusPayload = {
+      status: 'failed',
+      trigger: 'cron',
+      time_zone: BUSINESS_TIME_ZONE,
+      last_attempt_at: completedAt,
+      completed_at: completedAt,
+      last_success_at: previousStatus?.last_success_at || null,
+      last_success_trigger: previousStatus?.last_success_trigger || null,
+      last_failure_at: completedAt,
+      last_failure_trigger: 'cron',
+      last_failure_error: formattedError,
+      last_error: formattedError,
+      components: null,
+    };
+    await writeTaxTransferFreshnessStatus(statusPayload).catch(() => {});
+    res.status(500).json({
+      success: false,
+      ...statusPayload,
+    });
+  }
+}
+
+router.post('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCron);
+router.get('/api/cron/tax-transfer-freshness-sync', handleTaxTransferFreshnessCron);
+
+async function handleTaxTransferInstructionCron(req, res) {
+  if (!assertCronSecret(req, res)) return;
+  const startedAt = new Date().toISOString();
+  const taxDate = shiftIsoDate(isoDateInTimeZone(new Date(), BUSINESS_TIME_ZONE), -1);
+  try {
+    const previousStatus = await readTaxTransferInstructionStatus();
+    const result = await withOptionalTransaction(pool, (db) => generateTransferInstructionForDate({
+      db,
+      taxDate,
+      trigger: 'cron',
+    }));
+    const completedAt = new Date().toISOString();
+    await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+      previousStatus,
+      trigger: 'cron',
+      taxDate,
+      startedAt,
+      completedAt,
+      result,
+    }));
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Tax transfer instruction cron error:', error);
+    const completedAt = new Date().toISOString();
+    try {
+      const previousStatus = await readTaxTransferInstructionStatus();
+      await writeTaxTransferInstructionStatus(buildInstructionAutomationStatus({
+        previousStatus,
+        trigger: 'cron',
+        taxDate,
+        startedAt,
+        completedAt,
+        error,
+      }));
+    } catch (statusError) {
+      console.error('Tax transfer instruction cron status persistence error:', statusError);
+    }
+    return res.status(500).json({
+      success: false,
+      error: formatCopilotSyncError(error, 'Tax transfer instruction generation failed'),
+    });
+  }
+}
+
+router.post('/api/cron/tax-transfer-instructions/generate', handleTaxTransferInstructionCron);
+router.get('/api/cron/tax-transfer-instructions/generate', handleTaxTransferInstructionCron);
+
+// GET /api/payment-records - True payment records joined to invoices
+router.get('/api/payment-records', authenticateToken, async (req, res) => {
+  try {
+    const { search, year, month, source, linked, limit = 200, offset = 0 } = req.query;
+    const params = [];
+    const where = buildPaymentRecordWhere({ search, year, month, source, linked }, params);
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    params.push(parseInt(limit, 10));
+    params.push(parseInt(offset, 10));
+
+    const selectSql = `
+      SELECT
+        p.id,
+        p.payment_id,
+        p.invoice_id,
+        p.customer_id,
+        p.customer_name,
+        p.amount,
+        p.tip_amount,
+        p.method,
+        p.status,
+        p.details,
+        p.notes,
+        p.paid_at,
+        p.created_at,
+        p.source_date_raw,
+        p.external_source,
+        p.external_payment_key,
+        p.external_metadata,
+        p.imported_at,
+        i.invoice_number,
+        i.total AS invoice_total,
+        i.tax_amount AS invoice_tax_amount,
+        i.external_source AS invoice_external_source,
+        i.external_invoice_id
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id = i.id
+      ${whereClause}
+      ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `;
+
+    const [rowsResult, countResult] = await Promise.all([
+      pool.query(selectSql, params),
+      pool.query(
+        `SELECT COUNT(*)::int AS count
+           FROM payments p
+           LEFT JOIN invoices i ON p.invoice_id = i.id
+           ${whereClause}`,
+        params.slice(0, -2)
+      ),
+    ]);
+
+    const payments = rowsResult.rows.map(hydratePaymentRecord);
+    res.json({
+      success: true,
+      payments,
+      total: countResult.rows[0]?.count || 0,
+    });
+  } catch (error) {
+    console.error('Payment records API error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/copilot/payment-review - Read-only Copilot payment linkage review
+router.get('/api/copilot/payment-review', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    const unresolvedOnly = String(req.query.unresolved_only || 'true') !== 'false';
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+         p.id,
+         p.payment_id,
+         p.invoice_id,
+         p.customer_id,
+         p.customer_name,
+         p.amount,
+         p.tip_amount,
+         p.method,
+         p.status,
+         p.details,
+         p.notes,
+         p.paid_at,
+         p.created_at,
+         p.source_date_raw,
+         p.external_source,
+         p.external_payment_key,
+         p.external_metadata,
+         p.imported_at,
+         i.invoice_number,
+         i.total AS invoice_total,
+         i.tax_amount AS invoice_tax_amount,
+         i.external_source AS invoice_external_source,
+         i.external_invoice_id
+       FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       WHERE COALESCE(p.external_source, 'database') = 'copilotcrm'
+         AND COALESCE(p.paid_at, p.created_at) >= $1::date
+         AND COALESCE(p.paid_at, p.created_at) < ($2::date + INTERVAL '1 day')
+       ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC`,
+      [startDate, endDate]
+    );
+
+    const hydrated = result.rows.map((row) => ({
+      ...hydratePaymentRecord(row),
+      payment_date: row.paid_at || row.created_at || null,
+    }));
+    const unresolvedPayments = hydrated
+      .filter((payment) => !payment.invoice_id)
+      .map((payment) => ({
+        extracted_invoice_number: getExtractedInvoiceNumberForPayment(payment),
+        extracted_invoice_date: payment.extracted_invoice_date || payment.external_metadata?.extracted_invoice_date || null,
+        customer_name: payment.customer_name || null,
+      }))
+      .filter((payment) => payment.extracted_invoice_number);
+    const invoiceMatches = await loadInvoiceMatches(pool, unresolvedPayments);
+
+    const reviewed = hydrated.map((payment) => {
+      const extractedInvoiceNumber = getExtractedInvoiceNumberForPayment(payment);
+      const invoiceMatch = !payment.invoice_id && extractedInvoiceNumber
+        ? invoiceMatches.get(extractedInvoiceNumber) || null
+        : null;
+      const linkage = describeCopilotPaymentLinkage(payment, invoiceMatch);
+      return {
+        ...payment,
+        ...linkage,
+        current_invoice_match_id: invoiceMatch?.id || null,
+        current_invoice_match_number: invoiceMatch?.invoice_number || null,
+        current_invoice_match_source: invoiceMatch?.external_source || null,
+      };
+    });
+
+    const summary = reviewed.reduce((acc, payment) => {
+      acc.total_rows += 1;
+      if (payment.link_status === 'linked') acc.linked_count += 1;
+      else acc.unresolved_count += 1;
+      return acc;
+    }, {
+      total_rows: 0,
+      linked_count: 0,
+      unresolved_count: 0,
+    });
+
+    const payments = unresolvedOnly
+      ? reviewed.filter((payment) => payment.link_status === 'unresolved')
+      : reviewed;
+
+    res.json({
+      success: true,
+      start_date: startDate,
+      end_date: endDate,
+      unresolved_only: unresolvedOnly,
+      total: payments.length,
+      summary,
+      payments,
+    });
+  } catch (error) {
+    console.error('Copilot payment review API error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/reports/tax-sweep - Reconciliation report from payment records only
+router.get('/api/reports/tax-sweep', authenticateToken, async (req, res) => {
+  try {
+    const { start_date, end_date, source = 'copilotcrm' } = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const result = await pool.query(
+      `SELECT
+         p.id,
+         p.payment_id,
+         p.invoice_id,
+         p.customer_name,
+         p.amount,
+         p.tip_amount,
+         p.method,
+         p.status,
+         p.details,
+         p.notes,
+         p.paid_at,
+         p.created_at,
+         p.source_date_raw,
+       p.external_source,
+       p.external_payment_key,
+       p.external_metadata,
+       p.imported_at,
+       i.invoice_number,
+       i.external_source AS invoice_external_source,
+       i.external_invoice_id,
+       i.total AS invoice_total,
+       i.tax_amount AS invoice_tax_amount
+     FROM payments p
+     LEFT JOIN invoices i ON p.invoice_id = i.id
+       WHERE COALESCE(p.paid_at, p.created_at) >= $1::date
+         AND COALESCE(p.paid_at, p.created_at) < ($2::date + INTERVAL '1 day')
+         AND COALESCE(p.external_source, 'database') = $3
+       ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC`,
+      [start_date, end_date, source]
+    );
+
+    const payments = result.rows
+      .map((row) => ({
+        ...hydratePaymentRecord(row),
+        display_invoice_number: getDisplayInvoiceNumberForPaymentRow({
+          ...row,
+          external_source: row.invoice_external_source || row.external_source,
+        }),
+      }))
+      .filter((payment) => !isLeakedCopilotSummaryRow(payment));
+    const summary = payments.reduce((acc, payment) => {
+      acc.payment_count += 1;
+      acc.gross_collected = roundMoney(acc.gross_collected + payment.amount);
+      acc.tip_amount = roundMoney(acc.tip_amount + payment.tip_amount);
+      acc.applied_amount = roundMoney(acc.applied_amount + payment.applied_amount);
+      acc.tax_portion_collected = roundMoney(acc.tax_portion_collected + payment.tax_portion_collected);
+      if (payment.invoice_id) acc.linked_count += 1;
+      else acc.unresolved_count += 1;
+      return acc;
+    }, {
+      payment_count: 0,
+      linked_count: 0,
+      unresolved_count: 0,
+      gross_collected: 0,
+      tip_amount: 0,
+      applied_amount: 0,
+      tax_portion_collected: 0,
+    });
+
+    res.json({
+      success: true,
+      mode: 'reconciliation_only',
+      start_date,
+      end_date,
+      source,
+      summary,
+      payments,
+    });
+  } catch (error) {
+    console.error('Tax sweep report error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/copilot/tax-summary/sync - Persist daily Copilot Tax Summary collected snapshots
+router.post('/api/copilot/tax-summary/sync', authenticateToken, async (req, res) => {
+  try {
+    const startDate = String(req.body?.start_date || req.query.start_date || '').trim();
+    const endDate = String(req.body?.end_date || req.query.end_date || startDate).trim();
+    const result = await syncCopilotTaxSummarySnapshots({
+      startDate,
+      endDate,
+      basis: 'collected',
+      forceRefresh: req.body?.force !== false && req.query.force !== 'false',
+    });
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Copilot tax summary sync error:', error);
+    const message = formatCopilotSyncError(error, 'Copilot tax summary sync failed');
+    const statusCode = /start_date and end_date are required|date range must be 31 days or fewer/i.test(message) ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      error: message,
+    });
+  }
+});
+
+// GET /api/reports/tax-transfer-daily - Daily Copilot-vs-backend tax reconciliation
+router.get('/api/reports/tax-transfer-daily', authenticateToken, async (req, res) => {
+  try {
+    const basis = 'collected';
+    const startDate = String(req.query.start_date || '').trim();
+    const endDate = String(req.query.end_date || startDate).trim();
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: 'start_date and end_date are required' });
+    }
+
+    const dates = eachDayInclusive(startDate, endDate);
+    if (dates.length > 31) {
+      return res.status(400).json({ success: false, error: 'date range must be 31 days or fewer' });
+    }
+
+    const days = [];
+    for (const date of dates) {
+      let snapshot = await readPersistedTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+      if (!snapshot) {
+        snapshot = await fetchCopilotTaxSummarySnapshot({ startDate: date, endDate: date, basis }).catch(() => null);
+      }
+      if (!snapshot) {
+        const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
+        const recommendation = buildDailyTaxRecommendation({
+          snapshot: { tax_amount: 0 },
+          backendReconstructedTax,
+        });
+        days.push({
+          date,
+          ...recommendation,
+          source: 'missing_copilot_snapshot',
+          snapshot_as_of: null,
+          total_sales: 0,
+          taxable_amount: 0,
+          discount: 0,
+          processing_fees: 0,
+          tips: 0,
+          tax_rows: [],
+        });
+        continue;
+      }
+
+      const backendReconstructedTax = await computeBackendReconstructedTaxForDay(date);
+      const recommendation = buildDailyTaxRecommendation({
+        snapshot,
+        backendReconstructedTax,
+      });
+
+      days.push({
+        date,
+        ...recommendation,
+        source: snapshot.source,
+        snapshot_as_of: snapshot.as_of,
+        total_sales: snapshot.total_sales,
+        taxable_amount: snapshot.taxable_amount,
+        discount: snapshot.discount,
+        processing_fees: snapshot.processing_fees,
+        tips: snapshot.tips,
+        tax_rows: snapshot.rows,
+      });
+    }
+
+    const summary = days.reduce((acc, day) => {
+      acc.recommended_transfer_amount = roundMoney(acc.recommended_transfer_amount + (day.recommended_transfer_amount || 0));
+      acc.copilot_collected_tax = roundMoney(acc.copilot_collected_tax + (day.copilot_collected_tax || 0));
+      acc.backend_reconstructed_tax = roundMoney(acc.backend_reconstructed_tax + (day.backend_reconstructed_tax || 0));
+      acc.variance = roundMoney(acc.variance + (day.variance || 0));
+      return acc;
+    }, {
+      recommended_transfer_amount: 0,
+      copilot_collected_tax: 0,
+      backend_reconstructed_tax: 0,
+      variance: 0,
+    });
+
+    res.json({
+      success: true,
+      basis,
+      start_date: startDate,
+      end_date: endDate,
+      days,
+      summary,
+    });
+  } catch (error) {
+    console.error('Tax transfer daily report error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices - List invoices
+router.get('/api/invoices', async (req, res) => {
+  try {
+    const { status, customer_id, search, limit = 25000, offset = 0, include_blank_drafts } = req.query;
+    // Build a real display name. The customers table is inconsistent —
+    // some rows have `name` populated, others only `first_name`+`last_name`,
+    // and many invoices have a stale or missing customer_id. Walk the chain:
+    //   1. customers.name (when non-empty)
+    //   2. customers.first_name + ' ' + customers.last_name (when populated)
+    //   3. invoices.customer_name (the value captured on the invoice itself)
+    // We also expose the raw linked + invoice values separately so callers
+    // can tell whether the invoice is linked to a real customer record.
+    let q = `SELECT i.*,
+                    COALESCE(
+                      NULLIF(c.name, ''),
+                      NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), ''),
+                      NULLIF(i.customer_name, '')
+                    ) AS customer_name,
+                    c.name AS linked_customer_name,
+                    i.customer_name AS invoice_customer_name,
+                    CASE
+                      WHEN COALESCE(NULLIF(TRIM(i.invoice_number), ''), '') = ''
+                        OR i.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
+                        OR i.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+                        OR i.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                      THEN NULLIF(CASE WHEN i.external_source = 'copilotcrm' THEN i.external_invoice_id ELSE NULL END, '')
+                      ELSE i.invoice_number
+                    END AS display_invoice_number
+             FROM invoices i
+             LEFT JOIN customers c ON i.customer_id = c.id`;
+    const params = [];
+    const where = [];
+    if (status) {
+      if (status === 'overdue') {
+        where.push(`COALESCE(i.total, 0) > COALESCE(i.amount_paid, 0)`);
+        where.push(`(
+          COALESCE(LOWER(TRIM(i.status)), '') = 'overdue'
+          OR (
+            COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending', '')
+            AND i.due_date IS NOT NULL
+            AND i.due_date < CURRENT_DATE
+          )
+        )`);
+      } else {
+        params.push(status);
+        where.push(`i.status = $${params.length}`);
+      }
+    }
+    if (customer_id) { params.push(customer_id); where.push(`i.customer_id = $${params.length}`); }
+    // Hide blank placeholder drafts (no customer name + no money + no
+    // line items). They were dominating the top of the list and making
+    // the page look broken. Pass include_blank_drafts=true to see them.
+    // Doesn't apply when an explicit status filter is set, so drilling
+    // into "Draft" still shows everything.
+    if (!status && !include_blank_drafts) {
+      where.push(`NOT (
+        i.status = 'draft'
+        AND COALESCE(TRIM(i.customer_name), '') = ''
+        AND COALESCE(i.total, 0) = 0
+        AND jsonb_array_length(COALESCE(i.line_items, '[]'::jsonb)) = 0
+      )`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      // Search the same name sources used to build the display name above:
+      // invoice number, customers.name, customers.first_name+last_name, and
+      // the invoice's own captured customer_name. This keeps search results
+      // consistent with what the user actually sees in the list.
+      const p = params.length;
+      where.push(`(
+        i.invoice_number ILIKE $${p}
+        OR c.name ILIKE $${p}
+        OR TRIM(CONCAT_WS(' ', c.first_name, c.last_name)) ILIKE $${p}
+        OR i.customer_name ILIKE $${p}
+      )`);
+    }
+    if (where.length) q += ' WHERE ' + where.join(' AND ');
+    q += ' ORDER BY i.created_at DESC';
+    params.push(limit); q += ` LIMIT $${params.length}`;
+    params.push(offset); q += ` OFFSET $${params.length}`;
+    const result = await pool.query(q, params);
+    res.json({ success: true, invoices: result.rows });
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/stats - Invoice statistics
+router.get('/api/invoices/stats', async (req, res) => {
+  try {
+    const all = await pool.query(`
+      SELECT status, total, amount_paid, due_date, paid_at, created_at, terms,
+             customer_id, customer_name, customer_email,
+             external_metadata->>'copilot_customer_id' AS copilot_customer_id,
+             COALESCE((external_metadata->>'credit_available')::numeric, 0) AS credit_available
+      FROM invoices
+    `);
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    let stats = { total: 0, draft: 0, pending: 0, partial: 0, sent: 0, paid: 0, overdue: 0, void: 0,
+      outstanding: 0, overdueAmount: 0, paidThisMonth: 0, totalRevenue: 0 };
+    all.rows.forEach(inv => {
+      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+      const balance = outstandingBalance(inv);
+      stats.total++;
+      stats[effectiveStatus] = (stats[effectiveStatus] || 0) + 1;
+      const t = parseFloat(inv.total) || 0;
+      if (effectiveStatus === 'paid') {
+        stats.totalRevenue += t;
+        if (inv.paid_at && new Date(inv.paid_at) >= thisMonth) stats.paidThisMonth += t;
+      }
+      if (isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) {
+        stats.outstanding += balance;
+      }
+      if (effectiveStatus === 'overdue' && balance > 0) {
+        stats.overdueAmount += balance;
+      }
+    });
+    const fallbackStanding = {
+      ...deriveDbAccountStanding(all.rows),
+      source: 'database',
+      as_of: new Date().toISOString(),
+    };
+    let accountStanding = fallbackStanding;
+    try {
+      const copilotStanding = await fetchCopilotAccountStanding();
+      if (copilotStanding) accountStanding = copilotStanding;
+    } catch (error) {
+      console.error('Error fetching Copilot account standing:', error);
+    }
+    stats.account_standing = accountStanding;
+    stats.account_standing_fallback = fallbackStanding;
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error fetching invoice stats:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/aging - Aging AR (must be before :id route)
+router.get('/api/invoices/aging', async (req, res) => {
+  try {
+    try {
+      const copilotAging = await fetchCopilotAgingBuckets();
+      if (copilotAging?.buckets) {
+        console.info('Invoice aging source', {
+          source: copilotAging.source,
+          asOf: copilotAging.as_of,
+        });
+        return res.json(copilotAging);
+      }
+    } catch (error) {
+      console.error('Error fetching Copilot aging buckets:', error);
+    }
+
+    const result = await pool.query(`
+      SELECT id, invoice_number, customer_name, total, amount_paid, due_date, created_at, terms,
+             status, sent_status, external_source, external_metadata,
+             external_metadata->>'raw_status' AS raw_status
+      FROM invoices
+      WHERE total > COALESCE(amount_paid, 0)
+        AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')
+        AND (external_source = 'copilotcrm' OR external_invoice_id IS NOT NULL)
+    `);
+    const now = new Date();
+    const buckets = initAgingBuckets();
+    result.rows.forEach(inv => {
+      const effectiveStatus = normalizeStoredInvoiceStatus(inv.status, inv.due_date, inv.total, inv.amount_paid);
+      if (!isOutstandingInvoice(effectiveStatus, inv.total, inv.amount_paid)) return;
+      const balance = outstandingBalance(inv);
+      const daysOverdue = parseFallbackAgingDays(inv, now);
+      const bucket = getAgingBucketKey(daysOverdue);
+      buckets[bucket].count++;
+      buckets[bucket].total += balance;
+      buckets[bucket].invoices.push({
+        id: inv.id,
+        invoice_number: inv.invoice_number,
+        customer_name: inv.customer_name,
+        balance,
+        days_overdue: daysOverdue,
+        status: effectiveStatus,
+      });
+    });
+    console.warn('Invoice aging fallback', {
+      source: DATABASE_FALLBACK_SOURCE,
+      asOf: now.toISOString(),
+    });
+    res.json({ success: true, source: DATABASE_FALLBACK_SOURCE, as_of: now.toISOString(), buckets });
+  } catch (error) {
+    console.error('Error fetching aging data:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/batch - Batch invoice from jobs (must be before :id route)
+router.post('/api/invoices/batch', async (req, res) => {
+  try {
+    const { job_ids } = req.body;
+    if (!job_ids || !Array.isArray(job_ids) || job_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'job_ids array is required' });
+    }
+    const created = [];
+    for (const jobId of job_ids) {
+      const jobResult = await pool.query('SELECT * FROM scheduled_jobs WHERE id = $1', [jobId]);
+      if (jobResult.rows.length === 0) continue;
+      const job = jobResult.rows[0];
+      if (job.invoice_id) continue;
+      const invNum = await nextInvoiceNumber();
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+      const lineItems = [{ description: job.service_type || 'Service', amount: parseFloat(job.service_price || 0) }];
+      const total = parseFloat(job.service_price || 0);
+      let customerEmail = '';
+      if (job.customer_id) {
+        const custResult = await pool.query('SELECT email FROM customers WHERE id = $1', [job.customer_id]);
+        if (custResult.rows.length > 0) customerEmail = custResult.rows[0].email || '';
+      }
+      const r = await pool.query(`INSERT INTO invoices
+        (invoice_number, customer_id, customer_name, customer_email, customer_address, job_id,
+         subtotal, total, due_date, line_items, notes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [invNum, job.customer_id || null, job.customer_name || '', customerEmail,
+         job.address || '', jobId, total, total, dueDate.toISOString().split('T')[0],
+         JSON.stringify(lineItems), 'Generated from completed job #' + jobId]);
+      try { await pool.query('UPDATE scheduled_jobs SET invoice_id = $1 WHERE id = $2', [r.rows[0].id, jobId]); } catch(e) {}
+      created.push(r.rows[0]);
+    }
+    res.json({ success: true, invoices: created, count: created.length });
+  } catch (error) {
+    console.error('Error batch creating invoices:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/:id - Single invoice
+router.get('/api/invoices/:id', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = r.rows[0];
+    // Fetch payment history
+    try {
+      const payments = await pool.query(
+        'SELECT id, payment_id, amount, method, status, card_brand, card_last4, square_receipt_url, ach_bank_name, notes, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY COALESCE(paid_at, created_at) DESC, id DESC',
+        [inv.id]
+      );
+      inv.payment_history = payments.rows;
+    } catch(e) { inv.payment_history = []; }
+    try {
+      const emailLog = await pool.query(
+        `SELECT id, recipient_email, subject, email_type, status, error_message, sent_at
+           FROM email_log
+          WHERE invoice_id = $1
+          ORDER BY sent_at DESC, id DESC`,
+        [inv.id]
+      );
+      inv.email_history = emailLog.rows;
+    } catch (e) { inv.email_history = []; }
+    inv.history_events = buildInvoiceHistoryEvents(inv, {
+      payments: inv.payment_history,
+      emailLog: inv.email_history,
+    });
+    res.json({ success: true, invoice: inv });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices - Create invoice
+router.post('/api/invoices', validate(schemas.createInvoice), async (req, res) => {
+  try {
+    const { customer_id, customer_name, customer_email, customer_address, sent_quote_id, job_id,
+      subtotal, tax_rate, tax_amount, total, due_date, notes, line_items, draft_autosave } = req.body;
+
+    // Reject blank invoices outright. The schema validator allows things
+    // like customer_name=' ', total=0, line_items=[] which historically
+    // produced "junk" placeholder drafts that dominated the list. A real
+    // invoice needs a non-blank customer name AND either a positive total
+    // OR at least one non-empty line item.
+    const trimmedName = (customer_name || '').toString().trim();
+    const items = Array.isArray(line_items) ? line_items : [];
+    const meaningfulItems = items.filter(it =>
+      it && (
+        (typeof it.description === 'string' && it.description.trim() !== '') ||
+        parseFloat(it.amount || 0) > 0
+      )
+    );
+    const meaningfulTotal = parseFloat(total || 0) > 0;
+    const isBlank = !trimmedName && !meaningfulTotal && meaningfulItems.length === 0;
+    if (isBlank && !draft_autosave) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invoice is empty. Add a customer and at least one line item before saving. Pass draft_autosave: true to bypass for autosave flows.',
+      });
+    }
+
+    const invNum = await nextInvoiceNumber();
+    const r = await pool.query(`INSERT INTO invoices
+      (invoice_number, customer_id, customer_name, customer_email, customer_address, sent_quote_id, job_id,
+       subtotal, tax_rate, tax_amount, total, due_date, notes, line_items)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [invNum, customer_id||null, customer_name, customer_email, customer_address||'',
+       sent_quote_id||null, job_id||null, subtotal||0, tax_rate||0, tax_amount||0, total||0,
+       due_date||null, notes||'', JSON.stringify(line_items||[])]);
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/from-quote/:quoteId - Create invoice from signed quote
+router.post('/api/invoices/from-quote/:quoteId', async (req, res) => {
+  try {
+    const q = await pool.query('SELECT * FROM sent_quotes WHERE id = $1', [req.params.quoteId]);
+    if (q.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
+    const quote = q.rows[0];
+    const services = typeof quote.services === 'string' ? JSON.parse(quote.services) : (quote.services || []);
+    const lineItems = services.map(s => ({ description: s.name || s.description, amount: parseFloat(s.price || s.amount || 0) }));
+    const invNum = await nextInvoiceNumber();
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 30);
+    const r = await pool.query(`INSERT INTO invoices
+      (invoice_number, customer_id, customer_name, customer_email, customer_address, sent_quote_id,
+       subtotal, tax_rate, tax_amount, total, due_date, line_items, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [invNum, quote.customer_id||null, quote.customer_name, quote.customer_email, quote.customer_address||'',
+       quote.id, parseFloat(quote.subtotal)||0, 0, parseFloat(quote.tax_amount)||0,
+       parseFloat(quote.total)||0, dueDate.toISOString().split('T')[0], JSON.stringify(lineItems),
+       `Generated from Quote ${quote.quote_number || 'Q-'+quote.id}`]);
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    console.error('Error creating invoice from quote:', error);
+    serverError(res, error);
+  }
+});
+
+// PATCH /api/invoices/:id - Update invoice
+router.patch('/api/invoices/:id', async (req, res) => {
+  try {
+    const fields = ['status','sent_status','customer_name','customer_email','customer_address','subtotal','tax_rate','tax_amount','total','amount_paid','due_date','paid_at','sent_at','qb_invoice_id','notes','terms','line_items'];
+    const sets = []; const params = [];
+    fields.forEach(f => {
+      if (req.body[f] !== undefined) {
+        params.push(f === 'line_items' ? JSON.stringify(req.body[f]) : req.body[f]);
+        sets.push(`${f} = $${params.length}`);
+      }
+    });
+    if (sets.length === 0) return res.status(400).json({ success: false, error: 'No fields to update' });
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(req.params.id);
+    const r = await pool.query(`UPDATE invoices SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/:id/send - Email invoice to customer
+router.post('/api/invoices/:id/send', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = r.rows[0];
+    if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
+
+    // Generate payment token if needed
+    let paymentToken = inv.payment_token;
+    if (!paymentToken) {
+      paymentToken = generateToken();
+      await pool.query('UPDATE invoices SET payment_token = $1, payment_token_created_at = CURRENT_TIMESTAMP WHERE id = $2', [paymentToken, inv.id]);
+    }
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
+
+    const firstName = (inv.customer_name || '').split(' ')[0] || 'there';
+    const totalFormatted = '$' + parseFloat(inv.total).toFixed(2);
+    const content = `
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Hi ${firstName},</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Thank you for allowing <strong>Pappas & Co. Landscaping</strong> to care for your property!</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 24px;"><strong>Your latest invoice is ready for review and payment.</strong> You can access your invoice and make an online payment by clicking the secure button below:</p>
+
+      <div style="text-align:center;margin:28px 0 32px;">
+        <a href="${payUrl}" style="display:inline-block;padding:16px 48px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
+          View &amp; Pay Invoice &mdash; ${totalFormatted}
+        </a>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 24px;">
+        <p style="font-weight:700;color:#1e293b;font-size:14px;margin:0 0 12px;">Payment Reminders:</p>
+        <ul style="margin:0;padding:0 0 0 20px;color:#475569;font-size:14px;line-height:1.8;">
+          <li><strong>Online Payment:</strong> The fastest and easiest way to pay is directly through the secure invoice link above. We accept <strong>credit/debit cards</strong>, <strong>Apple Pay</strong>, and <strong>bank transfers (ACH)</strong>.</li>
+          <li><strong>Mail a Check:</strong> Checks can be made payable to <strong>Pappas & Co. Landscaping</strong> and mailed to our secure payment box: <strong>PO Box 770057, Lakewood, OH 44107</strong>.</li>
+          <li><strong>Zelle Payments:</strong> If you prefer to pay via Zelle, please ensure you are sending funds to: <strong>hello@pappaslandscaping.com</strong>.</li>
+        </ul>
+      </div>
+
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">We truly appreciate your business and look forward to continuing to provide top-quality service.</p>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 4px;">If you have any questions or concerns about your service or the invoice, please don't hesitate to reach out.</p>
+    `;
+
+    let attachments = null;
+    try {
+      const pdfResult = await generateInvoicePDF(inv);
+      if (pdfResult && pdfResult.bytes) {
+        attachments = [{
+          filename: `invoice-${inv.invoice_number || inv.id}.pdf`,
+          content: Buffer.from(pdfResult.bytes).toString('base64'),
+          type: 'application/pdf'
+        }];
+      }
+    } catch (pdfErr) { console.error('Invoice PDF error:', pdfErr); }
+
+    await sendEmail(inv.customer_email, `Invoice ${inv.invoice_number} from Pappas & Co.`, emailTemplate(content), attachments, { type: 'invoice', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
+    await pool.query("UPDATE invoices SET status = 'sent', sent_status = 'sent', sent_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [inv.id]);
+    res.json({ success: true, message: 'Invoice sent' });
+  } catch (error) {
+    console.error('Error sending invoice:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/:id/mark-paid - Mark invoice as paid
+router.post('/api/invoices/:id/mark-paid', async (req, res) => {
+  try {
+    const r = await pool.query(
+      "UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, invoice: r.rows[0] });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/cleanup-blank-drafts
+// One-time cleanup of junk placeholder drafts. Targets ONLY rows where:
+//   status = 'draft' AND blank customer_name AND total = 0 AND no line_items.
+// Defaults to dry-run; pass { confirm: true } to actually delete.
+router.post('/api/invoices/cleanup-blank-drafts', async (req, res) => {
+  try {
+    const confirm = req.body && req.body.confirm === true;
+    const selectQ = `
+      SELECT id, invoice_number, created_at
+      FROM invoices
+      WHERE status = 'draft'
+        AND COALESCE(TRIM(customer_name), '') = ''
+        AND COALESCE(total, 0) = 0
+        AND jsonb_array_length(COALESCE(line_items, '[]'::jsonb)) = 0`;
+    const candidates = await pool.query(selectQ);
+    if (!confirm) {
+      return res.json({
+        success: true,
+        dryRun: true,
+        wouldDelete: candidates.rows.length,
+        candidates: candidates.rows,
+      });
+    }
+    const ids = candidates.rows.map(r => r.id);
+    if (ids.length === 0) return res.json({ success: true, deleted: 0 });
+    // Detach payments first to satisfy FK; junk drafts shouldn't have any
+    // but be safe.
+    try { await pool.query('DELETE FROM payments WHERE invoice_id = ANY($1::int[])', [ids]); } catch (e) {}
+    const del = await pool.query('DELETE FROM invoices WHERE id = ANY($1::int[]) RETURNING id', [ids]);
+    res.json({ success: true, deleted: del.rowCount });
+  } catch (error) {
+    console.error('Error cleaning up blank drafts:', error);
+    serverError(res, error);
+  }
+});
+
+// DELETE /api/invoices/:id - Delete invoice
+router.delete('/api/invoices/:id', async (req, res) => {
+  try {
+    // Delete related payments first to avoid foreign key constraint
+    try { await pool.query('DELETE FROM payments WHERE invoice_id = $1', [req.params.id]); } catch(e) { /* */ }
+    const r = await pool.query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// SQUARE PAYMENT ENDPOINTS
+// ═══════════════════════════════════════════════════════════
+
+// GET /api/pay/config - Public - Square frontend config
+router.get('/api/pay/config', (req, res) => {
+  res.json({
+    appId: SQUARE_APP_ID || '',
+    locationId: SQUARE_LOCATION_ID || '',
+    environment: process.env.SQUARE_ENVIRONMENT || 'sandbox'
+  });
+});
+
+// GET /api/square/status - Check Square connection
+router.get('/api/square/status', async (req, res) => {
+  if (!squareClient) {
+    return res.json({ connected: false, error: 'Square not configured' });
+  }
+  try {
+    const response = await squareClient.locationsApi.listLocations();
+    const locations = response.result.locations || [];
+    const location = locations.find(l => l.id === SQUARE_LOCATION_ID) || locations[0];
+    res.json({
+      connected: true,
+      environment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
+      locationId: location?.id,
+      locationName: location?.name,
+      currency: location?.currency
+    });
+  } catch (error) {
+    res.json({ connected: false, error: error.message });
+  }
+});
+
+// GET /api/pay/:token - Public - Fetch invoice by payment token
+router.get('/api/pay/:token', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, invoice_number, customer_id, customer_name, customer_email, customer_address,
+              subtotal, tax_rate, tax_amount, total, amount_paid, status, due_date,
+              line_items, notes, created_at, sent_at, paid_at
+       FROM invoices WHERE payment_token = $1`,
+      [req.params.token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+    const inv = result.rows[0];
+    // Update viewed_at
+    await pool.query("UPDATE invoices SET viewed_at = CURRENT_TIMESTAMP, sent_status = CASE WHEN sent_status = 'viewed' THEN sent_status ELSE 'viewed' END WHERE id = $1", [inv.id]);
+
+    // Get payment history
+    try {
+      const payments = await pool.query(
+        'SELECT amount, method, status, card_last4, square_receipt_url, paid_at, created_at FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC',
+        [inv.id]
+      );
+      inv.payment_history = payments.rows;
+    } catch(e) { inv.payment_history = []; }
+
+    // Get processing fee config
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        inv.processing_fee_config = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+      }
+    } catch(e) { /* no fee config */ }
+
+    // Get saved cards for this customer
+    try {
+      const cards = await pool.query(
+        'SELECT id, card_brand, last4, exp_month, exp_year, cardholder_name FROM customer_saved_cards WHERE customer_id = $1 AND enabled = true ORDER BY created_at DESC',
+        [inv.customer_id]
+      );
+      inv.saved_cards = cards.rows;
+    } catch(e) { inv.saved_cards = []; }
+
+    res.json({ success: true, invoice: inv });
+  } catch (error) {
+    console.error('Pay token error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/pay/:token/card - Process card/Apple Pay payment
+router.post('/api/pay/:token/card', async (req, res) => {
+  try {
+    if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
+
+    const { sourceId, verificationToken, save_card } = req.body;
+    if (!sourceId) return res.status(400).json({ success: false, error: 'Payment source required' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = invResult.rows[0];
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
+
+    // Check processing fee config
+    let processingFee = 0;
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        const feeConfig = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+        if (feeConfig.enabled) {
+          const pct = parseFloat(feeConfig.card_fee_percent) || 2.9;
+          const fixed = parseFloat(feeConfig.card_fee_fixed) || 0.30;
+          processingFee = Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+        }
+      }
+    } catch(e) { /* no fee */ }
+
+    const totalCharge = balance + processingFee;
+    const amountCents = Math.round(totalCharge * 100);
+    const idempotencyKey = crypto.randomUUID();
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    // If save_card requested, save the card first then charge the saved card ID
+    let paymentSourceId = sourceId;
+    let savedCardInfo = null;
+    if (save_card && inv.customer_id) {
+      try {
+        // Ensure Square customer exists
+        const custResult = await pool.query('SELECT square_customer_id, name, email FROM customers WHERE id = $1', [inv.customer_id]);
+        const cust = custResult.rows[0];
+        let squareCustomerId = cust?.square_customer_id;
+        if (!squareCustomerId && cust) {
+          const { result: sqCustResult } = await squareClient.customersApi.createCustomer({
+            givenName: (cust.name || '').split(' ')[0],
+            familyName: (cust.name || '').split(' ').slice(1).join(' '),
+            emailAddress: cust.email
+          });
+          squareCustomerId = sqCustResult.customer.id;
+          await pool.query('UPDATE customers SET square_customer_id = $1 WHERE id = $2', [squareCustomerId, inv.customer_id]);
+        }
+
+        if (squareCustomerId) {
+          // Save card on file first (consumes the single-use token)
+          const { result: cardResult } = await squareClient.cardsApi.createCard({
+            idempotencyKey: crypto.randomUUID(),
+            sourceId: sourceId,
+            card: { customerId: squareCustomerId, cardholderName: inv.customer_name }
+          });
+          const savedCard = cardResult.card;
+
+          // Save to our DB
+          await pool.query(
+            `INSERT INTO customer_saved_cards (customer_id, square_card_id, card_brand, last4, exp_month, exp_year, cardholder_name) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [inv.customer_id, savedCard.id, savedCard.cardBrand, savedCard.last4, savedCard.expMonth, savedCard.expYear, inv.customer_name]
+          );
+
+          // Use saved card ID for the payment
+          paymentSourceId = savedCard.id;
+          savedCardInfo = { brand: savedCard.cardBrand, last4: savedCard.last4 };
+        }
+      } catch (saveErr) {
+        console.error('Save card during payment error:', saveErr);
+        // Fall back to charging with original token (card won't be saved but payment still works)
+        paymentSourceId = sourceId;
+      }
+    }
+
+    const paymentRequest = {
+      sourceId: paymentSourceId,
+      idempotencyKey,
+      amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: inv.invoice_number,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}${processingFee > 0 ? ' (includes service fee)' : ''}`,
+    };
+    if (verificationToken) paymentRequest.verificationToken = verificationToken;
+
+    const response = await squareClient.paymentsApi.createPayment(paymentRequest);
+    const sqPayment = response.result.payment;
+
+    // Determine method
+    const method = sqPayment.sourceType === 'WALLET' ? 'apple_pay' : 'card';
+    const cardDetails = sqPayment.cardDetails;
+
+    // Record payment (amount = balance only, processing_fee tracked separately)
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, totalCharge, method, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+       sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl,
+       cardDetails?.card?.cardBrand, cardDetails?.card?.last4]
+    );
+
+    // Update invoice
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
+    const currentStatus = cleanStatusValue(inv.status).toLowerCase();
+    const newStatus = newAmountPaid >= parseFloat(inv.total)
+      ? 'paid'
+      : (currentStatus === 'pending' || currentStatus === 'sent' || currentStatus === 'overdue' ? 'partial' : inv.status);
+    if (processingFee > 0) {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id, processingFee]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id]
+      );
+    }
+
+    // Send confirmation emails
+    const feeNote = processingFee > 0 ? `<p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Credit Card Service Fee:</strong> $${processingFee.toFixed(2)}</p>` : '';
+    try {
+      // Customer confirmation
+      if (inv.customer_email) {
+        const custContent = `
+          <h2 style="color:#2e403d;margin:0 0 16px;">Payment Confirmation</h2>
+          <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+          <p>We've received your payment. Thank you!</p>
+          <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice amount:</strong> $${balance.toFixed(2)}</p>
+            ${feeNote}
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Total charged:</strong> $${totalCharge.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Method:</strong> ${method === 'apple_pay' ? 'Apple Pay' : 'Card'} ${cardDetails?.card?.last4 ? '•••• ' + cardDetails.card.last4 : ''}</p>
+            ${sqPayment.receiptUrl ? `<p style="margin:0;"><a href="${sqPayment.receiptUrl}" style="color:#059669;font-weight:600;">View Receipt</a></p>` : ''}
+          </div>
+        `;
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }), null, { type: 'payment_receipt', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
+      }
+      // Admin notification
+      const adminContent = `
+        <h2 style="color:#2e403d;margin:0 0 16px;">Payment Received</h2>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${totalCharge.toFixed(2)}</strong> on invoice <strong>${inv.invoice_number}</strong>.</p>
+        ${processingFee > 0 ? `<p>Credit Card Service Fee passed to customer: $${processingFee.toFixed(2)} (Invoice balance: $${balance.toFixed(2)})</p>` : ''}
+        <p>Method: ${method === 'apple_pay' ? 'Apple Pay' : 'Card'} ${cardDetails?.card?.last4 ? '•••• ' + cardDetails.card.last4 : ''}</p>
+        <p>Square ID: ${sqPayment.id}</p>
+        ${sqPayment.receiptUrl ? `<p><a href="${sqPayment.receiptUrl}">View Receipt</a></p>` : ''}
+      `;
+      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${totalCharge.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }), null, { type: 'admin_notification', customer_name: inv.customer_name });
+    } catch (emailErr) { console.error('Payment email error:', emailErr); }
+
+    res.json({
+      success: true,
+      payment: {
+        id: paymentId,
+        amount: totalCharge,
+        invoiceAmount: balance,
+        processingFee,
+        status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+        receiptUrl: sqPayment.receiptUrl,
+        cardBrand: cardDetails?.card?.cardBrand,
+        cardLast4: cardDetails?.card?.last4,
+        cardSaved: !!savedCardInfo
+      }
+    });
+  } catch (error) {
+    console.error('Card payment error:', error);
+    const errorMessage = error instanceof SquareApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
+    res.status(500).json({ success: false, error: errorMessage });
+  }
+});
+
+// POST /api/pay/:token/saved-card - Pay invoice with saved card on file
+router.post('/api/pay/:token/saved-card', async (req, res) => {
+  try {
+    if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
+    const { card_id } = req.body;
+    if (!card_id) return res.status(400).json({ success: false, error: 'card_id required' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = invResult.rows[0];
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
+
+    // Look up saved card
+    const cardResult = await pool.query('SELECT square_card_id, card_brand, last4 FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true', [card_id, inv.customer_id]);
+    if (cardResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Saved card not found' });
+    const savedCard = cardResult.rows[0];
+
+    // Check processing fee config
+    let processingFee = 0;
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        const feeConfig = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+        if (feeConfig.enabled) {
+          const pct = parseFloat(feeConfig.card_fee_percent) || 2.9;
+          const fixed = parseFloat(feeConfig.card_fee_fixed) || 0.30;
+          processingFee = Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+        }
+      }
+    } catch(e) { /* no fee */ }
+
+    const totalCharge = balance + processingFee;
+    const amountCents = Math.round(totalCharge * 100);
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    const response = await squareClient.paymentsApi.createPayment({
+      sourceId: savedCard.square_card_id,
+      idempotencyKey: crypto.randomUUID(),
+      amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: inv.invoice_number,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name} (card on file)${processingFee > 0 ? ' (includes service fee)' : ''}`
+    });
+    const sqPayment = response.result.payment;
+
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, 'card', $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, totalCharge, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+       sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl, savedCard.card_brand, savedCard.last4]
+    );
+
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    if (processingFee > 0) {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id, processingFee]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id]
+      );
+    }
+
+    // Send confirmation emails
+    try {
+      if (inv.customer_email) {
+        const custContent = `
+          <h2 style="color:#2e403d;margin:0 0 16px;">Payment Confirmation</h2>
+          <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+          <p>We've received your payment. Thank you!</p>
+          <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice amount:</strong> $${balance.toFixed(2)}</p>
+            ${processingFee > 0 ? `<p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Service Fee:</strong> $${processingFee.toFixed(2)}</p>` : ''}
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Total charged:</strong> $${totalCharge.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#166534;"><strong>Method:</strong> Card on file •••• ${savedCard.last4}</p>
+            ${sqPayment.receiptUrl ? `<p style="margin:0;"><a href="${sqPayment.receiptUrl}" style="color:#059669;font-weight:600;">View Receipt</a></p>` : ''}
+          </div>`;
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }), null, { type: 'payment_receipt', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
+      }
+      const adminContent = `
+        <h2 style="color:#2e403d;margin:0 0 16px;">Payment Received</h2>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${totalCharge.toFixed(2)}</strong> on invoice <strong>${inv.invoice_number}</strong>.</p>
+        ${processingFee > 0 ? `<p>Service Fee: $${processingFee.toFixed(2)}</p>` : ''}
+        <p>Method: Card on file •••• ${savedCard.last4}</p>
+        <p>Square ID: ${sqPayment.id}</p>`;
+      await sendEmail(NOTIFICATION_EMAIL, `Payment: $${totalCharge.toFixed(2)} from ${inv.customer_name}`, emailTemplate(adminContent, { showSignature: false }), null, { type: 'admin_notification', customer_name: inv.customer_name });
+    } catch (emailErr) { console.error('Saved card payment email error:', emailErr); }
+
+    res.json({
+      success: true,
+      payment: { id: paymentId, amount: totalCharge, invoiceAmount: balance, processingFee, status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending', receiptUrl: sqPayment.receiptUrl, cardBrand: savedCard.card_brand, cardLast4: savedCard.last4 }
+    });
+  } catch (error) {
+    console.error('Saved card payment error:', error);
+    const errorMessage = error instanceof SquareApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
+    res.status(500).json({ success: false, error: errorMessage });
+  }
+});
+
+// POST /api/pay/:token/ach - Process ACH bank transfer
+router.post('/api/pay/:token/ach', async (req, res) => {
+  try {
+    if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
+
+    const { sourceId } = req.body;
+    if (!sourceId) return res.status(400).json({ success: false, error: 'Payment source required' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = invResult.rows[0];
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice already paid' });
+
+    // Check processing fee config for ACH
+    let processingFee = 0;
+    try {
+      const feeResult = await pool.query("SELECT value FROM business_settings WHERE key = 'processing_fee_config'");
+      if (feeResult.rows.length > 0) {
+        const feeConfig = typeof feeResult.rows[0].value === 'string' ? JSON.parse(feeResult.rows[0].value) : feeResult.rows[0].value;
+        if (feeConfig.enabled) {
+          const pct = parseFloat(feeConfig.ach_fee_percent) || 1.0;
+          const fixed = parseFloat(feeConfig.ach_fee_fixed) || 0;
+          processingFee = Math.round((balance * (pct / 100) + fixed) * 100) / 100;
+        }
+      }
+    } catch(e) { /* no fee */ }
+
+    const totalCharge = balance + processingFee;
+    const amountCents = Math.round(totalCharge * 100);
+    const idempotencyKey = crypto.randomUUID();
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+
+    const response = await squareClient.paymentsApi.createPayment({
+      sourceId,
+      idempotencyKey,
+      amountMoney: { amount: BigInt(amountCents), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: inv.invoice_number,
+      note: `Invoice ${inv.invoice_number} - ${inv.customer_name}${processingFee > 0 ? ' (includes service fee)' : ''}`,
+      acceptPartialAuthorization: false,
+    });
+    const sqPayment = response.result.payment;
+    const bankDetails = sqPayment.bankAccountDetails;
+
+    // ACH payments are typically PENDING until they clear
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, square_order_id, square_receipt_url, ach_bank_name, paid_at)
+       VALUES ($1, $2, $3, $4, 'ach', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, totalCharge, sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+       sqPayment.id, sqPayment.orderId, sqPayment.receiptUrl, bankDetails?.bankName]
+    );
+
+    // Update invoice
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + balance;
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    if (processingFee > 0) {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP, processing_fee = $4, processing_fee_passed = true WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id, processingFee]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2::text = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+        [newAmountPaid, newStatus, inv.id]
+      );
+    }
+
+    // Send emails
+    const feeNote = processingFee > 0 ? `<p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>ACH Service Fee:</strong> $${processingFee.toFixed(2)}</p>` : '';
+    try {
+      if (inv.customer_email) {
+        const custContent = `
+          <h2 style="color:#2e403d;margin:0 0 16px;">Payment Confirmation</h2>
+          <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+          <p>We've received your ACH bank transfer. It may take 3-5 business days to clear.</p>
+          <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:20px;margin:20px 0;">
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Invoice amount:</strong> $${balance.toFixed(2)}</p>
+            ${feeNote}
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Total charged:</strong> $${totalCharge.toFixed(2)}</p>
+            <p style="margin:0 0 8px;font-size:14px;color:#5b21b6;"><strong>Invoice:</strong> ${inv.invoice_number}</p>
+            <p style="margin:0;font-size:14px;color:#5b21b6;"><strong>Method:</strong> ACH Bank Transfer${bankDetails?.bankName ? ' (' + bankDetails.bankName + ')' : ''}</p>
+          </div>
+        `;
+        await sendEmail(inv.customer_email, `Payment received — ${inv.invoice_number}`, emailTemplate(custContent, { showSignature: false }));
+      }
+      await sendEmail(NOTIFICATION_EMAIL, `ACH Payment: $${totalCharge.toFixed(2)} from ${inv.customer_name}`, emailTemplate(`
+        <h2 style="color:#2e403d;margin:0 0 16px;">ACH Payment Received</h2>
+        <p><strong>${inv.customer_name}</strong> paid <strong>$${totalCharge.toFixed(2)}</strong> via ACH on invoice <strong>${inv.invoice_number}</strong>.</p>
+        ${processingFee > 0 ? `<p>ACH Service Fee passed to customer: $${processingFee.toFixed(2)} (Invoice balance: $${balance.toFixed(2)})</p>` : ''}
+        <p>Status: ${sqPayment.status} (ACH payments may take 3-5 days to clear)</p>
+        <p>Square ID: ${sqPayment.id}</p>
+      `, { showSignature: false }));
+    } catch (emailErr) { console.error('ACH email error:', emailErr); }
+
+    res.json({
+      success: true,
+      payment: {
+        id: paymentId,
+        amount: totalCharge,
+        invoiceAmount: balance,
+        processingFee,
+        status: sqPayment.status === 'COMPLETED' ? 'completed' : 'pending',
+        receiptUrl: sqPayment.receiptUrl,
+        bankName: bankDetails?.bankName,
+        note: sqPayment.status !== 'COMPLETED' ? 'ACH transfers typically take 3-5 business days to clear' : undefined
+      }
+    });
+  } catch (error) {
+    console.error('ACH payment error:', error);
+    const errorMessage = error instanceof SquareApiError ? (error.result?.errors?.[0]?.detail || error.message) : error.message;
+    res.status(500).json({ success: false, error: errorMessage });
+  }
+});
+
+// GET /api/pay/:token/pdf - Download invoice PDF (public)
+router.get('/api/pay/:token/pdf', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = result.rows[0];
+    const pdfResult = await generateInvoicePDF(inv);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'PDF generation failed' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${inv.invoice_number || inv.id}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
+  } catch (error) {
+    console.error('Pay PDF error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/:id/pdf - Download invoice PDF (admin)
+router.get('/api/invoices/:id/pdf', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = result.rows[0];
+    const pdfResult = await generateInvoicePDF(inv);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'PDF generation failed' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${inv.invoice_number || inv.id}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
+  } catch (error) {
+    console.error('Invoice PDF error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/:id/receipt-pdf - Download payment receipt PDF (admin)
+router.get('/api/invoices/:id/receipt-pdf', async (req, res) => {
+  try {
+    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = invResult.rows[0];
+    // Get most recent payment for this invoice
+    let payment = {};
+    try {
+      const payResult = await pool.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC LIMIT 1', [inv.id]);
+      if (payResult.rows.length > 0) payment = payResult.rows[0];
+    } catch (e) { /* no payments table or no payment */ }
+    if (!payment.paid_at) payment.paid_at = inv.paid_at;
+    if (!payment.amount) payment.amount = inv.amount_paid || inv.total;
+    const pdfResult = await generateReceiptPDF(inv, payment);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'Receipt PDF generation failed' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="receipt-${inv.invoice_number || inv.id}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
+  } catch (error) {
+    console.error('Receipt PDF error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/pay/:token/receipt-pdf - Download payment receipt PDF (public)
+router.get('/api/pay/:token/receipt-pdf', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM invoices WHERE payment_token = $1', [req.params.token]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const inv = result.rows[0];
+    let payment = {};
+    try {
+      const payResult = await pool.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY created_at DESC LIMIT 1', [inv.id]);
+      if (payResult.rows.length > 0) payment = payResult.rows[0];
+    } catch (e) { /* no payment */ }
+    if (!payment.paid_at) payment.paid_at = inv.paid_at;
+    if (!payment.amount) payment.amount = inv.amount_paid || inv.total;
+    const pdfResult = await generateReceiptPDF(inv, payment);
+    if (!pdfResult || !pdfResult.bytes) return res.status(500).json({ error: 'Receipt PDF generation failed' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="receipt-${inv.invoice_number || inv.id}.pdf"`);
+    res.send(Buffer.from(pdfResult.bytes));
+  } catch (error) {
+    console.error('Pay receipt PDF error:', error);
+    serverError(res, error);
+  }
+});
+
+router.post('/api/invoices/:id/record-payment', validate(schemas.recordPayment), async (req, res) => {
+  try {
+    const { amount, method, notes } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ success: false, error: 'Invalid amount' });
+
+    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = invResult.rows[0];
+
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, notes, paid_at)
+       VALUES ($1, $2, $3, $4, $5, 'completed', $6, CURRENT_TIMESTAMP)`,
+      [paymentId, inv.id, inv.customer_id, amount, method || 'cash', notes]
+    );
+
+    const newAmountPaid = parseFloat(inv.amount_paid || 0) + parseFloat(amount);
+    const newStatus = newAmountPaid >= parseFloat(inv.total) ? 'paid' : inv.status;
+    await pool.query(
+      `UPDATE invoices SET amount_paid = $1, status = $2, paid_at = CASE WHEN $2 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newAmountPaid, newStatus, inv.id]
+    );
+
+    res.json({ success: true, paymentId, newAmountPaid, newStatus });
+  } catch (error) {
+    console.error('Record payment error:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/:id/send-reminder - Send payment reminder email
+router.post('/api/invoices/:id/send-reminder', async (req, res) => {
+  try {
+    const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const inv = invResult.rows[0];
+    if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
+
+    const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
+
+    const content = `
+      <h2 style="color:#2e403d;margin:0 0 16px;">Payment Reminder</h2>
+      <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
+      <p>This is a friendly reminder that your invoice <strong>${inv.invoice_number}</strong> has a balance of <strong>$${balance.toFixed(2)}</strong>${inv.due_date ? ' due by <strong>' + new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) + '</strong>' : ''}.</p>
+      ${payUrl ? `
+        <div style="text-align:center;margin:28px 0;">
+          <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
+            Pay Now — $${balance.toFixed(2)}
+          </a>
+        </div>
+        <p style="text-align:center;font-size:12px;color:#9ca09c;">Secure payment powered by Square</p>
+      ` : ''}
+      <p>If you've already sent payment, please disregard this reminder.</p>
+    `;
+    await sendEmail(inv.customer_email, `Reminder: Invoice ${inv.invoice_number} — $${balance.toFixed(2)} due`, emailTemplate(content), null, { type: 'invoice_reminder', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });
+
+    await pool.query(
+      'UPDATE invoices SET reminder_sent_at = CURRENT_TIMESTAMP, reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [inv.id]
+    );
+
+    res.json({ success: true, message: 'Reminder sent' });
+  } catch (error) {
+    console.error('Send reminder error:', error);
+    serverError(res, error);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+
+// POST /api/invoices/:id/charge-card - Admin: charge a saved card for an invoice
+router.post('/api/invoices/:id/charge-card', authenticateToken, async (req, res) => {
+  try {
+    const { card_id } = req.body;
+    if (!card_id) return res.status(400).json({ success: false, error: 'card_id required' });
+    if (!squareClient) return res.status(500).json({ success: false, error: 'Square not configured' });
+
+    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (inv.rows.length === 0) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const invoice = inv.rows[0];
+
+    const cardResult = await pool.query(
+      'SELECT square_card_id FROM customer_saved_cards WHERE id = $1 AND customer_id = $2 AND enabled = true',
+      [card_id, invoice.customer_id]
+    );
+    if (cardResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Card not found' });
+
+    const balance = Math.round((parseFloat(invoice.total) - parseFloat(invoice.amount_paid || 0)) * 100);
+    if (balance <= 0) return res.status(400).json({ success: false, error: 'Invoice has no balance due' });
+
+    const { result: payResult } = await squareClient.paymentsApi.createPayment({
+      idempotencyKey: crypto.randomUUID(),
+      sourceId: cardResult.rows[0].square_card_id,
+      amountMoney: { amount: BigInt(balance), currency: 'USD' },
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: invoice.invoice_number,
+      note: `Invoice ${invoice.invoice_number} — admin charge card-on-file`
+    });
+    const payment = payResult.payment;
+    const paymentId = 'PAY-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    await pool.query(
+      `INSERT INTO payments (payment_id, invoice_id, customer_id, amount, method, status, square_payment_id, card_brand, card_last4, paid_at)
+       VALUES ($1, $2, $3, $4, 'card', 'completed', $5, $6, $7, NOW())`,
+      [paymentId, req.params.id, invoice.customer_id, balance / 100, payment.id, payment.cardDetails?.card?.cardBrand, payment.cardDetails?.card?.last4]
+    );
+    await pool.query("UPDATE invoices SET status = 'paid', amount_paid = total, paid_at = NOW(), updated_at = NOW() WHERE id = $1", [req.params.id]);
+    res.json({ success: true, paymentId, receiptUrl: payment.receiptUrl });
+  } catch (error) {
+    console.error('Admin charge card error:', error);
+    serverError(res, error);
+  }
+});
+
+// ─── Payment Schedule Splitting ────────────────────────────────────────────
+
+// POST /api/invoices/:id/payment-schedule - Split invoice into installments
+router.post('/api/invoices/:id/payment-schedule', async (req, res) => {
+  try {
+    const { installments } = req.body; // Array of { amount, due_date, label }
+    if (!installments || !Array.isArray(installments) || installments.length < 2) {
+      return res.status(400).json({ success: false, error: 'Need at least 2 installments' });
+    }
+    const inv = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (!inv.rows.length) return res.status(404).json({ success: false, error: 'Invoice not found' });
+
+    const total = parseFloat(inv.rows[0].total);
+    const scheduleTotal = installments.reduce((sum, i) => sum + parseFloat(i.amount), 0);
+    if (Math.abs(scheduleTotal - total) > 0.01) {
+      return res.status(400).json({ success: false, error: `Installments total $${scheduleTotal.toFixed(2)} doesn't match invoice total $${total.toFixed(2)}` });
+    }
+
+    const schedule = installments.map((inst, idx) => ({
+      number: idx + 1,
+      amount: parseFloat(inst.amount),
+      due_date: inst.due_date,
+      label: inst.label || `Payment ${idx + 1} of ${installments.length}`,
+      status: 'pending'
+    }));
+
+    await pool.query(
+      `UPDATE invoices SET payment_schedule = $1, installment_count = $2, updated_at = NOW() WHERE id = $3`,
+      [JSON.stringify(schedule), installments.length, req.params.id]
+    );
+
+    res.json({ success: true, schedule, installment_count: installments.length });
+  } catch (error) { serverError(res, error); }
+});
+
+// GET /api/invoices/:id/payment-schedule
+router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
+  try {
+    const inv = await pool.query('SELECT id, total, amount_paid, payment_schedule, installment_count FROM invoices WHERE id = $1', [req.params.id]);
+    if (!inv.rows.length) return res.status(404).json({ success: false, error: 'Invoice not found' });
+    const schedule = inv.rows[0].payment_schedule || [];
+    // Mark paid installments based on amount_paid
+    let remaining = parseFloat(inv.rows[0].amount_paid) || 0;
+    const updated = (Array.isArray(schedule) ? schedule : []).map(inst => {
+      if (remaining >= inst.amount) { remaining -= inst.amount; return { ...inst, status: 'paid' }; }
+      if (remaining > 0) { const partial = remaining; remaining = 0; return { ...inst, status: 'partial', paid: partial }; }
+      return { ...inst, status: 'pending' };
+    });
+    res.json({ success: true, schedule: updated, total: parseFloat(inv.rows[0].total), amount_paid: parseFloat(inv.rows[0].amount_paid) || 0 });
+  } catch (error) { serverError(res, error); }
+});
+
+// ─── Job Detail / Profitability ────────────────────────────────────────────
+
+  return router;
+};

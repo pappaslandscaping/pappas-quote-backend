@@ -99,6 +99,7 @@ const endpoints = [
   ['POST', `/api/jobs/${FAKE_ID}/expenses`, {}],
   ['POST', '/api/jobs/optimize-route', { job_ids: [] }],
   ['PATCH', `/api/jobs/${FAKE_ID}`, { status: 'scheduled' }],
+  ['PATCH', `/api/jobs/${FAKE_ID}/status`, { status: 'in_progress' }],
   ['PATCH', `/api/jobs/${FAKE_ID}/complete`, {}],
   ['PATCH', `/api/jobs/${FAKE_ID}/pipeline`, { status: 'scheduled' }],
   ['PATCH', `/api/jobs/${FAKE_ID}/recurring`, {}],
@@ -338,6 +339,7 @@ const endpoints = [
 
   // ── CopilotCRM Sync ──
   ['POST', '/api/copilot/sync', { startDate: '2020-01-01', endDate: '2020-01-01' }],
+  ['POST', '/api/copilot/dispatch-execution/sync', { date_from: '2020-01-01', date_to: '2020-01-01', dry_run: true }],
   // SKIP: logs into CopilotCRM and overwrites cookies — ['POST', '/api/copilot/refresh-cookies', {}],
   // SKIP: sends real contract email + logs into CopilotCRM — ['POST', '/api/copilotcrm/estimate-accepted', { customer_name: 'Test', estimate_number: '0000' }],
 

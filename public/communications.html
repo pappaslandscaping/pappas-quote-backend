@@ -95,6 +95,28 @@
         .feed-item:hover { background: var(--gray-50); }
         .feed-item.selected { background: rgba(22,163,74,0.06); border-left-color: var(--primary); box-shadow: inset 0 0 0 1px rgba(22,163,74,0.08); }
         .feed-item.unread { background: #fafcfa; }
+        .feed-item.kind-call {
+            background: linear-gradient(180deg, rgba(231,237,241,0.58), rgba(255,255,255,0.96));
+        }
+        .feed-item.kind-voicemail {
+            background: linear-gradient(180deg, rgba(250,238,215,0.6), rgba(255,255,255,0.96));
+        }
+        .feed-item.kind-call.selected {
+            border-left-color: var(--blue);
+            background: rgba(91,120,137,0.09);
+            box-shadow: inset 0 0 0 1px rgba(91,120,137,0.12);
+        }
+        .feed-item.kind-voicemail.selected {
+            border-left-color: var(--amber);
+            background: rgba(208,154,67,0.1);
+            box-shadow: inset 0 0 0 1px rgba(208,154,67,0.14);
+        }
+        .feed-item.kind-call.unread {
+            background: linear-gradient(180deg, rgba(231,237,241,0.82), rgba(255,255,255,0.98));
+        }
+        .feed-item.kind-voicemail.unread {
+            background: linear-gradient(180deg, rgba(250,238,215,0.86), rgba(255,255,255,0.98));
+        }
         .unread-dot {
             position: absolute; left: 5px; top: 50%; transform: translateY(-50%);
             width: 6px; height: 6px; border-radius: 50%; background: var(--primary);
@@ -104,6 +126,10 @@
             display: flex; align-items: center; justify-content: center;
             font-size: 14px; font-weight: 700; flex-shrink: 0; letter-spacing: -0.5px;
         }
+        .feed-avatar svg {
+            width: 18px;
+            height: 18px;
+        }
         .av-sms { background: var(--green-bg); color: var(--green); }
         .av-call { background: var(--blue-bg); color: var(--blue); }
         .av-vm { background: var(--amber-bg); color: var(--amber); }
@@ -112,17 +138,26 @@
         .feed-name-wrap { min-width: 0; }
         .feed-name { font-size: 14px; font-weight: 700; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .feed-subline { font-size: 11px; color: var(--gray-400); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .feed-subline-label { font-weight: 700; color: var(--gray-500); }
         .feed-time { font-size: 11px; color: var(--gray-400); flex-shrink: 0; font-weight: 600; }
         .feed-preview {
             font-size: 12px; color: var(--gray-500); line-height: 1.45;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
             overflow: hidden; min-height: 34px;
         }
+        .feed-item.kind-call .feed-preview,
+        .feed-item.kind-voicemail .feed-preview {
+            color: var(--gray-600);
+        }
         .feed-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .feed-pill-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .feed-state {
             font-size: 11px; font-weight: 600; color: var(--gray-400);
         }
         .feed-state.unread { color: var(--primary); }
+        .feed-state.call { color: var(--blue); }
+        .feed-state.voicemail { color: var(--amber); }
+        .feed-state.resolved { color: var(--gray-500); }
         .type-pill {
             display: inline-flex; align-items: center; gap: 3px;
             padding: 2px 7px; border-radius: 4px;
@@ -134,6 +169,8 @@
         .pill-mms { background: var(--purple-bg); color: var(--purple); }
         .pill-archived { background: var(--gray-100); color: var(--gray-500); }
         .pill-handled { background: var(--green-bg); color: var(--green); }
+        .pill-recording { background: var(--gray-100); color: var(--gray-600); }
+        .pill-followup { background: var(--info-bg); color: var(--blue); }
 
         /* Detail Panel */
         .detail-panel {
@@ -429,6 +466,13 @@
         .ci-vm { background: var(--amber-bg); color: var(--amber); }
         .call-hero h3 { font-size: 17px; font-weight: 700; color: var(--gray-700); margin-bottom: 3px; }
         .call-hero p { font-size: 12px; color: var(--gray-400); }
+        .call-context-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
         .call-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
         .meta-card {
             background: var(--white); box-shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -465,8 +509,110 @@
         .transcript-label { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
         .transcript-text { font-size: 14px; color: var(--gray-600); line-height: 1.6; font-style: italic; }
 
-        /* Voicemail Actions */
-        .vm-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+        .call-action-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+            gap: 16px;
+        }
+        .call-section-card {
+            background: var(--white);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .call-section-kicker {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 6px;
+        }
+        .call-section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+        .call-section-note {
+            font-size: 12px;
+            color: var(--gray-500);
+            line-height: 1.55;
+        }
+        .call-followup-wrap {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            margin-top: 14px;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 14px;
+            padding: 10px 12px;
+        }
+        .call-followup-wrap:focus-within {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(91,120,137,0.08);
+        }
+        .call-followup-input {
+            flex: 1;
+            border: none;
+            background: none;
+            outline: none;
+            resize: none;
+            min-height: 64px;
+            max-height: 140px;
+            font-family: inherit;
+            font-size: 14px;
+            color: var(--gray-700);
+            line-height: 1.55;
+        }
+        .call-followup-input::placeholder { color: var(--gray-400); }
+        .call-followup-btn {
+            min-width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            border: none;
+            background: var(--blue);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+        .call-followup-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(91,120,137,0.18);
+        }
+        .call-followup-btn:disabled {
+            opacity: 0.45;
+            cursor: default;
+            transform: none;
+            box-shadow: none;
+        }
+        .call-followup-btn svg { width: 16px; height: 16px; }
+        .call-followup-foot {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .call-followup-hint,
+        .call-followup-count {
+            font-size: 12px;
+            color: var(--gray-400);
+        }
+        .call-followup-count {
+            font-weight: 700;
+        }
+        .vm-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
         .vm-action-btn {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 10px 16px; border-radius: 8px;
@@ -482,6 +628,8 @@
         .vm-action-btn.delete:hover { background: var(--red-bg); border-color: var(--red); }
         .vm-action-btn.handled { color: var(--green); }
         .vm-action-btn.handled:hover { background: var(--green-bg); border-color: var(--green); }
+        .vm-action-btn.secondary { color: var(--blue); }
+        .vm-action-btn.secondary:hover { background: var(--blue-bg); border-color: var(--blue); }
 
         .feed-empty { text-align: center; padding: 56px 20px; color: var(--gray-400); }
         .feed-empty svg { width: 32px; height: 32px; margin-bottom: 10px; opacity: 0.35; display: block; margin-left: auto; margin-right: auto; }
@@ -501,6 +649,8 @@
             .email-modal-actions { flex-direction: column; align-items: stretch; }
             .email-modal-buttons { width: 100%; }
             .email-secondary-btn, .email-primary-btn { justify-content: center; width: 100%; }
+            .call-meta,
+            .call-action-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -591,7 +741,7 @@
                 <div class="detail-empty-card">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                     <h3>Select a conversation</h3>
-                    <p class="detail-empty-copy">Choose a text thread, call, or voicemail from the left to review the conversation and respond by text.</p>
+                    <p class="detail-empty-copy">Choose a text thread, call, or voicemail from the left to review details, triage the item, and send a text follow-up when needed.</p>
                 </div>
             </div>
             <div id="detail-content" style="display:none;flex:1;flex-direction:column;overflow:hidden;"></div>
@@ -778,6 +928,75 @@ function updateStats() {
     }
 }
 
+function getItemPhoneKey(item) {
+    return item.phoneKey || digitsOnly(item.from || '');
+}
+
+function getItemTypeLabel(item) {
+    if (item.type === 'mms') return 'Photo text';
+    if (item.type === 'voicemail') return 'Voicemail';
+    if (item.type === 'call') return 'Call';
+    return 'Text';
+}
+
+function getItemSubline(item) {
+    const parts = [`<span class="feed-subline-label">${esc(getItemTypeLabel(item))}</span>`, esc(fmtPhone(item.from))];
+    if ((item.type === 'call' || item.type === 'voicemail') && item.duration) {
+        parts.push(esc(fmtDur(item.duration)));
+    }
+    if (item.type === 'call' && item.option) {
+        parts.push(esc(item.option));
+    }
+    if (item.type === 'voicemail' && item.recordingUrl) {
+        parts.push('Recording');
+    }
+    return parts.join(' • ');
+}
+
+function getItemPreview(item) {
+    if (item.type === 'voicemail') {
+        return item.transcription || 'Open to review the voicemail and decide on a follow-up text.';
+    }
+    if (item.type === 'call') {
+        if (item.option) return `Call reason: ${item.option}`;
+        return 'Open to review the call details and decide whether to text back.';
+    }
+    return item.body || 'No preview available.';
+}
+
+function getItemPills(item) {
+    const pills = [];
+    if (item.type === 'call') pills.push('<span class="type-pill pill-call">Call</span>');
+    else if (item.type === 'voicemail') pills.push('<span class="type-pill pill-vm">Voicemail</span>');
+    else if (item.type === 'mms') pills.push('<span class="type-pill pill-mms">Photo text</span>');
+    else pills.push('<span class="type-pill pill-sms">Text</span>');
+
+    if (item.status === 'archived') pills.push('<span class="type-pill pill-archived">Archived</span>');
+    else if (item.status === 'handled') pills.push(`<span class="type-pill pill-handled">${item.type === 'call' ? 'Reviewed' : 'Handled'}</span>`);
+    else if (item.type === 'voicemail' && item.recordingUrl) pills.push('<span class="type-pill pill-recording">Recording</span>');
+    else if (item.type === 'call' || item.type === 'voicemail') pills.push('<span class="type-pill pill-followup">Follow-up</span>');
+
+    return pills.join('');
+}
+
+function getItemStateMeta(item) {
+    if (item.status === 'archived') return { text: 'Archived item', className: 'resolved' };
+    if (item.status === 'handled') return { text: item.type === 'call' ? 'Reviewed' : 'Handled', className: 'resolved' };
+    if (item.type === 'voicemail') return { text: item.read ? 'Needs follow-up' : 'New voicemail', className: 'voicemail' };
+    if (item.type === 'call') return { text: item.read ? 'Review call' : 'New call', className: 'call' };
+    return { text: item.read ? 'Viewed thread' : 'Unread text', className: item.read ? '' : 'unread' };
+}
+
+function getFeedAvatarMarkup(item, name) {
+    if (item.type === 'call') {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>`;
+    }
+    if (item.type === 'voicemail') {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10a4 4 0 0 1 4-4v8a4 4 0 0 1-4-4Z"/><path d="M22 10a4 4 0 0 0-4-4v8a4 4 0 0 0 4-4Z"/><path d="M6 10v2a6 6 0 0 0 12 0v-2"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>`;
+    }
+    return esc(name.charAt(0).toUpperCase());
+}
+
 // ─── Render Feed ───────────────────────────────────────────────────────────
 function renderFeed() {
     const search = document.getElementById('search-input').value.toLowerCase();
@@ -804,34 +1023,27 @@ function renderFeed() {
 
     container.innerHTML = items.map(item => {
         const name = item.name || fmtPhone(item.from);
-        const letter = name.charAt(0).toUpperCase();
         const isSelected = item.id === selectedId;
         const isUnread = !item.read;
+        const avClass = item.type === 'call' ? 'av-call' : item.type === 'voicemail' ? 'av-vm' : 'av-sms';
+        const feedKind = item.type === 'call' ? 'kind-call' : item.type === 'voicemail' ? 'kind-voicemail' : 'kind-sms';
+        const stateMeta = getItemStateMeta(item);
 
-        let avClass = 'av-sms', pill = '';
-        if (item.status === 'archived') { avClass = 'av-vm'; pill = '<span class="type-pill pill-archived">Archived</span>'; }
-        else if (item.status === 'handled') { avClass = 'av-vm'; pill = '<span class="type-pill pill-handled">Handled</span>'; }
-        else if (item.type === 'call') { avClass = 'av-call'; pill = '<span class="type-pill pill-call">Call</span>'; }
-        else if (item.type === 'voicemail') { avClass = 'av-vm'; pill = '<span class="type-pill pill-vm">Voicemail</span>'; }
-        else if (item.type === 'mms') { pill = '<span class="type-pill pill-mms">Photo</span>'; }
-        else { pill = '<span class="type-pill pill-sms">Text</span>'; }
-
-        const preview = item.body || (item.type === 'voicemail' ? 'Voicemail transcription available.' : item.type === 'call' ? 'Call details available.' : 'No preview available.');
-        return `<div class="feed-item ${isSelected?'selected':''} ${isUnread?'unread':''}" onclick="selectItem('${item.id}')">
+        return `<div class="feed-item ${feedKind} ${isSelected?'selected':''} ${isUnread?'unread':''}" onclick="selectItem('${item.id}')">
             ${isUnread ? '<div class="unread-dot"></div>' : ''}
-            <div class="feed-avatar ${avClass}">${letter}</div>
+            <div class="feed-avatar ${avClass}">${getFeedAvatarMarkup(item, name)}</div>
             <div class="feed-body">
                 <div class="feed-top">
                     <div class="feed-name-wrap">
                         <div class="feed-name">${esc(name)}</div>
-                        <div class="feed-subline">${esc(fmtPhone(item.from))}</div>
+                        <div class="feed-subline">${getItemSubline(item)}</div>
                     </div>
                     <div class="feed-time">${fmtTime(item.time)}</div>
                 </div>
-                <div class="feed-preview">${esc(preview)}</div>
+                <div class="feed-preview">${esc(getItemPreview(item))}</div>
                 <div class="feed-meta-row">
-                    <div>${pill}</div>
-                    <div class="feed-state ${isUnread ? 'unread' : ''}">${isUnread ? 'Needs reply' : 'Viewed'}</div>
+                    <div class="feed-pill-group">${getItemPills(item)}</div>
+                    <div class="feed-state ${stateMeta.className}">${esc(stateMeta.text)}</div>
                 </div>
             </div>
         </div>`;
@@ -887,6 +1099,10 @@ async function openThread(item) {
                             ${esc(channelLabel)}
                         </div>
                         <div class="thread-context-chip">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                            Reply sends SMS only
+                        </div>
+                        <div class="thread-context-chip">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             Last active ${esc(fmtTime(item.time))}
                         </div>
@@ -898,7 +1114,7 @@ async function openThread(item) {
         <div class="reply-box">
             <div class="reply-head">
                 <div class="reply-title">Reply by text</div>
-                <div class="reply-note">Stay in the thread and send one SMS reply at a time.</div>
+                <div class="reply-note">Stay in the SMS thread and send one text reply at a time.</div>
             </div>
             <div class="reply-wrap">
                 <textarea class="reply-input" id="reply-txt" placeholder="Type a message..." rows="1"
@@ -1120,10 +1336,21 @@ async function sendInboxEmail() {
 
 // ─── Call Detail ───────────────────────────────────────────────────────────
 function openCallDetail(item) {
+    currentThreadItem = item;
     const name = item.name || fmtPhone(item.from);
     // Show as voicemail if type is voicemail OR if it has a recording
     const isVm = item.type === 'voicemail' || item.recordingUrl;
     const proxiedUrl = getProxiedRecordingUrl(item.recordingUrl);
+    const resolutionLabel = item.status === 'archived'
+        ? 'Archived'
+        : item.status === 'handled'
+            ? (isVm ? 'Handled' : 'Reviewed')
+            : (isVm ? 'Needs follow-up' : 'Review and follow up');
+    const reasonLabel = item.option || (isVm ? 'No voicemail menu selection captured' : 'No call reason captured');
+    const followupTitle = isVm ? 'Text back from this voicemail' : 'Text back from this call';
+    const followupNote = isVm
+        ? 'Send a quick SMS response here. After sending, the inbox will move you into the SMS thread for continued texting.'
+        : 'Use this when a call needs a text follow-up. After sending, the inbox will move you into the SMS thread for continued texting.';
 
     const iconSvg = isVm
         ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.128.96.347 1.903.65 2.818a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>`
@@ -1157,30 +1384,65 @@ function openCallDetail(item) {
             <div>
                 <h3>${esc(name)}</h3>
                 <p>${esc(fmtPhone(item.from))} • ${fmtTime(item.time)}</p>
+                <div class="call-context-row">
+                    <div class="thread-context-chip primary">
+                        ${esc(isVm ? 'Voicemail selected' : 'Call selected')}
+                    </div>
+                    <div class="thread-context-chip">
+                        ${esc(resolutionLabel)}
+                    </div>
+                    <div class="thread-context-chip">
+                        ${esc(isVm && item.recordingUrl ? 'Recording available' : 'Text follow-up available')}
+                    </div>
+                </div>
             </div>
         </div>
         <div class="call-meta">
-            <div class="meta-card"><div class="meta-label">Type</div><div class="meta-val">${isVm?'Voicemail':'Answered Call'}${item.status === 'archived' ? ' (Archived)' : item.status === 'handled' ? ' (Handled)' : ''}</div></div>
-            <div class="meta-card"><div class="meta-label">Reason</div><div class="meta-val">${esc(item.option||'--')}</div></div>
+            <div class="meta-card"><div class="meta-label">Type</div><div class="meta-val">${esc(isVm ? 'Voicemail' : 'Call log')}</div></div>
+            <div class="meta-card"><div class="meta-label">Reason</div><div class="meta-val">${esc(reasonLabel)}</div></div>
             <div class="meta-card"><div class="meta-label">Duration</div><div class="meta-val">${item.duration?fmtDur(item.duration):'--'}</div></div>
         </div>
         ${vmHtml}
-        ${isVm ? `
-        <div class="vm-actions">
-            ${item.status !== 'handled' ? `<button class="vm-action-btn handled" onclick="markCallHandled(${item.rawId})">
+        <div class="call-action-grid">
+            <div class="call-section-card">
+                <div class="call-section-kicker">Follow-up</div>
+                <div class="call-section-title">${esc(followupTitle)}</div>
+                <div class="call-section-note">${esc(followupNote)}</div>
+                <div class="call-followup-wrap">
+                    <textarea class="call-followup-input" id="call-followup-txt" placeholder="Write a text follow-up..." onkeydown="callFollowupKey(event, ${item.rawId})" oninput="autoCallFollowup(this)"></textarea>
+                    <button class="call-followup-btn" id="call-followup-btn" onclick="sendCallFollowup(${item.rawId})" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                </div>
+                <div class="call-followup-foot">
+                    <div class="call-followup-hint">This sends a text without changing the underlying call record model.</div>
+                    <div class="call-followup-count" id="call-followup-count">0 characters</div>
+                </div>
+            </div>
+            <div class="call-section-card">
+                <div class="call-section-kicker">Resolve</div>
+                <div class="call-section-title">${esc(isVm ? 'Close out this voicemail' : 'Close out this call')}</div>
+                <div class="call-section-note">Use these controls when the item has been reviewed and should no longer sit in the active triage flow.</div>
+                <div class="vm-actions">
+                    <button class="vm-action-btn secondary" onclick="copyCallNumber('${esc(item.from)}')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copy Number
+                    </button>
+                    ${item.status !== 'handled' ? `<button class="vm-action-btn handled" onclick="markCallHandled(${item.rawId})">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Mark Handled
+                ${isVm ? 'Mark Handled' : 'Mark Reviewed'}
             </button>` : ''}
-            ${item.status !== 'archived' ? `<button class="vm-action-btn archive" onclick="archiveCall(${item.rawId})">
+                    ${item.status !== 'archived' ? `<button class="vm-action-btn archive" onclick="archiveCall(${item.rawId})">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                 Archive
             </button>` : ''}
-            <button class="vm-action-btn delete" onclick="deleteCall(${item.rawId})">
+                    ${isVm ? `<button class="vm-action-btn delete" onclick="deleteCall(${item.rawId})">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 Delete
-            </button>
+            </button>` : ''}
         </div>
-        ` : ''}
+            </div>
+        </div>
     </div>`);
 }
 
@@ -1199,61 +1461,141 @@ function playVm(url, btn) {
     });
 }
 
+function autoCallFollowup(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    updateCallFollowupComposerState();
+}
+
+function updateCallFollowupComposerState() {
+    const input = document.getElementById('call-followup-txt');
+    const btn = document.getElementById('call-followup-btn');
+    const count = document.getElementById('call-followup-count');
+    if (!input || !btn || !count) return;
+    const value = input.value || '';
+    btn.disabled = !value.trim();
+    count.textContent = `${value.length} ${value.length === 1 ? 'character' : 'characters'}`;
+}
+
+function callFollowupKey(e, callId) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendCallFollowup(callId);
+    }
+}
+
+async function sendCallFollowup(callId) {
+    const item = allItems.find(i => i.rawId === callId && (i.type === 'call' || i.type === 'voicemail'));
+    const input = document.getElementById('call-followup-txt');
+    const btn = document.getElementById('call-followup-btn');
+    if (!item || !input || !btn) return;
+    const body = input.value.trim();
+    if (!body) return;
+    btn.disabled = true;
+    input.disabled = true;
+    try {
+        const res = await fetch(`${API}/api/messages/send`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ to: item.from, body })
+        });
+        if (!res.ok) throw new Error('Failed to send follow-up text');
+        showToast(isVmLike(item) ? 'Voicemail follow-up text sent' : 'Call follow-up text sent');
+        await loadFeed();
+        const smsThread = allItems.find(i => getItemPhoneKey(i) === getItemPhoneKey(item) && (i.type === 'sms' || i.type === 'mms'));
+        if (smsThread) {
+            selectItem(smsThread.id);
+        } else {
+            openCallDetail(item);
+        }
+    } catch (e) {
+        alert('Failed to send follow-up text. Please try again.');
+    } finally {
+        btn.disabled = false;
+        input.disabled = false;
+        updateCallFollowupComposerState();
+    }
+}
+
+function isVmLike(item) {
+    return item.type === 'voicemail' || !!item.recordingUrl;
+}
+
+function updateCallItem(callId, changes) {
+    const item = allItems.find(i => i.rawId === callId && (i.type === 'call' || i.type === 'voicemail'));
+    if (item) Object.assign(item, changes);
+    return item;
+}
+
+function clearSelectedDetail() {
+    selectedId = null;
+    currentThread = [];
+    currentThreadItem = null;
+    document.getElementById('detail-panel').classList.remove('mobile-open');
+    const content = document.getElementById('detail-content');
+    content.style.display = 'none';
+    content.innerHTML = '';
+    document.getElementById('detail-empty').style.display = 'flex';
+}
+
+async function copyCallNumber(value) {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+            showToast('Number copied');
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 // ─── Voicemail Actions ──────────────────────────────────────────────────────
 async function markCallHandled(callId) {
     try {
-        const res = await fetch(`${API}/api/calls/${callId}/status`, {
+        await fetch(`${API}/api/calls/${callId}/status`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ status: 'handled' })
         });
-        // Remove from current view regardless of response (optimistic update)
-        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
-        closeMobileDetail();
+        const item = updateCallItem(callId, { status: 'handled', read: true });
+        clearSelectedDetail();
         renderFeed();
         updateStats();
-        showToast('Voicemail marked as handled');
+        showToast(item && item.type === 'call' ? 'Call marked as reviewed' : 'Voicemail marked as handled');
     } catch(e) {
         console.error(e);
-        // Still update UI even on error since it usually works
-        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
-        closeMobileDetail();
-        renderFeed();
-        updateStats();
     }
 }
 
 async function archiveCall(callId) {
     try {
-        const res = await fetch(`${API}/api/calls/${callId}/status`, {
+        await fetch(`${API}/api/calls/${callId}/status`, {
             method: 'PATCH',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ status: 'archived' })
         });
-        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
-        closeMobileDetail();
+        const item = updateCallItem(callId, { status: 'archived', read: true });
+        clearSelectedDetail();
         renderFeed();
         updateStats();
-        showToast('Voicemail archived');
+        showToast(item && item.type === 'call' ? 'Call archived' : 'Voicemail archived');
     } catch(e) {
         console.error(e);
-        allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
-        closeMobileDetail();
-        renderFeed();
-        updateStats();
     }
 }
 
 async function deleteCall(callId) {
-    if (!confirm('Are you sure you want to delete this voicemail? This cannot be undone.')) return;
+    const item = allItems.find(i => i.rawId === callId && (i.type === 'call' || i.type === 'voicemail'));
+    const label = item && item.type === 'call' ? 'call record' : 'voicemail';
+    if (!confirm(`Are you sure you want to delete this ${label}? This cannot be undone.`)) return;
     try {
         const res = await fetch(`${API}/api/calls/${callId}`, { method: 'DELETE' });
         if (res.ok) {
             allItems = allItems.filter(i => i.rawId !== callId || i.type === 'sms' || i.type === 'mms');
-            closeMobileDetail();
+            clearSelectedDetail();
             renderFeed();
             updateStats();
-            showToast('Voicemail deleted');
+            showToast(item && item.type === 'call' ? 'Call record deleted' : 'Voicemail deleted');
         }
     } catch(e) { console.error(e); alert('Failed to delete'); }
 }

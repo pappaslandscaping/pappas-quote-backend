@@ -1190,18 +1190,14 @@ function emailTemplate(content, options = {}) {
   const showSignature = options.showSignature !== false;
 
   const signatureHtml = showSignature ? `
-    <div style="margin-top:38px;padding-top:22px;border-top:1px solid #e7e1d5;">
-      <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#7b8d73;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">With appreciation</p>
+    <div style="margin-top:34px;padding-top:20px;border-top:1px solid #dde6de;">
+      <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">With appreciation</p>
       <img src="${SIGNATURE_IMAGE}" alt="Timothy Pappas" style="max-width:420px;width:100%;height:auto;">
     </div>
   ` : '';
 
   const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-  const assetsUrl = process.env.EMAIL_ASSETS_URL || baseUrl;
-  const SOCIAL_FB_WHITE = `${assetsUrl}/email-assets/fb-white.png`;
-  const SOCIAL_IG_WHITE = `${assetsUrl}/email-assets/ig-white.png`;
-  const SOCIAL_ND_WHITE = `${assetsUrl}/email-assets/nd-white.png`;
-  const contentPadding = wrapperMode === 'minimal' ? '34px 34px 28px' : '38px 40px 30px';
+  const contentPadding = wrapperMode === 'minimal' ? '28px 30px 24px' : '30px 34px 24px';
   const contentBlock = `
   <tr><td style="padding:${contentPadding};font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#465464;font-size:15px;line-height:1.78;">
     ${content}
@@ -1221,32 +1217,32 @@ ${content}
   }
 
   const featuresSection = showFooterFeatures ? `
-      <tr><td style="padding:24px 28px 0;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f3ea;border:1px solid #e0d6c6;border-radius:22px;">
-          <tr><td style="padding:24px 26px;">
-            <p style="text-align:center;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#7b8d73;font-weight:700;margin:0 0 10px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Inside your account</p>
-            <p style="text-align:center;font-family:'DM Sans',-apple-system,Arial,sans-serif;font-size:24px;line-height:1.2;color:#223330;font-weight:700;margin:0 0 24px;">Everything stays organized in one place</p>
+      <tr><td style="padding:8px 34px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fbf9;border:1px solid #dde6de;border-radius:18px;">
+          <tr><td style="padding:20px 22px;">
+            <p style="text-align:left;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;margin:0 0 8px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Inside your account</p>
+            <p style="text-align:left;font-family:'DM Sans',-apple-system,Arial,sans-serif;font-size:22px;line-height:1.2;color:#223330;font-weight:700;margin:0 0 18px;">Everything stays organized in one place</p>
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td style="padding:12px 0;border-bottom:1px solid #e9e1d5;">
+                <td style="padding:12px 0;border-bottom:1px solid #e8eeea;">
                   <table cellpadding="0" cellspacing="0"><tr>
-                    <td style="width:40px;vertical-align:top;"><span style="font-size:20px;">•</span></td>
+                    <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Service Schedule</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">View upcoming visits and service history</span></td>
                   </tr></table>
                 </td>
               </tr>
               <tr>
-                <td style="padding:12px 0;border-bottom:1px solid #e9e1d5;">
+                <td style="padding:12px 0;border-bottom:1px solid #e8eeea;">
                   <table cellpadding="0" cellspacing="0"><tr>
-                    <td style="width:40px;vertical-align:top;"><span style="font-size:20px;">•</span></td>
+                    <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Easy Payments</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pay invoices securely online anytime</span></td>
                   </tr></table>
                 </td>
               </tr>
               <tr>
-                <td style="padding:12px 0;border-bottom:1px solid #e9e1d5;">
+                <td style="padding:12px 0;border-bottom:1px solid #e8eeea;">
                   <table cellpadding="0" cellspacing="0"><tr>
-                    <td style="width:40px;vertical-align:top;"><span style="font-size:20px;">•</span></td>
+                    <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Direct Messaging</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Send questions or requests to our team</span></td>
                   </tr></table>
                 </td>
@@ -1254,7 +1250,7 @@ ${content}
               <tr>
                 <td style="padding:12px 0;">
                   <table cellpadding="0" cellspacing="0"><tr>
-                    <td style="width:40px;vertical-align:top;"><span style="font-size:20px;">•</span></td>
+                    <td style="width:32px;vertical-align:top;"><span style="font-size:18px;color:#223330;">•</span></td>
                     <td><strong style="color:#223330;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Quotes & Invoices</strong><br><span style="color:#68796f;font-size:13px;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Access all your documents in one place</span></td>
                   </tr></table>
                 </td>
@@ -1266,21 +1262,28 @@ ${content}
   ` : '';
 
   const headerHtml = wrapperMode === 'minimal' ? `
-  <tr><td style="padding:22px 34px 0;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e6ebe3;">
+  <tr><td style="padding:20px 30px 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e6ece8;">
       <tr><td style="padding:0 0 16px;">
-        <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#7b8d73;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
+        <p style="margin:0 0 6px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
         <p style="margin:0;font-size:13px;line-height:1.6;color:#68796f;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Clear communication, thoughtful care, and direct customer support.</p>
       </td></tr>
     </table>
   </td></tr>
   ` : `
-  <tr><td style="padding:0 16px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#223330;border-radius:32px 32px 0 0;">
-      <tr><td style="padding:18px 36px 12px;text-align:center;">
-        <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#c9dd80;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p>
-        <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:86px;max-width:360px;width:auto;margin:0 auto 12px;">
-        <p style="margin:0;font-size:14px;line-height:1.65;color:#d8e2d0;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Seasonal service, thoughtful communication, and a cleaner customer experience from quote to follow-up.</p>
+  <tr><td style="padding:0 22px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dde6de;border-bottom:none;border-radius:22px 22px 0 0;">
+      <tr><td style="padding:18px 28px 16px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="vertical-align:middle;">
+              <img src="${LOGO_URL}" alt="Pappas & Co. Landscaping" style="display:block;max-height:44px;max-width:190px;width:auto;">
+            </td>
+            <td align="right" style="vertical-align:middle;">
+              <p style="margin:0;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6e7e74;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Lakewood, Ohio &bull; Lawn &amp; Landscape Care</p>
+            </td>
+          </tr>
+        </table>
       </td></tr>
     </table>
   </td></tr>
@@ -1292,14 +1295,14 @@ ${content}
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');</style>
 </head>
-<body style="margin:0;padding:0;background:#f5f8f4;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f8f4;padding:28px 14px;">
+<body style="margin:0;padding:0;background:#f7f9f7;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f9f7;padding:22px 12px;">
 <tr><td align="center">
-<table width="620" cellpadding="0" cellspacing="0" style="width:620px;max-width:620px;background:#ffffff;border:1px solid #dde4db;border-radius:24px;overflow:hidden;box-shadow:0 14px 36px rgba(35,51,48,0.08);">
+<table width="620" cellpadding="0" cellspacing="0" style="width:620px;max-width:620px;background:#ffffff;border:1px solid #dde6de;border-radius:18px;overflow:hidden;">
   ${headerHtml}
   ${contentBlock}
-  <tr><td style="padding:0 34px 28px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6ebe3;">
+  <tr><td style="padding:0 30px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6ece8;">
       <tr><td style="padding:18px 0 0;text-align:left;">
         <p style="margin:0 0 6px;font-size:12px;color:#57694e;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Questions? Reply to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a></p>
         <p style="margin:0;font-size:11px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
@@ -1317,36 +1320,38 @@ ${content}
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');</style>
-<style>@font-face{font-family:'Qualy';src:url('${baseUrl}/Qualy.otf') format('opentype');}</style>
 </head>
-<body style="margin:0;padding:0;background:#edf1ea;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#edf1ea;padding:34px 0;">
+<body style="margin:0;padding:0;background:#f4f7f4;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7f4;padding:20px 0 24px;">
 <tr><td align="center">
 <table width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:640px;">
   ${headerHtml}
-  <tr><td style="padding:0 16px 18px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#efe7d8;border-radius:0 0 32px 32px;">
-      <tr><td style="padding:14px 28px;border-bottom:1px solid #ddd3c1;text-align:center;">
-        <p style="margin:0;font-size:12px;line-height:1.6;color:#5f6f68;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
-      </td></tr>
-      <tr><td style="padding:18px 28px 0;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5ddd0;border-radius:24px;overflow:hidden;">
-          ${contentBlock}
+  <tr><td style="padding:0 22px 18px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #dde6de;border-radius:0 0 22px 22px;overflow:hidden;">
+      <tr><td style="padding:0 34px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #e6ece8;">
+          <tr><td style="padding:14px 0 13px;text-align:left;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#5f6f68;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Reply directly to this email or call <a href="tel:4408867318" style="color:#223330;font-weight:700;text-decoration:none;">(440) 886-7318</a> if you need anything from our team.</p>
+          </td></tr>
         </table>
       </td></tr>
+      ${contentBlock}
       ${featuresSection}
-      <tr><td style="padding:26px 28px 28px;text-align:center;">
-        <table cellpadding="0" cellspacing="0" style="margin:0 auto 18px;">
+      <tr><td style="padding:22px 34px 28px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e6ece8;">
           <tr>
-            <td style="padding:0 10px;"><a href="https://www.facebook.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_FB_WHITE}" alt="Facebook" style="width:30px;height:30px;"></a></td>
-            <td style="padding:0 10px;"><a href="https://www.instagram.com/pappaslandscaping" style="text-decoration:none;"><img src="${SOCIAL_IG_WHITE}" alt="Instagram" style="width:30px;height:30px;"></a></td>
-            <td style="padding:0 10px;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="text-decoration:none;"><img src="${SOCIAL_ND_WHITE}" alt="Nextdoor" style="width:30px;height:30px;"></a></td>
+            <td style="padding:16px 0 0;text-align:left;">
+              <p style="margin:0 0 6px;font-size:12px;color:#223330;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
+              <p style="margin:0 0 6px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107 &bull; <a href="https://pappaslandscaping.com" style="color:#57694e;text-decoration:none;">pappaslandscaping.com</a></p>
+              <p style="margin:0;font-size:10px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
+            </td>
+            <td align="right" style="padding:16px 0 0;vertical-align:top;">
+              <p style="margin:0 0 6px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://www.facebook.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Facebook</a></p>
+              <p style="margin:0 0 6px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://www.instagram.com/pappaslandscaping" style="color:#57694e;text-decoration:none;">Instagram</a></p>
+              <p style="margin:0;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="https://nextdoor.com/profile/01ZjZkwxhPWdnML2k" style="color:#57694e;text-decoration:none;">Nextdoor</a></p>
+            </td>
           </tr>
         </table>
-        <p style="margin:0 0 4px;font-size:13px;color:#223330;font-weight:700;font-family:'DM Sans',-apple-system,Arial,sans-serif;">Pappas &amp; Co. Landscaping</p>
-        <p style="margin:0 0 4px;font-size:11px;color:#6f8076;font-family:'DM Sans',-apple-system,Arial,sans-serif;">PO Box 770057 &bull; Lakewood, Ohio 44107</p>
-        <p style="margin:0 0 12px;font-size:12px;"><a href="https://pappaslandscaping.com" style="color:#223330;text-decoration:none;font-weight:600;font-family:'DM Sans',-apple-system,Arial,sans-serif;">pappaslandscaping.com</a></p>
-        <p style="margin:0;font-size:10px;color:#8aa083;font-family:'DM Sans',-apple-system,Arial,sans-serif;"><a href="${baseUrl}/unsubscribe.html?email={unsubscribe_email}" style="color:#6f8574;text-decoration:underline;">Unsubscribe</a> from marketing emails</p>
       </td></tr>
     </table>
   </td></tr>
@@ -8586,9 +8591,9 @@ async function renderSmsTemplate(slug, vars, fallbackText) {
 
 function premiumEmailIntro({ eyebrow, title, subtitle }) {
   return `
-    <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#7b8d73;font-weight:700;">${eyebrow}</p>
-    <h1 style="margin:0 0 12px;font-size:32px;line-height:1.1;color:#223330;font-weight:700;">${title}</h1>
-    ${subtitle ? `<p style="margin:0 0 24px;font-size:16px;line-height:1.75;color:#5f6f68;">${subtitle}</p>` : ''}
+    <p style="margin:0 0 10px;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:#6e7e74;font-weight:700;">${eyebrow}</p>
+    <h1 style="margin:0 0 12px;font-size:34px;line-height:1.08;color:#223330;font-weight:700;">${title}</h1>
+    ${subtitle ? `<p style="margin:0 0 24px;font-size:16px;line-height:1.72;color:#5f6f68;">${subtitle}</p>` : ''}
   `;
 }
 
@@ -8598,16 +8603,16 @@ function premiumEmailBody(text) {
 
 function premiumEmailPanel({ eyebrow, title, body, meta = '', tone = 'sage', align = 'left' }) {
   const tones = {
-    sage: { bg: '#f3f7ef', border: '#d9e3d1', eyebrow: '#7b8d73' },
-    sand: { bg: '#f8f2e7', border: '#e3d4ba', eyebrow: '#9b7d47' },
-    cream: { bg: '#f8f6f0', border: '#e4ddd0', eyebrow: '#7b8d73' }
+    sage: { bg: '#f7faf8', border: '#dbe5de', eyebrow: '#6e7e74' },
+    sand: { bg: '#fbfaf7', border: '#e8e0d4', eyebrow: '#857458' },
+    cream: { bg: '#fbfcfb', border: '#dde6de', eyebrow: '#6e7e74' }
   };
   const palette = tones[tone] || tones.sage;
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:${palette.bg};border:1px solid ${palette.border};border-radius:20px;">
-      <tr><td style="padding:22px 24px;text-align:${align};">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:${palette.bg};border:1px solid ${palette.border};border-radius:16px;">
+      <tr><td style="padding:20px 22px;text-align:${align};">
         <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${palette.eyebrow};font-weight:700;">${eyebrow}</p>
-        <p style="margin:0 0 8px;font-size:26px;line-height:1.15;color:#223330;font-weight:700;">${title}</p>
+        <p style="margin:0 0 8px;font-size:24px;line-height:1.15;color:#223330;font-weight:700;">${title}</p>
         ${meta ? `<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6f8076;">${meta}</p>` : ''}
         <div style="font-size:14px;line-height:1.75;color:#465464;">${body}</div>
       </td></tr>
@@ -8618,13 +8623,13 @@ function premiumEmailPanel({ eyebrow, title, body, meta = '', tone = 'sage', ali
 function premiumEmailChecklist(title, items) {
   const rows = items.map(item => `
     <tr>
-      <td style="padding:10px 0;border-bottom:1px solid #ece4d8;vertical-align:top;width:26px;color:#223330;font-weight:700;">•</td>
-      <td style="padding:10px 0;border-bottom:1px solid #ece4d8;font-size:14px;line-height:1.7;color:#465464;">${item}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e7ece8;vertical-align:top;width:24px;color:#223330;font-weight:700;">•</td>
+      <td style="padding:10px 0;border-bottom:1px solid #e7ece8;font-size:14px;line-height:1.7;color:#465464;">${item}</td>
     </tr>
   `).join('');
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#fbf8f1;border:1px solid #ece4d8;border-radius:18px;">
-      <tr><td style="padding:20px 22px 8px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background:#ffffff;border:1px solid #dde6de;border-radius:16px;">
+      <tr><td style="padding:18px 20px 8px;">
         <p style="margin:0 0 10px;font-size:13px;line-height:1.5;color:#223330;font-weight:700;">${title}</p>
         <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
       </td></tr>
@@ -8635,7 +8640,7 @@ function premiumEmailChecklist(title, items) {
 function premiumEmailCta(label, href, secondary = '') {
   return `
     <div style="margin:0 0 22px;">
-      <a href="${href}" style="display:inline-block;padding:15px 30px;background:#223330;color:#f7f4eb;border-radius:999px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.02em;">${label}</a>
+      <a href="${href}" style="display:inline-block;padding:14px 24px;background:#223330;color:#ffffff;border-radius:12px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.01em;">${label}</a>
     </div>
     ${secondary ? `<p style="margin:0 0 8px;font-size:13px;line-height:1.7;color:#6f8076;">${secondary}</p>` : ''}
   `;

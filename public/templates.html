@@ -2283,6 +2283,22 @@ function renderVariables() {
     `).join('');
 }
 
+function revealTemplateAiAssistant() {
+    const editorScroll = document.querySelector('.editor-content');
+    const assistant = document.getElementById('templateAiAssistant');
+    if (!editorScroll || !assistant) return;
+
+    assistant.open = true;
+
+    requestAnimationFrame(() => {
+        editorScroll.scrollTop = 0;
+        requestAnimationFrame(() => {
+            const topOffset = Math.max(0, assistant.offsetTop - 12);
+            editorScroll.scrollTop = topOffset;
+        });
+    });
+}
+
 /* ==============================================================
    Select / Open Template
    ============================================================== */
@@ -2330,6 +2346,7 @@ function openTemplate(t) {
     renderTemplateList();
     refreshPreview();
     syncEditorChrome();
+    revealTemplateAiAssistant();
 }
 
 /* ==============================================================
@@ -2370,6 +2387,7 @@ function createNewTemplate() {
     renderTemplateList();
     refreshPreview();
     syncEditorChrome();
+    revealTemplateAiAssistant();
 
     document.getElementById('editorName').focus();
 }

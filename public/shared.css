@@ -187,6 +187,7 @@ a { color: inherit; }
 .app-shell {
     display: grid;
     grid-template-columns: var(--sidebar-w) 1fr;
+    height: 100vh;
     min-height: 100vh;
     background: var(--bg);
 }
@@ -207,7 +208,9 @@ a { color: inherit; }
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -289,6 +292,7 @@ a { color: inherit; }
 /* Sidebar Nav */
 .sidebar-nav {
     flex: 1;
+    min-height: 0;
     padding: 0;
     overflow-y: auto;
     display: flex;
@@ -424,7 +428,7 @@ a { color: inherit; }
 .main,
 .main-shell {
     min-width: 0;
-    min-height: 100vh;
+    min-height: 0;
 }
 
 /* Legacy support: pages that still hardcode <div class="main">

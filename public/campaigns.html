@@ -683,14 +683,143 @@
         .template-preview-box {
             background: var(--gray-50);
             border: 1px solid var(--gray-200);
-            border-radius: 8px;
+            border-radius: 14px;
             padding: 16px;
             margin-top: 8px;
-            min-height: 80px;
-            max-height: 200px;
+            min-height: 170px;
+            max-height: 380px;
             overflow-y: auto;
             font-size: 13px;
             color: var(--gray-600);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .template-preview-box .tpl-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .template-preview-box .tpl-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(201, 221, 128, 0.2);
+            color: var(--primary);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-label {
+            font-size: 11px;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+
+        .template-preview-box .tpl-subject-card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 12px 14px;
+        }
+
+        .template-preview-box .tpl-subject {
+            font-weight: 700;
+            color: var(--gray-700);
+            line-height: 1.4;
+        }
+
+        .template-preview-box .tpl-stage {
+            background: linear-gradient(180deg, #eef3ea 0%, #f8faf7 100%);
+            border: 1px solid #d9e4d5;
+            border-radius: 16px;
+            padding: 14px;
+        }
+
+        .template-preview-box .tpl-email {
+            background: var(--white);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 12px 30px rgba(46, 64, 61, 0.08);
+        }
+
+        .template-preview-box .tpl-email.full .tpl-email-header {
+            background: #2e403d;
+            color: #f4f7ee;
+            padding: 18px 20px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-email.minimal .tpl-email-header {
+            padding: 16px 20px 0;
+            color: #7a9477;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .template-preview-box .tpl-email.none {
+            box-shadow: none;
+            border: 1px dashed var(--gray-300);
+        }
+
+        .template-preview-box .tpl-email-body {
+            padding: 22px 20px;
+            color: var(--gray-600);
+            line-height: 1.7;
+        }
+
+        .template-preview-box .tpl-email-body h1,
+        .template-preview-box .tpl-email-body h2,
+        .template-preview-box .tpl-email-body h3 {
+            color: var(--primary);
+            margin: 0 0 12px;
+            line-height: 1.2;
+        }
+
+        .template-preview-box .tpl-email-body p {
+            margin: 0 0 14px;
+        }
+
+        .template-preview-box .tpl-email-body p:last-child {
+            margin-bottom: 0;
+        }
+
+        .template-preview-box .tpl-email-body table {
+            max-width: 100%;
+        }
+
+        .template-preview-box .tpl-email-body a {
+            color: inherit;
+        }
+
+        .template-preview-box .tpl-email-footer {
+            padding: 14px 20px 18px;
+            text-align: center;
+            font-size: 11px;
+            color: #7a9477;
+            border-top: 1px solid #edf2ea;
+        }
+
+        .template-preview-box .tpl-email.full .tpl-email-footer {
+            background: #2e403d;
+            border-top: none;
+            color: #a3b8a0;
         }
 
         .template-preview-box.empty {
@@ -1281,6 +1410,24 @@ let marketingTemplates = [];
 let allCustomers = [];
 let selectedCustomerIds = [];
 let selectedAudience = 'all';
+const TEMPLATE_PREVIEW_VARS = {
+    customer_first_name: 'Jane',
+    customer_name: 'Jane Smith',
+    quote_number: 'Q-5678',
+    quote_total: '$1,250.00',
+    quote_link: '#',
+    invoice_number: 'INV-1234',
+    invoice_total: '$285.00',
+    invoice_due_date: 'March 15, 2026',
+    balance_due: '$285.00',
+    payment_link: '#',
+    portal_link: '#',
+    service_type: 'Weekly Mowing',
+    job_date: 'Tuesday, March 10',
+    address: '123 Main St, Lakewood OH',
+    services_list: 'Weekly Mowing, Spring Cleanup',
+    service_list: 'Weekly Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave'
+};
 
 // Toast notification
 function showToast(message, isError = false) {
@@ -1743,7 +1890,7 @@ async function loadEmailPreview(templateId) {
         if (data.success && data.template) {
             const t = data.template;
             badge.textContent = 'Subject: ' + (t.subject || '(no subject)');
-            frame.innerHTML = t.body || '<p style="color:var(--gray-400);text-align:center;">No email content</p>';
+            frame.innerHTML = buildTemplatePreviewMarkup(t);
             card.style.display = '';
         } else {
             card.style.display = 'none';
@@ -1908,17 +2055,7 @@ async function previewSendTemplate() {
     try {
         const template = marketingTemplates.find(t => t.id == templateId);
         if (template) {
-            let preview = '';
-            if (template.subject) {
-                preview += `<div style="font-weight:600;margin-bottom:8px;color:var(--gray-700);">Subject: ${esc(template.subject)}</div>`;
-            }
-            if (template.body || template.content) {
-                const body = template.body || template.content || '';
-                preview += `<div style="color:var(--gray-500);white-space:pre-wrap;">${esc(body).substring(0, 500)}${body.length > 500 ? '...' : ''}</div>`;
-            } else {
-                preview += `<div style="color:var(--gray-500);">${esc(template.name)} template</div>`;
-            }
-            previewBox.innerHTML = preview;
+            previewBox.innerHTML = buildTemplatePreviewMarkup(template);
         } else {
             previewBox.innerHTML = 'Template preview unavailable';
             previewBox.classList.add('empty');
@@ -1927,6 +2064,58 @@ async function previewSendTemplate() {
         previewBox.innerHTML = 'Unable to load preview';
         previewBox.classList.add('empty');
     }
+}
+
+function buildTemplatePreviewMarkup(template) {
+    const subject = applyPreviewVars(template.subject || 'No subject');
+    const body = sanitizePreviewHtml(applyPreviewVars(template.body || template.content || '<p>No email body on this template.</p>'));
+    const wrapper = normalizeWrapper(template.options && template.options.wrapper);
+    const wrapperLabel = wrapper === 'minimal' ? 'Minimal Wrapper' : wrapper === 'none' ? 'No Wrapper' : 'Full Wrapper';
+    const footer = wrapper === 'full'
+        ? 'Questions? Reply to this email or call (440) 886-7318'
+        : wrapper === 'minimal'
+            ? 'Pappas & Co. Landscaping • pappaslandscaping.com'
+            : 'Template body only';
+
+    return `
+        <div class="tpl-meta">
+            <span class="tpl-chip">${esc(wrapperLabel)}</span>
+            <span style="font-size:12px;color:var(--gray-400);">${esc(template.name || 'Template')}</span>
+        </div>
+        <div class="tpl-subject-card">
+            <div class="tpl-label">Subject</div>
+            <div class="tpl-subject">${esc(subject)}</div>
+        </div>
+        <div class="tpl-stage">
+            <div class="tpl-email ${esc(wrapper)}">
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-header">Pappas & Co. Landscaping</div>`}
+                <div class="tpl-email-body">${body}</div>
+                ${wrapper === 'none' ? '' : `<div class="tpl-email-footer">${esc(footer)}</div>`}
+            </div>
+        </div>
+    `;
+}
+
+function applyPreviewVars(text) {
+    let output = text || '';
+    Object.entries(TEMPLATE_PREVIEW_VARS).forEach(([key, value]) => {
+        output = output.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+        output = output.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), value);
+    });
+    return output;
+}
+
+function normalizeWrapper(value) {
+    const normalized = String(value || 'full').trim().toLowerCase();
+    return ['full', 'minimal', 'none'].includes(normalized) ? normalized : 'full';
+}
+
+function sanitizePreviewHtml(html) {
+    return (html || '')
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/\son\w+=(["']).*?\1/gi, '')
+        .replace(/\son\w+=([^\s>]+)/gi, '')
+        .replace(/javascript:/gi, '');
 }
 
 function selectAudience(type) {

@@ -2,6 +2,9 @@
 
 ## 2026-04-18
 
+### Production Hotfix
+- Retrigger Railway deploy after PR #133 MJML crash hotfix
+
 ### Live Copilot Schedule Historical Date Fetch Fix
 - Fixed `GET /api/copilot/live-jobs` so Schedule attempts a live Copilot fetch for each selected date before consulting mirrored rows
 - Mirror data is now used only when the live Copilot fetch fails or times out, and empty mirror reads no longer silently masquerade as successful live Schedule results

@@ -2986,7 +2986,7 @@ app.use(invoiceRoutes);
 // TEMPLATES — routes/templates.js
 // ═══════════════════════════════════════════════════════════
 const templateRoutes = require('./routes/templates')({
-  pool, sendEmail, emailTemplate, serverError, getTemplate, replaceTemplateVars,
+  pool, sendEmail, emailTemplate, renderWithBaseLayout, serverError, getTemplate, replaceTemplateVars,
 });
 app.use(templateRoutes);
 
@@ -8566,6 +8566,8 @@ function replaceTemplateVars(str, data) {
   });
 }
 
+const { renderWithBaseLayout } = require('./lib/email-renderer');
+
 // Get template from DB by slug
 async function getTemplate(slug) {
   try {
@@ -8581,13 +8583,30 @@ async function renderTemplate(slug, vars, fallbackSubject, fallbackHtml) {
     const subject = replaceTemplateVars(template.subject, vars);
     const body = replaceTemplateVars(template.body, vars);
     const wrapperOption = template.options?.wrapper || 'full';
-    let html = emailTemplate(body, { wrapper: wrapperOption });
-    // Replace unsubscribe_email in wrapper footer
-    if (vars.unsubscribe_email) {
-      html = html.replace(/\{unsubscribe_email\}/g, vars.unsubscribe_email);
-    } else if (vars.customer_email) {
-      html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(vars.customer_email));
+    
+    // Check if we should use the new MJML-based renderer
+    // We use it if the template options explicitly ask for MJML, or if the body contains MJML tags
+    const useMJML = template.options?.use_mjml === true || body.includes('<mj-') || body.includes('<mjml>');
+    
+    let html;
+    if (useMJML) {
+      html = await renderWithBaseLayout(body, {
+        wrapper: wrapperOption,
+        showFeatures: template.options?.showFeatures || false,
+        showSignature: template.options?.showSignature !== false,
+        baseUrl: process.env.BASE_URL,
+        unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
+      });
+    } else {
+      html = emailTemplate(body, { wrapper: wrapperOption });
+      // Replace unsubscribe_email in wrapper footer
+      if (vars.unsubscribe_email) {
+        html = html.replace(/\{unsubscribe_email\}/g, vars.unsubscribe_email);
+      } else if (vars.customer_email) {
+        html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(vars.customer_email));
+      }
     }
+    
     return { subject, html, fromTemplate: true };
   }
   return { subject: fallbackSubject, html: fallbackHtml, fromTemplate: false };

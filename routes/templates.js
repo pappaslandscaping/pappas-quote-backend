@@ -8,7 +8,7 @@
 
 const express = require('express');
 
-module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, serverError, getTemplate, replaceTemplateVars }) {
+module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, serverError, getTemplate, replaceTemplateVars }) {
   const router = express.Router();
 
 router.get('/api/templates', async (req, res) => {
@@ -87,19 +87,45 @@ router.post('/api/templates/preview', async (req, res) => {
     let template = null;
     let sourceSubject = directSubject;
     let sourceBody = directBody;
+    let templateOptions = options || {};
+
     if (slug) {
       template = await getTemplate(slug);
       if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
       sourceSubject = template.subject;
       sourceBody = template.body;
+      templateOptions = { ...template.options, ...templateOptions };
     }
     if (!sourceBody && !sourceSubject) {
       return res.status(400).json({ success: false, error: 'Template content required' });
     }
-    const resolvedWrapper = wrapper || options?.wrapper || template?.options?.wrapper || 'full';
+    const resolvedWrapper = wrapper || templateOptions.wrapper || 'full';
     const subject = replaceTemplateVars(sourceSubject || '', vars);
     const body = replaceTemplateVars(sourceBody || '', vars);
-    res.json({ success: true, subject, html: emailTemplate(body, { wrapper: resolvedWrapper }) });
+
+    // Check if MJML
+    const useMJML = templateOptions.use_mjml === true || body.includes('<mj-') || body.includes('<mjml>');
+    
+    let html;
+    if (useMJML) {
+      html = await renderWithBaseLayout(body, {
+        wrapper: resolvedWrapper,
+        showFeatures: templateOptions.showFeatures || false,
+        showSignature: templateOptions.showSignature !== false,
+        baseUrl: process.env.BASE_URL,
+        unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
+      });
+    } else {
+      html = emailTemplate(body, { wrapper: resolvedWrapper });
+      // Replace unsubscribe_email in wrapper footer
+      if (vars.unsubscribe_email) {
+        html = html.replace(/\{unsubscribe_email\}/g, vars.unsubscribe_email);
+      } else if (vars.customer_email) {
+        html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(vars.customer_email));
+      }
+    }
+
+    res.json({ success: true, subject, html });
   } catch (error) { serverError(res, error); }
 });
 
@@ -108,7 +134,8 @@ router.post('/api/templates/send-preview', async (req, res) => {
     const { template_id, slug, subject: directSubject, html_content: directHtml, to, wrapper, options } = req.body;
     const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
 
-    let subject, body, wrapperMode = wrapper || options?.wrapper || 'full';
+    let subject, body, templateOptions = options || {};
+    let wrapperMode = wrapper || templateOptions.wrapper || 'full';
 
     if (directSubject && directHtml) {
       // Direct content from the new templates editor
@@ -121,7 +148,7 @@ router.post('/api/templates/send-preview', async (req, res) => {
         // Try message_templates first (new table), then email_templates (legacy)
         let r = await pool.query('SELECT * FROM message_templates WHERE id = $1', [template_id]).catch(() => ({ rows: [] }));
         if (r.rows.length > 0) {
-          template = { subject: r.rows[0].subject, body: r.rows[0].html_content };
+          template = { subject: r.rows[0].subject, body: r.rows[0].html_content, options: r.rows[0].options };
         } else {
           r = await pool.query('SELECT * FROM email_templates WHERE id = $1', [template_id]).catch(() => ({ rows: [] }));
           template = r.rows[0];
@@ -132,13 +159,32 @@ router.post('/api/templates/send-preview', async (req, res) => {
       if (!template) return res.status(404).json({ success: false, error: 'Template not found' });
       subject = template.subject;
       body = template.body || template.html_content;
-      wrapperMode = template.options?.wrapper || wrapperMode;
+      templateOptions = { ...template.options, ...templateOptions };
+      wrapperMode = templateOptions.wrapper || wrapperMode;
     }
 
     const finalSubject = replaceTemplateVars(subject, sampleVars);
     const finalBody = replaceTemplateVars(body, sampleVars);
+    
+    // Check if MJML
+    const useMJML = templateOptions.use_mjml === true || finalBody.includes('<mj-') || finalBody.includes('<mjml>');
+    
+    let html;
+    if (useMJML) {
+      html = await renderWithBaseLayout(finalBody, {
+        wrapper: wrapperMode,
+        showFeatures: templateOptions.showFeatures || false,
+        showSignature: templateOptions.showSignature !== false,
+        baseUrl: process.env.BASE_URL,
+        unsubscribeEmail: sampleVars.customer_email
+      });
+    } else {
+      html = emailTemplate(finalBody, { wrapper: wrapperMode });
+      html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(sampleVars.customer_email));
+    }
+
     const recipient = to || 'hello@pappaslandscaping.com';
-    await sendEmail(recipient, `[TEST] ${finalSubject}`, emailTemplate(finalBody, { wrapper: wrapperMode }));
+    await sendEmail(recipient, `[TEST] ${finalSubject}`, html);
     res.json({ success: true, message: 'Test email sent to ' + recipient });
   } catch (error) { serverError(res, error); }
 });
@@ -163,13 +209,46 @@ router.get('/api/templates/library', (req, res) => {
       id: 'spring-cleanup',
       name: 'Spring Cleanup Promotion',
       category: 'marketing',
-      description: 'Seasonal promo for spring cleanup services with CTA',
+      description: 'Seasonal promo for spring cleanup services with CTA (MJML)',
       subject: 'Spring is here — time to refresh your yard!',
       sms_body: 'Hi {customer_first_name}! Spring is here and your yard is calling. Book your spring cleanup today: {portal_link} — Tim, Pappas & Co.',
-      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Spring Is Here, {customer_first_name}!</h2>
-<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">The snow has melted, and your property is ready for some fresh attention. Our spring cleanup crew is booking fast — let&rsquo;s get your yard looking its best before the growing season kicks off.</p>
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;" role="presentation"><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F33F;</td><td><strong style="color:#2e403d;">Debris &amp; Leaf Removal</strong><br><span style="color:#64748b;font-size:13px;">Clear winter buildup from beds, lawn, and hardscapes</span></td></tr></table></td></tr><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x2702;&#xFE0F;</td><td><strong style="color:#2e403d;">Bed Edging &amp; Mulch Prep</strong><br><span style="color:#64748b;font-size:13px;">Crisp edges and fresh beds ready for mulch</span></td></tr></table></td></tr><tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F3E1;</td><td><strong style="color:#2e403d;">First Mow of the Season</strong><br><span style="color:#64748b;font-size:13px;">Get your lawn off to the right start</span></td></tr></table></td></tr></table>
-<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Book Spring Cleanup</a></div>`
+      options: { use_mjml: true, showSignature: true },
+      body: `<mj-text font-size="24px" font-weight="700" color="#2e403d" padding-bottom="16px">Spring Is Here, {customer_first_name}!</mj-text>
+<mj-text padding-bottom="16px">The snow has melted, and your property is ready for some fresh attention. Our spring cleanup crew is booking fast — let&rsquo;s get your yard looking its best before the growing season kicks off.</mj-text>
+
+<mj-section padding="12px 0" border-bottom="1px solid #f1f5f9">
+  <mj-column width="15%" vertical-align="top">
+    <mj-text font-size="20px">🌿</mj-text>
+  </mj-column>
+  <mj-column width="85%" vertical-align="top">
+    <mj-text font-weight="700" color="#2e403d" padding="0">Debris &amp; Leaf Removal</mj-text>
+    <mj-text font-size="13px" color="#64748b" padding="0">Clear winter buildup from beds, lawn, and hardscapes</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="12px 0" border-bottom="1px solid #f1f5f9">
+  <mj-column width="15%" vertical-align="top">
+    <mj-text font-size="20px">✂️</mj-text>
+  </mj-column>
+  <mj-column width="85%" vertical-align="top">
+    <mj-text font-weight="700" color="#2e403d" padding="0">Bed Edging &amp; Mulch Prep</mj-text>
+    <mj-text font-size="13px" color="#64748b" padding="0">Crisp edges and fresh beds ready for mulch</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="12px 0">
+  <mj-column width="15%" vertical-align="top">
+    <mj-text font-size="20px">🏡</mj-text>
+  </mj-column>
+  <mj-column width="85%" vertical-align="top">
+    <mj-text font-weight="700" color="#2e403d" padding="0">First Mow of the Season</mj-text>
+    <mj-text font-size="13px" color="#64748b" padding="0">Get your lawn off to the right start</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-button background-color="#2e403d" color="#c9dd80" font-size="15px" font-weight="700" border-radius="8px" href="{portal_link}" padding-top="28px">
+  Book Spring Cleanup
+</mj-button>`
     },
     {
       id: 'fall-leaf-removal',
@@ -204,14 +283,47 @@ router.get('/api/templates/library', (req, res) => {
       id: 'new-customer-welcome',
       name: 'New Customer Welcome',
       category: 'portal',
-      description: 'Welcome email for new customers with portal intro',
+      description: 'Welcome email for new customers with portal intro (MJML)',
       subject: 'Welcome to Pappas & Co. Landscaping!',
       sms_body: 'Welcome to Pappas & Co., {customer_first_name}! We\'re excited to work with you. Check your email for your portal access. — Tim',
-      body: `<h2 style="color:#2e403d;font-size:24px;font-weight:700;margin:0 0 16px;">Welcome to the Family, {customer_first_name}!</h2>
-<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">We&rsquo;re thrilled to have you as part of the Pappas &amp; Co. Landscaping family. Tim and the team are looking forward to taking care of your property.</p>
-<p style="color:#374151;font-size:15px;line-height:1.8;margin:0 0 16px;">Your customer portal is ready. Here&rsquo;s what you can do:</p>
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;" role="presentation"><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F4C5;</td><td><strong style="color:#2e403d;">View Your Schedule</strong><br><span style="color:#64748b;font-size:13px;">See upcoming services and past visits</span></td></tr></table></td></tr><tr><td style="padding:12px 0;border-bottom:1px solid #f1f5f9;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F4B3;</td><td><strong style="color:#2e403d;">Pay Invoices Online</strong><br><span style="color:#64748b;font-size:13px;">Quick, secure payments anytime</span></td></tr></table></td></tr><tr><td style="padding:12px 0;"><table cellpadding="0" cellspacing="0"><tr><td style="width:40px;vertical-align:top;font-size:20px;">&#x1F4AC;</td><td><strong style="color:#2e403d;">Message Us Directly</strong><br><span style="color:#64748b;font-size:13px;">Questions, requests, or feedback — we&rsquo;re here</span></td></tr></table></td></tr></table>
-<div style="text-align:center;margin:28px 0;"><a href="{portal_link}" style="background:#2e403d;color:#c9dd80;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;">Access Your Portal</a></div>`
+      options: { use_mjml: true, showFeatures: true, showSignature: true },
+      body: `<mj-text font-size="24px" font-weight="700" color="#2e403d" padding-bottom="16px">Welcome to the Family, {customer_first_name}!</mj-text>
+<mj-text padding-bottom="16px">We&rsquo;re thrilled to have you as part of the Pappas &amp; Co. Landscaping family. Tim and the team are looking forward to taking care of your property.</mj-text>
+<mj-text padding-bottom="16px">Your customer portal is ready. Here&rsquo;s what you can do:</mj-text>
+
+<mj-section padding="10px 0" border-bottom="1px solid #f1f5f9">
+  <mj-column width="15%" vertical-align="top">
+    <mj-text font-size="20px">📅</mj-text>
+  </mj-column>
+  <mj-column width="85%" vertical-align="top">
+    <mj-text font-weight="700" color="#2e403d" padding="0">View Your Schedule</mj-text>
+    <mj-text font-size="13px" color="#64748b" padding="0">See upcoming services and past visits</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="10px 0" border-bottom="1px solid #f1f5f9">
+  <mj-column width="15%" vertical-align="top">
+    <mj-text font-size="20px">💳</mj-text>
+  </mj-column>
+  <mj-column width="85%" vertical-align="top">
+    <mj-text font-weight="700" color="#2e403d" padding="0">Pay Invoices Online</mj-text>
+    <mj-text font-size="13px" color="#64748b" padding="0">Quick, secure payments anytime</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-section padding="10px 0">
+  <mj-column width="15%" vertical-align="top">
+    <mj-text font-size="20px">💬</mj-text>
+  </mj-column>
+  <mj-column width="85%" vertical-align="top">
+    <mj-text font-weight="700" color="#2e403d" padding="0">Message Us Directly</mj-text>
+    <mj-text font-size="13px" color="#64748b" padding="0">Questions, requests, or feedback — we&rsquo;re here</mj-text>
+  </mj-column>
+</mj-section>
+
+<mj-button background-color="#2e403d" color="#c9dd80" font-size="15px" font-weight="700" border-radius="8px" href="{portal_link}" padding-top="28px">
+  Access Your Portal
+</mj-button>`
     },
     {
       id: 'service-reminder',

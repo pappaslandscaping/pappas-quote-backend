@@ -216,35 +216,29 @@ router.get('/api/templates/library', (req, res) => {
       body: `<mj-text font-size="24px" font-weight="700" color="#2e403d" padding-bottom="16px">Spring Is Here, {customer_first_name}!</mj-text>
 <mj-text padding-bottom="16px">The snow has melted, and your property is ready for some fresh attention. Our spring cleanup crew is booking fast — let&rsquo;s get your yard looking its best before the growing season kicks off.</mj-text>
 
-<mj-section padding="12px 0" border-bottom="1px solid #f1f5f9">
-  <mj-column width="15%" vertical-align="top">
-    <mj-text font-size="20px">🌿</mj-text>
-  </mj-column>
-  <mj-column width="85%" vertical-align="top">
-    <mj-text font-weight="700" color="#2e403d" padding="0">Debris &amp; Leaf Removal</mj-text>
-    <mj-text font-size="13px" color="#64748b" padding="0">Clear winter buildup from beds, lawn, and hardscapes</mj-text>
-  </mj-column>
-</mj-section>
-
-<mj-section padding="12px 0" border-bottom="1px solid #f1f5f9">
-  <mj-column width="15%" vertical-align="top">
-    <mj-text font-size="20px">✂️</mj-text>
-  </mj-column>
-  <mj-column width="85%" vertical-align="top">
-    <mj-text font-weight="700" color="#2e403d" padding="0">Bed Edging &amp; Mulch Prep</mj-text>
-    <mj-text font-size="13px" color="#64748b" padding="0">Crisp edges and fresh beds ready for mulch</mj-text>
-  </mj-column>
-</mj-section>
-
-<mj-section padding="12px 0">
-  <mj-column width="15%" vertical-align="top">
-    <mj-text font-size="20px">🏡</mj-text>
-  </mj-column>
-  <mj-column width="85%" vertical-align="top">
-    <mj-text font-weight="700" color="#2e403d" padding="0">First Mow of the Season</mj-text>
-    <mj-text font-size="13px" color="#64748b" padding="0">Get your lawn off to the right start</mj-text>
-  </mj-column>
-</mj-section>
+<mj-table padding="0">
+  <tr>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:15%;vertical-align:top;font-size:20px;">🌿</td>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:85%;vertical-align:top;">
+      <strong style="color:#2e403d;font-family:'DM Sans',Arial,sans-serif;">Debris &amp; Leaf Removal</strong><br/>
+      <span style="font-size:13px;color:#64748b;font-family:'DM Sans',Arial,sans-serif;">Clear winter buildup from beds, lawn, and hardscapes</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:15%;vertical-align:top;font-size:20px;">✂️</td>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:85%;vertical-align:top;">
+      <strong style="color:#2e403d;font-family:'DM Sans',Arial,sans-serif;">Bed Edging &amp; Mulch Prep</strong><br/>
+      <span style="font-size:13px;color:#64748b;font-family:'DM Sans',Arial,sans-serif;">Crisp edges and fresh beds ready for mulch</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 0;width:15%;vertical-align:top;font-size:20px;">🏡</td>
+    <td style="padding:12px 0;width:85%;vertical-align:top;">
+      <strong style="color:#2e403d;font-family:'DM Sans',Arial,sans-serif;">First Mow of the Season</strong><br/>
+      <span style="font-size:13px;color:#64748b;font-family:'DM Sans',Arial,sans-serif;">Get your lawn off to the right start</span>
+    </td>
+  </tr>
+</mj-table>
 
 <mj-button background-color="#2e403d" color="#c9dd80" font-size="15px" font-weight="700" border-radius="8px" href="{portal_link}" padding-top="28px">
   Book Spring Cleanup
@@ -291,35 +285,29 @@ router.get('/api/templates/library', (req, res) => {
 <mj-text padding-bottom="16px">We&rsquo;re thrilled to have you as part of the Pappas &amp; Co. Landscaping family. Tim and the team are looking forward to taking care of your property.</mj-text>
 <mj-text padding-bottom="16px">Your customer portal is ready. Here&rsquo;s what you can do:</mj-text>
 
-<mj-section padding="10px 0" border-bottom="1px solid #f1f5f9">
-  <mj-column width="15%" vertical-align="top">
-    <mj-text font-size="20px">📅</mj-text>
-  </mj-column>
-  <mj-column width="85%" vertical-align="top">
-    <mj-text font-weight="700" color="#2e403d" padding="0">View Your Schedule</mj-text>
-    <mj-text font-size="13px" color="#64748b" padding="0">See upcoming services and past visits</mj-text>
-  </mj-column>
-</mj-section>
-
-<mj-section padding="10px 0" border-bottom="1px solid #f1f5f9">
-  <mj-column width="15%" vertical-align="top">
-    <mj-text font-size="20px">💳</mj-text>
-  </mj-column>
-  <mj-column width="85%" vertical-align="top">
-    <mj-text font-weight="700" color="#2e403d" padding="0">Pay Invoices Online</mj-text>
-    <mj-text font-size="13px" color="#64748b" padding="0">Quick, secure payments anytime</mj-text>
-  </mj-column>
-</mj-section>
-
-<mj-section padding="10px 0">
-  <mj-column width="15%" vertical-align="top">
-    <mj-text font-size="20px">💬</mj-text>
-  </mj-column>
-  <mj-column width="85%" vertical-align="top">
-    <mj-text font-weight="700" color="#2e403d" padding="0">Message Us Directly</mj-text>
-    <mj-text font-size="13px" color="#64748b" padding="0">Questions, requests, or feedback — we&rsquo;re here</mj-text>
-  </mj-column>
-</mj-section>
+<mj-table padding="0">
+  <tr>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:15%;vertical-align:top;font-size:20px;">📅</td>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:85%;vertical-align:top;">
+      <strong style="color:#2e403d;font-family:'DM Sans',Arial,sans-serif;">View Your Schedule</strong><br/>
+      <span style="font-size:13px;color:#64748b;font-family:'DM Sans',Arial,sans-serif;">See upcoming services and past visits</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:15%;vertical-align:top;font-size:20px;">💳</td>
+    <td style="padding:12px 0;border-bottom:1px solid #f1f5f9;width:85%;vertical-align:top;">
+      <strong style="color:#2e403d;font-family:'DM Sans',Arial,sans-serif;">Pay Invoices Online</strong><br/>
+      <span style="font-size:13px;color:#64748b;font-family:'DM Sans',Arial,sans-serif;">Quick, secure payments anytime</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 0;width:15%;vertical-align:top;font-size:20px;">💬</td>
+    <td style="padding:12px 0;width:85%;vertical-align:top;">
+      <strong style="color:#2e403d;font-family:'DM Sans',Arial,sans-serif;">Message Us Directly</strong><br/>
+      <span style="font-size:13px;color:#64748b;font-family:'DM Sans',Arial,sans-serif;">Questions, requests, or feedback — we&rsquo;re here</span>
+    </td>
+  </tr>
+</mj-table>
 
 <mj-button background-color="#2e403d" color="#c9dd80" font-size="15px" font-weight="700" border-radius="8px" href="{portal_link}" padding-top="28px">
   Access Your Portal

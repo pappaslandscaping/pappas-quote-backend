@@ -12297,8 +12297,15 @@ async function assembleMorningBriefing() {
   // ── Section 1: Today's Jobs by Crew ──
   try {
     const jobsResult = await pool.query(
-      `SELECT crew_name, employees, COUNT(*) AS job_count
-       FROM copilot_sync_jobs WHERE sync_date = $1 GROUP BY crew_name, employees ORDER BY crew_name`,
+      `SELECT
+         COALESCE(source_crew_name, 'Unassigned') AS crew_name,
+         source_employees_text AS employees,
+         COUNT(*) AS job_count
+       FROM copilot_live_jobs
+       WHERE service_date = $1
+         AND source_deleted_at IS NULL
+       GROUP BY COALESCE(source_crew_name, 'Unassigned'), source_employees_text
+       ORDER BY COALESCE(source_crew_name, 'Unassigned')`,
       [todayDate]
     );
     const crews = jobsResult.rows;

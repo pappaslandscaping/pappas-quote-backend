@@ -163,8 +163,12 @@ module.exports = function createCopilotRoutes({ pool, serverError, authenticateT
     // Upsert each job
     let inserted = 0;
     let updated = 0;
+    const syncedEventIds = [];
 
     for (const job of jobs) {
+      if (job && job.event_id) {
+        syncedEventIds.push(String(job.event_id));
+      }
       const result = await pool.query(
         `INSERT INTO copilot_sync_jobs (sync_date, event_id, customer_name, customer_id, crew_name, employees, address, status, visit_total, job_title, stop_order, raw_data, synced_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
@@ -185,6 +189,23 @@ module.exports = function createCopilotRoutes({ pool, serverError, authenticateT
       );
       if (result.rows[0].is_insert) inserted++;
       else updated++;
+    }
+
+    let markedDeletedFromSnapshot = null;
+    if (startDate === endDate) {
+      const deleteResult = syncedEventIds.length > 0
+        ? await pool.query(
+            `DELETE FROM copilot_sync_jobs
+              WHERE sync_date = $1
+                AND event_id <> ALL($2::text[])`,
+            [startDate, syncedEventIds]
+          )
+        : await pool.query(
+            `DELETE FROM copilot_sync_jobs
+              WHERE sync_date = $1`,
+            [startDate]
+          );
+      markedDeletedFromSnapshot = deleteResult.rowCount || 0;
     }
 
     let liveMirror = null;
@@ -208,6 +229,7 @@ module.exports = function createCopilotRoutes({ pool, serverError, authenticateT
       total: jobs.length,
       inserted,
       updated,
+      snapshotDeleted: markedDeletedFromSnapshot,
       totalEventCount: expectedCount,
       overallVisitTotal: data.overallVisitTotal || null,
       liveMirror,

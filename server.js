@@ -8585,19 +8585,34 @@ function buildPortalMagicLinkBody() {
 
 function buildWelcomeEmailBody() {
   return `
-    ${premiumEmailIntro({ eyebrow: 'Welcome to Pappas & Co.', title: 'We are excited to care for your property', subtitle: 'This is the start of a simpler, better-organized service experience.' })}
-    ${premiumEmailBody('Hi {customer_first_name}, thanks for trusting us with your property. We are looking forward to keeping everything clean, healthy, and well cared for throughout the season.')}
-    ${premiumEmailSection({ eyebrow: 'How we work', title: 'Service should feel organized and easy', body: '<p style="margin:0;">From the first visit forward, our goal is to make the experience feel clear, responsive, and professionally handled.</p>' })}
-    ${premiumEmailSummaryGrid([
-      { label: 'Questions', value: 'Reply directly any time' },
-      { label: 'Support', value: '(440) 886-7318', isLast: true }
-    ])}
-    ${premiumEmailChecklist('What you can expect from us', [
-      'Consistent communication before and after important visits.',
-      'A crew that arrives ready to work and easy ways to reach us when you need anything.',
-      'Clear quotes, invoices, and account updates without extra back-and-forth.'
-    ])}
-    ${premiumEmailPanel({ eyebrow: 'Need anything?', title: 'We keep communication simple', body: '<p style="margin:0;font-size:14px;line-height:1.75;color:#465464;">Reply to this email or call <strong>(440) 886-7318</strong> anytime you want to ask a question, update a request, or talk through your property.</p>', tone: 'cream' })}
+    ${premiumEmailIntro({ eyebrow: 'Welcome', title: 'Your customer portal is ready', subtitle: 'Use it to complete setup, manage billing, and keep your account details in one place.' })}
+    ${premiumEmailBody('Hi {customer_first_name}, welcome to Pappas & Co. Landscaping. Your customer portal is ready to use anytime.')}
+    ${premiumEmailBody('To complete your setup, please add a card or bank account on file in your portal.')}
+    ${premiumEmailBody('You can also use the portal to view invoices, estimates, payment history, and account details in one place.')}
+    ${premiumEmailPanel({
+      eyebrow: 'Inside your portal',
+      title: 'What you can do there',
+      body: `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
+        <tr>
+          <td style="padding:12px 0;border-bottom:1px solid #d7dfd1;font-size:14px;font-weight:700;color:#1f2933;vertical-align:top;">Payment Method</td>
+          <td style="padding:12px 0 12px 18px;border-bottom:1px solid #d7dfd1;font-size:14px;line-height:1.6;color:#425466;vertical-align:top;">Add a card or bank account on file to complete your setup</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;border-bottom:1px solid #d7dfd1;font-size:14px;font-weight:700;color:#1f2933;vertical-align:top;">Invoices</td>
+          <td style="padding:12px 0 12px 18px;border-bottom:1px solid #d7dfd1;font-size:14px;line-height:1.6;color:#425466;vertical-align:top;">View balances and payment activity</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;border-bottom:1px solid #d7dfd1;font-size:14px;font-weight:700;color:#1f2933;vertical-align:top;">Estimates</td>
+          <td style="padding:12px 0 12px 18px;border-bottom:1px solid #d7dfd1;font-size:14px;line-height:1.6;color:#425466;vertical-align:top;">Review estimates and approvals</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;font-size:14px;font-weight:700;color:#1f2933;vertical-align:top;">Work Requests</td>
+          <td style="padding:12px 0 12px 18px;font-size:14px;line-height:1.6;color:#425466;vertical-align:top;">Submit a new request anytime</td>
+        </tr>
+      </table>`,
+      tone: 'cream'
+    })}
+    ${premiumEmailCta('Open Customer Portal', '{portal_link}', 'Questions? Call {company_phone} or email {company_email} and we will be happy to help.')}
   `;
 }
 
@@ -8714,7 +8729,7 @@ const DEFAULT_TEMPLATES = [
   { name: 'Quote Declined — Admin', slug: 'quote_declined_admin', category: 'quotes', subject: 'Quote #{quote_number} Declined', body: '<h2 style="color:#dc4a4a">Quote Declined</h2><p><strong>{customer_name}</strong> declined quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number"]' },
   { name: 'Contract Signed', slug: 'contract_signed', category: 'quotes', subject: 'Contract Signed — {customer_name}', body: '<h2 style="color:#2e403d">Contract Signed!</h2><p><strong>{customer_name}</strong> has signed the service agreement for quote <strong>#{quote_number}</strong>.</p>', sms_body: '', variables: '["customer_name","quote_number","quote_total"]' },
   { name: 'Job Completed', slug: 'job_completed', category: 'system', subject: 'Service Completed — {service_type}', body: '<h2 style="color:#2e403d">Service Completed</h2><p>Hi {customer_first_name},</p><p>Your <strong>{service_type}</strong> service at <strong>{address}</strong> has been completed by {crew_name}.</p><p>Thank you for choosing Pappas & Co.!</p>', sms_body: 'Your {service_type} service has been completed! Thanks for choosing Pappas & Co. - (440) 886-7318', variables: '["customer_first_name","service_type","address","crew_name","job_date"]' },
-  { name: 'Welcome Email', slug: 'welcome_email', category: 'marketing', subject: 'Welcome to Pappas & Co. Landscaping!', body: buildWelcomeEmailBody(), sms_body: 'Welcome to Pappas & Co., {customer_first_name}! We\'re excited to serve you. Questions? Call (440) 886-7318.', variables: '["customer_first_name","customer_name"]' },
+  { name: 'Welcome Email', slug: 'welcome_email', category: 'marketing', subject: 'Welcome to Pappas & Co. Landscaping!', body: buildWelcomeEmailBody(), sms_body: 'Welcome to Pappas & Co., {customer_first_name}! We\'re excited to serve you. Questions? Call (440) 886-7318.', variables: '["customer_first_name","customer_name","portal_link","company_phone","company_email"]' },
   { name: 'Seasonal Promo', slug: 'seasonal_promo', category: 'marketing', subject: 'Spring Special — Save on Lawn Care!', body: buildSeasonalPromoBody(), sms_body: 'Spring special from Pappas & Co.! Book a spring cleanup and save 10%. Call (440) 886-7318 to schedule.', variables: '["customer_first_name","customer_name"]' },
   { name: 'Review Request', slug: 'review_request', category: 'marketing', subject: 'How did we do? — Pappas & Co.', body: buildReviewRequestBody(), sms_body: 'Hi {customer_first_name}! Enjoy your recent service from Pappas & Co.? We\'d love a Google review! It really helps us out.', variables: '["customer_first_name"]' },
   { name: 'Appointment Reminder', slug: 'appointment_reminder', category: 'system', subject: 'Service Tomorrow — {service_type}', body: buildAppointmentReminderBody(), sms_body: 'Reminder: Your {service_type} with Pappas & Co. is tomorrow at {address}. Please unlock gates! Questions? (440) 886-7318', variables: '["customer_first_name","service_type","job_date","address"]' },

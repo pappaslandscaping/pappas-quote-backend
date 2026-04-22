@@ -1,0 +1,152 @@
+<mjml>
+  <mj-head>
+    <mj-title>A reminder about your invoice</mj-title>
+    <mj-preview>{{COMPANY_NAME}}: {{INVOICE_NUMBER}} is still open</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" color="#1f2933" />
+      <mj-body background-color="#eef2eb" />
+      <mj-section padding="0" />
+      <mj-column padding="0" />
+      <mj-text padding="0" font-size="16px" line-height="1.6" color="#425466" />
+      <mj-button
+        background-color="#3f8a3d"
+        color="#ffffff"
+        font-size="15px"
+        font-weight="700"
+        inner-padding="16px 28px"
+        border-radius="8px"
+      />
+      <mj-divider border-color="#d7dfd1" border-width="1px" padding="0" />
+    </mj-attributes>
+    <mj-style inline="inline">
+      .email-shell {
+        box-shadow: 0 14px 34px rgba(31, 41, 51, 0.08);
+      }
+
+      .summary-table table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .summary-table td {
+        padding: 12px 0;
+        border-bottom: 1px solid #d7dfd1;
+      }
+
+      .summary-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .summary-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #5b6773;
+      }
+
+      .summary-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1f2933;
+        text-align: right;
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: #3f8a3d;
+      }
+    </mj-style>
+  </mj-head>
+  <mj-body>
+    <mj-wrapper background-color="#ffffff" border-radius="16px" css-class="email-shell" padding="28px 16px">
+      <mj-section background-color="#1f2933" padding="18px 28px">
+        <mj-column>
+          <mj-image
+            src="https://app.pappaslandscaping.com/images/email-logo.png"
+            alt="{{COMPANY_NAME}}"
+            width="210px"
+            align="left"
+            padding="0"
+          />
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="30px 28px 10px 28px">
+        <mj-column>
+          <mj-text css-class="eyebrow">Payment Reminder</mj-text>
+          <mj-text font-size="32px" line-height="1.2" font-weight="800" color="#1f2933" padding="10px 0 14px 0">
+            A reminder about your invoice
+          </mj-text>
+          <mj-text font-size="17px" line-height="1.6" color="#2d3a45">
+            Hi {{CUSTOMER_FIRST_NAME}},
+          </mj-text>
+          <mj-text padding="12px 0 0 0">
+            We wanted to send a friendly reminder that {{INVOICE_NUMBER}} is still open. You can review the amount due and make a payment online anytime using the link below.
+          </mj-text>
+          <mj-text padding="12px 0 0 0">
+            If you have any questions, we’re happy to help.
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="18px 28px 0 28px">
+        <mj-column background-color="#f7f9f5" border="1px solid #d7dfd1" border-radius="12px" padding="18px 20px">
+          <mj-text font-size="13px" font-weight="700" letter-spacing="0.8px" text-transform="uppercase" color="#5b6773" padding="0 0 12px 0">
+            Account Summary
+          </mj-text>
+          <mj-table css-class="summary-table">
+            <tr>
+              <td class="summary-label">Invoice</td>
+              <td class="summary-value">{{INVOICE_NUMBER}}</td>
+            </tr>
+            <tr>
+              <td class="summary-label">Payment Terms</td>
+              <td class="summary-value">Due Upon Receipt</td>
+            </tr>
+            <tr>
+              <td class="summary-label">Amount Due</td>
+              <td class="summary-value">{{INVOICE_TOTAL}}</td>
+            </tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="24px 28px 6px 28px">
+        <mj-column>
+          <mj-button href="{{INVOICES_LINKS}}">
+            Pay Online
+          </mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="28px 28px 0 28px">
+        <mj-column>
+          <mj-divider border-color="#d7dfd1" border-width="1px" />
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#f7f9f5" padding="20px 28px 24px 28px">
+        <mj-column>
+          <mj-text font-size="14px" line-height="1.6" color="#5b6773" padding="0">
+            Questions about your invoice? Call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}} and we’ll be happy to help.
+          </mj-text>
+          <mj-text padding="16px 0 0 0" font-size="0" line-height="0">
+            <a href="https://www.facebook.com/pappaslandscaping" target="_blank" style="display:inline-block;background-color:#c9dd80;border-radius:999px;padding:8px;margin-right:10px;">
+              <img src="https://app.pappaslandscaping.com/images/icon-facebook.png" alt="Facebook" width="20" height="20" style="display:block;border:0;outline:none;text-decoration:none;" />
+            </a>
+            <a href="https://www.instagram.com/pappaslandscaping" target="_blank" style="display:inline-block;background-color:#c9dd80;border-radius:999px;padding:8px;">
+              <img src="https://app.pappaslandscaping.com/images/icon-instagram.png" alt="Instagram" width="20" height="20" style="display:block;border:0;outline:none;text-decoration:none;" />
+            </a>
+          </mj-text>
+          <mj-text font-size="13px" line-height="1.7" color="#5b6773" padding="16px 0 0 0">
+            {{COMPANY_NAME}}<br />
+            {{COMPANY_PHONE}}<br />
+            {{COMPANY_EMAIL}}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-wrapper>
+  </mj-body>
+</mjml>

@@ -42,7 +42,7 @@ function buildActiveCampaignCustomerQuery({ liveMonthsPlaceholder = '$1', schedu
       })}`;
 }
 
-function createCampaignRoutes({ pool, sendEmail, emailTemplate, serverError, NOTIFICATION_EMAIL, replaceTemplateVars }) {
+function createCampaignRoutes({ pool, sendEmail, emailTemplate, renderManagedEmail, serverError, NOTIFICATION_EMAIL, replaceTemplateVars }) {
   const router = express.Router();
 
 router.get('/api/campaigns', async (req, res) => {
@@ -316,7 +316,13 @@ router.post('/api/campaigns/:id/send', async (req, res) => {
         // Add tracking pixel
         const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
         body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-        const finalHtml = replaceTemplateVars(emailTemplate(body, { wrapper: tmpl.options?.wrapper || 'full' }), vars);
+        const finalHtml = await renderManagedEmail(body, {
+          wrapper: tmpl.options?.wrapper || 'full',
+          showFeatures: tmpl.options?.showFeatures || false,
+          showSignature: tmpl.options?.showSignature !== false,
+          baseUrl,
+          unsubscribeEmail: encodeURIComponent(cust.email || '')
+        });
         await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
         await pool.query(
           'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',

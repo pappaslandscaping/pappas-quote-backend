@@ -14,7 +14,7 @@ const rateLimit = require('express-rate-limit');
 const cheerio = require('cheerio');
 const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('./lib/api-error');
 const { validate, schemas } = require('./lib/validate');
-const { renderWithBaseLayout, LOGO_URL, SIGNATURE_IMAGE, emailTemplate } = require('./lib/email-renderer');
+const { renderWithBaseLayout, renderManagedEmail, LOGO_URL, SIGNATURE_IMAGE, emailTemplate } = require('./lib/email-renderer');
 const { parseInvoiceListHtml } = require('./scripts/parse-copilot-invoices');
 const { parseInvoiceDetailHtml } = require('./scripts/parse-copilot-invoice-detail');
 const { syncInvoicesToDatabase, syncInvoiceDetailsToDatabase, mergeDetailIdentityFromListRow } = require('./scripts/import-copilot-invoices');
@@ -2786,7 +2786,7 @@ app.use(invoiceRoutes);
 // TEMPLATES — routes/templates.js
 // ═══════════════════════════════════════════════════════════
 const templateRoutes = require('./routes/templates')({
-  pool, sendEmail, emailTemplate, renderWithBaseLayout, serverError, getTemplate, replaceTemplateVars,
+  pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, serverError, getTemplate, replaceTemplateVars,
 });
 app.use(templateRoutes);
 
@@ -2794,7 +2794,7 @@ app.use(templateRoutes);
 // CAMPAIGNS — routes/campaigns.js
 // ═══════════════════════════════════════════════════════════
 const campaignRoutes = require('./routes/campaigns')({
-  pool, sendEmail, emailTemplate, serverError, NOTIFICATION_EMAIL, replaceTemplateVars,
+  pool, sendEmail, emailTemplate, renderManagedEmail, serverError, NOTIFICATION_EMAIL, replaceTemplateVars,
 });
 app.use(campaignRoutes);
 
@@ -2802,7 +2802,7 @@ app.use(campaignRoutes);
 // COMMUNICATIONS — routes/communications.js
 // ═══════════════════════════════════════════════════════════
 const communicationRoutes = require('./routes/communications')({
-  pool, sendEmail, emailTemplate, renderWithBaseLayout, getTemplate, escapeHtml, serverError,
+  pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
   twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars,
 });
 app.use(communicationRoutes);
@@ -8651,30 +8651,15 @@ async function renderTemplate(slug, vars, fallbackSubject, fallbackHtml) {
     const subject = replaceTemplateVars(template.subject, vars);
     const body = replaceTemplateVars(template.body, vars);
     const wrapperOption = template.options?.wrapper || 'full';
-    
-    // Check if we should use the new MJML-based renderer
-    // We use it if the template options explicitly ask for MJML, or if the body contains MJML tags
-    const useMJML = template.options?.use_mjml === true || body.includes('<mj-') || body.includes('<mjml>');
-    
-    let html;
-    if (useMJML) {
-      html = await renderWithBaseLayout(body, {
-        wrapper: wrapperOption,
-        showFeatures: template.options?.showFeatures || false,
-        showSignature: template.options?.showSignature !== false,
-        baseUrl: process.env.BASE_URL,
-        unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
-      });
-    } else {
-      html = emailTemplate(body, { wrapper: wrapperOption });
-      // Replace unsubscribe_email in wrapper footer
-      if (vars.unsubscribe_email) {
-        html = html.replace(/\{unsubscribe_email\}/g, vars.unsubscribe_email);
-      } else if (vars.customer_email) {
-        html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(vars.customer_email));
-      }
-    }
-    
+
+    const html = await renderManagedEmail(body, {
+      wrapper: wrapperOption,
+      showFeatures: template.options?.showFeatures || false,
+      showSignature: template.options?.showSignature !== false,
+      baseUrl: process.env.BASE_URL,
+      unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
+    });
+
     return { subject, html, fromTemplate: true };
   }
   return { subject: fallbackSubject, html: fallbackHtml, fromTemplate: false };

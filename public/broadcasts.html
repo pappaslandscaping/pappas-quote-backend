@@ -1034,153 +1034,6 @@
             margin-bottom: 12px;
         }
 
-        /* ─── Yard Sign Responses ─────────────────────────── */
-        .yard-sign-state {
-            font-size: 12px;
-            line-height: 1.5;
-            color: var(--gray-500);
-            margin-bottom: 14px;
-        }
-
-        .yard-sign-stats {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-
-        .yard-sign-stat {
-            padding: 12px 10px;
-            border-radius: 14px;
-            border: 1px solid rgba(46, 64, 61, 0.08);
-            background: rgba(255,255,255,0.82);
-            text-align: center;
-        }
-
-        .yard-sign-stat-num {
-            font-size: 20px;
-            font-weight: 700;
-            line-height: 1;
-            color: #243330;
-            margin-bottom: 6px;
-        }
-
-        .yard-sign-stat-label {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #5b6f69;
-        }
-
-        .yard-sign-filter-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        .yard-sign-filter-btn {
-            border: 1px solid rgba(46, 64, 61, 0.12);
-            background: rgba(255,255,255,0.85);
-            color: #40514d;
-            border-radius: 999px;
-            padding: 7px 12px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.15s ease;
-        }
-
-        .yard-sign-filter-btn.active {
-            background: #2e403d;
-            color: #f7f9f4;
-            border-color: #2e403d;
-        }
-
-        .yard-sign-response-list {
-            max-height: 420px;
-            overflow: auto;
-            border: 1px solid rgba(46, 64, 61, 0.08);
-            border-radius: 16px;
-            background: rgba(255,255,255,0.76);
-        }
-
-        .yard-sign-response-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .yard-sign-response-table th,
-        .yard-sign-response-table td {
-            padding: 11px 12px;
-            border-bottom: 1px solid rgba(46, 64, 61, 0.06);
-            text-align: left;
-            vertical-align: top;
-        }
-
-        .yard-sign-response-table th {
-            position: sticky;
-            top: 0;
-            background: #f6f8f3;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: #5b6f69;
-            z-index: 1;
-        }
-
-        .yard-sign-response-table td {
-            font-size: 13px;
-            color: var(--gray-700);
-        }
-
-        .yard-sign-customer-name {
-            font-weight: 600;
-            color: #243330;
-            margin-bottom: 2px;
-        }
-
-        .yard-sign-customer-email {
-            font-size: 11px;
-            color: var(--gray-500);
-            word-break: break-word;
-        }
-
-        .yard-sign-answer-pill {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 8px;
-            border-radius: 999px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .yard-sign-answer-pill.yes {
-            background: var(--green-bg);
-            color: var(--green);
-        }
-
-        .yard-sign-answer-pill.no {
-            background: var(--amber-bg);
-            color: var(--amber);
-        }
-
-        .yard-sign-answer-pill.unanswered {
-            background: var(--blue-bg);
-            color: var(--blue);
-        }
-
-        .yard-sign-source {
-            font-size: 11px;
-            color: var(--gray-500);
-            text-transform: lowercase;
-        }
-
         /* ─── Confirmation Modal ────────────────────────────── */
         .modal-overlay {
             position: fixed;
@@ -1705,48 +1558,6 @@
                 </div>
             </div>
 
-            <div class="bc-card">
-                <div class="bc-card-header">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 7-9 11-9 11S3 19 3 12a9 9 0 0118 0z"/></svg>
-                        Yard Sign Responses
-                    </h3>
-                    <button type="button" class="yard-sign-filter-btn" onclick="refreshYardSignResponses()">Refresh</button>
-                </div>
-                <div class="bc-card-body">
-                    <div class="yard-sign-state" id="yardSignResponsesState">
-                        Track which customers said yes or no to the yard-sign email without leaving Broadcasts.
-                    </div>
-                    <div class="yard-sign-stats">
-                        <div class="yard-sign-stat">
-                            <div class="yard-sign-stat-num" id="yardSignTotalSent">0</div>
-                            <div class="yard-sign-stat-label">Total Sent</div>
-                        </div>
-                        <div class="yard-sign-stat">
-                            <div class="yard-sign-stat-num" id="yardSignYesCount">0</div>
-                            <div class="yard-sign-stat-label">Yes</div>
-                        </div>
-                        <div class="yard-sign-stat">
-                            <div class="yard-sign-stat-num" id="yardSignNoCount">0</div>
-                            <div class="yard-sign-stat-label">No</div>
-                        </div>
-                        <div class="yard-sign-stat">
-                            <div class="yard-sign-stat-num" id="yardSignUnansweredCount">0</div>
-                            <div class="yard-sign-stat-label">Unanswered</div>
-                        </div>
-                    </div>
-                    <div class="yard-sign-filter-bar">
-                        <button type="button" class="yard-sign-filter-btn active" id="yardSignFilterAll" onclick="setYardSignResponseFilter('all')">All</button>
-                        <button type="button" class="yard-sign-filter-btn" id="yardSignFilterYes" onclick="setYardSignResponseFilter('yes')">Yes</button>
-                        <button type="button" class="yard-sign-filter-btn" id="yardSignFilterNo" onclick="setYardSignResponseFilter('no')">No</button>
-                        <button type="button" class="yard-sign-filter-btn" id="yardSignFilterUnanswered" onclick="setYardSignResponseFilter('unanswered')">Unanswered</button>
-                    </div>
-                    <div class="yard-sign-response-list" id="yardSignResponsesList">
-                        <div class="empty-audience">Loading yard-sign responses...</div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Customer List -->
             <div class="bc-card" style="flex:1;display:flex;flex-direction:column;">
                 <div class="audience-search">
@@ -1823,9 +1634,6 @@ let selectedCustomerIds = new Set();
 let currentChannel = 'email';
 let debounceTimer = null;
 let selectedTemplate = null;
-let yardSignResponseFilter = 'all';
-let yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
-let yardSignResponseRows = [];
 const COMPILED_COPILOT_TEMPLATE_SLUGS = new Set([
     'yard_sign_request',
     'payment_receipt',
@@ -1900,7 +1708,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFilterOptions();
     loadTemplates();
     refreshAudience();
-    refreshYardSignResponses();
 
     // Check for URL params
     const params = new URLSearchParams(window.location.search);
@@ -2254,109 +2061,6 @@ function renderAudienceSummary(summary) {
         ? ` ${summary.blocked_for_channel} customer${summary.blocked_for_channel !== 1 ? 's are' : ' is'} blocked for the current channel.`
         : ' All matched recipients are reachable on the current channel.';
     document.getElementById('audienceStateText').textContent = filterText + blockedText;
-}
-
-// ─── Yard Sign Responses ──────────────────────────────────
-function formatYardSignDate(value) {
-    if (!value) return '—';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return escHtml(String(value));
-    return date.toLocaleString([], {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-    });
-}
-
-function setYardSignResponseFilter(filter) {
-    yardSignResponseFilter = filter;
-    refreshYardSignResponses();
-}
-
-function renderYardSignResponses() {
-    document.getElementById('yardSignTotalSent').textContent = yardSignResponseSummary.total_sent || 0;
-    document.getElementById('yardSignYesCount').textContent = yardSignResponseSummary.yes || 0;
-    document.getElementById('yardSignNoCount').textContent = yardSignResponseSummary.no || 0;
-    document.getElementById('yardSignUnansweredCount').textContent = yardSignResponseSummary.unanswered || 0;
-
-    const filterButtons = {
-        all: document.getElementById('yardSignFilterAll'),
-        yes: document.getElementById('yardSignFilterYes'),
-        no: document.getElementById('yardSignFilterNo'),
-        unanswered: document.getElementById('yardSignFilterUnanswered')
-    };
-    Object.entries(filterButtons).forEach(([key, btn]) => {
-        btn.classList.toggle('active', key === yardSignResponseFilter);
-    });
-
-    const stateText = yardSignResponseSummary.total_sent
-        ? `Showing ${yardSignResponseFilter === 'all' ? 'all tracked responses' : yardSignResponseFilter} for yard-sign emails sent from the app.`
-        : 'No yard-sign sends have been logged yet, so there are no responses to review.';
-    document.getElementById('yardSignResponsesState').textContent = stateText;
-
-    const list = document.getElementById('yardSignResponsesList');
-    if (!yardSignResponseRows.length) {
-        list.innerHTML = `<div class="empty-audience">${yardSignResponseSummary.total_sent ? 'No customers match this response filter.' : 'No yard-sign responses have been recorded yet.'}</div>`;
-        return;
-    }
-
-    list.innerHTML = `
-        <table class="yard-sign-response-table">
-            <thead>
-                <tr>
-                    <th>Customer</th>
-                    <th>Answer</th>
-                    <th>Responded</th>
-                    <th>Source</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${yardSignResponseRows.map((row) => {
-                    const answer = String(row.answer || 'unanswered').toLowerCase();
-                    const answerLabel = answer === 'yes' ? 'Yes' : answer === 'no' ? 'No' : 'Unanswered';
-                    return `
-                        <tr>
-                            <td>
-                                <div class="yard-sign-customer-name">${escHtml(String(row.customer_name || 'Unknown'))}</div>
-                                <div class="yard-sign-customer-email">${escHtml(String(row.customer_email || ''))}</div>
-                            </td>
-                            <td><span class="yard-sign-answer-pill ${answer}">${answerLabel}</span></td>
-                            <td>${formatYardSignDate(row.responded_at || row.sent_at)}</td>
-                            <td><span class="yard-sign-source">${escHtml(String(row.source || (answer === 'unanswered' ? 'sent' : 'unknown')))}</span></td>
-                        </tr>`;
-                }).join('')}
-            </tbody>
-        </table>`;
-}
-
-async function refreshYardSignResponses() {
-    const list = document.getElementById('yardSignResponsesList');
-    if (list) {
-        list.innerHTML = '<div class="empty-audience">Loading yard-sign responses...</div>';
-    }
-    try {
-        const params = new URLSearchParams();
-        if (yardSignResponseFilter && yardSignResponseFilter !== 'all') {
-            params.set('answer', yardSignResponseFilter);
-        }
-        const url = '/api/yard-sign-responses' + (params.toString() ? `?${params.toString()}` : '');
-        const res = await fetch(url, { headers: getAuthHeaders() });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) {
-            throw new Error(data.error || `Yard sign responses failed (${res.status})`);
-        }
-        yardSignResponseSummary = data.summary || { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
-        yardSignResponseRows = data.rows || [];
-        renderYardSignResponses();
-    } catch (error) {
-        console.warn('Could not load yard sign responses:', error);
-        yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
-        yardSignResponseRows = [];
-        document.getElementById('yardSignResponsesState').textContent = 'Yard-sign responses failed to load. Check auth or try again.';
-        list.innerHTML = '<div class="empty-audience">Could not load yard-sign responses.</div>';
-    }
 }
 
 // ─── Audience Filter by Summary Stat ──────────────────────
@@ -2875,9 +2579,6 @@ async function sendBroadcast() {
             const result = await res.json();
             document.getElementById('progressFill').style.width = '100%';
             document.getElementById('progressText').textContent = 'Complete!';
-            if (selectedTemplate && selectedTemplate.slug === 'yard_sign_request') {
-                await refreshYardSignResponses();
-            }
             setTimeout(() => showResults(result), 500);
         } else {
             const err = await res.json().catch(() => ({ error: 'Send failed' }));

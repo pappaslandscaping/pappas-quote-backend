@@ -1387,6 +1387,30 @@
                         </select>
                     </div>
 
+                    <!-- Service Program -->
+                    <div class="filter-row">
+                        <div class="filter-label">Service Program</div>
+                        <select class="filter-input" id="serviceProgramFilter" onchange="onFilterChange()">
+                            <option value="">All Services</option>
+                            <option value="Mowing">Mowing</option>
+                        </select>
+                    </div>
+
+                    <!-- Service Frequency -->
+                    <div class="filter-row">
+                        <div class="filter-label">Service Frequency</div>
+                        <div class="filter-row-inline" style="gap:16px;flex-wrap:wrap;">
+                            <label style="display:flex;align-items:center;gap:8px;font-weight:500;">
+                                <input type="checkbox" id="weeklyFrequencyFilter" onchange="onFilterChange()">
+                                Weekly
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;font-weight:500;">
+                                <input type="checkbox" id="biWeeklyFrequencyFilter" onchange="onFilterChange()">
+                                Bi-Weekly
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Monthly Plan -->
                     <div class="filter-row">
                         <div class="filter-row-inline">
@@ -1603,7 +1627,7 @@
    Broadcasts — Mass Email/SMS Builder
    ═══════════════════════════════════════════════════════════ */
 
-let filterOptions = {};     // { tags: [], zips: [], cities: [] }
+let filterOptions = {};     // { tags: [], zips: [], cities: [], serviceTypes: [], serviceFrequencies: [] }
 let templates = [];
 let audienceResults = [];
 let selectedCustomerIds = new Set();
@@ -1682,11 +1706,26 @@ async function loadFilterOptions() {
         const res = await fetch('/api/broadcasts/filter-options', { headers: getAuthHeaders() });
         if (res.ok) {
             const data = await res.json();
-            filterOptions = { tags: data.tags || [], zips: data.postal_codes || data.zips || [], cities: data.cities || [] };
+            filterOptions = {
+                tags: data.tags || [],
+                zips: data.postal_codes || data.zips || [],
+                cities: data.cities || [],
+                serviceTypes: data.service_types || [],
+                serviceFrequencies: data.service_frequencies || []
+            };
+
+            const serviceProgramFilter = document.getElementById('serviceProgramFilter');
+            if (serviceProgramFilter) {
+                const existingValue = serviceProgramFilter.value;
+                const options = filterOptions.serviceTypes.length ? filterOptions.serviceTypes : ['Mowing'];
+                serviceProgramFilter.innerHTML = '<option value="">All Services</option>' +
+                    options.map(service => `<option value="${escHtml(service)}">${escHtml(service)}</option>`).join('');
+                serviceProgramFilter.value = existingValue && options.includes(existingValue) ? existingValue : '';
+            }
         }
     } catch (e) {
         console.warn('Could not load filter options:', e);
-        filterOptions = { tags: [], zips: [], cities: [] };
+        filterOptions = { tags: [], zips: [], cities: [], serviceTypes: ['Mowing'], serviceFrequencies: ['Weekly', 'Bi-Weekly'] };
     }
 }
 
@@ -1854,6 +1893,8 @@ function updateFilterCount() {
     if (chipSelections.cities.length) count++;
     if (document.getElementById('statusFilter').value) count++;
     if (document.getElementById('typeFilter').value) count++;
+    if (document.getElementById('serviceProgramFilter').value) count++;
+    if (document.getElementById('weeklyFrequencyFilter').checked || document.getElementById('biWeeklyFrequencyFilter').checked) count++;
     if (document.getElementById('monthlyPlanFilter').checked) count++;
     if (document.getElementById('recentlyActiveFilter').checked) count++;
     if (document.getElementById('jobDateFilter').checked) count++;
@@ -1885,6 +1926,9 @@ function clearAllFilters() {
     document.getElementById('cityInput').value = '';
     document.getElementById('statusFilter').value = '';
     document.getElementById('typeFilter').value = '';
+    document.getElementById('serviceProgramFilter').value = '';
+    document.getElementById('weeklyFrequencyFilter').checked = false;
+    document.getElementById('biWeeklyFrequencyFilter').checked = false;
     document.getElementById('monthlyPlanFilter').checked = false;
     document.getElementById('recentlyActiveFilter').checked = false;
     document.getElementById('recentMonths').disabled = true;
@@ -1906,6 +1950,12 @@ function buildFilterPayload() {
     if (status) payload.status = status;
     const type = document.getElementById('typeFilter').value;
     if (type) payload.customer_type = type;
+    const serviceType = document.getElementById('serviceProgramFilter').value;
+    if (serviceType) payload.service_type = serviceType;
+    const serviceFrequencies = [];
+    if (document.getElementById('weeklyFrequencyFilter').checked) serviceFrequencies.push('Weekly');
+    if (document.getElementById('biWeeklyFrequencyFilter').checked) serviceFrequencies.push('Bi-Weekly');
+    if (serviceFrequencies.length) payload.service_frequencies = serviceFrequencies;
     if (document.getElementById('monthlyPlanFilter').checked) payload.monthly_plan = true;
     if (document.getElementById('recentlyActiveFilter').checked) {
         payload.active_since_months = parseInt(document.getElementById('recentMonths').value) || 6;

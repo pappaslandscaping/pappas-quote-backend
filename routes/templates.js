@@ -132,7 +132,7 @@ router.post('/api/templates/preview', async (req, res) => {
 router.post('/api/templates/send-preview', async (req, res) => {
   try {
     const { template_id, slug, subject: directSubject, html_content: directHtml, to, wrapper, options } = req.body;
-    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview' };
+    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview', yard_sign_yes_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=yes', yard_sign_no_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no' };
 
     let subject, body, templateOptions = options || {};
     let wrapperMode = wrapper || templateOptions.wrapper || 'full';
@@ -197,7 +197,7 @@ router.get('/api/templates/variables', (req, res) => {
       invoice: ['invoice_number', 'invoice_total', 'invoice_due_date', 'amount_paid', 'balance_due', 'payment_link'],
       quote: ['quote_number', 'quote_total', 'quote_link', 'services_list'],
       job: ['job_date', 'service_type', 'crew_name', 'address'],
-      company: ['company_name', 'company_phone', 'company_email', 'company_website', 'portal_link']
+      company: ['company_name', 'company_phone', 'company_email', 'company_website', 'portal_link', 'yard_sign_yes_link', 'yard_sign_no_link']
     }
   });
 });

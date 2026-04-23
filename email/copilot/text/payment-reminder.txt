@@ -1,0 +1,9 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+This is a reminder that {{INVOICE_NUMBER}} is due on {{INVOICE_DUE_DATE}}.
+
+Account balance: ${{CUSTOMER_ACCOUNT_BALANCE}}
+
+You can review your account and pay online here: {{CUSTOMER_PORTAL_LINK}}
+
+Let me know if you have any questions. Thank you.

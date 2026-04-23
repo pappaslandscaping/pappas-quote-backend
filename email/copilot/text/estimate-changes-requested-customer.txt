@@ -1,0 +1,9 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+We received your requested changes for {{ESTIMATE_NUMBER}}.
+
+Requested changes: {{ESTIMATE_CHANGES}}
+
+Our team will review your notes and follow up with an updated estimate as soon as possible.
+
+Let me know if you have any questions. Thank you.

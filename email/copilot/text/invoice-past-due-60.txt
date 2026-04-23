@@ -1,0 +1,11 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+{{INVOICE_NUMBER}} is more than 60 days past due.
+
+Current balance: ${{INVOICE_TOTAL}}
+
+Under our payment terms, additional late fees apply every 30 days, and services may be suspended once an account reaches 60 days past due.
+
+You can make a payment here: {{INVOICES_LINKS}}
+
+If you need help, please contact us right away. Thank you.

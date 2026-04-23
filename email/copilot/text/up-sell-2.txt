@@ -1,0 +1,7 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+We also offer [Add-on Service] if that is something you would like to include.
+
+It can help with [short benefit] and can be added for your property if you want. More info: {{EXAMPLE_UP_SELL_LINK}}
+
+Let me know if you want me to add it. Thank you.

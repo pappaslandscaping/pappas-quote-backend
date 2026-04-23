@@ -1,0 +1,5 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+Thank you for your tip. We really appreciate it.
+
+It means a lot to our team, and we’re grateful for your business. Thank you.

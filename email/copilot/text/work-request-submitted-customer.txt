@@ -1,0 +1,7 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+We received your work request for {{CUSTOMER_ADDRESS}}.
+
+Our office will review it and follow up with the next step soon.
+
+Let me know if you have any questions. Thank you.

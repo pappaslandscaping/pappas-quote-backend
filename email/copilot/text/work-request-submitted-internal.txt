@@ -1,0 +1,5 @@
+New work request from {{CUSTOMER_NAME}}.
+
+Review {{CUSTOMER_FIRST_NAME}}'s work request in Copilot.
+Prepare pricing or an estimate if needed.
+Follow up with {{CUSTOMER_FIRST_NAME}}.

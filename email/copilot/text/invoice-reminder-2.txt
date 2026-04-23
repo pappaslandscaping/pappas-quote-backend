@@ -1,0 +1,11 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+{{INVOICE_NUMBER}} is still open and payment is due upon receipt.
+
+Amount due: ${{INVOICE_TOTAL}}
+
+You can review and pay online here: {{INVOICES_LINKS}}
+
+You can also mail a check to PO Box 770057, Lakewood, OH 44107, or send payment by Zelle to hello@pappaslandscaping.com.
+
+Let me know if you have any questions. Thank you.

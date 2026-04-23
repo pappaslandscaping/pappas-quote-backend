@@ -1,0 +1,9 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+I just sent over your invoice for {{INVOICE_NUMBER}}.
+
+Amount due: ${{INVOICE_TOTAL}}. Payment is due upon receipt.
+
+You can review the invoice and pay from this link: {{INVOICES_LINKS}}
+
+Let me know if you have any questions. Thank you.

@@ -1,0 +1,8 @@
+{{CUSTOMER_NAME}} approved {{ESTIMATE_NUMBER}}.
+
+Total: ${{ESTIMATE_TOTAL}}
+Address: {{CUSTOMER_ADDRESS}}
+Email: {{CUSTOMER_EMAIL}}
+Phone: {{CUSTOMER_PHONE}}
+
+The customer is ready for the next step. Please review and follow up.

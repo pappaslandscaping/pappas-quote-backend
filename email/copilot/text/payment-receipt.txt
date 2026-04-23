@@ -1,0 +1,11 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+We received your payment for {{INVOICE_NUMBER}}.
+
+Amount: ${{PAYMENT_AMOUNT}}
+Method: {{PAYMENT_METHOD}}
+Date: {{PAYMENT_DATE}}
+
+You can view your receipt here: {{RECEIPT_LINK}}
+
+Thank you. Let me know if you need anything.

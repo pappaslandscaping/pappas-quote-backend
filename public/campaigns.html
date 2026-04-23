@@ -1768,6 +1768,7 @@ let selectedAudience = 'all';
 let yardSignResponseFilter = 'all';
 let yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
 let yardSignResponseRows = [];
+let yardSignCampaignSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
 const TEMPLATE_PREVIEW_VARS = {
     customer_first_name: 'Jane',
     customer_name: 'Jane Smith',
@@ -1822,6 +1823,22 @@ function isYardSignTemplate(template) {
 
 function getCampaignTemplate(templateId) {
     return marketingTemplates.find(t => String(t.id) === String(templateId)) || null;
+}
+
+function getYardSignTemplate() {
+    return marketingTemplates.find(t => String(t.slug || '').trim() === 'yard_sign_request') || null;
+}
+
+function buildYardSignCampaign() {
+    const template = getYardSignTemplate();
+    return {
+        id: 'yard-sign-request',
+        name: 'Yard Sign Request',
+        description: 'Review customer yes/no responses for the yard-sign email workflow.',
+        status: 'active',
+        template_id: template ? template.id : null,
+        isYardSignCampaign: true
+    };
 }
 
 function setYardSignSectionVisible(visible) {
@@ -1902,7 +1919,11 @@ async function refreshYardSignResponses() {
         }
         yardSignResponseSummary = data.summary || { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
         yardSignResponseRows = data.rows || [];
+        yardSignCampaignSummary = { ...yardSignResponseSummary };
         renderYardSignResponses();
+        if (!currentCampaign || !currentCampaign.isYardSignCampaign) {
+            renderCampaigns();
+        }
     } catch (error) {
         console.error('Error loading yard-sign responses:', error);
         yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
@@ -1958,16 +1979,6 @@ async function loadCampaigns() {
 function renderCampaigns() {
     const grid = document.getElementById('campaignsGrid');
 
-    if (!campaigns.length) {
-        grid.innerHTML = `
-            <div class="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                <p>No campaigns yet. Create your first campaign!</p>
-            </div>
-        `;
-        return;
-    }
-
     // Pinned Season Kickoff campaign card
     const seasonKickoffCard = `
         <div class="campaign-card" onclick="window.location.href='season-kickoff.html'" style="border-left:4px solid var(--forest);">
@@ -1982,7 +1993,44 @@ function renderCampaigns() {
             </div>
         </div>`;
 
-    grid.innerHTML = seasonKickoffCard + campaigns.map(c => `
+    const yardSignCampaignCard = `
+        <div class="campaign-card" onclick="viewCampaign('yard-sign-request')" style="border-left:4px solid #243330;">
+            <div class="campaign-header">
+                <span class="campaign-status status-active">Active</span>
+                <div class="campaign-name">Yard Sign Request</div>
+                <div class="campaign-desc">Review yes/no responses from the yard-sign email workflow.</div>
+            </div>
+            <div class="campaign-stats">
+                <div class="campaign-stat">
+                    <div class="campaign-stat-value">${yardSignCampaignSummary.total_sent || 0}</div>
+                    <div class="campaign-stat-label">Sent</div>
+                </div>
+                <div class="campaign-stat">
+                    <div class="campaign-stat-value">${yardSignCampaignSummary.yes || 0}</div>
+                    <div class="campaign-stat-label">Yes</div>
+                </div>
+                <div class="campaign-stat">
+                    <div class="campaign-stat-value">${yardSignCampaignSummary.no || 0}</div>
+                    <div class="campaign-stat-label">No</div>
+                </div>
+            </div>
+            <div class="email-stats-row">
+                <span class="email-stat-badge sent">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                    ${yardSignCampaignSummary.unanswered || 0} unanswered
+                </span>
+                <span class="email-stat-badge opened">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 7-9 11-9 11S3 19 3 12a9 9 0 0118 0z"/></svg>
+                    Click to review responses
+                </span>
+            </div>
+            <div class="campaign-footer">
+                <span class="campaign-date">Campaign Tracking</span>
+                <span class="campaign-link">Open Yard Sign Results &#8594;</span>
+            </div>
+        </div>`;
+
+    const dynamicCampaigns = campaigns.length ? campaigns.map(c => `
         <div class="campaign-card" onclick="viewCampaign('${c.id}')">
             <div class="campaign-header">
                 <span class="campaign-status status-${c.status || 'active'}">${c.status || 'Active'}</span>
@@ -2023,15 +2071,32 @@ function renderCampaigns() {
                 <span class="campaign-link">View Details &#8594;</span>
             </div>
         </div>
-    `).join('');
+    `).join('') : `
+        <div class="campaign-card" onclick="openCreateModal()">
+            <div class="campaign-header">
+                <span class="campaign-status status-paused">Draft</span>
+                <div class="campaign-name">Create Your First Campaign</div>
+                <div class="campaign-desc">Add a customer-facing campaign when you are ready. Yard Sign Request is already available above for response tracking.</div>
+            </div>
+            <div class="campaign-footer">
+                <span class="campaign-date">No custom campaigns yet</span>
+                <span class="campaign-link">Create Campaign &#8594;</span>
+            </div>
+        </div>`;
+
+    grid.innerHTML = seasonKickoffCard + yardSignCampaignCard + dynamicCampaigns;
 }
 
 // View campaign detail
 async function viewCampaign(campaignId) {
-    currentCampaign = campaigns.find(c => c.id == campaignId || c.name === campaignId);
+    if (campaignId === 'yard-sign-request') {
+        currentCampaign = buildYardSignCampaign();
+    } else {
+        currentCampaign = campaigns.find(c => c.id == campaignId || c.name === campaignId);
+    }
     if (!currentCampaign) return;
-    currentCampaignTemplate = getCampaignTemplate(currentCampaign.template_id);
-    setYardSignSectionVisible(isYardSignTemplate(currentCampaignTemplate));
+    currentCampaignTemplate = getCampaignTemplate(currentCampaign.template_id) || (currentCampaign.isYardSignCampaign ? getYardSignTemplate() : null);
+    setYardSignSectionVisible(!!currentCampaign.isYardSignCampaign || isYardSignTemplate(currentCampaignTemplate));
 
     // Update detail header
     document.getElementById('detailTitle').textContent = currentCampaign.name;
@@ -2045,6 +2110,20 @@ async function viewCampaign(campaignId) {
 
     // Load email template preview if campaign has a linked template
     loadEmailPreview(currentCampaign.template_id);
+
+    if (currentCampaign.isYardSignCampaign) {
+        document.getElementById('engagementSection').style.display = 'none';
+        document.getElementById('submissionsTable').innerHTML = `
+            <tr>
+                <td colspan="6">
+                    <div class="empty-state">
+                        <p>This campaign is used to review yard-sign responses rather than form submissions.</p>
+                    </div>
+                </td>
+            </tr>`;
+        await refreshYardSignResponses();
+        return;
+    }
 
     // Load submissions and engagement data
     await Promise.all([
@@ -2449,11 +2528,22 @@ async function loadTemplates() {
         const data = await res.json();
         marketingTemplates = data.templates || [];
         populateTemplateSelects();
-        if (currentCampaign && currentCampaign.template_id && !currentCampaignTemplate) {
-            currentCampaignTemplate = getCampaignTemplate(currentCampaign.template_id);
-            setYardSignSectionVisible(isYardSignTemplate(currentCampaignTemplate));
-            if (isYardSignTemplate(currentCampaignTemplate)) {
+        if (currentCampaign) {
+            if (currentCampaign.isYardSignCampaign) {
+                const yardSignTemplate = getYardSignTemplate();
+                if (yardSignTemplate) {
+                    currentCampaign.template_id = yardSignTemplate.id;
+                    currentCampaignTemplate = yardSignTemplate;
+                    loadEmailPreview(yardSignTemplate.id);
+                }
+                setYardSignSectionVisible(true);
                 refreshYardSignResponses();
+            } else if (currentCampaign.template_id && !currentCampaignTemplate) {
+                currentCampaignTemplate = getCampaignTemplate(currentCampaign.template_id);
+                setYardSignSectionVisible(isYardSignTemplate(currentCampaignTemplate));
+                if (isYardSignTemplate(currentCampaignTemplate)) {
+                    refreshYardSignResponses();
+                }
             }
         }
     } catch (err) {
@@ -2481,7 +2571,9 @@ function populateTemplateSelects() {
 function sendViaBroadcast() {
     if (!currentCampaign) return;
     const params = new URLSearchParams();
-    params.set('campaign_id', currentCampaign.id);
+    if (!currentCampaign.isYardSignCampaign) {
+        params.set('campaign_id', currentCampaign.id);
+    }
     if (currentCampaign.template_id) params.set('template_id', currentCampaign.template_id);
     window.location.href = 'broadcasts.html?' + params.toString();
 }
@@ -2820,6 +2912,7 @@ function showSendResults(result) {
 document.addEventListener('DOMContentLoaded', () => {
     loadCampaigns();
     loadTemplates();
+    refreshYardSignResponses();
 });
 
 // Universal Search

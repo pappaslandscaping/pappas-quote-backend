@@ -10349,54 +10349,205 @@ app.put('/api/work-requests/:id', async (req, res) => {
 // ═══ TIME TRACKING ENDPOINTS ══════════════════════════════
 // ═══════════════════════════════════════════════════════════
 
+function parseTimeTrackingJobReference(jobReference) {
+  if (!jobReference || typeof jobReference !== 'string') {
+    return { customerName: null, serviceType: null };
+  }
+
+  const normalized = jobReference.trim();
+  if (!normalized) {
+    return { customerName: null, serviceType: null };
+  }
+
+  const parts = normalized.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return {
+      customerName: parts[0],
+      serviceType: parts.slice(1).join(' - '),
+    };
+  }
+
+  return { customerName: normalized, serviceType: null };
+}
+
+function serializeTimeTrackingEntry(row) {
+  const crewMember = row.crew_member || row.crew_name || '';
+  const jobReference = row.job_reference
+    || [row.customer_name, row.service_type].filter(Boolean).join(' - ')
+    || row.address
+    || '';
+  const status = row.clock_out ? 'completed' : (row.status || 'active');
+
+  return {
+    ...row,
+    crew_member: crewMember,
+    crew_name: crewMember,
+    job_reference: jobReference,
+    status,
+  };
+}
+
 app.get('/api/time-entries', async (req, res) => {
   try {
-    const { date, crew_id, status, limit = 100, offset = 0 } = req.query;
-    let query = 'SELECT * FROM time_entries WHERE 1=1';
+    const {
+      date,
+      crew_id,
+      crew_member,
+      crew_name,
+      status,
+      start_date,
+      end_date,
+      limit = 100,
+      offset = 0,
+    } = req.query;
+    let query = `SELECT
+      id,
+      crew_id,
+      crew_name,
+      crew_name AS crew_member,
+      job_id,
+      customer_name,
+      address,
+      service_type,
+      TRIM(CONCAT_WS(' - ', NULLIF(customer_name, ''), NULLIF(service_type, ''))) AS job_reference,
+      clock_in,
+      clock_out,
+      break_minutes,
+      notes,
+      status,
+      created_at
+    FROM time_entries WHERE 1=1`;
     const params = [];
     let p = 1;
     if (date) { query += ` AND clock_in::date = $${p++}`; params.push(date); }
     if (crew_id) { query += ` AND crew_id = $${p++}`; params.push(crew_id); }
+    if (crew_member || crew_name) {
+      query += ` AND LOWER(COALESCE(crew_name, '')) = LOWER($${p++})`;
+      params.push((crew_member || crew_name).trim());
+    }
     if (status) { query += ` AND status = $${p++}`; params.push(status); }
+    if (start_date) { query += ` AND clock_in::date >= $${p++}`; params.push(start_date); }
+    if (end_date) { query += ` AND clock_in::date <= $${p++}`; params.push(end_date); }
+
+    const baseQuery = query;
     query += ` ORDER BY clock_in DESC LIMIT $${p++} OFFSET $${p}`;
-    params.push(limit, offset);
+    params.push(Math.max(parseInt(limit, 10) || 100, 0), Math.max(parseInt(offset, 10) || 0, 0));
     const [result, countResult] = await Promise.all([
       pool.query(query, params),
-      pool.query('SELECT COUNT(*) FROM time_entries')
+      pool.query(`SELECT COUNT(*) FROM (${baseQuery}) filtered_entries`, params.slice(0, -2))
     ]);
-    res.json({ success: true, entries: result.rows, total: parseInt(countResult.rows[0].count) });
+    res.json({
+      success: true,
+      entries: result.rows.map(serializeTimeTrackingEntry),
+      total: parseInt(countResult.rows[0].count, 10),
+    });
   } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/time-entries/stats', async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const [active, todayEntries, todayHours, weekHours, activeEntries] = await Promise.all([
-      pool.query("SELECT COUNT(*) FROM time_entries WHERE status = 'active' AND clock_out IS NULL"),
-      pool.query("SELECT COUNT(*) FROM time_entries WHERE clock_in::date = $1", [today]),
-      pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in::date = $1", [today]),
-      pool.query("SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as hours FROM time_entries WHERE clock_in >= date_trunc('week', CURRENT_DATE)"),
-      pool.query("SELECT * FROM time_entries WHERE status = 'active' AND clock_out IS NULL ORDER BY clock_in DESC")
+    const [statsResult, activeEntries] = await Promise.all([
+      pool.query(`SELECT
+        COUNT(*) FILTER (WHERE clock_out IS NULL) AS active_timers,
+        COUNT(*) FILTER (WHERE clock_in::date = CURRENT_DATE) AS today_entries,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN clock_in::date = CURRENT_DATE THEN
+                GREATEST(
+                  EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600.0
+                  - COALESCE(break_minutes, 0) / 60.0,
+                  0
+                )
+              ELSE 0
+            END
+          ),
+          0
+        ) AS today_hours,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN clock_in >= date_trunc('week', CURRENT_DATE) THEN
+                GREATEST(
+                  EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600.0
+                  - COALESCE(break_minutes, 0) / 60.0,
+                  0
+                )
+              ELSE 0
+            END
+          ),
+          0
+        ) AS week_hours
+      FROM time_entries`),
+      pool.query(`SELECT
+        id,
+        crew_id,
+        crew_name,
+        crew_name AS crew_member,
+        job_id,
+        customer_name,
+        address,
+        service_type,
+        TRIM(CONCAT_WS(' - ', NULLIF(customer_name, ''), NULLIF(service_type, ''))) AS job_reference,
+        clock_in,
+        clock_out,
+        break_minutes,
+        notes,
+        status,
+        created_at
+      FROM time_entries
+      WHERE clock_out IS NULL
+      ORDER BY clock_in DESC`)
     ]);
-    res.json({ success: true, stats: {
-      activeClockedIn: parseInt(active.rows[0].count),
-      todayEntries: parseInt(todayEntries.rows[0].count),
-      todayHours: parseFloat(todayHours.rows[0].hours).toFixed(1),
-      weekHours: parseFloat(weekHours.rows[0].hours).toFixed(1),
-      activeEntries: activeEntries.rows
-    }});
+    const row = statsResult.rows[0] || {};
+    const stats = {
+      active_timers: Number(row.active_timers || 0),
+      today_entries: Number(row.today_entries || 0),
+      today_hours: Number(row.today_hours || 0),
+      week_hours: Number(row.week_hours || 0),
+      active_entries: activeEntries.rows.map(serializeTimeTrackingEntry),
+      activeClockedIn: Number(row.active_timers || 0),
+      todayEntries: Number(row.today_entries || 0),
+      todayHours: Number(row.today_hours || 0),
+      weekHours: Number(row.week_hours || 0),
+      activeEntries: activeEntries.rows.map(serializeTimeTrackingEntry),
+    };
+    res.json({ success: true, stats });
   } catch (error) { serverError(res, error); }
 });
 
 app.post('/api/time-entries/clock-in', async (req, res) => {
   try {
-    const { crew_id, crew_name, job_id, customer_name, address, service_type, notes } = req.body;
-    if (!crew_name) return res.status(400).json({ success: false, error: 'Crew name required' });
+    const { crew_id, job_id, address, notes } = req.body;
+    const crewName = (req.body.crew_name || req.body.crew_member || '').trim();
+    if (!crewName) return res.status(400).json({ success: false, error: 'Crew name required' });
+
+    const activeEntry = await pool.query(
+      `SELECT id
+         FROM time_entries
+        WHERE LOWER(COALESCE(crew_name, '')) = LOWER($1)
+          AND clock_out IS NULL
+        LIMIT 1`,
+      [crewName]
+    );
+    if (activeEntry.rows.length > 0) {
+      return res.status(409).json({ success: false, error: `${crewName} is already clocked in` });
+    }
+
+    const { customerName, serviceType } = parseTimeTrackingJobReference(req.body.job_reference);
     const result = await pool.query(
       `INSERT INTO time_entries (crew_id, crew_name, job_id, customer_name, address, service_type, clock_in, notes) VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7) RETURNING *`,
-      [crew_id, crew_name, job_id, customer_name, address, service_type, notes]
+      [
+        crew_id || null,
+        crewName,
+        job_id || null,
+        req.body.customer_name || customerName,
+        address || null,
+        req.body.service_type || serviceType,
+        notes || null
+      ]
     );
-    res.json({ success: true, entry: result.rows[0] });
+    res.json({ success: true, entry: serializeTimeTrackingEntry(result.rows[0]) });
   } catch (error) { serverError(res, error); }
 });
 
@@ -10411,19 +10562,42 @@ app.post('/api/time-entries/:id/clock-out', async (req, res) => {
     params.push(req.params.id);
     const result = await pool.query(`UPDATE time_entries SET ${sets.join(', ')} WHERE id = $${p} AND clock_out IS NULL RETURNING *`, params);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Entry not found or already clocked out' });
-    res.json({ success: true, entry: result.rows[0] });
+    res.json({ success: true, entry: serializeTimeTrackingEntry(result.rows[0]) });
   } catch (error) { serverError(res, error); }
 });
 
 app.put('/api/time-entries/:id', async (req, res) => {
   try {
-    const { clock_in, clock_out, break_minutes, notes, crew_name, customer_name, address, service_type } = req.body;
+    const {
+      clock_in,
+      clock_out,
+      break_minutes,
+      notes,
+      customer_name,
+      address,
+      service_type,
+    } = req.body;
+    const crewName = req.body.crew_name || req.body.crew_member || null;
     const result = await pool.query(
-      `UPDATE time_entries SET clock_in = COALESCE($1, clock_in), clock_out = COALESCE($2, clock_out), break_minutes = COALESCE($3, break_minutes), notes = COALESCE($4, notes), crew_name = COALESCE($5, crew_name), customer_name = COALESCE($6, customer_name), address = COALESCE($7, address), service_type = COALESCE($8, service_type) WHERE id = $9 RETURNING *`,
-      [clock_in, clock_out, break_minutes, notes, crew_name, customer_name, address, service_type, req.params.id]
+      `UPDATE time_entries
+          SET clock_in = COALESCE($1, clock_in),
+              clock_out = COALESCE($2, clock_out),
+              break_minutes = COALESCE($3, break_minutes),
+              notes = COALESCE($4, notes),
+              crew_name = COALESCE($5, crew_name),
+              customer_name = COALESCE($6, customer_name),
+              address = COALESCE($7, address),
+              service_type = COALESCE($8, service_type),
+              status = CASE
+                WHEN COALESCE($2, clock_out) IS NULL THEN 'active'
+                ELSE 'completed'
+              END
+        WHERE id = $9
+        RETURNING *`,
+      [clock_in, clock_out, break_minutes, notes, crewName, customer_name, address, service_type, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, entry: result.rows[0] });
+    res.json({ success: true, entry: serializeTimeTrackingEntry(result.rows[0]) });
   } catch (error) { serverError(res, error); }
 });
 
@@ -10431,24 +10605,54 @@ app.delete('/api/time-entries/:id', async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM time_entries WHERE id = $1 RETURNING *', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    res.json({ success: true, deleted: result.rows[0] });
+    res.json({ success: true, deleted: serializeTimeTrackingEntry(result.rows[0]) });
   } catch (error) { serverError(res, error); }
 });
 
 app.get('/api/time-entries/weekly-report', async (req, res) => {
   try {
     const { week_start } = req.query;
-    const startDate = week_start || new Date(Date.now() - new Date().getDay() * 86400000).toISOString().split('T')[0];
+    const startDate = week_start || new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
     const result = await pool.query(`
-      SELECT crew_name,
-        COUNT(*) as total_entries,
-        COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(clock_out, NOW()) - clock_in)) / 3600), 0)::numeric as total_hours,
-        COALESCE(SUM(break_minutes), 0) as total_break_minutes
-      FROM time_entries
-      WHERE clock_in::date >= $1 AND clock_in::date < ($1::date + INTERVAL '7 days')
-      GROUP BY crew_name ORDER BY crew_name
+      WITH days AS (
+        SELECT generate_series(
+          $1::date,
+          ($1::date + INTERVAL '6 days')::date,
+          INTERVAL '1 day'
+        )::date AS day
+      )
+      SELECT
+        TO_CHAR(days.day, 'YYYY-MM-DD') AS date,
+        COUNT(te.id) AS entry_count,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN te.id IS NOT NULL THEN
+                GREATEST(
+                  EXTRACT(EPOCH FROM (COALESCE(te.clock_out, NOW()) - te.clock_in)) / 3600.0
+                  - COALESCE(te.break_minutes, 0) / 60.0,
+                  0
+                )
+              ELSE 0
+            END
+          ),
+          0
+        ) AS total_hours
+      FROM days
+      LEFT JOIN time_entries te
+        ON te.clock_in::date = days.day
+      GROUP BY days.day
+      ORDER BY days.day
     `, [startDate]);
-    res.json({ success: true, report: result.rows, weekStart: startDate });
+    res.json({
+      success: true,
+      report: result.rows.map((row) => ({
+        date: row.date,
+        entry_count: Number(row.entry_count || 0),
+        total_hours: Number(row.total_hours || 0),
+      })),
+      weekStart: startDate
+    });
   } catch (error) { serverError(res, error); }
 });
 

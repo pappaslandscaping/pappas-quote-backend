@@ -15,6 +15,10 @@ const cheerio = require('cheerio');
 const { ApiError, ValidationError, NotFoundError, IntegrationError } = require('./lib/api-error');
 const { validate, schemas } = require('./lib/validate');
 const { renderWithBaseLayout, renderManagedEmail, LOGO_URL, SIGNATURE_IMAGE, emailTemplate } = require('./lib/email-renderer');
+const {
+  isCompiledCopilotTemplateSlug,
+  renderCompiledCopilotTemplate
+} = require('./lib/compiled-copilot-templates');
 const { parseInvoiceListHtml } = require('./scripts/parse-copilot-invoices');
 const { parseInvoiceDetailHtml } = require('./scripts/parse-copilot-invoice-detail');
 const { syncInvoicesToDatabase, syncInvoiceDetailsToDatabase, mergeDetailIdentityFromListRow } = require('./scripts/import-copilot-invoices');
@@ -6944,19 +6948,41 @@ app.get('/yard-sign-response', async (req, res) => {
       }));
     }
 
+    const customerResult = await pool.query(
+      'SELECT name, first_name FROM customers WHERE id = $1',
+      [tokenData.customer_id]
+    );
+    const customerRow = customerResult.rows[0] || {};
+    const firstName = String(customerRow.first_name || customerRow.name || 'there').trim().split(/\s+/)[0];
+
+    const existingResponse = await pool.query(
+      `SELECT answer, responded_at
+       FROM yard_sign_responses
+       WHERE customer_id = $1
+       LIMIT 1`,
+      [tokenData.customer_id]
+    );
+
+    if (existingResponse.rows.length > 0) {
+      const recordedAnswer = existingResponse.rows[0].answer;
+      const recordedMessage = recordedAnswer === 'yes'
+        ? `We already recorded that you'd be open to a yard sign, ${firstName}.`
+        : `We already recorded that you'd prefer not to have a yard sign right now, ${firstName}.`;
+
+      return res.send(renderYardSignResponsePage({
+        title: 'Response already recorded',
+        message: recordedMessage,
+        detail: 'Your first response is the one we saved, so no further action is needed.',
+        answer: recordedAnswer
+      }));
+    }
+
     await pool.query(
       `INSERT INTO yard_sign_responses (customer_id, answer, responded_at, source)
-       VALUES ($1, $2, NOW(), $3)
-       ON CONFLICT (customer_id)
-       DO UPDATE SET answer = EXCLUDED.answer, responded_at = EXCLUDED.responded_at, source = EXCLUDED.source`,
+       VALUES ($1, $2, NOW(), $3)`,
       [tokenData.customer_id, answer, source || 'yard_sign_email']
     );
 
-    const customerResult = await pool.query(
-      'SELECT name FROM customers WHERE id = $1',
-      [tokenData.customer_id]
-    );
-    const firstName = (customerResult.rows[0]?.name || 'there').split(' ')[0];
     const thankYouMessage = answer === 'yes'
       ? `Thanks, ${firstName}. We recorded that you'd be open to a yard sign.`
       : `Thanks, ${firstName}. We recorded that you'd prefer not to have a yard sign right now.`;
@@ -8649,16 +8675,21 @@ async function renderTemplate(slug, vars, fallbackSubject, fallbackHtml) {
   const template = await getTemplate(slug);
   if (template) {
     const subject = replaceTemplateVars(template.subject, vars);
-    const body = replaceTemplateVars(template.body, vars);
-    const wrapperOption = template.options?.wrapper || 'full';
+    let html;
+    if (isCompiledCopilotTemplateSlug(slug)) {
+      html = renderCompiledCopilotTemplate(slug, vars);
+    } else {
+      const body = replaceTemplateVars(template.body, vars);
+      const wrapperOption = template.options?.wrapper || 'full';
 
-    const html = await renderManagedEmail(body, {
-      wrapper: wrapperOption,
-      showFeatures: template.options?.showFeatures || false,
-      showSignature: template.options?.showSignature !== false,
-      baseUrl: process.env.BASE_URL,
-      unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
-    });
+      html = await renderManagedEmail(body, {
+        wrapper: wrapperOption,
+        showFeatures: template.options?.showFeatures || false,
+        showSignature: template.options?.showSignature !== false,
+        baseUrl: process.env.BASE_URL,
+        unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
+      });
+    }
 
     return { subject, html, fromTemplate: true };
   }

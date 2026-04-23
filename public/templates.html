@@ -1790,26 +1790,65 @@ const CATEGORY_LABELS = {
     system: 'System'
 };
 
+const COMPILED_COPILOT_TEMPLATE_SLUGS = new Set([
+    'yard_sign_request',
+    'payment_receipt',
+    'statement',
+    'tip_thank_you',
+    'estimate_accepted_internal',
+    'estimate_changes_requested_internal',
+    'estimate_changes_requested_customer',
+    'work_request_submitted_internal',
+    'work_request_submitted_customer',
+    'invoice',
+    'payment_reminder',
+    'invoice_reminder_1',
+    'invoice_reminder_2',
+    'invoice_reminder_3',
+    'invoice_reminder_final',
+    'invoice_past_due_30',
+    'invoice_past_due_45',
+    'invoice_past_due_60',
+    'invoice_partial_followup_1',
+    'invoice_partial_followup_2',
+    'invoice_partial_followup_final',
+    'quote',
+    'welcome'
+]);
+
 const SAMPLE_VARS = {
     customer_name: 'Jane Smith',
     customer_first_name: 'Jane',
     customer_email: 'jane.smith@example.com',
     customer_phone: '(555) 234-5678',
     customer_address: '742 Evergreen Terrace, Springfield, IL 62704',
+    customer_account_balance: '$750.00',
+    customer_portal_link: 'https://portal.pappaslandscaping.com',
     invoice_number: 'INV-2024-0042',
     invoice_total: '$1,250.00',
     invoice_due_date: 'March 15, 2026',
+    invoices_links: 'https://pay.pappaslandscaping.com/invoices/abc123',
+    payment_amount: '$500.00',
+    payment_method: 'Visa ending in 4242',
+    payment_date: 'April 23, 2026',
+    receipt_link: 'https://portal.pappaslandscaping.com/receipt/abc123',
     amount_paid: '$500.00',
     balance_due: '$750.00',
     payment_link: 'https://pay.pappaslandscaping.com/inv/abc123',
     quote_number: 'Q-2024-0087',
     quote_total: '$3,400.00',
     quote_link: 'https://portal.pappaslandscaping.com/quote/xyz789',
+    estimate_number: 'Estimate 0087',
+    estimate_total: '$3,400.00',
+    estimate_link: 'https://portal.pappaslandscaping.com/estimate/xyz789',
+    estimate_edit_link: 'https://secure.copilotcrm.com/estimates/xyz789/edit',
+    estimate_changes: 'Please revise the mulching scope and update the total.',
     services_list: 'Spring Cleanup, Lawn Mowing (Weekly), Mulch Installation',
     job_date: 'Monday, March 9, 2026',
     service_type: 'Lawn Maintenance',
     crew_name: 'Alpha Crew',
     address: '742 Evergreen Terrace, Springfield, IL',
+    event_property_address: '742 Evergreen Terrace, Springfield, IL 62704',
     company_name: 'Pappas & Co. Landscaping',
     company_phone: '(555) 867-5309',
     company_email: 'hello@pappaslandscaping.com',
@@ -2530,7 +2569,7 @@ async function sendTestEmail() {
         return;
     }
     try {
-        const isCompiledCopilotTemplate = slug === 'yard_sign_request' && !!selectedId;
+        const isCompiledCopilotTemplate = COMPILED_COPILOT_TEMPLATE_SLUGS.has(slug) && !!selectedId;
         const res = await fetch('/api/templates/send-preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2585,7 +2624,7 @@ async function refreshPreview() {
     document.getElementById('previewWrapperPill').textContent = getWrapperLabel(currentWrapper);
 
     try {
-        const isCompiledCopilotTemplate = slug === 'yard_sign_request' && !!selectedId;
+        const isCompiledCopilotTemplate = COMPILED_COPILOT_TEMPLATE_SLUGS.has(slug) && !!selectedId;
         const res = await fetch('/api/templates/preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

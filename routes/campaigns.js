@@ -7,6 +7,10 @@
 const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
+const {
+  isCompiledCopilotTemplateSlug,
+  renderCompiledCopilotTemplate
+} = require('../lib/compiled-copilot-templates');
 
 function buildCampaignCustomerActivityCondition({ liveDateClause, scheduledDateClause }) {
   return `(
@@ -44,6 +48,15 @@ function buildActiveCampaignCustomerQuery({ liveMonthsPlaceholder = '$1', schedu
 
 function createCampaignRoutes({ pool, sendEmail, emailTemplate, renderManagedEmail, serverError, NOTIFICATION_EMAIL, replaceTemplateVars }) {
   const router = express.Router();
+
+function appendTrackingPixel(html, pixelUrl) {
+  const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;" />`;
+  if (!html) return pixel;
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${pixel}</body>`);
+  }
+  return `${html}${pixel}`;
+}
 
 router.get('/api/campaigns', async (req, res) => {
   try {
@@ -312,17 +325,22 @@ router.post('/api/campaigns/:id/send', async (req, res) => {
           unsubscribe_email: encodeURIComponent(cust.email || '')
         };
         const subject = replaceTemplateVars(tmpl.subject, vars);
-        let body = replaceTemplateVars(tmpl.body, vars);
         // Add tracking pixel
         const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-        body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-        const finalHtml = await renderManagedEmail(body, {
-          wrapper: tmpl.options?.wrapper || 'full',
-          showFeatures: tmpl.options?.showFeatures || false,
-          showSignature: tmpl.options?.showSignature !== false,
-          baseUrl,
-          unsubscribeEmail: encodeURIComponent(cust.email || '')
-        });
+        let finalHtml;
+        if (tmpl.slug && isCompiledCopilotTemplateSlug(tmpl.slug)) {
+          finalHtml = renderCompiledCopilotTemplate(tmpl.slug, vars);
+        } else {
+          const body = replaceTemplateVars(tmpl.body, vars);
+          finalHtml = await renderManagedEmail(body, {
+            wrapper: tmpl.options?.wrapper || 'full',
+            showFeatures: tmpl.options?.showFeatures || false,
+            showSignature: tmpl.options?.showSignature !== false,
+            baseUrl,
+            unsubscribeEmail: encodeURIComponent(cust.email || '')
+          });
+        }
+        finalHtml = appendTrackingPixel(finalHtml, `${baseUrl}/api/t/${trackingId}/open.png`);
         await sendEmail(cust.email, subject, finalHtml, null, { type: 'campaign', customer_id: cust.id, customer_name: cust.name });
         await pool.query(
           'INSERT INTO campaign_sends (campaign_id, template_id, customer_id, customer_email, status, tracking_id) VALUES ($1, $2, $3, $4, $5, $6)',

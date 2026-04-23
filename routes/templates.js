@@ -7,42 +7,13 @@
 // ═══════════════════════════════════════════════════════════
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-
-const YARD_SIGN_REQUEST_HTML_PATH = path.join(__dirname, '..', 'email', 'copilot', 'yard-sign-request.html');
+const {
+  isCompiledCopilotTemplateSlug,
+  renderCompiledCopilotTemplate
+} = require('../lib/compiled-copilot-templates');
 
 module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, serverError, getTemplate, replaceTemplateVars }) {
   const router = express.Router();
-
-function replaceCopilotMergeTags(str, data) {
-  if (!str) return str;
-  return str.replace(/\{\{(\w+)\}\}/g, (match, key) => (
-    data[key] !== undefined ? data[key] : match
-  ));
-}
-
-function isCompiledCopilotTemplateSlug(slug) {
-  return slug === 'yard_sign_request';
-}
-
-function buildCompiledCopilotVars(vars = {}) {
-  return {
-    CUSTOMER_FIRST_NAME: vars.customer_first_name || vars.customer_name || 'Jane',
-    CUSTOMER_ADDRESS: vars.customer_address || '123 Main St, Lakewood OH 44107',
-    COMPANY_NAME: vars.company_name || 'Pappas & Co. Landscaping',
-    COMPANY_PHONE: vars.company_phone || '(440) 886-7318',
-    COMPANY_EMAIL: vars.company_email || 'hello@pappaslandscaping.com',
-    YARD_SIGN_YES_LINK: vars.yard_sign_yes_link || 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=yes',
-    YARD_SIGN_NO_LINK: vars.yard_sign_no_link || 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no'
-  };
-}
-
-function renderCompiledCopilotTemplate(slug, vars = {}) {
-  if (slug !== 'yard_sign_request') return null;
-  const html = fs.readFileSync(YARD_SIGN_REQUEST_HTML_PATH, 'utf8');
-  return replaceCopilotMergeTags(html, buildCompiledCopilotVars(vars));
-}
 
 router.get('/api/templates', async (req, res) => {
   try {
@@ -156,7 +127,45 @@ router.post('/api/templates/preview', async (req, res) => {
 router.post('/api/templates/send-preview', async (req, res) => {
   try {
     const { template_id, slug, subject: directSubject, html_content: directHtml, to, wrapper, options } = req.body;
-    const sampleVars = { customer_name: 'Jane Smith', customer_first_name: 'Jane', customer_email: 'jane@example.com', customer_phone: '(440) 555-0123', customer_address: '123 Main St, Lakewood OH 44107', invoice_number: 'INV-1234', invoice_total: '285.00', invoice_due_date: 'March 15, 2026', amount_paid: '285.00', balance_due: '285.00', payment_link: '#preview', quote_number: 'Q-5678', quote_total: '1,250.00', quote_link: '#preview', services_list: 'Weekly Mowing, Spring Cleanup', job_date: 'March 10, 2026', service_type: 'Weekly Mowing', crew_name: 'Crew A', address: '123 Main St, Lakewood OH', company_name: 'Pappas & Co. Landscaping', company_phone: '(440) 886-7318', company_email: 'hello@pappaslandscaping.com', company_website: 'pappaslandscaping.com', portal_link: '#preview', yard_sign_yes_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=yes', yard_sign_no_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no' };
+    const sampleVars = {
+      customer_name: 'Jane Smith',
+      customer_first_name: 'Jane',
+      customer_email: 'jane@example.com',
+      customer_phone: '(440) 555-0123',
+      customer_address: '123 Main St, Lakewood OH 44107',
+      customer_account_balance: '285.00',
+      customer_portal_link: '#preview',
+      invoice_number: 'INV-1234',
+      invoice_total: '285.00',
+      invoice_due_date: 'March 15, 2026',
+      invoices_links: '#preview',
+      payment_amount: '285.00',
+      payment_method: 'Visa ending in 4242',
+      payment_date: 'April 23, 2026',
+      receipt_link: '#preview',
+      amount_paid: '285.00',
+      balance_due: '285.00',
+      payment_link: '#preview',
+      estimate_number: 'Estimate 5678',
+      estimate_total: '1,250.00',
+      estimate_link: '#preview',
+      estimate_edit_link: '#preview',
+      estimate_changes: 'Please adjust the scope and update the pricing.',
+      services_list: 'Weekly Mowing, Spring Cleanup',
+      job_date: 'March 10, 2026',
+      service_type: 'Weekly Mowing',
+      crew_name: 'Crew A',
+      address: '123 Main St, Lakewood OH',
+      customer_address_full: '123 Main St, Lakewood OH 44107',
+      event_property_address: '123 Main St, Lakewood OH 44107',
+      company_name: 'Pappas & Co. Landscaping',
+      company_phone: '(440) 886-7318',
+      company_email: 'hello@pappaslandscaping.com',
+      company_website: 'pappaslandscaping.com',
+      portal_link: '#preview',
+      yard_sign_yes_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=yes',
+      yard_sign_no_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no'
+    };
 
     let subject, body, templateOptions = options || {};
     let wrapperMode = wrapper || templateOptions.wrapper || 'full';

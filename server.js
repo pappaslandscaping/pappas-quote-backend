@@ -2807,7 +2807,7 @@ app.use(campaignRoutes);
 // ═══════════════════════════════════════════════════════════
 const communicationRoutes = require('./routes/communications')({
   pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
-  twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars,
+  twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars, sendPushToAllDevices,
 });
 app.use(communicationRoutes);
 

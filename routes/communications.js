@@ -261,7 +261,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars }) {
   const router = express.Router();
 
   async function getOrCreatePortalTokenForCustomer(customerId, email) {
@@ -449,23 +449,13 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
       const subject = replaceTemplateVars(savedTemplate.subject || 'Quick Question: Would you be open to a yard sign?', appVars);
       const body = replaceTemplateVars(savedTemplate.body, appVars);
       const wrapper = savedTemplate.options?.wrapper || 'full';
-      const useMJML = savedTemplate.options?.use_mjml === true || body.includes('<mj-') || body.includes('<mjml>');
-
-      let html;
-      if (useMJML && typeof renderWithBaseLayout === 'function') {
-        html = await renderWithBaseLayout(body, {
-          wrapper,
-          showFeatures: savedTemplate.options?.showFeatures || false,
-          showSignature: savedTemplate.options?.showSignature !== false,
-          baseUrl,
-          unsubscribeEmail: appVars.unsubscribe_email || '{unsubscribe_email}'
-        });
-      } else {
-        html = emailTemplate(body, { wrapper });
-        if (appVars.unsubscribe_email) {
-          html = html.replace(/\{unsubscribe_email\}/g, appVars.unsubscribe_email);
-        }
-      }
+      const html = await renderManagedEmail(body, {
+        wrapper,
+        showFeatures: savedTemplate.options?.showFeatures || false,
+        showSignature: savedTemplate.options?.showSignature !== false,
+        baseUrl,
+        unsubscribeEmail: appVars.unsubscribe_email || '{unsubscribe_email}'
+      });
 
       return { html, subject, tagVars, appVars, source: 'template' };
     }
@@ -1304,7 +1294,13 @@ router.post('/api/broadcasts/send', async (req, res) => {
             const subject = replaceTemplateVars(tmpl.subject, vars);
             let body = replaceTemplateVars(tmpl.body, vars);
             body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-            const finalHtml = replaceTemplateVars(emailTemplate(body, { wrapper: tmpl.options?.wrapper || 'full' }), vars);
+            const finalHtml = await renderManagedEmail(body, {
+              wrapper: tmpl.options?.wrapper || 'full',
+              showFeatures: tmpl.options?.showFeatures || false,
+              showSignature: tmpl.options?.showSignature !== false,
+              baseUrl,
+              unsubscribeEmail: encodeURIComponent(cust.email)
+            });
             await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
             // Track in campaign_sends if campaign_id provided
             if (campaign_id) {

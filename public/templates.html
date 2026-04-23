@@ -1777,6 +1777,8 @@ let variablesByCategory = {};
 let lastFocusedTextarea = null;
 let previewTimer = null;
 let currentWrapper = 'full';
+let currentTemplateOptions = {};
+let previewRequestId = 0;
 const CATEGORY_LABELS = {
     all: 'All',
     quotes: 'Quotes',
@@ -2314,6 +2316,7 @@ function openTemplate(t) {
     document.getElementById('editorSms').value = t.sms_body || '';
     document.getElementById('editorActive').checked = !!t.is_active;
     document.getElementById('editorDefault').checked = !!t.is_default;
+    currentTemplateOptions = { ...(t.options || {}) };
 
     // Wrapper
     const wrapper = (t.options && t.options.wrapper) || 'full';
@@ -2357,6 +2360,7 @@ function createNewTemplate() {
     document.getElementById('editorSms').value = '';
     document.getElementById('editorActive').checked = true;
     document.getElementById('editorDefault').checked = false;
+    currentTemplateOptions = {};
 
     currentWrapper = 'full';
     document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
@@ -2426,7 +2430,10 @@ async function saveTemplate() {
         sms_body: document.getElementById('editorSms').value,
         is_active: document.getElementById('editorActive').checked,
         is_default: document.getElementById('editorDefault').checked,
-        options: { wrapper: currentWrapper }
+        options: {
+            ...currentTemplateOptions,
+            wrapper: currentWrapper
+        }
     };
 
     const saveButtons = Array.from(document.querySelectorAll('[data-action="save-template"]'));
@@ -2529,7 +2536,11 @@ async function sendTestEmail() {
                 subject: subject || document.getElementById('editorName').value || 'Test Template',
                 html_content: body,
                 template_id: selectedId,
-                wrapper: currentWrapper
+                wrapper: currentWrapper,
+                options: {
+                    ...currentTemplateOptions,
+                    wrapper: currentWrapper
+                }
             })
         });
         const data = await res.json();
@@ -2551,29 +2562,71 @@ function debouncedPreview() {
     previewTimer = setTimeout(refreshPreview, 500);
 }
 
-function refreshPreview() {
+async function refreshPreview() {
     const body = getEditorContent();
     const subject = document.getElementById('editorSubject').value;
+    const requestId = ++previewRequestId;
 
     // Replace variables with sample data
-    let html = body;
     let subj = subject;
     for (const [key, val] of Object.entries(SAMPLE_VARS)) {
         const re = new RegExp('\\{' + key + '\\}', 'g');
-        html = html.replace(re, val);
         subj = subj.replace(re, val);
     }
 
-    // Wrap with email wrapper
-    const wrapped = wrapEmail(html, subj);
     document.getElementById('previewSubjectLine').textContent = subj || 'No subject yet';
     document.getElementById('previewWrapperPill').textContent = getWrapperLabel(currentWrapper);
 
-    const iframe = document.getElementById('previewFrame');
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(wrapped);
-    doc.close();
+    try {
+        const res = await fetch('/api/templates/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject,
+                body,
+                vars: SAMPLE_VARS,
+                wrapper: currentWrapper,
+                options: currentTemplateOptions
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Preview failed');
+        }
+        if (requestId !== previewRequestId) return;
+
+        const iframe = document.getElementById('previewFrame');
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(data.html || '');
+        doc.close();
+    } catch (err) {
+        if (requestId !== previewRequestId) return;
+        const iframe = document.getElementById('previewFrame');
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:24px;color:#b91c1c;">Preview failed: ${escHtml(err.message)}</body></html>`);
+        doc.close();
+    }
+}
+
+async function renderTemplatePreviewHtml(subject, body, options = {}) {
+    const res = await fetch('/api/templates/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            subject,
+            body,
+            vars: SAMPLE_VARS,
+            wrapper: options.wrapper || 'full',
+            options
+        })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Preview failed');
+    }
+    return data.html || '';
 }
 
 function getWrapperLabel(wrapper) {
@@ -2723,6 +2776,10 @@ function insertVariable(varName) {
    ============================================================== */
 function selectWrapper(value, el) {
     currentWrapper = value;
+    currentTemplateOptions = {
+        ...currentTemplateOptions,
+        wrapper: value
+    };
     document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
         opt.classList.remove('selected');
     });
@@ -3356,23 +3413,27 @@ function renderLibraryGrid() {
     }).join('');
 }
 
-function previewLibraryTemplate(index) {
+async function previewLibraryTemplate(index) {
     const t = libraryTemplates[index];
     if (!t) return;
     document.getElementById('libraryPreviewName').textContent = t.name;
     document.getElementById('useTemplateBtn').onclick = () => useLibraryTemplate(index);
 
-    // Render preview with sample vars
-    let html = t.body;
-    for (const [key, val] of Object.entries(SAMPLE_VARS)) {
-        html = html.replace(new RegExp('\\{' + key + '\\}', 'g'), val);
-    }
-    const wrapped = wrapEmail(html, t.subject);
     const iframe = document.getElementById('libraryPreviewFrame');
     const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(wrapped);
-    doc.close();
+    try {
+        const html = await renderTemplatePreviewHtml(t.subject, t.body, {
+            ...(t.options || {}),
+            wrapper: (t.options && t.options.wrapper) || 'full'
+        });
+        doc.open();
+        doc.write(html);
+        doc.close();
+    } catch (err) {
+        doc.open();
+        doc.write(`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:24px;color:#b91c1c;">Preview failed: ${escHtml(err.message)}</body></html>`);
+        doc.close();
+    }
 
     document.getElementById('libraryPreviewModal').classList.add('show');
 }
@@ -3410,16 +3471,18 @@ async function useLibraryTemplate(index) {
     document.getElementById('editorSms').value = t.sms_body || '';
     document.getElementById('editorActive').checked = true;
     document.getElementById('editorDefault').checked = false;
+    currentTemplateOptions = { ...(t.options || {}) };
 
-    currentWrapper = 'full';
+    currentWrapper = (t.options && t.options.wrapper) || 'full';
     document.querySelectorAll('#wrapperOptions .radio-option').forEach(opt => {
         const val = opt.querySelector('input').value;
-        opt.classList.toggle('selected', val === 'full');
-        opt.querySelector('input').checked = (val === 'full');
+        opt.classList.toggle('selected', val === currentWrapper);
+        opt.querySelector('input').checked = (val === currentWrapper);
     });
 
     updateSmsCounter();
     renderTemplateList();
+    refreshPreview();
     showToast('Template loaded from library — customize and save!', 'success');
 }
 

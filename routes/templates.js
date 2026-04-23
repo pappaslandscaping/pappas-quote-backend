@@ -8,7 +8,7 @@
 
 const express = require('express');
 
-module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, serverError, getTemplate, replaceTemplateVars }) {
+module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, serverError, getTemplate, replaceTemplateVars }) {
   const router = express.Router();
 
 router.get('/api/templates', async (req, res) => {
@@ -103,27 +103,13 @@ router.post('/api/templates/preview', async (req, res) => {
     const subject = replaceTemplateVars(sourceSubject || '', vars);
     const body = replaceTemplateVars(sourceBody || '', vars);
 
-    // Check if MJML
-    const useMJML = templateOptions.use_mjml === true || body.includes('<mj-') || body.includes('<mjml>');
-    
-    let html;
-    if (useMJML) {
-      html = await renderWithBaseLayout(body, {
-        wrapper: resolvedWrapper,
-        showFeatures: templateOptions.showFeatures || false,
-        showSignature: templateOptions.showSignature !== false,
-        baseUrl: process.env.BASE_URL,
-        unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
-      });
-    } else {
-      html = emailTemplate(body, { wrapper: resolvedWrapper });
-      // Replace unsubscribe_email in wrapper footer
-      if (vars.unsubscribe_email) {
-        html = html.replace(/\{unsubscribe_email\}/g, vars.unsubscribe_email);
-      } else if (vars.customer_email) {
-        html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(vars.customer_email));
-      }
-    }
+    const html = await renderManagedEmail(body, {
+      wrapper: resolvedWrapper,
+      showFeatures: templateOptions.showFeatures || false,
+      showSignature: templateOptions.showSignature !== false,
+      baseUrl: process.env.BASE_URL,
+      unsubscribeEmail: vars.unsubscribe_email || (vars.customer_email ? encodeURIComponent(vars.customer_email) : '{unsubscribe_email}')
+    });
 
     res.json({ success: true, subject, html });
   } catch (error) { serverError(res, error); }
@@ -166,22 +152,13 @@ router.post('/api/templates/send-preview', async (req, res) => {
     const finalSubject = replaceTemplateVars(subject, sampleVars);
     const finalBody = replaceTemplateVars(body, sampleVars);
     
-    // Check if MJML
-    const useMJML = templateOptions.use_mjml === true || finalBody.includes('<mj-') || finalBody.includes('<mjml>');
-    
-    let html;
-    if (useMJML) {
-      html = await renderWithBaseLayout(finalBody, {
-        wrapper: wrapperMode,
-        showFeatures: templateOptions.showFeatures || false,
-        showSignature: templateOptions.showSignature !== false,
-        baseUrl: process.env.BASE_URL,
-        unsubscribeEmail: sampleVars.customer_email
-      });
-    } else {
-      html = emailTemplate(finalBody, { wrapper: wrapperMode });
-      html = html.replace(/\{unsubscribe_email\}/g, encodeURIComponent(sampleVars.customer_email));
-    }
+    const html = await renderManagedEmail(finalBody, {
+      wrapper: wrapperMode,
+      showFeatures: templateOptions.showFeatures || false,
+      showSignature: templateOptions.showSignature !== false,
+      baseUrl: process.env.BASE_URL,
+      unsubscribeEmail: encodeURIComponent(sampleVars.customer_email)
+    });
 
     const recipient = to || 'hello@pappaslandscaping.com';
     await sendEmail(recipient, `[TEST] ${finalSubject}`, html);

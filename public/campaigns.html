@@ -1768,6 +1768,7 @@ let selectedAudience = 'all';
 let yardSignResponseFilter = 'all';
 let yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
 let yardSignResponseRows = [];
+let yardSignAllRows = [];
 let yardSignCampaignSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
 const TEMPLATE_PREVIEW_VARS = {
     customer_first_name: 'Jane',
@@ -1845,6 +1846,19 @@ function setYardSignSectionVisible(visible) {
     document.getElementById('yardSignSection').classList.toggle('active', !!visible);
 }
 
+function getFilteredYardSignRows() {
+    if (yardSignResponseFilter === 'yes') {
+        return yardSignAllRows.filter(row => String(row.answer || '').toLowerCase() === 'yes');
+    }
+    if (yardSignResponseFilter === 'no') {
+        return yardSignAllRows.filter(row => String(row.answer || '').toLowerCase() === 'no');
+    }
+    if (yardSignResponseFilter === 'unanswered') {
+        return yardSignAllRows.filter(row => !row.answer);
+    }
+    return yardSignAllRows;
+}
+
 function renderYardSignResponses() {
     document.getElementById('yardSignTotalSent').textContent = yardSignResponseSummary.total_sent || 0;
     document.getElementById('yardSignYesCount').textContent = yardSignResponseSummary.yes || 0;
@@ -1864,7 +1878,9 @@ function renderYardSignResponses() {
         : 'No yard-sign sends have been logged for review yet.';
 
     const tbody = document.getElementById('yardSignResponsesTable');
-    if (!yardSignResponseRows.length) {
+    const filteredRows = getFilteredYardSignRows();
+    yardSignResponseRows = filteredRows;
+    if (!filteredRows.length) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="5">
@@ -1876,7 +1892,7 @@ function renderYardSignResponses() {
         return;
     }
 
-    tbody.innerHTML = yardSignResponseRows.map(row => {
+    tbody.innerHTML = filteredRows.map(row => {
         const answer = String(row.answer || 'unanswered').toLowerCase();
         const label = answer === 'yes' ? 'Yes' : answer === 'no' ? 'No' : 'Unanswered';
         return `
@@ -1892,11 +1908,11 @@ function renderYardSignResponses() {
 
 function setYardSignResponseFilter(filter) {
     yardSignResponseFilter = filter;
-    refreshYardSignResponses();
+    renderYardSignResponses();
 }
 
 async function refreshYardSignResponses() {
-    if (!isYardSignTemplate(currentCampaignTemplate)) return;
+    if (!(currentCampaign?.isYardSignCampaign || isYardSignTemplate(currentCampaignTemplate))) return;
     const tbody = document.getElementById('yardSignResponsesTable');
     tbody.innerHTML = `
         <tr>
@@ -1908,9 +1924,7 @@ async function refreshYardSignResponses() {
             </td>
         </tr>`;
     try {
-        const params = new URLSearchParams();
-        if (yardSignResponseFilter !== 'all') params.set('answer', yardSignResponseFilter);
-        const res = await fetch(`${API_BASE}/yard-sign-responses${params.toString() ? `?${params.toString()}` : ''}`, {
+        const res = await fetch(`${API_BASE}/yard-sign-responses`, {
             headers: getAuthHeaders()
         });
         const data = await res.json().catch(() => ({}));
@@ -1918,7 +1932,7 @@ async function refreshYardSignResponses() {
             throw new Error(data.error || `Failed to load yard-sign responses (${res.status})`);
         }
         yardSignResponseSummary = data.summary || { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
-        yardSignResponseRows = data.rows || [];
+        yardSignAllRows = data.rows || [];
         yardSignCampaignSummary = { ...yardSignResponseSummary };
         renderYardSignResponses();
         if (!currentCampaign || !currentCampaign.isYardSignCampaign) {
@@ -1928,6 +1942,7 @@ async function refreshYardSignResponses() {
         console.error('Error loading yard-sign responses:', error);
         yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
         yardSignResponseRows = [];
+        yardSignAllRows = [];
         document.getElementById('yardSignState').textContent = 'Could not load yard-sign responses.';
         tbody.innerHTML = `
             <tr>

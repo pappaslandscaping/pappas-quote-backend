@@ -4120,13 +4120,17 @@ app.get('/api/app/customers', authenticateToken, async (req, res) => {
 // Register device for push notifications
 app.post('/api/app/devices/register', authenticateToken, async (req, res) => {
   const { pushToken, platform } = req.body;
-  if (!pushToken) {
-    return res.status(400).json({ success: false, error: 'pushToken is required' });
-  }
   try {
+    if (!pushToken || typeof pushToken !== 'string') {
+      return res.status(400).json({ success: false, error: 'pushToken is required' });
+    }
+
+    const normalizedPlatform = typeof platform === 'string' && platform.trim() ? platform.trim() : 'unknown';
+
     await pool.query(`CREATE TABLE IF NOT EXISTS app_devices (id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL, push_token TEXT NOT NULL, platform VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(email, platform))`);
-    await pool.query(`INSERT INTO app_devices (email, push_token, platform, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (email, platform) DO UPDATE SET push_token = $2, updated_at = CURRENT_TIMESTAMP`, [req.user.email, pushToken, platform]);
-    console.log(`📱 Device registered for ${req.user.email} (${platform})`);
+    await pool.query(`DELETE FROM app_devices WHERE email = $1 AND platform = $2 AND push_token <> $3`, [req.user.email, normalizedPlatform, pushToken]);
+    await pool.query(`INSERT INTO app_devices (email, push_token, platform, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) ON CONFLICT (email, platform) DO UPDATE SET push_token = $2, updated_at = CURRENT_TIMESTAMP`, [req.user.email, pushToken, normalizedPlatform]);
+    console.log(`📱 Device registered for ${req.user.email} (${normalizedPlatform})`);
     res.json({ success: true });
   } catch (error) {
     console.error('Device registration error:', error);
@@ -4239,6 +4243,10 @@ async function updateCallRecord(callId, fields = {}) {
 // Send Expo Push Notification
 async function sendPushNotification(expoPushToken, title, body, data = {}, badge = undefined) {
   try {
+    if (typeof expoPushToken !== 'string' || !expoPushToken.trim()) {
+      console.warn('📲 Skipping empty push token');
+      return;
+    }
     const payload = { to: expoPushToken, sound: 'default', title, body, data, ...(badge != null && { badge }) };
     console.log('📲 Sending push:', JSON.stringify({ to: expoPushToken.substring(0, 30) + '...', title, body }));
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
@@ -4252,11 +4260,34 @@ async function sendPushNotification(expoPushToken, title, body, data = {}, badge
     });
     const result = await response.json();
     console.log('📲 Push response:', JSON.stringify(result));
-    if (result.data?.status === 'error') {
-      console.error('📲 Push failed:', result.data.message, '| Details:', result.data.details);
+    if (!response.ok || result.data?.status === 'error') {
+      console.error('📲 Push failed:', result.data?.message || response.statusText, '| Details:', result.data?.details || result);
+      const errorCode = result?.data?.details?.error;
+      if (errorCode === 'DeviceNotRegistered') {
+        await pool.query('DELETE FROM app_devices WHERE push_token = $1', [expoPushToken]);
+        console.log('🧹 Removed unregistered Expo token');
+      }
     }
   } catch (error) {
     console.error('Push error:', error.message);
+  }
+}
+
+async function sendPushToUserDevices(email, title, body, data = {}) {
+  try {
+    const devices = await pool.query(
+      'SELECT push_token, email, platform FROM app_devices WHERE email = $1 AND push_token IS NOT NULL',
+      [email]
+    );
+    console.log(`📲 Sending push to ${devices.rows.length} device(s) for ${email}`);
+    for (const device of devices.rows) {
+      if (device.push_token) {
+        console.log(`📲 → ${device.email} (${device.platform})`);
+        await sendPushNotification(device.push_token, title, body, data);
+      }
+    }
+  } catch (error) {
+    console.error(`Push to user devices error for ${email}:`, error.message);
   }
 }
 
@@ -4288,6 +4319,21 @@ async function sendPushToAllDevices(title, body, data = {}) {
     console.error('Push to all devices error:', error.message);
   }
 }
+
+app.post('/api/app/devices/test-push', authenticateToken, async (req, res) => {
+  try {
+    await sendPushToUserDevices(
+      req.user.email,
+      'TwilioConnect Test',
+      'Push notifications are reaching this device.',
+      { type: 'test', sentAt: new Date().toISOString() }
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Test push error:', error.message);
+    res.status(500).json({ message: 'Failed to send test push' });
+  }
+});
 
 // Debug: Check registered devices (admin only)
 app.get('/api/app/devices', authenticateToken, async (req, res) => {

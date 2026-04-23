@@ -690,6 +690,33 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
         headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: sendMailBody.toString()
       });
+      const sendMailText = await sendMailRes.text();
+
+      try {
+        await pool.query(
+          `INSERT INTO email_log (
+            recipient_email,
+            subject,
+            email_type,
+            customer_id,
+            customer_name,
+            status,
+            error_message,
+            html_body
+          ) VALUES ($1, $2, 'yard_sign_request', $3, $4, $5, $6, $7)`,
+          [
+            customer.email || null,
+            rendered.subject,
+            customer.id,
+            customer.name || null,
+            sendMailRes.ok ? 'sent' : 'failed',
+            sendMailRes.ok ? null : sendMailText.substring(0, 1000),
+            rendered.html
+          ]
+        );
+      } catch (logError) {
+        console.error('Yard sign email log write error:', logError);
+      }
 
       results.push({
         customer_id: customer.id,
@@ -699,6 +726,7 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
         copilot_customer_id: copilotCustomer.id,
         success: sendMailRes.ok,
         status: sendMailRes.status,
+        sendmail_response: sendMailRes.ok ? undefined : sendMailText.substring(0, 300),
         yes_link: rendered.tagVars.YARD_SIGN_YES_LINK,
         no_link: rendered.tagVars.YARD_SIGN_NO_LINK
       });

@@ -6922,6 +6922,111 @@ async function fetchYardSignResponses({ customerId, email }) {
   return result.rows;
 }
 
+async function fetchYardSignResponseDashboard({ customerId, email, answerFilter = 'all', limit = 100 }) {
+  const clauses = [];
+  const params = [];
+
+  if (customerId) {
+    params.push(customerId);
+    clauses.push(`COALESCE(sent.customer_id, resp.customer_id) = $${params.length}`);
+  }
+  if (email) {
+    params.push(email);
+    clauses.push(`LOWER(COALESCE(sent.recipient_email, resp.customer_email, '')) = LOWER($${params.length})`);
+  }
+
+  const answer = String(answerFilter || 'all').trim().toLowerCase();
+  if (['yes', 'no'].includes(answer)) {
+    params.push(answer);
+    clauses.push(`resp.answer = $${params.length}`);
+  } else if (answer === 'unanswered') {
+    clauses.push(`resp.answer IS NULL`);
+  }
+
+  const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  params.push(Math.max(1, Math.min(parseInt(limit, 10) || 100, 500)));
+
+  const result = await pool.query(
+    `WITH sent AS (
+       SELECT DISTINCT ON (customer_id)
+         customer_id,
+         recipient_email,
+         subject,
+         sent_at
+       FROM email_log
+       WHERE email_type = 'yard_sign_request'
+         AND status = 'sent'
+         AND customer_id IS NOT NULL
+       ORDER BY customer_id, sent_at DESC
+     ),
+     resp AS (
+       SELECT
+         ysr.customer_id,
+         ysr.answer,
+         ysr.responded_at,
+         ysr.source,
+         c.name AS customer_name,
+         c.email AS customer_email
+       FROM yard_sign_responses ysr
+       LEFT JOIN customers c ON c.id = ysr.customer_id
+     ),
+     combined AS (
+       SELECT
+         COALESCE(sent.customer_id, resp.customer_id) AS customer_id,
+         COALESCE(resp.customer_name, c.name) AS customer_name,
+         COALESCE(resp.customer_email, sent.recipient_email, c.email) AS customer_email,
+         sent.sent_at,
+         resp.answer,
+         resp.responded_at,
+         resp.source
+       FROM sent
+       FULL OUTER JOIN resp ON resp.customer_id = sent.customer_id
+       LEFT JOIN customers c ON c.id = COALESCE(sent.customer_id, resp.customer_id)
+     ),
+     summary AS (
+       SELECT
+         COUNT(*) FILTER (WHERE sent_at IS NOT NULL) AS total_sent,
+         COUNT(*) FILTER (WHERE answer = 'yes') AS yes_count,
+         COUNT(*) FILTER (WHERE answer = 'no') AS no_count,
+         COUNT(*) FILTER (WHERE sent_at IS NOT NULL AND answer IS NULL) AS unanswered_count
+       FROM combined
+     )
+     SELECT
+       combined.*,
+       summary.total_sent,
+       summary.yes_count,
+       summary.no_count,
+       summary.unanswered_count
+     FROM combined
+     CROSS JOIN summary
+     ${whereSql}
+     ORDER BY COALESCE(combined.responded_at, combined.sent_at) DESC NULLS LAST, combined.customer_name ASC
+     LIMIT $${params.length}`,
+    params
+  );
+
+  const rows = result.rows.map((row) => ({
+    customer_id: row.customer_id,
+    customer_name: row.customer_name,
+    customer_email: row.customer_email,
+    answer: row.answer || null,
+    responded_at: row.responded_at,
+    sent_at: row.sent_at,
+    source: row.source || null
+  }));
+
+  const firstRow = result.rows[0] || {};
+  return {
+    summary: {
+      total_sent: parseInt(firstRow.total_sent || 0, 10),
+      yes: parseInt(firstRow.yes_count || 0, 10),
+      no: parseInt(firstRow.no_count || 0, 10),
+      unanswered: parseInt(firstRow.unanswered_count || 0, 10)
+    },
+    rows
+  };
+}
+
 // GET /yard-sign-response - Record a customer's yard sign answer
 app.get('/yard-sign-response', async (req, res) => {
   try {
@@ -6949,7 +7054,13 @@ app.get('/yard-sign-response', async (req, res) => {
     }
 
     const customerResult = await pool.query(
-      'SELECT name, first_name FROM customers WHERE id = $1',
+      `SELECT
+         name,
+         first_name,
+         email,
+         CONCAT_WS(', ', street, city, state, postal_code) AS property_address
+       FROM customers
+       WHERE id = $1`,
       [tokenData.customer_id]
     );
     const customerRow = customerResult.rows[0] || {};
@@ -6977,11 +7088,43 @@ app.get('/yard-sign-response', async (req, res) => {
       }));
     }
 
-    await pool.query(
+    const insertResult = await pool.query(
       `INSERT INTO yard_sign_responses (customer_id, answer, responded_at, source)
-       VALUES ($1, $2, NOW(), $3)`,
+       VALUES ($1, $2, NOW(), $3)
+       RETURNING responded_at, source`,
       [tokenData.customer_id, answer, source || 'yard_sign_email']
     );
+    const savedResponse = insertResult.rows[0] || {};
+
+    const notificationSubject = `Yard Sign Response: ${customerRow.name || 'Customer'} — ${answer === 'yes' ? 'Yes' : 'No'}`;
+    const notificationHtml = emailTemplate(`
+      <h2 style="color:#2e403d;margin:0 0 16px;">New Yard Sign Response</h2>
+      <div style="background:#f7f9f5;border:1px solid #d7dfd1;border-radius:12px;padding:18px 20px;margin:0 0 18px;">
+        <p style="margin:0 0 8px;"><strong>Customer:</strong> ${escapeHtml(customerRow.name || 'Unknown')}</p>
+        <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(customerRow.email || tokenData.email || '')}</p>
+        <p style="margin:0 0 8px;"><strong>Customer ID:</strong> ${escapeHtml(String(tokenData.customer_id))}</p>
+        <p style="margin:0 0 8px;"><strong>Answer:</strong> ${answer === 'yes' ? 'Yes' : 'No'}</p>
+        <p style="margin:0 0 8px;"><strong>Responded At:</strong> ${escapeHtml(savedResponse.responded_at ? new Date(savedResponse.responded_at).toISOString() : new Date().toISOString())}</p>
+        <p style="margin:0 0 8px;"><strong>Source:</strong> ${escapeHtml(savedResponse.source || source || 'yard_sign_email')}</p>
+        ${customerRow.property_address ? `<p style="margin:0;"><strong>Property:</strong> ${escapeHtml(customerRow.property_address)}</p>` : ''}
+      </div>
+    `, { showSignature: false });
+
+    try {
+      await sendEmail(
+        NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com',
+        notificationSubject,
+        notificationHtml,
+        null,
+        {
+          type: 'yard_sign_response',
+          customer_id: tokenData.customer_id,
+          customer_name: customerRow.name || null
+        }
+      );
+    } catch (notificationError) {
+      console.error('Yard sign response notification email error:', notificationError);
+    }
 
     const thankYouMessage = answer === 'yes'
       ? `Thanks, ${firstName}. We recorded that you'd be open to a yard sign.`
@@ -7044,11 +7187,25 @@ app.get('/dev/yard-sign-responses/test-link', async (req, res) => {
 // GET /api/yard-sign-responses - Review recorded yard sign answers
 app.get('/api/yard-sign-responses', async (req, res) => {
   try {
+    const customerId = req.query.customerId ? parseInt(req.query.customerId, 10) : null;
+    const email = req.query.email ? String(req.query.email).trim() : '';
+    const answer = req.query.answer ? String(req.query.answer).trim() : 'all';
+    const dashboard = await fetchYardSignResponseDashboard({
+      customerId,
+      email,
+      answerFilter: answer,
+      limit: req.query.limit
+    });
     const responses = await fetchYardSignResponses({
       customerId: req.query.customerId ? parseInt(req.query.customerId, 10) : null,
       email: req.query.email ? String(req.query.email).trim() : ''
     });
-    res.json({ success: true, responses });
+    res.json({
+      success: true,
+      summary: dashboard.summary,
+      rows: dashboard.rows,
+      responses
+    });
   } catch (error) {
     serverError(res, error);
   }
@@ -7060,11 +7217,17 @@ app.get('/dev/yard-sign-responses', async (req, res) => {
     if (!isLocalDevRequest(req)) {
       return res.status(403).json({ success: false, error: 'This helper is only available in local development' });
     }
-    const responses = await fetchYardSignResponses({
-      customerId: req.query.customerId ? parseInt(req.query.customerId, 10) : null,
-      email: req.query.email ? String(req.query.email).trim() : ''
+    const customerId = req.query.customerId ? parseInt(req.query.customerId, 10) : null;
+    const email = req.query.email ? String(req.query.email).trim() : '';
+    const answer = req.query.answer ? String(req.query.answer).trim() : 'all';
+    const dashboard = await fetchYardSignResponseDashboard({
+      customerId,
+      email,
+      answerFilter: answer,
+      limit: req.query.limit
     });
-    res.json({ success: true, responses });
+    const responses = await fetchYardSignResponses({ customerId, email });
+    res.json({ success: true, summary: dashboard.summary, rows: dashboard.rows, responses });
   } catch (error) {
     serverError(res, error);
   }

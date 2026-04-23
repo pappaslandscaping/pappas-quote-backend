@@ -1,0 +1,11 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+Welcome. Your customer portal is ready.
+
+Portal link: {{CUSTOMER_PORTAL_LINK}}
+
+Please add a card or bank account on file to finish setup.
+
+You can also use the portal to view invoices, estimates, and account details.
+
+Let me know if you have any questions. Thank you.

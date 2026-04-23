@@ -1,0 +1,9 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+{{INVOICE_NUMBER}} is still open and payment is due upon receipt.
+
+Amount due: ${{INVOICE_TOTAL}}
+
+You can review and pay online here: {{INVOICES_LINKS}}
+
+Let me know if you have any questions. Thank you.

@@ -81,6 +81,8 @@ Do not mix formats inside the same template.
 |---|---|---|
 | customer_portal_link | `{customer_portal_link}` | `{{CUSTOMER_PORTAL_LINK}}` |
 | customer_portal_add_credit_card_link | `{customer_portal_add_credit_card_link}` | `{{CUSTOMER_PORTAL_ADD_CREDIT_CARD_LINK}}` |
+| yard_sign_yes_link | `{yard_sign_yes_link}` | `{{YARD_SIGN_YES_LINK}}` |
+| yard_sign_no_link | `{yard_sign_no_link}` | `{{YARD_SIGN_NO_LINK}}` |
 | unsubscribe | `{unsubscribe}` | `{{UNSUBSCRIBE}}` |
 | work_request_form | `{work_request_form}` | `{{WORK_REQUEST_FORM}}` |
 | docs_links | `{docs_links}` | `{{DOCS_LINKS}}` |

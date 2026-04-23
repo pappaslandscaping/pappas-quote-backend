@@ -1,0 +1,186 @@
+<mjml>
+  <mj-head>
+    <mj-title>Estimate Changes Requested</mj-title>
+    <mj-preview>{{CUSTOMER_NAME}} requested changes to {{ESTIMATE_NUMBER}}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" color="#1f2933" />
+      <mj-body background-color="#eef2eb" />
+      <mj-section padding="0" />
+      <mj-column padding="0" />
+      <mj-text font-size="16px" line-height="1.6" color="#425466" padding="0" />
+      <mj-button
+        background-color="#c9dd80"
+        color="#2e403d"
+        font-size="14px"
+        font-weight="700"
+        inner-padding="16px 28px"
+        border-radius="8px"
+        padding="24px 28px 6px 28px"
+      />
+      <mj-divider border-color="#d7dfd1" border-width="1px" padding="0" />
+    </mj-attributes>
+    <mj-style inline="inline">
+      .email-shell {
+        box-shadow: 0 14px 34px rgba(31, 41, 51, 0.08);
+      }
+
+      .eyebrow {
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: #3f8a3d;
+      }
+
+      .summary-table table {
+        border-collapse: collapse;
+      }
+
+      .summary-table td {
+        padding: 12px 0;
+        border-bottom: 1px solid #d7dfd1;
+      }
+
+      .summary-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .summary-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #5b6773;
+      }
+
+      .summary-value {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1f2933;
+        text-align: right;
+      }
+    </mj-style>
+  </mj-head>
+  <mj-body>
+    <mj-wrapper css-class="email-shell" background-color="#ffffff" padding="28px 16px" border-radius="16px">
+      <mj-section background-color="#1f2933">
+        <mj-column>
+          <mj-image
+            src="https://app.pappaslandscaping.com/images/email-logo.png"
+            alt="{{COMPANY_NAME}}"
+            width="210px"
+            align="left"
+            padding="18px 28px"
+          />
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff">
+        <mj-column>
+          <mj-text
+            css-class="eyebrow"
+            font-size="12px"
+            font-weight="700"
+            letter-spacing="0.8px"
+            text-transform="uppercase"
+            color="#3f8a3d"
+            padding="30px 28px 0 28px"
+          >
+            Internal Notification
+          </mj-text>
+          <mj-text
+            font-size="32px"
+            line-height="1.2"
+            font-weight="800"
+            color="#1f2933"
+            padding="10px 28px 14px 28px"
+          >
+            Estimate Changes Requested
+          </mj-text>
+          <mj-text padding="0 28px">
+            {{CUSTOMER_NAME}} has requested changes to {{ESTIMATE_NUMBER}}.
+          </mj-text>
+          <mj-text padding="12px 28px 0 28px">
+            Review the requested changes and follow up with an updated estimate.
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="18px 28px 0 28px">
+        <mj-column background-color="#f7f9f5" border="1px solid #d7dfd1" border-radius="12px" padding="18px 20px">
+          <mj-text
+            font-size="13px"
+            font-weight="700"
+            letter-spacing="0.8px"
+            text-transform="uppercase"
+            color="#5b6773"
+            padding="0 0 12px 0"
+          >
+            Estimate Details
+          </mj-text>
+          <mj-table css-class="summary-table" padding="10px 25px">
+            <tr>
+              <td class="summary-label">Customer</td>
+              <td class="summary-value">{{CUSTOMER_NAME}}</td>
+            </tr>
+            <tr>
+              <td class="summary-label">Estimate</td>
+              <td class="summary-value">{{ESTIMATE_NUMBER}}</td>
+            </tr>
+            <tr>
+              <td class="summary-label">Total</td>
+              <td class="summary-value">{{ESTIMATE_TOTAL}}</td>
+            </tr>
+            <tr>
+              <td class="summary-label">Property</td>
+              <td class="summary-value">{{EVENT_PROPERTY_ADDRESS}}</td>
+            </tr>
+            <tr>
+              <td class="summary-label">Phone</td>
+              <td class="summary-value">{{CUSTOMER_PHONE}}</td>
+            </tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="18px 28px 0 28px">
+        <mj-column background-color="#f7f9f5" border="1px solid #d7dfd1" border-radius="12px" padding="18px 20px">
+          <mj-text
+            font-size="13px"
+            font-weight="700"
+            letter-spacing="0.8px"
+            text-transform="uppercase"
+            color="#5b6773"
+            padding="0 0 12px 0"
+          >
+            Requested Changes
+          </mj-text>
+          <mj-text padding="0">
+            {{ESTIMATE_CHANGES}}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff">
+        <mj-column>
+          <mj-button href="{{ESTIMATE_EDIT_LINK}}" align="center">Edit Estimate</mj-button>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="28px 28px 0 28px">
+        <mj-column>
+          <mj-divider border-color="#d7dfd1" border-width="1px" />
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#f7f9f5" padding="20px 28px 24px 28px">
+        <mj-column>
+          <mj-text font-size="14px" line-height="1.6" color="#5b6773" padding="0" align="center">
+            Internal notification from {{COMPANY_NAME}}
+          </mj-text>
+          <mj-text font-size="13px" line-height="1.7" color="#5b6773" padding="16px 0 0 0" align="center">
+            {{COMPANY_NAME}}<br />
+            {{COMPANY_EMAIL}}
+          </mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-wrapper>
+  </mj-body>
+</mjml>

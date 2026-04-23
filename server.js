@@ -2802,7 +2802,7 @@ app.use(campaignRoutes);
 // COMMUNICATIONS — routes/communications.js
 // ═══════════════════════════════════════════════════════════
 const communicationRoutes = require('./routes/communications')({
-  pool, sendEmail, emailTemplate, escapeHtml, serverError,
+  pool, sendEmail, emailTemplate, renderWithBaseLayout, getTemplate, escapeHtml, serverError,
   twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars,
 });
 app.use(communicationRoutes);
@@ -6774,6 +6774,276 @@ async function validatePortalToken(token) {
   return result.rows[0];
 }
 
+async function getOrCreatePortalTokenForCustomer(customerId, email) {
+  const existing = await pool.query(
+    `SELECT token
+     FROM customer_portal_tokens
+     WHERE customer_id = $1 AND expires_at > NOW()
+     ORDER BY expires_at DESC, created_at DESC
+     LIMIT 1`,
+    [customerId]
+  );
+  if (existing.rows.length > 0) return existing.rows[0].token;
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await pool.query(
+    'INSERT INTO customer_portal_tokens (token, customer_id, email, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, customerId, email, expiresAt]
+  );
+  return token;
+}
+
+function renderYardSignResponsePage({ title, message, detail, answer }) {
+  const badgeBg = answer === 'yes' ? '#e7f3d7' : answer === 'no' ? '#f3f4f6' : '#f7f9f5';
+  const badgeColor = answer === 'yes' ? '#3f8a3d' : '#5b6773';
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+  </head>
+  <body style="margin:0;background:#eef2eb;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#1f2933;">
+    <div style="padding:32px 16px;">
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:16px;box-shadow:0 14px 34px rgba(31,41,51,0.08);overflow:hidden;">
+        <div style="background:#1f2933;padding:18px 28px;">
+          <img src="https://app.pappaslandscaping.com/images/email-logo.png" alt="Pappas &amp; Co. Landscaping" width="210" style="display:block;border:0;outline:none;text-decoration:none;" />
+        </div>
+        <div style="padding:32px 28px;">
+          <div style="font-size:12px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#3f8a3d;margin:0 0 12px 0;">Quick Question</div>
+          <h1 style="font-size:32px;line-height:1.2;font-weight:800;color:#1f2933;margin:0 0 16px 0;">${escapeHtml(title)}</h1>
+          <div style="display:inline-block;background:${badgeBg};color:${badgeColor};border-radius:999px;padding:8px 14px;font-size:13px;font-weight:700;letter-spacing:0.2px;margin:0 0 18px 0;">
+            ${answer === 'yes' ? 'Recorded: Yes' : answer === 'no' ? 'Recorded: No' : 'Response Status'}
+          </div>
+          <p style="font-size:16px;line-height:1.7;color:#425466;margin:0 0 12px 0;">${escapeHtml(message)}</p>
+          ${detail ? `<p style="font-size:15px;line-height:1.7;color:#5b6773;margin:0;">${escapeHtml(detail)}</p>` : ''}
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
+function isLocalDevRequest(req) {
+  const host = String(req.hostname || '').toLowerCase();
+  return process.env.NODE_ENV !== 'production' || host === 'localhost' || host === '127.0.0.1';
+}
+
+function getYardSignBaseUrl({ forceLocal = false } = {}) {
+  if (forceLocal) return 'http://localhost:3000';
+  return (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+}
+
+async function buildYardSignTestLinkPayload({ customerId, email, forceLocal = false }) {
+  if (!customerId && !email) {
+    return { error: { status: 400, message: 'customerId or email is required' } };
+  }
+
+  const customerResult = customerId
+    ? await pool.query(
+        `SELECT id, name, email, CONCAT_WS(', ', street, city, state, postal_code) AS address
+         FROM customers
+         WHERE id = $1
+         LIMIT 1`,
+        [customerId]
+      )
+    : await pool.query(
+        `SELECT id, name, email, CONCAT_WS(', ', street, city, state, postal_code) AS address
+         FROM customers
+         WHERE email ILIKE $1
+         LIMIT 1`,
+        [email]
+      );
+
+  if (customerResult.rows.length === 0) {
+    return { error: { status: 404, message: 'Customer not found' } };
+  }
+
+  const customer = customerResult.rows[0];
+  if (!customer.email) {
+    return { error: { status: 400, message: 'Customer does not have an email on file' } };
+  }
+
+  const token = await getOrCreatePortalTokenForCustomer(customer.id, customer.email);
+  const baseUrl = getYardSignBaseUrl({ forceLocal });
+  const yesUrl = `${baseUrl}/yard-sign-response?token=${token}&answer=yes&source=yard_sign_email_test`;
+  const noUrl = `${baseUrl}/yard-sign-response?token=${token}&answer=no&source=yard_sign_email_test`;
+
+  return {
+    success: true,
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      email: customer.email,
+      address: customer.address
+    },
+    token,
+    yesUrl,
+    noUrl
+  };
+}
+
+async function fetchYardSignResponses({ customerId, email }) {
+  const clauses = [];
+  const params = [];
+
+  if (customerId) {
+    params.push(customerId);
+    clauses.push(`ysr.customer_id = $${params.length}`);
+  }
+  if (email) {
+    params.push(email);
+    clauses.push(`c.email ILIKE $${params.length}`);
+  }
+
+  const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const result = await pool.query(
+    `SELECT
+       ysr.id,
+       ysr.customer_id,
+       ysr.answer,
+       ysr.responded_at,
+       ysr.source,
+       ysr.created_at,
+       c.name AS customer_name,
+       c.email AS customer_email
+     FROM yard_sign_responses ysr
+     LEFT JOIN customers c ON c.id = ysr.customer_id
+     ${whereSql}
+     ORDER BY ysr.responded_at DESC, ysr.created_at DESC`,
+    params
+  );
+
+  return result.rows;
+}
+
+// GET /yard-sign-response - Record a customer's yard sign answer
+app.get('/yard-sign-response', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+    const answer = String(req.query.answer || '').trim().toLowerCase();
+    const source = String(req.query.source || 'yard_sign_email').trim().slice(0, 100);
+
+    if (!token || !['yes', 'no'].includes(answer)) {
+      return res.status(400).send(renderYardSignResponsePage({
+        title: 'We could not record that response',
+        message: 'The link is missing information or is no longer valid.',
+        detail: 'Please use the original email link or contact our office if you need help.',
+        answer: ''
+      }));
+    }
+
+    const tokenData = await validatePortalToken(token);
+    if (!tokenData) {
+      return res.status(404).send(renderYardSignResponsePage({
+        title: 'That link is no longer active',
+        message: 'This response link has expired or is invalid.',
+        detail: 'Please contact our office if you would still like to let us know.',
+        answer: ''
+      }));
+    }
+
+    await pool.query(
+      `INSERT INTO yard_sign_responses (customer_id, answer, responded_at, source)
+       VALUES ($1, $2, NOW(), $3)
+       ON CONFLICT (customer_id)
+       DO UPDATE SET answer = EXCLUDED.answer, responded_at = EXCLUDED.responded_at, source = EXCLUDED.source`,
+      [tokenData.customer_id, answer, source || 'yard_sign_email']
+    );
+
+    const customerResult = await pool.query(
+      'SELECT name FROM customers WHERE id = $1',
+      [tokenData.customer_id]
+    );
+    const firstName = (customerResult.rows[0]?.name || 'there').split(' ')[0];
+    const thankYouMessage = answer === 'yes'
+      ? `Thanks, ${firstName}. We recorded that you'd be open to a yard sign.`
+      : `Thanks, ${firstName}. We recorded that you'd prefer not to have a yard sign right now.`;
+
+    return res.send(renderYardSignResponsePage({
+      title: 'Thank you',
+      message: thankYouMessage,
+      detail: 'Your response has been saved.',
+      answer
+    }));
+  } catch (error) {
+    console.error('Yard sign response error:', error);
+    return res.status(500).send(renderYardSignResponsePage({
+      title: 'We could not save that response',
+      message: 'Something went wrong while recording your answer.',
+      detail: 'Please try again or contact our office if you need help.',
+      answer: ''
+    }));
+  }
+});
+
+// GET /api/yard-sign-responses/test-link - Generate reusable yes/no links for one customer
+app.get('/api/yard-sign-responses/test-link', async (req, res) => {
+  try {
+    const payload = await buildYardSignTestLinkPayload({
+      customerId: req.query.customerId ? parseInt(req.query.customerId, 10) : null,
+      email: String(req.query.email || '').trim(),
+      forceLocal: false
+    });
+    if (payload.error) {
+      return res.status(payload.error.status).json({ success: false, error: payload.error.message });
+    }
+    res.json(payload);
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// GET /dev/yard-sign-responses/test-link - Local-only helper for generating test links without app auth
+app.get('/dev/yard-sign-responses/test-link', async (req, res) => {
+  try {
+    if (!isLocalDevRequest(req)) {
+      return res.status(403).json({ success: false, error: 'This helper is only available in local development' });
+    }
+    const payload = await buildYardSignTestLinkPayload({
+      customerId: req.query.customerId ? parseInt(req.query.customerId, 10) : null,
+      email: String(req.query.email || '').trim(),
+      forceLocal: true
+    });
+    if (payload.error) {
+      return res.status(payload.error.status).json({ success: false, error: payload.error.message });
+    }
+    res.json(payload);
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// GET /api/yard-sign-responses - Review recorded yard sign answers
+app.get('/api/yard-sign-responses', async (req, res) => {
+  try {
+    const responses = await fetchYardSignResponses({
+      customerId: req.query.customerId ? parseInt(req.query.customerId, 10) : null,
+      email: req.query.email ? String(req.query.email).trim() : ''
+    });
+    res.json({ success: true, responses });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
+// GET /dev/yard-sign-responses - Local-only helper for viewing saved responses without app auth
+app.get('/dev/yard-sign-responses', async (req, res) => {
+  try {
+    if (!isLocalDevRequest(req)) {
+      return res.status(403).json({ success: false, error: 'This helper is only available in local development' });
+    }
+    const responses = await fetchYardSignResponses({
+      customerId: req.query.customerId ? parseInt(req.query.customerId, 10) : null,
+      email: req.query.email ? String(req.query.email).trim() : ''
+    });
+    res.json({ success: true, responses });
+  } catch (error) {
+    serverError(res, error);
+  }
+});
+
 // POST /api/portal/:token/cards/save - Save card-on-file via Square
 app.post('/api/portal/:token/cards/save', async (req, res) => {
   try {
@@ -8710,6 +8980,22 @@ function buildFollowupStage4Body() {
   `;
 }
 
+function buildYardSignRequestTemplateBody() {
+  return `
+    <p style="margin:0 0 18px;font-size:17px;line-height:1.6;color:#2d3a45;">Hi {customer_first_name},</p>
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#425466;">Quick question for you.</p>
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#425466;">Would you be open to us placing a small yard sign on your property while we service it?</p>
+    <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#425466;">It helps other local homeowners find us. If you'd rather not, no problem at all.</p>
+    <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#425466;">Use the options below to let us know.</p>
+    <div style="text-align:center;margin:0 0 14px;">
+      <a href="{yard_sign_yes_link}" style="display:inline-block;background:#2e403d;color:#c9dd80;font-size:14px;font-weight:700;line-height:1.2;text-decoration:none;border-radius:8px;padding:16px 28px;">Yes, we'd be open to a sign</a>
+    </div>
+    <div style="text-align:center;margin:0;">
+      <a href="{yard_sign_no_link}" style="display:inline-block;background:#2e403d;color:#c9dd80;font-size:14px;font-weight:700;line-height:1.2;text-decoration:none;border-radius:8px;padding:16px 28px;">No, not at this time</a>
+    </div>
+  `;
+}
+
 // Default template seeds
 const DEFAULT_TEMPLATES = [
   { name: 'Quote Sent', slug: 'quote_sent', category: 'quotes', subject: 'Your Quote from Pappas & Co. Landscaping', body: buildQuoteSentBody(), sms_body: 'Hi {customer_first_name}, your quote #{quote_number} for ${quote_total} from Pappas & Co. is ready! View it here: {quote_link}', variables: '["customer_name","customer_first_name","quote_number","quote_total","quote_link","services_list"]' },
@@ -8756,6 +9042,29 @@ async function seedDefaultTemplates() {
 }
 // Run seed after tables are created (deferred via setTimeout to let migrations complete)
 setTimeout(() => seedDefaultTemplates().then(() => console.log('✅ Default templates seeded')).catch(e => console.error('Template seed error:', e.message)), 5000);
+
+async function ensureAppManagedTemplates() {
+  try {
+    await pool.query(
+      `INSERT INTO email_templates (name, slug, category, channel, subject, body, variables, options, is_default, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true)
+       ON CONFLICT (slug) DO NOTHING`,
+      [
+        'Yard Sign Request',
+        'yard_sign_request',
+        'marketing',
+        'email',
+        'Quick Question: Would you be open to a yard sign?',
+        buildYardSignRequestTemplateBody(),
+        JSON.stringify(['customer_first_name', 'company_name', 'company_phone', 'company_email', 'yard_sign_yes_link', 'yard_sign_no_link']),
+        JSON.stringify({ wrapper: 'full' })
+      ]
+    );
+  } catch (e) {
+    console.error('App-managed template seed error:', e.message);
+  }
+}
+setTimeout(() => ensureAppManagedTemplates().then(() => console.log('✅ App-managed templates ensured')).catch(e => console.error('App-managed template ensure error:', e.message)), 5500);
 
 // ═══════════════════════════════════════════════════════════
 

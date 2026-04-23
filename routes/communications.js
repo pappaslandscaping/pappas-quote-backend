@@ -6,7 +6,11 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { validate, schemas } = require('../lib/validate');
+
+const YARD_SIGN_REQUEST_HTML_PATH = path.join(__dirname, '..', 'email', 'copilot', 'yard-sign-request.html');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -75,6 +79,12 @@ function getBroadcastInclusionReasons(customer, filters) {
   if (filters.customer_type && customer.customer_type) {
     reasons.push(`Type: ${customer.customer_type}`);
   }
+  if (filters.service_type) {
+    reasons.push(`Service: ${filters.service_type}`);
+  }
+  if (filters.service_frequencies && filters.service_frequencies.length > 0) {
+    reasons.push(`Frequency: ${filters.service_frequencies.join(', ')}`);
+  }
   if (filters.monthly_plan) {
     reasons.push('Monthly plan customer');
   }
@@ -96,6 +106,8 @@ function getBroadcastFilterSummary(filters) {
   if (filters.cities && filters.cities.length) summary.push(`Cities: ${filters.cities.join(', ')}`);
   if (filters.status) summary.push(`Status: ${filters.status}`);
   if (filters.customer_type) summary.push(`Type: ${filters.customer_type}`);
+  if (filters.service_type) summary.push(`Service: ${filters.service_type}`);
+  if (filters.service_frequencies && filters.service_frequencies.length) summary.push(`Frequency: ${filters.service_frequencies.join(', ')}`);
   if (filters.monthly_plan) summary.push('Monthly plan only');
   if (filters.active_since_months) summary.push(`Active in last ${filters.active_since_months} months`);
   if (filters.job_date) summary.push(`Scheduled on ${filters.job_date}`);
@@ -121,6 +133,88 @@ function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDate
       FROM scheduled_jobs sj
       WHERE sj.customer_id = c.id
         AND ${scheduledDateClause}
+    )
+  )`;
+}
+
+function normalizeBroadcastServiceFrequency(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z]+/g, '');
+}
+
+function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequencyPlaceholder }) {
+  return `(
+    EXISTS (
+      SELECT 1
+      FROM copilot_live_jobs clj
+      LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
+      LEFT JOIN customers live_customer
+        ON live_customer.customer_number IS NOT NULL
+       AND clj.source_customer_id IS NOT NULL
+       AND live_customer.customer_number = clj.source_customer_id
+      WHERE clj.source_deleted_at IS NULL
+        AND COALESCE(yjo.customer_link_id, live_customer.id) = c.id
+        AND clj.service_date >= CURRENT_DATE
+        AND (
+          ${serviceTypePlaceholder}::text IS NULL
+          OR LOWER(CONCAT_WS(' ',
+            clj.job_title,
+            clj.service_title,
+            clj.service_type,
+            clj.raw_payload->>'job_title',
+            clj.raw_payload->>'service_type'
+          )) LIKE '%' || LOWER(${serviceTypePlaceholder}::text) || '%'
+        )
+        AND (
+          ${frequencyPlaceholder}::text[] IS NULL
+          OR COALESCE(array_length(${frequencyPlaceholder}::text[], 1), 0) = 0
+          OR EXISTS (
+            SELECT 1
+            FROM unnest(${frequencyPlaceholder}::text[]) AS freq(value)
+            WHERE regexp_replace(
+              LOWER(CONCAT_WS(' ',
+                clj.service_frequency,
+                clj.job_title,
+                clj.service_title,
+                clj.service_type,
+                clj.raw_payload->>'job_title',
+                clj.raw_payload->>'service_type'
+              )),
+              '[^a-z]+',
+              '',
+              'g'
+            ) LIKE '%' || freq.value || '%'
+          )
+        )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM scheduled_jobs sj
+      WHERE sj.customer_id = c.id
+        AND sj.job_date::date >= CURRENT_DATE
+        AND COALESCE(LOWER(sj.status), '') NOT IN ('completed', 'done', 'cancelled', 'canceled')
+        AND (
+          ${serviceTypePlaceholder}::text IS NULL
+          OR LOWER(COALESCE(sj.service_type, '')) LIKE '%' || LOWER(${serviceTypePlaceholder}::text) || '%'
+        )
+        AND (
+          ${frequencyPlaceholder}::text[] IS NULL
+          OR COALESCE(array_length(${frequencyPlaceholder}::text[], 1), 0) = 0
+          OR EXISTS (
+            SELECT 1
+            FROM unnest(${frequencyPlaceholder}::text[]) AS freq(value)
+            WHERE regexp_replace(
+              LOWER(CONCAT_WS(' ',
+                sj.service_frequency,
+                sj.service_type
+              )),
+              '[^a-z]+',
+              '',
+              'g'
+            ) LIKE '%' || freq.value || '%'
+          )
+        )
     )
   )`;
 }
@@ -167,8 +261,43 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars }) {
   const router = express.Router();
+
+  async function getOrCreatePortalTokenForCustomer(customerId, email) {
+    const existing = await pool.query(
+      `SELECT token
+       FROM customer_portal_tokens
+       WHERE customer_id = $1 AND expires_at > NOW()
+       ORDER BY expires_at DESC, created_at DESC
+       LIMIT 1`,
+      [customerId]
+    );
+    if (existing.rows.length > 0) return existing.rows[0].token;
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await pool.query(
+      'INSERT INTO customer_portal_tokens (token, customer_id, email, expires_at) VALUES ($1, $2, $3, $4)',
+      [token, customerId, email, expiresAt]
+    );
+    return token;
+  }
+
+  async function buildYardSignResponseVars({ customerId, email, baseUrl }) {
+    if (!customerId || !email) {
+      return {
+        yard_sign_yes_link: '',
+        yard_sign_no_link: ''
+      };
+    }
+
+    const token = await getOrCreatePortalTokenForCustomer(customerId, email);
+    return {
+      yard_sign_yes_link: `${baseUrl}/yard-sign-response?token=${token}&answer=yes`,
+      yard_sign_no_link: `${baseUrl}/yard-sign-response?token=${token}&answer=no`
+    };
+  }
 
   async function findCustomerContext({ customerId, phoneNumber }) {
     if (customerId) {
@@ -201,6 +330,257 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, escapeHtml,
       .split(/\r?\n/)
       .map((line) => escapeHtml(line))
       .join('<br>');
+  }
+
+  function replaceCopilotMergeTags(str, data) {
+    if (!str) return str;
+    return str.replace(/\{\{(\w+)\}\}/g, (match, key) => (
+      data[key] !== undefined ? data[key] : match
+    ));
+  }
+
+  async function loginToCopilotCrm() {
+    const username = process.env.COPILOTCRM_USERNAME || process.env.COPILOT_USERNAME;
+    const password = process.env.COPILOTCRM_PASSWORD || process.env.COPILOT_PASSWORD;
+    if (!username || !password) {
+      throw new Error('Copilot credentials are not configured. Set COPILOTCRM_USERNAME/COPILOTCRM_PASSWORD or COPILOT_USERNAME/COPILOT_PASSWORD.');
+    }
+
+    const loginRes = await fetch('https://api.copilotcrm.com/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+      body: JSON.stringify({
+        username,
+        password
+      })
+    });
+    const loginText = await loginRes.text();
+    let auth;
+    try {
+      auth = JSON.parse(loginText);
+    } catch (error) {
+      throw new Error(`CopilotCRM login returned non-JSON: ${loginText.substring(0, 200)}`);
+    }
+    if (!auth.accessToken) {
+      throw new Error(`CopilotCRM login failed: ${loginText.substring(0, 200)}`);
+    }
+
+    const cookie = `copilotApiAccessToken=${auth.accessToken}`;
+    return {
+      Cookie: cookie,
+      Origin: 'https://secure.copilotcrm.com',
+      Referer: 'https://secure.copilotcrm.com/',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
+  }
+
+  async function findCopilotCustomer(headers, customer) {
+    const queries = [customer.email, customer.name].filter(Boolean);
+
+    for (const query of queries) {
+      const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `query=${encodeURIComponent(query)}`
+      });
+      const searchText = await searchRes.text();
+      let customers;
+      try {
+        customers = JSON.parse(searchText);
+      } catch (error) {
+        throw new Error(`CopilotCRM customer search returned non-JSON (status ${searchRes.status}): ${searchText.substring(0, 300)}`);
+      }
+      if (!Array.isArray(customers) || customers.length === 0) continue;
+
+      const emailLower = String(customer.email || '').trim().toLowerCase();
+      const nameLower = String(customer.name || '').trim().toLowerCase();
+
+      const exactEmail = emailLower
+        ? customers.find((c) => String(c.email || '').trim().toLowerCase() === emailLower && c.id)
+        : null;
+      if (exactEmail) return exactEmail;
+
+      const exactName = nameLower
+        ? customers.find((c) => String(c.name || '').trim().toLowerCase() === nameLower && c.id)
+        : null;
+      if (exactName) return exactName;
+
+      const firstValid = customers.find((c) => c.id && String(c.id) !== '0');
+      if (firstValid) return firstValid;
+    }
+
+    return null;
+  }
+
+  async function renderYardSignRequestEmail(customer, baseUrl) {
+    const yardSignVars = await buildYardSignResponseVars({
+      customerId: customer.id,
+      email: customer.email,
+      baseUrl
+    });
+    const customerName = customer.name || ((customer.first_name || '') + (customer.last_name ? ` ${customer.last_name}` : '')).trim() || 'there';
+    const firstName = customer.first_name || customerName.split(' ')[0] || 'there';
+    const customerAddress = [customer.street, customer.city, customer.state, customer.postal_code].filter(Boolean).join(', ');
+    const tagVars = {
+      CUSTOMER_FIRST_NAME: firstName,
+      CUSTOMER_ADDRESS: customerAddress,
+      COMPANY_NAME: 'Pappas & Co. Landscaping',
+      COMPANY_PHONE: '(440) 886-7318',
+      COMPANY_EMAIL: 'hello@pappaslandscaping.com',
+      YARD_SIGN_YES_LINK: yardSignVars.yard_sign_yes_link,
+      YARD_SIGN_NO_LINK: yardSignVars.yard_sign_no_link
+    };
+    const appVars = {
+      customer_first_name: firstName,
+      customer_address: customerAddress,
+      company_name: tagVars.COMPANY_NAME,
+      company_phone: tagVars.COMPANY_PHONE,
+      company_email: tagVars.COMPANY_EMAIL,
+      yard_sign_yes_link: yardSignVars.yard_sign_yes_link,
+      yard_sign_no_link: yardSignVars.yard_sign_no_link,
+      unsubscribe_email: customer.email ? encodeURIComponent(customer.email) : ''
+    };
+
+    const savedTemplate = typeof getTemplate === 'function'
+      ? await getTemplate('yard_sign_request')
+      : null;
+
+    if (savedTemplate?.body) {
+      const subject = replaceTemplateVars(savedTemplate.subject || 'Quick Question: Would you be open to a yard sign?', appVars);
+      const body = replaceTemplateVars(savedTemplate.body, appVars);
+      const wrapper = savedTemplate.options?.wrapper || 'full';
+      const useMJML = savedTemplate.options?.use_mjml === true || body.includes('<mj-') || body.includes('<mjml>');
+
+      let html;
+      if (useMJML && typeof renderWithBaseLayout === 'function') {
+        html = await renderWithBaseLayout(body, {
+          wrapper,
+          showFeatures: savedTemplate.options?.showFeatures || false,
+          showSignature: savedTemplate.options?.showSignature !== false,
+          baseUrl,
+          unsubscribeEmail: appVars.unsubscribe_email || '{unsubscribe_email}'
+        });
+      } else {
+        html = emailTemplate(body, { wrapper });
+        if (appVars.unsubscribe_email) {
+          html = html.replace(/\{unsubscribe_email\}/g, appVars.unsubscribe_email);
+        }
+      }
+
+      return { html, subject, tagVars, appVars, source: 'template' };
+    }
+
+    const templateHtml = fs.readFileSync(YARD_SIGN_REQUEST_HTML_PATH, 'utf8');
+    return {
+      html: replaceCopilotMergeTags(templateHtml, tagVars),
+      subject: 'Quick Question: Would you be open to a yard sign?',
+      tagVars,
+      appVars,
+      source: 'file'
+    };
+  }
+
+  function isLocalDevRequest(req) {
+    const host = String(req.hostname || '').toLowerCase();
+    return process.env.NODE_ENV !== 'production' || host === 'localhost' || host === '127.0.0.1';
+  }
+
+  function getYardSignSendTargets(body) {
+    const customerIds = [
+      ...(Array.isArray(body.customer_ids) ? body.customer_ids : []),
+      ...(body.customer_id ? [body.customer_id] : [])
+    ].map((id) => parseInt(id, 10)).filter(Boolean);
+
+    const emails = [
+      ...(Array.isArray(body.emails) ? body.emails : []),
+      ...(body.email ? [body.email] : [])
+    ].map((email) => String(email || '').trim().toLowerCase()).filter(Boolean);
+
+    return { customerIds, emails };
+  }
+
+  async function findYardSignCustomers({ customerIds, emails }) {
+    if (customerIds.length && emails.length) {
+      return pool.query(
+        `SELECT id, name, first_name, last_name, email, street, city, state, postal_code
+         FROM customers
+         WHERE id = ANY($1) OR LOWER(COALESCE(email, '')) = ANY($2)`,
+        [customerIds, emails]
+      );
+    }
+    if (customerIds.length) {
+      return pool.query(
+        'SELECT id, name, first_name, last_name, email, street, city, state, postal_code FROM customers WHERE id = ANY($1)',
+        [customerIds]
+      );
+    }
+    return pool.query(
+      `SELECT id, name, first_name, last_name, email, street, city, state, postal_code
+       FROM customers
+       WHERE LOWER(COALESCE(email, '')) = ANY($1)`,
+      [emails]
+    );
+  }
+
+  async function buildYardSignSendResults({ customers, dryRun, baseUrl }) {
+    const copilotHeaders = await loginToCopilotCrm();
+    const results = [];
+
+    for (const customer of customers) {
+      const rendered = await renderYardSignRequestEmail(customer, baseUrl);
+      const copilotCustomer = await findCopilotCustomer(copilotHeaders, customer);
+
+      if (!copilotCustomer?.id) {
+        results.push({
+          customer_id: customer.id,
+          customer_email: customer.email,
+          success: false,
+          error: 'Copilot customer match not found',
+          yes_link: rendered.tagVars.YARD_SIGN_YES_LINK,
+          no_link: rendered.tagVars.YARD_SIGN_NO_LINK
+        });
+        continue;
+      }
+
+      if (dryRun) {
+        results.push({
+          customer_id: customer.id,
+          customer_email: customer.email,
+          copilot_customer_id: copilotCustomer.id,
+          success: true,
+          dry_run: true,
+          yes_link: rendered.tagVars.YARD_SIGN_YES_LINK,
+          no_link: rendered.tagVars.YARD_SIGN_NO_LINK,
+          html_preview: rendered.html
+        });
+        continue;
+      }
+
+      const sendMailBody = new URLSearchParams({
+        co_id: '5261',
+        'to_customer[]': String(copilotCustomer.id),
+        type: 'email',
+        subject: rendered.subject,
+        content: rendered.html
+      });
+      const sendMailRes = await fetch('https://secure.copilotcrm.com/emails/sendMail', {
+        method: 'POST',
+        headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: sendMailBody.toString()
+      });
+
+      results.push({
+        customer_id: customer.id,
+        customer_email: customer.email,
+        copilot_customer_id: copilotCustomer.id,
+        success: sendMailRes.ok,
+        status: sendMailRes.status,
+        yes_link: rendered.tagVars.YARD_SIGN_YES_LINK,
+        no_link: rendered.tagVars.YARD_SIGN_NO_LINK
+      });
+    }
+
+    return results;
   }
 
 router.get('/api/messages/conversations', async (req, res) => {
@@ -269,6 +649,76 @@ router.get('/api/messages/conversations', async (req, res) => {
     res.status(500).json({ success: false, conversations: [] });
   }
 });
+
+  // POST /api/copilotcrm/yard-sign/send - Render and send yard sign request emails through Copilot sendMail
+  router.post('/api/copilotcrm/yard-sign/send', async (req, res) => {
+    try {
+      const { customerIds, emails } = getYardSignSendTargets(req.body);
+      const dryRun = req.body.dry_run === true;
+      if (!customerIds.length && !emails.length) {
+        return res.status(400).json({ success: false, error: 'customer_ids, customer_id, email, or emails is required' });
+      }
+
+      const customerResult = await findYardSignCustomers({ customerIds, emails });
+      if (!customerResult.rows.length) {
+        return res.status(404).json({ success: false, error: 'No matching customers found' });
+      }
+
+      const baseUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+      const results = await buildYardSignSendResults({ customers: customerResult.rows, dryRun, baseUrl });
+
+      res.json({
+        success: true,
+        dry_run: dryRun,
+        results
+      });
+    } catch (error) {
+      console.error('Copilot yard sign send error:', error);
+      serverError(res, error);
+    }
+  });
+
+  // POST /dev/copilotcrm/yard-sign/send - Local-only unauthenticated dry-run helper
+  router.post('/dev/copilotcrm/yard-sign/send', async (req, res) => {
+    try {
+      if (!isLocalDevRequest(req)) {
+        return res.status(404).send('Not found');
+      }
+
+      const { customerIds, emails } = getYardSignSendTargets(req.body || {});
+      const dryRun = req.body?.dry_run === true;
+      if (!dryRun) {
+        return res.status(400).json({ success: false, error: 'Local helper only supports dry_run: true' });
+      }
+      if (!customerIds.length && !emails.length) {
+        return res.status(400).json({ success: false, error: 'customer_ids, customer_id, email, or emails is required' });
+      }
+
+      const customerResult = await findYardSignCustomers({ customerIds, emails });
+      if (!customerResult.rows.length) {
+        return res.status(404).json({ success: false, error: 'No matching customers found' });
+      }
+
+      const baseUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+      const results = await buildYardSignSendResults({ customers: customerResult.rows, dryRun: true, baseUrl });
+
+      res.json({
+        success: true,
+        dry_run: true,
+        results
+      });
+    } catch (error) {
+      console.error('Dev Copilot yard sign send error:', error);
+      if (isLocalDevRequest(req)) {
+        return res.status(500).json({
+          success: false,
+          error: error?.message || 'Something went wrong. Please try again.',
+          stack: error?.stack || null
+        });
+      }
+      serverError(res, error);
+    }
+  });
 
 // Get all messages for a specific conversation thread
 router.get('/api/messages/thread/:phoneNumber', async (req, res) => {
@@ -540,7 +990,9 @@ router.get('/api/broadcasts/filter-options', async (req, res) => {
       cities: cities.rows.map(r => r.city),
       postal_codes: postalCodes.rows.map(r => r.postal_code),
       statuses: statuses.rows.map(r => r.status),
-      customer_types: customerTypes.rows.map(r => r.customer_type)
+      customer_types: customerTypes.rows.map(r => r.customer_type),
+      service_types: ['Mowing'],
+      service_frequencies: ['Weekly', 'Bi-Weekly']
     });
   } catch (error) {
     console.error('Broadcast filter-options error:', error);
@@ -599,6 +1051,21 @@ router.post('/api/broadcasts/preview', async (req, res) => {
     if (filters.customer_type) {
       params.push(filters.customer_type);
       conditions.push(`c.customer_type = $${paramIdx++}`);
+    }
+
+    // Active/current service program + frequency filters.
+    const normalizedFrequencies = Array.isArray(filters.service_frequencies)
+      ? filters.service_frequencies.map(normalizeBroadcastServiceFrequency).filter(Boolean)
+      : [];
+    if (filters.service_type || normalizedFrequencies.length > 0) {
+      params.push(filters.service_type ? String(filters.service_type) : null);
+      const serviceTypePlaceholder = `$${paramIdx++}`;
+      params.push(normalizedFrequencies.length > 0 ? normalizedFrequencies : null);
+      const frequencyPlaceholder = `$${paramIdx++}`;
+      conditions.push(buildBroadcastServiceProgramCondition({
+        serviceTypePlaceholder,
+        frequencyPlaceholder
+      }));
     }
 
     // Has email
@@ -764,6 +1231,11 @@ router.post('/api/broadcasts/send', async (req, res) => {
 
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
+      const yardSignVars = await buildYardSignResponseVars({
+        customerId: cust.id,
+        email: cust.email,
+        baseUrl
+      });
       const vars = {
         customer_name: custName,
         customer_first_name: cust.first_name || custName,
@@ -775,6 +1247,8 @@ router.post('/api/broadcasts/send', async (req, res) => {
         company_email: 'hello@pappaslandscaping.com',
         company_website: 'pappaslandscaping.com',
         portal_link: `${baseUrl}/customer-portal.html`,
+        yard_sign_yes_link: yardSignVars.yard_sign_yes_link,
+        yard_sign_no_link: yardSignVars.yard_sign_no_link,
         unsubscribe_email: encodeURIComponent(cust.email || '')
       };
 

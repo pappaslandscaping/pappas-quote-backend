@@ -1,0 +1,11 @@
+Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+
+This is the final reminder for {{INVOICE_NUMBER}}.
+
+Amount due: ${{INVOICE_TOTAL}}
+
+A late fee may apply after 30 days.
+
+You can make a payment here: {{INVOICES_LINKS}}
+
+If you need help with payment, let me know. Thank you.

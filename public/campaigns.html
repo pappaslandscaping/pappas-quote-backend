@@ -334,6 +334,119 @@
             color: rgba(247, 244, 235, 0.72);
         }
 
+        .yard-sign-section {
+            display: none;
+            margin-bottom: 24px;
+        }
+
+        .yard-sign-section.active {
+            display: block;
+        }
+
+        .yard-sign-state {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--gray-500);
+        }
+
+        .yard-sign-stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .yard-sign-stat-card {
+            background:
+                radial-gradient(circle at top right, rgba(214, 230, 202, 0.2), transparent 56%),
+                linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246, 243, 235, 0.96));
+            box-shadow: 0 16px 30px rgba(24, 33, 32, 0.06);
+            border: 1px solid rgba(46, 64, 61, 0.08);
+            border-radius: 18px;
+            padding: 18px 18px 16px;
+        }
+
+        .yard-sign-stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--gray-700);
+            margin-bottom: 8px;
+        }
+
+        .yard-sign-stat-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .yard-sign-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .yard-sign-filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .yard-sign-filter-btn {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(46, 64, 61, 0.12);
+            background: rgba(255,255,255,0.9);
+            font-size: 12px;
+            font-weight: 700;
+            color: #314540;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s ease;
+        }
+
+        .yard-sign-filter-btn.active {
+            background: #243330;
+            border-color: #243330;
+            color: #f4f7ef;
+        }
+
+        .yard-sign-answer-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .yard-sign-answer-pill.yes {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .yard-sign-answer-pill.no {
+            background: var(--amber-bg);
+            color: var(--amber);
+        }
+
+        .yard-sign-answer-pill.unanswered {
+            background: var(--blue-bg);
+            color: var(--blue);
+        }
+
+        .yard-sign-source {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
         /* ─── Table Card ────────────────────────────────────── */
         .table-card {
             background: rgba(255,255,255,0.96);
@@ -1404,6 +1517,68 @@
                 <div id="emailPreviewFrame" style="padding:20px;background:#f9faf7;border-top:1px solid var(--gray-200);max-height:400px;overflow-y:auto;"></div>
             </div>
 
+            <div class="yard-sign-section" id="yardSignSection">
+                <div class="yard-sign-stats">
+                    <div class="yard-sign-stat-card">
+                        <div class="yard-sign-stat-value" id="yardSignTotalSent">0</div>
+                        <div class="yard-sign-stat-label">Total Sent</div>
+                    </div>
+                    <div class="yard-sign-stat-card">
+                        <div class="yard-sign-stat-value" id="yardSignYesCount">0</div>
+                        <div class="yard-sign-stat-label">Yes</div>
+                    </div>
+                    <div class="yard-sign-stat-card">
+                        <div class="yard-sign-stat-value" id="yardSignNoCount">0</div>
+                        <div class="yard-sign-stat-label">No</div>
+                    </div>
+                    <div class="yard-sign-stat-card">
+                        <div class="yard-sign-stat-value" id="yardSignUnansweredCount">0</div>
+                        <div class="yard-sign-stat-label">Unanswered</div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-toolbar">
+                        <div class="table-toolbar-left">
+                            <h3>Yard Sign Responses</h3>
+                            <span class="yard-sign-state" id="yardSignState">Review yes/no responses for this campaign without leaving Campaigns.</span>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshYardSignResponses()" style="font-size:12px;padding:6px 14px;">Refresh</button>
+                    </div>
+                    <div style="padding:18px 20px 0;">
+                        <div class="yard-sign-filter-row">
+                            <div class="yard-sign-filter-group">
+                                <button type="button" class="yard-sign-filter-btn active" id="yardSignFilterAll" onclick="setYardSignResponseFilter('all')">All</button>
+                                <button type="button" class="yard-sign-filter-btn" id="yardSignFilterYes" onclick="setYardSignResponseFilter('yes')">Yes</button>
+                                <button type="button" class="yard-sign-filter-btn" id="yardSignFilterNo" onclick="setYardSignResponseFilter('no')">No</button>
+                                <button type="button" class="yard-sign-filter-btn" id="yardSignFilterUnanswered" onclick="setYardSignResponseFilter('unanswered')">Unanswered</button>
+                            </div>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Answer</th>
+                                <th>Responded</th>
+                                <th>Source</th>
+                            </tr>
+                        </thead>
+                        <tbody id="yardSignResponsesTable">
+                            <tr>
+                                <td colspan="5">
+                                    <div class="loading-state">
+                                        <div class="loading-spinner"></div>
+                                        Loading yard-sign responses...
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Submissions Table -->
             <div class="table-card">
                 <div class="table-toolbar">
@@ -1584,11 +1759,15 @@
 const API_BASE = '/api';
 let campaigns = [];
 let currentCampaign = null;
+let currentCampaignTemplate = null;
 let submissions = [];
 let marketingTemplates = [];
 let allCustomers = [];
 let selectedCustomerIds = [];
 let selectedAudience = 'all';
+let yardSignResponseFilter = 'all';
+let yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
+let yardSignResponseRows = [];
 const TEMPLATE_PREVIEW_VARS = {
     customer_first_name: 'Jane',
     customer_name: 'Jane Smith',
@@ -1630,6 +1809,114 @@ function formatDateTime(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
            date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function getAuthHeaders() {
+    const token = localStorage.getItem('jwt_token') || localStorage.getItem('token');
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+}
+
+function isYardSignTemplate(template) {
+    return String(template?.slug || '').trim() === 'yard_sign_request';
+}
+
+function getCampaignTemplate(templateId) {
+    return marketingTemplates.find(t => String(t.id) === String(templateId)) || null;
+}
+
+function setYardSignSectionVisible(visible) {
+    document.getElementById('yardSignSection').classList.toggle('active', !!visible);
+}
+
+function renderYardSignResponses() {
+    document.getElementById('yardSignTotalSent').textContent = yardSignResponseSummary.total_sent || 0;
+    document.getElementById('yardSignYesCount').textContent = yardSignResponseSummary.yes || 0;
+    document.getElementById('yardSignNoCount').textContent = yardSignResponseSummary.no || 0;
+    document.getElementById('yardSignUnansweredCount').textContent = yardSignResponseSummary.unanswered || 0;
+
+    const buttons = {
+        all: document.getElementById('yardSignFilterAll'),
+        yes: document.getElementById('yardSignFilterYes'),
+        no: document.getElementById('yardSignFilterNo'),
+        unanswered: document.getElementById('yardSignFilterUnanswered')
+    };
+    Object.entries(buttons).forEach(([key, btn]) => btn.classList.toggle('active', key === yardSignResponseFilter));
+
+    document.getElementById('yardSignState').textContent = yardSignResponseSummary.total_sent
+        ? `Showing ${yardSignResponseFilter === 'all' ? 'all tracked responses' : yardSignResponseFilter} for the Yard Sign Request campaign.`
+        : 'No yard-sign sends have been logged for review yet.';
+
+    const tbody = document.getElementById('yardSignResponsesTable');
+    if (!yardSignResponseRows.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5">
+                    <div class="empty-state">
+                        <p>${yardSignResponseSummary.total_sent ? 'No customers match this response filter.' : 'No yard-sign responses have been recorded yet.'}</p>
+                    </div>
+                </td>
+            </tr>`;
+        return;
+    }
+
+    tbody.innerHTML = yardSignResponseRows.map(row => {
+        const answer = String(row.answer || 'unanswered').toLowerCase();
+        const label = answer === 'yes' ? 'Yes' : answer === 'no' ? 'No' : 'Unanswered';
+        return `
+            <tr>
+                <td><span class="customer-name">${esc(row.customer_name || 'Unknown')}</span></td>
+                <td><span class="customer-contact">${esc(row.customer_email || '')}</span></td>
+                <td><span class="yard-sign-answer-pill ${answer}">${label}</span></td>
+                <td>${formatDateTime(row.responded_at || row.sent_at)}</td>
+                <td><span class="yard-sign-source">${esc(row.source || (answer === 'unanswered' ? 'sent' : 'unknown'))}</span></td>
+            </tr>`;
+    }).join('');
+}
+
+function setYardSignResponseFilter(filter) {
+    yardSignResponseFilter = filter;
+    refreshYardSignResponses();
+}
+
+async function refreshYardSignResponses() {
+    if (!isYardSignTemplate(currentCampaignTemplate)) return;
+    const tbody = document.getElementById('yardSignResponsesTable');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="5">
+                <div class="loading-state">
+                    <div class="loading-spinner"></div>
+                    Loading yard-sign responses...
+                </div>
+            </td>
+        </tr>`;
+    try {
+        const params = new URLSearchParams();
+        if (yardSignResponseFilter !== 'all') params.set('answer', yardSignResponseFilter);
+        const res = await fetch(`${API_BASE}/yard-sign-responses${params.toString() ? `?${params.toString()}` : ''}`, {
+            headers: getAuthHeaders()
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || `Failed to load yard-sign responses (${res.status})`);
+        }
+        yardSignResponseSummary = data.summary || { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
+        yardSignResponseRows = data.rows || [];
+        renderYardSignResponses();
+    } catch (error) {
+        console.error('Error loading yard-sign responses:', error);
+        yardSignResponseSummary = { total_sent: 0, yes: 0, no: 0, unanswered: 0 };
+        yardSignResponseRows = [];
+        document.getElementById('yardSignState').textContent = 'Could not load yard-sign responses.';
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5">
+                    <div class="empty-state">
+                        <p>Could not load yard-sign responses.</p>
+                    </div>
+                </td>
+            </tr>`;
+    }
 }
 
 // Escape HTML
@@ -1743,6 +2030,8 @@ function renderCampaigns() {
 async function viewCampaign(campaignId) {
     currentCampaign = campaigns.find(c => c.id == campaignId || c.name === campaignId);
     if (!currentCampaign) return;
+    currentCampaignTemplate = getCampaignTemplate(currentCampaign.template_id);
+    setYardSignSectionVisible(isYardSignTemplate(currentCampaignTemplate));
 
     // Update detail header
     document.getElementById('detailTitle').textContent = currentCampaign.name;
@@ -1762,6 +2051,10 @@ async function viewCampaign(campaignId) {
         loadSubmissions(currentCampaign.id),
         loadEngagement(currentCampaign.id)
     ]);
+
+    if (isYardSignTemplate(currentCampaignTemplate)) {
+        await refreshYardSignResponses();
+    }
 }
 
 // ─── Email Engagement ──────────────────────────────────────
@@ -2044,6 +2337,8 @@ function showListView() {
     document.getElementById('listView').classList.remove('hidden');
     document.getElementById('detailView').classList.remove('active');
     currentCampaign = null;
+    currentCampaignTemplate = null;
+    setYardSignSectionVisible(false);
 }
 
 // Copy form link
@@ -2068,6 +2363,11 @@ async function loadEmailPreview(templateId) {
         const data = await res.json();
         if (data.success && data.template) {
             const t = data.template;
+            currentCampaignTemplate = t;
+            setYardSignSectionVisible(isYardSignTemplate(currentCampaignTemplate));
+            if (isYardSignTemplate(currentCampaignTemplate)) {
+                refreshYardSignResponses();
+            }
             badge.textContent = 'Subject: ' + (t.subject || '(no subject)');
             frame.innerHTML = buildTemplatePreviewMarkup(t);
             card.style.display = '';
@@ -2149,6 +2449,13 @@ async function loadTemplates() {
         const data = await res.json();
         marketingTemplates = data.templates || [];
         populateTemplateSelects();
+        if (currentCampaign && currentCampaign.template_id && !currentCampaignTemplate) {
+            currentCampaignTemplate = getCampaignTemplate(currentCampaign.template_id);
+            setYardSignSectionVisible(isYardSignTemplate(currentCampaignTemplate));
+            if (isYardSignTemplate(currentCampaignTemplate)) {
+                refreshYardSignResponses();
+            }
+        }
     } catch (err) {
         console.error('Error loading templates:', err);
     }

@@ -1634,6 +1634,31 @@ let selectedCustomerIds = new Set();
 let currentChannel = 'email';
 let debounceTimer = null;
 let selectedTemplate = null;
+const COMPILED_COPILOT_TEMPLATE_SLUGS = new Set([
+    'yard_sign_request',
+    'payment_receipt',
+    'statement',
+    'tip_thank_you',
+    'estimate_accepted_internal',
+    'estimate_changes_requested_internal',
+    'estimate_changes_requested_customer',
+    'work_request_submitted_internal',
+    'work_request_submitted_customer',
+    'invoice',
+    'payment_reminder',
+    'invoice_reminder_1',
+    'invoice_reminder_2',
+    'invoice_reminder_3',
+    'invoice_reminder_final',
+    'invoice_past_due_30',
+    'invoice_past_due_45',
+    'invoice_past_due_60',
+    'invoice_partial_followup_1',
+    'invoice_partial_followup_2',
+    'invoice_partial_followup_final',
+    'quote',
+    'welcome'
+]);
 const TEMPLATE_PREVIEW_VARS = {
     customer_first_name: 'Jane',
     customer_name: 'Jane Smith',
@@ -1645,12 +1670,29 @@ const TEMPLATE_PREVIEW_VARS = {
     invoice_due_date: 'March 15, 2026',
     balance_due: '$285.00',
     payment_link: '#',
+    invoices_links: '#',
+    payment_amount: '$285.00',
+    payment_method: 'Visa ending in 4242',
+    payment_date: 'April 23, 2026',
+    receipt_link: '#',
+    customer_account_balance: '$285.00',
+    customer_portal_link: '#',
     portal_link: '#',
+    estimate_number: 'Estimate 5678',
+    estimate_total: '$1,250.00',
+    estimate_link: '#',
+    estimate_edit_link: '#',
+    estimate_changes: 'Please revise the service scope and update the total.',
     service_type: 'Weekly Mowing',
     job_date: 'Tuesday, March 10',
     address: '123 Main St, Lakewood OH',
     services_list: 'Weekly Mowing, Spring Cleanup',
-    service_list: 'Weekly Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave'
+    service_list: 'Weekly Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave',
+    company_name: 'Pappas & Co. Landscaping',
+    company_phone: '(440) 886-7318',
+    company_email: 'hello@pappaslandscaping.com',
+    yard_sign_yes_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=yes',
+    yard_sign_no_link: 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no'
 };
 let currentPreviewSummary = {};
 let currentFilterSummary = [];
@@ -1994,6 +2036,13 @@ async function refreshAudience() {
         updateSendButton();
     } catch (e) {
         console.warn('Could not refresh audience:', e);
+        audienceResults = [];
+        currentPreviewSummary = {};
+        currentFilterSummary = [];
+        selectedCustomerIds = new Set();
+        renderAudienceSummary({});
+        renderAudiencePreview();
+        updateSendButton();
         document.getElementById('audienceStateText').textContent = 'Audience preview failed to load. Check the latest filter settings and try again.';
     }
 }
@@ -2148,12 +2197,13 @@ function updateSelCount() {
 }
 
 // ─── Template Preview ──────────────────────────────────────
-function previewTemplate() {
+async function previewTemplate() {
     const sel = document.getElementById('templateSelect');
     const preview = document.getElementById('templatePreview');
     const iframeWrap = document.getElementById('templatePreviewIframe');
     const id = sel.value;
     if (!id) {
+        preview.style.display = '';
         preview.className = 'template-preview-box empty';
         preview.textContent = 'Select a template to see preview';
         iframeWrap.classList.remove('visible');
@@ -2164,18 +2214,49 @@ function previewTemplate() {
     selectedTemplate = templates.find(t => String(t.id) === id);
     if (!selectedTemplate) return;
 
-    preview.className = 'template-preview-box';
-    preview.innerHTML = buildTemplatePreviewMarkup(selectedTemplate);
+    const isCompiledCopilotTemplate = COMPILED_COPILOT_TEMPLATE_SLUGS.has(String(selectedTemplate.slug || '').trim());
+    if (isCompiledCopilotTemplate) {
+        preview.style.display = 'none';
+        try {
+            const res = await fetch('/api/templates/preview', {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    slug: selectedTemplate.slug,
+                    vars: TEMPLATE_PREVIEW_VARS
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Preview failed');
+            }
+            const iframe = document.getElementById('templatePreviewFrame');
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write(data.html || '');
+            doc.close();
+            iframeWrap.classList.add('visible');
+        } catch (error) {
+            preview.style.display = '';
+            preview.className = 'template-preview-box empty';
+            preview.textContent = 'Template preview failed to load.';
+            iframeWrap.classList.remove('visible');
+        }
+    } else {
+        preview.style.display = '';
+        preview.className = 'template-preview-box';
+        preview.innerHTML = buildTemplatePreviewMarkup(selectedTemplate);
 
-    // Render wrapped email preview in iframe
-    const html = applyPreviewVars(selectedTemplate.body || selectedTemplate.html_body || '');
-    const wrapped = wrapBroadcastPreview(html, normalizeWrapper(selectedTemplate.options && selectedTemplate.options.wrapper));
-    const iframe = document.getElementById('templatePreviewFrame');
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(wrapped);
-    doc.close();
-    iframeWrap.classList.add('visible');
+        // Render wrapped email preview in iframe
+        const html = applyPreviewVars(selectedTemplate.body || selectedTemplate.html_body || '');
+        const wrapped = wrapBroadcastPreview(html, normalizeWrapper(selectedTemplate.options && selectedTemplate.options.wrapper));
+        const iframe = document.getElementById('templatePreviewFrame');
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(wrapped);
+        doc.close();
+        iframeWrap.classList.add('visible');
+    }
 
     // Show "Use template SMS" button if template has sms_body
     if (selectedTemplate.sms_body && (currentChannel === 'sms' || currentChannel === 'both')) {

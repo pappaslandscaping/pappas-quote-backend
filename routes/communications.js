@@ -6,11 +6,11 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 const { validate, schemas } = require('../lib/validate');
-
-const YARD_SIGN_REQUEST_HTML_PATH = path.join(__dirname, '..', 'email', 'copilot', 'yard-sign-request.html');
+const {
+  renderCompiledCopilotTemplate,
+  isCompiledCopilotTemplateSlug
+} = require('../lib/compiled-copilot-templates');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -58,6 +58,13 @@ function getBroadcastEligibility(customer, prefs, channel) {
   };
 }
 
+function extractFirstName(customer = {}) {
+  const explicitFirstName = String(customer.first_name || '').trim();
+  if (explicitFirstName) return explicitFirstName;
+  const fullName = String(customer.name || '').trim();
+  return fullName ? fullName.split(/\s+/)[0] : 'there';
+}
+
 function getBroadcastInclusionReasons(customer, filters) {
   const reasons = [];
   const rawTags = (customer.tags || '').split(',').map(t => t.trim()).filter(Boolean);
@@ -80,10 +87,13 @@ function getBroadcastInclusionReasons(customer, filters) {
     reasons.push(`Type: ${customer.customer_type}`);
   }
   if (filters.service_type) {
-    reasons.push(`Service: ${filters.service_type}`);
+    reasons.push(`Service: ${customer.matched_service_type || filters.service_type}`);
   }
   if (filters.service_frequencies && filters.service_frequencies.length > 0) {
-    reasons.push(`Frequency: ${filters.service_frequencies.join(', ')}`);
+    const frequencyLabel = customer.matched_service_frequency_display
+      || customer.matched_service_frequency
+      || filters.service_frequencies.join(', ');
+    reasons.push(`Frequency: ${frequencyLabel}`);
   }
   if (filters.monthly_plan) {
     reasons.push('Monthly plan customer');
@@ -143,6 +153,8 @@ function normalizeBroadcastServiceFrequency(value) {
     .replace(/[^a-z]+/g, '');
 }
 
+const BROADCAST_ACTIVE_SERVICE_LOOKBACK_DAYS = 45;
+
 function buildBroadcastNormalizedFrequencyExpression(sourceSql) {
   return `CASE
     WHEN regexp_replace(LOWER(${sourceSql}), '[^a-z]+', '', 'g') LIKE '%biweekly%' THEN 'biweekly'
@@ -154,22 +166,42 @@ function buildBroadcastNormalizedFrequencyExpression(sourceSql) {
 function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequencyPlaceholder }) {
   const liveServiceText = `CONCAT_WS(' ',
     clj.job_title,
-    clj.service_type,
     clj.raw_payload->>'job_title',
-    clj.raw_payload->>'service_type'
+    clj.raw_payload->>'service_type',
+    clj.raw_payload->>'service_title',
+    clj.raw_payload->>'service_frequency'
   )`;
   const scheduledServiceText = `CONCAT_WS(' ',
     sj.service_frequency,
+    sj.recurring_pattern,
     sj.service_type
   )`;
   const liveNormalizedFrequency = buildBroadcastNormalizedFrequencyExpression(`CONCAT_WS(' ',
-    clj.service_frequency,
     clj.job_title,
-    clj.service_type,
     clj.raw_payload->>'job_title',
-    clj.raw_payload->>'service_type'
+    clj.raw_payload->>'service_type',
+    clj.raw_payload->>'service_title',
+    clj.raw_payload->>'service_frequency'
   )`);
   const scheduledNormalizedFrequency = buildBroadcastNormalizedFrequencyExpression(scheduledServiceText);
+  const liveCustomerMatch = `(
+    COALESCE(yjo.customer_link_id, live_customer.id) = c.id
+    OR (
+      COALESCE(yjo.customer_link_id, live_customer.id) IS NULL
+      AND LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(c.name, '')))
+    )
+  )`;
+  const scheduledActiveMowingCondition = `(
+    sj.job_date::date >= CURRENT_DATE - INTERVAL '${BROADCAST_ACTIVE_SERVICE_LOOKBACK_DAYS} days'
+    OR (
+      (
+        COALESCE(sj.is_recurring, false) = true
+        OR LOWER(COALESCE(sj.recurring_pattern, '')) IN ('weekly', 'biweekly')
+        OR LOWER(COALESCE(sj.service_frequency, '')) IN ('weekly', 'biweekly')
+      )
+      AND (sj.recurring_end_date IS NULL OR sj.recurring_end_date >= CURRENT_DATE)
+    )
+  )`;
 
   return `(
     EXISTS (
@@ -181,8 +213,8 @@ function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequen
        AND clj.source_customer_id IS NOT NULL
        AND live_customer.customer_number = clj.source_customer_id
       WHERE clj.source_deleted_at IS NULL
-        AND COALESCE(yjo.customer_link_id, live_customer.id) = c.id
-        AND clj.service_date >= CURRENT_DATE
+        AND ${liveCustomerMatch}
+        AND clj.service_date >= CURRENT_DATE - INTERVAL '${BROADCAST_ACTIVE_SERVICE_LOOKBACK_DAYS} days'
         AND (
           ${serviceTypePlaceholder}::text IS NULL
           OR LOWER(${liveServiceText}) LIKE '%' || LOWER(${serviceTypePlaceholder}::text) || '%'
@@ -197,8 +229,8 @@ function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequen
       SELECT 1
       FROM scheduled_jobs sj
       WHERE sj.customer_id = c.id
-        AND sj.job_date::date >= CURRENT_DATE
-        AND COALESCE(LOWER(sj.status), '') NOT IN ('completed', 'done', 'cancelled', 'canceled')
+        AND COALESCE(LOWER(sj.status), '') NOT IN ('cancelled', 'canceled')
+        AND ${scheduledActiveMowingCondition}
         AND (
           ${serviceTypePlaceholder}::text IS NULL
           OR LOWER(COALESCE(sj.service_type, '')) LIKE '%' || LOWER(${serviceTypePlaceholder}::text) || '%'
@@ -210,6 +242,123 @@ function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequen
         )
     )
   )`;
+}
+
+function buildBroadcastServiceMatchDetailsQuery() {
+  const liveNormalizedFrequency = buildBroadcastNormalizedFrequencyExpression(`CONCAT_WS(' ',
+    clj.job_title,
+    clj.raw_payload->>'job_title',
+    clj.raw_payload->>'service_type',
+    clj.raw_payload->>'service_title',
+    clj.raw_payload->>'service_frequency'
+  )`);
+  const scheduledNormalizedFrequency = buildBroadcastNormalizedFrequencyExpression(`CONCAT_WS(' ',
+    sj.service_frequency,
+    sj.recurring_pattern,
+    sj.service_type
+  )`);
+  const liveResolvedCustomerId = `COALESCE(
+    yjo.customer_link_id,
+    live_customer.id,
+    (
+      SELECT fallback_customer.id
+      FROM customers fallback_customer
+      WHERE fallback_customer.id = ANY($1::int[])
+        AND LOWER(BTRIM(COALESCE(fallback_customer.name, ''))) = LOWER(BTRIM(COALESCE(clj.customer_name, '')))
+      ORDER BY fallback_customer.id ASC
+      LIMIT 1
+    )
+  )`;
+  const liveCustomerMatch = `(
+    ${liveResolvedCustomerId} = ANY($1::int[])
+    OR (
+      COALESCE(yjo.customer_link_id, live_customer.id) IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM customers fallback_customer
+        WHERE fallback_customer.id = ANY($1::int[])
+          AND LOWER(BTRIM(COALESCE(fallback_customer.name, ''))) = LOWER(BTRIM(COALESCE(clj.customer_name, '')))
+      )
+    )
+  )`;
+  const scheduledActiveMowingCondition = `(
+    sj.job_date::date >= CURRENT_DATE - INTERVAL '${BROADCAST_ACTIVE_SERVICE_LOOKBACK_DAYS} days'
+    OR (
+      (
+        COALESCE(sj.is_recurring, false) = true
+        OR LOWER(COALESCE(sj.recurring_pattern, '')) IN ('weekly', 'biweekly')
+        OR LOWER(COALESCE(sj.service_frequency, '')) IN ('weekly', 'biweekly')
+      )
+      AND (sj.recurring_end_date IS NULL OR sj.recurring_end_date >= CURRENT_DATE)
+    )
+  )`;
+
+  return `
+    SELECT DISTINCT ON (customer_id)
+      customer_id,
+      matched_service_type,
+      matched_service_frequency,
+      CASE
+        WHEN matched_service_frequency = 'biweekly' THEN 'Bi-Weekly'
+        WHEN matched_service_frequency = 'weekly' THEN 'Weekly'
+        ELSE NULL
+      END AS matched_service_frequency_display
+    FROM (
+      SELECT
+        ${liveResolvedCustomerId} AS customer_id,
+        $2::text AS matched_service_type,
+        ${liveNormalizedFrequency} AS matched_service_frequency,
+        2 AS source_priority,
+        clj.service_date AS sort_date
+      FROM copilot_live_jobs clj
+      LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
+      LEFT JOIN customers live_customer
+        ON live_customer.customer_number IS NOT NULL
+       AND clj.source_customer_id IS NOT NULL
+       AND live_customer.customer_number = clj.source_customer_id
+      WHERE clj.source_deleted_at IS NULL
+        AND ${liveCustomerMatch}
+        AND clj.service_date >= CURRENT_DATE - INTERVAL '${BROADCAST_ACTIVE_SERVICE_LOOKBACK_DAYS} days'
+        AND (
+          $2::text IS NULL
+          OR LOWER(CONCAT_WS(' ',
+            clj.job_title,
+            clj.raw_payload->>'job_title',
+            clj.raw_payload->>'service_type',
+            clj.raw_payload->>'service_title',
+            clj.raw_payload->>'service_frequency'
+          )) LIKE '%' || LOWER($2::text) || '%'
+        )
+        AND (
+          $3::text[] IS NULL
+          OR COALESCE(array_length($3::text[], 1), 0) = 0
+          OR ${liveNormalizedFrequency} = ANY($3::text[])
+        )
+
+      UNION ALL
+
+      SELECT
+        sj.customer_id,
+        $2::text AS matched_service_type,
+        ${scheduledNormalizedFrequency} AS matched_service_frequency,
+        1 AS source_priority,
+        sj.job_date::date AS sort_date
+      FROM scheduled_jobs sj
+      WHERE sj.customer_id = ANY($1::int[])
+        AND COALESCE(LOWER(sj.status), '') NOT IN ('cancelled', 'canceled')
+        AND ${scheduledActiveMowingCondition}
+        AND (
+          $2::text IS NULL
+          OR LOWER(COALESCE(sj.service_type, '')) LIKE '%' || LOWER($2::text) || '%'
+        )
+        AND (
+          $3::text[] IS NULL
+          OR COALESCE(array_length($3::text[], 1), 0) = 0
+          OR ${scheduledNormalizedFrequency} = ANY($3::text[])
+        )
+    ) service_matches
+    ORDER BY customer_id, source_priority, sort_date ASC
+  `;
 }
 
 async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
@@ -325,11 +474,13 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
       .join('<br>');
   }
 
-  function replaceCopilotMergeTags(str, data) {
-    if (!str) return str;
-    return str.replace(/\{\{(\w+)\}\}/g, (match, key) => (
-      data[key] !== undefined ? data[key] : match
-    ));
+  function appendTrackingPixel(html, pixelUrl) {
+    const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none;" />`;
+    if (!html) return pixel;
+    if (html.includes('</body>')) {
+      return html.replace('</body>', `${pixel}</body>`);
+    }
+    return `${html}${pixel}`;
   }
 
   async function loginToCopilotCrm() {
@@ -368,41 +519,24 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
   }
 
   async function findCopilotCustomer(headers, customer) {
-    const queries = [customer.email, customer.name].filter(Boolean);
+    const emailLower = String(customer.email || '').trim().toLowerCase();
+    if (!emailLower) return null;
 
-    for (const query of queries) {
-      const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `query=${encodeURIComponent(query)}`
-      });
-      const searchText = await searchRes.text();
-      let customers;
-      try {
-        customers = JSON.parse(searchText);
-      } catch (error) {
-        throw new Error(`CopilotCRM customer search returned non-JSON (status ${searchRes.status}): ${searchText.substring(0, 300)}`);
-      }
-      if (!Array.isArray(customers) || customers.length === 0) continue;
-
-      const emailLower = String(customer.email || '').trim().toLowerCase();
-      const nameLower = String(customer.name || '').trim().toLowerCase();
-
-      const exactEmail = emailLower
-        ? customers.find((c) => String(c.email || '').trim().toLowerCase() === emailLower && c.id)
-        : null;
-      if (exactEmail) return exactEmail;
-
-      const exactName = nameLower
-        ? customers.find((c) => String(c.name || '').trim().toLowerCase() === nameLower && c.id)
-        : null;
-      if (exactName) return exactName;
-
-      const firstValid = customers.find((c) => c.id && String(c.id) !== '0');
-      if (firstValid) return firstValid;
+    const searchRes = await fetch('https://secure.copilotcrm.com/customers/filter', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `query=${encodeURIComponent(customer.email)}`
+    });
+    const searchText = await searchRes.text();
+    let customers;
+    try {
+      customers = JSON.parse(searchText);
+    } catch (error) {
+      throw new Error(`CopilotCRM customer search returned non-JSON (status ${searchRes.status}): ${searchText.substring(0, 300)}`);
     }
+    if (!Array.isArray(customers) || customers.length === 0) return null;
 
-    return null;
+    return customers.find((c) => String(c.email || '').trim().toLowerCase() === emailLower && c.id) || null;
   }
 
   async function renderYardSignRequestEmail(customer, baseUrl) {
@@ -412,7 +546,7 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
       baseUrl
     });
     const customerName = customer.name || ((customer.first_name || '') + (customer.last_name ? ` ${customer.last_name}` : '')).trim() || 'there';
-    const firstName = customer.first_name || customerName.split(' ')[0] || 'there';
+    const firstName = extractFirstName(customer);
     const customerAddress = [customer.street, customer.city, customer.state, customer.postal_code].filter(Boolean).join(', ');
     const tagVars = {
       CUSTOMER_FIRST_NAME: firstName,
@@ -437,9 +571,8 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
     const savedTemplate = typeof getTemplate === 'function'
       ? await getTemplate('yard_sign_request')
       : null;
-    const templateHtml = fs.readFileSync(YARD_SIGN_REQUEST_HTML_PATH, 'utf8');
     return {
-      html: replaceCopilotMergeTags(templateHtml, tagVars),
+      html: renderCompiledCopilotTemplate('yard_sign_request', tagVars),
       subject: replaceTemplateVars(savedTemplate?.subject || 'Quick Question: Would you be open to a yard sign?', appVars),
       tagVars,
       appVars,
@@ -496,13 +629,33 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
     for (const customer of customers) {
       const rendered = await renderYardSignRequestEmail(customer, baseUrl);
       const copilotCustomer = await findCopilotCustomer(copilotHeaders, customer);
+      const backendEmail = String(customer.email || '').trim().toLowerCase();
+      const copilotEmail = String(copilotCustomer?.email || '').trim().toLowerCase();
 
       if (!copilotCustomer?.id) {
         results.push({
           customer_id: customer.id,
           customer_email: customer.email,
+          backend_customer_email: customer.email,
+          copilot_customer_email: null,
+          copilot_customer_id: null,
           success: false,
-          error: 'Copilot customer match not found',
+          error: 'Copilot customer exact email match not found',
+          yes_link: rendered.tagVars.YARD_SIGN_YES_LINK,
+          no_link: rendered.tagVars.YARD_SIGN_NO_LINK
+        });
+        continue;
+      }
+
+      if (!backendEmail || backendEmail !== copilotEmail) {
+        results.push({
+          customer_id: customer.id,
+          customer_email: customer.email,
+          backend_customer_email: customer.email,
+          copilot_customer_email: copilotCustomer.email || null,
+          copilot_customer_id: copilotCustomer.id || null,
+          success: false,
+          error: 'Copilot customer email does not exactly match backend customer email',
           yes_link: rendered.tagVars.YARD_SIGN_YES_LINK,
           no_link: rendered.tagVars.YARD_SIGN_NO_LINK
         });
@@ -513,6 +666,8 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
         results.push({
           customer_id: customer.id,
           customer_email: customer.email,
+          backend_customer_email: customer.email,
+          copilot_customer_email: copilotCustomer.email || null,
           copilot_customer_id: copilotCustomer.id,
           success: true,
           dry_run: true,
@@ -539,6 +694,8 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
       results.push({
         customer_id: customer.id,
         customer_email: customer.email,
+        backend_customer_email: customer.email,
+        copilot_customer_email: copilotCustomer.email || null,
         copilot_customer_id: copilotCustomer.id,
         success: sendMailRes.ok,
         status: sendMailRes.status,
@@ -1112,13 +1269,27 @@ router.post('/api/broadcasts/preview', async (req, res) => {
       const prefsMap = {};
       prefs.rows.forEach(p => { prefsMap[p.customer_id] = p; });
       let emailOptIn = 0, smsOptIn = 0;
+      let serviceMatchMap = {};
+      const normalizedFrequencies = Array.isArray(filters.service_frequencies)
+        ? filters.service_frequencies.map(normalizeBroadcastServiceFrequency).filter(Boolean)
+        : [];
+      if ((filters.service_type || normalizedFrequencies.length > 0) && custIds.length > 0) {
+        const matchResult = await pool.query(
+          buildBroadcastServiceMatchDetailsQuery(),
+          [custIds, filters.service_type ? String(filters.service_type) : null, normalizedFrequencies.length > 0 ? normalizedFrequencies : null]
+        );
+        serviceMatchMap = Object.fromEntries(matchResult.rows.map((row) => [row.customer_id, row]));
+      }
+
       customers = customers.map(c => {
         const p = prefsMap[c.id] || null;
+        const serviceMatch = serviceMatchMap[c.id] || {};
         if (!p || p.email_marketing !== false) emailOptIn++;
         if (p && p.sms_marketing === true) smsOptIn++;
         const eligibility = getBroadcastEligibility(c, p, channel);
         return {
           ...c,
+          ...serviceMatch,
           communication_prefs: {
             email_marketing: p ? p.email_marketing !== false : true,
             sms_marketing: p ? p.sms_marketing === true : false
@@ -1205,7 +1376,7 @@ router.post('/api/broadcasts/send', async (req, res) => {
       });
       const vars = {
         customer_name: custName,
-        customer_first_name: cust.first_name || custName,
+        customer_first_name: extractFirstName(cust),
         customer_email: cust.email,
         customer_phone: cust.phone || cust.mobile,
         customer_address: [cust.street, cust.city, cust.state, cust.postal_code].filter(Boolean).join(', '),
@@ -1269,15 +1440,20 @@ router.post('/api/broadcasts/send', async (req, res) => {
           try {
             const trackingId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
             const subject = replaceTemplateVars(tmpl.subject, vars);
-            let body = replaceTemplateVars(tmpl.body, vars);
-            body += `<img src="${baseUrl}/api/t/${trackingId}/open.png" width="1" height="1" style="display:none;" />`;
-            const finalHtml = await renderManagedEmail(body, {
-              wrapper: tmpl.options?.wrapper || 'full',
-              showFeatures: tmpl.options?.showFeatures || false,
-              showSignature: tmpl.options?.showSignature !== false,
-              baseUrl,
-              unsubscribeEmail: encodeURIComponent(cust.email)
-            });
+            let finalHtml;
+            if (tmpl.slug && isCompiledCopilotTemplateSlug(tmpl.slug)) {
+              finalHtml = renderCompiledCopilotTemplate(tmpl.slug, vars);
+            } else {
+              const body = replaceTemplateVars(tmpl.body, vars);
+              finalHtml = await renderManagedEmail(body, {
+                wrapper: tmpl.options?.wrapper || 'full',
+                showFeatures: tmpl.options?.showFeatures || false,
+                showSignature: tmpl.options?.showSignature !== false,
+                baseUrl,
+                unsubscribeEmail: encodeURIComponent(cust.email)
+              });
+            }
+            finalHtml = appendTrackingPixel(finalHtml, `${baseUrl}/api/t/${trackingId}/open.png`);
             await sendEmail(cust.email, subject, finalHtml, null, { type: 'broadcast', customer_id: cust.id, customer_name: custName });
             // Track in campaign_sends if campaign_id provided
             if (campaign_id) {

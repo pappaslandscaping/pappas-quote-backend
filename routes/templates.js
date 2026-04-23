@@ -7,9 +7,42 @@
 // ═══════════════════════════════════════════════════════════
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
+const YARD_SIGN_REQUEST_HTML_PATH = path.join(__dirname, '..', 'email', 'copilot', 'yard-sign-request.html');
 
 module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, serverError, getTemplate, replaceTemplateVars }) {
   const router = express.Router();
+
+function replaceCopilotMergeTags(str, data) {
+  if (!str) return str;
+  return str.replace(/\{\{(\w+)\}\}/g, (match, key) => (
+    data[key] !== undefined ? data[key] : match
+  ));
+}
+
+function isCompiledCopilotTemplateSlug(slug) {
+  return slug === 'yard_sign_request';
+}
+
+function buildCompiledCopilotVars(vars = {}) {
+  return {
+    CUSTOMER_FIRST_NAME: vars.customer_first_name || vars.customer_name || 'Jane',
+    CUSTOMER_ADDRESS: vars.customer_address || '123 Main St, Lakewood OH 44107',
+    COMPANY_NAME: vars.company_name || 'Pappas & Co. Landscaping',
+    COMPANY_PHONE: vars.company_phone || '(440) 886-7318',
+    COMPANY_EMAIL: vars.company_email || 'hello@pappaslandscaping.com',
+    YARD_SIGN_YES_LINK: vars.yard_sign_yes_link || 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=yes',
+    YARD_SIGN_NO_LINK: vars.yard_sign_no_link || 'https://app.pappaslandscaping.com/yard-sign-response?token=preview&answer=no'
+  };
+}
+
+function renderCompiledCopilotTemplate(slug, vars = {}) {
+  if (slug !== 'yard_sign_request') return null;
+  const html = fs.readFileSync(YARD_SIGN_REQUEST_HTML_PATH, 'utf8');
+  return replaceCopilotMergeTags(html, buildCompiledCopilotVars(vars));
+}
 
 router.get('/api/templates', async (req, res) => {
   try {
@@ -99,6 +132,11 @@ router.post('/api/templates/preview', async (req, res) => {
     if (!sourceBody && !sourceSubject) {
       return res.status(400).json({ success: false, error: 'Template content required' });
     }
+    if (slug && isCompiledCopilotTemplateSlug(slug)) {
+      const subject = replaceTemplateVars(sourceSubject || '', vars);
+      const html = renderCompiledCopilotTemplate(slug, vars);
+      return res.json({ success: true, subject, html });
+    }
     const resolvedWrapper = wrapper || templateOptions.wrapper || 'full';
     const subject = replaceTemplateVars(sourceSubject || '', vars);
     const body = replaceTemplateVars(sourceBody || '', vars);
@@ -147,6 +185,13 @@ router.post('/api/templates/send-preview', async (req, res) => {
       body = template.body || template.html_content;
       templateOptions = { ...template.options, ...templateOptions };
       wrapperMode = templateOptions.wrapper || wrapperMode;
+      if (template.slug && isCompiledCopilotTemplateSlug(template.slug)) {
+        const finalSubject = replaceTemplateVars(subject, sampleVars);
+        const html = renderCompiledCopilotTemplate(template.slug, sampleVars);
+        const recipient = to || 'hello@pappaslandscaping.com';
+        await sendEmail(recipient, `[TEST] ${finalSubject}`, html);
+        return res.json({ success: true, message: 'Test email sent to ' + recipient });
+      }
     }
 
     const finalSubject = replaceTemplateVars(subject, sampleVars);

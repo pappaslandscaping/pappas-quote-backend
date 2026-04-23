@@ -2524,18 +2524,24 @@ async function deleteTemplate() {
 async function sendTestEmail() {
     const subject = document.getElementById('editorSubject').value;
     const body = getEditorContent();
+    const slug = document.getElementById('editorSlug').value.trim();
     if (!subject && !body) {
         showToast('Add a subject and body first', 'error');
         return;
     }
     try {
+        const isCompiledCopilotTemplate = slug === 'yard_sign_request' && !!selectedId;
         const res = await fetch('/api/templates/send-preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                subject: subject || document.getElementById('editorName').value || 'Test Template',
-                html_content: body,
-                template_id: selectedId,
+                ...(isCompiledCopilotTemplate
+                    ? { slug }
+                    : {
+                        subject: subject || document.getElementById('editorName').value || 'Test Template',
+                        html_content: body,
+                        template_id: selectedId
+                    }),
                 wrapper: currentWrapper,
                 options: {
                     ...currentTemplateOptions,
@@ -2565,6 +2571,7 @@ function debouncedPreview() {
 async function refreshPreview() {
     const body = getEditorContent();
     const subject = document.getElementById('editorSubject').value;
+    const slug = document.getElementById('editorSlug').value.trim();
     const requestId = ++previewRequestId;
 
     // Replace variables with sample data
@@ -2578,12 +2585,12 @@ async function refreshPreview() {
     document.getElementById('previewWrapperPill').textContent = getWrapperLabel(currentWrapper);
 
     try {
+        const isCompiledCopilotTemplate = slug === 'yard_sign_request' && !!selectedId;
         const res = await fetch('/api/templates/preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                subject,
-                body,
+                ...(isCompiledCopilotTemplate ? { slug } : { subject, body }),
                 vars: SAMPLE_VARS,
                 wrapper: currentWrapper,
                 options: currentTemplateOptions

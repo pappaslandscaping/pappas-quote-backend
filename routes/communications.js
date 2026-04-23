@@ -437,26 +437,10 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
     const savedTemplate = typeof getTemplate === 'function'
       ? await getTemplate('yard_sign_request')
       : null;
-
-    if (savedTemplate?.body) {
-      const subject = replaceTemplateVars(savedTemplate.subject || 'Quick Question: Would you be open to a yard sign?', appVars);
-      const body = replaceTemplateVars(savedTemplate.body, appVars);
-      const wrapper = savedTemplate.options?.wrapper || 'full';
-      const html = await renderManagedEmail(body, {
-        wrapper,
-        showFeatures: savedTemplate.options?.showFeatures || false,
-        showSignature: savedTemplate.options?.showSignature !== false,
-        baseUrl,
-        unsubscribeEmail: appVars.unsubscribe_email || '{unsubscribe_email}'
-      });
-
-      return { html, subject, tagVars, appVars, source: 'template' };
-    }
-
     const templateHtml = fs.readFileSync(YARD_SIGN_REQUEST_HTML_PATH, 'utf8');
     return {
       html: replaceCopilotMergeTags(templateHtml, tagVars),
-      subject: 'Quick Question: Would you be open to a yard sign?',
+      subject: replaceTemplateVars(savedTemplate?.subject || 'Quick Question: Would you be open to a yard sign?', appVars),
       tagVars,
       appVars,
       source: 'file'

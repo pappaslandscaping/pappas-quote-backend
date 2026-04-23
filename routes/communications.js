@@ -143,7 +143,34 @@ function normalizeBroadcastServiceFrequency(value) {
     .replace(/[^a-z]+/g, '');
 }
 
+function buildBroadcastNormalizedFrequencyExpression(sourceSql) {
+  return `CASE
+    WHEN regexp_replace(LOWER(${sourceSql}), '[^a-z]+', '', 'g') LIKE '%biweekly%' THEN 'biweekly'
+    WHEN regexp_replace(LOWER(${sourceSql}), '[^a-z]+', '', 'g') LIKE '%weekly%' THEN 'weekly'
+    ELSE NULL
+  END`;
+}
+
 function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequencyPlaceholder }) {
+  const liveServiceText = `CONCAT_WS(' ',
+    clj.job_title,
+    clj.service_type,
+    clj.raw_payload->>'job_title',
+    clj.raw_payload->>'service_type'
+  )`;
+  const scheduledServiceText = `CONCAT_WS(' ',
+    sj.service_frequency,
+    sj.service_type
+  )`;
+  const liveNormalizedFrequency = buildBroadcastNormalizedFrequencyExpression(`CONCAT_WS(' ',
+    clj.service_frequency,
+    clj.job_title,
+    clj.service_type,
+    clj.raw_payload->>'job_title',
+    clj.raw_payload->>'service_type'
+  )`);
+  const scheduledNormalizedFrequency = buildBroadcastNormalizedFrequencyExpression(scheduledServiceText);
+
   return `(
     EXISTS (
       SELECT 1
@@ -158,34 +185,12 @@ function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequen
         AND clj.service_date >= CURRENT_DATE
         AND (
           ${serviceTypePlaceholder}::text IS NULL
-          OR LOWER(CONCAT_WS(' ',
-            clj.job_title,
-            clj.service_title,
-            clj.service_type,
-            clj.raw_payload->>'job_title',
-            clj.raw_payload->>'service_type'
-          )) LIKE '%' || LOWER(${serviceTypePlaceholder}::text) || '%'
+          OR LOWER(${liveServiceText}) LIKE '%' || LOWER(${serviceTypePlaceholder}::text) || '%'
         )
         AND (
           ${frequencyPlaceholder}::text[] IS NULL
           OR COALESCE(array_length(${frequencyPlaceholder}::text[], 1), 0) = 0
-          OR EXISTS (
-            SELECT 1
-            FROM unnest(${frequencyPlaceholder}::text[]) AS freq(value)
-            WHERE regexp_replace(
-              LOWER(CONCAT_WS(' ',
-                clj.service_frequency,
-                clj.job_title,
-                clj.service_title,
-                clj.service_type,
-                clj.raw_payload->>'job_title',
-                clj.raw_payload->>'service_type'
-              )),
-              '[^a-z]+',
-              '',
-              'g'
-            ) LIKE '%' || freq.value || '%'
-          )
+          OR ${liveNormalizedFrequency} = ANY(${frequencyPlaceholder}::text[])
         )
     )
     OR EXISTS (
@@ -201,19 +206,7 @@ function buildBroadcastServiceProgramCondition({ serviceTypePlaceholder, frequen
         AND (
           ${frequencyPlaceholder}::text[] IS NULL
           OR COALESCE(array_length(${frequencyPlaceholder}::text[], 1), 0) = 0
-          OR EXISTS (
-            SELECT 1
-            FROM unnest(${frequencyPlaceholder}::text[]) AS freq(value)
-            WHERE regexp_replace(
-              LOWER(CONCAT_WS(' ',
-                sj.service_frequency,
-                sj.service_type
-              )),
-              '[^a-z]+',
-              '',
-              'g'
-            ) LIKE '%' || freq.value || '%'
-          )
+          OR ${scheduledNormalizedFrequency} = ANY(${frequencyPlaceholder}::text[])
         )
     )
   )`;

@@ -1980,18 +1980,21 @@ async function refreshAudience() {
             headers: getAuthHeaders(),
             body: JSON.stringify({ filters, channel: currentChannel })
         });
-        if (res.ok) {
-            const data = await res.json();
-            audienceResults = data.customers || [];
-            currentPreviewSummary = data.summary || {};
-            currentFilterSummary = data.filter_summary || [];
-            selectedCustomerIds = new Set(audienceResults.filter(c => c.channel_eligible).map(c => c.id));
-            renderAudienceSummary(data.summary || {});
-            renderAudiencePreview();
-            updateSendButton();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || `Preview failed (${res.status})`);
         }
+
+        audienceResults = data.customers || [];
+        currentPreviewSummary = data.summary || {};
+        currentFilterSummary = data.filter_summary || [];
+        selectedCustomerIds = new Set(audienceResults.filter(c => c.channel_eligible).map(c => c.id));
+        renderAudienceSummary(data.summary || {});
+        renderAudiencePreview();
+        updateSendButton();
     } catch (e) {
         console.warn('Could not refresh audience:', e);
+        document.getElementById('audienceStateText').textContent = 'Audience preview failed to load. Check the latest filter settings and try again.';
     }
 }
 

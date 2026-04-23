@@ -403,7 +403,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars, sendPushToAllDevices }) {
   const router = express.Router();
 
   async function getOrCreatePortalTokenForCustomer(customerId, email) {

@@ -4019,18 +4019,45 @@ app.all('/api/app/voice/recording-complete', async (req, res) => {
 app.all('/api/app/voice/connect', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
   let to = (req.body.To || req.query.To || '').trim();
   if (to && !to.startsWith('+')) to = '+' + to;
 
   console.log('📞 Voice connect TwiML for:', to);
 
   if (to) {
-    const dial = twiml.dial({ callerId: TWILIO_PHONE_NUMBER });
+    const dial = twiml.dial({
+      callerId: TWILIO_PHONE_NUMBER,
+      timeout: 30,
+      answerOnBridge: true,
+      action: `${baseUrl}/api/app/voice/outbound-status`,
+      method: 'POST',
+    });
     dial.number(to);
   } else {
     twiml.say({ voice: 'alice' }, 'No destination number provided.');
   }
 
+  res.type('text/xml');
+  res.send(twiml.toString());
+});
+
+app.all('/api/app/voice/outbound-status', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const dialStatus = (req.body.DialCallStatus || req.query.DialCallStatus || '').toLowerCase();
+
+  console.log(`📞 Outbound voice dial status: ${dialStatus || 'unknown'}`);
+
+  if (dialStatus === 'busy') {
+    twiml.say({ voice: 'alice' }, 'The line is busy.');
+  } else if (dialStatus === 'no-answer') {
+    twiml.say({ voice: 'alice' }, 'There was no answer.');
+  } else if (dialStatus && dialStatus !== 'completed' && dialStatus !== 'answered') {
+    twiml.say({ voice: 'alice' }, 'The call could not be completed.');
+  }
+
+  twiml.hangup();
   res.type('text/xml');
   res.send(twiml.toString());
 });

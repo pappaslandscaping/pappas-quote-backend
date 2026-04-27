@@ -1,6 +1,6 @@
 # Route Order for April 27, 2026
 
-Tim Mowing Crew matches `events (4).pdf`. Rob Mowing Crew matches `Rob Dispatch Route Sheets.pdf`.
+Tim Mowing Crew matches `events (4).pdf`. Rob Mowing Crew matches `events (5).pdf`.
 
 ## Tim Mowing Crew
 Source: `events (4).pdf`
@@ -45,49 +45,49 @@ Source: `events (4).pdf`
 | 36 | CC Pkwy Owner LLC | 19681 Commerce Parkway, Middleburg Heights, OH 44130 | Litter Pickup Service (Weekly) |  |
 
 ## Rob Mowing Crew
-Source: `Rob Dispatch Route Sheets.pdf`
+Source: `events (5).pdf`
 
 | Stop | Customer | Address | Service | Notes |
 | --- | --- | --- | --- | --- |
-| 1 | Phyllis Wright | 5344 West 150th Street, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 2 | Dennis Kosarek | 12530 Milligan Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 3 | Longmead Village HOA | 12608-12710 Longmead Ave, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 1 | Dennis Kosarek | 12530 Milligan Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 2 | Longmead Village HOA | 12608-12710 Longmead Ave, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 3 | BMW Realty | 4462 West 130th Street, Cleveland, OH 44135 | Mowing (Bi-Weekly) |  |
 | 4 | Lareesa Rice | 11917 Saint John Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
 | 5 | Lareesa Rice | 10509 Jasper Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
 | 6 | June Scanlon | 11207 Peony Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
 | 7 | Mark McManamon | 10907 Flower Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
 | 8 | Heidi Thuning | 10208 Thrush Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
 | 9 | Diane Seredy | 10101 Loretta Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 10 | Judy Calvert | 3334 West 95th Street, Cleveland, OH 44102 | Mowing (Weekly) |  |
-| 11 | Rose Gunther | 3316 West 88th Street, Cleveland, OH 44102 | Mowing (Weekly) |  |
-| 12 | James Trzop | 10912 Parkhurst Drive, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 13 | Joan Sapara | 11508 Linnet Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 14 | Herman Turrington | 12318 Milan Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 15 | Mary Keane | 3588 West 128th Street, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 16 | Angela Ziegler | 3445 West 131st Street, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 17 | Brennan Investments LLC | 13000 Triskett Road, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 18 | Carol Horner | 3762 West 133rd Street, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 19 | Lillian Prijatel | 14513 Fairlawn Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
-| 20 | Robert Buttler | 4013 West 144th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 21 | Claudia Demchak | 14117 Clifford Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 22 | Ronald Menzing | 14103 Saint James Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 23 | Ronald Menzing | 14023 Saint James Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 24 | Monta Demchak | 14015 Saint James Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 25 | Jack Egger | 13606 Harold Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 26 | Pat Kugli | 13602 Harold Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 27 | Kathleen Foreman | 13917 Belleshire Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 28 | Denise Clark | 4485 West 138th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 29 | Zena Violetti | 4501 West 135th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 30 | William Lado | 4593 West 146th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 31 | Kathryn Walker | 4576 West 148th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 32 | Edward Bolte | 4641 West 149th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 33 | Kathleen Vasko | 15402 Marlene Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 34 | Gail Burlee | 4712 West 150th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 35 | BMW Realty | 4462 West 130th Street, Cleveland, OH 44135 | Mowing (Bi-Weekly) |  |
-| 36 | Diane Gottschalk | 4492 West 158th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 37 | Gabriella Krakowski | 3382 West 130th Street, Cleveland, OH 44111 | Mowing (Bi-Weekly) |  |
+| 10 | Rose Gunther | 3316 West 88th Street, Cleveland, OH 44102 | Mowing (Weekly) |  |
+| 11 | Judy Calvert | 3334 West 95th Street, Cleveland, OH 44102 | Mowing (Weekly) |  |
+| 12 | Joanna Elia | 10709 Bernard Avenue, Cleveland, OH 44111 | Mowing (Bi-Weekly) |  |
+| 13 | James Trzop | 10912 Parkhurst Drive, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 14 | Joan Sapara | 11508 Linnet Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 15 | Herman Turrington | 12318 Milan Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 16 | Mary Keane | 3588 West 128th Street, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 17 | Angela Ziegler | 3445 West 131st Street, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 18 | Gabriella Krakowski | 3382 West 130th Street, Cleveland, OH 44111 | Mowing (Bi-Weekly) |  |
+| 19 | Brennan Investments LLC | 13000 Triskett Road, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 20 | Carol Horner | 3762 West 133rd Street, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 21 | Lillian Prijatel | 14513 Fairlawn Avenue, Cleveland, OH 44111 | Mowing (Weekly) |  |
+| 22 | Robert Buttler | 4013 West 144th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 23 | Claudia Demchak | 14117 Clifford Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 24 | Ronald Menzing | 14103 Saint James Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 25 | Ronald Menzing | 14023 Saint James Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 26 | Monta Demchak | 14015 Saint James Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 27 | Jack Egger | 13606 Harold Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 28 | Pat Kugli | 13602 Harold Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 29 | Kathleen Foreman | 13917 Belleshire Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 30 | Denise Clark | 4485 West 138th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 31 | Zena Violetti | 4501 West 135th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 32 | William Lado | 4593 West 146th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 33 | Kathryn Walker | 4576 West 148th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 34 | Edward Bolte | 4641 West 149th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 35 | Lysai Ta | 4325 West 155th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 36 | Mary Lombardo | 4286 West 155th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 37 | Diane Gottschalk | 4492 West 158th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
 | 38 | Jim Sadeckas | 4513 West 157th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 39 | Joanna Elia | 10709 Bernard Avenue, Cleveland, OH 44111 | Mowing (Bi-Weekly) |  |
-| 40 | Lysai Ta | 4325 West 155th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 41 | Mary Lombardo | 4286 West 155th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
-| 42 | Ron Ziska | 4494 West 156th Street, Cleveland, OH 44135 | Mowing (Bi-Weekly) |  |
+| 39 | Ron Ziska | 4494 West 156th Street, Cleveland, OH 44135 | Mowing (Bi-Weekly) | Cut all the way to the back of the property |
+| 40 | Kathleen Vasko | 15402 Marlene Avenue, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 41 | Gail Burlee | 4712 West 150th Street, Cleveland, OH 44135 | Mowing (Weekly) |  |
+| 42 | Phyllis Wright | 5344 West 150th Street, Brook Park, OH 44142 | Mowing (Weekly) |  |

@@ -47,8 +47,42 @@ const {
   describeCopilotPaymentLinkage,
   isLeakedCopilotSummaryRow,
 } = require('../scripts/import-copilot-payments');
+const {
+  sendSms: defaultSendSms,
+  isConfigured: defaultIsTwilioConfigured,
+  normalizePhone: defaultNormalizePhone,
+  TWILIO_PHONE_NUMBER: DEFAULT_TWILIO_PHONE_NUMBER,
+} = require('../services/twilio/client');
+const { renderMailInvoicePdf } = require('../lib/invoice-mail-pdf');
+const { renderMailInvoiceHtml, renderMailBatchHtml } = require('../lib/invoice-mail-html');
+const {
+  renderEnvelope10SingleWindowPdf,
+  renderEnvelope9ReturnPdf,
+  renderMailBatchInsertPdf,
+} = require('../lib/mail-assets-pdf');
 
-module.exports = function createInvoiceRoutes({ pool, sendEmail, emailTemplate, escapeHtml, serverError, authenticateToken, nextInvoiceNumber, squareClient, SQUARE_APP_ID, SQUARE_LOCATION_ID, SquareApiError, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, getCopilotToken }) {
+module.exports = function createInvoiceRoutes({
+  pool,
+  sendEmail,
+  emailTemplate,
+  escapeHtml,
+  serverError,
+  authenticateToken,
+  nextInvoiceNumber,
+  squareClient,
+  SQUARE_APP_ID,
+  SQUARE_LOCATION_ID,
+  SquareApiError,
+  NOTIFICATION_EMAIL,
+  LOGO_URL,
+  FROM_EMAIL,
+  COMPANY_NAME,
+  getCopilotToken,
+  sendSms = defaultSendSms,
+  isTwilioConfigured = defaultIsTwilioConfigured,
+  normalizePhone = defaultNormalizePhone,
+  twilioPhoneNumber = DEFAULT_TWILIO_PHONE_NUMBER,
+}) {
   const router = express.Router();
 
 let cachedCopilotStanding = null;
@@ -106,6 +140,46 @@ function outstandingBalance(inv) {
   return Math.max(0, total - paid);
 }
 
+function generateToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function getFirstName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return parts[0] || 'there';
+}
+
+function formatMoney(value) {
+  return `$${(parseFloat(value) || 0).toFixed(2)}`;
+}
+
+async function ensureInvoicePaymentToken(pool, invoice) {
+  if (invoice.payment_token) return invoice.payment_token;
+  const paymentToken = generateToken();
+  await pool.query(
+    `UPDATE invoices
+        SET payment_token = $1,
+            payment_token_created_at = COALESCE(payment_token_created_at, CURRENT_TIMESTAMP),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2`,
+    [paymentToken, invoice.id]
+  );
+  invoice.payment_token = paymentToken;
+  return paymentToken;
+}
+
+async function resolveInvoiceSmsPhone(pool, invoice) {
+  const directPhone = invoice.customer_phone || invoice.phone || null;
+  if (directPhone) return directPhone;
+  if (!invoice.customer_id) return null;
+  const customerResult = await pool.query(
+    'SELECT mobile, phone FROM customers WHERE id = $1',
+    [invoice.customer_id]
+  );
+  if (customerResult.rows.length === 0) return null;
+  return customerResult.rows[0].mobile || customerResult.rows[0].phone || null;
+}
+
 function isDateLikeInvoiceLabel(value) {
   const s = String(value || '').trim();
   if (!s) return false;
@@ -135,6 +209,239 @@ function formatCopilotSyncError(error, fallback) {
   const message = String(error?.message || '').trim();
   if (!message) return fallback;
   return message.replace(/\s+/g, ' ').slice(0, 300);
+}
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_error) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  }
+  return {};
+}
+
+function formatMailDate(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+async function ensureMailWorkflowSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mail_batches (
+      id SERIAL PRIMARY KEY,
+      batch_name VARCHAR(120),
+      status VARCHAR(40) NOT NULL DEFAULT 'generated',
+      invoice_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+      invoice_count INTEGER NOT NULL DEFAULT 0,
+      filter_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+      copilot_results JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_by VARCHAR(255),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      confirmed_at TIMESTAMPTZ
+    )
+  `);
+
+  const statements = [
+    `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS mailed_at TIMESTAMPTZ`,
+    `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS mailed_batch_id INTEGER`,
+    `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS mail_status VARCHAR(40) DEFAULT 'not_mailed'`,
+    `CREATE INDEX IF NOT EXISTS idx_invoices_mailed_at ON invoices(mailed_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_mail_batches_status ON mail_batches(status)`,
+  ];
+
+  for (const statement of statements) {
+    await pool.query(statement);
+  }
+}
+
+function getInvoiceMailState(invoice) {
+  if (invoice.mailed_at) return invoice.mail_status || 'mailed';
+  return invoice.mail_status || 'not_mailed';
+}
+
+function canIncludeInMailBatch(invoice) {
+  const status = cleanStatusValue(invoice.status).toLowerCase();
+  return !invoice.mailed_at && !['paid', 'void', 'draft'].includes(status);
+}
+
+function buildMailInvoicePayload(row) {
+  const metadata = parseJsonObject(row.external_metadata || row.metadata);
+  const lineItems = parseJsonArray(row.line_items);
+  const total = Number(row.total || 0);
+  const totalDueOnAccount = Number(metadata.total_due || metadata.total_due_on_account || total);
+  const priorBalance = Math.max(0, totalDueOnAccount - total);
+
+  return {
+    ...row,
+    customer_name: row.customer_name || row.invoice_customer_name || row.linked_customer_name || '',
+    property_address: metadata.property_address || metadata.address || row.customer_address || '',
+    invoice_date_raw: formatMailDate(row.created_at),
+    line_items: lineItems,
+    metadata: {
+      ...metadata,
+      outstanding_balance: Number(metadata.outstanding_balance || priorBalance || 0),
+      this_invoice: Number(metadata.this_invoice || total || 0),
+      total_due_on_account: Number(metadata.total_due_on_account || totalDueOnAccount || total || 0),
+    },
+  };
+}
+
+async function loadInvoicesForMailBatch({ invoiceIds, status, search, mailed = 'unmailed', limit = 200 } = {}) {
+  await ensureMailWorkflowSchema();
+
+  if (Array.isArray(invoiceIds) && invoiceIds.length) {
+    const ids = invoiceIds
+      .map((id) => Number.parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (!ids.length) return [];
+    const result = await pool.query(
+      `SELECT *
+         FROM invoices
+        WHERE id = ANY($1::int[])
+        ORDER BY created_at DESC, id DESC`,
+      [ids]
+    );
+    return result.rows;
+  }
+
+  const params = [];
+  const where = [`COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')`];
+
+  if (status) {
+    if (status === 'overdue') {
+      where.push(`COALESCE(total, 0) > COALESCE(amount_paid, 0)`);
+      where.push(`(
+        COALESCE(LOWER(TRIM(status)), '') = 'overdue'
+        OR (
+          COALESCE(LOWER(TRIM(status)), '') IN ('sent', 'pending', '')
+          AND due_date IS NOT NULL
+          AND due_date < CURRENT_DATE
+        )
+      )`);
+    } else {
+      params.push(status);
+      where.push(`status = $${params.length}`);
+    }
+  }
+
+  if (search) {
+    params.push(`%${search}%`);
+    const p = params.length;
+    where.push(`(
+      invoice_number ILIKE $${p}
+      OR customer_name ILIKE $${p}
+      OR customer_email ILIKE $${p}
+    )`);
+  }
+
+  if (mailed === 'mailed') where.push(`mailed_at IS NOT NULL`);
+  if (mailed === 'unmailed') where.push(`mailed_at IS NULL`);
+
+  params.push(Number(limit) || 200);
+  const query = `
+    SELECT *
+      FROM invoices
+     WHERE ${where.join(' AND ')}
+     ORDER BY created_at DESC, id DESC
+     LIMIT $${params.length}
+  `;
+  const result = await pool.query(query, params);
+  return result.rows;
+}
+
+function mapMailBatchRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    invoice_ids: parseJsonArray(row.invoice_ids),
+    filter_snapshot: parseJsonObject(row.filter_snapshot),
+    copilot_results: parseJsonObject(row.copilot_results),
+  };
+}
+
+async function markInvoiceRegularMailInCopilot(invoice, { listPath = '/finances/invoices' } = {}) {
+  if (typeof getCopilotToken !== 'function') {
+    return { success: false, errors: ['Copilot session helper is not configured'] };
+  }
+
+  const tokenInfo = await getCopilotToken();
+  if (!tokenInfo?.cookieHeader) {
+    return { success: false, errors: ['Copilot cookies are not configured'] };
+  }
+
+  const invoiceId = invoice.external_invoice_id || invoice.invoice_number;
+  if (!invoiceId) {
+    return { success: false, errors: ['Missing Copilot external invoice id'] };
+  }
+
+  const attempts = [
+    new URLSearchParams({ action: 'markSendSnailmail', 'row[]': String(invoiceId) }),
+    new URLSearchParams({ bundleAction: 'markSendSnailmail', 'row[]': String(invoiceId) }),
+    new URLSearchParams({ markSendSnailmail: '1', 'row[]': String(invoiceId) }),
+  ];
+
+  const failures = [];
+  for (const body of attempts) {
+    try {
+      const response = await fetch(`https://secure.copilotcrm.com${listPath}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Cookie: tokenInfo.cookieHeader,
+          Origin: 'https://secure.copilotcrm.com',
+          Referer: `https://secure.copilotcrm.com${listPath}`,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: body.toString(),
+      });
+
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error(`Copilot returned ${response.status}`);
+      }
+      if (/login|sign in/i.test(text)) {
+        throw new Error('Copilot rejected the stored session');
+      }
+      if (/error|invalid/i.test(text) && !/invoice/i.test(text)) {
+        throw new Error(text.slice(0, 200));
+      }
+
+      return {
+        success: true,
+        attempt: body.toString(),
+      };
+    } catch (error) {
+      failures.push(`${body.toString()}: ${error.message}`);
+    }
+  }
+
+  return {
+    success: false,
+    errors: failures,
+  };
 }
 function normalizeCount(value) {
   const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
@@ -1748,10 +2055,20 @@ async function fetchCopilotAgingBuckets({ pageSize = 100, maxPages = 150 } = {})
       body: formData.toString(),
     });
 
-    if (!copilotRes.ok) break;
-    const payload = await copilotRes.json();
-    const rows = parseInvoiceListHtml(payload.html || '');
-    if (!rows.length) break;
+if (!copilotRes.ok) break;
+const rawPayload = await copilotRes.text();
+if (/^\s*</.test(rawPayload) || /<title[^>]*>.*login|sign in|homeworks/i.test(rawPayload)) {
+  console.warn('Copilot aging fetch returned HTML instead of JSON; using cached/dashboard fallback.');
+  break;
+}
+let payload;
+try {
+  payload = JSON.parse(rawPayload);
+} catch (_error) {
+  console.warn('Copilot aging fetch returned invalid JSON; using cached/dashboard fallback.');
+  break;
+}
+const rows = parseInvoiceListHtml(payload.html || '');    if (!rows.length) break;
 
     const pageLeadId = rows[0].external_invoice_id || rows[0].invoice_number || `page-${page}`;
     if (seenPageLeads.has(pageLeadId)) break;
@@ -1869,10 +2186,20 @@ async function fetchCopilotCreditCount(cookieHeader, { pageSize = 100, maxPages 
       body: formData.toString(),
     });
 
-    if (!copilotRes.ok) break;
-    const data = await copilotRes.json();
-    const html = data.html || '';
-    const rows = [];
+if (!copilotRes.ok) break;
+const rawPayload = await copilotRes.text();
+if (/^\s*</.test(rawPayload) || /<title[^>]*>.*login|sign in|homeworks/i.test(rawPayload)) {
+  console.warn('Copilot credit fetch returned HTML instead of JSON; using fallback credit count.');
+  break;
+}
+let data;
+try {
+  data = JSON.parse(rawPayload);
+} catch (_error) {
+  console.warn('Copilot credit fetch returned invalid JSON; using fallback credit count.');
+  break;
+}
+const html = data.html || '';    const rows = [];
     const $ = cheerio.load(html);
     $('tbody tr').each((_, row) => {
       const tds = $(row).find('td');
@@ -2780,7 +3107,8 @@ router.get('/api/reports/tax-transfer-daily', authenticateToken, async (req, res
 // GET /api/invoices - List invoices
 router.get('/api/invoices', async (req, res) => {
   try {
-    const { status, customer_id, search, limit = 25000, offset = 0, include_blank_drafts } = req.query;
+    await ensureMailWorkflowSchema();
+    const { status, customer_id, search, mailed, limit = 25000, offset = 0, include_blank_drafts } = req.query;
     // Build a real display name. The customers table is inconsistent —
     // some rows have `name` populated, others only `first_name`+`last_name`,
     // and many invoices have a stale or missing customer_id. Walk the chain:
@@ -2853,12 +3181,23 @@ router.get('/api/invoices', async (req, res) => {
         OR i.customer_name ILIKE $${p}
       )`);
     }
+    if (mailed === 'mailed') {
+      where.push('i.mailed_at IS NOT NULL');
+    } else if (mailed === 'unmailed') {
+      where.push('i.mailed_at IS NULL');
+    }
     if (where.length) q += ' WHERE ' + where.join(' AND ');
     q += ' ORDER BY i.created_at DESC';
     params.push(limit); q += ` LIMIT $${params.length}`;
     params.push(offset); q += ` OFFSET $${params.length}`;
     const result = await pool.query(q, params);
-    res.json({ success: true, invoices: result.rows });
+    res.json({
+      success: true,
+      invoices: result.rows.map((row) => ({
+        ...row,
+        mail_state: getInvoiceMailState(row),
+      })),
+    });
   } catch (error) {
     console.error('Error fetching invoices:', error);
     serverError(res, error);
@@ -3008,6 +3347,223 @@ router.post('/api/invoices/batch', async (req, res) => {
     res.json({ success: true, invoices: created, count: created.length });
   } catch (error) {
     console.error('Error batch creating invoices:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/mail-batch - Build a print batch for mailed invoices
+router.post('/api/invoices/mail-batch', authenticateToken, async (req, res) => {
+  try {
+    const selectedInvoices = await loadInvoicesForMailBatch({
+      invoiceIds: Array.isArray(req.body.invoice_ids) ? req.body.invoice_ids : null,
+      status: req.body.status || null,
+      search: req.body.search || null,
+      mailed: req.body.mailed || 'unmailed',
+      limit: req.body.limit || 200,
+    });
+
+    const eligible = selectedInvoices.filter(canIncludeInMailBatch);
+    const skipped = selectedInvoices
+      .filter((invoice) => !canIncludeInMailBatch(invoice))
+      .map((invoice) => ({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        reason: invoice.mailed_at ? 'Already marked mailed' : 'Not eligible for mailing',
+      }));
+
+    if (!eligible.length) {
+      return res.status(400).json({ success: false, error: 'No eligible invoices found for a mail batch', skipped });
+    }
+
+    const invoiceIds = eligible.map((invoice) => invoice.id);
+    const batchName = `Mail Run ${new Date().toISOString().slice(0, 10)} ${String(Date.now()).slice(-4)}`;
+    const createdBy = req.user?.email || req.user?.name || 'authenticated-user';
+    const result = await pool.query(
+      `INSERT INTO mail_batches (batch_name, status, invoice_ids, invoice_count, filter_snapshot, created_by)
+       VALUES ($1, 'generated', $2::jsonb, $3, $4::jsonb, $5)
+       RETURNING *`,
+      [
+        batchName,
+        JSON.stringify(invoiceIds),
+        invoiceIds.length,
+        JSON.stringify({
+          requested_ids: Array.isArray(req.body.invoice_ids) ? req.body.invoice_ids : null,
+          status: req.body.status || null,
+          search: req.body.search || null,
+          mailed: req.body.mailed || 'unmailed',
+        }),
+        createdBy,
+      ]
+    );
+
+    const batch = mapMailBatchRow(result.rows[0]);
+    res.json({
+      success: true,
+      batch,
+      eligibleCount: eligible.length,
+      skipped,
+      insertHtmlUrl: `/api/mail-batches/${batch.id}/insert-html`,
+      insertPdfUrl: `/api/mail-batches/${batch.id}/insert-pdf`,
+      envelope10Url: '/api/mail-assets/envelope-10-single-window',
+      envelope9Url: '/api/mail-assets/envelope-9-return',
+    });
+  } catch (error) {
+    console.error('Error generating mail batch:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/mail-batches/:id/insert-pdf - Combined stuffing-ready insert packet
+router.get('/api/mail-batches/:id/insert-pdf', authenticateToken, async (req, res) => {
+  try {
+    await ensureMailWorkflowSchema();
+    const batchResult = await pool.query('SELECT * FROM mail_batches WHERE id = $1 LIMIT 1', [req.params.id]);
+    const batch = mapMailBatchRow(batchResult.rows[0]);
+    if (!batch) return res.status(404).json({ success: false, error: 'Mail batch not found' });
+
+    const invoicesResult = await pool.query(
+      `SELECT *
+         FROM invoices
+        WHERE id = ANY($1::int[])
+        ORDER BY created_at DESC, id DESC`,
+      [batch.invoice_ids]
+    );
+    const pdfBytes = await renderMailBatchInsertPdf(invoicesResult.rows.map(buildMailInvoicePayload));
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="mail-batch-${batch.id}.pdf"`);
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error('Error generating mail batch insert PDF:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/mail-batches/:id/insert-html - Combined print-ready HTML packet
+router.get('/api/mail-batches/:id/insert-html', authenticateToken, async (req, res) => {
+  try {
+    await ensureMailWorkflowSchema();
+    const batchResult = await pool.query('SELECT * FROM mail_batches WHERE id = $1 LIMIT 1', [req.params.id]);
+    const batch = mapMailBatchRow(batchResult.rows[0]);
+    if (!batch) return res.status(404).json({ success: false, error: 'Mail batch not found' });
+
+    const invoicesResult = await pool.query(
+      `SELECT *
+         FROM invoices
+        WHERE id = ANY($1::int[])
+        ORDER BY created_at DESC, id DESC`,
+      [batch.invoice_ids]
+    );
+    const html = renderMailBatchHtml(invoicesResult.rows.map(buildMailInvoicePayload));
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    console.error('Error generating mail batch insert HTML:', error);
+    serverError(res, error);
+  }
+});
+
+router.get('/api/mail-assets/envelope-10-single-window', authenticateToken, async (_req, res) => {
+  try {
+    const pdfBytes = await renderEnvelope10SingleWindowPdf();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="pappas-envelope-10-single-window.pdf"');
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error('Error generating #10 envelope asset:', error);
+    serverError(res, error);
+  }
+});
+
+router.get('/api/mail-assets/envelope-9-return', authenticateToken, async (_req, res) => {
+  try {
+    const pdfBytes = await renderEnvelope9ReturnPdf();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="pappas-envelope-9-return.pdf"');
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error('Error generating #9 return envelope asset:', error);
+    serverError(res, error);
+  }
+});
+
+router.post('/api/invoices/mail-batch/:id/confirm', authenticateToken, async (req, res) => {
+  try {
+    await ensureMailWorkflowSchema();
+    const batchResult = await pool.query('SELECT * FROM mail_batches WHERE id = $1 LIMIT 1', [req.params.id]);
+    const batch = mapMailBatchRow(batchResult.rows[0]);
+    if (!batch) return res.status(404).json({ success: false, error: 'Mail batch not found' });
+
+    const invoiceResult = await pool.query(
+      `SELECT *
+         FROM invoices
+        WHERE id = ANY($1::int[])
+        ORDER BY created_at DESC, id DESC`,
+      [batch.invoice_ids]
+    );
+
+    await pool.query(
+      `UPDATE invoices
+          SET mailed_at = NOW(),
+              mailed_batch_id = $2,
+              mail_status = 'mailed',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($1::int[])`,
+      [batch.invoice_ids, batch.id]
+    );
+
+    const writebackResults = [];
+    for (const invoice of invoiceResult.rows) {
+      if (invoice.external_source !== 'copilotcrm' || !invoice.external_invoice_id) {
+        writebackResults.push({
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          success: false,
+          errors: ['Missing Copilot external invoice id'],
+        });
+        continue;
+      }
+
+      try {
+        const result = await markInvoiceRegularMailInCopilot(invoice);
+        writebackResults.push({
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          success: result.success,
+          errors: result.errors || [],
+        });
+      } catch (error) {
+        writebackResults.push({
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          success: false,
+          errors: [error.message],
+        });
+      }
+    }
+
+    const failedWritebacks = writebackResults.filter((item) => !item.success);
+    const newStatus = failedWritebacks.length ? 'confirmed_with_errors' : 'confirmed';
+    await pool.query(
+      `UPDATE mail_batches
+          SET status = $2,
+              confirmed_at = NOW(),
+              copilot_results = $3::jsonb
+        WHERE id = $1`,
+      [batch.id, newStatus, JSON.stringify({ writebackResults })]
+    );
+
+    res.json({
+      success: failedWritebacks.length === 0,
+      localConfirmed: true,
+      batchId: batch.id,
+      status: newStatus,
+      writebackResults,
+      failedWritebacks,
+    });
+  } catch (error) {
+    console.error('Error confirming mail batch:', error);
     serverError(res, error);
   }
 });
@@ -3197,6 +3753,79 @@ router.post('/api/invoices/:id/send', async (req, res) => {
     res.json({ success: true, message: 'Invoice sent' });
   } catch (error) {
     console.error('Error sending invoice:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/:id/send-sms - Send invoice via SMS through backend Twilio path
+router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) => {
+  try {
+    if (!isTwilioConfigured()) {
+      return res.status(400).json({ success: false, error: 'SMS is not configured' });
+    }
+
+    const invoiceResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Not found' });
+    }
+
+    const invoice = invoiceResult.rows[0];
+    const phone = await resolveInvoiceSmsPhone(pool, invoice);
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
+    }
+
+    const paymentToken = await ensureInvoicePaymentToken(pool, invoice);
+    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+    const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
+    const firstName = getFirstName(invoice.customer_name);
+    const balance = outstandingBalance(invoice);
+    const invoiceNumber = invoice.invoice_number || `#${invoice.id}`;
+
+    const smsBody =
+      `Hi ${firstName}, this is Tim with Pappas & Co. Landscaping.\n\n` +
+      `Your invoice #${invoiceNumber} is ready. Amount due: ${formatMoney(balance)}.\n\n` +
+      `View and pay online:\n${payUrl}\n\n` +
+      `Questions? Text me back here or call (440) 886-7318.`;
+
+    const twilioMessage = await sendSms({
+      to: phone,
+      body: smsBody,
+      from: twilioPhoneNumber,
+    });
+
+    const normalizedTo = normalizePhone(phone);
+    await pool.query(
+      `INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+       VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)`,
+      [
+        twilioMessage.sid,
+        twilioPhoneNumber,
+        normalizedTo,
+        smsBody,
+        twilioMessage.status,
+        invoice.customer_id || null,
+      ]
+    );
+
+    await pool.query(
+      `UPDATE invoices
+          SET status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END,
+              sent_status = 'sent',
+              sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1`,
+      [invoice.id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Invoice sent via text',
+      sid: twilioMessage.sid,
+      preview: smsBody,
+    });
+  } catch (error) {
+    console.error('Error sending invoice SMS:', error);
     serverError(res, error);
   }
 });
@@ -3758,6 +4387,37 @@ router.get('/api/pay/:token/pdf', async (req, res) => {
     res.send(Buffer.from(pdfResult.bytes));
   } catch (error) {
     console.error('Pay PDF error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/:id/mail-pdf - Download single-window mail insert PDF
+router.get('/api/invoices/:id/mail-pdf', authenticateToken, async (req, res) => {
+  try {
+    await ensureMailWorkflowSchema();
+    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const pdfBytes = await renderMailInvoicePdf(buildMailInvoicePayload(result.rows[0]));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="mail-invoice-${result.rows[0].invoice_number || result.rows[0].id}.pdf"`);
+    res.send(Buffer.from(pdfBytes));
+  } catch (error) {
+    console.error('Mail invoice PDF error:', error);
+    serverError(res, error);
+  }
+});
+
+// GET /api/invoices/:id/mail-html - Open single-window mail insert HTML
+router.get('/api/invoices/:id/mail-html', authenticateToken, async (req, res) => {
+  try {
+    await ensureMailWorkflowSchema();
+    const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    const html = renderMailInvoiceHtml(buildMailInvoicePayload(result.rows[0]));
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    console.error('Mail invoice HTML error:', error);
     serverError(res, error);
   }
 });

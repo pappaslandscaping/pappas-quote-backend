@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copilot Email Match - Pappas Invoice Packet</title>
+  <style>
+    @page { size: Letter; margin: 0.45in; }
+    :root {
+      --ink: #24312f;
+      --muted: #61716c;
+      --line: #d7dfd9;
+      --sage: #c9dd80;
+      --sage-soft: #f4f8e8;
+      --sage-mid: #e8f0d8;
+      --panel: #f7f8f4;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #e4e9e2;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 8.5in;
+      min-height: 11in;
+      margin: 0 auto 0.18in;
+      background: var(--paper);
+      padding: 0.5in;
+      box-shadow: 0 0.08in 0.24in rgba(0, 0, 0, 0.12);
+      position: relative;
+      overflow: hidden;
+    }
+    .page-break { page-break-after: always; }
+    .hero {
+      background: linear-gradient(135deg, var(--sage-soft) 0%, #fbfcf7 100%);
+      border: 1px solid #e0e8d2;
+      border-radius: 18px;
+      padding: 0.26in 0.28in;
+    }
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.28in;
+      align-items: flex-start;
+    }
+    .logo { width: 3.05in; height: auto; display: block; }
+    .hero-right {
+      text-align: right;
+      font-size: 10pt;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .hero-right strong {
+      display: inline-block;
+      background: var(--sage);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.04in 0.1in;
+      font-size: 9pt;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 0.08in;
+    }
+    h1 {
+      margin: 0.18in 0 0.05in;
+      font-size: 24pt;
+      line-height: 1.05;
+    }
+    .subcopy {
+      margin: 0;
+      font-size: 11pt;
+      line-height: 1.5;
+      color: var(--muted);
+      max-width: 5.8in;
+    }
+    .window-row {
+      display: grid;
+      grid-template-columns: 1fr 2.35in;
+      gap: 0.28in;
+      margin-top: 0.78in;
+    }
+    .window-card,
+    .due-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 0.18in 0.2in;
+      background: #fff;
+    }
+    .window-card {
+      min-height: 1.42in;
+      box-shadow: inset 0 0 0 1px #f6f7f3;
+    }
+    .eyebrow {
+      font-size: 8.6pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #7b8d57;
+      font-weight: 700;
+      margin-bottom: 0.08in;
+    }
+    .window-card strong,
+    .due-card strong {
+      color: var(--ink);
+      font-size: 11.5pt;
+    }
+    .window-card div,
+    .due-card div {
+      font-size: 10.2pt;
+      line-height: 1.45;
+    }
+    .due-pill {
+      margin-top: 0.14in;
+      background: var(--sage-mid);
+      border-radius: 14px;
+      padding: 0.14in 0.16in;
+    }
+    .due-pill span {
+      display: block;
+      color: var(--muted);
+      font-size: 9.4pt;
+    }
+    .due-pill strong {
+      display: block;
+      font-size: 20pt;
+      margin-top: 0.03in;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 0.28in;
+      font-size: 9.7pt;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    th {
+      text-align: left;
+      padding: 0.1in 0.08in;
+      background: #f5f7f2;
+      color: var(--muted);
+      font-size: 8.6pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    td {
+      padding: 0.11in 0.08in;
+      border-top: 1px solid #e8ede7;
+      vertical-align: top;
+    }
+    td.num, th.num { text-align: right; white-space: nowrap; }
+    .service-name { font-weight: 700; }
+    .service-note {
+      margin-top: 0.22in;
+      display: grid;
+      grid-template-columns: 1fr 2.3in;
+      gap: 0.3in;
+      align-items: start;
+    }
+    .note-box {
+      background: var(--panel);
+      border: 1px solid #eaeee6;
+      border-radius: 14px;
+      padding: 0.16in 0.18in;
+      font-size: 10.1pt;
+      line-height: 1.46;
+      color: var(--muted);
+    }
+    .note-box strong { color: var(--ink); }
+    .totals {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.14in 0.18in;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.2in;
+      padding: 0.05in 0;
+      font-size: 10pt;
+    }
+    .totals-row.total {
+      margin-top: 0.06in;
+      padding-top: 0.1in;
+      border-top: 1px solid var(--line);
+      font-size: 12pt;
+      font-weight: 700;
+    }
+    .footer {
+      margin-top: 0.22in;
+      font-size: 9.4pt;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 0.2in;
+    }
+    .stub {
+      height: 3.16in;
+      border: 2px dashed #b6c58a;
+      border-radius: 18px;
+      padding: 0.2in;
+      position: relative;
+      background: linear-gradient(180deg, #fbfcf7 0%, #ffffff 100%);
+    }
+    .stub::before {
+      content: "Remittance coupon";
+      position: absolute;
+      top: -0.11in;
+      left: 0.18in;
+      background: #fff;
+      padding: 0 0.07in;
+      color: #7b8d57;
+      font-size: 8.4pt;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .stub-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.2in;
+      align-items: center;
+      padding-bottom: 0.12in;
+      border-bottom: 1px solid var(--line);
+    }
+    .stub-head img { width: 2.3in; height: auto; }
+    .stub-head strong {
+      font-size: 15pt;
+      display: block;
+      text-align: right;
+    }
+    .stub-head span {
+      display: block;
+      text-align: right;
+      color: var(--muted);
+      font-size: 9.5pt;
+    }
+    .stub-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 0.22in;
+      margin-top: 0.16in;
+    }
+    .stub-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.14in 0.15in;
+      min-height: 1.56in;
+      font-size: 10pt;
+    }
+    .stub-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.14in;
+      padding: 0.045in 0;
+      border-bottom: 1px solid #edf1eb;
+    }
+    .stub-line:last-child { border-bottom: 0; }
+    .blank { position: absolute; left: 0.5in; right: 0.5in; top: 3.86in; bottom: 0.5in; }
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="page page-break">
+    <div class="hero">
+      <div class="hero-top">
+        <img src="../logo.png" alt="Pappas &amp; Co. Landscaping" class="logo">
+        <div class="hero-right">
+          <strong>Invoice</strong><br>
+          Pappas &amp; Co. Landscaping<br>
+          PO Box 770057, Lakewood, OH 44107<br>
+          (440) 886-7318<br>
+          hello@pappaslandscaping.com
+        </div>
+      </div>
+      <h1>Your service invoice is ready.</h1>
+      <p class="subcopy">Thanks for choosing Pappas &amp; Co. Landscaping. This invoice covers the completed cleanup and mulch work at your property.</p>
+    </div>
+
+    <div class="window-row">
+      <div class="window-card">
+        <div class="eyebrow">Mail To</div>
+        <strong>Olivia Turner</strong>
+        <div>3287 Clarence Avenue</div>
+        <div>Cleveland Heights, OH 44118</div>
+      </div>
+      <div class="due-card">
+        <div class="eyebrow">Invoice Summary</div>
+        <div>Invoice #: INV-260427-1192</div>
+        <div>Invoice date: April 27, 2026</div>
+        <div>Due date: May 7, 2026</div>
+        <div class="due-pill">
+          <span>Balance due</span>
+          <strong>$612.00</strong>
+        </div>
+      </div>
+    </div>
+
+    <table aria-label="Invoice services">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Service</th>
+          <th>Description</th>
+          <th class="num">Qty</th>
+          <th class="num">Rate</th>
+          <th class="num">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>04/16/2026</td>
+          <td class="service-name">Spring Cleanup</td>
+          <td>Front and rear bed cleanup</td>
+          <td class="num">1</td>
+          <td class="num">$185.00</td>
+          <td class="num">$185.00</td>
+        </tr>
+        <tr>
+          <td>04/16/2026</td>
+          <td class="service-name">Bed Preparation</td>
+          <td>Edge reset and weed pull</td>
+          <td class="num">1</td>
+          <td class="num">$92.00</td>
+          <td class="num">$92.00</td>
+        </tr>
+        <tr>
+          <td>04/18/2026</td>
+          <td class="service-name">Mulch Installation</td>
+          <td>Premium hardwood mulch</td>
+          <td class="num">7</td>
+          <td class="num">$46.00</td>
+          <td class="num">$322.00</td>
+        </tr>
+        <tr>
+          <td>04/18/2026</td>
+          <td class="service-name">Delivery Coordination</td>
+          <td>Material pickup and staging</td>
+          <td class="num">1</td>
+          <td class="num">$7.00</td>
+          <td class="num">$7.00</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td class="service-name">Fuel Surcharge</td>
+          <td>Route fuel recovery</td>
+          <td class="num">1</td>
+          <td class="num">$6.00</td>
+          <td class="num">$6.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="service-note">
+      <div class="note-box">
+        <strong>Payment note:</strong> Please pay by May 7, 2026. If mailing a check, include the remittance coupon below. If you need a card payment link, contact our office and we will send it over.
+      </div>
+      <div class="totals">
+        <div class="totals-row"><span>Subtotal</span><span>$612.00</span></div>
+        <div class="totals-row"><span>Tax</span><span>$0.00</span></div>
+        <div class="totals-row total"><span>Total due</span><span>$612.00</span></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Make checks payable to Pappas &amp; Co. Landscaping</span>
+      <span>Please include INV-260427-1192 on your payment</span>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="stub">
+      <div class="stub-head">
+        <img src="../logo.png" alt="Pappas &amp; Co. Landscaping">
+        <div>
+          <strong>Return With Check</strong>
+          <span>Top section only</span>
+        </div>
+      </div>
+      <div class="stub-grid">
+        <div class="stub-card">
+          <div class="eyebrow">Account Details</div>
+          <div class="stub-line"><span>Customer</span><span>Olivia Turner</span></div>
+          <div class="stub-line"><span>Invoice #</span><span>INV-260427-1192</span></div>
+          <div class="stub-line"><span>Due date</span><span>May 7, 2026</span></div>
+          <div class="stub-line"><span>Amount due</span><span>$612.00</span></div>
+          <div style="margin-top:0.13in;color:var(--muted);font-size:9.3pt;">Remit to PO Box 770057, Lakewood, OH 44107</div>
+        </div>
+        <div class="stub-card">
+          <div class="eyebrow">Payment Details</div>
+          <div class="stub-line"><span>Amount enclosed</span><span>____________</span></div>
+          <div class="stub-line"><span>Check #</span><span>____________</span></div>
+          <div class="stub-line"><span>Email</span><span>____________</span></div>
+          <div class="stub-line"><span>Phone</span><span>____________</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+  </section>
+</body>
+</html>

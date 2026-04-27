@@ -3,139 +3,89 @@
     <mj-title>Estimate Accepted</mj-title>
     <mj-preview>{{CUSTOMER_NAME}} approved {{ESTIMATE_NUMBER}}</mj-preview>
     <mj-attributes>
-      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" color="#1f2933" />
+      <mj-all font-family="Helvetica, Arial, sans-serif" color="#1f2933" />
       <mj-body background-color="#eef2eb" />
       <mj-section padding="0" />
       <mj-column padding="0" />
-      <mj-text font-size="16px" line-height="1.6" color="#425466" padding="0" />
+      <mj-text padding="0" font-size="15px" line-height="1.8" color="#425466" />
+      <mj-button
+        background-color="#c9dd80"
+        color="#2e403d"
+        font-size="14px"
+        font-weight="700"
+        inner-padding="16px 30px"
+        border-radius="999px"
+      />
       <mj-divider border-color="#d7dfd1" border-width="1px" padding="0" />
     </mj-attributes>
     <mj-style inline="inline">
       .email-shell {
-        box-shadow: 0 14px 34px rgba(31, 41, 51, 0.08);
-      }
-
-      .eyebrow {
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        color: #3f8a3d;
-      }
-
-      .summary-table table {
-        border-collapse: collapse;
-      }
-
-      .summary-table td {
-        padding: 12px 0;
-        border-bottom: 1px solid #d7dfd1;
-      }
-
-      .summary-table tr:last-child td {
-        border-bottom: none;
-      }
-
-      .summary-label {
-        font-size: 13px;
-        font-weight: 700;
-        color: #5b6773;
-      }
-
-      .summary-value {
-        font-size: 15px;
-        font-weight: 700;
-        color: #1f2933;
-        text-align: right;
+        box-shadow: 0 16px 38px rgba(31, 41, 51, 0.08);
       }
     </mj-style>
   </mj-head>
   <mj-body>
-    <mj-wrapper css-class="email-shell" background-color="#ffffff" padding="28px 16px" border-radius="16px">
-      <mj-section background-color="#1f2933">
+    <mj-wrapper background-color="#ffffff" border-radius="22px" css-class="email-shell" padding="28px 16px">
+      <mj-section background-color="#1f2933" border-radius="22px 22px 0 0" padding="18px 30px">
         <mj-column>
           <mj-image
             src="https://app.pappaslandscaping.com/images/email-logo.png"
             alt="{{COMPANY_NAME}}"
             width="210px"
             align="left"
-            padding="18px 28px"
+            padding="0"
           />
         </mj-column>
       </mj-section>
 
-      <mj-section background-color="#ffffff">
+      <mj-section background-color="#ffffff" padding="34px 34px 0 34px">
         <mj-column>
-          <mj-text
-            css-class="eyebrow"
-            font-size="12px"
-            font-weight="700"
-            letter-spacing="0.8px"
-            text-transform="uppercase"
-            color="#3f8a3d"
-            padding="30px 28px 0 28px"
-          >
-            Internal Notification
-          </mj-text>
-          <mj-text
-            font-size="32px"
-            line-height="1.2"
-            font-weight="800"
-            color="#1f2933"
-            padding="10px 28px 14px 28px"
-          >
-            Estimate Accepted
-          </mj-text>
-          <mj-text padding="0 28px">
-            {{CUSTOMER_NAME}} has approved {{ESTIMATE_NUMBER}}.
-          </mj-text>
-          <mj-text padding="12px 28px 0 28px">
-            The customer is ready for the next step.
-          </mj-text>
-        </mj-column>
-      </mj-section>
-
-      <mj-section background-color="#ffffff" padding="18px 28px 0 28px">
-        <mj-column background-color="#f7f9f5" border="1px solid #d7dfd1" border-radius="12px" padding="18px 20px">
-          <mj-text
-            font-size="13px"
-            font-weight="700"
-            letter-spacing="0.8px"
-            text-transform="uppercase"
-            color="#5b6773"
-            padding="0 0 12px 0"
-          >
-            Estimate Details
-          </mj-text>
-          <mj-table css-class="summary-table" padding="10px 25px">
+          <mj-table>
             <tr>
-              <td class="summary-label">Customer</td>
-              <td class="summary-value">{{CUSTOMER_NAME}}</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Estimate</td>
-              <td class="summary-value">{{ESTIMATE_NUMBER}}</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Total</td>
-              <td class="summary-value">{{ESTIMATE_TOTAL}}</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Address</td>
-              <td class="summary-value">{{CUSTOMER_ADDRESS}}</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Email</td>
-              <td class="summary-value">{{CUSTOMER_EMAIL}}</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Phone</td>
-              <td class="summary-value">{{CUSTOMER_PHONE}}</td>
+              <td style="background:linear-gradient(135deg,#f7f9f5 0%,#edf3e6 100%);border-radius:22px;padding:30px 30px 28px 30px;text-align:left;">
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1.6;text-transform:uppercase;color:#6e7f6d;">
+                  Internal Notification
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:34px;font-weight:700;line-height:1.08;color:#2e403d;padding:12px 0 16px 0;max-width:430px;">
+                  Estimate Accepted
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:15px;line-height:1.8;color:#425466;padding-top:0px;max-width:470px;text-align:left;">{{CUSTOMER_NAME}} has approved {{ESTIMATE_NUMBER}}.</div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:15px;line-height:1.8;color:#425466;padding-top:12px;max-width:470px;text-align:left;">The customer is ready for the next step.</div>
+              </td>
             </tr>
           </mj-table>
         </mj-column>
       </mj-section>
 
-      <mj-section background-color="#ffffff" padding="28px 28px 0 28px">
+
+      <mj-section background-color="#ffffff" padding="22px 34px 0 34px">
+        <mj-column>
+          <mj-table>
+            <tr>
+              <td style="vertical-align:top;width:48%;padding-right:18px;text-align:left;">
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:11px;font-weight:700;letter-spacing:0.8px;line-height:1.6;text-transform:uppercase;color:#6e7f6d;text-align:left;">
+                  Estimate Details
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:14px;line-height:1.75;color:#425466;padding-top:10px;text-align:left;">
+                  The key details connected to this approval.
+                </div>
+              </td>
+              <td style="vertical-align:top;width:52%;text-align:left;">
+                <div style="border-left:3px solid #c9dd80;padding-left:16px;text-align:left;">
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Customer:</strong> {{CUSTOMER_NAME}}</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Estimate:</strong> {{ESTIMATE_NUMBER}}</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Total:</strong> {{ESTIMATE_TOTAL}}</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Address:</strong> {{CUSTOMER_ADDRESS}}</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Email:</strong> {{CUSTOMER_EMAIL}}</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;text-align:left;"><strong>Phone:</strong> {{CUSTOMER_PHONE}}</div>
+                </div>
+              </td>
+            </tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+      <mj-section background-color="#ffffff" padding="26px 28px 0 28px">
         <mj-column>
           <mj-divider border-color="#d7dfd1" border-width="1px" />
         </mj-column>
@@ -143,12 +93,11 @@
 
       <mj-section background-color="#f7f9f5" padding="20px 28px 24px 28px">
         <mj-column>
-          <mj-text font-size="14px" line-height="1.6" color="#5b6773" padding="0" align="center">
+          <mj-text font-size="14px" line-height="1.65" color="#5b6773" padding="0" align="center">
             Internal notification from {{COMPANY_NAME}}
           </mj-text>
           <mj-text font-size="13px" line-height="1.7" color="#5b6773" padding="16px 0 0 0" align="center">
-            {{COMPANY_NAME}}<br />
-            {{COMPANY_EMAIL}}
+            {{COMPANY_NAME}}<br />            {{COMPANY_EMAIL}}
           </mj-text>
         </mj-column>
       </mj-section>

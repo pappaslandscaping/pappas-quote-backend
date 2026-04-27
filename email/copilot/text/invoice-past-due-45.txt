@@ -1,11 +1,14 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-{{INVOICE_NUMBER}} remains past due. A 10% late fee applies after 30 days.
+Your invoice {{INVOICE_NUMBER}} remains past due.
 
-Current balance: ${{INVOICE_TOTAL}}
+Invoice: {{INVOICE_NUMBER}}
+Current Balance: {{INVOICE_TOTAL}}
+Late Fee: 10% after 30 days
 
-Please submit payment here as soon as possible: {{INVOICES_LINKS}}
+Pay Online:
+{{INVOICES_LINKS}}
 
-You can also mail a check to PO Box 770057, Lakewood, OH 44107, or send payment by Zelle to hello@pappaslandscaping.com.
+If you'd rather not pay online, you can mail a check to PO Box 770057, Lakewood, OH 44107, or send payment by Zelle to hello@pappaslandscaping.com.
 
-Let me know if you have any questions. Thank you.
+If you have any questions, call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}}.

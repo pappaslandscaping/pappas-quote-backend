@@ -3,65 +3,30 @@
     <mj-title>Invoice Ready</mj-title>
     <mj-preview>{{COMPANY_NAME}}: invoice {{INVOICE_NUMBER}} is ready to review</mj-preview>
     <mj-attributes>
-      <mj-all font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" color="#1f2933" />
+      <mj-all font-family="Helvetica, Arial, sans-serif" color="#1f2933" />
       <mj-body background-color="#eef2eb" />
       <mj-section padding="0" />
       <mj-column padding="0" />
-      <mj-text padding="0" font-size="16px" line-height="1.6" color="#425466" />
+      <mj-text padding="0" font-size="15px" line-height="1.8" color="#425466" />
       <mj-button
-        background-color="#3f8a3d"
-        color="#ffffff"
-        font-size="15px"
+        background-color="#c9dd80"
+        color="#2e403d"
+        font-size="14px"
         font-weight="700"
-        inner-padding="16px 28px"
-        border-radius="8px"
+        inner-padding="16px 30px"
+        border-radius="999px"
       />
       <mj-divider border-color="#d7dfd1" border-width="1px" padding="0" />
     </mj-attributes>
     <mj-style inline="inline">
       .email-shell {
-        box-shadow: 0 14px 34px rgba(31, 41, 51, 0.08);
-      }
-
-      .summary-table table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-
-      .summary-table td {
-        padding: 12px 0;
-        border-bottom: 1px solid #d7dfd1;
-      }
-
-      .summary-table tr:last-child td {
-        border-bottom: none;
-      }
-
-      .summary-label {
-        font-size: 13px;
-        font-weight: 700;
-        color: #5b6773;
-      }
-
-      .summary-value {
-        font-size: 15px;
-        font-weight: 700;
-        color: #1f2933;
-        text-align: right;
-      }
-
-      .eyebrow {
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        color: #3f8a3d;
+        box-shadow: 0 16px 38px rgba(31, 41, 51, 0.08);
       }
     </mj-style>
   </mj-head>
   <mj-body>
-    <mj-wrapper background-color="#ffffff" border-radius="16px" css-class="email-shell" padding="28px 16px">
-      <mj-section background-color="#1f2933" padding="18px 28px">
+    <mj-wrapper background-color="#ffffff" border-radius="22px" css-class="email-shell" padding="28px 16px">
+      <mj-section background-color="#1f2933" border-radius="22px 22px 0 0" padding="18px 30px">
         <mj-column>
           <mj-image
             src="https://app.pappaslandscaping.com/images/email-logo.png"
@@ -73,87 +38,83 @@
         </mj-column>
       </mj-section>
 
-      <mj-section background-color="#ffffff" padding="30px 28px 10px 28px">
+      <mj-section background-color="#ffffff" padding="34px 34px 0 34px">
         <mj-column>
-          <mj-text
-            css-class="eyebrow"
-            font-size="12px"
-            font-weight="700"
-            letter-spacing="0.8px"
-            text-transform="uppercase"
-            color="#3f8a3d"
-          >
-            Invoice Ready
-          </mj-text>
-          <mj-text
-            font-size="32px"
-            line-height="1.2"
-            font-weight="800"
-            color="#1f2933"
-            padding="10px 0 14px 0"
-          >
-            Your invoice is ready
-          </mj-text>
-          <mj-text font-size="17px" line-height="1.6" color="#2d3a45">
-            Hi {{CUSTOMER_FIRST_NAME}},
-          </mj-text>
-          <mj-text padding="12px 0 0 0">
-            Your invoice {{INVOICE_NUMBER}} is now available and payment is due upon receipt. You can review the amount due and access your invoice online using the link below.
-          </mj-text>
-        </mj-column>
-      </mj-section>
-
-      <mj-section background-color="#ffffff" padding="18px 28px 0 28px">
-        <mj-column
-          background-color="#f7f9f5"
-          border="1px solid #d7dfd1"
-          border-radius="12px"
-          padding="18px 20px"
-        >
-          <mj-text
-            font-size="13px"
-            font-weight="700"
-            letter-spacing="0.8px"
-            text-transform="uppercase"
-            color="#5b6773"
-            padding="0 0 12px 0"
-          >
-            Account Summary
-          </mj-text>
-          <mj-table css-class="summary-table">
+          <mj-table>
             <tr>
-              <td class="summary-label">Invoice</td>
-              <td class="summary-value">{{INVOICE_NUMBER}}</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Payment Terms</td>
-              <td class="summary-value">Due Upon Receipt</td>
-            </tr>
-            <tr>
-              <td class="summary-label">Amount Due</td>
-              <td class="summary-value">{{INVOICE_TOTAL}}</td>
+              <td style="background:linear-gradient(135deg,#f7f9f5 0%,#edf3e6 100%);border-radius:22px;padding:30px 30px 28px 30px;text-align:left;">
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;line-height:1.6;text-transform:uppercase;color:#6e7f6d;">
+                  Invoice Ready
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:34px;font-weight:700;line-height:1.08;color:#2e403d;padding:12px 0 16px 0;max-width:430px;">
+                  Your invoice is ready
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:15px;line-height:1.8;color:#425466;padding-top:0px;max-width:470px;text-align:left;">Hi {{CUSTOMER_FIRST_NAME}},</div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:15px;line-height:1.8;color:#425466;padding-top:12px;max-width:470px;text-align:left;">Your invoice {{INVOICE_NUMBER}} is now available and payment is due upon receipt. You can review the amount due and access your invoice online using the link below.</div>
+              </td>
             </tr>
           </mj-table>
         </mj-column>
       </mj-section>
 
-      <mj-section background-color="#ffffff" padding="22px 28px 0 28px">
+
+      <mj-section background-color="#ffffff" padding="22px 34px 0 34px">
         <mj-column>
-          <mj-text>
-            If you have any questions about this invoice, our team is happy to help.
-          </mj-text>
+          <mj-table>
+            <tr>
+              <td style="vertical-align:top;width:48%;padding-right:18px;text-align:left;">
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:11px;font-weight:700;letter-spacing:0.8px;line-height:1.6;text-transform:uppercase;color:#6e7f6d;text-align:left;">
+                  Account Summary
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:14px;line-height:1.75;color:#425466;padding-top:10px;text-align:left;">
+                  A quick look at the key invoice details.
+                </div>
+              </td>
+              <td style="vertical-align:top;width:52%;text-align:left;">
+                <div style="border-left:3px solid #c9dd80;padding-left:16px;text-align:left;">
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Invoice:</strong> {{INVOICE_NUMBER}}</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Payment Terms:</strong> Due Upon Receipt</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;text-align:left;"><strong>Amount Due:</strong> {{INVOICE_TOTAL}}</div>
+                </div>
+              </td>
+            </tr>
+          </mj-table>
         </mj-column>
       </mj-section>
 
-      <mj-section background-color="#ffffff" padding="24px 28px 6px 28px">
+      <mj-section background-color="#ffffff" padding="22px 34px 0 34px">
         <mj-column>
-          <mj-button href="{{INVOICES_LINKS}}">
+          <mj-table>
+            <tr>
+              <td style="vertical-align:top;width:48%;padding-right:18px;text-align:left;">
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:11px;font-weight:700;letter-spacing:0.8px;line-height:1.6;text-transform:uppercase;color:#6e7f6d;text-align:left;">
+                  Payment Options
+                </div>
+                <div style="font-family:Helvetica, Arial, sans-serif;font-size:14px;line-height:1.75;color:#425466;padding-top:10px;text-align:left;">
+                  Choose the payment option that works best.
+                </div>
+              </td>
+              <td style="vertical-align:top;width:52%;text-align:left;">
+                <div style="border-left:3px solid #c9dd80;padding-left:16px;text-align:left;">
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Online:</strong> The fastest way to pay. Click the button above to view your invoice and submit payment online.</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;padding-bottom:10px;text-align:left;"><strong>Mail a Check:</strong> Make checks payable to Pappas &amp; Co. Landscaping and mail to PO Box 770057, Lakewood, OH 44107.</div>
+                  <div style="font-family:Helvetica, Arial, sans-serif;font-size:13px;line-height:1.7;color:#2e403d;text-align:left;"><strong>Zelle:</strong> Send payment to hello@pappaslandscaping.com.</div>
+                </div>
+              </td>
+            </tr>
+          </mj-table>
+        </mj-column>
+      </mj-section>
+
+
+      <mj-section background-color="#ffffff" padding="28px 34px 4px 34px">
+        <mj-column>
+          <mj-button href="{{INVOICES_LINKS}}" align="center" background-color="#c9dd80" color="#2e403d">
             View Invoice
           </mj-button>
         </mj-column>
       </mj-section>
-
-      <mj-section background-color="#ffffff" padding="28px 28px 0 28px">
+      <mj-section background-color="#ffffff" padding="26px 28px 0 28px">
         <mj-column>
           <mj-divider border-color="#d7dfd1" border-width="1px" />
         </mj-column>
@@ -161,38 +122,18 @@
 
       <mj-section background-color="#f7f9f5" padding="20px 28px 24px 28px">
         <mj-column>
-          <mj-text font-size="14px" line-height="1.6" color="#5b6773" padding="0">
+          <mj-text font-size="14px" line-height="1.65" color="#5b6773" padding="0" align="center">
             Questions about your invoice? Call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}} and we’ll be happy to help.
           </mj-text>
-          <mj-text padding="16px 0 0 0" font-size="0" line-height="0">
-            <a
-              href="https://www.facebook.com/pappaslandscaping"
-              target="_blank"
-              style="display:inline-block;background-color:#c9dd80;border-radius:999px;padding:8px;margin-right:10px;"
-            >
-              <img
-                src="https://app.pappaslandscaping.com/images/icon-facebook.png"
-                alt="Facebook"
-                width="20"
-                height="20"
-                style="display:block;border:0;outline:none;text-decoration:none;"
-              />
+          <mj-text padding="16px 0 0 0" font-size="0" line-height="0" align="center">
+            <a href="https://www.facebook.com/pappaslandscaping" target="_blank" style="display:inline-block;background-color:#2e403d;border-radius:999px;padding:8px;margin-right:10px;">
+              <img src="https://app.pappaslandscaping.com/email-assets/fb-white.png" alt="Facebook" width="20" height="20" style="display:block;border:0;outline:none;text-decoration:none;" />
             </a>
-            <a
-              href="https://www.instagram.com/pappaslandscaping"
-              target="_blank"
-              style="display:inline-block;background-color:#c9dd80;border-radius:999px;padding:8px;"
-            >
-              <img
-                src="https://app.pappaslandscaping.com/images/icon-instagram.png"
-                alt="Instagram"
-                width="20"
-                height="20"
-                style="display:block;border:0;outline:none;text-decoration:none;"
-              />
+            <a href="https://www.instagram.com/pappaslandscaping" target="_blank" style="display:inline-block;background-color:#2e403d;border-radius:999px;padding:8px;">
+              <img src="https://app.pappaslandscaping.com/email-assets/ig-white.png" alt="Instagram" width="20" height="20" style="display:block;border:0;outline:none;text-decoration:none;" />
             </a>
           </mj-text>
-          <mj-text font-size="13px" line-height="1.7" color="#5b6773" padding="16px 0 0 0">
+          <mj-text font-size="13px" line-height="1.7" color="#5b6773" padding="16px 0 0 0" align="center">
             {{COMPANY_NAME}}<br />
             {{COMPANY_PHONE}}<br />
             {{COMPANY_EMAIL}}

@@ -1556,7 +1556,8 @@
         body.innerHTML = sorted.map(inv => {
             const invNum = getInvoiceNumberDisplay(inv);
             const custName = inv.customer_name || inv.customerName || '—';
-            const custEmail = inv.customer_email || inv.customerEmail || '';
+            const rawCustomerEmail = inv.customer_email || inv.customerEmail || '';
+            const custEmail = /\.ingest\.sentry\.io$/i.test(String(rawCustomerEmail).trim()) ? '' : rawCustomerEmail;
             const due = dueMeta(inv);
             const lateFee = parseFloat(inv.late_fee_total || 0);
             const lateFeeBadge = lateFee > 0 ? `<span class="late-fee-flag">+${formatCurrency(lateFee)} fees</span>` : '';

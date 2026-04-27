@@ -1,9 +1,13 @@
 {{CUSTOMER_NAME}} requested changes to {{ESTIMATE_NUMBER}}.
 
-Total: ${{ESTIMATE_TOTAL}}
+Estimate: {{ESTIMATE_NUMBER}}
+Total: {{ESTIMATE_TOTAL}}
 Property: {{EVENT_PROPERTY_ADDRESS}}
 Phone: {{CUSTOMER_PHONE}}
 
 Requested changes: {{ESTIMATE_CHANGES}}
 
-Please review the request and update the estimate here: {{ESTIMATE_EDIT_LINK}}
+Edit Estimate: {{ESTIMATE_EDIT_LINK}}
+
+{{COMPANY_NAME}}
+{{COMPANY_EMAIL}}

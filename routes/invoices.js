@@ -60,6 +60,10 @@ const {
   renderEnvelope9ReturnPdf,
   renderMailBatchInsertPdf,
 } = require('../lib/mail-assets-pdf');
+const {
+  loadCopilotSettings,
+  refreshCopilotInvoiceSnapshot,
+} = require('../lib/copilot-live-invoices');
 
 module.exports = function createInvoiceRoutes({
   pool,
@@ -282,31 +286,289 @@ function getInvoiceMailState(invoice) {
   return invoice.mail_status || 'not_mailed';
 }
 
+const MAIL_DEBUG_INVOICE_NUMBER = '10273';
+
+function isMailDebugInvoice(row, requestedId = null) {
+  const candidates = [
+    row?.invoice_number,
+    row?.external_invoice_id,
+    row?.id,
+    requestedId,
+  ]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean);
+
+  return candidates.includes(MAIL_DEBUG_INVOICE_NUMBER);
+}
+
+function summarizeMailDebugLineItems(rawLineItems) {
+  return parseJsonArray(rawLineItems).map((item, index) => ({
+    index,
+    service: item?.name || item?.description || 'Service',
+    service_date_raw: item?.service_date_raw ?? item?.service_date ?? item?.date ?? null,
+    quantity: item?.quantity ?? null,
+    rate: item?.rate ?? item?.unit_price ?? null,
+    amount: item?.amount ?? null,
+    line_total: item?.line_total ?? null,
+    total: item?.total ?? null,
+    extended_amount: item?.extended_amount ?? null,
+    extended_total: item?.extended_total ?? null,
+  }));
+}
+
+function logMailDebug(label, row, extra = {}) {
+  if (!isMailDebugInvoice(row, extra.requestedId)) return;
+  const items = summarizeMailDebugLineItems(row?.line_items);
+  console.log('[mail-debug 10273]', JSON.stringify({
+    label,
+    routeInvoiceId: extra.requestedId ?? null,
+    rowId: row?.id ?? null,
+    invoiceNumber: row?.invoice_number ?? null,
+    externalInvoiceId: row?.external_invoice_id ?? null,
+    externalSource: row?.external_source ?? null,
+    total: row?.total ?? null,
+    subtotal: row?.subtotal ?? null,
+    taxAmount: row?.tax_amount ?? null,
+    customerName: row?.customer_name ?? null,
+    lineItemCount: items.length,
+    lineItems: items,
+    extra: extra.details ?? null,
+  }));
+}
+
 function canIncludeInMailBatch(invoice) {
   const status = cleanStatusValue(invoice.status).toLowerCase();
   return !invoice.mailed_at && !['paid', 'void', 'draft'].includes(status);
 }
 
+function parseMailMoney(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const cleaned = String(value).trim().replace(/[^0-9.\-]/g, '');
+  if (!cleaned || cleaned === '-' || cleaned === '.') return null;
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function roundMailMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function mailLineItemAmount(item) {
+  const directCandidates = [
+    item?.amount,
+    item?.line_total,
+    item?.total,
+    item?.extended_amount,
+    item?.extended_total,
+    item?.lineAmount,
+    item?.lineTotal,
+  ];
+
+  for (const candidate of directCandidates) {
+    const numeric = parseMailMoney(candidate);
+    if (numeric !== null) return numeric;
+  }
+
+  const quantity = parseMailMoney(item?.quantity ?? 0);
+  const rate = parseMailMoney(item?.rate ?? item?.unit_price ?? 0);
+  if (quantity !== null && rate !== null) return quantity * rate;
+  return 0;
+}
+
+function mailLineItemBaseAmount(item) {
+  const directCandidates = [
+    item?.subtotal,
+    item?.base_amount,
+    item?.pre_tax_amount,
+    item?.extended_subtotal,
+  ];
+
+  for (const candidate of directCandidates) {
+    const numeric = parseMailMoney(candidate);
+    if (numeric !== null) return numeric;
+  }
+
+  const quantity = parseMailMoney(item?.quantity ?? 0);
+  const rate = parseMailMoney(item?.rate ?? item?.unit_price ?? 0);
+  if (quantity !== null && rate !== null) return quantity * rate;
+  return mailLineItemAmount(item);
+}
+
+function mailLineItemTaxAmount(item) {
+  const explicit = parseMailMoney(item?.tax_amount ?? item?.tax);
+  if (explicit !== null) return explicit;
+
+  const baseAmount = mailLineItemBaseAmount(item);
+  const taxPercent = parseMailMoney(item?.tax_percent ?? item?.taxPercent);
+  if (taxPercent !== null) return baseAmount * (taxPercent / 100);
+
+  return Math.max(0, mailLineItemAmount(item) - baseAmount);
+}
+
+function deriveMailFinancials({ subtotal, tax_amount, total, lineItems, metadata }) {
+  const items = Array.isArray(lineItems) ? lineItems : [];
+  const rowSubtotal = parseMailMoney(subtotal);
+  const rowTax = parseMailMoney(tax_amount);
+  const rowTotal = parseMailMoney(total);
+
+  const lineSubtotal = roundMailMoney(items.reduce((sum, item) => sum + mailLineItemBaseAmount(item), 0));
+  const lineTax = roundMailMoney(items.reduce((sum, item) => sum + mailLineItemTaxAmount(item), 0));
+  const lineTotal = roundMailMoney(items.reduce((sum, item) => sum + mailLineItemAmount(item), 0));
+
+  let normalizedSubtotal = rowSubtotal ?? 0;
+  let normalizedTax = rowTax ?? 0;
+  let normalizedTotal = rowTotal ?? roundMailMoney(normalizedSubtotal + normalizedTax);
+
+  if (items.length) {
+    const rowMatchesLines = rowTotal !== null && Math.abs(rowTotal - lineTotal) <= 0.009;
+    if (!rowMatchesLines && lineTotal > 0) {
+      normalizedSubtotal = lineSubtotal;
+      normalizedTax = lineTax;
+      normalizedTotal = lineTotal;
+    } else {
+      if (rowSubtotal === null && lineSubtotal > 0) normalizedSubtotal = lineSubtotal;
+      if (rowTax === null && lineTax >= 0) normalizedTax = lineTax;
+      if (rowTotal === null && lineTotal > 0) normalizedTotal = lineTotal;
+    }
+  }
+
+  normalizedSubtotal = roundMailMoney(normalizedSubtotal);
+  normalizedTax = roundMailMoney(normalizedTax);
+  normalizedTotal = roundMailMoney(normalizedTotal);
+
+  if (Math.abs((normalizedSubtotal + normalizedTax) - normalizedTotal) > 0.009) {
+    if (items.length && Math.abs((lineSubtotal + lineTax) - lineTotal) <= 0.009) {
+      normalizedSubtotal = lineSubtotal;
+      normalizedTax = lineTax;
+      normalizedTotal = lineTotal;
+    } else {
+      normalizedTax = roundMailMoney(normalizedTotal - normalizedSubtotal);
+    }
+  }
+
+  const metadataObject = metadata && typeof metadata === 'object' ? metadata : {};
+  const explicitPriorBalance = parseMailMoney(
+    metadataObject.prior_balance
+    ?? metadataObject.previous_balance
+    ?? metadataObject.past_due_balance
+  );
+  const metadataAccountDue = parseMailMoney(metadataObject.total_due_on_account ?? metadataObject.total_due);
+  const metadataOutstanding = parseMailMoney(metadataObject.outstanding_balance);
+
+  let priorBalance = 0;
+  if (explicitPriorBalance !== null && explicitPriorBalance > 0) {
+    priorBalance = roundMailMoney(explicitPriorBalance);
+  } else if (metadataAccountDue !== null && metadataAccountDue > normalizedTotal + 0.009) {
+    priorBalance = roundMailMoney(metadataAccountDue - normalizedTotal);
+  } else if (metadataOutstanding !== null && metadataOutstanding > normalizedTotal + 0.009) {
+    priorBalance = roundMailMoney(metadataOutstanding - normalizedTotal);
+  }
+
+  const totalDueOnAccount = roundMailMoney(normalizedTotal + priorBalance);
+
+  return {
+    subtotal: normalizedSubtotal,
+    tax_amount: normalizedTax,
+    total: normalizedTotal,
+    priorBalance,
+    totalDueOnAccount,
+  };
+}
+
 function buildMailInvoicePayload(row) {
   const metadata = parseJsonObject(row.external_metadata || row.metadata);
   const lineItems = parseJsonArray(row.line_items);
-  const total = Number(row.total || 0);
-  const totalDueOnAccount = Number(metadata.total_due || metadata.total_due_on_account || total);
-  const priorBalance = Math.max(0, totalDueOnAccount - total);
+  const financials = deriveMailFinancials({
+    subtotal: row.subtotal,
+    tax_amount: row.tax_amount,
+    total: row.total,
+    lineItems,
+    metadata,
+  });
 
   return {
     ...row,
+    subtotal: financials.subtotal,
+    tax_amount: financials.tax_amount,
+    total: financials.total,
     customer_name: row.customer_name || row.invoice_customer_name || row.linked_customer_name || '',
-    property_address: metadata.property_address || metadata.address || row.customer_address || '',
+    property_address: metadata.property_address || metadata.property_name || metadata.address || row.customer_address || '',
     invoice_date_raw: formatMailDate(row.created_at),
     line_items: lineItems,
     metadata: {
       ...metadata,
-      outstanding_balance: Number(metadata.outstanding_balance || priorBalance || 0),
-      this_invoice: Number(metadata.this_invoice || total || 0),
-      total_due_on_account: Number(metadata.total_due_on_account || totalDueOnAccount || total || 0),
+      outstanding_balance: financials.priorBalance,
+      this_invoice: financials.total,
+      total_due: financials.totalDueOnAccount,
+      total_due_on_account: financials.totalDueOnAccount,
     },
   };
+}
+
+async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  const copilotRows = list.filter((row) => row.external_source === 'copilotcrm' || row.external_invoice_id);
+  copilotRows.forEach((row) => {
+    logMailDebug('refreshMailInvoiceRows:before-settings', row, {
+      details: {
+        copilotRowCount: copilotRows.length,
+      },
+    });
+  });
+  if (!copilotRows.length) return list;
+
+  let settings = null;
+  try {
+    settings = await loadCopilotSettings(pool);
+  } catch (error) {
+    if (!tolerateErrors) throw error;
+    console.error('Mail invoice refresh: failed loading Copilot settings:', error);
+    return list;
+  }
+
+  copilotRows.forEach((row) => {
+    logMailDebug('refreshMailInvoiceRows:settings-loaded', row, {
+      details: {
+        hasCookies: Boolean(settings?.cookies),
+      },
+    });
+  });
+
+  if (!settings?.cookies) return list;
+
+  const byId = new Map(list.map((row) => [row.id, row]));
+  for (const row of copilotRows) {
+    try {
+      logMailDebug('refreshMailInvoiceRows:before-refresh', row, {
+        details: {
+          willCallRefresh: true,
+        },
+      });
+      const refreshed = await refreshCopilotInvoiceSnapshot({
+        pool,
+        settings,
+        invoiceRow: row,
+        linkCustomers: true,
+      });
+      if (refreshed?.row?.id) {
+        byId.set(refreshed.row.id, refreshed.row);
+        if (refreshed.settings?.cookies) settings = refreshed.settings;
+        logMailDebug('refreshMailInvoiceRows:after-refresh', refreshed.row, {
+          details: {
+            refreshed: refreshed.refreshed,
+            action: refreshed.action || null,
+            rereadBeforeRender: true,
+          },
+        });
+      }
+    } catch (error) {
+      if (!tolerateErrors) throw error;
+      console.error(`Mail invoice refresh failed for invoice ${row.invoice_number || row.id}:`, error);
+    }
+  }
+
+  return list.map((row) => byId.get(row.id) || row);
 }
 
 async function loadInvoicesForMailBatch({ invoiceIds, status, search, mailed = 'unmailed', limit = 200 } = {}) {
@@ -3361,9 +3623,10 @@ router.post('/api/invoices/mail-batch', authenticateToken, async (req, res) => {
       mailed: req.body.mailed || 'unmailed',
       limit: req.body.limit || 200,
     });
+    const freshInvoices = await refreshMailInvoiceRows(selectedInvoices);
 
-    const eligible = selectedInvoices.filter(canIncludeInMailBatch);
-    const skipped = selectedInvoices
+    const eligible = freshInvoices.filter(canIncludeInMailBatch);
+    const skipped = freshInvoices
       .filter((invoice) => !canIncludeInMailBatch(invoice))
       .map((invoice) => ({
         id: invoice.id,
@@ -3428,7 +3691,8 @@ router.get('/api/mail-batches/:id/insert-pdf', authenticateToken, async (req, re
         ORDER BY created_at DESC, id DESC`,
       [batch.invoice_ids]
     );
-    const pdfBytes = await renderMailBatchInsertPdf(invoicesResult.rows.map(buildMailInvoicePayload));
+    const freshRows = await refreshMailInvoiceRows(invoicesResult.rows);
+    const pdfBytes = await renderMailBatchInsertPdf(freshRows.map(buildMailInvoicePayload));
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="mail-batch-${batch.id}.pdf"`);
@@ -3454,7 +3718,16 @@ router.get('/api/mail-batches/:id/insert-html', authenticateToken, async (req, r
         ORDER BY created_at DESC, id DESC`,
       [batch.invoice_ids]
     );
-    const html = renderMailBatchHtml(invoicesResult.rows.map(buildMailInvoicePayload));
+    const freshRows = await refreshMailInvoiceRows(invoicesResult.rows);
+    freshRows.forEach((row) => {
+      logMailDebug('route:/api/mail-batches/:id/insert-html:pre-render', row, {
+        details: {
+          batchId: req.params.id,
+          rendererFile: require.resolve('../lib/invoice-mail-html'),
+        },
+      });
+    });
+    const html = renderMailBatchHtml(freshRows.map(buildMailInvoicePayload));
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
@@ -4397,7 +4670,8 @@ router.get('/api/invoices/:id/mail-pdf', authenticateToken, async (req, res) => 
     await ensureMailWorkflowSchema();
     const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const pdfBytes = await renderMailInvoicePdf(buildMailInvoicePayload(result.rows[0]));
+    const [freshRow] = await refreshMailInvoiceRows(result.rows);
+    const pdfBytes = await renderMailInvoicePdf(buildMailInvoicePayload(freshRow || result.rows[0]));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="mail-invoice-${result.rows[0].invoice_number || result.rows[0].id}.pdf"`);
     res.send(Buffer.from(pdfBytes));
@@ -4413,7 +4687,27 @@ router.get('/api/invoices/:id/mail-html', authenticateToken, async (req, res) =>
     await ensureMailWorkflowSchema();
     const result = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
-    const html = renderMailInvoiceHtml(buildMailInvoicePayload(result.rows[0]));
+    logMailDebug('route:/api/invoices/:id/mail-html:selected-row', result.rows[0], {
+      requestedId: req.params.id,
+      details: {
+        rendererFile: require.resolve('../lib/invoice-mail-html'),
+      },
+    });
+    const [freshRow] = await refreshMailInvoiceRows(result.rows);
+    logMailDebug('route:/api/invoices/:id/mail-html:fresh-row', freshRow || result.rows[0], {
+      requestedId: req.params.id,
+      details: {
+        refreshedRowSelected: Boolean(freshRow),
+      },
+    });
+    const payload = buildMailInvoicePayload(freshRow || result.rows[0]);
+    logMailDebug('route:/api/invoices/:id/mail-html:payload-before-render', payload, {
+      requestedId: req.params.id,
+      details: {
+        rendererFile: require.resolve('../lib/invoice-mail-html'),
+      },
+    });
+    const html = renderMailInvoiceHtml(payload);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (error) {

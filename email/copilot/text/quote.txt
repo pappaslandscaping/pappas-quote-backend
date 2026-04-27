@@ -1,9 +1,11 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-I just sent over {{ESTIMATE_NUMBER}} for your review.
+Your estimate {{ESTIMATE_NUMBER}} is ready for review.
 
-Estimate link: {{ESTIMATE_LINK}}
+Estimate: {{ESTIMATE_NUMBER}}
+Total: {{ESTIMATE_TOTAL}}
 
-Your estimate total is ${{ESTIMATE_TOTAL}}. You can review and accept it right from the link.
+Review Estimate:
+{{ESTIMATE_LINK}}
 
-Let me know if you have any questions. Thank you.
+If you have any questions, call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}}.

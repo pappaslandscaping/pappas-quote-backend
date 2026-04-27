@@ -1,6 +1,7 @@
-Skipped visit for {{CUSTOMER_NAME}} at {{EVENT_PROPERTY_ADDRESS}}.
+Scheduled visit skipped for {{CUSTOMER_NAME}}.
 
-Scheduled time: {{EVENT_SCHEDULED_TIME}}
+Property: {{EVENT_PROPERTY_ADDRESS}}
+Scheduled Time: {{EVENT_SCHEDULED_TIME}}
 Reason: {{PROPERTY_NOT_SERVICED_REASON}}
 
-Review in Copilot and follow up if needed.
+Please review in Copilot and follow up if needed.

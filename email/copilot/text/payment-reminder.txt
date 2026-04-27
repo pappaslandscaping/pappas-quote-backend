@@ -1,9 +1,14 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-This is a reminder that {{INVOICE_NUMBER}} is due on {{INVOICE_DUE_DATE}}.
+Your invoice {{INVOICE_NUMBER}} is due on {{INVOICE_DUE_DATE}}.
 
-Account balance: ${{CUSTOMER_ACCOUNT_BALANCE}}
+Invoice: {{INVOICE_NUMBER}}
+Due Date: {{INVOICE_DUE_DATE}}
+Account Balance: {{CUSTOMER_ACCOUNT_BALANCE}}
 
-You can review your account and pay online here: {{CUSTOMER_PORTAL_LINK}}
+Pay Online:
+{{CUSTOMER_PORTAL_LINK}}
 
-Let me know if you have any questions. Thank you.
+If you've already sent payment, you can ignore this email.
+
+If you have any questions, call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}}.

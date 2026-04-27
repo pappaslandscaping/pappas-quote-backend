@@ -1,11 +1,13 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-There is still a remaining balance on {{INVOICE_NUMBER}}.
+A remaining balance is still due for {{INVOICE_NUMBER}}.
 
-Remaining balance: ${{INVOICE_TOTAL}}
+Invoice: {{INVOICE_NUMBER}}
+Remaining Balance: {{INVOICE_TOTAL}}
 
-You can complete payment online here: {{INVOICES_LINKS}}
+Complete Payment:
+{{INVOICES_LINKS}}
 
-You can also mail a check to PO Box 770057, Lakewood, OH 44107, or send payment by Zelle to hello@pappaslandscaping.com.
+If you'd rather not pay online, you can mail a check to PO Box 770057, Lakewood, OH 44107, or send payment by Zelle to hello@pappaslandscaping.com.
 
-Let me know if you have any questions. Thank you.
+If you have any questions, call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}}.

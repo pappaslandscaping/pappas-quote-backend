@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mail-First Utility - Pappas Invoice Packet</title>
+  <style>
+    @page { size: Letter; margin: 0.45in; }
+    :root {
+      --ink: #202926;
+      --muted: #56635f;
+      --line: #adb8b1;
+      --line-light: #d7dfda;
+      --sage: #d5dfc8;
+      --sage-deep: #97a98b;
+      --sage-soft: #f3f6ef;
+      --paper: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #e4e8e1;
+      color: var(--ink);
+      font-family: Tahoma, Verdana, Arial, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 8.5in;
+      min-height: 11in;
+      margin: 0 auto 0.18in;
+      background: var(--paper);
+      padding: 0.46in 0.48in;
+      box-shadow: 0 0.08in 0.24in rgba(0, 0, 0, 0.11);
+      position: relative;
+    }
+    .page-break { page-break-after: always; }
+    .fold-line {
+      position: absolute;
+      left: 0.48in;
+      right: 0.48in;
+      border-top: 1px dashed #dfe5df;
+      z-index: 0;
+    }
+    .fold-line.one { top: 3.68in; }
+    .fold-line.two { top: 7.35in; }
+    .fold-tag {
+      position: absolute;
+      right: 0.54in;
+      font-size: 7.7pt;
+      letter-spacing: 0.08em;
+      color: #b5beb7;
+      text-transform: uppercase;
+      background: #fff;
+      padding: 0 0.04in;
+      z-index: 1;
+    }
+    .fold-tag.one { top: 3.61in; }
+    .fold-tag.two { top: 7.28in; }
+    .header {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 2.3in;
+      gap: 0.24in;
+      align-items: start;
+      border: 1.5px solid var(--ink);
+      padding: 0.18in;
+    }
+    .logo { width: 2.95in; height: auto; display: block; }
+    .header-right {
+      text-align: right;
+      font-size: 9.6pt;
+      line-height: 1.4;
+    }
+    .header-right strong {
+      display: block;
+      font-size: 10.5pt;
+      margin-bottom: 0.03in;
+    }
+    .stamp {
+      display: inline-block;
+      margin-top: 0.07in;
+      border: 1px solid var(--ink);
+      padding: 0.04in 0.08in;
+      font-size: 8.1pt;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--sage-soft);
+    }
+    .summary-strip {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      margin-top: 0.12in;
+      border: 1px solid var(--ink);
+      border-top: 0;
+    }
+    .summary-strip div {
+      padding: 0.1in 0.12in;
+      border-right: 1px solid var(--ink);
+      font-size: 9.2pt;
+      line-height: 1.35;
+    }
+    .summary-strip div:last-child { border-right: 0; }
+    .summary-strip strong {
+      display: block;
+      font-size: 8.2pt;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.03in;
+    }
+    .mail-zone {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 2.35in;
+      gap: 0.22in;
+      margin-top: 0.72in;
+      align-items: start;
+    }
+    .window-box,
+    .remit-box {
+      border: 1px solid var(--ink);
+      min-height: 1.46in;
+      padding: 0.16in;
+      background: #fff;
+    }
+    .window-box {
+      box-shadow: inset 0 0 0 4px #f8faf7;
+    }
+    .eyebrow {
+      font-size: 8pt;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--sage-deep);
+      font-weight: 700;
+      margin-bottom: 0.08in;
+    }
+    .window-box strong,
+    .remit-box strong {
+      display: block;
+      font-size: 11pt;
+      margin-bottom: 0.02in;
+    }
+    .window-box div,
+    .remit-box div { font-size: 9.8pt; line-height: 1.42; }
+    table {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.2in;
+      font-size: 9.2pt;
+    }
+    th, td {
+      border: 1px solid var(--ink);
+      padding: 0.08in 0.07in;
+      vertical-align: top;
+    }
+    th {
+      background: var(--sage-soft);
+      font-size: 8.2pt;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      text-align: left;
+    }
+    td.num, th.num { text-align: right; white-space: nowrap; }
+    .service { font-weight: 700; }
+    .closing {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 2.38in;
+      gap: 0.22in;
+      margin-top: 0.18in;
+      align-items: start;
+    }
+    .instruction {
+      border: 1px solid var(--line);
+      background: #fafbf9;
+      padding: 0.13in 0.15in;
+      font-size: 9.8pt;
+      line-height: 1.46;
+      color: var(--muted);
+    }
+    .instruction strong { color: var(--ink); }
+    .totals {
+      border: 1px solid var(--ink);
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.18in;
+      padding: 0.08in 0.12in;
+      font-size: 9.8pt;
+      border-bottom: 1px solid var(--ink);
+    }
+    .totals-row:last-child { border-bottom: 0; }
+    .totals-row.total {
+      background: var(--sage);
+      font-weight: 700;
+      font-size: 11.5pt;
+    }
+    .footer {
+      position: relative;
+      z-index: 1;
+      margin-top: 0.16in;
+      font-size: 8.8pt;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 0.2in;
+    }
+    .stub-page { padding-top: 0.42in; }
+    .stub {
+      height: 3.2in;
+      border: 2px dashed var(--ink);
+      padding: 0.18in;
+      position: relative;
+    }
+    .stub::before {
+      content: "Detach here";
+      position: absolute;
+      top: -0.11in;
+      left: 0.16in;
+      background: #fff;
+      padding: 0 0.07in;
+      font-size: 8pt;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .stub-top {
+      display: grid;
+      grid-template-columns: 1fr 2.1in;
+      gap: 0.18in;
+      align-items: end;
+      border-bottom: 1px solid var(--ink);
+      padding-bottom: 0.11in;
+    }
+    .stub-top img { width: 2.1in; height: auto; display: block; }
+    .stub-top h2 {
+      margin: 0;
+      font-size: 15pt;
+      text-align: right;
+    }
+    .stub-top p {
+      margin: 0.03in 0 0;
+      text-align: right;
+      color: var(--muted);
+      font-size: 9.2pt;
+    }
+    .stub-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 0.2in;
+      margin-top: 0.14in;
+      font-size: 9.6pt;
+    }
+    .stub-block {
+      border: 1px solid var(--ink);
+      min-height: 1.68in;
+      padding: 0.12in;
+    }
+    .stub-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.14in;
+      padding: 0.045in 0;
+      border-bottom: 1px solid var(--line-light);
+    }
+    .stub-line:last-child { border-bottom: 0; }
+    .checkbox-line {
+      margin-top: 0.12in;
+      font-size: 8.8pt;
+      color: var(--muted);
+    }
+    .blank { position: absolute; left: 0.48in; right: 0.48in; top: 3.92in; bottom: 0.48in; }
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="page page-break">
+    <div class="fold-line one"></div>
+    <div class="fold-line two"></div>
+    <div class="fold-tag one">Fold</div>
+    <div class="fold-tag two">Fold</div>
+
+    <div class="header">
+      <div>
+        <img src="../logo.png" alt="Pappas &amp; Co. Landscaping" class="logo">
+      </div>
+      <div class="header-right">
+        <strong>Pappas &amp; Co. Landscaping</strong>
+        PO Box 770057<br>
+        Lakewood, OH 44107<br>
+        (440) 886-7318<br>
+        hello@pappaslandscaping.com<br>
+        <span class="stamp">Mail Payment Packet</span>
+      </div>
+    </div>
+
+    <div class="summary-strip">
+      <div><strong>Invoice #</strong>INV-260427-1215</div>
+      <div><strong>Invoice Date</strong>April 27, 2026</div>
+      <div><strong>Due Date</strong>May 12, 2026</div>
+      <div><strong>Balance Due</strong>$173.00</div>
+    </div>
+
+    <div class="mail-zone">
+      <div class="window-box">
+        <div class="eyebrow">Recipient Window Area</div>
+        <strong>Claire Donnelly</strong>
+        <div>7402 Orchard Grove Drive</div>
+        <div>Middleburg Heights, OH 44130</div>
+      </div>
+      <div class="remit-box">
+        <div class="eyebrow">Quick Account Summary</div>
+        <div><strong>Property</strong>7402 Orchard Grove Drive</div>
+        <div><strong>Customer #</strong>DON-7402</div>
+        <div><strong>Terms</strong>Net 15</div>
+        <div><strong>Mail checks to</strong>PO Box 770057, Lakewood, OH 44107</div>
+      </div>
+    </div>
+
+    <table aria-label="Invoice services">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Service</th>
+          <th>Description</th>
+          <th class="num">Qty</th>
+          <th class="num">Rate</th>
+          <th class="num">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>04/09/2026</td>
+          <td class="service">Lawn Maintenance</td>
+          <td>Weekly cut, trim, and blow</td>
+          <td class="num">1</td>
+          <td class="num">$52.00</td>
+          <td class="num">$52.00</td>
+        </tr>
+        <tr>
+          <td>04/16/2026</td>
+          <td class="service">Lawn Maintenance</td>
+          <td>Weekly cut, trim, and blow</td>
+          <td class="num">1</td>
+          <td class="num">$52.00</td>
+          <td class="num">$52.00</td>
+        </tr>
+        <tr>
+          <td>04/23/2026</td>
+          <td class="service">Weed Control</td>
+          <td>Walkway and curbline spray</td>
+          <td class="num">1</td>
+          <td class="num">$63.00</td>
+          <td class="num">$63.00</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td class="service">Fuel Surcharge</td>
+          <td>Route fuel recovery</td>
+          <td class="num">1</td>
+          <td class="num">$6.00</td>
+          <td class="num">$6.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="closing">
+      <div class="instruction">
+        <strong>Payment note:</strong> Please include the stub below with your mailed check. If you have already mailed payment, thank you.
+      </div>
+      <div class="totals">
+        <div class="totals-row"><span>Subtotal</span><span>$173.00</span></div>
+        <div class="totals-row"><span>Tax</span><span>$0.00</span></div>
+        <div class="totals-row total"><span>Total due</span><span>$173.00</span></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Checks payable to Pappas &amp; Co. Landscaping</span>
+      <span>Reference INV-260427-1215</span>
+    </div>
+  </section>
+
+  <section class="page stub-page">
+    <div class="stub">
+      <div class="stub-top">
+        <img src="../logo.png" alt="Pappas &amp; Co. Landscaping">
+        <div>
+          <h2>Payment Coupon</h2>
+          <p>Return top section only</p>
+        </div>
+      </div>
+
+      <div class="stub-grid">
+        <div class="stub-block">
+          <div class="eyebrow">Account</div>
+          <div class="stub-line"><span>Customer</span><span>Claire Donnelly</span></div>
+          <div class="stub-line"><span>Invoice #</span><span>INV-260427-1215</span></div>
+          <div class="stub-line"><span>Due date</span><span>May 12, 2026</span></div>
+          <div class="stub-line"><span>Amount due</span><span>$173.00</span></div>
+          <div style="margin-top:0.12in;font-size:8.8pt;color:var(--muted);">Mail to: Pappas &amp; Co. Landscaping, PO Box 770057, Lakewood, OH 44107</div>
+        </div>
+
+        <div class="stub-block">
+          <div class="eyebrow">Payment</div>
+          <div class="stub-line"><span>Amount enclosed</span><span>____________</span></div>
+          <div class="stub-line"><span>Check #</span><span>____________</span></div>
+          <div class="stub-line"><span>Phone</span><span>____________</span></div>
+          <div class="stub-line"><span>Email</span><span>____________</span></div>
+          <div class="checkbox-line">[ ] Address update included</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="blank" aria-hidden="true"></div>
+  </section>
+</body>
+</html>

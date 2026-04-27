@@ -11,6 +11,10 @@ const {
   parseCopilotRouteHtml,
 } = require('../services/copilot/client');
 const { getCopilotLiveJobs, upsertCopilotLiveJobs } = require('../services/copilot/live-jobs');
+const {
+  loadCopilotSettings,
+  syncCopilotInvoices: syncLiveCopilotInvoices,
+} = require('../lib/copilot-live-invoices');
 
 module.exports = function createCopilotRoutes({ pool, serverError, authenticateToken, fetchImpl = fetch }) {
   const router = express.Router();
@@ -254,6 +258,42 @@ module.exports = function createCopilotRoutes({ pool, serverError, authenticateT
   });
 
 // GET/POST CopilotCRM settings — view and update auth cookies
+router.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) => {
+  try {
+    const settings = await loadCopilotSettings(pool);
+    const maxPagesRaw = Number(req.body?.maxPages || 10);
+    const maxPages = Number.isFinite(maxPagesRaw) ? Math.max(1, Math.min(25, Math.trunc(maxPagesRaw))) : 10;
+    const detailMode = String(req.body?.detailMode || 'missing').toLowerCase();
+    const detail = detailMode !== 'off';
+
+    const result = await syncLiveCopilotInvoices({
+      pool,
+      settings,
+      maxPages,
+      detail,
+      linkCustomers: req.body?.linkCustomers !== false,
+    });
+
+    const synced = Array.isArray(result.synced) ? result.synced : [];
+    const inserted = synced.filter((row) => row.action === 'inserted').length;
+    const updated = synced.filter((row) => row.action === 'updated').length;
+
+    res.json({
+      success: result.success !== false,
+      total: synced.length,
+      inserted,
+      updated,
+      detailed: detail ? synced.length : 0,
+      detailFetched: detail ? synced.length : 0,
+      pagesScanned: Array.isArray(result.pages) ? result.pages.length : 0,
+      invoicesDiscovered: synced.length,
+      errors: Array.isArray(result.errors) ? result.errors : [],
+    });
+  } catch (error) {
+    serverError(res, error, 'Copilot invoice sync failed');
+  }
+});
+
 router.get('/api/copilot/settings', authenticateToken, async (req, res) => {
   try {
     const tokenInfo = await getCopilotToken(pool);

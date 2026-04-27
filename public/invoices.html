@@ -74,7 +74,7 @@
         /* ── Invoice list — grid rows in the same idiom as job-row. ── */
         .invoice-row {
             display: grid;
-            grid-template-columns: 110px minmax(0, 1.5fr) 110px 130px minmax(0, 1fr) 240px;
+            grid-template-columns: 32px 110px minmax(0, 1.45fr) 110px 130px minmax(0, 1fr) 240px;
             align-items: center;
             gap: 16px;
             padding: 14px 18px;
@@ -117,6 +117,22 @@
         .sort-icon.desc::after { content: '\25BC'; opacity: 1; }
         .col-amount, .col-amount-h { text-align: right; justify-content: flex-end; }
         .col-actions, .col-actions-h { text-align: right; justify-content: flex-end; }
+        .select-cell, .select-cell-h {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .invoice-select-checkbox, .select-all-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .invoice-select-checkbox:disabled,
+        .select-all-checkbox:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
 
         .invoice-number {
             font: 700 14px/1.2 var(--font-ui);
@@ -215,18 +231,168 @@
             font: 500 13px/1.4 var(--font-ui);
         }
 
+        .mail-ops-card {
+            margin-bottom: var(--space-5);
+        }
+        .mail-ops-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+            gap: 18px;
+            padding: 18px 22px 22px;
+        }
+        .mail-ops-status {
+            display: grid;
+            gap: 14px;
+        }
+        .mail-status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--surface-soft);
+            color: var(--text);
+            font: 600 12px/1 var(--font-ui);
+            width: fit-content;
+        }
+        .mail-status-chip::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--warning);
+            display: inline-block;
+        }
+        .mail-status-chip.ok::before { background: var(--success); }
+        .mail-status-chip.warn::before { background: var(--warning); }
+        .mail-status-chip.danger::before { background: var(--danger); }
+        .mail-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .mail-actions .btn {
+            min-height: 36px;
+        }
+        .mail-note {
+            font: 500 12px/1.5 var(--font-ui);
+            color: var(--muted);
+            max-width: 62ch;
+        }
+        .mail-batch-panel {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--surface-soft);
+            padding: 16px 16px 14px;
+            min-height: 100%;
+            display: grid;
+            gap: 12px;
+            align-content: start;
+        }
+        .mail-batch-title {
+            font: 700 14px/1.2 var(--font-ui);
+            color: var(--text-strong);
+        }
+        .mail-batch-meta {
+            font: 500 12px/1.5 var(--font-ui);
+            color: var(--muted);
+        }
+        .mail-batch-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .mail-batch-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 6px;
+            font: 500 12px/1.4 var(--font-ui);
+            color: var(--text);
+        }
+        .mail-batch-list strong {
+            color: var(--text-strong);
+        }
+        .mail-batch-empty {
+            font: 500 12px/1.5 var(--font-ui);
+            color: var(--muted);
+        }
+        .mail-state-stack {
+            display: grid;
+            gap: 6px;
+        }
+        .mail-state-pill {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font: 700 10px/1 var(--font-ui);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: var(--surface-soft);
+            color: var(--muted);
+        }
+        .mail-state-pill.ready { background: #e8f3eb; color: #27643e; }
+        .mail-state-pill.pending { background: #fff2dd; color: #8b5a00; }
+        .mail-state-pill.done { background: #e8efff; color: #3558a8; }
+        .mail-state-pill.error { background: var(--danger-bg); color: var(--danger); }
+        .mail-state-sub {
+            font: 500 11px/1.4 var(--font-ui);
+            color: var(--muted);
+        }
+        .mail-selection-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-lg);
+            background: var(--brand-deep);
+            color: var(--surface);
+        }
+        .mail-selection-bar.active {
+            display: flex;
+        }
+        .mail-selection-meta {
+            font: 700 14px/1.2 var(--font-ui);
+        }
+        .mail-selection-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .mail-selection-actions .btn.btn-secondary {
+            border-color: rgba(255,255,255,0.28);
+            color: var(--surface);
+            background: transparent;
+        }
+        .mail-selection-actions .btn.btn-secondary:hover {
+            border-color: rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.08);
+        }
+
         @media (max-width: 1100px) {
             .invoice-row {
-                grid-template-columns: 90px minmax(0, 1.4fr) 100px 110px 200px;
+                grid-template-columns: 32px 90px minmax(0, 1.4fr) 100px 110px 200px;
             }
             .col-due, .col-due-h { display: none; }
+            .mail-ops-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 760px) {
+            .mail-selection-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
             .invoice-row {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 28px 1fr 1fr;
                 gap: 8px;
             }
             .invoice-row.head { display: none; }
+            .select-cell { align-self: start; padding-top: 2px; }
             .col-status, .col-amount, .col-amount-h { text-align: left; justify-content: flex-start; }
             .col-actions, .col-actions-h { grid-column: 1 / -1; text-align: left; justify-content: flex-start; }
             .invoice-actions { justify-content: flex-start; }
@@ -549,6 +715,35 @@
             </div>
         </div>
 
+        <div class="list-card mail-ops-card">
+            <div class="list-card-head">
+                <div>
+                    <h3>Mail Runs</h3>
+                    <div class="card-subtitle">Sync Copilot invoices, print single-window inserts, and confirm the batch after Pitney Bowes.</div>
+                </div>
+                <a class="card-link" href="update-copilot-cookie.html">Update Copilot Cookie</a>
+            </div>
+            <div class="mail-ops-grid">
+                <div class="mail-ops-status">
+                    <div class="mail-status-chip warn" id="copilotMailStatus">Checking Copilot session…</div>
+                    <div class="mail-note" id="copilotMailNote">This workflow uses open, unmailed invoices by default and prints inserts for a #10 single-window outer envelope plus a matching #9 return envelope.</div>
+                    <div class="mail-actions">
+                        <button class="btn btn-secondary btn-sm" id="syncCopilotBtn" onclick="syncCopilotInvoices()">Sync Copilot</button>
+                        <button class="btn btn-primary btn-sm" id="generateMailRunBtn" onclick="generateMailRun()">Generate Mail Run</button>
+                        <button class="btn btn-secondary btn-sm" onclick="downloadEnvelopeAsset('/api/mail-assets/envelope-10-single-window')">#10 Envelope</button>
+                        <button class="btn btn-secondary btn-sm" onclick="downloadEnvelopeAsset('/api/mail-assets/envelope-9-return')">#9 Return Envelope</button>
+                    </div>
+                </div>
+                <div class="mail-batch-panel">
+                    <div class="mail-batch-title">Latest Mail Batch</div>
+                    <div class="mail-batch-meta" id="mailBatchMeta">Generate a mail run from the current filters to prepare a print-ready packet.</div>
+                    <div class="mail-batch-actions" id="mailBatchActions"></div>
+                    <ul class="mail-batch-list" id="mailBatchList"></ul>
+                    <div class="mail-batch-empty" id="mailBatchEmpty">No mail batch generated in this session yet.</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Filters -->
         <div class="filter-bar">
             <div class="filter-group">
@@ -562,6 +757,11 @@
                     <option value="overdue">Overdue</option>
                     <option value="void">Void</option>
                 </select>
+                <select id="mailedFilter" class="filter-select" onchange="loadInvoices()">
+                    <option value="">All Mail States</option>
+                    <option value="unmailed">Not Mailed</option>
+                    <option value="mailed">Mailed</option>
+                </select>
                 <input type="text" id="searchInput" class="search-input" placeholder="Search by invoice # or customer..." onkeyup="loadInvoices()" style="min-width: 280px;">
             </div>
             <div class="filter-group" id="invoiceCountWrap">
@@ -569,9 +769,18 @@
             </div>
         </div>
 
+        <div class="mail-selection-bar" id="mailSelectionBar">
+            <div class="mail-selection-meta" id="mailSelectionCount">0 invoices selected for mail print</div>
+            <div class="mail-selection-actions">
+                <button class="btn btn-primary btn-sm" onclick="generateMailRun()">Generate Mail Run</button>
+                <button class="btn btn-secondary btn-sm" onclick="clearInvoiceSelection()">Clear Selection</button>
+            </div>
+        </div>
+
         <!-- Invoice list -->
         <div class="list-card">
             <div class="invoice-row head">
+                <span class="select-cell-h"><input type="checkbox" id="selectAllInvoices" class="select-all-checkbox" onchange="toggleSelectAllInvoices()" aria-label="Select all mailable invoices"></span>
                 <button type="button" class="col-header sortable" data-sort-col="invoice_number" onclick="sortBy('invoice_number')"><span>Invoice #</span><span class="sort-icon" id="sort-invoice_number"></span></button>
                 <button type="button" class="col-header sortable" data-sort-col="customer_name" onclick="sortBy('customer_name')"><span>Customer</span><span class="sort-icon" id="sort-customer_name"></span></button>
                 <button type="button" class="col-header sortable col-amount-h" data-sort-col="total" onclick="sortBy('total')"><span>Amount</span><span class="sort-icon" id="sort-total"></span></button>
@@ -736,6 +945,9 @@
     let quotes = [];
     let sortCol = 'created_at';
     let sortDir = 'desc';
+    let latestMailBatch = null;
+    let copilotMailStatus = null;
+    let selectedInvoiceIds = new Set();
 
     function sortBy(col) {
         if (sortCol === col) {
@@ -764,6 +976,19 @@
     function formatDate(dateStr) {
         const date = new Date(dateStr);
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatDateTime(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        if (Number.isNaN(date.getTime())) return '';
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
     }
 
     function esc(s) {
@@ -839,15 +1064,378 @@
         return { primary: formatDate(due), sub, overdue: isOverdue };
     }
 
+    function getMailStateMeta(inv) {
+        const state = String(inv.mail_state || inv.mail_status || (inv.mailed_at ? 'mailed' : 'not_mailed')).toLowerCase();
+        if (state === 'mailed') {
+            return {
+                pillClass: 'done',
+                label: 'Mailed',
+                sub: inv.mailed_at ? `Confirmed ${formatDateTime(inv.mailed_at)}` : 'Already confirmed'
+            };
+        }
+        if (state === 'confirmed_with_errors') {
+            return {
+                pillClass: 'error',
+                label: 'Writeback Error',
+                sub: inv.mailed_at ? `Local batch confirmed ${formatDateTime(inv.mailed_at)}` : 'Copilot writeback needs review'
+            };
+        }
+        if (state === 'queued' || state === 'generated') {
+            return {
+                pillClass: 'pending',
+                label: 'Batch Ready',
+                sub: 'Printed but not confirmed'
+            };
+        }
+        return {
+            pillClass: canInvoiceBeMailed(inv) ? 'ready' : 'pending',
+            label: canInvoiceBeMailed(inv) ? 'Ready To Mail' : 'Not Mailable',
+            sub: canInvoiceBeMailed(inv) ? 'Included by default in mail runs' : 'Paid, void, or draft invoices stay out of batches'
+        };
+    }
+
+    function canInvoiceBeMailed(inv) {
+        const status = String(inv.status || '').trim().toLowerCase();
+        return !inv.mailed_at && !['paid', 'void', 'draft'].includes(status);
+    }
+
+    function buildSyncSummaryText(payload) {
+        if (!payload || typeof payload !== 'object') return 'Copilot sync finished.';
+        const summary = payload.summary && typeof payload.summary === 'object' ? payload.summary : payload;
+        const parts = [];
+        const countCandidates = [
+            ['Imported', summary.imported],
+            ['Upserted', summary.upserted],
+            ['Updated', summary.updated],
+            ['Created', summary.created],
+            ['Processed', summary.processed],
+            ['Invoices', summary.invoiceCount || summary.count],
+            ['Detailed', summary.detailed],
+            ['Details fetched', summary.detailFetched],
+        ];
+        countCandidates.forEach(([label, value]) => {
+            const num = Number(value);
+            if (Number.isFinite(num) && num > 0) parts.push(`${label.toLowerCase()} ${num}`);
+        });
+        return parts.length ? `Copilot sync finished: ${parts.join(', ')}.` : 'Copilot sync finished.';
+    }
+
+    function renderCopilotMailStatus() {
+        const statusEl = document.getElementById('copilotMailStatus');
+        const noteEl = document.getElementById('copilotMailNote');
+        if (!statusEl || !noteEl) return;
+
+        if (!copilotMailStatus) {
+            statusEl.className = 'mail-status-chip warn';
+            statusEl.textContent = 'Checking Copilot session…';
+            return;
+        }
+
+        if (!copilotMailStatus.hasCookies) {
+            statusEl.className = 'mail-status-chip danger';
+            statusEl.textContent = 'Copilot cookie missing';
+            noteEl.textContent = 'Add a fresh Copilot cookie first. Mail runs can still render local invoices, but live sync and regular-mail writeback will fail.';
+            return;
+        }
+
+        const days = Number(copilotMailStatus.daysUntilExpiry);
+        const expiresLabel = copilotMailStatus.expiresAt ? formatDateTime(copilotMailStatus.expiresAt) : '';
+        if (Number.isFinite(days) && days <= 3) {
+            statusEl.className = 'mail-status-chip warn';
+            statusEl.textContent = `Copilot cookie expires soon${Number.isFinite(days) ? ` (${days}d)` : ''}`;
+        } else {
+            statusEl.className = 'mail-status-chip ok';
+            statusEl.textContent = 'Copilot session ready';
+        }
+        noteEl.textContent = expiresLabel
+            ? `Live invoice sync and mailed-status writeback are available. Current cookie expires around ${expiresLabel}.`
+            : 'Live invoice sync and mailed-status writeback are available.';
+    }
+
+    function renderLatestMailBatch() {
+        const metaEl = document.getElementById('mailBatchMeta');
+        const actionsEl = document.getElementById('mailBatchActions');
+        const listEl = document.getElementById('mailBatchList');
+        const emptyEl = document.getElementById('mailBatchEmpty');
+        if (!metaEl || !actionsEl || !listEl || !emptyEl) return;
+
+        if (!latestMailBatch || !latestMailBatch.batch) {
+            metaEl.textContent = 'Generate a mail run from the current filters to prepare a stuffing-ready PDF.';
+            actionsEl.innerHTML = '';
+            listEl.innerHTML = '';
+            emptyEl.style.display = '';
+            return;
+        }
+
+        const batch = latestMailBatch.batch;
+        const batchStatus = String(batch.status || 'generated').replace(/_/g, ' ');
+        metaEl.textContent = `${batch.batch_name || `Mail Batch ${batch.id}`} • ${batch.invoice_count || latestMailBatch.eligibleCount || 0} invoice${(batch.invoice_count || latestMailBatch.eligibleCount || 0) === 1 ? '' : 's'} • ${batchStatus}`;
+        actionsEl.innerHTML = `
+            <button class="btn btn-primary btn-sm" onclick="openAuthenticatedHtml('${latestMailBatch.insertHtmlUrl || ''}')">Open Print Packet</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadEnvelopeAsset('${latestMailBatch.envelope10Url || '/api/mail-assets/envelope-10-single-window'}')">#10 Envelope</button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadEnvelopeAsset('${latestMailBatch.envelope9Url || '/api/mail-assets/envelope-9-return'}')">#9 Return</button>
+            <button class="btn btn-success btn-sm" onclick="confirmMailBatch(${Number(batch.id)})">Confirm Mailed</button>
+        `;
+
+        const skipped = Array.isArray(latestMailBatch.skipped) ? latestMailBatch.skipped : [];
+        const failures = Array.isArray(latestMailBatch.failedWritebacks) ? latestMailBatch.failedWritebacks : [];
+        const items = [
+            `<li><strong>Created:</strong> ${formatDateTime(batch.created_at) || 'just now'}</li>`,
+        ];
+        if (latestMailBatch.eligibleCount) {
+            items.push(`<li><strong>Included:</strong> ${latestMailBatch.eligibleCount} invoice${latestMailBatch.eligibleCount === 1 ? '' : 's'}</li>`);
+        }
+        if (skipped.length) {
+            items.push(`<li><strong>Skipped:</strong> ${skipped.length} not eligible for mailing</li>`);
+        }
+        if (batch.confirmed_at) {
+            items.push(`<li><strong>Confirmed:</strong> ${formatDateTime(batch.confirmed_at)}</li>`);
+        }
+        if (failures.length) {
+            items.push(`<li><strong>Copilot writeback:</strong> ${failures.length} invoice${failures.length === 1 ? '' : 's'} need review</li>`);
+        }
+        listEl.innerHTML = items.join('');
+        emptyEl.style.display = 'none';
+    }
+
+    async function loadCopilotStatus() {
+        try {
+            const response = await fetch(`${API_BASE}/copilot/settings`);
+            const data = await response.json();
+            copilotMailStatus = data;
+        } catch (error) {
+            console.error('Error loading Copilot mail status:', error);
+            copilotMailStatus = { hasCookies: false, error: error.message };
+        }
+        renderCopilotMailStatus();
+    }
+
+    async function openAuthenticatedFile(url, fallbackFilename) {
+        const response = await fetch(url);
+        if (!response.ok) {
+            let message = 'Download failed';
+            try {
+                const data = await response.json();
+                message = data.error || message;
+            } catch (_error) {
+                const text = await response.text().catch(() => '');
+                if (text) message = text.slice(0, 200);
+            }
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const popup = window.open(objectUrl, '_blank');
+        if (!popup) {
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = fallbackFilename || '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
+    }
+
+    async function openAuthenticatedHtml(url) {
+        if (!url) throw new Error('Print packet is not available yet');
+        const popup = window.open('', '_blank');
+        if (popup) {
+            popup.document.write('<!doctype html><title>Loading</title><body style="font-family:DM Sans,sans-serif;padding:24px;color:#2f3f3d;">Loading print view...</body>');
+        }
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                let message = 'Print view failed';
+                try {
+                    const data = await response.json();
+                    message = data.error || message;
+                } catch (_error) {
+                    const text = await response.text().catch(() => '');
+                    if (text) message = text.slice(0, 200);
+                }
+                throw new Error(message);
+            }
+
+            const printHtml = await response.text();
+            if (popup) {
+                popup.document.open();
+                popup.document.write(printHtml);
+                popup.document.close();
+                return;
+            }
+
+            const objectUrl = URL.createObjectURL(new Blob([printHtml], { type: 'text/html' }));
+            window.open(objectUrl, '_blank');
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 60 * 1000);
+        } catch (error) {
+            if (popup) popup.close();
+            throw error;
+        }
+    }
+
+    async function syncCopilotInvoices() {
+        const button = document.getElementById('syncCopilotBtn');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Syncing recent…';
+        }
+        try {
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), 45000) : null;
+            const response = await fetch(`${API_BASE}/copilot/invoices/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pageSize: 100,
+                    maxPages: 10,
+                    detailMode: 'missing',
+                    detailLimit: 25
+                }),
+                signal: controller ? controller.signal : undefined
+            });
+            if (timeoutId) clearTimeout(timeoutId);
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.error || 'Copilot sync failed');
+            }
+            showToast(buildSyncSummaryText(data));
+            await Promise.all([loadInvoices(), loadStats(), loadAging(), loadCopilotStatus()]);
+        } catch (error) {
+            console.error('Error syncing Copilot invoices:', error);
+            if (error.name === 'AbortError') {
+                alert('Copilot sync is taking longer than expected. It may still be finishing on the server. Wait about a minute, then refresh the invoices page.');
+            } else {
+                alert(error.message || 'Copilot sync failed');
+            }
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Sync Copilot';
+            }
+        }
+    }
+
+    async function generateMailRun() {
+        const button = document.getElementById('generateMailRunBtn');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Generating…';
+        }
+        try {
+            const selectedIds = Array.from(selectedInvoiceIds).map((id) => {
+                const num = Number(id);
+                return Number.isFinite(num) ? num : id;
+            });
+            const payload = selectedIds.length > 0
+                ? { invoice_ids: selectedIds }
+                : {
+                    status: document.getElementById('statusFilter').value || null,
+                    search: document.getElementById('searchInput').value.trim() || null,
+                    mailed: document.getElementById('mailedFilter').value || 'unmailed',
+                    limit: 250
+                };
+            const response = await fetch(`${API_BASE}/invoices/mail-batch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                const skipped = Array.isArray(data.skipped) && data.skipped.length ? ` Skipped ${data.skipped.length}.` : '';
+                throw new Error((data.error || 'Mail batch failed') + skipped);
+            }
+            latestMailBatch = data;
+            renderLatestMailBatch();
+            showToast(`Mail run ready for ${data.eligibleCount} invoice${data.eligibleCount === 1 ? '' : 's'}`);
+            if (data.insertHtmlUrl) {
+                await openAuthenticatedHtml(data.insertHtmlUrl);
+            } else if (data.insertPdfUrl) {
+                await openAuthenticatedFile(data.insertPdfUrl, `mail-batch-${data.batch?.id || 'latest'}.pdf`);
+            }
+            if (selectedIds.length > 0) {
+                selectedInvoiceIds.clear();
+            }
+            await loadInvoices();
+        } catch (error) {
+            console.error('Error generating mail run:', error);
+            alert(error.message || 'Mail batch failed');
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Generate Mail Run';
+            }
+        }
+    }
+
+    async function confirmMailBatch(batchId) {
+        if (!batchId) return;
+        if (!confirm('Confirm this mail batch after printing, stuffing, and running it through Pitney Bowes?')) return;
+        try {
+            const response = await fetch(`${API_BASE}/invoices/mail-batch/${batchId}/confirm`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Mail batch confirmation failed');
+            }
+            latestMailBatch = {
+                ...latestMailBatch,
+                batch: {
+                    ...(latestMailBatch?.batch || {}),
+                    id: batchId,
+                    status: data.status || latestMailBatch?.batch?.status || 'confirmed',
+                    confirmed_at: new Date().toISOString()
+                },
+                failedWritebacks: data.failedWritebacks || []
+            };
+            renderLatestMailBatch();
+            await Promise.all([loadInvoices(), loadCopilotStatus()]);
+            if (data.failedWritebacks && data.failedWritebacks.length) {
+                alert(`Local mail batch confirmed, but ${data.failedWritebacks.length} Copilot writeback${data.failedWritebacks.length === 1 ? '' : 's'} failed. Review the latest batch panel for details.`);
+            } else {
+                showToast('Mail batch confirmed');
+            }
+        } catch (error) {
+            console.error('Error confirming mail batch:', error);
+            alert(error.message || 'Mail batch confirmation failed');
+        }
+    }
+
+    async function downloadEnvelopeAsset(url) {
+        try {
+            const filename = url.includes('envelope-9') ? 'pappas-envelope-9-return.pdf' : 'pappas-envelope-10-single-window.pdf';
+            await openAuthenticatedFile(url, filename);
+        } catch (error) {
+            console.error('Error downloading envelope asset:', error);
+            alert(error.message || 'Envelope download failed');
+        }
+    }
+
+    async function openMailHtml(id) {
+        try {
+            await openAuthenticatedHtml(`${API_BASE}/invoices/${id}/mail-html`);
+        } catch (error) {
+            console.error('Error opening mail view:', error);
+            alert(error.message || 'Mail view failed');
+        }
+    }
+
     async function loadInvoices() {
         try {
             const status = document.getElementById('statusFilter').value;
             const search = document.getElementById('searchInput').value;
+            const mailed = document.getElementById('mailedFilter').value;
 
             let url = `${API_BASE}/invoices`;
             const params = new URLSearchParams();
             if (status) params.append('status', status);
             if (search) params.append('search', search);
+            if (mailed) params.append('mailed', mailed);
             if (params.toString()) url += '?' + params.toString();
 
             const response = await fetch(url);
@@ -863,6 +1451,60 @@
                     <div class="empty-text">Refresh the page or try again.</div>
                 </div>`;
         }
+    }
+
+    function syncSelectedInvoicesToCurrentList() {
+        const availableIds = new Set(invoices.map((inv) => String(inv.id)));
+        selectedInvoiceIds = new Set(Array.from(selectedInvoiceIds).filter((id) => availableIds.has(String(id))));
+    }
+
+    function updateInvoiceSelectionState() {
+        const selectionBar = document.getElementById('mailSelectionBar');
+        const countEl = document.getElementById('mailSelectionCount');
+        const selectAllEl = document.getElementById('selectAllInvoices');
+        const mailableIds = invoices.filter(canInvoiceBeMailed).map((inv) => String(inv.id));
+        const selectedMailableCount = mailableIds.filter((id) => selectedInvoiceIds.has(id)).length;
+
+        if (selectionBar && countEl) {
+            if (selectedInvoiceIds.size > 0) {
+                selectionBar.classList.add('active');
+                countEl.textContent = `${selectedInvoiceIds.size} invoice${selectedInvoiceIds.size === 1 ? '' : 's'} selected for mail print`;
+            } else {
+                selectionBar.classList.remove('active');
+                countEl.textContent = '0 invoices selected for mail print';
+            }
+        }
+
+        if (selectAllEl) {
+            const hasMailable = mailableIds.length > 0;
+            selectAllEl.disabled = !hasMailable;
+            selectAllEl.checked = hasMailable && selectedMailableCount === mailableIds.length;
+            selectAllEl.indeterminate = selectedMailableCount > 0 && selectedMailableCount < mailableIds.length;
+        }
+    }
+
+    function clearInvoiceSelection() {
+        selectedInvoiceIds.clear();
+        renderInvoices();
+    }
+
+    function toggleInvoiceSelection(cb) {
+        const id = String(cb.value);
+        if (cb.checked) selectedInvoiceIds.add(id);
+        else selectedInvoiceIds.delete(id);
+        updateInvoiceSelectionState();
+    }
+
+    function toggleSelectAllInvoices() {
+        const selectAll = document.getElementById('selectAllInvoices');
+        const shouldSelect = !!selectAll?.checked;
+        invoices.forEach((inv) => {
+            if (!canInvoiceBeMailed(inv)) return;
+            const id = String(inv.id);
+            if (shouldSelect) selectedInvoiceIds.add(id);
+            else selectedInvoiceIds.delete(id);
+        });
+        renderInvoices();
     }
 
     function renderInvoices() {
@@ -893,9 +1535,12 @@
             return 0;
         });
 
+        syncSelectedInvoicesToCurrentList();
+
         const countLabel = document.getElementById('invoiceCount');
+        const mailedFilter = document.getElementById('mailedFilter')?.value || '';
         if (countLabel) countLabel.textContent = invoices.length
-            ? `${invoices.length} invoice${invoices.length === 1 ? '' : 's'}`
+            ? `${invoices.length} invoice${invoices.length === 1 ? '' : 's'}${mailedFilter === 'unmailed' ? ' ready for review' : mailedFilter === 'mailed' ? ' already mailed' : ''}`
             : '';
 
         if (invoices.length === 0) {
@@ -904,6 +1549,7 @@
                     <div class="empty-title">No invoices yet</div>
                     <div class="empty-text">Create one with “New Invoice” or roll up completed jobs into invoices.</div>
                 </div>`;
+            updateInvoiceSelectionState();
             return;
         }
 
@@ -915,11 +1561,13 @@
             const lateFee = parseFloat(inv.late_fee_total || 0);
             const lateFeeBadge = lateFee > 0 ? `<span class="late-fee-flag">+${formatCurrency(lateFee)} fees</span>` : '';
             const dueSubCls = due.overdue ? 'invoice-due-sub overdue-flag' : 'invoice-due-sub';
-
-            const actions = [];
+            const mailState = getMailStateMeta(inv);
             const sentStatus = getSentStatus(inv);
             const sentStatusLabel = getSentStatusLabel(sentStatus);
+            const canMail = canInvoiceBeMailed(inv);
+            const isSelected = selectedInvoiceIds.has(String(inv.id));
 
+            const actions = [];
             if (inv.status === 'draft' || (inv.status === 'pending' && sentStatus === 'not sent')) {
                 actions.push(`<button class="btn btn-primary" onclick="sendInvoice('${inv.id}')">Send</button>`);
             }
@@ -929,10 +1577,12 @@
             if (inv.payment_token) {
                 actions.push(`<button class="icon-btn" onclick="event.stopPropagation(); copyPayLink('${esc(inv.payment_token)}')" title="Copy pay link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button>`);
             }
+            actions.push(`<button class="btn btn-secondary" onclick="event.stopPropagation(); openMailHtml('${inv.id}')">Mail View</button>`);
             actions.push(`<button class="icon-btn" onclick="viewInvoice('${inv.id}')" title="Open invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
             actions.push(`<button class="icon-btn danger" onclick="deleteInvoice('${inv.id}')" title="Delete invoice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>`);
 
             return `<div class="invoice-row">
+                <div class="select-cell"><input type="checkbox" class="invoice-select-checkbox" value="${esc(inv.id)}" ${isSelected ? 'checked' : ''} ${canMail ? '' : 'disabled'} onchange="toggleInvoiceSelection(this)" aria-label="Select invoice ${esc(invNum)} for mail print"></div>
                 <div class="invoice-number">${esc(invNum)}</div>
                 <div>
                     <div class="invoice-customer">${esc(custName)}</div>
@@ -942,6 +1592,10 @@
                 <div class="col-status">
                     ${getStatusPill(inv.status)}${lateFeeBadge}
                     ${sentStatusLabel ? `<div class="invoice-customer-sub" style="margin-top:6px;">${esc(sentStatusLabel)}</div>` : ''}
+                    <div class="mail-state-stack" style="margin-top:6px;">
+                        <span class="mail-state-pill ${mailState.pillClass}">${esc(mailState.label)}</span>
+                        <div class="mail-state-sub">${esc(mailState.sub)}</div>
+                    </div>
                 </div>
                 <div class="col-due">
                     <div class="invoice-due">${due.primary}</div>
@@ -950,6 +1604,8 @@
                 <div class="invoice-actions col-actions">${actions.join('')}</div>
             </div>`;
         }).join('');
+
+        updateInvoiceSelectionState();
     }
 
     async function loadStats() {
@@ -1538,13 +2194,20 @@
     document.addEventListener('DOMContentLoaded', function() {
         const params = new URLSearchParams(window.location.search);
         const statusParam = params.get('status');
+        const mailedParam = params.get('mailed');
         if (statusParam) {
             const statusFilter = document.getElementById('statusFilter');
             if (statusFilter) statusFilter.value = statusParam;
         }
+        if (mailedParam) {
+            const mailedFilter = document.getElementById('mailedFilter');
+            if (mailedFilter) mailedFilter.value = mailedParam;
+        }
+        loadCopilotStatus();
         loadStats();
         loadInvoices();
         loadAging();
+        renderLatestMailBatch();
 
         if (params.get('create') === 'true') {
             openCreateModal();

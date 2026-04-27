@@ -1,9 +1,9 @@
 # Route Order for April 27, 2026
 
-Tim Mowing Crew matches `events (4).pdf`. Rob Mowing Crew matches `Rob Dispatch Route Sheets.pdf`.
+Tim Mowing Crew matches `Tim Dispatch Route Sheets.pdf`. Rob Mowing Crew matches `Rob Dispatch Route Sheets.pdf`.
 
 ## Tim Mowing Crew
-Source: `events (4).pdf`
+Source: `Tim Dispatch Route Sheets.pdf`
 
 | Stop | Customer | Address | Service | Notes |
 | --- | --- | --- | --- | --- |
@@ -16,33 +16,33 @@ Source: `events (4).pdf`
 | 7 | Carole Gondek | 13409 Brookhaven Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
 | 8 | Paul Hauser | 13376 Kathleen Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
 | 9 | Keith Kawecki | 13395 Kathleen Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 10 | Timothy Aponte | 6396 Terre Drive, Brook Park, OH 44142 | Mowing (Bi-Weekly) |  |
-| 11 | Robert Schultz | 6372 Terre Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 12 | Jan Zubal | 6364 Terre Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 13 | Barbara Sekerak | 6312 Elmdale Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 14 | Loretta Kuhlman | 6328 Elmdale Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 15 | John Blasee | 14248 Sheldon Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 16 | Michael Hill | 6401 Michael Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 17 | Dianne Daugherty | 6391 Smith Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 18 | Linda Scamaldo | 6346 Smith Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 19 | Kelly Robison | 6421 Edgehurst Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 20 | Kathleen Chriszt | 6503 Sandfield Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 21 | David Gannon | 15806 Sheldon Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 22 | Leo Oblak | 6476 Sanfield Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 23 | Kathleen Clark | 6399 Delores Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 24 | Helen Carroll | 15720 Birchcroft Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 25 | Vera Bartuccio | 6172 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 26 | Roseann Reye | 6122 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 27 | John Galehouse | 6118 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 28 | Ramona Thomas | 6063 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 29 | Linda Fowler | 16204 Hocking Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 30 | Paul Pasek | 15667 Paulding Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 31 | Bob Maclean | 15646 Hocking Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 32 | Laura Stein | 15842 Pike Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 33 | Linda Butters | 16092 Pike Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 10 | Robert Schultz | 6372 Terre Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 11 | Jan Zubal | 6364 Terre Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 12 | Barbara Sekerak | 6312 Elmdale Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 13 | Loretta Kuhlman | 6328 Elmdale Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 14 | John Blasee | 14248 Sheldon Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 15 | Michael Hill | 6401 Michael Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 16 | Dianne Daugherty | 6391 Smith Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 17 | Linda Scamaldo | 6346 Smith Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 18 | Kelly Robison | 6421 Edgehurst Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 19 | Kathleen Chriszt | 6503 Sandfield Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 20 | David Gannon | 15806 Sheldon Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 21 | Leo Oblak | 6476 Sanfield Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 22 | Kathleen Clark | 6399 Delores Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 23 | Helen Carroll | 15720 Birchcroft Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 24 | Vera Bartuccio | 6172 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 25 | Roseann Reye | 6122 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 26 | John Galehouse | 6118 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 27 | Ramona Thomas | 6063 Fry Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 28 | Linda Fowler | 16204 Hocking Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 29 | Paul Pasek | 15667 Paulding Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 30 | Bob Maclean | 15646 Hocking Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 31 | Laura Stein | 15842 Pike Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 32 | Linda Butters | 16092 Pike Boulevard, Brook Park, OH 44142 | Mowing (Weekly) |  |
+| 33 | Jessyca Yucas | 6123 Eavenson Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
 | 34 | Carol Uher | 16800 Shelby Drive, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 35 | Jessyca Yucas | 6123 Eavenson Road, Brook Park, OH 44142 | Mowing (Weekly) |  |
-| 36 | CC Pkwy Owner LLC | 19681 Commerce Parkway, Middleburg Heights, OH 44130 | Litter Pickup Service (Weekly) |  |
+| 35 | CC Pkwy Owner LLC | 19681 Commerce Parkway, Middleburg Heights, OH 44130 | Litter Pickup Service (Weekly) |  |
+| 36 | Timothy Aponte | 6396 Terre Drive, Brook Park, OH 44142 | Mowing (Bi-Weekly) |  |
 
 ## Rob Mowing Crew
 Source: `Rob Dispatch Route Sheets.pdf`

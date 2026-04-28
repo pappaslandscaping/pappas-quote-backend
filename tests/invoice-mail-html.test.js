@@ -53,6 +53,36 @@ function runAssertions() {
   assert(html.includes('Apr 2, 2026') || html.includes('Apr 02, 2026'));
   assert(html.includes('17894 Clifton Park Lane'));
   assert(html.includes('Lakewood, OH 44107'));
+
+  const directOutstandingHtml = renderMailInvoiceHtml({
+    id: 43,
+    invoice_number: '10300',
+    invoice_date_raw: 'Apr 07, 2026',
+    customer_name: 'Superior Industrial',
+    customer_address: '3855 West 150th Street\nCleveland, OH 44111',
+    property_address: '3855 West 150th Street\nCleveland, OH 44111',
+    subtotal: 180,
+    tax_amount: 14.08,
+    total: 194.08,
+    notes: '',
+    line_items: [
+      {
+        service_date_raw: '2026-04-07',
+        name: 'Landscape Service',
+        description: 'Weekly service.',
+        quantity: 1,
+        rate: 180,
+        total: 194.08,
+      },
+    ],
+    metadata: {
+      outstanding_balance: 118.8,
+      this_invoice: 194.08,
+    },
+  });
+
+  assert(directOutstandingHtml.includes('Outstanding Balance'));
+  assert(directOutstandingHtml.includes('$118.80'));
 }
 
 if (typeof test === 'function') {

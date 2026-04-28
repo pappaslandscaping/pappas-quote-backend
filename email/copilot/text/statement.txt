@@ -1,7 +1,5 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-I sent over your current account statement.
+Your statement is attached.
 
-You should have it for review now.
-
-If you have any questions about your balance or account activity, let me know. Thank you.
+If you have questions about your balance or account activity, call {{COMPANY_PHONE}} or email {{COMPANY_EMAIL}}.

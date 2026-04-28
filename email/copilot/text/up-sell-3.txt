@@ -1,7 +1,10 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-One other service you may want to consider is [Add-on Service].
+You may want to consider one additional service for your property.
 
-If you want to review it, here is the link: {{EXAMPLE_UP_SELL_LINK}}
+Service: [Add-on Service]
 
-Let me know if you would like to add it. Thank you.
+View Service:
+{{EXAMPLE_UP_SELL_LINK}}
+
+If you'd like to add it, let us know.

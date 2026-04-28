@@ -1,8 +1,13 @@
-{{CUSTOMER_NAME}} approved {{ESTIMATE_NUMBER}}.
+{{CUSTOMER_NAME}} accepted {{ESTIMATE_NUMBER}}.
 
-Total: ${{ESTIMATE_TOTAL}}
+Customer: {{CUSTOMER_NAME}}
+Estimate: {{ESTIMATE_NUMBER}}
+Total: {{ESTIMATE_TOTAL}}
 Address: {{CUSTOMER_ADDRESS}}
 Email: {{CUSTOMER_EMAIL}}
 Phone: {{CUSTOMER_PHONE}}
 
-The customer is ready for the next step. Please review and follow up.
+They're ready for the next step.
+
+{{COMPANY_NAME}}
+{{COMPANY_EMAIL}}

@@ -1,7 +1,11 @@
-Hi {{CUSTOMER_FIRST_NAME}}, this is Tim with {{COMPANY_NAME}}.
+Hi {{CUSTOMER_FIRST_NAME}},
 
-I wanted to send over one additional service option for your property: [Add-on Service].
+One additional service may be a good fit for your property.
 
-It can help with [short benefit]. Here is the link if you want to take a look: {{EXAMPLE_UP_SELL_LINK}}
+Service: [Add-on Service]
+Benefit: [short benefit]
 
-Let me know if you want to add it. Thank you.
+View Service:
+{{EXAMPLE_UP_SELL_LINK}}
+
+If you'd like to add it, let us know.

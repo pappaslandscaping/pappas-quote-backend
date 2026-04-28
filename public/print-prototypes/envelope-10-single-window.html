@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>#10 Single-Window Envelope - Pappas &amp; Co. Landscaping</title>
+  <style>
+    @page {
+      size: 9.5in 4.125in;
+      margin: 0;
+    }
+
+    :root {
+      --ink: #202a28;
+      --muted: #61706b;
+      --line: #c6cfc9;
+      --line-strong: #9ba9a2;
+      --sage: #d3ddc9;
+      --paper: #ffffff;
+      --shell: #e2e7e1;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--shell);
+      color: var(--ink);
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      width: 9.5in;
+      height: 4.125in;
+      margin: 0 auto;
+      background: var(--paper);
+      position: relative;
+      box-shadow: 0 0.08in 0.24in rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .top-rule {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 0.11in;
+      background: linear-gradient(90deg, var(--sage) 0%, #e8ede6 55%, #ffffff 100%);
+    }
+
+    .header {
+      position: absolute;
+      top: 0.28in;
+      left: 0.34in;
+      width: 3.9in;
+      display: flex;
+      flex-direction: column;
+      gap: 0.08in;
+    }
+
+    .logo {
+      width: 2.95in;
+      height: auto;
+      display: block;
+    }
+
+    .return-address {
+      padding-top: 0.08in;
+      border-top: 1px solid var(--line);
+      font-size: 9.4pt;
+      line-height: 1.4;
+      color: var(--muted);
+      max-width: 2.8in;
+    }
+
+    .return-address strong {
+      display: block;
+      font-size: 10.1pt;
+      color: var(--ink);
+      margin-bottom: 0.02in;
+      font-weight: 700;
+    }
+
+    .postage-clear {
+      position: absolute;
+      top: 0.32in;
+      right: 0.38in;
+      width: 2.35in;
+      height: 1.02in;
+      background: transparent;
+    }
+
+    .window-clear {
+      position: absolute;
+      left: 0.92in;
+      top: 1.78in;
+      width: 4.55in;
+      height: 1.16in;
+      background: transparent;
+    }
+
+    /*
+      Single-window keep-clear reference only.
+      Leave this commented unless testing alignment on plain paper.
+      .window-clear { outline: 1px dashed #b9c4bd; }
+      .postage-clear { outline: 1px dashed #d3d9d4; }
+    */
+
+    @media print {
+      html, body { background: #fff; }
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="sheet" aria-label="#10 single-window envelope">
+    <div class="top-rule"></div>
+
+    <div class="header">
+      <img src="../logo.png" alt="Pappas &amp; Co. Landscaping" class="logo">
+      <div class="return-address">
+        <strong>Pappas &amp; Co. Landscaping</strong>
+        PO Box 770057<br>
+        Lakewood, OH 44107
+      </div>
+    </div>
+
+    <div class="postage-clear" aria-hidden="true"></div>
+    <div class="window-clear" aria-hidden="true"></div>
+  </section>
+</body>
+</html>

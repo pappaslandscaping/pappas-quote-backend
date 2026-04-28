@@ -65,6 +65,51 @@ function extractFirstName(customer = {}) {
   return fullName ? fullName.split(/\s+/)[0] : 'there';
 }
 
+function generateToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function formatMoney(value) {
+  const num = parseFloat(value);
+  return Number.isFinite(num) ? num.toFixed(2) : value;
+}
+
+function normalizePhoneForSend(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  if (String(phone).startsWith('+')) return String(phone);
+  return digits ? `+${digits}` : null;
+}
+
+function buildUppercaseVarAliases(vars = {}) {
+  const aliases = {};
+  for (const [key, value] of Object.entries(vars)) {
+    aliases[key.toUpperCase()] = value;
+  }
+  return aliases;
+}
+
+function replaceSmsTemplateVars(template, vars, replaceTemplateVars) {
+  const baseRendered = replaceTemplateVars(template || '', vars || {});
+  const uppercaseVars = buildUppercaseVarAliases(vars || {});
+  return baseRendered.replace(/\{\{([A-Z0-9_]+)\}\}/g, (match, key) => {
+    return uppercaseVars[key] !== undefined ? uppercaseVars[key] : match;
+  });
+}
+
+async function ensurePortalAccessLink(pool, customer, baseUrl) {
+  if (!customer?.id || !customer?.email) return `${baseUrl}/customer-portal.html`;
+  const token = generateToken();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await pool.query(
+    'INSERT INTO customer_portal_tokens (token, customer_id, email, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, customer.id, customer.email, expiresAt]
+  );
+  return `${baseUrl}/customer-portal.html?token=${token}`;
+}
+
 function getBroadcastInclusionReasons(customer, filters) {
   const reasons = [];
   const rawTags = (customer.tags || '').split(',').map(t => t.trim()).filter(Boolean);
@@ -735,6 +780,159 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
     return results;
   }
 
+  async function getSmsTemplate({ slug, templateId }) {
+    if (slug) return getTemplate(slug);
+    if (!templateId) return null;
+    const result = await pool.query(
+      'SELECT * FROM email_templates WHERE id = $1 AND is_active = true LIMIT 1',
+      [templateId]
+    );
+    return result.rows[0] || null;
+  }
+
+  function formatDateForTemplate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  async function buildSmsTemplateContext({ customerId, invoiceId, quoteId, jobId, vars = {}, baseUrl, needsPortalLink = false }) {
+    let customer = null;
+    let invoice = null;
+    let quote = null;
+    let job = null;
+
+    if (invoiceId) {
+      const invoiceResult = await pool.query('SELECT * FROM invoices WHERE id = $1 LIMIT 1', [invoiceId]);
+      invoice = invoiceResult.rows[0] || null;
+    }
+
+    if (quoteId) {
+      const quoteResult = await pool.query('SELECT * FROM sent_quotes WHERE id = $1 LIMIT 1', [quoteId]);
+      quote = quoteResult.rows[0] || null;
+    }
+
+    if (jobId) {
+      const jobResult = await pool.query(
+        `SELECT id, customer_id, customer_name, service_type, address, phone, crew_assigned, job_date
+         FROM scheduled_jobs
+         WHERE id = $1
+         LIMIT 1`,
+        [jobId]
+      );
+      job = jobResult.rows[0] || null;
+    }
+
+    let resolvedCustomerId = customerId || invoice?.customer_id || quote?.customer_id || job?.customer_id || null;
+    if (resolvedCustomerId) {
+      customer = await findCustomerContext({ customerId: resolvedCustomerId });
+    }
+
+    if (!customer && quote?.customer_email) {
+      const customerByEmail = await pool.query(
+        `SELECT id, name, first_name, last_name, email, phone, mobile, street, city, state, postal_code
+         FROM customers
+         WHERE LOWER(COALESCE(email, '')) = LOWER($1)
+         ORDER BY id ASC
+         LIMIT 1`,
+        [quote.customer_email]
+      );
+      customer = customerByEmail.rows[0] || null;
+      resolvedCustomerId = customer?.id || resolvedCustomerId;
+    }
+
+    const fallbackName = customer?.name || quote?.customer_name || invoice?.customer_name || job?.customer_name || '';
+    const fallbackPhone = customer?.mobile || customer?.phone || quote?.customer_phone || job?.phone || vars.customer_phone || '';
+    const fallbackEmail = customer?.email || quote?.customer_email || invoice?.customer_email || vars.customer_email || '';
+    const fallbackAddress = customer
+      ? [customer.street, customer.city, customer.state, customer.postal_code].filter(Boolean).join(', ')
+      : (quote?.customer_address || invoice?.customer_address || job?.address || vars.customer_address || '');
+
+    const portalLink = needsPortalLink
+      ? await ensurePortalAccessLink(pool, customer, baseUrl)
+      : `${baseUrl}/customer-portal.html`;
+    const contextVars = {
+      customer_name: fallbackName,
+      customer_first_name: customer ? extractFirstName(customer) : (String(fallbackName).trim().split(/\s+/)[0] || 'there'),
+      customer_email: fallbackEmail,
+      customer_phone: fallbackPhone,
+      customer_address: fallbackAddress,
+      customer_address_full: fallbackAddress,
+      address: job?.address || quote?.customer_address || invoice?.customer_address || fallbackAddress,
+      company_name: 'Pappas & Co. Landscaping',
+      company_phone: '(440) 886-7318',
+      company_email: 'hello@pappaslandscaping.com',
+      company_website: 'pappaslandscaping.com',
+      portal_link: portalLink,
+      customer_portal_link: portalLink,
+    };
+
+    if (invoice) {
+      let paymentToken = invoice.payment_token;
+      if (!paymentToken) {
+        paymentToken = generateToken();
+        await pool.query(
+          `UPDATE invoices
+              SET payment_token = $1,
+                  payment_token_created_at = COALESCE(payment_token_created_at, CURRENT_TIMESTAMP),
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2`,
+          [paymentToken, invoice.id]
+        );
+      }
+      const paymentLink = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
+      const total = parseFloat(invoice.total || 0);
+      const amountPaid = parseFloat(invoice.amount_paid || 0);
+      const balanceDue = Math.max(0, total - amountPaid);
+      contextVars.invoice_number = invoice.invoice_number || String(invoice.id);
+      contextVars.invoice_total = formatMoney(invoice.total || 0);
+      contextVars.amount_paid = formatMoney(invoice.amount_paid || 0);
+      contextVars.balance_due = formatMoney(balanceDue);
+      contextVars.invoice_due_date = formatDateForTemplate(invoice.due_date);
+      contextVars.payment_link = paymentLink;
+      contextVars.invoice_link = paymentLink;
+      contextVars.invoices_links = paymentLink;
+    }
+
+    if (quote) {
+      const quoteNumber = quote.quote_number || String(quote.id);
+      const signToken = quote.sign_token || '';
+      const quoteLink = signToken ? `${baseUrl}/sign-quote.html?token=${signToken}` : '';
+      const contractLink = signToken ? `${baseUrl}/sign-contract.html?token=${signToken}` : '';
+      const quoteTotal = quote.total_amount ?? quote.total ?? '';
+      contextVars.quote_number = quoteNumber;
+      contextVars.estimate_number = quoteNumber;
+      contextVars.quote_total = formatMoney(quoteTotal || 0);
+      contextVars.estimate_total = formatMoney(quoteTotal || 0);
+      contextVars.quote_link = quoteLink;
+      contextVars.estimate_link = quoteLink;
+      contextVars.contract_link = contractLink;
+      if (quote.customer_address) {
+        contextVars.customer_address = quote.customer_address;
+        contextVars.customer_address_full = quote.customer_address;
+        contextVars.address = quote.customer_address;
+      }
+    }
+
+    if (job) {
+      contextVars.job_date = formatDateForTemplate(job.job_date);
+      contextVars.service_type = job.service_type || '';
+      contextVars.address = job.address || contextVars.address;
+      contextVars.crew_name = job.crew_assigned || '';
+    }
+
+    return {
+      vars: { ...contextVars, ...vars },
+      to: vars.to || fallbackPhone || null,
+      customerId: resolvedCustomerId || null,
+    };
+  }
+
 router.get('/api/messages/conversations', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -992,6 +1190,80 @@ router.post('/api/messages/send', validate(schemas.sendMessage), async (req, res
   } catch (error) {
     console.error('Send SMS error:', error);
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/api/messages/send-template', validate(schemas.sendTemplateSms), async (req, res) => {
+  const {
+    slug,
+    template_id: templateId,
+    to,
+    customer_id: customerId,
+    invoice_id: invoiceId,
+    quote_id: quoteId,
+    job_id: jobId,
+    vars = {},
+  } = req.body || {};
+
+  try {
+    if (!slug && !templateId) {
+      return res.status(400).json({ success: false, error: 'slug or template_id is required' });
+    }
+    if (!twilioClient) {
+      return res.status(400).json({ success: false, error: 'SMS is not configured' });
+    }
+
+    const template = await getSmsTemplate({ slug, templateId });
+    if (!template) {
+      return res.status(404).json({ success: false, error: 'Template not found' });
+    }
+    if (!template.sms_body || !String(template.sms_body).trim()) {
+      return res.status(400).json({ success: false, error: 'Template does not have an sms_body' });
+    }
+
+    const baseUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+    const needsPortalLink = /\{portal_link\}|\{customer_portal_link\}|\{\{PORTAL_LINK\}\}|\{\{CUSTOMER_PORTAL_LINK\}\}/.test(String(template.sms_body));
+    const context = await buildSmsTemplateContext({
+      customerId,
+      invoiceId,
+      quoteId,
+      jobId,
+      vars,
+      baseUrl,
+      needsPortalLink,
+    });
+
+    const destination = normalizePhoneForSend(to || context.to);
+    if (!destination) {
+      return res.status(400).json({ success: false, error: 'No phone number available for this message' });
+    }
+
+    const smsText = replaceSmsTemplateVars(String(template.sms_body), context.vars, replaceTemplateVars).trim();
+    if (!smsText) {
+      return res.status(400).json({ success: false, error: 'Rendered SMS body is empty' });
+    }
+
+    const twilioMessage = await twilioClient.messages.create({
+      body: smsText,
+      from: TWILIO_PHONE_NUMBER,
+      to: destination,
+    });
+
+    await pool.query(
+      `INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+       VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)`,
+      [twilioMessage.sid, TWILIO_PHONE_NUMBER, destination, smsText, twilioMessage.status, context.customerId]
+    );
+
+    res.json({
+      success: true,
+      sid: twilioMessage.sid,
+      template: template.slug,
+      preview: smsText,
+    });
+  } catch (error) {
+    console.error('Send template SMS error:', error);
+    serverError(res, error);
   }
 });
 

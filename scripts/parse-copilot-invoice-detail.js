@@ -143,6 +143,22 @@ function parseDescriptionCell($td) {
   return { service_date, description, detailsText };
 }
 
+function parseCustomerAddressBlock($) {
+  const $address = $('address').filter((_, el) => $(el).find('a[href*="/customers/details/"]').length > 0).first();
+  if (!$address.length) return null;
+
+  const $clone = $address.clone();
+  $clone.find('a, svg').remove();
+  const text = clean(
+    $clone
+      .html()
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+  );
+
+  return text || null;
+}
+
 function buildParseDiagnostics($, line_items) {
   return {
     description_table_count: $('.table--description').length,
@@ -224,13 +240,21 @@ function parseInvoiceDetailHtml(html) {
     clean($('.bill-to .address, .billing-address').first().text()) ||
     null
   );
-  let customer_email = null;
+  if (!customer_address) {
+    customer_address = parseCustomerAddressBlock($);
+  }
+
+  let customer_email = (
+    valOrText($('#email')) ||
+    valOrText($('input[name="email"]')) ||
+    null
+  );
   const $mailto = $('a[href^="mailto:"]').first();
-  if ($mailto.length) customer_email = clean($mailto.attr('href').replace(/^mailto:/i, ''));
+  if (!customer_email && $mailto.length) customer_email = clean($mailto.attr('href').replace(/^mailto:/i, ''));
 
   // ── Property info (mostly informational) ─────────────────
   const property_name = clean($('.property-name, .property_name').first().text()) || null;
-  let property_address = clean($('.property-address, .property_address').first().text()) || customer_address || null;
+  let property_address = clean($('.property-address, .property_address').first().text()) || null;
 
   // ── Line items ───────────────────────────────────────────
   const line_items = [];
@@ -264,6 +288,12 @@ function parseInvoiceDetailHtml(html) {
       }
       const cell = (i) => (i >= 0 && i < $tds.length) ? clean($tds.eq(i).text()) : '';
       const parsedDescription = parseDescriptionCell($tds.eq(colOrFallback('description', 1)));
+      if (!property_address && parsedDescription.detailsText) {
+        const propertyMatch = parsedDescription.detailsText.match(/^Property Address:\s*(.+)$/i);
+        if (propertyMatch) {
+          property_address = clean(propertyMatch[1]);
+        }
+      }
       // Positional fallback when no header (date, description, rate, qty, hours, tax, total)
       const item = {
         service_date:    colByLabel.date != null ? parseDate(cell(colOrFallback('date', 0))) : parsedDescription.service_date,
@@ -303,6 +333,24 @@ function parseInvoiceDetailHtml(html) {
   // Sometimes subtotal is omitted from the totals table — derive it.
   if (subtotal == null && total != null && tax_amount != null) {
     subtotal = Math.max(0, total - tax_amount);
+  }
+
+  if (!property_address) {
+    const rawHtmlPropertyMatch = String(html).match(/Property Address:\s*([^<\r\n]+)/i);
+    if (rawHtmlPropertyMatch) {
+      property_address = clean(rawHtmlPropertyMatch[1]);
+    }
+  }
+
+  if (!property_address) {
+    const bodyPropertyMatch = clean($('body').text()).match(/Property Address:\s*(.+?)(?=(?:Invoice #|Invoice Date|Description|Subtotal|Tax|Total|Amount Due)\b)/i);
+    if (bodyPropertyMatch) {
+      property_address = clean(bodyPropertyMatch[1]);
+    }
+  }
+
+  if (!property_address) {
+    property_address = customer_address || null;
   }
 
   const labelValues = collectLabelValues($);

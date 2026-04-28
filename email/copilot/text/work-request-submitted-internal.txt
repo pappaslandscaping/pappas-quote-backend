@@ -1,5 +1,5 @@
-New work request from {{CUSTOMER_NAME}}.
+{{CUSTOMER_NAME}} submitted a work request.
 
-Review {{CUSTOMER_FIRST_NAME}}'s work request in Copilot.
-Prepare pricing or an estimate if needed.
-Follow up with {{CUSTOMER_FIRST_NAME}}.
+Please review {{CUSTOMER_FIRST_NAME}}'s request in Copilot, prepare pricing or an estimate if needed, and follow up.
+
+{{COMPANY_NAME}}

@@ -455,10 +455,23 @@ function deriveMailFinancials({ subtotal, tax_amount, total, lineItems, metadata
   );
   const metadataAccountDue = parseMailMoney(metadataObject.total_due_on_account ?? metadataObject.total_due);
   const metadataOutstanding = parseMailMoney(metadataObject.outstanding_balance);
+  const metadataThisInvoice = parseMailMoney(metadataObject.this_invoice);
+  const storedOutstandingIsPriorBalance = (
+    metadataOutstanding !== null
+    && metadataOutstanding > 0
+    && metadataThisInvoice !== null
+    && Math.abs(metadataThisInvoice - normalizedTotal) <= 0.02
+    && (
+      metadataAccountDue === null
+      || Math.abs(metadataAccountDue - roundMailMoney(metadataThisInvoice + metadataOutstanding)) <= 0.02
+    )
+  );
 
   let priorBalance = 0;
   if (explicitPriorBalance !== null && explicitPriorBalance > 0) {
     priorBalance = roundMailMoney(explicitPriorBalance);
+  } else if (storedOutstandingIsPriorBalance) {
+    priorBalance = roundMailMoney(metadataOutstanding);
   } else if (metadataAccountDue !== null && metadataAccountDue > normalizedTotal + 0.009) {
     priorBalance = roundMailMoney(metadataAccountDue - normalizedTotal);
   } else if (metadataOutstanding !== null && metadataOutstanding > normalizedTotal + 0.009) {

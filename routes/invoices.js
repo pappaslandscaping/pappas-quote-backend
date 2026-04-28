@@ -527,15 +527,16 @@ async function attachMailPriorBalances(rows) {
 
   for (const row of list) {
     const metadata = parseJsonObject(row.external_metadata || row.metadata);
-    const hasStoredPriorBalance = [
-      metadata.prior_balance,
-      metadata.previous_balance,
-      metadata.past_due_balance,
-      metadata.outstanding_balance,
-      metadata.total_due_on_account,
-    ].some((value) => parseMailMoney(value) !== null);
+    const lineItems = parseJsonArray(row.line_items);
+    const existingFinancials = deriveMailFinancials({
+      subtotal: row.subtotal,
+      tax_amount: row.tax_amount,
+      total: row.total,
+      lineItems,
+      metadata,
+    });
 
-    if (hasStoredPriorBalance) {
+    if (existingFinancials.priorBalance > 0) {
       enriched.push(row);
       continue;
     }

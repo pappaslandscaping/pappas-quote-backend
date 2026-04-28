@@ -519,6 +519,76 @@ function buildMailInvoicePayload(row) {
   };
 }
 
+async function attachMailPriorBalances(rows) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!list.length) return list;
+
+  const enriched = [];
+
+  for (const row of list) {
+    const metadata = parseJsonObject(row.external_metadata || row.metadata);
+    const hasStoredPriorBalance = [
+      metadata.prior_balance,
+      metadata.previous_balance,
+      metadata.past_due_balance,
+      metadata.outstanding_balance,
+      metadata.total_due_on_account,
+    ].some((value) => parseMailMoney(value) !== null);
+
+    if (hasStoredPriorBalance) {
+      enriched.push(row);
+      continue;
+    }
+
+    const copilotCustomerId = String(metadata.copilot_customer_id || '').trim();
+    let priorBalance = null;
+
+    if (row.customer_id) {
+      const result = await pool.query(
+        `SELECT COALESCE(SUM(GREATEST(COALESCE(total, 0) - COALESCE(amount_paid, 0), 0)), 0) AS prior_balance
+           FROM invoices
+          WHERE customer_id = $1
+            AND id <> $2
+            AND COALESCE(total, 0) > COALESCE(amount_paid, 0)
+            AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')`,
+        [row.customer_id, row.id]
+      );
+      priorBalance = parseMailMoney(result.rows[0]?.prior_balance);
+    } else if (copilotCustomerId) {
+      const result = await pool.query(
+        `SELECT COALESCE(SUM(GREATEST(COALESCE(total, 0) - COALESCE(amount_paid, 0), 0)), 0) AS prior_balance
+           FROM invoices
+          WHERE external_metadata->>'copilot_customer_id' = $1
+            AND id <> $2
+            AND COALESCE(total, 0) > COALESCE(amount_paid, 0)
+            AND COALESCE(status, 'draft') NOT IN ('paid', 'void', 'draft')`,
+        [copilotCustomerId, row.id]
+      );
+      priorBalance = parseMailMoney(result.rows[0]?.prior_balance);
+    }
+
+    if (priorBalance === null || priorBalance <= 0) {
+      enriched.push(row);
+      continue;
+    }
+
+    const total = parseMailMoney(row.total) ?? 0;
+    enriched.push({
+      ...row,
+      external_metadata: {
+        ...metadata,
+        prior_balance: roundMailMoney(priorBalance),
+        outstanding_balance: roundMailMoney(priorBalance),
+        this_invoice: parseMailMoney(metadata.this_invoice) ?? total,
+        total_due: roundMailMoney(total + priorBalance),
+        total_due_on_account: roundMailMoney(total + priorBalance),
+      },
+    });
+  }
+
+  return enriched;
+}
+
 async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
   const copilotRows = list.filter((row) => row.external_source === 'copilotcrm' || row.external_invoice_id);
@@ -529,7 +599,7 @@ async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
       },
     });
   });
-  if (!copilotRows.length) return list;
+  if (!copilotRows.length) return attachMailPriorBalances(list);
 
   let settings = null;
   try {
@@ -537,7 +607,7 @@ async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
   } catch (error) {
     if (!tolerateErrors) throw error;
     console.error('Mail invoice refresh: failed loading Copilot settings:', error);
-    return list;
+    return attachMailPriorBalances(list);
   }
 
   copilotRows.forEach((row) => {
@@ -548,7 +618,7 @@ async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
     });
   });
 
-  if (!settings?.cookies) return list;
+  if (!settings?.cookies) return attachMailPriorBalances(list);
 
   const byId = new Map(list.map((row) => [row.id, row]));
   for (const row of copilotRows) {
@@ -581,7 +651,7 @@ async function refreshMailInvoiceRows(rows, { tolerateErrors = true } = {}) {
     }
   }
 
-  return list.map((row) => byId.get(row.id) || row);
+  return attachMailPriorBalances(list.map((row) => byId.get(row.id) || row));
 }
 
 async function loadInvoicesForMailBatch({ invoiceIds, status, search, mailed = 'unmailed', limit = 200 } = {}) {

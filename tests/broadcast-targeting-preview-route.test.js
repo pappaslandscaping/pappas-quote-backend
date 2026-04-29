@@ -308,4 +308,105 @@ describe('broadcast preview targeting query', () => {
       body: 'Reminder: mowing & weed control | mowing at 123 Main St and weed control at 123 Main St',
     }));
   });
+
+  test('does not leak services_list tag when no job details are found', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 42,
+            name: 'Jane Customer',
+            first_name: 'Jane',
+            email: null,
+            mobile: '4405551212',
+            phone: null,
+            street: '123 Main St',
+            city: 'Lakewood',
+            state: 'OH',
+            postal_code: '44107',
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    const { router, twilioCreate } = buildRouterWithQuerySpy({
+      pool,
+      liveJobsPayload: { jobs: [] },
+    });
+
+    const res = await invokeRoute(router, '/api/broadcasts/send', 'post', {
+      body: {
+        channel: 'sms',
+        sms_body: 'Reminder: {services_list} {service_type}',
+        customer_ids: [42],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(twilioCreate).toHaveBeenCalledWith(expect.objectContaining({
+      body: 'Reminder:  ',
+    }));
+  });
+
+  test('deduplicates service_type values when customer has multiple same-service live jobs', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 42,
+            name: 'Jane Customer',
+            first_name: 'Jane',
+            email: null,
+            mobile: '4405551212',
+            phone: null,
+            street: '123 Main St',
+            city: 'Lakewood',
+            state: 'OH',
+            postal_code: '44107',
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              service_type: 'Mowing',
+              address: '123 Main St, Lakewood, OH 44107',
+              service_price: '55.00',
+              job_date: '2026-04-30',
+            },
+            {
+              service_type: 'Mowing',
+              address: '456 Oak St, Lakewood, OH 44107',
+              service_price: '55.00',
+              job_date: '2026-04-30',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    const { router, twilioCreate } = buildRouterWithQuerySpy({
+      pool,
+      liveJobsPayload: {
+        jobs: [
+          { id: 'copilot:2026-04-30:visit-1', service_date: '2026-04-30' },
+          { id: 'copilot:2026-04-30:visit-2', service_date: '2026-04-30' },
+        ],
+      },
+    });
+
+    const res = await invokeRoute(router, '/api/broadcasts/send', 'post', {
+      body: {
+        channel: 'sms',
+        sms_body: 'Types: {service_type}. Jobs: {services_list}',
+        customer_ids: [42],
+        job_date: '2026-04-30',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(twilioCreate).toHaveBeenCalledWith(expect.objectContaining({
+      body: 'Types: mowing. Jobs: mowing at 123 Main St and mowing at 456 Oak St',
+    }));
+  });
 });

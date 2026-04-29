@@ -430,6 +430,12 @@ function formatBroadcastServiceTypeTag(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function uniqueBroadcastServiceTypes(jobs = []) {
+  return [...new Set(
+    jobs.map((job) => formatBroadcastServiceTypeTag(job?.service_type)).filter(Boolean)
+  )];
+}
+
 async function ensureBroadcastCustomersForLiveDate(pool, jobDate) {
   if (!jobDate) return { inserted: 0, candidates: 0 };
 
@@ -1827,7 +1833,13 @@ router.post('/api/broadcasts/send', async (req, res) => {
         portal_link: `${baseUrl}/customer-portal.html`,
         yard_sign_yes_link: yardSignVars.yard_sign_yes_link,
         yard_sign_no_link: yardSignVars.yard_sign_no_link,
-        unsubscribe_email: encodeURIComponent(cust.email || '')
+        unsubscribe_email: encodeURIComponent(cust.email || ''),
+        service_type: '',
+        service_list: '',
+        services_list: '',
+        service_price: '',
+        job_date: '',
+        address: [cust.street, cust.city, cust.state, cust.postal_code].filter(Boolean).join(', ')
       };
 
       // If job_date provided, look up ALL job details for this customer on that date
@@ -1856,7 +1868,7 @@ router.post('/api/broadcasts/send', async (req, res) => {
               });
               vars.service_list = jobParts.join(' and ');
               vars.services_list = vars.service_list;
-              vars.service_type = jobs.map(j => formatBroadcastServiceTypeTag(j.service_type)).join(' & ');
+              vars.service_type = uniqueBroadcastServiceTypes(jobs).join(' & ');
               vars.address = jobs.map(j => {
                 const fa = j.address || vars.customer_address || '';
                 return fa.split(',')[0].trim();

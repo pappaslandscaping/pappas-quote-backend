@@ -512,6 +512,15 @@ async function attachMailPriorBalances(rows) {
       metadata,
     });
 
+    const hasLiveCustomerStanding = (
+      parseMailMoney(metadata.customer_past_due_balance ?? metadata.past_due_balance ?? metadata.prior_balance) !== null
+      || parseMailMoney(metadata.customer_outstanding_balance ?? metadata.total_due_on_account ?? metadata.total_due) !== null
+    );
+    if (hasLiveCustomerStanding) {
+      enriched.push(row);
+      continue;
+    }
+
     const copilotCustomerId = String(metadata.copilot_customer_id || '').trim();
     let priorBalance = null;
 

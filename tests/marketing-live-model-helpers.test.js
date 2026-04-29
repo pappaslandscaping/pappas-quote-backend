@@ -65,6 +65,22 @@ describe('marketing live-model helpers', () => {
     expect(pool.query.mock.calls[1][0]).toContain('FROM scheduled_jobs');
   });
 
+  test('broadcast send-time job lookup skips scheduled_jobs fallback when live date is authoritative', async () => {
+    const pool = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+
+    const jobs = await lookupBroadcastJobsForCustomerOnDate(pool, 77, '2026-04-30', {
+      hasLiveJobsForDate: true,
+    });
+
+    expect(jobs).toEqual([]);
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(pool.query.mock.calls[0][0]).toContain('FROM copilot_live_jobs clj');
+  });
+
   test('campaign active-segment query prefers live jobs with scheduled fallback', () => {
     const sql = buildActiveCampaignCustomerQuery();
 

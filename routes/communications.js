@@ -173,6 +173,19 @@ function getBroadcastFilterSummary(filters) {
 }
 
 function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDateClause }) {
+  const liveCondition = buildBroadcastLiveCustomerActivityCondition({ liveDateClause });
+  return `(
+    ${liveCondition}
+    OR EXISTS (
+      SELECT 1
+      FROM scheduled_jobs sj
+      WHERE sj.customer_id = c.id
+        AND ${scheduledDateClause}
+    )
+  )`;
+}
+
+function buildBroadcastLiveCustomerActivityCondition({ liveDateClause }) {
   const resolvedLiveCustomerId = 'COALESCE(yjo.customer_link_id, live_customer.id)';
   const liveCustomerMatch = `(
     ${resolvedLiveCustomerId} = c.id
@@ -182,8 +195,7 @@ function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDate
     )
   )`;
 
-  return `(
-    EXISTS (
+  return `EXISTS (
       SELECT 1
       FROM copilot_live_jobs clj
       LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
@@ -194,14 +206,7 @@ function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDate
       WHERE clj.source_deleted_at IS NULL
         AND ${liveCustomerMatch}
         AND ${liveDateClause}
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM scheduled_jobs sj
-      WHERE sj.customer_id = c.id
-        AND ${scheduledDateClause}
-    )
-  )`;
+    )`;
 }
 
 function normalizeBroadcastServiceFrequency(value) {
@@ -418,7 +423,11 @@ function buildBroadcastServiceMatchDetailsQuery() {
   `;
 }
 
-async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
+function formatBroadcastServiceTypeTag(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, { hasLiveJobsForDate = false } = {}) {
   if (!customerId || !jobDate) return [];
 
   const liveResult = await pool.query(
@@ -456,6 +465,10 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
     return liveResult.rows;
   }
 
+  if (hasLiveJobsForDate) {
+    return [];
+  }
+
   const scheduledResult = await pool.query(
     `SELECT service_type, address, service_price, job_date
      FROM scheduled_jobs
@@ -471,19 +484,24 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
   const router = express.Router();
 
   async function refreshBroadcastLiveJobsForDate(jobDate) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(jobDate || ''))) return;
-    if (typeof liveJobsProvider !== 'function') return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(jobDate || ''))) return false;
+    if (typeof liveJobsProvider !== 'function') return false;
 
     try {
-      await liveJobsProvider({
+      const livePayload = await liveJobsProvider({
         poolClient: pool,
         date: jobDate,
         startDate: jobDate,
         endDate: jobDate,
         fetchImpl,
       });
+      return (livePayload?.jobs || []).some((job) => {
+        const serviceDate = job?.service_date || job?.job_date || null;
+        return serviceDate === jobDate && !job?.hold_from_dispatch && !job?.source_deleted;
+      });
     } catch (error) {
       console.warn(`Broadcast live job refresh fell back to existing mirror for ${jobDate}:`, error?.message || error);
+      return false;
     }
   }
 
@@ -1470,9 +1488,9 @@ router.post('/api/broadcasts/preview', async (req, res) => {
     const params = [];
     let paramIdx = 1;
 
-    if (filters.job_date) {
-      await refreshBroadcastLiveJobsForDate(filters.job_date);
-    }
+    const hasLiveJobsForJobDate = filters.job_date
+      ? await refreshBroadcastLiveJobsForDate(filters.job_date)
+      : false;
 
     // Tags filter (comma-separated text field, match ANY of the provided tags)
     if (filters.tags && filters.tags.length > 0) {
@@ -1563,12 +1581,18 @@ router.post('/api/broadcasts/preview', async (req, res) => {
     if (filters.job_date) {
       params.push(filters.job_date);
       const liveJobDatePlaceholder = `$${paramIdx++}`;
-      params.push(filters.job_date);
-      const scheduledJobDatePlaceholder = `$${paramIdx++}`;
-      conditions.push(buildBroadcastCustomerActivityCondition({
-        liveDateClause: `clj.service_date = ${liveJobDatePlaceholder}::date`,
-        scheduledDateClause: `sj.job_date::date = ${scheduledJobDatePlaceholder}::date`
-      }));
+      if (hasLiveJobsForJobDate) {
+        conditions.push(buildBroadcastLiveCustomerActivityCondition({
+          liveDateClause: `clj.service_date = ${liveJobDatePlaceholder}::date`
+        }));
+      } else {
+        params.push(filters.job_date);
+        const scheduledJobDatePlaceholder = `$${paramIdx++}`;
+        conditions.push(buildBroadcastCustomerActivityCondition({
+          liveDateClause: `clj.service_date = ${liveJobDatePlaceholder}::date`,
+          scheduledDateClause: `sj.job_date::date = ${scheduledJobDatePlaceholder}::date`
+        }));
+      }
     }
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
@@ -1707,9 +1731,9 @@ router.post('/api/broadcasts/send', async (req, res) => {
     const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
 
-    if (job_date) {
-      await refreshBroadcastLiveJobsForDate(job_date);
-    }
+    const hasLiveJobsForJobDate = job_date
+      ? await refreshBroadcastLiveJobsForDate(job_date)
+      : false;
 
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
@@ -1737,12 +1761,14 @@ router.post('/api/broadcasts/send', async (req, res) => {
       // If job_date provided, look up ALL job details for this customer on that date
       if (job_date) {
         try {
-          const jobs = await lookupBroadcastJobsForCustomerOnDate(pool, cust.id, job_date);
+          const jobs = await lookupBroadcastJobsForCustomerOnDate(pool, cust.id, job_date, {
+            hasLiveJobsForDate: hasLiveJobsForJobDate,
+          });
           if (jobs.length > 0) {
             if (jobs.length === 1) {
               // Single job — keep simple format
               const job = jobs[0];
-              vars.service_type = job.service_type || '';
+              vars.service_type = formatBroadcastServiceTypeTag(job.service_type);
               const fullAddr = job.address || vars.customer_address || '';
               vars.address = fullAddr.split(',')[0].trim();
               vars.service_list = `${vars.service_type} at ${vars.address}`;
@@ -1751,14 +1777,14 @@ router.post('/api/broadcasts/send', async (req, res) => {
             } else {
               // Multiple jobs — build "Mowing at 123 Main St and Spring Cleanup at 456 Oak Ave"
               const jobParts = jobs.map(j => {
-                const svc = j.service_type || '';
+                const svc = formatBroadcastServiceTypeTag(j.service_type);
                 const fa = j.address || vars.customer_address || '';
                 const street = fa.split(',')[0].trim();
                 return `${svc} at ${street}`;
               });
               vars.service_list = jobParts.join(' and ');
               vars.services_list = vars.service_list;
-              vars.service_type = jobs.map(j => j.service_type || '').join(' & ');
+              vars.service_type = jobs.map(j => formatBroadcastServiceTypeTag(j.service_type)).join(' & ');
               vars.address = jobs.map(j => {
                 const fa = j.address || vars.customer_address || '';
                 return fa.split(',')[0].trim();

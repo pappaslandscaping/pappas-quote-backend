@@ -51,6 +51,7 @@ function runAssertions() {
   assert(html.includes('height: 1.04in;'));
   assert(html.includes('class="stub-panel"'));
   assert(html.includes('height: 3.875in;'));
+  assert(html.includes('padding-bottom: 0.08in;'));
   assert(html.includes('class="stub-address-window stub-customer-window"'));
   assert(html.includes('left: 0.50in;'));
   assert(html.includes('bottom: 2.13in;'));

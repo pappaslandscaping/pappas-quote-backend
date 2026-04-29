@@ -137,6 +137,7 @@ function toDbValues(row, customerId) {
 // notes, terms, and the more-accurate subtotal from the totals table.
 function toDbValuesFromDetail(detail, customerId) {
   const metadata = {
+    ...(detail.metadata || {}),
     copilot_customer_id: detail.copilot_customer_id || null,
     property_name:       detail.property_name       || null,
     property_address:    detail.property_address    || null,

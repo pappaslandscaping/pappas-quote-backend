@@ -11,6 +11,9 @@ const {
   renderCompiledCopilotTemplate,
   isCompiledCopilotTemplateSlug
 } = require('../lib/compiled-copilot-templates');
+const {
+  getCopilotLiveJobs,
+} = require('../services/copilot/live-jobs');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -170,6 +173,15 @@ function getBroadcastFilterSummary(filters) {
 }
 
 function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDateClause }) {
+  const resolvedLiveCustomerId = 'COALESCE(yjo.customer_link_id, live_customer.id)';
+  const liveCustomerMatch = `(
+    ${resolvedLiveCustomerId} = c.id
+    OR (
+      ${resolvedLiveCustomerId} IS NULL
+      AND LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(c.name, '')))
+    )
+  )`;
+
   return `(
     EXISTS (
       SELECT 1
@@ -180,7 +192,7 @@ function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDate
        AND clj.source_customer_id IS NOT NULL
        AND live_customer.customer_number = clj.source_customer_id
       WHERE clj.source_deleted_at IS NULL
-        AND COALESCE(yjo.customer_link_id, live_customer.id) = c.id
+        AND ${liveCustomerMatch}
         AND ${liveDateClause}
     )
     OR EXISTS (
@@ -426,8 +438,15 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
        ON live_customer.customer_number IS NOT NULL
       AND clj.source_customer_id IS NOT NULL
       AND live_customer.customer_number = clj.source_customer_id
+     JOIN customers target_customer ON target_customer.id = $1
      WHERE clj.source_deleted_at IS NULL
-       AND COALESCE(yjo.customer_link_id, live_customer.id) = $1
+       AND (
+         COALESCE(yjo.customer_link_id, live_customer.id) = target_customer.id
+         OR (
+           COALESCE(yjo.customer_link_id, live_customer.id) IS NULL
+           AND LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(target_customer.name, '')))
+         )
+       )
        AND clj.service_date = $2::date
      ORDER BY clj.source_event_id ASC`,
     [customerId, jobDate]
@@ -448,8 +467,25 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate) {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars, sendPushToAllDevices }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl }) {
   const router = express.Router();
+
+  async function refreshBroadcastLiveJobsForDate(jobDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(jobDate || ''))) return;
+    if (typeof liveJobsProvider !== 'function') return;
+
+    try {
+      await liveJobsProvider({
+        poolClient: pool,
+        date: jobDate,
+        startDate: jobDate,
+        endDate: jobDate,
+        fetchImpl,
+      });
+    } catch (error) {
+      console.warn(`Broadcast live job refresh fell back to existing mirror for ${jobDate}:`, error?.message || error);
+    }
+  }
 
   async function getOrCreatePortalTokenForCustomer(customerId, email) {
     const existing = await pool.query(
@@ -1434,6 +1470,10 @@ router.post('/api/broadcasts/preview', async (req, res) => {
     const params = [];
     let paramIdx = 1;
 
+    if (filters.job_date) {
+      await refreshBroadcastLiveJobsForDate(filters.job_date);
+    }
+
     // Tags filter (comma-separated text field, match ANY of the provided tags)
     if (filters.tags && filters.tags.length > 0) {
       params.push(filters.tags.map(tag => String(tag).toLowerCase()));
@@ -1666,6 +1706,10 @@ router.post('/api/broadcasts/send', async (req, res) => {
 
     const results = { email_sent: 0, email_skipped: 0, email_errors: 0, sms_sent: 0, sms_skipped: 0, sms_errors: 0 };
     const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
+
+    if (job_date) {
+      await refreshBroadcastLiveJobsForDate(job_date);
+    }
 
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';

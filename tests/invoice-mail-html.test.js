@@ -51,11 +51,11 @@ function runAssertions() {
   assert(html.includes('height: 1.04in;'));
   assert(html.includes('class="stub-panel"'));
   assert(html.includes('height: 3.875in;'));
-  assert(html.includes('class="stub-address-window stub-remit-window"'));
+  assert(html.includes('class="stub-address-window stub-customer-window"'));
   assert(html.includes('left: 0.50in;'));
   assert(html.includes('bottom: 2.13in;'));
   assert(html.includes('width: 3.24in;'));
-  assert(html.includes('class="stub-address-window stub-customer-window"'));
+  assert(html.includes('class="stub-address-window stub-remit-window"'));
   assert(html.includes('bottom: 0.50in;'));
   assert(html.includes('width: 3.72in;'));
   assert(html.indexOf('Spring Cleanup') < html.indexOf('Fuel Surcharge'));
@@ -98,6 +98,37 @@ function runAssertions() {
 
   assert(directOutstandingHtml.includes('Outstanding Balance'));
   assert(directOutstandingHtml.includes('$118.80'));
+
+  const genericReturnHtml = renderMailInvoiceHtml({
+    id: 45,
+    invoice_number: '10302',
+    invoice_date_raw: 'Apr 28, 2026',
+    customer_name: 'Return',
+    customer_address: '3855 West 150th Street\nCleveland, OH 44111',
+    property_address: '3855 West 150th Street\nCleveland, OH 44111',
+    subtotal: 180,
+    tax_amount: 14.08,
+    total: 194.08,
+    notes: '',
+    line_items: [
+      {
+        service_date_raw: '2026-04-28',
+        name: 'Landscape Service',
+        description: 'Weekly service.',
+        quantity: 1,
+        rate: 180,
+        total: 194.08,
+      },
+    ],
+    metadata: {
+      outstanding_balance: 118.8,
+      this_invoice: 194.08,
+      total_due_on_account: 312.88,
+    },
+  });
+
+  assert(!genericReturnHtml.includes('<span>Customer</span><strong>Return</strong>'));
+  assert(!genericReturnHtml.includes('>Return</strong>'));
 
   const totalDueStoredAsOutstandingHtml = renderMailInvoiceHtml({
     id: 44,

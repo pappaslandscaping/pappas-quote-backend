@@ -275,18 +275,21 @@ router.post('/api/copilot/invoices/sync', authenticateToken, async (req, res) =>
     });
 
     const synced = Array.isArray(result.synced) ? result.synced : [];
+    const skipped = Array.isArray(result.skipped) ? result.skipped : [];
     const inserted = synced.filter((row) => row.action === 'inserted').length;
     const updated = synced.filter((row) => row.action === 'updated').length;
+    const skippedDrafts = skipped.filter((row) => row.reason === 'draft').length;
 
     res.json({
       success: result.success !== false,
       total: synced.length,
       inserted,
       updated,
+      skippedDrafts,
       detailed: detail ? synced.length : 0,
       detailFetched: detail ? synced.length : 0,
       pagesScanned: Array.isArray(result.pages) ? result.pages.length : 0,
-      invoicesDiscovered: synced.length,
+      invoicesDiscovered: synced.length + skipped.length,
       errors: Array.isArray(result.errors) ? result.errors : [],
     });
   } catch (error) {

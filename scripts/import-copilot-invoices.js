@@ -39,6 +39,11 @@ let APPLY = false, QUIET = false, LINK_CUSTOMERS = false;
 function log(...a) { if (!QUIET) console.log(...a); }
 function warn(...a) { console.warn(...a); }
 
+function isDraftInvoice(row) {
+  const status = String(row?.status || row?.raw_status || '').trim().toLowerCase();
+  return status === 'draft' || status.includes('draft');
+}
+
 function listSourceFiles(p) {
   const stat = fs.statSync(p);
   if (stat.isFile()) return [p];
@@ -315,8 +320,13 @@ async function syncInvoicesToDatabase(pool, rows, { linkCustomers = false } = {}
   const uniqueRows = [...byExtId.values()];
   let inserted = 0;
   let updated = 0;
+  let skippedDrafts = 0;
 
   for (const row of uniqueRows) {
+    if (isDraftInvoice(row)) {
+      skippedDrafts += 1;
+      continue;
+    }
     const customerId = await resolveCustomerId(pool, row);
     const values = toDbValues(row, linkCustomers ? customerId : null);
     const result = await upsert(pool, values);
@@ -325,9 +335,10 @@ async function syncInvoicesToDatabase(pool, rows, { linkCustomers = false } = {}
   }
 
   return {
-    total: uniqueRows.length,
+    total: uniqueRows.length - skippedDrafts,
     inserted,
     updated,
+    skippedDrafts,
   };
 }
 
@@ -341,8 +352,13 @@ async function syncInvoiceDetailsToDatabase(pool, details, { linkCustomers = fal
   const uniqueDetails = [...byExtId.values()];
   let inserted = 0;
   let updated = 0;
+  let skippedDrafts = 0;
 
   for (const detail of uniqueDetails) {
+    if (isDraftInvoice(detail)) {
+      skippedDrafts += 1;
+      continue;
+    }
     const customerId = await resolveCustomerId(pool, detail);
     const values = toDbValuesFromDetail(detail, linkCustomers ? customerId : null);
     const result = await upsert(pool, values);
@@ -351,9 +367,10 @@ async function syncInvoiceDetailsToDatabase(pool, details, { linkCustomers = fal
   }
 
   return {
-    total: uniqueDetails.length,
+    total: uniqueDetails.length - skippedDrafts,
     inserted,
     updated,
+    skippedDrafts,
   };
 }
 

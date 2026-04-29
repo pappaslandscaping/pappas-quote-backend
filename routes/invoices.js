@@ -512,11 +512,6 @@ async function attachMailPriorBalances(rows) {
       metadata,
     });
 
-    if (existingFinancials.priorBalance > 0) {
-      enriched.push(row);
-      continue;
-    }
-
     const copilotCustomerId = String(metadata.copilot_customer_id || '').trim();
     let priorBalance = null;
 
@@ -544,7 +539,20 @@ async function attachMailPriorBalances(rows) {
       priorBalance = parseMailMoney(result.rows[0]?.prior_balance);
     }
 
+    const shouldOverrideDerivedMetadata = priorBalance !== null && (
+      Math.abs(roundMailMoney(priorBalance) - roundMailMoney(existingFinancials.priorBalance)) > 0.009
+      || (
+        parseMailMoney(metadata.prior_balance ?? metadata.previous_balance ?? metadata.past_due_balance) === null
+        && parseMailMoney(metadata.outstanding_balance) !== null
+      )
+    );
+
     if (priorBalance === null || priorBalance <= 0) {
+      enriched.push(row);
+      continue;
+    }
+
+    if (!shouldOverrideDerivedMetadata && existingFinancials.priorBalance > 0) {
       enriched.push(row);
       continue;
     }

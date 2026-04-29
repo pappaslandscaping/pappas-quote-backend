@@ -7,6 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const cheerio = require('cheerio');
+const { resolveMailAccountSummary } = require('../lib/mail-account-summary');
 const { validate, schemas } = require('../lib/validate');
 const {
   normalizeStoredInvoiceStatus,
@@ -448,44 +449,19 @@ function deriveMailFinancials({ subtotal, tax_amount, total, lineItems, metadata
   }
 
   const metadataObject = metadata && typeof metadata === 'object' ? metadata : {};
-  const explicitPriorBalance = parseMailMoney(
-    metadataObject.prior_balance
-    ?? metadataObject.previous_balance
-    ?? metadataObject.past_due_balance
-  );
-  const metadataAccountDue = parseMailMoney(metadataObject.total_due_on_account ?? metadataObject.total_due);
-  const metadataOutstanding = parseMailMoney(metadataObject.outstanding_balance);
-  const metadataThisInvoice = parseMailMoney(metadataObject.this_invoice);
-  const storedOutstandingIsPriorBalance = (
-    metadataOutstanding !== null
-    && metadataOutstanding > 0
-    && metadataThisInvoice !== null
-    && Math.abs(metadataThisInvoice - normalizedTotal) <= 0.02
-    && (
-      metadataAccountDue === null
-      || Math.abs(metadataAccountDue - roundMailMoney(metadataThisInvoice + metadataOutstanding)) <= 0.02
-    )
-  );
-
-  let priorBalance = 0;
-  if (explicitPriorBalance !== null && explicitPriorBalance > 0) {
-    priorBalance = roundMailMoney(explicitPriorBalance);
-  } else if (storedOutstandingIsPriorBalance) {
-    priorBalance = roundMailMoney(metadataOutstanding);
-  } else if (metadataAccountDue !== null && metadataAccountDue > normalizedTotal + 0.009) {
-    priorBalance = roundMailMoney(metadataAccountDue - normalizedTotal);
-  } else if (metadataOutstanding !== null && metadataOutstanding > normalizedTotal + 0.009) {
-    priorBalance = roundMailMoney(metadataOutstanding - normalizedTotal);
-  }
-
-  const totalDueOnAccount = roundMailMoney(normalizedTotal + priorBalance);
+  const accountSummary = resolveMailAccountSummary({
+    invoiceTotal: normalizedTotal,
+    metadata: metadataObject,
+    parseMoney: parseMailMoney,
+    roundMoney: roundMailMoney,
+  });
 
   return {
     subtotal: normalizedSubtotal,
     tax_amount: normalizedTax,
     total: normalizedTotal,
-    priorBalance,
-    totalDueOnAccount,
+    priorBalance: accountSummary.priorBalance,
+    totalDueOnAccount: accountSummary.totalDueOnAccount,
   };
 }
 

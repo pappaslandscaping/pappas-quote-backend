@@ -1,0 +1,35 @@
+const assert = require('assert');
+const { resolveMailAccountSummary } = require('../lib/mail-account-summary');
+
+function parseMoney(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function runAssertions() {
+  const summary = resolveMailAccountSummary({
+    invoiceTotal: 194.08,
+    metadata: {
+      outstanding_balance: 458.83,
+      this_invoice: 194.08,
+    },
+    parseMoney,
+    roundMoney,
+  });
+
+  assert.strictEqual(summary.priorBalance, 264.75);
+  assert.strictEqual(summary.thisInvoice, 194.08);
+  assert.strictEqual(summary.totalDueOnAccount, 458.83);
+}
+
+if (typeof test === 'function') {
+  test('resolveMailAccountSummary treats outstanding_balance as account total when account due is absent', runAssertions);
+} else {
+  runAssertions();
+  console.log('mail-account-summary.test.js passed');
+}

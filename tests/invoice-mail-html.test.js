@@ -80,11 +80,42 @@ function runAssertions() {
     metadata: {
       outstanding_balance: 118.8,
       this_invoice: 194.08,
+      total_due_on_account: 312.88,
     },
   });
 
   assert(directOutstandingHtml.includes('Outstanding Balance'));
   assert(directOutstandingHtml.includes('$118.80'));
+
+  const totalDueStoredAsOutstandingHtml = renderMailInvoiceHtml({
+    id: 44,
+    invoice_number: '10301',
+    invoice_date_raw: 'Apr 28, 2026',
+    customer_name: 'Superior Industrial',
+    customer_address: '3855 West 150th Street\nCleveland, OH 44111',
+    property_address: '3855 West 150th Street\nCleveland, OH 44111',
+    subtotal: 180,
+    tax_amount: 14.08,
+    total: 194.08,
+    notes: '',
+    line_items: [
+      {
+        service_date_raw: '2026-04-28',
+        name: 'Landscape Service',
+        description: 'Weekly service.',
+        quantity: 1,
+        rate: 180,
+        total: 194.08,
+      },
+    ],
+    metadata: {
+      outstanding_balance: 458.83,
+      this_invoice: 194.08,
+    },
+  });
+
+  assert(totalDueStoredAsOutstandingHtml.includes('Prior Balance</span><span>$264.75</span>'));
+  assert(totalDueStoredAsOutstandingHtml.includes('Total Due</span><span>$458.83</span>'));
 }
 
 if (typeof test === 'function') {

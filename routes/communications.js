@@ -186,12 +186,15 @@ function buildBroadcastCustomerActivityCondition({ liveDateClause, scheduledDate
 }
 
 function buildBroadcastLiveCustomerActivityCondition({ liveDateClause }) {
-  const resolvedLiveCustomerId = 'COALESCE(yjo.customer_link_id, live_customer.id)';
-  const liveCustomerMatch = `(
-    ${resolvedLiveCustomerId} = c.id
-    OR (
-      ${resolvedLiveCustomerId} IS NULL
-      AND LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(c.name, '')))
+  const resolvedLiveCustomerId = `COALESCE(
+    yjo.customer_link_id,
+    live_customer.id,
+    (
+      SELECT fallback_customer.id
+      FROM customers fallback_customer
+      WHERE LOWER(BTRIM(COALESCE(fallback_customer.name, ''))) = LOWER(BTRIM(COALESCE(clj.customer_name, '')))
+      ORDER BY fallback_customer.id ASC
+      LIMIT 1
     )
   )`;
 
@@ -204,7 +207,7 @@ function buildBroadcastLiveCustomerActivityCondition({ liveDateClause }) {
        AND clj.source_customer_id IS NOT NULL
        AND live_customer.customer_number = clj.source_customer_id
       WHERE clj.source_deleted_at IS NULL
-        AND ${liveCustomerMatch}
+        AND ${resolvedLiveCustomerId} = c.id
         AND ${liveDateClause}
     )`;
 }
@@ -427,6 +430,65 @@ function formatBroadcastServiceTypeTag(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+async function ensureBroadcastCustomersForLiveDate(pool, jobDate) {
+  if (!jobDate) return { inserted: 0, candidates: 0 };
+
+  const result = await pool.query(
+    `SELECT DISTINCT ON (clj.source_customer_id)
+       clj.source_customer_id,
+       clj.customer_name,
+       COALESCE(yjo.address_override, clj.address_raw) AS address
+     FROM copilot_live_jobs clj
+     LEFT JOIN yarddesk_job_overlays yjo ON yjo.job_key = clj.job_key
+     LEFT JOIN customers by_number
+       ON by_number.customer_number IS NOT NULL
+      AND clj.source_customer_id IS NOT NULL
+      AND by_number.customer_number = clj.source_customer_id
+     LEFT JOIN customers by_name
+       ON LOWER(BTRIM(COALESCE(by_name.name, ''))) = LOWER(BTRIM(COALESCE(clj.customer_name, '')))
+     WHERE clj.source_deleted_at IS NULL
+       AND clj.service_date = $1::date
+       AND clj.source_customer_id IS NOT NULL
+       AND BTRIM(COALESCE(clj.customer_name, '')) != ''
+       AND by_number.id IS NULL
+       AND by_name.id IS NULL
+     ORDER BY clj.source_customer_id, clj.customer_name ASC`,
+    [jobDate]
+  );
+
+  let inserted = 0;
+  for (const row of result.rows) {
+    await pool.query(
+      `INSERT INTO customers (
+         customer_number,
+         name,
+         status,
+         customer_type,
+         street,
+         tags,
+         notes,
+         created_at,
+         updated_at
+       )
+       SELECT $1::text, $2::text, 'active', 'customer', $3::text, 'copilot-live', $4::text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+       WHERE NOT EXISTS (
+         SELECT 1 FROM customers
+         WHERE customer_number = $1::text
+            OR LOWER(BTRIM(COALESCE(name, ''))) = LOWER(BTRIM($2::text))
+       )`,
+      [
+        row.source_customer_id,
+        row.customer_name,
+        row.address || null,
+        `Created from live Copilot dispatch job scheduled ${jobDate}`,
+      ]
+    );
+    inserted += 1;
+  }
+
+  return { inserted, candidates: result.rows.length };
+}
+
 async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, { hasLiveJobsForDate = false } = {}) {
   if (!customerId || !jobDate) return [];
 
@@ -449,13 +511,17 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
       AND live_customer.customer_number = clj.source_customer_id
      JOIN customers target_customer ON target_customer.id = $1
      WHERE clj.source_deleted_at IS NULL
-       AND (
-         COALESCE(yjo.customer_link_id, live_customer.id) = target_customer.id
-         OR (
-           COALESCE(yjo.customer_link_id, live_customer.id) IS NULL
-           AND LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(target_customer.name, '')))
+       AND COALESCE(
+         yjo.customer_link_id,
+         live_customer.id,
+         (
+           SELECT fallback_customer.id
+           FROM customers fallback_customer
+           WHERE LOWER(BTRIM(COALESCE(fallback_customer.name, ''))) = LOWER(BTRIM(COALESCE(clj.customer_name, '')))
+           ORDER BY fallback_customer.id ASC
+           LIMIT 1
          )
-       )
+       ) = target_customer.id
        AND clj.service_date = $2::date
      ORDER BY clj.source_event_id ASC`,
     [customerId, jobDate]
@@ -1491,6 +1557,9 @@ router.post('/api/broadcasts/preview', async (req, res) => {
     const hasLiveJobsForJobDate = filters.job_date
       ? await refreshBroadcastLiveJobsForDate(filters.job_date)
       : false;
+    if (hasLiveJobsForJobDate) {
+      await ensureBroadcastCustomersForLiveDate(pool, filters.job_date);
+    }
 
     // Tags filter (comma-separated text field, match ANY of the provided tags)
     if (filters.tags && filters.tags.length > 0) {
@@ -1734,6 +1803,9 @@ router.post('/api/broadcasts/send', async (req, res) => {
     const hasLiveJobsForJobDate = job_date
       ? await refreshBroadcastLiveJobsForDate(job_date)
       : false;
+    if (hasLiveJobsForJobDate) {
+      await ensureBroadcastCustomersForLiveDate(pool, job_date);
+    }
 
     for (const cust of custResult.rows) {
       const custName = cust.name || ((cust.first_name || '') + (cust.last_name ? ' ' + cust.last_name : '')).trim() || 'Unknown';
@@ -1955,6 +2027,7 @@ createCommunicationRoutes._helpers = {
   getBroadcastInclusionReasons,
   getBroadcastFilterSummary,
   buildBroadcastCustomerActivityCondition,
+  ensureBroadcastCustomersForLiveDate,
   lookupBroadcastJobsForCustomerOnDate
 };
 

@@ -5,6 +5,7 @@ const {
   renderEnvelope9ReturnPdf,
   renderMailBatchInsertPdf,
 } = require('../lib/mail-assets-pdf');
+const { MAIL_WINDOW_SPEC, RETURN_ENVELOPE9_SPEC } = require('../lib/mail-window-spec');
 
 const sampleInvoice = {
   id: 42,
@@ -46,6 +47,10 @@ async function runAssertions() {
   assert.strictEqual(envelope10Doc.getPageCount(), 1);
   assert.strictEqual(envelope9Doc.getPageCount(), 1);
   assert.strictEqual(batchDoc.getPageCount(), 4);
+  assert.strictEqual(Math.round(envelope10Doc.getPage(0).getWidth()), Math.round(MAIL_WINDOW_SPEC.envelope.widthIn * 72));
+  assert.strictEqual(Math.round(envelope10Doc.getPage(0).getHeight()), Math.round(MAIL_WINDOW_SPEC.envelope.heightIn * 72));
+  assert.strictEqual(Math.round(envelope9Doc.getPage(0).getWidth()), Math.round(RETURN_ENVELOPE9_SPEC.envelope.widthIn * 72));
+  assert.strictEqual(Math.round(envelope9Doc.getPage(0).getHeight()), Math.round(RETURN_ENVELOPE9_SPEC.envelope.heightIn * 72));
 }
 
 if (typeof test === 'function') {

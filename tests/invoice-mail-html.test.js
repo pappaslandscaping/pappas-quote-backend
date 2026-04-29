@@ -49,6 +49,15 @@ function runAssertions() {
   assert(html.includes('left: 0.40in;'));
   assert(html.includes('top: 2.16in;'));
   assert(html.includes('height: 1.04in;'));
+  assert(html.includes('class="stub-panel"'));
+  assert(html.includes('height: 3.875in;'));
+  assert(html.includes('class="stub-address-window stub-remit-window"'));
+  assert(html.includes('left: 0.50in;'));
+  assert(html.includes('bottom: 2.13in;'));
+  assert(html.includes('width: 3.24in;'));
+  assert(html.includes('class="stub-address-window stub-customer-window"'));
+  assert(html.includes('bottom: 0.50in;'));
+  assert(html.includes('width: 3.72in;'));
   assert(html.indexOf('Spring Cleanup') < html.indexOf('Fuel Surcharge'));
   assert(html.includes('$250.00'));
 

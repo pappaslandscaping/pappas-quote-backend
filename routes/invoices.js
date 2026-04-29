@@ -475,15 +475,24 @@ function buildMailInvoicePayload(row) {
     lineItems,
     metadata,
   });
+  const customerName = row.customer_name
+    || row.invoice_customer_name
+    || row.linked_customer_name
+    || metadata.customer_name
+    || '';
+  const invoiceDate = metadata.invoice_date
+    || metadata.invoice_date_raw
+    || row.invoice_date
+    || row.created_at;
 
   return {
     ...row,
     subtotal: financials.subtotal,
     tax_amount: financials.tax_amount,
     total: financials.total,
-    customer_name: row.customer_name || row.invoice_customer_name || row.linked_customer_name || '',
+    customer_name: customerName,
     property_address: metadata.property_address || metadata.property_name || metadata.address || row.customer_address || '',
-    invoice_date_raw: formatMailDate(row.created_at),
+    invoice_date_raw: formatMailDate(invoiceDate),
     line_items: lineItems,
     metadata: {
       ...metadata,

@@ -4207,6 +4207,29 @@ router.post('/api/invoices/:id/mark-paid', async (req, res) => {
 // One-time cleanup of junk placeholder drafts. Targets ONLY rows where:
 //   status = 'draft' AND blank customer_name AND total = 0 AND no line_items.
 // Defaults to dry-run; pass { confirm: true } to actually delete.
+async function detachInvoiceReferences(invoiceIds) {
+  const ids = (Array.isArray(invoiceIds) ? invoiceIds : [invoiceIds])
+    .map((value) => Number.parseInt(value, 10))
+    .filter(Number.isInteger);
+  if (!ids.length) return;
+
+  const cleanupSteps = [
+    { label: 'payments', sql: 'DELETE FROM payments WHERE invoice_id = ANY($1::int[])' },
+    { label: 'late_fees', sql: 'DELETE FROM late_fees WHERE invoice_id = ANY($1::int[])' },
+    { label: 'recurring_invoice_log', sql: 'DELETE FROM recurring_invoice_log WHERE invoice_id = ANY($1::int[])' },
+    { label: 'scheduled_jobs', sql: 'UPDATE scheduled_jobs SET invoice_id = NULL WHERE invoice_id = ANY($1::int[])' },
+    { label: 'email_log', sql: 'UPDATE email_log SET invoice_id = NULL WHERE invoice_id = ANY($1::int[])' },
+  ];
+
+  for (const step of cleanupSteps) {
+    try {
+      await pool.query(step.sql, [ids]);
+    } catch (error) {
+      console.warn(`Invoice cleanup skipped ${step.label}:`, error.message);
+    }
+  }
+}
+
 router.post('/api/invoices/cleanup-blank-drafts', async (req, res) => {
   try {
     const confirm = req.body && req.body.confirm === true;
@@ -4228,9 +4251,7 @@ router.post('/api/invoices/cleanup-blank-drafts', async (req, res) => {
     }
     const ids = candidates.rows.map(r => r.id);
     if (ids.length === 0) return res.json({ success: true, deleted: 0 });
-    // Detach payments first to satisfy FK; junk drafts shouldn't have any
-    // but be safe.
-    try { await pool.query('DELETE FROM payments WHERE invoice_id = ANY($1::int[])', [ids]); } catch (e) {}
+    await detachInvoiceReferences(ids);
     const del = await pool.query('DELETE FROM invoices WHERE id = ANY($1::int[]) RETURNING id', [ids]);
     res.json({ success: true, deleted: del.rowCount });
   } catch (error) {
@@ -4242,8 +4263,7 @@ router.post('/api/invoices/cleanup-blank-drafts', async (req, res) => {
 // DELETE /api/invoices/:id - Delete invoice
 router.delete('/api/invoices/:id', async (req, res) => {
   try {
-    // Delete related payments first to avoid foreign key constraint
-    try { await pool.query('DELETE FROM payments WHERE invoice_id = $1', [req.params.id]); } catch(e) { /* */ }
+    await detachInvoiceReferences(req.params.id);
     const r = await pool.query('DELETE FROM invoices WHERE id = $1 RETURNING id', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true });

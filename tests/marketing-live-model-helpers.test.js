@@ -2,6 +2,7 @@ const createCommunicationRoutes = require('../routes/communications');
 const createCampaignRoutes = require('../routes/campaigns');
 
 const {
+  ensureBroadcastCustomersForLiveDate,
   lookupBroadcastJobsForCustomerOnDate,
 } = createCommunicationRoutes._helpers;
 
@@ -10,6 +11,43 @@ const {
 } = createCampaignRoutes._helpers;
 
 describe('marketing live-model helpers', () => {
+  test('creates minimal backend customers for unmatched live Copilot dispatch customers', async () => {
+    const pool = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              source_customer_id: '2684725',
+              customer_name: 'Ron Wacker',
+              address: '11508 Lake Avenue Cleveland OH 44102, US',
+            },
+            {
+              source_customer_id: '2640566',
+              customer_name: 'Sue Moody',
+              address: '1617 Riverside Drive Lakewood OH 44107, US',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] }),
+    };
+
+    const result = await ensureBroadcastCustomersForLiveDate(pool, '2026-04-30');
+
+    expect(result).toEqual({ inserted: 2, candidates: 2 });
+    expect(pool.query).toHaveBeenCalledTimes(3);
+    expect(pool.query.mock.calls[0][0]).toContain('FROM copilot_live_jobs clj');
+    expect(pool.query.mock.calls[1][0]).toContain('INSERT INTO customers');
+    expect(pool.query.mock.calls[1][0]).toContain('customer_number = $1::text');
+    expect(pool.query.mock.calls[1][1]).toEqual([
+      '2684725',
+      'Ron Wacker',
+      '11508 Lake Avenue Cleveland OH 44102, US',
+      'Created from live Copilot dispatch job scheduled 2026-04-30',
+    ]);
+  });
+
   test('broadcast send-time job lookup prefers live jobs before scheduled_jobs fallback', async () => {
     const pool = {
       query: jest
@@ -37,8 +75,8 @@ describe('marketing live-model helpers', () => {
     });
     expect(pool.query).toHaveBeenCalledTimes(1);
     expect(pool.query.mock.calls[0][0]).toContain('FROM copilot_live_jobs clj');
-    expect(pool.query.mock.calls[0][0]).toContain('COALESCE(yjo.customer_link_id, live_customer.id) = target_customer.id');
-    expect(pool.query.mock.calls[0][0]).toContain("LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(target_customer.name, '')))");
+    expect(pool.query.mock.calls[0][0]).toContain('SELECT fallback_customer.id');
+    expect(pool.query.mock.calls[0][0]).toContain('ORDER BY fallback_customer.id ASC');
   });
 
   test('broadcast send-time job lookup falls back to scheduled_jobs when live linkage is missing', async () => {

@@ -144,11 +144,32 @@ describe('broadcast preview targeting query', () => {
     }));
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toContain('FROM copilot_live_jobs clj');
-    expect(sql).toContain('COALESCE(yjo.customer_link_id, live_customer.id) = c.id');
-    expect(sql).toContain("LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(c.name, '')))");
+    expect(sql).toContain('SELECT fallback_customer.id');
     expect(sql).toContain('clj.service_date = $1::date');
     expect(sql).toContain('sj.job_date::date = $2::date');
     expect(params).toEqual(['2026-04-20', '2026-04-20']);
+  });
+
+  test('live customer name fallback resolves to one backend customer instead of broad name matches', async () => {
+    const { pool, router } = buildRouterWithQuerySpy({
+      liveJobsPayload: {
+        jobs: [{ id: 'copilot:2026-04-30:visit-1', service_date: '2026-04-30' }],
+        freshness: { source: 'live' },
+      },
+    });
+
+    const res = await invokeRoute(router, '/api/broadcasts/preview', 'post', {
+      body: {
+        channel: 'sms',
+        filters: { job_date: '2026-04-30' },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const [sql] = pool.query.mock.calls.find(([query]) => query.includes('FROM customers c'));
+    expect(sql).toContain('SELECT fallback_customer.id');
+    expect(sql).toContain('ORDER BY fallback_customer.id ASC');
+    expect(sql).not.toContain("LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(c.name, '')))");
   });
 
   test('does not fall back to stale scheduled_jobs when live dispatch has jobs for job_date', async () => {
@@ -167,7 +188,7 @@ describe('broadcast preview targeting query', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const [sql, params] = pool.query.mock.calls[0];
+    const [sql, params] = pool.query.mock.calls.find(([query]) => query.includes('FROM customers c'));
     expect(sql).toContain('FROM copilot_live_jobs clj');
     expect(sql).toContain('clj.service_date = $1::date');
     expect(sql).not.toContain('FROM scheduled_jobs sj');
@@ -182,7 +203,7 @@ describe('broadcast preview targeting query', () => {
             id: 42,
             name: 'Jane Customer',
             first_name: 'Jane',
-            email: 'jane@example.com',
+            email: null,
             mobile: '4405551212',
             phone: null,
             street: '123 Main St',
@@ -191,7 +212,6 @@ describe('broadcast preview targeting query', () => {
             postal_code: '44107',
           }],
         })
-        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({
@@ -223,6 +243,69 @@ describe('broadcast preview targeting query', () => {
     expect(res.statusCode).toBe(200);
     expect(twilioCreate).toHaveBeenCalledWith(expect.objectContaining({
       body: 'Reminder: mowing (bi-weekly) tomorrow',
+    }));
+  });
+
+  test('renders one SMS recipient with all service_type values when customer has multiple live jobs', async () => {
+    const pool = {
+      query: jest.fn()
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 42,
+            name: 'Jane Customer',
+            first_name: 'Jane',
+            email: null,
+            mobile: '4405551212',
+            phone: null,
+            street: '123 Main St',
+            city: 'Lakewood',
+            state: 'OH',
+            postal_code: '44107',
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              service_type: 'Mowing',
+              address: '123 Main St, Lakewood, OH 44107',
+              service_price: '55.00',
+              job_date: '2026-04-30',
+            },
+            {
+              service_type: 'Weed Control',
+              address: '123 Main St, Lakewood, OH 44107',
+              service_price: '35.00',
+              job_date: '2026-04-30',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    const { router, twilioCreate } = buildRouterWithQuerySpy({
+      pool,
+      liveJobsPayload: {
+        jobs: [
+          { id: 'copilot:2026-04-30:visit-1', service_date: '2026-04-30' },
+          { id: 'copilot:2026-04-30:visit-2', service_date: '2026-04-30' },
+        ],
+      },
+    });
+
+    const res = await invokeRoute(router, '/api/broadcasts/send', 'post', {
+      body: {
+        channel: 'sms',
+        sms_body: 'Reminder: {service_type} | {services_list}',
+        customer_ids: [42],
+        job_date: '2026-04-30',
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(twilioCreate).toHaveBeenCalledTimes(1);
+    expect(twilioCreate).toHaveBeenCalledWith(expect.objectContaining({
+      body: 'Reminder: mowing & weed control | mowing at 123 Main St and weed control at 123 Main St',
     }));
   });
 });

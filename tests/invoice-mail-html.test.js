@@ -48,6 +48,7 @@ function runAssertions() {
   assert(!html.includes('<div class="eyebrow">Mail To</div>'));
   assert(html.includes('left: 0.40in;'));
   assert(html.includes('top: 2.16in;'));
+  assert(html.includes('height: 1.04in;'));
   assert(html.indexOf('Spring Cleanup') < html.indexOf('Fuel Surcharge'));
   assert(html.includes('$250.00'));
 

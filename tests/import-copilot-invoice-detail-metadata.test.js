@@ -6,6 +6,7 @@ function runAssertions() {
     external_invoice_id: '555',
     invoice_number: '10951',
     customer_name: 'Superior Industrial',
+    invoice_date: '2026-04-28',
     total: 194.08,
     tax_amount: 14.08,
     subtotal: 180,
@@ -20,6 +21,8 @@ function runAssertions() {
   assert.strictEqual(values.metadata.prior_balance, 264.75);
   assert.strictEqual(values.metadata.total_due_on_account, 458.83);
   assert.strictEqual(values.metadata.customer_outstanding_balance, 458.83);
+  assert.strictEqual(values.metadata.customer_name, 'Superior Industrial');
+  assert.strictEqual(values.metadata.invoice_date, '2026-04-28');
 }
 
 if (typeof test === 'function') {

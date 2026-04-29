@@ -99,6 +99,8 @@ function toDbValues(row, customerId) {
 
   const metadata = {
     copilot_customer_id: row.copilot_customer_id || null,
+    customer_name:       row.customer_name        || null,
+    invoice_date:        row.invoice_date         || null,
     property_name:       row.property_name       || null,
     property_address:    row.property_address    || null,
     crew:                row.crew                || null,
@@ -139,6 +141,8 @@ function toDbValuesFromDetail(detail, customerId) {
   const metadata = {
     ...(detail.metadata || {}),
     copilot_customer_id: detail.copilot_customer_id || null,
+    customer_name:       detail.customer_name       || null,
+    invoice_date:        detail.invoice_date        || null,
     property_name:       detail.property_name       || null,
     property_address:    detail.property_address    || null,
     crew:                detail.crew                || null,

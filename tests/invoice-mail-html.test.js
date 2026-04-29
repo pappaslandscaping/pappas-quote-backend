@@ -46,6 +46,8 @@ function runAssertions() {
   assert(html.includes('Please return the remittance stub with your payment. Make checks payable to Pappas &amp; Co. Landscaping.'));
   assert(html.includes('class="window-recipient"'));
   assert(!html.includes('<div class="eyebrow">Mail To</div>'));
+  assert(html.includes('left: 0.40in;'));
+  assert(html.includes('top: 2.16in;'));
   assert(html.indexOf('Spring Cleanup') < html.indexOf('Fuel Surcharge'));
   assert(html.includes('$250.00'));
 

@@ -37,7 +37,8 @@ describe('marketing live-model helpers', () => {
     });
     expect(pool.query).toHaveBeenCalledTimes(1);
     expect(pool.query.mock.calls[0][0]).toContain('FROM copilot_live_jobs clj');
-    expect(pool.query.mock.calls[0][0]).toContain('COALESCE(yjo.customer_link_id, live_customer.id) = $1');
+    expect(pool.query.mock.calls[0][0]).toContain('COALESCE(yjo.customer_link_id, live_customer.id) = target_customer.id');
+    expect(pool.query.mock.calls[0][0]).toContain("LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(target_customer.name, '')))");
   });
 
   test('broadcast send-time job lookup falls back to scheduled_jobs when live linkage is missing', async () => {

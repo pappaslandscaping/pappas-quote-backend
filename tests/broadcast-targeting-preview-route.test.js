@@ -76,6 +76,7 @@ function buildRouterWithQuerySpy() {
   const pool = {
     query: jest.fn().mockResolvedValue({ rows: [] }),
   };
+  const liveJobsProvider = jest.fn().mockResolvedValue({ jobs: [], freshness: null });
 
   const router = createCommunicationRoutes({
     pool,
@@ -86,9 +87,10 @@ function buildRouterWithQuerySpy() {
     twilioClient: { messages: { create: jest.fn() } },
     TWILIO_PHONE_NUMBER: '+14405550000',
     NOTIFICATION_EMAIL: 'hello@pappaslandscaping.com',
+    liveJobsProvider,
   });
 
-  return { pool, router };
+  return { pool, router, liveJobsProvider };
 }
 
 describe('broadcast preview targeting query', () => {
@@ -113,7 +115,7 @@ describe('broadcast preview targeting query', () => {
   });
 
   test('uses live-job service_date first for job_date with scheduled_jobs fallback', async () => {
-    const { pool, router } = buildRouterWithQuerySpy();
+    const { pool, router, liveJobsProvider } = buildRouterWithQuerySpy();
 
     const res = await invokeRoute(router, '/api/broadcasts/preview', 'post', {
       body: {
@@ -123,9 +125,16 @@ describe('broadcast preview targeting query', () => {
     });
 
     expect(res.statusCode).toBe(200);
+    expect(liveJobsProvider).toHaveBeenCalledWith(expect.objectContaining({
+      poolClient: pool,
+      date: '2026-04-20',
+      startDate: '2026-04-20',
+      endDate: '2026-04-20',
+    }));
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toContain('FROM copilot_live_jobs clj');
     expect(sql).toContain('COALESCE(yjo.customer_link_id, live_customer.id) = c.id');
+    expect(sql).toContain("LOWER(BTRIM(COALESCE(clj.customer_name, ''))) = LOWER(BTRIM(COALESCE(c.name, '')))");
     expect(sql).toContain('clj.service_date = $1::date');
     expect(sql).toContain('sj.job_date::date = $2::date');
     expect(params).toEqual(['2026-04-20', '2026-04-20']);

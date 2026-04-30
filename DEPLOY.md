@@ -67,6 +67,14 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 | `RECAPTCHA_SECRET_KEY` | reCAPTCHA on public forms | Forms work without, no bot protection |
 | `ZAPIER_CUSTOMER_WEBHOOK` | Customer sync to Zapier | Webhook skipped if not set |
 
+### Optional automeasure integrations
+
+| Variable | Purpose | Behavior when missing |
+|---|---|---|
+| `GOOGLE_MAPS_API_KEY` | Property geocoding, static map imagery, map embeds | Address-based map features degrade; automeasure cannot fetch Google imagery |
+| `REGRID_API_TOKEN` | Parcel boundary and lot-size lookup | Automeasure falls back to estimated lot size and no parcel enrichment |
+| `FAL_API_KEY` | SAM 3 segmentation for lawn / bed / hardscape detection | Automeasure falls back to heuristic ratios instead of imagery-assisted measurement |
+
 ### Optional configuration
 
 | Variable | Purpose | Default |
@@ -92,8 +100,6 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 
 | Variable | Purpose |
 |---|---|
-| `REGRID_API_TOKEN` | Property/parcel data API |
-| `FAL_API_KEY` | AI image generation |
 | `GOOGLE_CLOUD_VISION_API_KEY` | Image analysis |
 | `EXPO_ACCESS_TOKEN` | Expo push notifications |
 

@@ -308,6 +308,142 @@
         }
         .save-note-btn:hover { opacity: 0.9; }
 
+        .section-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .mini-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            background: var(--white);
+            color: var(--primary, #2e403d);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+        }
+
+        .mini-btn.primary {
+            background: var(--primary, #2e403d);
+            color: var(--lime, #c9dd80);
+            border-color: var(--primary, #2e403d);
+        }
+
+        .mini-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .measurement-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .measurement-stat {
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 14px 16px;
+            background: var(--gray-50);
+        }
+
+        .measurement-stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-500);
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+
+        .measurement-stat-value {
+            font-size: 22px;
+            color: var(--primary, #2e403d);
+            font-weight: 700;
+        }
+
+        .measurement-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding-top: 12px;
+            border-top: 1px dashed var(--gray-200);
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+
+        .measurement-feature-list {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .measurement-feature-group h4 {
+            font-size: 12px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .measurement-feature-group ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .measurement-feature-group li {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+        }
+
+        .measurement-feature-group li:last-child { border-bottom: none; }
+
+        .measurement-empty {
+            padding: 18px;
+            border: 1px dashed var(--gray-300);
+            border-radius: 10px;
+            color: var(--gray-400);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .measurement-history {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .measurement-history-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+        }
+
+        .measurement-history-item:last-child { border-bottom: none; }
+
+        @media (max-width: 768px) {
+            .measurement-feature-list { grid-template-columns: 1fr; }
+        }
+
         /* Photos */
         .photo-grid {
             display: grid;
@@ -453,6 +589,20 @@
                 </div>
             </div>
 
+            <div class="section-card">
+                <div class="section-header">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>
+                    Automeasure
+                    <div class="section-actions">
+                        <a class="mini-btn" id="openQuoteCalculatorBtn" href="#">Open Calculator</a>
+                        <button class="mini-btn primary" id="runAutomeasureBtn" onclick="runAutomeasure()">Run Automeasure</button>
+                    </div>
+                </div>
+                <div class="section-body">
+                    <div id="measurementContent" class="measurement-empty">No automeasure run yet.</div>
+                </div>
+            </div>
+
             <!-- Taxes -->
             <div class="section-card">
                 <div class="section-header">
@@ -581,6 +731,9 @@
     const propertyId = params.get('id');
     let property = null;
     let crews = [];
+    let measurementList = [];
+    let latestMeasurement = null;
+    let mapsKey = '';
 
     if (!propertyId) {
         window.location.href = 'properties.html';
@@ -606,6 +759,43 @@
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 
+    async function loadMapsKey() {
+        try {
+            const res = await fetch('/api/config/maps-key');
+            const data = await res.json();
+            mapsKey = data.key || '';
+        } catch (_error) {
+            mapsKey = '';
+        }
+    }
+
+    function formatNumber(value) {
+        const num = Number(value || 0);
+        return Number.isFinite(num) ? num.toLocaleString() : '0';
+    }
+
+    function getAccuracyMeta(accuracy = {}, fallbackMethod = '') {
+        const grade = accuracy?.grade || '';
+        if (grade === 'parcel_precise') {
+            return { label: 'Parcel-Aware', detail: 'Boundary and lot size verified by parcel data.' };
+        }
+        if (grade === 'approximate_imagery') {
+            return { label: 'Approximate', detail: 'Imagery-based result without verified parcel boundary.' };
+        }
+        if (grade === 'approximate_heuristic') {
+            return { label: 'Approximate', detail: 'Fallback estimate without parcel-aware segmentation.' };
+        }
+        if (fallbackMethod.includes('estimate')) {
+            return { label: 'Approximate', detail: 'Estimate-based result. Parcel boundaries were not verified.' };
+        }
+        return { label: 'Measured', detail: 'Stored automeasure result.' };
+    }
+
+    function getFeatureQuantity(measurement, featureKey) {
+        const feature = (measurement?.features || []).find((item) => item.feature_key === featureKey);
+        return feature ? Number(feature.quantity || 0) : 0;
+    }
+
     // ── Load Property ──────────────────────────────────────
     async function loadProperty() {
         try {
@@ -617,6 +807,7 @@
             }
             property = data.property;
             renderProperty();
+            await loadMeasurements();
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('mainContent').style.display = 'grid';
         } catch (e) {
@@ -691,6 +882,11 @@
 
         // Photos
         renderPhotos();
+
+        const quoteLink = document.getElementById('openQuoteCalculatorBtn');
+        if (quoteLink) {
+            quoteLink.href = `quote-calculator.html?propertyId=${encodeURIComponent(propertyId)}`;
+        }
     }
 
     function setFieldDisplay(id, value, emptyText) {
@@ -728,9 +924,11 @@
     function renderMap() {
         const p = property;
         const addr = [p.street, p.city, p.state, p.zip].filter(Boolean).join(', ');
-        if (addr && addr !== '-, -, -, -') {
+        if (addr && addr !== '-, -, -, -' && mapsKey) {
             const encoded = encodeURIComponent(addr);
-            document.getElementById('mapContainer').innerHTML = `<iframe src="https://www.google.com/maps/embed/v1/place?key=AIzaSyB40ZD4DdcFTYCwqQQQ33LjtUbKolKk5r4&q=${encoded}" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>`;
+            document.getElementById('mapContainer').innerHTML = `<iframe src="https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${encoded}" allowfullscreen style="width:100%;height:100%;border:0;"></iframe>`;
+        } else if (addr && !mapsKey) {
+            document.getElementById('mapContainer').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--gray-400);font-size:13px;">Map unavailable until GOOGLE_MAPS_API_KEY is configured</div>';
         } else {
             document.getElementById('mapContainer').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--gray-400);font-size:13px;">No address to map</div>';
         }
@@ -743,6 +941,139 @@
             grid.innerHTML = photos.map((ph, i) => `<img src="${esc(ph.url || ph)}" class="photo-thumb" alt="Property photo">`).join('');
         } else {
             grid.innerHTML = '';
+        }
+    }
+
+    async function loadMeasurements() {
+        try {
+            const res = await fetch(`/api/properties/${propertyId}/measurements`);
+            const data = await res.json();
+            measurementList = data.measurements || [];
+            latestMeasurement = measurementList[0] || null;
+
+            if (latestMeasurement) {
+                const detailRes = await fetch(`/api/properties/${propertyId}/measurements/${latestMeasurement.id}`);
+                const detailData = await detailRes.json();
+                if (detailData.success && detailData.measurement) {
+                    latestMeasurement = detailData.measurement;
+                }
+            }
+
+            renderMeasurementSummary();
+        } catch (e) {
+            document.getElementById('measurementContent').innerHTML = '<div class="measurement-empty">Unable to load measurement history.</div>';
+        }
+    }
+
+    function renderMeasurementSummary() {
+        const container = document.getElementById('measurementContent');
+        const summary = property?.measurement_summary || {};
+
+        if (!latestMeasurement && !summary.totalLot) {
+            container.innerHTML = '<div class="measurement-empty">No automeasure run yet.</div>';
+            return;
+        }
+
+        const totalLot = latestMeasurement?.lot_area_sqft || summary.totalLot || property?.lot_size || 0;
+        const lawnArea = latestMeasurement ? getFeatureQuantity(latestMeasurement, 'lawn') : (summary.lawnArea || 0);
+        const bedArea = latestMeasurement ? getFeatureQuantity(latestMeasurement, 'mulch_bed') : (summary.bedArea || 0);
+        const hardscapeArea = latestMeasurement ? getFeatureQuantity(latestMeasurement, 'hardscape') : (summary.hardscapeArea || 0);
+        const trees = latestMeasurement ? getFeatureQuantity(latestMeasurement, 'tree') : (summary.shrubCount || 0);
+        const hardEdge = latestMeasurement ? getFeatureQuantity(latestMeasurement, 'hard_edge') : 0;
+        const softEdge = latestMeasurement ? getFeatureQuantity(latestMeasurement, 'soft_edge') : 0;
+        const measuredAt = latestMeasurement?.created_at || summary.measuredAt || property?.last_measured_at || null;
+        const accuracy = latestMeasurement?.summary?.accuracy || summary.accuracy || {};
+        const accuracyMeta = getAccuracyMeta(accuracy, latestMeasurement?.method || summary.method || '');
+
+        const surfaces = (latestMeasurement?.features || []).filter((item) => item.feature_group === 'surface' && item.feature_key !== 'lot_area');
+        const edges = (latestMeasurement?.features || []).filter((item) => item.feature_group === 'edge');
+        const points = (latestMeasurement?.features || []).filter((item) => item.feature_group === 'point');
+
+        function renderFeatureList(items, fallback) {
+            if (items.length) {
+                return `<ul>${items.map((item) => `<li><span>${esc(item.feature_label)}</span><strong>${formatNumber(item.quantity)} ${esc(item.unit)}</strong></li>`).join('')}</ul>`;
+            }
+            return `<div style="font-size:13px;color:var(--gray-400)">${fallback}</div>`;
+        }
+
+        const historyItems = measurementList.slice(0, 4).map((item) => `
+            <div class="measurement-history-item">
+                <span>v${item.version} • ${esc(item.method || 'automeasure')}</span>
+                <span>${formatDate(item.created_at)}</span>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+            <div class="measurement-grid">
+                <div class="measurement-stat">
+                    <div class="measurement-stat-label">Lot Area</div>
+                    <div class="measurement-stat-value">${formatNumber(totalLot)}</div>
+                </div>
+                <div class="measurement-stat">
+                    <div class="measurement-stat-label">Lawn</div>
+                    <div class="measurement-stat-value">${formatNumber(lawnArea)}</div>
+                </div>
+                <div class="measurement-stat">
+                    <div class="measurement-stat-label">Beds</div>
+                    <div class="measurement-stat-value">${formatNumber(bedArea)}</div>
+                </div>
+                <div class="measurement-stat">
+                    <div class="measurement-stat-label">Hardscape</div>
+                    <div class="measurement-stat-value">${formatNumber(hardscapeArea)}</div>
+                </div>
+            </div>
+            <div class="measurement-meta">
+                <span>Method: ${esc(latestMeasurement?.method || summary.method || 'automeasure')}</span>
+                <span>Updated: ${measuredAt ? formatDate(measuredAt) : 'N/A'}</span>
+                <span>${esc(accuracyMeta.label)} • ${esc(accuracyMeta.detail)}</span>
+                <span>Trees: ${formatNumber(trees)} • Hard Edge: ${formatNumber(hardEdge)} ft • Soft Edge: ${formatNumber(softEdge)} ft</span>
+            </div>
+            <div class="measurement-feature-list">
+                <div class="measurement-feature-group">
+                    <h4>Surfaces</h4>
+                    ${renderFeatureList(surfaces, 'No surface breakdown stored yet.')}
+                </div>
+                <div class="measurement-feature-group">
+                    <h4>Edges</h4>
+                    ${renderFeatureList(edges, 'No edge breakdown stored yet.')}
+                </div>
+                <div class="measurement-feature-group">
+                    <h4>Points</h4>
+                    ${renderFeatureList(points, 'No point breakdown stored yet.')}
+                </div>
+            </div>
+            <div class="measurement-history">
+                <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Recent Runs</div>
+                ${historyItems || '<div style="font-size:13px;color:var(--gray-400)">No history yet.</div>'}
+            </div>
+        `;
+    }
+
+    async function runAutomeasure() {
+        const btn = document.getElementById('runAutomeasureBtn');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Running...';
+
+        try {
+            const res = await fetch(`/api/properties/${propertyId}/measurements`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ report_type: 'landscaping' })
+            });
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Automeasure failed');
+            }
+
+            latestMeasurement = data.measurement || null;
+            await loadProperty();
+            showToast('Automeasure complete');
+        } catch (e) {
+            showToast(e.message || 'Automeasure failed', true);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
         }
     }
 
@@ -954,7 +1285,7 @@
     });
 
     // ── Init ───────────────────────────────────────────────
-    Promise.all([loadProperty(), loadCrews(), loadServiceHistory()]);
+    Promise.all([loadMapsKey(), loadProperty(), loadCrews(), loadServiceHistory()]);
 </script>
 </body>
 </html>

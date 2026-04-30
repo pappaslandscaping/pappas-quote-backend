@@ -732,6 +732,8 @@
     let currentAddress = '';
     let mapType = 'satellite';
     let hasAnalyzed = false;
+    const calculatorParams = new URLSearchParams(window.location.search);
+    const selectedPropertyId = calculatorParams.get('propertyId');
 
     // ============================================
     // PRICE CALCULATION FUNCTIONS
@@ -946,6 +948,112 @@
         document.getElementById('totalAmount').textContent = '$' + total.toLocaleString();
     }
 
+    function getAccuracyBadge(snapshot = {}, options = {}) {
+        const accuracy = snapshot.accuracy || {};
+        if (accuracy.grade === 'parcel_precise') {
+            return { text: 'Parcel-Aware', className: 'detection-badge ai-detected' };
+        }
+        if (accuracy.grade === 'approximate_imagery') {
+            return { text: 'Approx. AI', className: 'detection-badge estimated' };
+        }
+        if (accuracy.grade === 'approximate_heuristic') {
+            return { text: 'Approx. Estimate', className: 'detection-badge estimated' };
+        }
+        if (options.badgeText) {
+            return { text: options.badgeText, className: 'detection-badge ai-detected' };
+        }
+        return { text: 'Stored Measure', className: 'detection-badge ai-detected' };
+    }
+
+    function applyMeasurementSnapshot(snapshot = {}, options = {}) {
+        const lotSize = parseInt(snapshot.totalLot || snapshot.lotSize || document.getElementById('lotSizeInput').value || 0, 10) || 0;
+        const lawnArea = parseInt(snapshot.lawnArea || snapshot.lawn || 0, 10) || 0;
+        const bedArea = parseInt(snapshot.bedArea || snapshot.beds || 0, 10) || 0;
+        const hardscapeArea = parseInt(snapshot.hardscapeArea || snapshot.hardscape || 0, 10) || 0;
+        const shrubCount = parseInt(snapshot.shrubCount || snapshot.shrubs || snapshot.trees || 0, 10) || 0;
+        const totalDetected = lawnArea + bedArea + hardscapeArea;
+
+        if (lotSize > 0) document.getElementById('lotSizeInput').value = lotSize;
+        document.getElementById('lawnArea').value = lawnArea;
+        document.getElementById('bedArea').value = bedArea;
+        document.getElementById('hardscapeArea').value = hardscapeArea;
+        document.getElementById('shrubCount').textContent = shrubCount;
+
+        if (totalDetected > 0) {
+            detectedRatios.lawn = lawnArea / totalDetected;
+            detectedRatios.bed = bedArea / totalDetected;
+            detectedRatios.hardscape = hardscapeArea / totalDetected;
+            detectedRatios.shrubs = shrubCount;
+        }
+
+        currentAddress = options.address || currentAddress;
+        if (currentAddress) {
+            document.getElementById('addressInput').value = currentAddress;
+            initMap(currentAddress);
+        }
+
+        const badge = document.getElementById('detectionBadge');
+        const badgeMeta = getAccuracyBadge(snapshot, options);
+        badge.textContent = badgeMeta.text;
+        badge.className = badgeMeta.className;
+
+        hasAnalyzed = true;
+        recalculateQuote();
+    }
+
+    async function loadPropertyMeasurementIntoCalculator() {
+        if (!selectedPropertyId) return;
+
+        try {
+            const propertyRes = await fetch(`/api/properties/${selectedPropertyId}`);
+            const propertyData = await propertyRes.json();
+            const property = propertyData.property || {};
+            const address = [property.street, property.city, property.state, property.zip].filter(Boolean).join(', ');
+
+            const measurementRes = await fetch(`/api/properties/${selectedPropertyId}/measurements`);
+            const measurementData = await measurementRes.json();
+            const measurement = (measurementData.measurements || [])[0] || null;
+
+            if (measurement) {
+                const detailRes = await fetch(`/api/properties/${selectedPropertyId}/measurements/${measurement.id}`);
+                const detailData = await detailRes.json();
+                const features = detailData.measurement?.features || [];
+                const featureMap = Object.fromEntries(features.map((item) => [item.feature_key, Number(item.quantity || 0)]));
+
+                applyMeasurementSnapshot({
+                    accuracy: detailData.measurement?.summary?.accuracy || property.measurement_summary?.accuracy || {},
+                    totalLot: detailData.measurement?.lot_area_sqft || property.measurement_summary?.totalLot || property.lot_size,
+                    lawnArea: featureMap.lawn || property.measurement_summary?.lawnArea || 0,
+                    bedArea: featureMap.mulch_bed || property.measurement_summary?.bedArea || 0,
+                    hardscapeArea: featureMap.hardscape || property.measurement_summary?.hardscapeArea || 0,
+                    shrubCount: featureMap.tree || property.measurement_summary?.shrubCount || 0,
+                }, {
+                    address,
+                    badgeText: 'Automeasured',
+                });
+                showToast('Loaded latest automeasure');
+                return;
+            }
+
+            if (property.measurement_summary && Object.keys(property.measurement_summary).length) {
+                applyMeasurementSnapshot(property.measurement_summary, {
+                    address,
+                    badgeText: 'Stored Measure',
+                });
+                showToast('Loaded stored property measurement');
+                return;
+            }
+
+            if (address) {
+                currentAddress = address;
+                document.getElementById('addressInput').value = address;
+                initMap(address);
+            }
+        } catch (error) {
+            console.error('Error loading property measurement:', error);
+        }
+    }
+
     function adjustShrubs(delta) {
         const countEl = document.getElementById('shrubCount');
         let count = parseInt(countEl.textContent) || 0;
@@ -1121,8 +1229,20 @@
     function initMap(address) {
         const mapFrame = document.getElementById('mapFrame');
         const placeholder = document.getElementById('mapPlaceholder');
-        const key = window.GOOGLE_MAPS_API_KEY || 'AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8';
+        const key = window.GOOGLE_MAPS_API_KEY || '';
         const encodedAddress = encodeURIComponent(address);
+
+        if (!key) {
+            if (placeholder) {
+                placeholder.style.display = 'flex';
+                placeholder.innerHTML = '<p>Map unavailable until GOOGLE_MAPS_API_KEY is configured</p>';
+            }
+            if (mapFrame) {
+                mapFrame.style.display = 'none';
+                mapFrame.innerHTML = '';
+            }
+            return;
+        }
         
         // Hide placeholder and show map frame
         if (placeholder) placeholder.style.display = 'none';
@@ -1253,7 +1373,8 @@ ANNUAL TOTAL: ${total}
         
         // Map image - compact to fit everything on one page
         try {
-            const key = window.GOOGLE_MAPS_API_KEY || 'AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8';
+            const key = window.GOOGLE_MAPS_API_KEY || '';
+            if (!key) throw new Error('GOOGLE_MAPS_API_KEY not configured');
             const encodedAddress = encodeURIComponent(currentAddress);
             const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encodedAddress}&zoom=19&size=600x200&maptype=satellite&markers=color:red%7C${encodedAddress}&key=${key}`;
             
@@ -1661,6 +1782,7 @@ ANNUAL TOTAL: ${total}
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
         renderServices();
+        loadPropertyMeasurementIntoCalculator();
 
         // Enter key triggers analysis
         document.getElementById('addressInput').addEventListener('keypress', (e) => {

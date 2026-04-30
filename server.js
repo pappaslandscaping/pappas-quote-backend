@@ -2800,6 +2800,14 @@ const customerRoutes = require('./routes/customers')({
 app.use(customerRoutes);
 
 // ═══════════════════════════════════════════════════════════
+// PROPERTY MEASUREMENTS — routes/measurements.js
+// ═══════════════════════════════════════════════════════════
+const measurementRoutes = require('./routes/measurements')({
+  pool, serverError, authenticateToken,
+});
+app.use(measurementRoutes);
+
+// ═══════════════════════════════════════════════════════════
 // JOBS, CREWS & DISPATCH — routes/jobs.js
 // ═══════════════════════════════════════════════════════════
 const jobRoutes = require('./routes/jobs')({

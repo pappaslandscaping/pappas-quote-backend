@@ -279,10 +279,10 @@ function latestMailServiceDate(lineItems = []) {
 }
 
 function resolveMailInvoiceDate({ row = {}, metadata = {}, lineItems = [] } = {}) {
-  return metadata.invoice_date
+  return latestMailServiceDate(lineItems)
+    || metadata.invoice_date
     || metadata.invoice_date_raw
     || row.invoice_date
-    || latestMailServiceDate(lineItems)
     || row.created_at;
 }
 

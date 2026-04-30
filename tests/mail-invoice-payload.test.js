@@ -75,7 +75,7 @@ async function runAssertions() {
   const explicitCopilotDate = resolveMailInvoiceDate({
     row: superiorIndustrialInvoice(),
     metadata: { invoice_date: '2026-04-30' },
-    lineItems: superiorIndustrialInvoice().line_items,
+    lineItems: [],
   });
   assert.strictEqual(explicitCopilotDate, '2026-04-30');
 
@@ -99,7 +99,43 @@ async function runAssertions() {
     '10246'
   );
   assert.strictEqual(dateLikeInvoiceNumberPayload.invoice_number, '10246');
-  assert.strictEqual(dateLikeInvoiceNumberPayload.invoice_date_raw, 'Apr 4, 2026');
+  assert.strictEqual(dateLikeInvoiceNumberPayload.invoice_date_raw, 'Apr 28, 2026');
+
+  const afroditaPayload = buildMailInvoicePayload(superiorIndustrialInvoice({
+    id: 16011,
+    invoice_number: '10494',
+    created_at: '2026-04-15T04:00:00.000Z',
+    customer_name: 'Afrodita Constantinidis',
+    customer_address: '2205 Richland Avenue\nLakewood, OH 44107',
+    external_metadata: {
+      invoice_date: '2026-04-15',
+      invoice_number: '10494',
+    },
+    line_items: [
+      { description: 'Mowing (Bi-Weekly)', service_date: '2026-04-15', quantity: 1, rate: 42, line_total: 45.36 },
+      { description: 'Mowing (Bi-Weekly)', service_date: '2026-04-30', quantity: 1, rate: 42, line_total: 45.36 },
+      { description: 'Fuel Surcharge', service_date: '2026-04-30', quantity: 1, rate: 8, line_total: 8 },
+    ],
+  }));
+  assert.strictEqual(afroditaPayload.invoice_date_raw, 'Apr 30, 2026');
+
+  const marilynPayload = buildMailInvoicePayload(superiorIndustrialInvoice({
+    id: 2009,
+    invoice_number: '10424',
+    created_at: '2026-04-13T04:00:00.000Z',
+    customer_name: 'Marilyn Conrad',
+    customer_address: '13761 Dalebrook Avenue\nBrook Park, OH 44142',
+    external_metadata: {
+      invoice_date: '2026-04-13',
+      invoice_number: '10424',
+    },
+    line_items: [
+      { description: 'Mowing (Bi-Weekly)', service_date: '2026-04-13', quantity: 1, rate: 55, line_total: 59.4 },
+      { description: 'Mowing (Bi-Weekly)', service_date: '2026-04-27', quantity: 1, rate: 55, line_total: 59.4 },
+      { description: 'Fuel Surcharge', service_date: '2026-04-27', quantity: 1, rate: 8, line_total: 8 },
+    ],
+  }));
+  assert.strictEqual(marilynPayload.invoice_date_raw, 'Apr 27, 2026');
 
   const [matchedInvoice] = await attachMailCustomerMatches([superiorIndustrialInvoice({
     customer_id: null,

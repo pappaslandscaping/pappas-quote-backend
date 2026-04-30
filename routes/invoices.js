@@ -889,6 +889,107 @@ async function markInvoiceRegularMailInCopilot(invoice, { listPath = '/finances/
     errors: failures,
   };
 }
+
+function buildInvoiceListQuery({
+  status,
+  customer_id,
+  search,
+  mailed,
+  limit = 25000,
+  offset = 0,
+  include_blank_drafts,
+} = {}) {
+  const params = [];
+  const where = [];
+  let query = `SELECT i.*,
+                      COALESCE(
+                        NULLIF(c.name, ''),
+                        NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), ''),
+                        NULLIF(address_match.display_name, ''),
+                        NULLIF(i.customer_name, '')
+                      ) AS customer_name,
+                      COALESCE(NULLIF(c.name, ''), NULLIF(address_match.display_name, '')) AS linked_customer_name,
+                      address_match.display_name AS address_matched_customer_name,
+                      i.customer_name AS invoice_customer_name,
+                      CASE
+                        WHEN COALESCE(NULLIF(TRIM(i.invoice_number), ''), '') = ''
+                          OR i.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
+                          OR i.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+                          OR i.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                        THEN NULLIF(CASE WHEN i.external_source = 'copilotcrm' THEN i.external_invoice_id ELSE NULL END, '')
+                        ELSE i.invoice_number
+                      END AS display_invoice_number
+                 FROM invoices i
+                 LEFT JOIN customers c ON i.customer_id = c.id
+                 LEFT JOIN LATERAL (
+                   SELECT COALESCE(
+                            NULLIF(cm.name, ''),
+                            NULLIF(cm.customer_company_name, ''),
+                            NULLIF(TRIM(CONCAT_WS(' ', cm.first_name, cm.last_name)), '')
+                          ) AS display_name
+                     FROM customers cm
+                    WHERE i.customer_id IS NULL
+                      AND COALESCE(TRIM(i.customer_name), '') ~* '^(return|remit|payment stub)?$'
+                      AND regexp_replace(lower(concat_ws(' ', cm.street, cm.street2, cm.city, cm.state, cm.postal_code)), '[^a-z0-9]', '', 'g')
+                        = regexp_replace(lower(COALESCE(i.customer_address, '')), '[^a-z0-9]', '', 'g')
+                    ORDER BY cm.id
+                    LIMIT 1
+                 ) address_match ON TRUE`;
+
+  if (status) {
+    if (status === 'overdue') {
+      where.push(`COALESCE(i.total, 0) > COALESCE(i.amount_paid, 0)`);
+      where.push(`(
+        COALESCE(LOWER(TRIM(i.status)), '') = 'overdue'
+        OR (
+          COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending', '')
+          AND i.due_date IS NOT NULL
+          AND i.due_date < CURRENT_DATE
+        )
+      )`);
+    } else {
+      params.push(status);
+      where.push(`i.status = $${params.length}`);
+    }
+  }
+  if (customer_id) {
+    params.push(customer_id);
+    where.push(`i.customer_id = $${params.length}`);
+  }
+  if (!status && !include_blank_drafts) {
+    where.push(`NOT (
+      i.status = 'draft'
+      AND COALESCE(TRIM(i.customer_name), '') = ''
+      AND COALESCE(i.total, 0) = 0
+      AND jsonb_array_length(COALESCE(i.line_items, '[]'::jsonb)) = 0
+    )`);
+  }
+  if (search) {
+    params.push(`%${search}%`);
+    const p = params.length;
+    where.push(`(
+      i.invoice_number ILIKE $${p}
+      OR c.name ILIKE $${p}
+      OR TRIM(CONCAT_WS(' ', c.first_name, c.last_name)) ILIKE $${p}
+      OR address_match.display_name ILIKE $${p}
+      OR i.customer_name ILIKE $${p}
+    )`);
+  }
+  if (mailed === 'mailed') {
+    where.push('i.mailed_at IS NOT NULL');
+  } else if (mailed === 'unmailed') {
+    where.push('i.mailed_at IS NULL');
+  }
+  if (where.length) query += ' WHERE ' + where.join(' AND ');
+  query += ' ORDER BY i.created_at DESC';
+  params.push(limit);
+  query += ` LIMIT $${params.length}`;
+  params.push(offset);
+  query += ` OFFSET $${params.length}`;
+
+  return { query, params };
+}
+
 function normalizeCount(value) {
   const parsed = parseInt(String(value || '').replace(/[^0-9-]/g, ''), 10);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -3555,88 +3656,16 @@ router.get('/api/invoices', async (req, res) => {
   try {
     await ensureMailWorkflowSchema();
     const { status, customer_id, search, mailed, limit = 25000, offset = 0, include_blank_drafts } = req.query;
-    // Build a real display name. The customers table is inconsistent —
-    // some rows have `name` populated, others only `first_name`+`last_name`,
-    // and many invoices have a stale or missing customer_id. Walk the chain:
-    //   1. customers.name (when non-empty)
-    //   2. customers.first_name + ' ' + customers.last_name (when populated)
-    //   3. invoices.customer_name (the value captured on the invoice itself)
-    // We also expose the raw linked + invoice values separately so callers
-    // can tell whether the invoice is linked to a real customer record.
-    let q = `SELECT i.*,
-                    COALESCE(
-                      NULLIF(c.name, ''),
-                      NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), ''),
-                      NULLIF(i.customer_name, '')
-                    ) AS customer_name,
-                    c.name AS linked_customer_name,
-                    i.customer_name AS invoice_customer_name,
-                    CASE
-                      WHEN COALESCE(NULLIF(TRIM(i.invoice_number), ''), '') = ''
-                        OR i.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
-                        OR i.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
-                        OR i.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
-                      THEN NULLIF(CASE WHEN i.external_source = 'copilotcrm' THEN i.external_invoice_id ELSE NULL END, '')
-                      ELSE i.invoice_number
-                    END AS display_invoice_number
-             FROM invoices i
-             LEFT JOIN customers c ON i.customer_id = c.id`;
-    const params = [];
-    const where = [];
-    if (status) {
-      if (status === 'overdue') {
-        where.push(`COALESCE(i.total, 0) > COALESCE(i.amount_paid, 0)`);
-        where.push(`(
-          COALESCE(LOWER(TRIM(i.status)), '') = 'overdue'
-          OR (
-            COALESCE(LOWER(TRIM(i.status)), '') IN ('sent', 'pending', '')
-            AND i.due_date IS NOT NULL
-            AND i.due_date < CURRENT_DATE
-          )
-        )`);
-      } else {
-        params.push(status);
-        where.push(`i.status = $${params.length}`);
-      }
-    }
-    if (customer_id) { params.push(customer_id); where.push(`i.customer_id = $${params.length}`); }
-    // Hide blank placeholder drafts (no customer name + no money + no
-    // line items). They were dominating the top of the list and making
-    // the page look broken. Pass include_blank_drafts=true to see them.
-    // Doesn't apply when an explicit status filter is set, so drilling
-    // into "Draft" still shows everything.
-    if (!status && !include_blank_drafts) {
-      where.push(`NOT (
-        i.status = 'draft'
-        AND COALESCE(TRIM(i.customer_name), '') = ''
-        AND COALESCE(i.total, 0) = 0
-        AND jsonb_array_length(COALESCE(i.line_items, '[]'::jsonb)) = 0
-      )`);
-    }
-    if (search) {
-      params.push(`%${search}%`);
-      // Search the same name sources used to build the display name above:
-      // invoice number, customers.name, customers.first_name+last_name, and
-      // the invoice's own captured customer_name. This keeps search results
-      // consistent with what the user actually sees in the list.
-      const p = params.length;
-      where.push(`(
-        i.invoice_number ILIKE $${p}
-        OR c.name ILIKE $${p}
-        OR TRIM(CONCAT_WS(' ', c.first_name, c.last_name)) ILIKE $${p}
-        OR i.customer_name ILIKE $${p}
-      )`);
-    }
-    if (mailed === 'mailed') {
-      where.push('i.mailed_at IS NOT NULL');
-    } else if (mailed === 'unmailed') {
-      where.push('i.mailed_at IS NULL');
-    }
-    if (where.length) q += ' WHERE ' + where.join(' AND ');
-    q += ' ORDER BY i.created_at DESC';
-    params.push(limit); q += ` LIMIT $${params.length}`;
-    params.push(offset); q += ` OFFSET $${params.length}`;
-    const result = await pool.query(q, params);
+    const { query, params } = buildInvoiceListQuery({
+      status,
+      customer_id,
+      search,
+      mailed,
+      limit,
+      offset,
+      include_blank_drafts,
+    });
+    const result = await pool.query(query, params);
     res.json({
       success: true,
       invoices: result.rows.map((row) => ({
@@ -5157,6 +5186,7 @@ router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
 
   createInvoiceRoutes._helpers = {
     attachMailCustomerMatches,
+    buildInvoiceListQuery,
     buildMailInvoicePayload,
     firstUsableMailCustomerName,
     formatMailDate,

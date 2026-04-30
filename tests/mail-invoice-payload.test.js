@@ -27,6 +27,7 @@ createInvoiceRoutes({
 
 const {
   attachMailCustomerMatches,
+  buildInvoiceListQuery,
   buildMailInvoicePayload,
   formatMailDate,
   latestMailServiceDate,
@@ -96,6 +97,16 @@ async function runAssertions() {
   assert.strictEqual(matchedPayload.customer_id, 2384);
   assert.strictEqual(matchedPayload.customer_name, 'Superior Industrial');
   assert.strictEqual(matchedPayload.metadata.customer_name, 'Superior Industrial');
+
+  const listQuery = buildInvoiceListQuery({
+    search: '10300',
+    limit: 25000,
+    offset: 0,
+  });
+  assert(listQuery.query.includes('address_match.display_name AS address_matched_customer_name'));
+  assert(listQuery.query.includes("COALESCE(TRIM(i.customer_name), '') ~* '^(return|remit|payment stub)?$'"));
+  assert(listQuery.query.includes('address_match.display_name ILIKE $1'));
+  assert.deepStrictEqual(listQuery.params, ['%10300%', 25000, 0]);
 }
 
 if (typeof test === 'function') {

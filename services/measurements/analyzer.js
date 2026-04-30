@@ -1,3 +1,4 @@
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { resolvePropertyParcel } = require('./parcel');
 
 const DEFAULT_RATIOS = {
@@ -73,17 +74,36 @@ async function buildFalImageInput(imageUrl) {
 async function estimatePixelRatio(maskUrl) {
   try {
     const response = await fetch(maskUrl);
-    const buffer = await response.arrayBuffer();
-    const fileSize = new Uint8Array(buffer).length;
+    if (!response.ok) return 0;
 
-    if (fileSize < 5000) return 0.02;
-    if (fileSize < 10000) return 0.08;
-    if (fileSize < 20000) return 0.15;
-    if (fileSize < 40000) return 0.25;
-    if (fileSize < 60000) return 0.35;
-    if (fileSize < 80000) return 0.45;
-    if (fileSize < 100000) return 0.55;
-    return 0.65;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const image = await loadImage(buffer);
+    const width = image.width || 0;
+    const height = image.height || 0;
+    if (!width || !height) return 0;
+
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const { data } = ctx.getImageData(0, 0, width, height);
+    let filledPixels = 0;
+    const totalPixels = width * height;
+
+    for (let index = 0; index < data.length; index += 4) {
+      const alpha = data[index + 3];
+      const red = data[index];
+      const green = data[index + 1];
+      const blue = data[index + 2];
+      const luminance = red + green + blue;
+
+      if (alpha > 20 && luminance > 30) {
+        filledPixels += 1;
+      }
+    }
+
+    if (!totalPixels) return 0;
+    return filledPixels / totalPixels;
   } catch (_error) {
     return 0;
   }
@@ -266,7 +286,7 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
       const rawTotal = rawLawn + rawBed + rawHardscape;
       samDebug = { rawLawn, rawBed, rawHardscape, rawTotal };
 
-      if (rawTotal > 0.1) {
+      if (rawTotal > 0.02 && rawLawn > 0.005) {
         const normalizer = 0.9 / rawTotal;
         ratios = {
           lawn: rawLawn * normalizer,

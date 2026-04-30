@@ -210,6 +210,32 @@ it('survives a stripped-down detail page that only carries totals + line items',
   assert.strictEqual(d.line_items[0].description, 'Service');
 });
 
+it('reads invoice number from live page-stat blocks', () => {
+  const livePageStatFixture = `
+    <input type="hidden" id="inv_id" value="2661850">
+    <div class="row">
+      <div class="col-md-8 col-9">
+        <span class="page-stat-title"><a href="/client/invoices/view/2661850/hash">Invoice #</a></span>
+        <span class="page-stat-value"><strong>10246</strong></span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-8 col-9">
+        <span class="page-stat-title">Invoice Date</span>
+        <span class="page-stat-value"><strong>Apr 04, 2026</strong></span>
+      </div>
+    </div>
+    <table class="table--description">
+      <tbody>
+        <tr><td>Apr 04, 2026</td><td>Spring Cleanup</td><td>$315</td><td>1</td><td></td><td>8%</td><td>$340.20</td></tr>
+      </tbody>
+    </table>
+    <table class="table--sub-total"><tr><td>Total</td><td>$340.20</td></tr></table>`;
+  const d = parseInvoiceDetailHtml(livePageStatFixture);
+  assert.strictEqual(d.external_invoice_id, '2661850');
+  assert.strictEqual(d.invoice_number, '10246');
+});
+
 it('parses live-like Copilot detail rows where the service date is embedded in the description cell', () => {
   const liveLike = `
     <html>

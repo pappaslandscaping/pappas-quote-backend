@@ -104,6 +104,7 @@ function toDbValues(row, customerId) {
 
   const metadata = {
     copilot_customer_id: row.copilot_customer_id || null,
+    invoice_number:      row.invoice_number       || null,
     customer_name:       row.customer_name        || null,
     invoice_date:        row.invoice_date         || null,
     property_name:       row.property_name       || null,
@@ -146,6 +147,7 @@ function toDbValuesFromDetail(detail, customerId) {
   const metadata = {
     ...(detail.metadata || {}),
     copilot_customer_id: detail.copilot_customer_id || null,
+    invoice_number:      detail.invoice_number      || null,
     customer_name:       detail.customer_name       || null,
     invoice_date:        detail.invoice_date        || null,
     property_name:       detail.property_name       || null,
@@ -244,7 +246,15 @@ async function upsert(pool, v) {
       // a manual local invoice gets adopted by re-runs).
       `external_source = $${1}`,
       `external_invoice_id = COALESCE(invoices.external_invoice_id, $${2})`,
-      `invoice_number    = COALESCE(invoices.invoice_number, $${3})`,
+      `invoice_number    = CASE
+                              WHEN COALESCE(NULLIF($${3}, ''), '') = '' THEN invoices.invoice_number
+                              WHEN COALESCE(NULLIF(TRIM(invoices.invoice_number), ''), '') = ''
+                                OR invoices.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
+                                OR invoices.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+                                OR invoices.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                              THEN $${3}
+                              ELSE invoices.invoice_number
+                            END`,
       `customer_id       = COALESCE(invoices.customer_id, $${4})`,
       `customer_name     = COALESCE(NULLIF($${5}, ''), invoices.customer_name)`,
       `customer_email    = COALESCE(NULLIF($${6}, ''), invoices.customer_email)`,

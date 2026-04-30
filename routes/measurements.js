@@ -31,6 +31,7 @@ module.exports = function createMeasurementRoutes({ pool, serverError, authentic
         JSON.stringify({
           method: measurementPayload.method,
           accuracy: measurementPayload.accuracy,
+          fallback: measurementPayload.fallback,
           totalLot: measurementPayload.analysis.totalLot,
           lawnArea: measurementPayload.analysis.lawnArea,
           bedArea: measurementPayload.analysis.bedArea,
@@ -65,6 +66,7 @@ module.exports = function createMeasurementRoutes({ pool, serverError, authentic
         JSON.stringify({
           analysis: payload.analysis,
           accuracy: payload.accuracy,
+          fallback: payload.fallback,
           debug: payload.debug,
         }),
         JSON.stringify(payload.parcel || {}),

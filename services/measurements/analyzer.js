@@ -6,6 +6,30 @@ const DEFAULT_RATIOS = {
   hardscape: 0.2,
 };
 
+function unique(list = []) {
+  return [...new Set(list.filter(Boolean))];
+}
+
+function buildFallbackMessages(reasons = []) {
+  const messageByReason = {
+    missing_google_maps_api_key: 'GOOGLE_MAPS_API_KEY is not configured.',
+    missing_property_address: 'Property address is incomplete.',
+    google_geocode_http_error: 'Google geocode request failed.',
+    google_geocode_failed: 'Google could not geocode this address.',
+    google_geocode_exception: 'Google geocode threw an exception.',
+    missing_coordinates_for_parcel_lookup: 'Parcel lookup was skipped because coordinates are missing.',
+    missing_regrid_api_token: 'REGRID_API_TOKEN is not configured.',
+    regrid_http_error: 'Regrid parcel lookup failed.',
+    regrid_no_parcel_found: 'No parcel was found for this property.',
+    regrid_exception: 'Regrid parcel lookup threw an exception.',
+    missing_fal_api_key: 'FAL_API_KEY is not configured.',
+    missing_static_map_url: 'Static imagery URL could not be built.',
+    sam3_request_failed: 'SAM3 segmentation request failed.',
+    sam3_no_usable_masks: 'SAM3 did not return usable masks for lawn, beds, or hardscape.',
+  };
+  return unique(reasons).map((reason) => messageByReason[reason] || reason);
+}
+
 async function estimatePixelRatio(maskUrl) {
   try {
     const response = await fetch(maskUrl);
@@ -146,6 +170,8 @@ function buildFeatureSet(analysis = {}) {
 async function analyzePropertyMeasurement(property = {}, options = {}) {
   const parcelResolution = await resolvePropertyParcel(property);
   const imageryUrl = options.imageUrl || buildStaticMapUrl(parcelResolution.latitude, parcelResolution.longitude, options.zoom || 19);
+  const fallbackReasons = [...(parcelResolution.diagnostics?.reasons || [])];
+  const fallbackMessages = [...(parcelResolution.diagnostics?.messages || [])];
 
   let totalLot = options.lotSize ? parseInt(options.lotSize, 10) : null;
   let lotSizeSource = options.lotSize ? 'user' : null;
@@ -163,12 +189,31 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
   let ratios = { ...DEFAULT_RATIOS };
   let ratioSource = 'estimate';
   let samDebug = {};
+  const samErrors = [];
+
+  if (!process.env.FAL_API_KEY) {
+    fallbackReasons.push('missing_fal_api_key');
+    fallbackMessages.push('FAL_API_KEY is not configured.');
+  }
+  if (!imageryUrl) {
+    fallbackReasons.push('missing_static_map_url');
+    fallbackMessages.push('Static imagery URL could not be built.');
+  }
 
   if (process.env.FAL_API_KEY && imageryUrl) {
     try {
-      const lawnResult = await segmentWithSAM3(process.env.FAL_API_KEY, imageryUrl, 'green grass lawn yard turf').catch(() => ({ pixelRatio: 0 }));
-      const bedsResult = await segmentWithSAM3(process.env.FAL_API_KEY, imageryUrl, 'brown mulch garden bed landscaping bark').catch(() => ({ pixelRatio: 0 }));
-      const hardscapeResult = await segmentWithSAM3(process.env.FAL_API_KEY, imageryUrl, 'gray concrete driveway sidewalk pavement asphalt').catch(() => ({ pixelRatio: 0 }));
+      const lawnResult = await segmentWithSAM3(process.env.FAL_API_KEY, imageryUrl, 'green grass lawn yard turf').catch((error) => {
+        samErrors.push(`lawn: ${error.message}`);
+        return { pixelRatio: 0 };
+      });
+      const bedsResult = await segmentWithSAM3(process.env.FAL_API_KEY, imageryUrl, 'brown mulch garden bed landscaping bark').catch((error) => {
+        samErrors.push(`beds: ${error.message}`);
+        return { pixelRatio: 0 };
+      });
+      const hardscapeResult = await segmentWithSAM3(process.env.FAL_API_KEY, imageryUrl, 'gray concrete driveway sidewalk pavement asphalt').catch((error) => {
+        samErrors.push(`hardscape: ${error.message}`);
+        return { pixelRatio: 0 };
+      });
 
       const rawLawn = lawnResult.pixelRatio || 0;
       const rawBed = bedsResult.pixelRatio || 0;
@@ -184,10 +229,23 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
           hardscape: rawHardscape * normalizer,
         };
         ratioSource = 'sam3';
+      } else {
+        fallbackReasons.push(samErrors.length ? 'sam3_request_failed' : 'sam3_no_usable_masks');
+        fallbackMessages.push(
+          samErrors.length
+            ? `SAM3 segmentation failed: ${samErrors.join('; ')}`
+            : 'SAM3 did not return usable masks for lawn, beds, or hardscape.'
+        );
       }
-    } catch (_error) {
-      // Fall back to defaults.
+    } catch (error) {
+      fallbackReasons.push('sam3_request_failed');
+      fallbackMessages.push(`SAM3 segmentation failed: ${error.message || 'unknown error'}`);
     }
+  }
+
+  if (lotSizeSource === 'estimate' && !options.lotSize && !parcelResolution.parcel?.lotSizeSqFt) {
+    fallbackReasons.push('missing_parcel_lot_size');
+    fallbackMessages.push('Lot size fell back to the default estimate because no verified parcel lot size was available.');
   }
 
   const analysis = {
@@ -221,10 +279,16 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
     ].filter(Boolean),
   };
 
+  const fallback = {
+    reasons: unique([...accuracy.reasons, ...fallbackReasons]),
+    messages: unique([...buildFallbackMessages([...accuracy.reasons, ...fallbackReasons]), ...fallbackMessages]),
+  };
+
   return {
     method: `${lotSizeSource}+${ratioSource}`,
     analysis,
     accuracy,
+    fallback,
     features: buildFeatureSet(analysis),
     parcel: parcelResolution.parcel,
     resolution: {
@@ -238,7 +302,9 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
       lotSizeSource,
       ratioSource,
       accuracy,
+      fallback,
       ...samDebug,
+      samErrors,
     },
   };
 }

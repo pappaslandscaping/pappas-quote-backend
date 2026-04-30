@@ -99,6 +99,8 @@ function runAssertions() {
 
   assert(directOutstandingHtml.includes('Outstanding Balance'));
   assert(directOutstandingHtml.includes('$118.80'));
+  assert(directOutstandingHtml.includes('<strong>Superior Industrial</strong>'));
+  assert(directOutstandingHtml.includes('<span>Customer</span><strong>Superior Industrial</strong>'));
 
   const genericReturnHtml = renderMailInvoiceHtml({
     id: 45,

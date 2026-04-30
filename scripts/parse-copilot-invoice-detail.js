@@ -233,6 +233,8 @@ function parseInvoiceDetailHtml(html) {
   let invoice_date = (
     parseDate(valOrText($('#invoice_date'))) ||
     parseDate(valOrText($('input[name="invoice_date"]'))) ||
+    parseDate(pick(collectPageStatValues($), 'invoice date')) ||
+    parseDate(pick(collectLabelValues($), 'invoice date')) ||
     parseDate(clean($('.invoice-date, .inv-date, .invoice_date').first().text()))
   );
 

@@ -234,6 +234,26 @@ it('reads invoice number from live page-stat blocks', () => {
   const d = parseInvoiceDetailHtml(livePageStatFixture);
   assert.strictEqual(d.external_invoice_id, '2661850');
   assert.strictEqual(d.invoice_number, '10246');
+  assert.strictEqual(d.invoice_date, '2026-04-04');
+});
+
+it('reads invoice date from live label-value summary tables', () => {
+  const liveSummaryTableFixture = `
+    <input type="hidden" id="inv_id" value="2669693">
+    <table>
+      <tr><td class="title">Invoice #</td><td style="text-align:right;">10276</td></tr>
+      <tr><td class="title" style="text-align:left;"> Invoice Date </td><td style="text-align:right;"> Apr 06, 2026 </td></tr>
+      <tr><td class="title">Credit Available</td><td style="text-align:right;">0.00</td></tr>
+    </table>
+    <table class="table--description">
+      <tbody>
+        <tr><td>Apr 06, 2026</td><td>Mowing (Weekly)</td><td>$45</td><td>1</td><td></td><td>8%</td><td>$48.60</td></tr>
+      </tbody>
+    </table>
+    <table class="table--sub-total"><tr><td>Total</td><td>$48.60</td></tr></table>`;
+  const d = parseInvoiceDetailHtml(liveSummaryTableFixture);
+  assert.strictEqual(d.external_invoice_id, '2669693');
+  assert.strictEqual(d.invoice_date, '2026-04-06');
 });
 
 it('parses live-like Copilot detail rows where the service date is embedded in the description cell', () => {

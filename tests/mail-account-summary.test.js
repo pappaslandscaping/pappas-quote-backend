@@ -25,6 +25,23 @@ function runAssertions() {
   assert.strictEqual(summary.priorBalance, 264.75);
   assert.strictEqual(summary.thisInvoice, 194.08);
   assert.strictEqual(summary.totalDueOnAccount, 458.83);
+
+  const copilotStandingSummary = resolveMailAccountSummary({
+    invoiceTotal: 194.08,
+    metadata: {
+      prior_balance: 29.11,
+      past_due_balance: 29.11,
+      customer_past_due_balance: 29.11,
+      customer_outstanding_balance: 137.11,
+      total_due_on_account: 137.11,
+    },
+    parseMoney,
+    roundMoney,
+  });
+
+  assert.strictEqual(copilotStandingSummary.priorBalance, 137.11);
+  assert.strictEqual(copilotStandingSummary.thisInvoice, 194.08);
+  assert.strictEqual(copilotStandingSummary.totalDueOnAccount, 331.19);
 }
 
 if (typeof test === 'function') {

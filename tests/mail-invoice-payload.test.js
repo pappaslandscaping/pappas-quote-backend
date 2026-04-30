@@ -126,6 +126,8 @@ async function runAssertions() {
   assert(listQuery.query.includes('address_match.display_name AS address_matched_customer_name'));
   assert(listQuery.query.includes("COALESCE(TRIM(i.customer_name), '') ~* '^(return|remit|payment stub)?$'"));
   assert(listQuery.query.includes('address_match.display_name ILIKE $1'));
+  assert(listQuery.query.includes("i.external_metadata->>'invoice_number' ILIKE $1"));
+  assert(listQuery.query.includes("TRIM(i.invoice_number) = TRIM(i.external_invoice_id)"));
   assert.deepStrictEqual(listQuery.params, ['%10300%', 25000, 0]);
 }
 

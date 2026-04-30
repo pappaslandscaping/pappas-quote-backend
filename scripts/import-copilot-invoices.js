@@ -252,6 +252,10 @@ async function upsert(pool, v) {
                                 OR invoices.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
                                 OR invoices.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
                                 OR invoices.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                                OR (
+                                  COALESCE(NULLIF(TRIM(invoices.external_invoice_id), ''), '') <> ''
+                                  AND TRIM(invoices.invoice_number) = TRIM(invoices.external_invoice_id)
+                                )
                               THEN $${3}
                               ELSE invoices.invoice_number
                             END`,

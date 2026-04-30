@@ -66,7 +66,7 @@ const {
   refreshCopilotInvoiceSnapshot,
 } = require('../lib/copilot-live-invoices');
 
-module.exports = function createInvoiceRoutes({
+function createInvoiceRoutes({
   pool,
   sendEmail,
   emailTemplate,
@@ -244,6 +244,17 @@ function parseJsonObject(value) {
 
 function formatMailDate(value) {
   if (!value) return '';
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const localDate = new Date(`${raw}T00:00:00`);
+    if (!Number.isNaN(localDate.getTime())) {
+      return localDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleDateString('en-US', {
@@ -251,6 +262,28 @@ function formatMailDate(value) {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function isMailFuelSurchargeItem(item) {
+  const label = String(item?.name || item?.description || '').trim().toLowerCase();
+  return label === 'fuel surcharge';
+}
+
+function latestMailServiceDate(lineItems = []) {
+  const candidates = (Array.isArray(lineItems) ? lineItems : [])
+    .filter((item) => !isMailFuelSurchargeItem(item))
+    .map((item) => String(item?.service_date_raw || item?.service_date || item?.date || '').trim())
+    .filter(Boolean)
+    .sort();
+  return candidates.length ? candidates[candidates.length - 1] : null;
+}
+
+function resolveMailInvoiceDate({ row = {}, metadata = {}, lineItems = [] } = {}) {
+  return metadata.invoice_date
+    || metadata.invoice_date_raw
+    || row.invoice_date
+    || latestMailServiceDate(lineItems)
+    || row.created_at;
 }
 
 async function ensureMailWorkflowSchema() {
@@ -480,10 +513,7 @@ function buildMailInvoicePayload(row) {
     || row.linked_customer_name
     || metadata.customer_name
     || '';
-  const invoiceDate = metadata.invoice_date
-    || metadata.invoice_date_raw
-    || row.invoice_date
-    || row.created_at;
+  const invoiceDate = resolveMailInvoiceDate({ row, metadata, lineItems });
 
   return {
     ...row,
@@ -5057,5 +5087,14 @@ router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
 
 // ─── Job Detail / Profitability ────────────────────────────────────────────
 
+  createInvoiceRoutes._helpers = {
+    buildMailInvoicePayload,
+    formatMailDate,
+    latestMailServiceDate,
+    resolveMailInvoiceDate,
+  };
+
   return router;
-};
+}
+
+module.exports = createInvoiceRoutes;

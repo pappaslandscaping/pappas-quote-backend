@@ -12839,6 +12839,14 @@ async function syncCopilotInvoices({
                 jsonb_array_length(COALESCE(line_items, '[]'::jsonb)) = 0
                 OR customer_name LIKE '%@%'
                 OR COALESCE(external_metadata->>'detail_parse_warning', '') <> ''
+                OR COALESCE(external_metadata->>'invoice_number', '') = ''
+                OR invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
+                OR invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+                OR invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                OR (
+                  COALESCE(NULLIF(TRIM(external_invoice_id), ''), '') <> ''
+                  AND TRIM(invoice_number) = TRIM(external_invoice_id)
+                )
               )
             ORDER BY created_at DESC NULLS LAST`;
         if (Number(detailLimit) > 0) {

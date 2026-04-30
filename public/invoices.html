@@ -1006,15 +1006,16 @@
     function getInvoiceNumberDisplay(inv) {
         const candidates = [
             inv.display_invoice_number,
+            inv.external_metadata && inv.external_metadata.invoice_number,
             inv.invoice_number,
             inv.invoiceNumber,
-            inv.external_source === 'copilotcrm' ? inv.external_invoice_id : null,
             inv.externalInvoiceId
         ];
 
         for (const candidate of candidates) {
             const value = String(candidate || '').trim();
             if (!value || looksLikeDateLabel(value)) continue;
+            if (inv.external_source === 'copilotcrm' && String(inv.external_invoice_id || '').trim() === value) continue;
             return value;
         }
         return '—';

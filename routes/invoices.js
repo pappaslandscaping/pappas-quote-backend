@@ -929,14 +929,22 @@ function buildInvoiceListQuery({
                       COALESCE(NULLIF(c.name, ''), NULLIF(address_match.display_name, '')) AS linked_customer_name,
                       address_match.display_name AS address_matched_customer_name,
                       i.customer_name AS invoice_customer_name,
-                      CASE
-                        WHEN COALESCE(NULLIF(TRIM(i.invoice_number), ''), '') = ''
-                          OR i.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
-                          OR i.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
-                          OR i.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
-                        THEN NULLIF(CASE WHEN i.external_source = 'copilotcrm' THEN i.external_invoice_id ELSE NULL END, '')
-                        ELSE i.invoice_number
-                      END AS display_invoice_number
+                      COALESCE(
+                        NULLIF(i.external_metadata->>'invoice_number', ''),
+                        CASE
+                      WHEN COALESCE(NULLIF(TRIM(i.invoice_number), ''), '') = ''
+                        OR i.invoice_number ~ '^[A-Z][a-z]{2} [0-9]{2}, [0-9]{4}$'
+                        OR i.invoice_number ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+                        OR i.invoice_number ~ '^\\d{4}-\\d{2}-\\d{2}$'
+                            OR (
+                              i.external_source = 'copilotcrm'
+                              AND COALESCE(NULLIF(TRIM(i.external_invoice_id), ''), '') <> ''
+                              AND TRIM(i.invoice_number) = TRIM(i.external_invoice_id)
+                            )
+                          THEN NULL
+                      ELSE i.invoice_number
+                        END
+                      ) AS display_invoice_number
                  FROM invoices i
                  LEFT JOIN customers c ON i.customer_id = c.id
                  LEFT JOIN LATERAL (
@@ -987,6 +995,7 @@ function buildInvoiceListQuery({
     const p = params.length;
     where.push(`(
       i.invoice_number ILIKE $${p}
+      OR i.external_metadata->>'invoice_number' ILIKE $${p}
       OR c.name ILIKE $${p}
       OR TRIM(CONCAT_WS(' ', c.first_name, c.last_name)) ILIKE $${p}
       OR address_match.display_name ILIKE $${p}

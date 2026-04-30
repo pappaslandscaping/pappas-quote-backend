@@ -286,6 +286,22 @@ function resolveMailInvoiceDate({ row = {}, metadata = {}, lineItems = [] } = {}
     || row.created_at;
 }
 
+function resolveMailInvoiceNumber({ row = {}, metadata = {} } = {}) {
+  const candidates = [
+    metadata.extracted_invoice_number,
+    metadata.display_invoice_number,
+    metadata.source_invoice_number,
+    metadata.invoice_number,
+    row.display_invoice_number,
+    row.invoice_number,
+  ];
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim();
+    if (normalized && !isDateLikeInvoiceLabel(normalized)) return normalized;
+  }
+  return String(row.external_invoice_id || row.id || '').trim();
+}
+
 function normalizeMailText(value) {
   return String(value || '').trim();
 }
@@ -537,9 +553,11 @@ function buildMailInvoicePayload(row) {
     metadata.customer_name
   );
   const invoiceDate = resolveMailInvoiceDate({ row, metadata, lineItems });
+  const invoiceNumber = resolveMailInvoiceNumber({ row, metadata });
 
   return {
     ...row,
+    invoice_number: invoiceNumber,
     subtotal: financials.subtotal,
     tax_amount: financials.tax_amount,
     total: financials.total,
@@ -5191,6 +5209,7 @@ router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
     firstUsableMailCustomerName,
     formatMailDate,
     latestMailServiceDate,
+    resolveMailInvoiceNumber,
     resolveMailInvoiceDate,
   };
 

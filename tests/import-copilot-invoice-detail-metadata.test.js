@@ -22,6 +22,7 @@ function runAssertions() {
   assert.strictEqual(values.metadata.total_due_on_account, 458.83);
   assert.strictEqual(values.metadata.customer_outstanding_balance, 458.83);
   assert.strictEqual(values.metadata.customer_name, 'Superior Industrial');
+  assert.strictEqual(values.metadata.invoice_number, '10951');
   assert.strictEqual(values.metadata.invoice_date, '2026-04-28');
 }
 

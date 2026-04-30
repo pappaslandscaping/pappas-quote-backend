@@ -32,6 +32,7 @@ const {
   formatMailDate,
   latestMailServiceDate,
   resolveMailInvoiceDate,
+  resolveMailInvoiceNumber,
 } = createInvoiceRoutes._helpers;
 
 function superiorIndustrialInvoice(overrides = {}) {
@@ -80,6 +81,25 @@ async function runAssertions() {
 
   const createdAtFallback = buildMailInvoicePayload(superiorIndustrialInvoice({ line_items: [] }));
   assert.strictEqual(createdAtFallback.invoice_date_raw, 'Apr 7, 2026');
+
+  const dateLikeInvoiceNumberPayload = buildMailInvoicePayload(superiorIndustrialInvoice({
+    id: 14858,
+    invoice_number: 'Apr 04, 2026',
+    external_invoice_id: '2661850',
+    external_metadata: {
+      invoice_number: '10246',
+      invoice_date: '2026-04-04',
+    },
+  }));
+  assert.strictEqual(
+    resolveMailInvoiceNumber({
+      row: { invoice_number: 'Apr 04, 2026', external_invoice_id: '2661850' },
+      metadata: { invoice_number: '10246' },
+    }),
+    '10246'
+  );
+  assert.strictEqual(dateLikeInvoiceNumberPayload.invoice_number, '10246');
+  assert.strictEqual(dateLikeInvoiceNumberPayload.invoice_date_raw, 'Apr 4, 2026');
 
   const [matchedInvoice] = await attachMailCustomerMatches([superiorIndustrialInvoice({
     customer_id: null,

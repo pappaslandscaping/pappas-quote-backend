@@ -114,6 +114,18 @@ function collectLabelValues($) {
   return out;
 }
 
+function collectPageStatValues($) {
+  const out = new Map();
+  $('.page-stat-title').each((_, title) => {
+    const label = clean($(title).text()).toLowerCase().replace(/[:\s]+$/, '');
+    if (!label) return;
+    const $container = $(title).closest('.row, .page-stat, .page-stat-item, div');
+    const value = clean($container.find('.page-stat-value').first().text());
+    if (value && !out.has(label)) out.set(label, value);
+  });
+  return out;
+}
+
 function parseActivityPaidAt($) {
   const paymentDates = [];
   $('table.copilot-table tr').each((_, tr) => {
@@ -198,6 +210,7 @@ function parseInvoiceDetailHtml(html) {
     valOrText($('#invoice_number')) ||
     valOrText($('input[name="invoice_number"]')) ||
     valOrText($('.invoice-number, .invoice_number, .inv-number')) ||
+    pick(collectPageStatValues($), 'invoice #') ||
     null
   );
   if (!invoice_number) {

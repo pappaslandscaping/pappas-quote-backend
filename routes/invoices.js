@@ -286,6 +286,27 @@ function resolveMailInvoiceDate({ row = {}, metadata = {}, lineItems = [] } = {}
     || row.created_at;
 }
 
+function normalizeMailText(value) {
+  return String(value || '').trim();
+}
+
+function isPlaceholderMailCustomerName(value) {
+  const normalized = normalizeMailText(value);
+  return !normalized || /^(return|remit|payment stub)$/i.test(normalized);
+}
+
+function mailAddressFingerprint(value) {
+  return normalizeMailText(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function firstUsableMailCustomerName(...candidates) {
+  for (const candidate of candidates) {
+    const normalized = normalizeMailText(candidate);
+    if (!isPlaceholderMailCustomerName(normalized)) return normalized;
+  }
+  return '';
+}
+
 async function ensureMailWorkflowSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mail_batches (
@@ -508,11 +529,13 @@ function buildMailInvoicePayload(row) {
     lineItems,
     metadata,
   });
-  const customerName = row.customer_name
-    || row.invoice_customer_name
-    || row.linked_customer_name
-    || metadata.customer_name
-    || '';
+  const customerName = firstUsableMailCustomerName(
+    row.address_matched_customer_name,
+    row.linked_customer_name,
+    row.invoice_customer_name,
+    row.customer_name,
+    metadata.customer_name
+  );
   const invoiceDate = resolveMailInvoiceDate({ row, metadata, lineItems });
 
   return {
@@ -534,8 +557,53 @@ function buildMailInvoicePayload(row) {
   };
 }
 
-async function attachMailPriorBalances(rows) {
+async function attachMailCustomerMatches(rows) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!list.length) return list;
+
+  const fingerprints = [...new Set(list
+    .filter((row) => isPlaceholderMailCustomerName(row.customer_name))
+    .map((row) => mailAddressFingerprint(row.customer_address))
+    .filter(Boolean))];
+  if (!fingerprints.length) return list;
+
+  const result = await pool.query(
+    `SELECT id,
+            COALESCE(NULLIF(name, ''), NULLIF(customer_company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '')) AS display_name,
+            regexp_replace(lower(concat_ws(' ', street, street2, city, state, postal_code)), '[^a-z0-9]', '', 'g') AS address_fingerprint
+       FROM customers
+      WHERE regexp_replace(lower(concat_ws(' ', street, street2, city, state, postal_code)), '[^a-z0-9]', '', 'g') = ANY($1::text[])`,
+    [fingerprints]
+  );
+  const byAddress = new Map();
+  for (const customer of result.rows) {
+    const displayName = firstUsableMailCustomerName(customer.display_name);
+    if (!displayName || byAddress.has(customer.address_fingerprint)) continue;
+    byAddress.set(customer.address_fingerprint, {
+      id: customer.id,
+      displayName,
+    });
+  }
+
+  return list.map((row) => {
+    if (!isPlaceholderMailCustomerName(row.customer_name)) return row;
+    const match = byAddress.get(mailAddressFingerprint(row.customer_address));
+    if (!match) return row;
+    const metadata = parseJsonObject(row.external_metadata || row.metadata);
+    return {
+      ...row,
+      customer_id: row.customer_id || match.id,
+      address_matched_customer_name: match.displayName,
+      external_metadata: {
+        ...metadata,
+        customer_name: firstUsableMailCustomerName(metadata.customer_name, match.displayName),
+      },
+    };
+  });
+}
+
+async function attachMailPriorBalances(rows) {
+  const list = await attachMailCustomerMatches(rows);
   if (!list.length) return list;
 
   const enriched = [];
@@ -5088,7 +5156,9 @@ router.get('/api/invoices/:id/payment-schedule', async (req, res) => {
 // ─── Job Detail / Profitability ────────────────────────────────────────────
 
   createInvoiceRoutes._helpers = {
+    attachMailCustomerMatches,
     buildMailInvoicePayload,
+    firstUsableMailCustomerName,
     formatMailDate,
     latestMailServiceDate,
     resolveMailInvoiceDate,

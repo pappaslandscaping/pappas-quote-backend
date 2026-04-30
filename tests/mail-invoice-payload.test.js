@@ -2,7 +2,15 @@ const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
 createInvoiceRoutes({
-  pool: { query: async () => ({ rows: [] }) },
+  pool: {
+    query: async () => ({
+      rows: [{
+        id: 2384,
+        display_name: 'Superior Industrial',
+        address_fingerprint: '3855west150thstreetclevelandoh44111',
+      }],
+    }),
+  },
   sendEmail: async () => ({}),
   emailTemplate: () => '',
   escapeHtml: (value) => String(value || ''),
@@ -18,6 +26,7 @@ createInvoiceRoutes({
 });
 
 const {
+  attachMailCustomerMatches,
   buildMailInvoicePayload,
   formatMailDate,
   latestMailServiceDate,
@@ -51,7 +60,7 @@ function superiorIndustrialInvoice(overrides = {}) {
   };
 }
 
-function runAssertions() {
+async function runAssertions() {
   const payload = buildMailInvoicePayload(superiorIndustrialInvoice());
 
   assert.strictEqual(payload.invoice_date_raw, 'Apr 28, 2026');
@@ -70,11 +79,34 @@ function runAssertions() {
 
   const createdAtFallback = buildMailInvoicePayload(superiorIndustrialInvoice({ line_items: [] }));
   assert.strictEqual(createdAtFallback.invoice_date_raw, 'Apr 7, 2026');
+
+  const [matchedInvoice] = await attachMailCustomerMatches([superiorIndustrialInvoice({
+    customer_id: null,
+    customer_name: 'Return',
+    customer_address: '3855 West 150th Street Cleveland OH 44111',
+    external_metadata: {
+      customer_name: 'Return',
+      invoice_date: null,
+      prior_balance: 328.67,
+      total_due: 522.75,
+    },
+  })]);
+  const matchedPayload = buildMailInvoicePayload(matchedInvoice);
+
+  assert.strictEqual(matchedPayload.customer_id, 2384);
+  assert.strictEqual(matchedPayload.customer_name, 'Superior Industrial');
+  assert.strictEqual(matchedPayload.metadata.customer_name, 'Superior Industrial');
 }
 
 if (typeof test === 'function') {
   test('mail invoice payload uses latest service date when Copilot invoice date is missing', runAssertions);
 } else {
-  runAssertions();
-  console.log('mail-invoice-payload.test.js passed');
+  runAssertions()
+    .then(() => {
+      console.log('mail-invoice-payload.test.js passed');
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

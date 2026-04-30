@@ -1,5 +1,6 @@
 const { resolvePropertyParcel } = require('./parcel');
 const { runLegacySamPromptEngine } = require('./engines/legacy-sam-prompt');
+const { runRoboflowSemanticEngine } = require('./engines/roboflow-semantic');
 
 function unique(list = []) {
   return [...new Set(list.filter(Boolean))];
@@ -25,12 +26,38 @@ function buildFallbackMessages(reasons = []) {
     google_geocode_failed: 'Google could not geocode this address.',
     google_geocode_exception: 'Google geocode threw an exception.',
     missing_fal_api_key: 'FAL_API_KEY is not configured.',
+    missing_roboflow_api_key: 'ROBOFLOW_API_KEY is not configured.',
+    missing_roboflow_model_config: 'ROBOFLOW_MODEL_SLUG and ROBOFLOW_MODEL_VERSION are not configured.',
     missing_static_map_url: 'Static imagery URL could not be built.',
     static_map_fetch_failed: 'Google static map download failed.',
     sam3_request_failed: 'SAM3 segmentation request failed.',
     sam3_no_usable_masks: 'SAM3 did not return usable masks for lawn, beds, or hardscape.',
+    roboflow_http_error: 'Roboflow semantic segmentation request failed.',
+    roboflow_no_segmentation_mask: 'Roboflow did not return a semantic segmentation mask.',
+    roboflow_empty_segmentation_mask: 'Roboflow returned an empty semantic segmentation mask.',
+    roboflow_no_mapped_surface_classes: 'Roboflow returned classes that did not map to lawn, beds, or hardscape.',
+    roboflow_exception: 'Roboflow semantic segmentation threw an exception.',
   };
   return unique(reasons).filter(shouldShowFallbackReason).map((reason) => messageByReason[reason] || reason);
+}
+
+async function selectMeasurementEngine({ imageryUrl, fallbackReasons, visibleFallbackMessages }) {
+  const preferred = process.env.MEASUREMENT_ENGINE || 'legacy_sam_prompt';
+
+  if (preferred === 'roboflow_semantic') {
+    const roboflowResult = await runRoboflowSemanticEngine({
+      imageryUrl,
+      fallbackReasons,
+      visibleFallbackMessages,
+    });
+    if (roboflowResult) return roboflowResult;
+  }
+
+  return runLegacySamPromptEngine({
+    imageryUrl,
+    fallbackReasons,
+    visibleFallbackMessages,
+  });
 }
 
 function buildStaticMapUrl(latitude, longitude, zoom = 19) {
@@ -143,7 +170,7 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
     lotSizeSource = 'estimate';
   }
 
-  const engineResult = await runLegacySamPromptEngine({
+  const engineResult = await selectMeasurementEngine({
     imageryUrl,
     fallbackReasons,
     visibleFallbackMessages,

@@ -30,6 +30,7 @@ module.exports = function createMeasurementRoutes({ pool, serverError, authentic
         measurementPayload.parcel?.boundaryGeojson ? JSON.stringify(measurementPayload.parcel.boundaryGeojson) : null,
         JSON.stringify({
           method: measurementPayload.method,
+          engine: measurementPayload.engine || null,
           accuracy: measurementPayload.accuracy,
           fallback: measurementPayload.fallback,
           totalLot: measurementPayload.analysis.totalLot,
@@ -65,6 +66,7 @@ module.exports = function createMeasurementRoutes({ pool, serverError, authentic
         JSON.stringify(payload.analysis.confidence || {}),
         JSON.stringify({
           analysis: payload.analysis,
+          engine: payload.engine || null,
           accuracy: payload.accuracy,
           fallback: payload.fallback,
           debug: payload.debug,

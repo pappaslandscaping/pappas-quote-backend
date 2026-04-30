@@ -72,8 +72,12 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 | Variable | Purpose | Behavior when missing |
 |---|---|---|
 | `GOOGLE_MAPS_API_KEY` | Property geocoding, static map imagery, map embeds | Address-based map features degrade; automeasure cannot fetch Google imagery |
-| `REGRID_API_TOKEN` | Parcel boundary and lot-size lookup | Automeasure falls back to estimated lot size and no parcel enrichment |
-| `FAL_API_KEY` | SAM 3 segmentation for lawn / bed / hardscape detection | Automeasure falls back to heuristic ratios instead of imagery-assisted measurement |
+| `MEASUREMENT_ENGINE` | Measurement engine selector: `legacy_sam_prompt` or `roboflow_semantic` | Defaults to `legacy_sam_prompt` |
+| `FAL_API_KEY` | Legacy prompt-only SAM engine | `legacy_sam_prompt` falls back to estimate ratios |
+| `ROBOFLOW_API_KEY` | Roboflow semantic segmentation engine | `roboflow_semantic` cannot run without it |
+| `ROBOFLOW_MODEL_SLUG` | Roboflow model slug for semantic segmentation | `roboflow_semantic` cannot run without it |
+| `ROBOFLOW_MODEL_VERSION` | Roboflow model version for semantic segmentation | `roboflow_semantic` cannot run without it |
+| `REGRID_API_TOKEN` | Optional parcel boundary and lot-size lookup | Automeasure remains approximate without parcel enrichment |
 
 ### Optional configuration
 

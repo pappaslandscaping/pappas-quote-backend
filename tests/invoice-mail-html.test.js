@@ -65,6 +65,7 @@ function runAssertions() {
   const fuelSnippetStart = html.indexOf('Fuel Surcharge');
   const fuelSnippet = html.slice(Math.max(0, fuelSnippetStart - 180), fuelSnippetStart + 180);
   assert(!fuelSnippet.includes('Apr 27, 2026'));
+  assert(fuelSnippet.includes('Route fuel recovery based on current fuel prices.'));
   assert(html.includes('Apr 2, 2026') || html.includes('Apr 02, 2026'));
   assert(html.includes('17894 Clifton Park Lane'));
   assert(html.includes('Lakewood, OH 44107'));

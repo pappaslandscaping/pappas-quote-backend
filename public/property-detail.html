@@ -791,6 +791,17 @@
         return { label: 'Measured', detail: 'Stored automeasure result.' };
     }
 
+    function getFallbackMessages(measurementSummary = {}, fallbackMethod = '') {
+        const fallback = measurementSummary?.fallback || {};
+        if (Array.isArray(fallback.messages) && fallback.messages.length) {
+            return fallback.messages;
+        }
+        if (fallbackMethod.includes('estimate')) {
+            return ['No provider-specific fallback reason was stored for this older run.'];
+        }
+        return [];
+    }
+
     function getFeatureQuantity(measurement, featureKey) {
         const feature = (measurement?.features || []).find((item) => item.feature_key === featureKey);
         return feature ? Number(feature.quantity || 0) : 0;
@@ -984,6 +995,7 @@
         const measuredAt = latestMeasurement?.created_at || summary.measuredAt || property?.last_measured_at || null;
         const accuracy = latestMeasurement?.summary?.accuracy || summary.accuracy || {};
         const accuracyMeta = getAccuracyMeta(accuracy, latestMeasurement?.method || summary.method || '');
+        const fallbackMessages = getFallbackMessages(latestMeasurement?.summary || summary, latestMeasurement?.method || summary.method || '');
 
         const surfaces = (latestMeasurement?.features || []).filter((item) => item.feature_group === 'surface' && item.feature_key !== 'lot_area');
         const edges = (latestMeasurement?.features || []).filter((item) => item.feature_group === 'edge');
@@ -1028,6 +1040,12 @@
                 <span>${esc(accuracyMeta.label)} • ${esc(accuracyMeta.detail)}</span>
                 <span>Trees: ${formatNumber(trees)} • Hard Edge: ${formatNumber(hardEdge)} ft • Soft Edge: ${formatNumber(softEdge)} ft</span>
             </div>
+            ${fallbackMessages.length ? `
+                <div style="margin-top:12px;padding:12px 14px;border:1px solid var(--gray-200);border-radius:10px;background:#fff7ed;color:#9a3412;font-size:12px;">
+                    <strong style="display:block;margin-bottom:6px;">Fallback reason</strong>
+                    ${fallbackMessages.map((message) => `<div>${esc(message)}</div>`).join('')}
+                </div>
+            ` : ''}
             <div class="measurement-feature-list">
                 <div class="measurement-feature-group">
                     <h4>Surfaces</h4>

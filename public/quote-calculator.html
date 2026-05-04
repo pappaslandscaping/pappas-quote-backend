@@ -967,7 +967,7 @@
 
     function applyMeasurementSnapshot(snapshot = {}, options = {}) {
         const lotSize = parseInt(snapshot.totalLot || snapshot.lotSize || document.getElementById('lotSizeInput').value || 0, 10) || 0;
-        const lawnArea = parseInt(snapshot.lawnArea || snapshot.lawn || 0, 10) || 0;
+        const lawnArea = parseInt(snapshot.measuredLawnSqFt || snapshot.lawnArea || snapshot.lawn || 0, 10) || 0;
         const bedArea = parseInt(snapshot.bedArea || snapshot.beds || 0, 10) || 0;
         const hardscapeArea = parseInt(snapshot.hardscapeArea || snapshot.hardscape || 0, 10) || 0;
         const shrubCount = parseInt(snapshot.shrubCount || snapshot.shrubs || snapshot.trees || 0, 10) || 0;
@@ -1023,6 +1023,7 @@
                 applyMeasurementSnapshot({
                     accuracy: detailData.measurement?.summary?.accuracy || property.measurement_summary?.accuracy || {},
                     totalLot: detailData.measurement?.lot_area_sqft || property.measurement_summary?.totalLot || property.lot_size,
+                    measuredLawnSqFt: detailData.measurement?.summary?.analysis?.measuredLawnSqFt || property.measurement_summary?.measuredLawnSqFt || null,
                     lawnArea: featureMap.lawn || property.measurement_summary?.lawnArea || 0,
                     bedArea: featureMap.mulch_bed || property.measurement_summary?.bedArea || 0,
                     hardscapeArea: featureMap.hardscape || property.measurement_summary?.hardscapeArea || 0,

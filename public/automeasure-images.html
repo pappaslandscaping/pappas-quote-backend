@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automeasure Image Tool</title>
+  <style>
+    :root {
+      --bg: #f5f4ef;
+      --card: #ffffff;
+      --ink: #263238;
+      --muted: #6b7a78;
+      --line: #dfe7df;
+      --accent: #86b95d;
+      --accent-dark: #5b8b38;
+      --warn-bg: #fff3e7;
+      --warn-ink: #9a4f1e;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #eff4ea 0%, var(--bg) 160px);
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+
+    .hero p {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(69, 83, 56, 0.08);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 120px 140px;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 16px;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    button, .link-btn {
+      appearance: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
+      text-decoration: none;
+      text-align: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button:hover, .link-btn:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: wait; transform: none; }
+
+    .primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .secondary {
+      background: #eef5e7;
+      color: var(--accent-dark);
+      border: 1px solid #d8e8ca;
+    }
+
+    .results {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fbfcfa;
+    }
+
+    .stat .k {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .stat .v {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--accent-dark);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+      background: #eef5e7;
+      color: var(--accent-dark);
+    }
+
+    .warning {
+      background: var(--warn-bg);
+      color: var(--warn-ink);
+      border: 1px solid #f3d6bd;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin: 14px 0;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .warning strong { display: block; margin-bottom: 6px; }
+
+    .preview-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(69, 83, 56, 0.08);
+    }
+
+    .preview-card img {
+      width: 100%;
+      display: block;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #f6f6f6;
+      min-height: 360px;
+      object-fit: cover;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      margin-top: 12px;
+    }
+
+    .hidden { display: none; }
+
+    @media (max-width: 940px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .controls { grid-template-columns: 1fr; }
+      .results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Automeasure Image Tool</h1>
+      <p>Enter an address to fetch a clean satellite image and see whether the lawn sqft is actually measured or just estimated.</p>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="controls">
+          <div style="grid-column: 1 / -1;">
+            <label for="addressInput">Property Address</label>
+            <input id="addressInput" type="text" value="13449 Emerson Ave, Lakewood, OH 44107" placeholder="13449 Emerson Ave, Lakewood, OH 44107" />
+          </div>
+          <div>
+            <label for="zoomInput">Zoom</label>
+            <input id="zoomInput" type="number" value="19" min="16" max="21" />
+          </div>
+          <div style="align-self: end;">
+            <button id="measureBtn" class="primary" type="button">Load Image</button>
+          </div>
+        </div>
+
+        <div class="results">
+          <div class="stat">
+            <div class="k">Lawn Sqft</div>
+            <div id="lawnValue" class="v">-</div>
+          </div>
+          <div class="stat">
+            <div class="k">Lot Sqft</div>
+            <div id="lotValue" class="v">-</div>
+          </div>
+          <div class="stat">
+            <div class="k">Method</div>
+            <div id="methodValue" class="v" style="font-size:18px; line-height:1.2;">-</div>
+          </div>
+          <div class="stat">
+            <div class="k">Mode</div>
+            <div id="modeValue" class="v" style="font-size:18px; line-height:1.2;">-</div>
+          </div>
+        </div>
+
+        <div class="meta">
+          <span id="accuracyBadge" class="badge">No result yet</span>
+          <span id="coordsText">Coordinates: -</span>
+        </div>
+
+        <div id="warningBox" class="warning hidden">
+          <strong>Fallback reason</strong>
+          <div id="warningText"></div>
+        </div>
+
+        <div class="small">
+          Use the preview image for Roboflow training only if it is clean: no pins, no labels, no UI overlays. If the result says <code>estimated</code>, the image is still useful for training, but the lawn sqft number is not a true measurement yet.
+        </div>
+      </section>
+
+      <aside class="preview-card">
+        <img id="previewImage" alt="Satellite preview" />
+        <div class="preview-actions">
+          <a id="openImageLink" class="link-btn secondary hidden" target="_blank" rel="noopener">Open Image</a>
+          <button id="copyImageBtn" class="secondary hidden" type="button">Copy Image URL</button>
+        </div>
+        <div id="previewAddress" class="small">Load an address to preview the static satellite image.</div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const addressInput = document.getElementById('addressInput');
+    const zoomInput = document.getElementById('zoomInput');
+    const measureBtn = document.getElementById('measureBtn');
+    const lawnValue = document.getElementById('lawnValue');
+    const lotValue = document.getElementById('lotValue');
+    const methodValue = document.getElementById('methodValue');
+    const modeValue = document.getElementById('modeValue');
+    const accuracyBadge = document.getElementById('accuracyBadge');
+    const coordsText = document.getElementById('coordsText');
+    const warningBox = document.getElementById('warningBox');
+    const warningText = document.getElementById('warningText');
+    const previewImage = document.getElementById('previewImage');
+    const previewAddress = document.getElementById('previewAddress');
+    const openImageLink = document.getElementById('openImageLink');
+    const copyImageBtn = document.getElementById('copyImageBtn');
+
+    function fmtNumber(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      return new Intl.NumberFormat().format(value);
+    }
+
+    function getAuthToken() {
+      return localStorage.getItem('token');
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        copyImageBtn.textContent = 'Copied';
+        setTimeout(() => { copyImageBtn.textContent = 'Copy Image URL'; }, 1200);
+      } catch (_) {
+        copyImageBtn.textContent = 'Copy failed';
+        setTimeout(() => { copyImageBtn.textContent = 'Copy Image URL'; }, 1200);
+      }
+    }
+
+    function applyResult(data) {
+      const result = data.result || {};
+      const measurement = data.measurement || {};
+      const imageryUrl = measurement.resolution?.imageryUrl || '';
+      const fallbackMessages = measurement.fallback?.messages || [];
+
+      lawnValue.textContent = fmtNumber(result.lawnSqFt);
+      lotValue.textContent = fmtNumber(result.lotSizeSqFt);
+      methodValue.textContent = measurement.method || '-';
+      modeValue.textContent = result.measurementMode || '-';
+      coordsText.textContent = `Coordinates: ${result.latitude || '-'}, ${result.longitude || '-'}`;
+      accuracyBadge.textContent = result.measurementMode === 'actual' ? 'Actual measurement' : 'Estimated result';
+
+      if (fallbackMessages.length) {
+        warningText.textContent = fallbackMessages.join(' ');
+        warningBox.classList.remove('hidden');
+      } else {
+        warningText.textContent = '';
+        warningBox.classList.add('hidden');
+      }
+
+      previewAddress.textContent = result.address || addressInput.value.trim();
+
+      if (imageryUrl) {
+        previewImage.src = imageryUrl;
+        openImageLink.href = imageryUrl;
+        openImageLink.classList.remove('hidden');
+        copyImageBtn.classList.remove('hidden');
+        copyImageBtn.onclick = () => copyText(imageryUrl);
+      } else {
+        previewImage.removeAttribute('src');
+        openImageLink.classList.add('hidden');
+        copyImageBtn.classList.add('hidden');
+      }
+    }
+
+    async function loadMeasurement() {
+      const address = addressInput.value.trim();
+      const token = getAuthToken();
+
+      if (!token) {
+        alert('Log in to the app first.');
+        return;
+      }
+
+      if (!address) {
+        alert('Enter an address.');
+        return;
+      }
+
+      measureBtn.disabled = true;
+      measureBtn.textContent = 'Loading...';
+
+      try {
+        const response = await fetch('/api/measurements/by-address', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            address,
+            zoom: parseInt(zoomInput.value || '19', 10) || 19,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to load measurement');
+        }
+
+        applyResult(data);
+      } catch (error) {
+        warningText.textContent = error.message || 'Failed to load measurement';
+        warningBox.classList.remove('hidden');
+      } finally {
+        measureBtn.disabled = false;
+        measureBtn.textContent = 'Load Image';
+      }
+    }
+
+    measureBtn.addEventListener('click', loadMeasurement);
+    addressInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') loadMeasurement();
+    });
+  </script>
+</body>
+</html>

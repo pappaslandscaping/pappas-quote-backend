@@ -4,6 +4,36 @@ const { analyzePropertyMeasurement } = require('../services/measurements/analyze
 module.exports = function createMeasurementRoutes({ pool, serverError, authenticateToken }) {
   const router = express.Router();
 
+  function buildAddressMeasurementResponse(payload) {
+    return {
+      success: true,
+      measurement: {
+        method: payload.method,
+        engine: payload.engine || null,
+        accuracy: payload.accuracy,
+        fallback: payload.fallback,
+        summary: {
+          analysis: payload.analysis,
+          engine: payload.engine || null,
+          accuracy: payload.accuracy,
+          fallback: payload.fallback,
+        },
+        features: payload.features,
+        resolution: payload.resolution,
+        debug: payload.debug,
+      },
+      result: {
+        address: payload.resolution.address,
+        latitude: payload.resolution.latitude,
+        longitude: payload.resolution.longitude,
+        lotSizeSqFt: payload.analysis.totalLot,
+        lawnSqFt: payload.analysis.measuredLawnSqFt || payload.analysis.lawnArea,
+        measuredLawnSqFt: payload.analysis.measuredLawnSqFt,
+        measurementMode: payload.analysis.measurementMode,
+      },
+    };
+  }
+
   async function loadProperty(propertyId) {
     const result = await pool.query('SELECT * FROM properties WHERE id = $1', [propertyId]);
     return result.rows[0] || null;
@@ -35,6 +65,8 @@ module.exports = function createMeasurementRoutes({ pool, serverError, authentic
           fallback: measurementPayload.fallback,
           totalLot: measurementPayload.analysis.totalLot,
           lawnArea: measurementPayload.analysis.lawnArea,
+          measuredLawnSqFt: measurementPayload.analysis.measuredLawnSqFt,
+          measurementMode: measurementPayload.analysis.measurementMode,
           bedArea: measurementPayload.analysis.bedArea,
           hardscapeArea: measurementPayload.analysis.hardscapeArea,
           shrubCount: measurementPayload.analysis.shrubCount,
@@ -219,6 +251,34 @@ module.exports = function createMeasurementRoutes({ pool, serverError, authentic
       throw error;
     }
   }
+
+  router.post('/api/measurements/by-address', authenticateToken, async (req, res) => {
+    try {
+      const address = String(req.body?.address || '').trim();
+      if (!address) {
+        return res.status(400).json({ success: false, error: 'Address is required' });
+      }
+
+      const payload = await analyzePropertyMeasurement(
+        {
+          street: address,
+          latitude: req.body?.latitude || null,
+          longitude: req.body?.longitude || null,
+        },
+        {
+          reportType: req.body?.report_type || 'landscaping',
+          instructions: req.body?.instructions || {},
+          lotSize: req.body?.lot_size || null,
+          imageUrl: req.body?.image_url || null,
+          zoom: req.body?.zoom || 19,
+        }
+      );
+
+      return res.json(buildAddressMeasurementResponse(payload));
+    } catch (error) {
+      serverError(res, error, 'Error measuring property by address');
+    }
+  });
 
   router.post('/api/properties/:id/measurements', authenticateToken, async (req, res) => {
     try {

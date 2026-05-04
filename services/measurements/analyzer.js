@@ -68,7 +68,7 @@ function buildStaticMapUrl(latitude, longitude, zoom = 19) {
 
 function buildFeatureSet(analysis = {}) {
   const lotArea = analysis.totalLot || 0;
-  const lawnArea = analysis.lawnArea || 0;
+  const lawnArea = analysis.measuredLawnSqFt || analysis.lawnArea || 0;
   const bedArea = analysis.bedArea || 0;
   const hardscapeArea = analysis.hardscapeArea || 0;
   const treeCount = analysis.shrubCount || 0;
@@ -183,9 +183,11 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
     hardscapeArea: Math.round(totalLot * engineResult.ratios.hardscape),
     shrubCount: Math.max(3, Math.round((totalLot * engineResult.ratios.mulch_bed) / 55)),
     ratios: engineResult.ratios,
+    measuredLawnSqFt: engineResult.hasImagerySegmentation ? Math.round(totalLot * engineResult.ratios.lawn) : null,
+    measurementMode: engineResult.hasImagerySegmentation ? 'actual' : 'estimated',
     confidence: {
       lotSize: lotSizeSource === 'regrid' ? 0.95 : (lotSizeSource === 'user' ? 0.9 : 0.5),
-      ratios: engineResult.ratioSource === 'sam3' ? 0.8 : 0.5,
+      ratios: engineResult.confidence || (engineResult.ratioSource === 'sam3' ? 0.8 : 0.5),
     },
   };
 

@@ -311,7 +311,10 @@
     }
 
     function getAuthToken() {
-      return localStorage.getItem('token');
+      return localStorage.getItem('adminToken')
+        || localStorage.getItem('jwt_token')
+        || localStorage.getItem('token')
+        || sessionStorage.getItem('token');
     }
 
     async function copyText(text) {

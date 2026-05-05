@@ -3840,7 +3840,7 @@ app.all('/api/app/calls/connect', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   twiml.say({ voice: 'alice' }, 'Connecting your call.');
-  twiml.dial({ callerId: from }).number(to);
+  twiml.dial({ callerId: from, ringTone: 'us' }).number(to);
   res.type('text/xml');
   res.send(twiml.toString());
 });
@@ -4070,6 +4070,7 @@ app.all('/api/app/voice/connect', (req, res) => {
       callerId: TWILIO_PHONE_NUMBER,
       timeout: 30,
       answerOnBridge: true,
+      ringTone: 'us',
       action: `${baseUrl}/api/app/voice/outbound-status`,
       method: 'POST',
     });

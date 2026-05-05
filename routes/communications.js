@@ -86,6 +86,13 @@ function normalizePhoneForSend(phone) {
   return digits ? `+${digits}` : null;
 }
 
+function normalizePhoneForLookup(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  const normalized = digits.slice(-10);
+  return normalized || null;
+}
+
 function buildUppercaseVarAliases(vars = {}) {
   const aliases = {};
   for (const [key, value] of Object.entries(vars)) {
@@ -1061,49 +1068,95 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
 
 router.get('/api/messages/conversations', async (req, res) => {
   try {
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 1000) : 500;
     const result = await pool.query(`
-      WITH latest_messages AS (
-        SELECT DISTINCT ON (
-          CASE 
-            WHEN direction = 'inbound' THEN from_number 
-            ELSE to_number 
-          END
-        )
-        id, twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read, created_at,
-        CASE 
-          WHEN direction = 'inbound' THEN from_number 
-          ELSE to_number 
-        END as contact_number
+      WITH normalized_messages AS (
+        SELECT
+          m.*,
+          CASE
+            WHEN m.direction = 'inbound' THEN m.from_number
+            ELSE m.to_number
+          END AS contact_number,
+          RIGHT(
+            REGEXP_REPLACE(
+              CASE
+                WHEN m.direction = 'inbound' THEN COALESCE(m.from_number, '')
+                ELSE COALESCE(m.to_number, '')
+              END,
+              '[^0-9]',
+              '',
+              'g'
+            ),
+            10
+          ) AS contact_key
         FROM messages
-        ORDER BY contact_number, created_at DESC
+      ),
+      latest_messages AS (
+        SELECT DISTINCT ON (nm.contact_key)
+          nm.id,
+          nm.twilio_sid,
+          nm.direction,
+          nm.from_number,
+          nm.to_number,
+          nm.body,
+          nm.media_urls,
+          nm.status,
+          nm.customer_id,
+          nm.read,
+          nm.created_at,
+          nm.contact_number,
+          nm.contact_key
+        FROM normalized_messages nm
+        WHERE nm.contact_key IS NOT NULL AND nm.contact_key <> ''
+        ORDER BY nm.contact_key, nm.created_at DESC
       )
-      SELECT 
+      SELECT
         lm.*,
         c.name as customer_name,
-        (SELECT COUNT(*) FROM messages m2 
-         WHERE m2.read = false 
+        (SELECT COUNT(*) FROM messages m2
+         WHERE m2.read = false
          AND m2.direction = 'inbound'
-         AND (m2.from_number = lm.contact_number OR m2.to_number = lm.contact_number)
+         AND (
+           RIGHT(REGEXP_REPLACE(COALESCE(m2.from_number, ''), '[^0-9]', '', 'g'), 10) = lm.contact_key
+           OR RIGHT(REGEXP_REPLACE(COALESCE(m2.to_number, ''), '[^0-9]', '', 'g'), 10) = lm.contact_key
+         )
         ) as unread_count,
-        (SELECT COUNT(*) FROM messages m3 
-         WHERE m3.from_number = lm.contact_number OR m3.to_number = lm.contact_number
+        (SELECT COUNT(*) FROM messages m3
+         WHERE
+           RIGHT(REGEXP_REPLACE(COALESCE(m3.from_number, ''), '[^0-9]', '', 'g'), 10) = lm.contact_key
+           OR RIGHT(REGEXP_REPLACE(COALESCE(m3.to_number, ''), '[^0-9]', '', 'g'), 10) = lm.contact_key
         ) as message_count
       FROM latest_messages lm
       LEFT JOIN customers c ON lm.customer_id = c.id
       ORDER BY lm.created_at DESC
-      LIMIT 100
-    `);
+      LIMIT $1
+    `, [limit]);
 
     // Enrich with customer names where missing
     const conversations = await Promise.all(result.rows.map(async (conv) => {
       if (!conv.customer_name) {
-        const cleanedPhone = conv.contact_number.replace(/\D/g, '').slice(-10);
+        const cleanedPhone = normalizePhoneForLookup(conv.contact_number);
+        if (!cleanedPhone) {
+          return {
+            id: conv.id,
+            phoneNumber: conv.contact_number,
+            customerName: null,
+            lastMessage: conv.body,
+            lastMessageTime: conv.created_at,
+            direction: conv.direction,
+            unreadCount: parseInt(conv.unread_count, 10) || 0,
+            messageCount: parseInt(conv.message_count, 10) || 0,
+            read: conv.read,
+            mediaUrls: conv.media_urls || []
+          };
+        }
         const customerResult = await pool.query(`
           SELECT name FROM customers 
-          WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 
-             OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 
+          WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1
+             OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1
           LIMIT 1
-        `, [`%${cleanedPhone}`]);
+        `, [cleanedPhone]);
         conv.customer_name = customerResult.rows[0]?.name || null;
       }
       return {
@@ -1115,7 +1168,8 @@ router.get('/api/messages/conversations', async (req, res) => {
         direction: conv.direction,
         unreadCount: parseInt(conv.unread_count) || 0,
         messageCount: parseInt(conv.message_count) || 0,
-        read: conv.read
+        read: conv.read,
+        mediaUrls: conv.media_urls || []
       };
     }));
 
@@ -1123,6 +1177,196 @@ router.get('/api/messages/conversations', async (req, res) => {
   } catch (error) {
     console.error('Get conversations error:', error);
     res.status(500).json({ success: false, conversations: [] });
+  }
+});
+
+router.get('/api/customers/:customerId/communications', async (req, res) => {
+  const customerId = parseInt(req.params.customerId, 10);
+  if (!Number.isFinite(customerId)) {
+    return res.status(400).json({ success: false, error: 'Invalid customer ID', communications: [] });
+  }
+
+  try {
+    const customerResult = await pool.query(
+      'SELECT id, phone, mobile FROM customers WHERE id = $1 LIMIT 1',
+      [customerId]
+    );
+    const customer = customerResult.rows[0];
+
+    if (!customer) {
+      return res.status(404).json({ success: false, error: 'Customer not found', communications: [] });
+    }
+
+    const phoneKeys = Array.from(new Set([
+      normalizePhoneForLookup(customer.mobile),
+      normalizePhoneForLookup(customer.phone)
+    ].filter(Boolean)));
+
+    const messagesQuery = phoneKeys.length
+      ? `
+          SELECT
+            id,
+            twilio_sid,
+            direction,
+            from_number,
+            to_number,
+            body,
+            media_urls,
+            status,
+            read,
+            created_at
+          FROM messages
+          WHERE customer_id = $1
+             OR RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = ANY($2::text[])
+             OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = ANY($2::text[])
+          ORDER BY created_at DESC
+          LIMIT 100
+        `
+      : `
+          SELECT
+            id,
+            twilio_sid,
+            direction,
+            from_number,
+            to_number,
+            body,
+            media_urls,
+            status,
+            read,
+            created_at
+          FROM messages
+          WHERE customer_id = $1
+          ORDER BY created_at DESC
+          LIMIT 100
+        `;
+    const messagesParams = phoneKeys.length ? [customerId, phoneKeys] : [customerId];
+
+    const callsQuery = phoneKeys.length
+      ? `
+          SELECT
+            id,
+            twilio_sid,
+            direction,
+            from_number,
+            to_number,
+            status,
+            duration,
+            option_selected,
+            recording_url,
+            transcription,
+            read,
+            created_at
+          FROM calls
+          WHERE customer_id = $1
+             OR RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = ANY($2::text[])
+             OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = ANY($2::text[])
+          ORDER BY created_at DESC
+          LIMIT 100
+        `
+      : `
+          SELECT
+            id,
+            twilio_sid,
+            direction,
+            from_number,
+            to_number,
+            status,
+            duration,
+            option_selected,
+            recording_url,
+            transcription,
+            read,
+            created_at
+          FROM calls
+          WHERE customer_id = $1
+          ORDER BY created_at DESC
+          LIMIT 100
+        `;
+    const callsParams = phoneKeys.length ? [customerId, phoneKeys] : [customerId];
+
+    const [messagesResult, callsResult] = await Promise.all([
+      pool.query(messagesQuery, messagesParams),
+      pool.query(callsQuery, callsParams)
+    ]);
+
+    const communications = [
+      ...messagesResult.rows.map(msg => ({
+        id: `message-${msg.id}`,
+        record_type: 'message',
+        direction: msg.direction,
+        from_number: msg.from_number,
+        to_number: msg.to_number,
+        body: msg.body,
+        media_urls: msg.media_urls || [],
+        status: msg.status,
+        read: msg.read,
+        created_at: msg.created_at
+      })),
+      ...callsResult.rows.map(call => ({
+        id: `call-${call.id}`,
+        record_type: 'call',
+        direction: call.direction || 'inbound',
+        from_number: call.from_number,
+        to_number: call.to_number,
+        status: call.status,
+        duration: call.duration,
+        option_selected: call.option_selected,
+        recording_url: call.recording_url,
+        transcription: call.transcription,
+        read: call.read,
+        created_at: call.created_at
+      }))
+    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return res.json({ success: true, communications });
+  } catch (error) {
+    console.error('Get customer communications error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to load communications', communications: [] });
+  }
+});
+
+router.post('/api/customers/:customerId/send-message', async (req, res) => {
+  const customerId = parseInt(req.params.customerId, 10);
+  const body = String(req.body?.body || '').trim();
+
+  if (!Number.isFinite(customerId)) {
+    return res.status(400).json({ success: false, error: 'Invalid customer ID' });
+  }
+  if (!body) {
+    return res.status(400).json({ success: false, error: 'Message body is required' });
+  }
+
+  try {
+    const customerResult = await pool.query(
+      'SELECT id, phone, mobile FROM customers WHERE id = $1 LIMIT 1',
+      [customerId]
+    );
+    const customer = customerResult.rows[0];
+
+    if (!customer) {
+      return res.status(404).json({ success: false, error: 'Customer not found' });
+    }
+
+    const destination = normalizePhoneForSend(customer.mobile || customer.phone);
+    if (!destination) {
+      return res.status(400).json({ success: false, error: 'Customer has no valid phone number' });
+    }
+
+    const twilioMessage = await twilioClient.messages.create({
+      body,
+      from: TWILIO_PHONE_NUMBER,
+      to: destination
+    });
+
+    await pool.query(`
+      INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, status, customer_id, read)
+      VALUES ($1, 'outbound', $2, $3, $4, $5, $6, true)
+    `, [twilioMessage.sid, TWILIO_PHONE_NUMBER, destination, body, twilioMessage.status, customer.id]);
+
+    return res.json({ success: true, sid: twilioMessage.sid });
+  } catch (error) {
+    console.error('Send customer message error:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to send message' });
   }
 });
 
@@ -1199,20 +1443,43 @@ router.get('/api/messages/conversations', async (req, res) => {
 // Get all messages for a specific conversation thread
 router.get('/api/messages/thread/:phoneNumber', async (req, res) => {
   const { phoneNumber } = req.params;
+  const normalizedPhone = normalizePhoneForLookup(phoneNumber);
+
+  if (!normalizedPhone) {
+    return res.json({ success: true, messages: [] });
+  }
+
   try {
     const result = await pool.query(`
       SELECT m.*, c.name as customer_name
       FROM messages m
       LEFT JOIN customers c ON m.customer_id = c.id
-      WHERE m.from_number = $1 OR m.to_number = $1
+      WHERE
+        RIGHT(REGEXP_REPLACE(COALESCE(m.from_number, ''), '[^0-9]', '', 'g'), 10) = $1
+        OR RIGHT(REGEXP_REPLACE(COALESCE(m.to_number, ''), '[^0-9]', '', 'g'), 10) = $1
       ORDER BY m.created_at ASC
-    `, [phoneNumber]);
+    `, [normalizedPhone]);
 
     // Mark inbound messages as read
     await pool.query(`
       UPDATE messages SET read = true 
-      WHERE (from_number = $1 OR to_number = $1) AND direction = 'inbound' AND read = false
-    `, [phoneNumber]);
+      WHERE
+        (
+          RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $1
+          OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = $1
+        )
+        AND direction = 'inbound'
+        AND read = false
+    `, [normalizedPhone]);
+
+    let fallbackCustomerName = null;
+    const fallbackCustomerResult = await pool.query(`
+      SELECT name FROM customers
+      WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1
+         OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1
+      LIMIT 1
+    `, [normalizedPhone]);
+    fallbackCustomerName = fallbackCustomerResult.rows[0]?.name || null;
 
     const messages = result.rows.map(msg => ({
       id: msg.id,
@@ -1221,9 +1488,10 @@ router.get('/api/messages/thread/:phoneNumber', async (req, res) => {
       from: msg.from_number,
       to: msg.to_number,
       body: msg.body,
+      media_urls: msg.media_urls || [],
       mediaUrls: msg.media_urls,
       status: msg.status,
-      customerName: msg.customer_name,
+      customerName: msg.customer_name || fallbackCustomerName,
       timestamp: msg.created_at,
       read: msg.read
     }));

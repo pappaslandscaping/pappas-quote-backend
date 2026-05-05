@@ -880,50 +880,35 @@ let emailComposerState = {
 // ─── Load ──────────────────────────────────────────────────────────────────
 async function loadFeed() {
     try {
-        // Always fetch all calls including archived
+        // Load actual message conversations rather than only the latest raw message rows.
         const [msgRes, callRes] = await Promise.all([
-            fetch(`${API}/api/messages?limit=200`).catch(() => null),
+            fetch(`${API}/api/messages/conversations?limit=500`).catch(() => null),
             fetch(`${API}/api/calls?limit=200&include_archived=true`).catch(() => null)
         ]);
 
-        const messages = (msgRes && msgRes.ok) ? (await msgRes.json()).messages || [] : [];
+        const conversations = (msgRes && msgRes.ok) ? (await msgRes.json()).conversations || [] : [];
         const calls = (callRes && callRes.ok) ? (await callRes.json()).calls || [] : [];
 
-        // Group messages by phone number (conversation)
-        const conversationMap = new Map();
-        messages.forEach(m => {
-            // Determine the contact phone number (the other party, not our business number)
-            const contactPhone = m.direction === 'inbound' ? (m.from || m.from_number) : (m.to || m.to_number);
-            if (!contactPhone) return;
-
-            // Clean the phone number for grouping
-            const cleanPhone = contactPhone.replace(/\D/g, '').slice(-10);
-
-            const existing = conversationMap.get(cleanPhone);
-            const msgTime = new Date(m.timestamp || m.created_at);
-
-            if (!existing || msgTime > existing.time) {
-                conversationMap.set(cleanPhone, {
-                    id: `conv-${cleanPhone}`,
-                    rawId: m.id,
-                    type: (m.mediaUrls && m.mediaUrls.length > 0) || (m.media_urls && m.media_urls.length > 0) ? 'mms' : 'sms',
-                    from: contactPhone,
-                    direction: m.direction,
-                    body: m.body,
-                    mediaUrls: m.mediaUrls || m.media_urls || [],
-                    name: m.customerName || m.customer_name || (m.first_name ? `${m.first_name} ${m.last_name||''}`.trim() : null),
-                    read: m.read,
-                    time: msgTime,
-                    raw: m,
-                    phoneKey: cleanPhone
-                });
-            } else if (existing && !m.read) {
-                // If any message in the thread is unread, mark conversation as unread
-                existing.read = false;
-            }
+        const msgItems = conversations.map(conv => {
+            const contactPhone = conv.phoneNumber;
+            const cleanPhone = digitsOnly(contactPhone);
+            const mediaUrls = conv.mediaUrls || [];
+            return {
+                id: `conv-${cleanPhone || conv.id}`,
+                rawId: conv.id,
+                type: mediaUrls.length > 0 ? 'mms' : 'sms',
+                from: contactPhone,
+                direction: conv.direction,
+                body: conv.lastMessage,
+                mediaUrls,
+                name: conv.customerName || null,
+                read: (conv.unreadCount || 0) === 0,
+                time: new Date(conv.lastMessageTime),
+                raw: conv,
+                phoneKey: cleanPhone,
+                unreadCount: conv.unreadCount || 0
+            };
         });
-
-        const msgItems = Array.from(conversationMap.values());
 
         const callItems = calls.map(c => {
             // Determine if this is a voicemail based on call_type or having a recording

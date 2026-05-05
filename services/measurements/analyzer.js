@@ -51,6 +51,21 @@ async function selectMeasurementEngine({ imageryUrl, fallbackReasons, visibleFal
       visibleFallbackMessages,
     });
     if (roboflowResult) return roboflowResult;
+    return {
+      engineId: 'roboflow_semantic',
+      engineLabel: 'Roboflow Semantic Segmentation',
+      ratioSource: 'estimate',
+      hasImagerySegmentation: false,
+      confidence: 0.5,
+      ratios: {
+        lawn: 0.6,
+        mulch_bed: 0.1,
+        hardscape: 0.2,
+      },
+      debug: {
+        fallbackEngine: 'estimate_only',
+      },
+    };
   }
 
   return runLegacySamPromptEngine({
@@ -193,7 +208,7 @@ async function analyzePropertyMeasurement(property = {}, options = {}) {
 
   const hasParcelBoundary = Boolean(parcelResolution.parcel?.boundaryGeojson);
   const hasParcelLotSize = lotSizeSource === 'regrid';
-  const hasImagerySegmentation = engineResult.ratioSource === 'sam3';
+  const hasImagerySegmentation = Boolean(engineResult.hasImagerySegmentation);
 
   const accuracy = {
     grade: hasParcelBoundary && hasParcelLotSize && hasImagerySegmentation

@@ -43,7 +43,8 @@ async function fetchImageAsBase64(imageUrl) {
 }
 
 async function decodeClassPixelCounts(segmentationMaskBase64) {
-  const buffer = Buffer.from(segmentationMaskBase64, 'base64');
+  const normalized = String(segmentationMaskBase64 || '').replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+  const buffer = Buffer.from(normalized, 'base64');
   const image = await loadImage(buffer);
   const width = image.width || 0;
   const height = image.height || 0;
@@ -65,6 +66,46 @@ async function decodeClassPixelCounts(segmentationMaskBase64) {
   }
 
   return { totalPixels, counts };
+}
+
+function firstPrediction(payload = {}) {
+  if (Array.isArray(payload?.predictions)) return payload.predictions[0] || {};
+  if (payload?.predictions && typeof payload.predictions === 'object') return payload.predictions;
+  return {};
+}
+
+function extractSegmentationPayload(payload = {}) {
+  const prediction = firstPrediction(payload);
+  const maskRoot = payload.segmentation_mask || prediction.segmentation_mask || {};
+  const segmentationMask =
+    typeof maskRoot === 'string'
+      ? maskRoot
+      : maskRoot.base64 || maskRoot.value || maskRoot.mask || maskRoot.image || maskRoot.data || null;
+
+  const classMap =
+    payload.class_map ||
+    prediction.class_map ||
+    maskRoot.class_map ||
+    {};
+
+  const imageMeta =
+    payload.image ||
+    prediction.image ||
+    maskRoot.image_meta ||
+    {};
+
+  return {
+    prediction,
+    maskRoot,
+    segmentationMask,
+    classMap,
+    imageMeta,
+    payloadShape: {
+      payloadKeys: Object.keys(payload || {}),
+      predictionKeys: Object.keys(prediction || {}),
+      maskKeys: maskRoot && typeof maskRoot === 'object' ? Object.keys(maskRoot) : [],
+    },
+  };
 }
 
 async function runRoboflowSemanticEngine({ imageryUrl, fallbackReasons, visibleFallbackMessages }) {
@@ -109,13 +150,27 @@ async function runRoboflowSemanticEngine({ imageryUrl, fallbackReasons, visibleF
     }
 
     const payload = JSON.parse(rawText);
-    const segmentationMask = payload.segmentation_mask || payload.predictions?.[0]?.segmentation_mask || null;
-    const classMap = payload.class_map || payload.predictions?.[0]?.class_map || {};
-    const imageMeta = payload.image || payload.predictions?.[0]?.image || {};
+    const {
+      prediction,
+      maskRoot,
+      segmentationMask,
+      classMap,
+      imageMeta,
+      payloadShape,
+    } = extractSegmentationPayload(payload);
 
     if (!segmentationMask || !Object.keys(classMap).length) {
       fallbackReasons.push('roboflow_no_segmentation_mask');
-      visibleFallbackMessages.push('Roboflow did not return a semantic segmentation mask.');
+      const shapeSummary = [
+        payloadShape.payloadKeys.length ? `payload keys: ${payloadShape.payloadKeys.join(', ')}` : null,
+        payloadShape.predictionKeys.length ? `prediction keys: ${payloadShape.predictionKeys.join(', ')}` : null,
+        payloadShape.maskKeys.length ? `mask keys: ${payloadShape.maskKeys.join(', ')}` : null,
+      ].filter(Boolean).join(' | ');
+      visibleFallbackMessages.push(
+        shapeSummary
+          ? `Roboflow did not return a usable semantic segmentation mask. ${shapeSummary}.`
+          : 'Roboflow did not return a semantic segmentation mask.'
+      );
       return null;
     }
 
@@ -145,7 +200,9 @@ async function runRoboflowSemanticEngine({ imageryUrl, fallbackReasons, visibleF
 
     if (rawTotal <= 0.01) {
       fallbackReasons.push('roboflow_no_mapped_surface_classes');
-      visibleFallbackMessages.push('Roboflow returned a mask, but none of its classes mapped to lawn, beds, or hardscape.');
+      visibleFallbackMessages.push(
+        `Roboflow returned a mask, but none of its classes mapped to lawn, beds, or hardscape. Classes: ${Object.values(classMap).join(', ')}.`
+      );
       return null;
     }
 
@@ -163,12 +220,15 @@ async function runRoboflowSemanticEngine({ imageryUrl, fallbackReasons, visibleF
       },
       debug: {
         imageMeta,
+        prediction,
+        maskRoot,
         classMap,
         bucketCounts,
         rawLawn,
         rawBed,
         rawHardscape,
         rawTotal,
+        payloadShape,
       },
     };
   } catch (error) {

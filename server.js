@@ -56,6 +56,7 @@ const {
   runStartupMigrations,
   runStartupTableInit,
 } = require('./lib/startup-schema');
+const { buildCorsOptions } = require('./lib/cors-options');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -433,10 +434,7 @@ const PORT = process.env.PORT || 3000;
 // Required for express-rate-limit to read real client IPs instead of proxy IP
 app.set('trust proxy', 1);
 
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
-  credentials: true
-}));
+app.use(cors(buildCorsOptions()));
 
 // Security headers
 app.use((req, res, next) => {

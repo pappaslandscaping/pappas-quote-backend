@@ -477,7 +477,7 @@ function mailLineItemTaxAmount(item) {
   return Math.max(0, mailLineItemAmount(item) - baseAmount);
 }
 
-function deriveMailFinancials({ subtotal, tax_amount, total, lineItems, metadata }) {
+function deriveMailFinancials({ subtotal, tax_amount, total, amount_paid, lineItems, metadata }) {
   const items = Array.isArray(lineItems) ? lineItems : [];
   const rowSubtotal = parseMailMoney(subtotal);
   const rowTax = parseMailMoney(tax_amount);
@@ -521,6 +521,7 @@ function deriveMailFinancials({ subtotal, tax_amount, total, lineItems, metadata
   const metadataObject = metadata && typeof metadata === 'object' ? metadata : {};
   const accountSummary = resolveMailAccountSummary({
     invoiceTotal: normalizedTotal,
+    amountPaid: amount_paid ?? metadataObject.amount_paid ?? metadataObject.payment_credit,
     metadata: metadataObject,
     parseMoney: parseMailMoney,
     roundMoney: roundMailMoney,
@@ -530,7 +531,9 @@ function deriveMailFinancials({ subtotal, tax_amount, total, lineItems, metadata
     subtotal: normalizedSubtotal,
     tax_amount: normalizedTax,
     total: normalizedTotal,
+    paymentCredit: accountSummary.paymentCredit,
     priorBalance: accountSummary.priorBalance,
+    invoiceBalance: accountSummary.thisInvoice,
     totalDueOnAccount: accountSummary.totalDueOnAccount,
   };
 }
@@ -542,6 +545,7 @@ function buildMailInvoicePayload(row) {
     subtotal: row.subtotal,
     tax_amount: row.tax_amount,
     total: row.total,
+    amount_paid: row.amount_paid,
     lineItems,
     metadata,
   });
@@ -568,7 +572,8 @@ function buildMailInvoicePayload(row) {
     metadata: {
       ...metadata,
       outstanding_balance: financials.priorBalance,
-      this_invoice: financials.total,
+      payment_credit: financials.paymentCredit,
+      this_invoice: financials.invoiceBalance,
       total_due: financials.totalDueOnAccount,
       total_due_on_account: financials.totalDueOnAccount,
     },

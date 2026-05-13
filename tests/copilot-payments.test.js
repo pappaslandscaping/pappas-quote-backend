@@ -17,18 +17,10 @@ const {
   hydratePaymentRecord,
 } = require('../scripts/import-copilot-payments');
 
-let failures = 0;
+const tests = [];
 function it(name, fn) {
-  try {
-    fn();
-    console.log(`  \u2713 ${name}`);
-  } catch (error) {
-    failures += 1;
-    console.error(`  \u2717 ${name}\n    ${error.message}`);
-  }
+  tests.push({ name, fn });
 }
-
-console.log('copilot-payments');
 
 const fixtureHtml = `
 <html>
@@ -355,9 +347,8 @@ it('describes stale unresolved payments when the invoice exists locally', () => 
   });
 });
 
-if (failures > 0) {
-  console.error(`\n${failures} failure(s)`);
-  process.exit(1);
-} else {
-  console.log('\nAll tests passed');
-}
+describe('copilot-payments', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
+  }
+});

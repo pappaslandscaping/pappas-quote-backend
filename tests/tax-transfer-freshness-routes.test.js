@@ -2,7 +2,6 @@ const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
 const tests = [];
-let failures = 0;
 
 function it(name, fn) {
   tests.push({ name, fn });
@@ -268,7 +267,7 @@ it('reports same-day freshness from stored automation and snapshot timestamps', 
       return { rows: [{ last_imported_at: '2026-04-17T19:45:00.000Z' }] };
     }
     if (sql.includes('FROM copilot_tax_summary_snapshots')) {
-      assert.deepStrictEqual(params, [today]);
+      assert.deepStrictEqual(params, [['live_copilot', 'copilotcrm'], today]);
       return {
         rows: [{
           imported_at: '2026-04-17T19:30:00.000Z',
@@ -402,25 +401,8 @@ it('excludes leaked Copilot summary rows from tax-sweep reconciliation counts', 
   assert.strictEqual(res.body.payments[0].customer_name, 'Carol Horner');
 });
 
-(async () => {
-  console.log('tax-transfer-freshness-routes');
+describe('tax-transfer-freshness-routes', () => {
   for (const { name, fn } of tests) {
-    try {
-      await fn();
-      console.log(`  \u2713 ${name}`);
-    } catch (error) {
-      failures += 1;
-      console.error(`  \u2717 ${name}\n    ${error.message}`);
-    }
+    test(name, fn);
   }
-
-  if (failures > 0) {
-    console.error(`\n${failures} failure(s)`);
-    process.exit(1);
-  } else {
-    console.log('\nAll tests passed');
-  }
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
 });

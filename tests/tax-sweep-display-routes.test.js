@@ -2,7 +2,6 @@ const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
 const tests = [];
-let failures = 0;
 
 function it(name, fn) {
   tests.push({ name, fn });
@@ -152,25 +151,8 @@ it('normalizes legacy linked Copilot invoice references in tax sweep detail rows
   assert.strictEqual(res.body.payments[0].display_invoice_number, '9835');
 });
 
-(async () => {
-  console.log('tax-sweep-display-routes');
+describe('tax-sweep-display-routes', () => {
   for (const { name, fn } of tests) {
-    try {
-      await fn();
-      console.log(`  \u2713 ${name}`);
-    } catch (error) {
-      failures += 1;
-      console.error(`  \u2717 ${name}\n    ${error.message}`);
-    }
+    test(name, fn);
   }
-
-  if (failures > 0) {
-    console.error(`\n${failures} failure(s)`);
-    process.exit(1);
-  } else {
-    console.log('\nAll tests passed');
-  }
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
 });

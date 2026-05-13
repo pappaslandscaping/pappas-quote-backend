@@ -1,0 +1,446 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createQuoteRequest, fetchQuoteRequests } from "../../lib/api";
+import type { QuoteCreatePayload, QuoteRequest } from "../../types/quotes";
+
+const STATUS_OPTIONS = [
+  "new",
+  "contacted",
+  "quoted",
+  "scheduled",
+  "completed",
+  "cancelled"
+];
+
+const PACKAGE_LABELS: Record<string, string> = {
+  essential: "Essential",
+  complete: "Complete",
+  premium: "Premium"
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function csvCell(value: unknown) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function normalizeQuestions(quote: QuoteRequest) {
+  if (!quote.questions) return {};
+  if (typeof quote.questions === "string") {
+    try {
+      return JSON.parse(quote.questions) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
+  return quote.questions;
+}
+
+export default function QuotesPage() {
+  const router = useRouter();
+  const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function loadQuotes() {
+    setLoading(true);
+    setError("");
+    try {
+      setQuotes(await fetchQuoteRequests());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load quotes");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadQuotes();
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(""), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  const stats = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 7);
+
+    return {
+      total: quotes.length,
+      new: quotes.filter((quote) => quote.status === "new").length,
+      week: quotes.filter((quote) => new Date(quote.created_at) >= weekAgo)
+        .length,
+      completed: quotes.filter((quote) => quote.status === "completed").length
+    };
+  }, [quotes]);
+
+  const visibleQuotes = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return quotes.filter((quote) => {
+      const matchesStatus = !statusFilter || quote.status === statusFilter;
+      const matchesSearch =
+        !term ||
+        [quote.name, quote.email, quote.address, quote.phone]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(term));
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [quotes, searchTerm, statusFilter]);
+
+  function showToast(message: string) {
+    setToast(message);
+  }
+
+  function exportToCSV() {
+    if (!visibleQuotes.length) {
+      showToast("No quotes to export");
+      return;
+    }
+
+    const headers = [
+      "Date",
+      "Name",
+      "Phone",
+      "Email",
+      "Address",
+      "Package",
+      "Services",
+      "Status",
+      "Source",
+      "Gate",
+      "Dogs",
+      "Overgrown",
+      "Contact Method",
+      "Start Timing",
+      "Backyard Access",
+      "Notes"
+    ];
+
+    const rows = visibleQuotes.map((quote) => {
+      const questions = normalizeQuestions(quote);
+      return [
+        new Date(quote.created_at).toLocaleDateString(),
+        quote.name,
+        quote.phone,
+        quote.email,
+        quote.address,
+        quote.package || "Individual",
+        Array.isArray(quote.services) ? quote.services.join("; ") : "",
+        quote.status,
+        quote.source || "",
+        questions.gate || "",
+        questions.dogs || "",
+        questions.lawnHeight || questions.overgrown || "",
+        questions.contactMethod || questions.contact_method || "",
+        questions.startTime || questions.start_timing || "",
+        questions.backyardAccess || questions.backyard_access || "",
+        quote.notes || ""
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `pappas-quotes-${new Date().toISOString().split("T")[0]}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showToast("CSV exported");
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const payload: QuoteCreatePayload = {
+      name: String(formData.get("name") || ""),
+      phone: String(formData.get("phone") || ""),
+      email: String(formData.get("email") || "") || undefined,
+      address: String(formData.get("address") || "") || undefined,
+      package: String(formData.get("package") || "") || undefined,
+      source: String(formData.get("source") || "") || undefined,
+      services: String(formData.get("services") || "") || undefined,
+      notes: String(formData.get("notes") || "") || undefined
+    };
+
+    setIsSubmitting(true);
+    try {
+      await createQuoteRequest(payload);
+      form.reset();
+      setIsModalOpen(false);
+      showToast("Quote request created");
+      await loadQuotes();
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Failed to create request"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">YardDesk</p>
+          <h1>Quote Requests</h1>
+          <p className="muted">Incoming requests, sent quotes, and conversion pipeline.</p>
+        </div>
+        <div className="topbar-actions">
+          <button className="icon-button" type="button" onClick={loadQuotes} aria-label="Refresh quotes">
+            <RefreshIcon />
+          </button>
+          <button className="icon-button" type="button" onClick={exportToCSV} aria-label="Export CSV">
+            <DownloadIcon />
+          </button>
+          <a className="btn btn-secondary" href="http://localhost:3000/sent-quotes.html">
+            Sent Quotes
+          </a>
+          <a className="btn btn-secondary" href="http://localhost:3000/quote-generator.html">
+            Generator
+          </a>
+          <button className="btn btn-primary" type="button" onClick={() => setIsModalOpen(true)}>
+            New Request
+          </button>
+        </div>
+      </header>
+
+      <section className="stats-grid" aria-label="Quote request stats">
+        <StatCard label="Total Requests" value={stats.total} tone="blue" onClick={() => setStatusFilter("")} />
+        <StatCard label="New Leads" value={stats.new} tone="amber" onClick={() => setStatusFilter("new")} />
+        <StatCard label="This Week" value={stats.week} tone="purple" onClick={() => setStatusFilter("")} />
+        <StatCard label="Completed" value={stats.completed} tone="green" onClick={() => setStatusFilter("completed")} />
+      </section>
+
+      <section className="table-card">
+        <div className="table-toolbar">
+          <div>
+            <h2>All Requests</h2>
+            <p>{visibleQuotes.length} visible</p>
+          </div>
+          <div className="filters">
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status">
+              <option value="">All Statuses</option>
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </option>
+              ))}
+            </select>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search name, phone, email, address..."
+            />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="state-block">Loading quotes...</div>
+        ) : error ? (
+          <div className="state-block error">{error}</div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Phone</th>
+                  <th>Address</th>
+                  <th>Package</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleQuotes.length ? (
+                  visibleQuotes.map((quote) => (
+                    <tr
+                      key={quote.id}
+                      className="clickable-row"
+                      onClick={() => router.push(`/quotes/${quote.id}`)}
+                    >
+                      <td className="date-cell">{formatDate(quote.created_at)}</td>
+                      <td>
+                        <Link
+                          className="row-link"
+                          href={`/quotes/${quote.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {quote.name || "Unknown"}
+                        </Link>
+                        <div className="subtle">{quote.email || ""}</div>
+                      </td>
+                      <td>
+                        {quote.phone ? (
+                          <a href={`tel:${quote.phone}`} onClick={(event) => event.stopPropagation()}>
+                            {quote.phone}
+                          </a>
+                        ) : (
+                          ""
+                        )}
+                      </td>
+                      <td className="truncate">{quote.address || ""}</td>
+                      <td>{quote.package ? PACKAGE_LABELS[quote.package] || quote.package : "Individual"}</td>
+                      <td>
+                        <span className={`status-pill status-${quote.status || "new"}`}>
+                          {quote.status || "new"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="empty-state">No quote requests found</div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {isModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setIsModalOpen(false);
+        }}>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="new-request-title">
+            <div className="modal-header">
+              <h2 id="new-request-title">New Quote Request</h2>
+              <button className="icon-button" type="button" onClick={() => setIsModalOpen(false)} aria-label="Close modal">
+                <CloseIcon />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="request-form">
+              <label className="full">
+                Name *
+                <input name="name" required placeholder="Customer name" />
+              </label>
+              <label>
+                Phone *
+                <input name="phone" required placeholder="(216) 555-0000" />
+              </label>
+              <label>
+                Email
+                <input name="email" type="email" placeholder="email@example.com" />
+              </label>
+              <label className="full">
+                Address
+                <input name="address" placeholder="123 Main St, Cleveland, OH" />
+              </label>
+              <label>
+                Package
+                <select name="package" defaultValue="">
+                  <option value="">None</option>
+                  <option value="essential">Essential</option>
+                  <option value="complete">Complete</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </label>
+              <label>
+                Source
+                <select name="source" defaultValue="phone_call">
+                  <option value="phone_call">Phone Call</option>
+                  <option value="walk_in">Walk-in</option>
+                  <option value="referral">Referral</option>
+                  <option value="email">Email</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label className="full">
+                Services Requested
+                <input name="services" placeholder="Mowing, Leaf Cleanup, etc. (comma-separated)" />
+              </label>
+              <label className="full">
+                Notes
+                <textarea name="notes" rows={3} placeholder="Any details from the call..." />
+              </label>
+              <div className="modal-actions">
+                <button className="btn btn-secondary" type="button" onClick={() => setIsModalOpen(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating..." : "Create Request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {toast ? <div className="toast">{toast}</div> : null}
+    </main>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  tone,
+  onClick
+}: {
+  label: string;
+  value: number;
+  tone: "blue" | "amber" | "purple" | "green";
+  onClick: () => void;
+}) {
+  return (
+    <button className="stat-card" type="button" onClick={onClick}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <i className={`stat-dot ${tone}`} aria-hidden="true" />
+    </button>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}

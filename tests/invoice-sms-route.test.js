@@ -2,7 +2,6 @@ const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
 const tests = [];
-let failures = 0;
 
 function it(name, fn) {
   tests.push({ name, fn });
@@ -243,25 +242,8 @@ it('generates a payment token before sending when the invoice does not have one'
   assert(sentBody.includes('Amount due: $100.00.'));
 });
 
-(async () => {
-  console.log('invoice-sms-route');
+describe('invoice-sms-route', () => {
   for (const { name, fn } of tests) {
-    try {
-      await fn();
-      console.log(`  \u2713 ${name}`);
-    } catch (error) {
-      failures += 1;
-      console.error(`  \u2717 ${name}\n    ${error.message}`);
-    }
+    test(name, fn);
   }
-
-  if (failures > 0) {
-    console.error(`\n${failures} failure(s)`);
-    process.exit(1);
-  } else {
-    console.log('\nAll tests passed');
-  }
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
 });

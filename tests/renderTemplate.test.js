@@ -1,4 +1,10 @@
 const { Pool } = require('pg');
+const express = require('express');
+
+jest.spyOn(express.application, 'listen').mockImplementation(function mockListen(_port, callback) {
+  if (typeof callback === 'function') callback();
+  return { close: jest.fn() };
+});
 
 // Mock the pg Pool to prevent actual database connections during the unit test
 jest.mock('pg', () => {

@@ -6,7 +6,7 @@
     <title>Quote Calculator — YardDesk</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="shared.css">
-    <!-- PDF.js for BEAM PDF parsing -->
+    <!-- PDF.js for Attentive / BEAM PDF parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -448,9 +448,9 @@
                             Satellite View
                         </h3>
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary" onclick="document.getElementById('beamPdfInput').click()" title="Upload BEAM PDF for accurate measurements">
+                            <button class="btn btn-secondary" onclick="document.getElementById('beamPdfInput').click()" title="Upload Attentive / BEAM PDF for pricing measurements">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
-                                Import BEAM
+                                Import Attentive PDF
                             </button>
                             <input type="file" id="beamPdfInput" accept=".pdf" style="display:none;" onchange="handleBeamPdfUpload(event)">
                             <button class="btn btn-secondary" onclick="toggleMapType()">
@@ -830,12 +830,12 @@
         const hardscape = parseInt(document.getElementById('hardscapeArea').value) || 0;
         const shrubs = parseInt(document.getElementById('shrubCount').textContent) || 0;
         
-        // Only update lot size if NOT BEAM verified (BEAM lot includes house footprint)
+        // Only update lot size if NOT PDF-import verified (takeoff lot includes house footprint)
         const detectionBadge = document.getElementById('detectionBadge');
-        const isBeamVerified = detectionBadge && detectionBadge.textContent.includes('BEAM');
+        const isTakeoffImported = detectionBadge && detectionBadge.dataset.measurementSource === 'takeoff_pdf';
         
         let lotSize;
-        if (!isBeamVerified) {
+        if (!isTakeoffImported) {
             // Calculate lot size from areas when not BEAM verified
             lotSize = lawnArea + bedArea + hardscape;
             // Update the lot size input if user manually edited areas
@@ -843,7 +843,7 @@
                 document.getElementById('lotSizeInput').value = lotSize;
             }
         } else {
-            // Use the BEAM-provided lot size (which includes house footprint)
+            // Use the imported takeoff lot size (which includes house footprint)
             lotSize = parseInt(document.getElementById('lotSizeInput').value) || (lawnArea + bedArea + hardscape);
         }
 
@@ -996,6 +996,7 @@
         const badgeMeta = getAccuracyBadge(snapshot, options);
         badge.textContent = badgeMeta.text;
         badge.className = badgeMeta.className;
+        badge.dataset.measurementSource = options.measurementSource || '';
 
         hasAnalyzed = true;
         recalculateQuote();
@@ -1585,7 +1586,7 @@ ANNUAL TOTAL: ${total}
     }
 
     // ============================================
-    // BEAM PDF UPLOAD AND PARSING
+    // ATENTIVE / BEAM PDF UPLOAD AND PARSING
     // ============================================
     async function handleBeamPdfUpload(event) {
         const file = event.target.files[0];
@@ -1596,7 +1597,7 @@ ANNUAL TOTAL: ${total}
             return;
         }
 
-        showToast('Processing BEAM PDF...');
+        showToast('Processing Attentive / BEAM PDF...');
 
         try {
             // Use PDF.js to extract text from PDF
@@ -1616,11 +1617,11 @@ ANNUAL TOTAL: ${total}
 
             console.log('Extracted PDF text:', fullText.substring(0, 2000));
 
-            // Parse BEAM measurements from text
+            // Parse Attentive / BEAM measurements from text
             const measurements = parseBeamMeasurements(fullText);
             
             if (measurements.found) {
-                console.log('BEAM measurements parsed:', measurements);
+                console.log('Attentive / BEAM measurements parsed:', measurements);
                 
                 // Update the form fields
                 document.getElementById('lawnArea').value = measurements.lawn;
@@ -1634,8 +1635,9 @@ ANNUAL TOTAL: ${total}
                 console.log('Set lot size to:', measurements.lotSize, 'Input now shows:', lotInput.value);
 
                 // Update detection badge
-                document.getElementById('detectionBadge').textContent = 'BEAM Verified';
+                document.getElementById('detectionBadge').textContent = 'Attentive Imported';
                 document.getElementById('detectionBadge').className = 'detection-badge ai-detected';
+                document.getElementById('detectionBadge').dataset.measurementSource = 'takeoff_pdf';
 
                 // Extract address if found and load map
                 console.log('BEAM address extracted:', measurements.address);
@@ -1669,7 +1671,7 @@ ANNUAL TOTAL: ${total}
                 hasAnalyzed = true;
                 recalculateQuote();
                 
-                showToast(`BEAM data imported! Lot: ${measurements.lotSize.toLocaleString()} sq ft`);
+                showToast(`Takeoff data imported. Lawn: ${measurements.lawn.toLocaleString()} sq ft`);
             } else {
                 showToast('Could not parse BEAM measurements. Check PDF format.');
             }
@@ -1692,86 +1694,75 @@ ANNUAL TOTAL: ${total}
             hardscape: 0,
             trees: 0,
             hedge: 0,
+            hardEdge: 0,
+            softEdge: 0,
             address: null
         };
 
         try {
+            const compactText = text.replace(/\s+/g, ' ').trim();
+
+            const parseAreaValue = (labelPatterns) => {
+                for (const pattern of labelPatterns) {
+                    const regex = new RegExp(`${pattern}[\\s:]+([0-9,]+)\\s*(?:sq\\.?\\s*ft|sq\\.?ft|sqft|sq\\.ft\\.)`, 'i');
+                    const match = compactText.match(regex);
+                    if (match) return parseInt(match[1].replace(/,/g, ''), 10);
+                }
+                return 0;
+            };
+
+            const parseCountValue = (labelPatterns) => {
+                for (const pattern of labelPatterns) {
+                    const regex = new RegExp(`${pattern}[\\s:]+([0-9,]+)\\s*(?:EA|ea|each|count)?`, 'i');
+                    const match = compactText.match(regex);
+                    if (match) return parseInt(match[1].replace(/,/g, ''), 10);
+                }
+                return 0;
+            };
+
+            const parseLengthValue = (labelPatterns) => {
+                for (const pattern of labelPatterns) {
+                    const regex = new RegExp(`${pattern}[\\s:]+([0-9,]+)\\s*(?:ft|feet)`, 'i');
+                    const match = compactText.match(regex);
+                    if (match) return parseInt(match[1].replace(/,/g, ''), 10);
+                }
+                return 0;
+            };
+
             // Extract address (format: "17400 Lake Avenue, Lakewood, OH, USA")
-            const addressMatch = text.match(/(\d+\s+[A-Za-z\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct)[^,]*,\s*[A-Za-z\s]+,\s*[A-Z]{2})/i);
+            const addressMatch = compactText.match(/(\d+\s+[A-Za-z0-9.\-\s]+(?:Avenue|Ave|Street|St|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Place|Pl|Terrace|Ter|Circle|Cir)[^,]*,\s*[A-Za-z.\-\s]+,\s*[A-Z]{2})/i);
             if (addressMatch) {
                 measurements.address = addressMatch[1].trim();
             }
 
-            // Extract lot area (format: "Lot area: 10,969 sq.ft." or "Lot area: 10,969 sq ft")
-            const lotMatch = text.match(/Lot\s*area[:\s]+([0-9,]+)\s*sq\.?\s*ft/i);
-            if (lotMatch) {
-                measurements.lotSize = parseInt(lotMatch[1].replace(/,/g, ''));
-            }
-
-            // Extract lawn (format: "Lawn 6,539 sq ft" or "Lawn: 6,539 sq ft")
-            const lawnMatch = text.match(/Lawn[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (lawnMatch) {
-                measurements.lawn = parseInt(lawnMatch[1].replace(/,/g, ''));
-            }
-
-            // Extract mulch bed (format: "Mulch Bed 772 sq ft")
-            const mulchMatch = text.match(/Mulch\s*Bed[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (mulchMatch) {
-                measurements.beds = parseInt(mulchMatch[1].replace(/,/g, ''));
-            }
-
-            // Also check for "Planting Area" or just "Bed"
-            if (measurements.beds === 0) {
-                const bedMatch = text.match(/(?:Planting|Bed)[:\s]+([0-9,]+)\s*sq\s*ft/i);
-                if (bedMatch) {
-                    measurements.beds = parseInt(bedMatch[1].replace(/,/g, ''));
-                }
-            }
-
-            // Extract hedge and add to beds
-            const hedgeMatch = text.match(/Hedge[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (hedgeMatch) {
-                measurements.hedge = parseInt(hedgeMatch[1].replace(/,/g, ''));
-                measurements.beds += measurements.hedge; // Add hedge to total bed area
+            measurements.lotSize = parseAreaValue(['Lot\\s*Area', 'Lot\\s*area']);
+            measurements.lawn = parseAreaValue(['Lawn']);
+            measurements.beds = parseAreaValue(['Mulch\\s*Bed', 'Planting\\s*Area', 'Planting', 'Bed']);
+            measurements.hedge = parseAreaValue(['Hedge']);
+            if (measurements.hedge > 0) {
+                measurements.beds += measurements.hedge;
             }
 
             // Extract hardscape (driveway + sidewalk + pavement)
             let hardscapeTotal = 0;
-            
-            const drivewayMatch = text.match(/Driveway[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (drivewayMatch) {
-                hardscapeTotal += parseInt(drivewayMatch[1].replace(/,/g, ''));
-            }
-
-            const sidewalkMatch = text.match(/Sidewalk[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (sidewalkMatch) {
-                hardscapeTotal += parseInt(sidewalkMatch[1].replace(/,/g, ''));
-            }
-
-            const pavementMatch = text.match(/Pavement[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (pavementMatch) {
-                hardscapeTotal += parseInt(pavementMatch[1].replace(/,/g, ''));
-            }
-
-            const parkingMatch = text.match(/Parking\s*Spot[:\s]+([0-9,]+)\s*sq\s*ft/i);
-            if (parkingMatch) {
-                hardscapeTotal += parseInt(parkingMatch[1].replace(/,/g, ''));
-            }
+            hardscapeTotal += parseAreaValue(['Driveway']);
+            hardscapeTotal += parseAreaValue(['Sidewalk']);
+            hardscapeTotal += parseAreaValue(['Walkway']);
+            hardscapeTotal += parseAreaValue(['Pavement']);
+            hardscapeTotal += parseAreaValue(['Parking\\s*Spot', 'Parking']);
+            hardscapeTotal += parseAreaValue(['Patio']);
 
             measurements.hardscape = hardscapeTotal;
-
-            // Extract tree count (format: "Tree 7 EA" or "Trees: 7")
-            const treeMatch = text.match(/Tree[s]?[:\s]+([0-9]+)\s*(?:EA|ea|each)?/i);
-            if (treeMatch) {
-                measurements.trees = parseInt(treeMatch[1]);
-            }
+            measurements.trees = parseCountValue(['Tree', 'Trees']);
+            measurements.hardEdge = parseLengthValue(['Hard\\s*Edge']);
+            measurements.softEdge = parseLengthValue(['Soft\\s*Edge']);
 
             // Check if we found meaningful data
             if (measurements.lotSize > 0 || measurements.lawn > 0) {
                 measurements.found = true;
             }
 
-            console.log('Parsed BEAM measurements:', measurements);
+            console.log('Parsed Attentive / BEAM measurements:', measurements);
 
         } catch (error) {
             console.error('Error parsing BEAM measurements:', error);

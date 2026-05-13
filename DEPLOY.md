@@ -87,7 +87,7 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 | `NODE_ENV` | `production` enables SSL for DB | Not set = no SSL |
 | `BASE_URL` | Public URL for links in emails/SMS | `https://app.pappaslandscaping.com` |
 | `EMAIL_ASSETS_URL` | CDN for email images | Falls back to `BASE_URL` |
-| `ALLOWED_ORIGINS` | CORS origins (comma-separated) | All origins allowed |
+| `ALLOWED_ORIGINS` | CORS origins (comma-separated) | Required for cross-origin frontend access in production |
 | `NOTIFICATION_EMAIL` | Admin notification recipient | `hello@pappaslandscaping.com` |
 
 ### Twilio advanced (voice/app features)
@@ -152,6 +152,99 @@ On `npm start`, the server:
 4. Runs `runStartupMigrations()` — creates all remaining tables, adds columns, seeds defaults
 
 Steps 3-4 are idempotent (`IF NOT EXISTS` / `ON CONFLICT DO NOTHING`). Safe to run on every boot.
+
+---
+
+## Next.js Frontend Deployment
+
+The new React/Next.js frontend in `frontend/` is intentionally separate from the existing Express backend. Keep the backend deployment unchanged for now: it still runs from the repository root with `npm start`, serves the legacy `public/*.html` pages, and owns all API/database behavior.
+
+### Recommended production shape
+
+Run two services:
+
+1. **Backend API service**
+   - Root directory: repository root
+   - Build/install: existing platform behavior, or `npm ci --omit=dev`
+   - Start command: `npm start`
+   - Public URL example: `https://api.yarddesk.example.com`
+
+2. **Frontend Next service**
+   - Root directory: `frontend`
+   - Install command: `npm ci`
+   - Build command: `npm run build`
+   - Start command: `npm start`
+   - Required env var: `NEXT_PUBLIC_API_BASE_URL=https://api.yarddesk.example.com`
+
+This is the lowest-risk option because the backend container, Express routes, database startup, and old public HTML screens remain untouched. The tradeoff is that CORS must allow the frontend origin.
+
+### CORS for separate frontend/backend origins
+
+If the frontend and backend are on different domains, set `ALLOWED_ORIGINS` on the backend to the frontend URL:
+
+```bash
+ALLOWED_ORIGINS=https://app.yarddesk.example.com
+```
+
+For multiple allowed origins, use a comma-separated list:
+
+```bash
+ALLOWED_ORIGINS=https://app.yarddesk.example.com,https://preview.yarddesk.example.com
+```
+
+In production, cross-origin browser requests are allowed only for exact origins listed in `ALLOWED_ORIGINS`. Outside production, the backend also allows the local Next frontend origins:
+
+- `http://localhost:3001`
+- `http://127.0.0.1:3001`
+
+### Local run commands
+
+Run the backend and frontend separately:
+
+```bash
+# Terminal 1: Express backend and API
+npm run dev:backend
+
+# Terminal 2: Next frontend
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 npm run dev:frontend
+```
+
+Open the frontend at `http://127.0.0.1:3001`. The legacy backend pages remain available at `http://localhost:3000`.
+
+To test a production frontend build locally:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 npm run build:frontend
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 npm run start:frontend:local
+```
+
+### Production run commands
+
+Backend service:
+
+```bash
+npm start
+```
+
+Frontend service from `frontend/`:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://api.yarddesk.example.com npm run build
+PORT=3001 npm start
+```
+
+Or from the repository root:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://api.yarddesk.example.com npm run build:frontend
+PORT=3001 npm run start:frontend
+```
+
+### Other deployment options
+
+- **Single container running both Express and Next:** possible, but it requires a process manager, Dockerfile changes, and a reverse-proxy/routing decision. Avoid this until the React frontend is ready to replace the old HTML screens.
+- **Serve static export from Express:** not recommended because these pages use authenticated client-side API calls and dynamic Next routing such as `/quotes/[id]`, `/customers/[id]`, `/invoices/[id]`, and `/jobs/[id]`.
+- **Vercel/Netlify for frontend plus Railway for backend:** safe if `NEXT_PUBLIC_API_BASE_URL` points at the Railway backend and backend `ALLOWED_ORIGINS` includes the frontend domain.
 
 ### Standalone migration
 

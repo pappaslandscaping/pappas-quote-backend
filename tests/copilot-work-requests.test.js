@@ -6,18 +6,10 @@ const {
   getWorkRequestsSnapshotExpiry,
 } = require('../lib/copilot-work-requests');
 
-let failures = 0;
+const tests = [];
 function it(name, fn) {
-  try {
-    fn();
-    console.log(`  \u2713 ${name}`);
-  } catch (error) {
-    failures += 1;
-    console.error(`  \u2717 ${name}\n    ${error.message}`);
-  }
+  tests.push({ name, fn });
 }
-
-console.log('copilot-work-requests');
 
 const fixtureHtml = `
 <html>
@@ -121,9 +113,8 @@ it('computes snapshot expiry from as_of', () => {
   assert.strictEqual(expiry, new Date('2026-04-17T15:00:00.000Z').getTime() + 300000);
 });
 
-if (failures > 0) {
-  console.error(`\n${failures} failure(s)`);
-  process.exit(1);
-} else {
-  console.log('\nAll tests passed');
-}
+describe('copilot-work-requests', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
+  }
+});

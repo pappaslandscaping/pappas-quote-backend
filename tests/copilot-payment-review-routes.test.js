@@ -2,7 +2,6 @@ const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
 const tests = [];
-let failures = 0;
 
 function it(name, fn) {
   tests.push({ name, fn });
@@ -272,25 +271,8 @@ it('shows linked rows when unresolved_only is false', async () => {
   assert.strictEqual(res.body.payments[0].link_failure_reason, null);
 });
 
-(async () => {
-  console.log('copilot-payment-review-routes');
+describe('copilot-payment-review-routes', () => {
   for (const { name, fn } of tests) {
-    try {
-      await fn();
-      console.log(`  \u2713 ${name}`);
-    } catch (error) {
-      failures += 1;
-      console.error(`  \u2717 ${name}\n    ${error.message}`);
-    }
+    test(name, fn);
   }
-
-  if (failures > 0) {
-    console.error(`\n${failures} failure(s)`);
-    process.exit(1);
-  } else {
-    console.log('\nAll tests passed');
-  }
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
 });

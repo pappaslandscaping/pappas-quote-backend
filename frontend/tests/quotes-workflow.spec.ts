@@ -87,7 +87,9 @@ test.describe("React quote workflow", () => {
     await expect(primaryNav.getByRole("link", { name: "Quotes", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Invoices", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Scheduling/Jobs", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Communications", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Reports", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "AI", exact: true })).toBeVisible();
   });

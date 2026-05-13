@@ -2,9 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { fetchJobs, fetchJobStats } from "../../lib/api";
+import {
+  fetchCompletedUninvoicedJobs,
+  fetchCopilotLiveJobs,
+  fetchCrewAvailability,
+  fetchJobs,
+  fetchJobsPipeline,
+  fetchJobStats
+} from "../../lib/api";
 import type { Job, JobStats } from "../../types/jobs";
+
+type LoadState<T> = { status: "loading" | "success" | "empty" | "error"; data?: T; error?: string };
+const loading = <T,>(): LoadState<T> => ({ status: "loading" });
 
 function money(value?: string | number | null) {
   return Number(value || 0).toLocaleString("en-US", {
@@ -51,11 +62,15 @@ export default function JobsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [crewFilter, setCrewFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [error, setError] = useState("");
+  const [completedUninvoiced, setCompletedUninvoiced] = useState<LoadState<Job[]>>(loading());
+  const [crewAvailability, setCrewAvailability] = useState<LoadState<Array<Record<string, unknown>>>>(loading());
+  const [pipeline, setPipeline] = useState<LoadState<Record<string, unknown>>>(loading());
+  const [liveJobs, setLiveJobs] = useState<LoadState<Job[]>>(loading());
 
   async function loadJobs() {
-    setLoading(true);
+    setIsLoadingJobs(true);
     setError("");
     try {
       const nextJobs = await fetchJobs({
@@ -69,7 +84,7 @@ export default function JobsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load jobs");
     } finally {
-      setLoading(false);
+      setIsLoadingJobs(false);
     }
   }
 
@@ -90,6 +105,39 @@ export default function JobsPage() {
 
   useEffect(() => {
     void loadStats();
+  }, [date]);
+
+  useEffect(() => {
+    let active = true;
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+
+    async function load<T>(
+      request: () => Promise<T>,
+      setter: (state: LoadState<T>) => void,
+      empty: (data: T) => boolean = () => false
+    ) {
+      try {
+        const data = await request();
+        if (!active) return;
+        setter(empty(data) ? { status: "empty", data } : { status: "success", data });
+      } catch (err) {
+        if (!active) return;
+        setter({ status: "error", error: err instanceof Error ? err.message : "API request failed" });
+      }
+    }
+
+    void load(fetchCompletedUninvoicedJobs, setCompletedUninvoiced, (data) => data.length === 0);
+    void load(
+      () => fetchCrewAvailability(targetDate) as Promise<Array<Record<string, unknown>>>,
+      setCrewAvailability,
+      (data) => data.length === 0
+    );
+    void load(fetchJobsPipeline, setPipeline);
+    void load(() => fetchCopilotLiveJobs(targetDate), setLiveJobs, (data) => data.length === 0);
+
+    return () => {
+      active = false;
+    };
   }, [date]);
 
   const crews = useMemo(() => {
@@ -161,6 +209,67 @@ export default function JobsPage() {
         <StatCard label="Revenue" value={money(summary.revenue)} tone="purple" />
       </section>
 
+      <section className="dashboard-grid command-grid">
+        <OperationsPanel title="Crew Availability" state={crewAvailability} emptyText="No crew workload found for this date.">
+          {(rows) => (
+            <div className="compact-list">
+              {rows.slice(0, 6).map((crew, index) => (
+                <div className="compact-row" key={String(crew.crew_name || index)}>
+                  <div>
+                    <strong>{String(crew.crew_name || "Unassigned")}</strong>
+                    <span>{String(crew.job_count || 0)} jobs - {String(crew.total_hours || 0)} hours</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </OperationsPanel>
+
+        <OperationsPanel title="Completed Uninvoiced" state={completedUninvoiced} emptyText="No completed-uninvoiced jobs.">
+          {(rows) => (
+            <div className="compact-list">
+              {rows.slice(0, 6).map((job) => (
+                <Link className="compact-row" href={`/jobs/${job.id}`} key={job.id}>
+                  <div>
+                    <strong>{job.customer_name || "Unknown customer"}</strong>
+                    <span>{job.service_type || "Service"} - {formatDate(job.job_date)}</span>
+                  </div>
+                  <small>{money(job.service_price)}</small>
+                </Link>
+              ))}
+            </div>
+          )}
+        </OperationsPanel>
+      </section>
+
+      <section className="dashboard-grid command-grid">
+        <OperationsPanel title="Pipeline" state={pipeline} emptyText="No pipeline data found.">
+          {(data) => {
+            const stages = Object.entries(data.stages && typeof data.stages === "object" ? data.stages as Record<string, unknown[]> : data)
+              .filter(([, value]) => Array.isArray(value));
+            return <div className="compact-list">{stages.slice(0, 6).map(([stage, rows]) => (
+              <div className="compact-row" key={stage}><strong>{stage.replaceAll("_", " ")}</strong><span>{(rows as unknown[]).length} jobs</span></div>
+            ))}</div>;
+          }}
+        </OperationsPanel>
+
+        <OperationsPanel title="Copilot Live Jobs" state={liveJobs} emptyText="No live Copilot jobs available.">
+          {(rows) => (
+            <div className="compact-list">
+              {rows.slice(0, 6).map((job) => (
+                <div className="compact-row" key={job.id || `${job.customer_name}-${job.job_date}`}>
+                  <div>
+                    <strong>{job.customer_name || "Live job"}</strong>
+                    <span>{job.service_type || job.address || "Copilot job"}</span>
+                  </div>
+                  <small>{job.crew_assigned || job.status || "Live"}</small>
+                </div>
+              ))}
+            </div>
+          )}
+        </OperationsPanel>
+      </section>
+
       <section className="table-card">
         <div className="table-toolbar">
           <div>
@@ -208,7 +317,7 @@ export default function JobsPage() {
           </div>
         </div>
 
-        {loading ? (
+        {isLoadingJobs ? (
           <div className="state-block">Loading jobs...</div>
         ) : error ? (
           <div className="state-block error">{error}</div>
@@ -288,5 +397,32 @@ function StatCard({
       <strong>{value}</strong>
       <i className={`stat-dot ${tone}`} aria-hidden="true" />
     </div>
+  );
+}
+
+function OperationsPanel<T>({
+  title,
+  state,
+  emptyText,
+  children
+}: {
+  title: string;
+  state: LoadState<T>;
+  emptyText: string;
+  children: (data: T) => ReactNode;
+}) {
+  return (
+    <section className="table-card dashboard-panel" aria-label={title}>
+      <div className="table-toolbar">
+        <div>
+          <h2>{title}</h2>
+          <p>Read-only operations visibility.</p>
+        </div>
+      </div>
+      {state.status === "loading" ? <div className="state-block">Loading</div> : null}
+      {state.status === "error" ? <div className="state-block error">API failed: {state.error}</div> : null}
+      {state.status === "empty" ? <div className="empty-state">{emptyText}</div> : null}
+      {state.status === "success" ? children(state.data as T) : null}
+    </section>
   );
 }

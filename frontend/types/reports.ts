@@ -87,6 +87,6 @@ export type InvoiceAgingResponse = {
   success: boolean;
   source?: string;
   as_of?: string;
-  buckets?: Array<Record<string, unknown>>;
+  buckets?: Array<Record<string, unknown>> | Record<string, unknown>;
   error?: string;
 };

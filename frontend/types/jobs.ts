@@ -66,3 +66,27 @@ export type JobDetailResponse = {
   job?: Job;
   error?: string;
 };
+
+export type CrewAvailabilityResponse = {
+  success: boolean;
+  date?: string;
+  crews?: Array<{
+    crew_name?: string | null;
+    job_count?: string | number | null;
+    total_hours?: string | number | null;
+  }>;
+  error?: string;
+};
+
+export type JobsPipelineResponse = {
+  success: boolean;
+  stages?: Record<string, Job[]>;
+  jobs?: Job[];
+  error?: string;
+} & Record<string, unknown>;
+
+export type LiveJobsResponse = {
+  success: boolean;
+  jobs?: Job[];
+  error?: string;
+} & Record<string, unknown>;

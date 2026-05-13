@@ -87,30 +87,46 @@ async function mockReports(page: Page) {
 }
 
 async function mockAi(page: Page, postCalls: string[]) {
-  await page.route("**/api/ai/lead-scores", async (route) => {
-    await route.fulfill({ contentType: "application/json", json: { success: true, customers: [{ id: 1, name: "Ada", grade: "A", score: 91 }] } });
-  });
-  await page.route("**/api/ai/churn-risk", async (route) => {
-    await route.fulfill({ contentType: "application/json", json: { success: true, customers: [{ id: 2, name: "Grace", risk_level: "medium", risk_score: 44 }] } });
-  });
-  await page.route("**/api/ai/revenue-forecast", async (route) => {
+  await page.route("**/api/work-requests?**", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       json: {
         success: true,
-        forecast: [{
-          month: "June 2026",
-          predicted_revenue: 3000,
-          breakdown: { scheduled: 1000, pipeline: 1200, historical: 800 }
-        }]
+        source: "live_copilot",
+        as_of: "2026-05-13T18:00:00.000Z",
+        mode: "copilot",
+        requests: [
+          {
+            id: "wr-1",
+            external_source: "copilotcrm",
+            customer_name: "Ada Customer",
+            customer_address: "1 Main St",
+            work_requested: "Spring cleanup",
+            preferred_work_date_raw: "May 20, 2026",
+            source: "Website"
+          }
+        ]
       }
     });
   });
-  await page.route("**/api/ai/campaign-segments", async (route) => {
-    await route.fulfill({ contentType: "application/json", json: { success: true, segments: [{ name: "High Value", count: 5 }] } });
+  await page.route("**/api/copilot/live-jobs?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: { success: true, jobs: [{ id: 2, customer_name: "Grace Route", service_type: "Mowing", crew_assigned: "North", status: "scheduled" }] }
+    });
   });
-  await page.route("**/api/ai/schedule-suggestions?**", async (route) => {
-    await route.fulfill({ contentType: "application/json", json: { success: true, suggestions: [{ title: "Fill Thursday route", score: 80 }] } });
+  await page.route("**/api/finance/summary", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        thisMonth: {
+          revenue: 1234,
+          revenue_source: "live_copilot",
+          revenue_as_of: "2026-05-13T18:00:00.000Z"
+        }
+      }
+    });
   });
   await page.route("**/api/ai/**", async (route) => {
     if (route.request().method() === "POST") {
@@ -156,12 +172,12 @@ test.describe("React reports and AI workflow", () => {
     await seedSession(page);
     await page.goto("/ai");
 
-    await expect(page.getByRole("heading", { name: "AI Assistant" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Lead follow-up candidates" })).toContainText("Ada");
-    await expect(page.getByRole("region", { name: "Churn risk" })).toContainText("Grace");
-    await expect(page.getByRole("region", { name: "Revenue forecast" })).toContainText("June 2026");
-    await expect(page.getByRole("region", { name: "Campaign segments" })).toContainText("High Value");
-    await expect(page.getByRole("region", { name: "Schedule opportunities" })).toContainText("Fill Thursday route");
+    await expect(page.getByRole("heading", { name: "CopilotCRM Assistant" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Live Copilot work requests" })).toContainText("Ada Customer");
+    await expect(page.getByRole("region", { name: "Live Copilot route" })).toContainText("Grace Route");
+    await expect(page.getByRole("region", { name: "Collected revenue" })).toContainText("Live CopilotCRM");
+    await expect(page.getByRole("region", { name: "Copilot request sources" })).toContainText("Website");
+    await expect(page.getByRole("region", { name: "Not live yet" })).toContainText("Churn risk");
     await expect(page.locator("body")).not.toContainText("[object Object]");
     expect(postCalls).toHaveLength(0);
 

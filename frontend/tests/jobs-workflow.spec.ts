@@ -97,4 +97,32 @@ test.describe("React jobs workflow", () => {
     await expect(page.getByText(customerName).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Back to Jobs" })).toBeVisible();
   });
+
+  test("operations panels load crew availability and completed-uninvoiced work", async ({ page }) => {
+    await page.route("**/api/jobs?**", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: 10, customer_name: "Ada", service_type: "Mowing", status: "pending", job_date: "2026-05-13" }] } });
+    });
+    await page.route("**/api/jobs/stats?**", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, stats: { total: 1, byStatus: { pending: 1 }, byCrew: { North: 1 }, totalRevenue: 50 } } });
+    });
+    await page.route("**/api/jobs/completed-uninvoiced", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: 11, customer_name: "Grace", service_type: "Cleanup", service_price: 200, job_date: "2026-05-12" }] } });
+    });
+    await page.route("**/api/dispatch/crew-availability?**", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, crews: [{ crew_name: "North", job_count: 3, total_hours: 4.5 }] } });
+    });
+    await page.route("**/api/jobs/pipeline", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, stages: { scheduled: [{ id: 10 }] } } });
+    });
+    await page.route("**/api/copilot/live-jobs?**", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: 12, customer_name: "Live Customer", service_type: "Mowing", crew_assigned: "North" }] } });
+    });
+
+    await seedSession(page);
+    await page.goto("/jobs");
+
+    await expect(page.getByRole("region", { name: "Crew Availability" })).toContainText("North");
+    await expect(page.getByRole("region", { name: "Completed Uninvoiced" })).toContainText("Grace");
+    await expect(page.getByRole("region", { name: "Copilot Live Jobs" })).toContainText("Live Customer");
+  });
 });

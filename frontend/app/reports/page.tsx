@@ -28,6 +28,7 @@ import type {
 type Tab = "Money" | "Sales Pipeline" | "Operations" | "Customers" | "Tax/Finance";
 type LoadStatus = "loading" | "success" | "empty" | "error";
 type LoadState<T> = { status: LoadStatus; data?: T; error?: string };
+type ReportRow = Record<string, unknown>;
 
 const tabs: Tab[] = ["Money", "Sales Pipeline", "Operations", "Customers", "Tax/Finance"];
 const loading = <T,>(): LoadState<T> => ({ status: "loading" });
@@ -153,7 +154,7 @@ export default function ReportsPage() {
             )}
           </MetricPanel>
           <MetricPanel title="Aging" state={aging}>
-            {(data) => <SimpleObjectTable rows={data.buckets || []} />}
+            {(data) => <SimpleObjectTable rows={normalizeAgingRows(data.buckets)} />}
           </MetricPanel>
         </ReportGrid>
       ) : null}
@@ -232,6 +233,9 @@ export default function ReportsPage() {
           <MetricPanel title="Tax Sweep" state={taxSweep}>
             {(data) => <SimpleObjectTable rows={[asRecord(data.summary) || data]} />}
           </MetricPanel>
+          <MetricPanel title="Aging" state={aging}>
+            {(data) => <SimpleObjectTable rows={normalizeAgingRows(data.buckets)} />}
+          </MetricPanel>
           <MetricPanel title="Finance Summary" state={finance}>
             {(data) => <SimpleObjectTable rows={[data]} />}
           </MetricPanel>
@@ -296,8 +300,8 @@ function MiniMetric({ label, value }: { label: string; value: string | number })
   );
 }
 
-function SimpleObjectTable({ rows }: { rows: Array<Record<string, unknown>> }) {
-  const safeRows = rows.filter((row) => row && typeof row === "object");
+function SimpleObjectTable({ rows }: { rows: unknown }) {
+  const safeRows = normalizeRows(rows);
   if (!safeRows.length) return <div className="empty-state">Nothing to show.</div>;
   const columns = Object.keys(safeRows[0]).slice(0, 5);
 
@@ -327,7 +331,17 @@ function SimpleObjectTable({ rows }: { rows: Array<Record<string, unknown>> }) {
 
 function formatCell(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "-";
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item && typeof item === "object") return compactObject(item as ReportRow);
+        return String(item);
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
+  if (typeof value === "object") return compactObject(value as ReportRow);
   return String(value);
 }
 
@@ -336,4 +350,51 @@ function asRecord(value: unknown) {
     return value as Record<string, unknown>;
   }
   return null;
+}
+
+function normalizeRows(value: unknown): ReportRow[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          return item as ReportRow;
+        }
+        return { value: item };
+      })
+      .filter(Boolean);
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as ReportRow).map(([key, item]) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        return { name: key, ...(item as ReportRow) };
+      }
+      return { name: key, value: item };
+    });
+  }
+  return [{ value }];
+}
+
+function normalizeAgingRows(value: unknown): ReportRow[] {
+  return normalizeRows(value).map((row) => {
+    if ("name" in row && !("bucket" in row)) {
+      return { bucket: row.name, ...row };
+    }
+    return row;
+  });
+}
+
+function compactObject(value: ReportRow) {
+  const parts = Object.entries(value)
+    .filter(([, item]) => item !== null && item !== undefined && item !== "")
+    .slice(0, 4)
+    .map(([key, item]) => `${key.replaceAll("_", " ")}: ${formatNestedValue(item)}`);
+  return parts.length ? parts.join(", ") : "-";
+}
+
+function formatNestedValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (typeof value === "object") return compactObject(value as ReportRow);
+  return String(value);
 }

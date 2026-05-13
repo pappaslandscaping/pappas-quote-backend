@@ -150,6 +150,7 @@ test.describe("React dashboard workflow", () => {
     await expect(attention.getByText("Overdue invoices")).toBeVisible();
     await expect(attention.getByText("Completed-uninvoiced jobs")).toBeVisible();
     await expect(attention.getByText("High-priority follow-ups")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Recent Activity" })).toContainText("2026");
 
     const health = page.getByRole("region", { name: "API Health" });
     await expect(health.getByText("Loaded")).toHaveCount(7);
@@ -183,10 +184,41 @@ test.describe("React dashboard workflow", () => {
     await seedSession(page);
     await page.goto("/");
 
-    await expect(page.getByRole("region", { name: "Needs Attention" }).getByText("API failed: Quotes offline")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Needs Attention" }).getByText("Some data failed: Quotes offline")).toBeVisible();
     await expect(page.getByRole("region", { name: "Upcoming Work" }).getByText("No upcoming jobs found.")).toBeVisible();
     await expect(page.getByRole("region", { name: "API Health" }).getByText("Error")).toBeVisible();
     await expect(page.getByRole("region", { name: "API Health" }).getByText("Empty")).toHaveCount(3);
+  });
+
+  test("Needs Attention renders partial results while one source is still loading", async ({ page }) => {
+    await page.route("**/api/dashboard/today-summary", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true } });
+    });
+    await page.route("**/api/dashboard/activity-feed", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, events: [] } });
+    });
+    await page.route("**/api/quotes", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, quotes: [{ id: 1, status: "new" }] } });
+    });
+    await page.route("**/api/invoices/stats", async () => {
+      await new Promise(() => undefined);
+    });
+    await page.route("**/api/jobs/dashboard", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, upcoming: [] } });
+    });
+    await page.route("**/api/jobs/completed-uninvoiced", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [] } });
+    });
+    await page.route("**/api/finance/summary", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true } });
+    });
+
+    await seedSession(page);
+    await page.goto("/");
+
+    const attention = page.getByRole("region", { name: "Needs Attention" });
+    await expect(attention.getByText("New quote requests")).toBeVisible();
+    await expect(attention.getByText("Some data is still loading.")).toBeVisible();
   });
 
   test("dashboard quick links navigate to converted areas", async ({ page }) => {

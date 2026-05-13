@@ -51,6 +51,17 @@ function formatDate(value?: string | null) {
   });
 }
 
+function formatFullDate(value?: string | null) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
 function shortError(error: unknown) {
   return error instanceof Error ? error.message : "API request failed";
 }
@@ -256,7 +267,7 @@ export default function HomePage() {
         </section>
 
         <section className="table-card dashboard-panel" aria-label="Recent Activity">
-          <PanelHeader title="Recent Activity" subtitle="Latest movement across the business." />
+          <PanelHeader title="Recent Activity" subtitle="Latest business activity, not limited to today." />
           <Panel state={activity} emptyText="No recent activity yet.">
             {(events) => (
               <div className="compact-list">
@@ -266,7 +277,7 @@ export default function HomePage() {
                       <strong>{event.description || "Activity recorded"}</strong>
                       <span>{event.type || "Update"}</span>
                     </div>
-                    <small>{formatDate(event.timestamp)}</small>
+                    <small>{formatFullDate(event.timestamp)}</small>
                   </div>
                 ))}
               </div>
@@ -362,14 +373,23 @@ function Stateful({
   emptyText: string;
   children: ReactNode;
 }) {
-  if (state.some((item) => item.status === "loading")) {
+  const hasResolved = state.some((item) => item.status === "success" || item.status === "empty");
+  if (!hasResolved && state.some((item) => item.status === "loading")) {
     return <div className="state-block">Loading</div>;
   }
   const failed = state.find((item) => item.status === "error");
-  if (failed) return <div className="state-block error">API failed: {failed.error}</div>;
+  if (!hasResolved && failed) return <div className="state-block error">API failed: {failed.error}</div>;
   const allEmpty = state.every((item) => item.status === "empty");
   if (allEmpty) return <div className="empty-state">{emptyText}</div>;
-  return <>{children}</>;
+  return (
+    <>
+      {failed ? <div className="state-inline-error">Some data failed: {failed.error}</div> : null}
+      {state.some((item) => item.status === "loading") ? (
+        <div className="state-inline-note">Some data is still loading.</div>
+      ) : null}
+      {children}
+    </>
+  );
 }
 
 function HealthRow({ label, state }: { label: string; state: LoadState<unknown> }) {

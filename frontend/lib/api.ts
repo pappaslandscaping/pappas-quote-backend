@@ -27,10 +27,13 @@ import type {
   InvoiceStatsResponse
 } from "../types/invoices";
 import type {
+  CrewAvailabilityResponse,
   JobDetailResponse,
   JobListParams,
   JobListResponse,
-  JobStatsResponse
+  JobsPipelineResponse,
+  JobStatsResponse,
+  LiveJobsResponse
 } from "../types/jobs";
 import type {
   ActivityFeedResponse,
@@ -59,6 +62,18 @@ import type {
   AiRevenueForecastResponse,
   AiScheduleSuggestionsResponse
 } from "../types/ai";
+import type {
+  PaymentRecordsResponse,
+  PaymentReviewResponse,
+  PaymentsResponse,
+  TaxTransferFreshnessResponse,
+  TaxTransferInstructionResponse
+} from "../types/payments";
+import type {
+  CallsResponse,
+  MessagesResponse,
+  VoicemailsResponse
+} from "../types/communications";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
@@ -355,6 +370,110 @@ export async function fetchJob(id: string | number) {
   }
 
   return data.job;
+}
+
+export async function fetchPayments(params: Record<string, string | number | undefined> = {}) {
+  const query = searchQuery(params);
+  const data = await apiFetch<PaymentsResponse>(`/api/payments${query ? `?${query}` : ""}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load payments");
+  }
+  return data;
+}
+
+export async function fetchPaymentRecords(params: Record<string, string | number | undefined> = {}) {
+  const query = searchQuery(params);
+  const data = await apiFetch<PaymentRecordsResponse>(
+    `/api/payment-records${query ? `?${query}` : ""}`
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load payment records");
+  }
+  return data;
+}
+
+export async function fetchPaymentReview(params: {
+  start_date: string;
+  end_date: string;
+  unresolved_only?: string;
+}) {
+  const query = searchQuery(params);
+  const data = await apiFetch<PaymentReviewResponse>(`/api/copilot/payment-review?${query}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load payment review");
+  }
+  return data;
+}
+
+export async function fetchTaxTransferFreshnessStatus() {
+  const data = await apiFetch<TaxTransferFreshnessResponse>(
+    "/api/reports/tax-transfer-freshness-status"
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load tax transfer freshness");
+  }
+  return data;
+}
+
+export async function fetchTaxTransferInstructions(params: Record<string, string | number | undefined> = {}) {
+  const query = searchQuery(params);
+  const data = await apiFetch<TaxTransferInstructionResponse>(
+    `/api/tax-transfer-instructions${query ? `?${query}` : ""}`
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load tax transfer instructions");
+  }
+  return data;
+}
+
+export async function fetchMessages(limit = 100) {
+  const data = await apiFetch<MessagesResponse>(`/api/messages?limit=${limit}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load messages");
+  }
+  return data.messages || [];
+}
+
+export async function fetchCalls(limit = 100) {
+  const data = await apiFetch<CallsResponse>(`/api/calls?limit=${limit}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load calls");
+  }
+  return data.calls || [];
+}
+
+export async function fetchVoicemails() {
+  const data = await apiFetch<VoicemailsResponse>("/api/app/voicemails");
+  if (data.success === false) {
+    throw new Error(data.error || "Failed to load voicemails");
+  }
+  return data.voicemails || [];
+}
+
+export async function fetchCrewAvailability(date: string) {
+  const query = searchQuery({ date });
+  const data = await apiFetch<CrewAvailabilityResponse>(`/api/dispatch/crew-availability?${query}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load crew availability");
+  }
+  return data.crews || [];
+}
+
+export async function fetchJobsPipeline() {
+  const data = await apiFetch<JobsPipelineResponse>("/api/jobs/pipeline");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load jobs pipeline");
+  }
+  return data;
+}
+
+export async function fetchCopilotLiveJobs(date: string) {
+  const query = searchQuery({ date });
+  const data = await apiFetch<LiveJobsResponse>(`/api/copilot/live-jobs?${query}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load live jobs");
+  }
+  return data.jobs || [];
 }
 
 export async function fetchTodaySummary() {

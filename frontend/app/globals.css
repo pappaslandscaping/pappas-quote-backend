@@ -909,6 +909,42 @@ tbody tr:last-child td {
   color: var(--red);
 }
 
+.state-inline-error,
+.state-inline-note {
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 12px 22px 0;
+  padding: 10px 12px;
+}
+
+.state-inline-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.state-inline-note {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.status-message,
+.status-call,
+.status-voicemail {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.status-unresolved {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.status-linked,
+.status-paid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

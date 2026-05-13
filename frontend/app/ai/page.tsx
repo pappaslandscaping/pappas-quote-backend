@@ -230,9 +230,52 @@ function titleFor(row: unknown) {
 function detailFor(row: unknown) {
   if (!row || typeof row !== "object") return "";
   const record = row as Record<string, unknown>;
+  if ("predicted_revenue" in record || "breakdown" in record) {
+    const parts = [`predicted revenue: ${money(record.predicted_revenue)}`];
+    const breakdown = asRecord(record.breakdown);
+    if (breakdown) {
+      ["scheduled", "pipeline", "historical"].forEach((key) => {
+        if (breakdown[key] !== undefined) parts.push(`${key}: ${money(breakdown[key])}`);
+      });
+    }
+    return parts.join(" - ");
+  }
+  if ("description" in record || "count" in record) {
+    return [
+      record.description ? `description: ${formatValue(record.description)}` : "",
+      record.count !== undefined ? `count: ${formatValue(record.count)}` : ""
+    ].filter(Boolean).join(" - ");
+  }
   const parts = Object.entries(record)
     .filter(([key]) => !["name", "month", "title", "customer_ids"].includes(key))
     .slice(0, 2)
-    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`);
+    .map(([key, value]) => `${key.replaceAll("_", " ")}: ${formatValue(value)}`);
   return parts.join(" - ");
+}
+
+function money(value: unknown) {
+  return Number(value || 0).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  });
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  const record = asRecord(value);
+  if (record) {
+    return Object.entries(record)
+      .slice(0, 3)
+      .map(([key, item]) => `${key.replaceAll("_", " ")} ${formatValue(item)}`)
+      .join(", ");
+  }
+  return String(value);
 }

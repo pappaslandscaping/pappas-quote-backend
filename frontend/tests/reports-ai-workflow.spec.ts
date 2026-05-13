@@ -79,7 +79,10 @@ async function mockReports(page: Page) {
     await route.fulfill({ contentType: "application/json", json: { success: true, summary: { transfer_due: 80 } } });
   });
   await page.route("**/api/invoices/aging", async (route) => {
-    await route.fulfill({ contentType: "application/json", json: { success: true, buckets: [{ bucket: "current", amount: 400 }] } });
+    await route.fulfill({
+      contentType: "application/json",
+      json: { success: true, buckets: { current: { amount: 400, count: 2 } } }
+    });
   });
 }
 
@@ -91,7 +94,17 @@ async function mockAi(page: Page, postCalls: string[]) {
     await route.fulfill({ contentType: "application/json", json: { success: true, customers: [{ id: 2, name: "Grace", risk_level: "medium", risk_score: 44 }] } });
   });
   await page.route("**/api/ai/revenue-forecast", async (route) => {
-    await route.fulfill({ contentType: "application/json", json: { success: true, forecast: [{ month: "June 2026", predicted_revenue: 3000 }] } });
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        forecast: [{
+          month: "June 2026",
+          predicted_revenue: 3000,
+          breakdown: { scheduled: 1000, pipeline: 1200, historical: 800 }
+        }]
+      }
+    });
   });
   await page.route("**/api/ai/campaign-segments", async (route) => {
     await route.fulfill({ contentType: "application/json", json: { success: true, segments: [{ name: "High Value", count: 5 }] } });
@@ -134,6 +147,7 @@ test.describe("React reports and AI workflow", () => {
     await expect(page.getByRole("region", { name: "Customer Value" })).toContainText("Grace");
     await page.getByRole("button", { name: "Tax/Finance" }).click();
     await expect(page.getByRole("region", { name: "Sales Tax" })).toContainText("taxable sales");
+    await expect(page.getByRole("region", { name: "Aging" })).toContainText("current");
   });
 
   test("AI page loads suggestions and does not send draft actions automatically", async ({ page }) => {
@@ -148,10 +162,11 @@ test.describe("React reports and AI workflow", () => {
     await expect(page.getByRole("region", { name: "Revenue forecast" })).toContainText("June 2026");
     await expect(page.getByRole("region", { name: "Campaign segments" })).toContainText("High Value");
     await expect(page.getByRole("region", { name: "Schedule opportunities" })).toContainText("Fill Thursday route");
+    await expect(page.locator("body")).not.toContainText("[object Object]");
     expect(postCalls).toHaveLength(0);
 
     await page.getByRole("button", { name: "Prepare follow-up draft" }).click();
-    await expect(page.getByText("Prepared draft")).toBeVisible();
+    await expect(page.getByText("Prepared draft", { exact: true })).toBeVisible();
     await expect(page.getByText("No message was sent.")).toBeVisible();
     expect(postCalls).toHaveLength(1);
   });

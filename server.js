@@ -9858,7 +9858,8 @@ app.get('/api/ai/lead-scores', async (req, res) => {
       const scoreData = await computeLeadScore(c);
       results.push({ id: c.id, name: c.name, score: scoreData.score, grade: scoreData.grade, factors: scoreData.factors });
     }
-    res.json({ success: true, customers: results });
+    results.sort((a, b) => b.score - a.score || String(a.name || '').localeCompare(String(b.name || '')));
+    res.json({ success: true, customers: results.filter((customer) => customer.score > 0) });
   } catch (error) {
     serverError(res, error);
   }
@@ -10245,7 +10246,8 @@ app.get('/api/ai/revenue-forecast', async (req, res) => {
            FROM invoices WHERE paid_at >= NOW() - INTERVAL '6 months' AND status = 'paid'
            GROUP BY DATE_TRUNC('month', paid_at)) sub`)
     ]);
-    const pipelineRevPerMonth = ((parseFloat(pipeline.rows[0].total) || 0) * 0.8) / months;
+    const pipelineOpportunityTotal = (parseFloat(pipeline.rows[0].total) || 0) * 0.8;
+    const pipelineRevPerMonth = pipelineOpportunityTotal / months;
     const historicalRev = parseFloat(historical.rows[0].avg_monthly) || 0;
 
     // Fetch all scheduled revenue in parallel
@@ -10267,19 +10269,29 @@ app.get('/api/ai/revenue-forecast', async (req, res) => {
       targetDate.setMonth(targetDate.getMonth() + i);
       const monthLabel = targetDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-      const predicted = scheduledRev + pipelineRev + historicalRev;
+      const predicted = scheduledRev + pipelineRev;
       forecast.push({
         month: monthLabel,
         predicted_revenue: Math.round(predicted * 100) / 100,
+        confidence: scheduledRev > 0 ? 'medium' : 'low',
+        basis: 'Known scheduled work plus an even allocation of signed/contracted unbilled quote pipeline. Historical paid revenue is shown as context only.',
         breakdown: {
-          scheduled: Math.round(scheduledRev * 100) / 100,
-          pipeline: Math.round(pipelineRev * 100) / 100,
-          historical: Math.round(historicalRev * 100) / 100
+          known_scheduled: Math.round(scheduledRev * 100) / 100,
+          pipeline_opportunity: Math.round(pipelineRev * 100) / 100,
+          historical_baseline: Math.round(historicalRev * 100) / 100
         }
       });
     }
 
-    res.json({ success: true, forecast });
+    res.json({
+      success: true,
+      forecast,
+      assumptions: {
+        months,
+        pipeline_opportunity_total: Math.round(pipelineOpportunityTotal * 100) / 100,
+        historical_monthly_average: Math.round(historicalRev * 100) / 100
+      }
+    });
   } catch (error) {
     serverError(res, error);
   }

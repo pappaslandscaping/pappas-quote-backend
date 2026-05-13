@@ -74,6 +74,7 @@ import type {
   MessagesResponse,
   VoicemailsResponse
 } from "../types/communications";
+import type { WorkRequestsResponse } from "../types/work-requests";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
@@ -631,6 +632,15 @@ export async function fetchAiLeadScores() {
     throw new Error(data.error || "Failed to load lead scores");
   }
   return data.customers || [];
+}
+
+export async function fetchWorkRequests(params: { limit?: number; search?: string; source?: string } = {}) {
+  const query = searchQuery(params);
+  const data = await apiFetch<WorkRequestsResponse>(`/api/work-requests?${query}`);
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load Copilot work requests");
+  }
+  return data;
 }
 
 export async function fetchAiChurnRisk() {

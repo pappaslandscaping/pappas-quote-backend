@@ -11,10 +11,10 @@ import {
 } from "../lib/api";
 
 type Summary = {
+  status: "loading" | "success" | "error";
   total: number | string;
   meta: string;
   detail: string;
-  error?: string;
 };
 
 type DashboardState = {
@@ -26,21 +26,25 @@ type DashboardState = {
 
 const emptyDashboard: DashboardState = {
   quotes: {
+    status: "loading",
     total: "-",
     meta: "Loading",
     detail: "Quote request summary is loading."
   },
   customers: {
+    status: "loading",
     total: "-",
     meta: "Loading",
     detail: "Customer summary is loading."
   },
   invoices: {
+    status: "loading",
     total: "-",
     meta: "Loading",
     detail: "Invoice summary is loading."
   },
   jobs: {
+    status: "loading",
     total: "-",
     meta: "Loading",
     detail: "Scheduling summary is loading."
@@ -65,10 +69,10 @@ function countByStatus<T extends { status?: string | null }>(items: T[]) {
 
 function unavailable(label: string): Summary {
   return {
+    status: "error",
     total: "-",
-    meta: "Unavailable",
+    meta: "Error",
     detail: `${label} could not be loaded.`,
-    error: "Unavailable"
   };
 }
 
@@ -78,77 +82,91 @@ export default function HomePage() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadDashboard() {
-      const [quotesResult, customerStatsResult, customerPipelineResult, invoiceStatsResult, jobStatsResult] =
-        await Promise.allSettled([
-          fetchQuoteRequests(),
-          fetchCustomerStats(),
-          fetchCustomerPipelineStats(),
-          fetchInvoiceStats(),
-          fetchJobStats()
-        ]);
-
+    function updateSummary(key: keyof DashboardState, summary: Summary) {
       if (!isMounted) return;
+      setDashboard((current) => ({
+        ...current,
+        [key]: summary
+      }));
+    }
 
-      const quotes =
-        quotesResult.status === "fulfilled"
-          ? (() => {
-              const byStatus = countByStatus(quotesResult.value);
-              return {
-                total: quotesResult.value.length,
-                meta: `${byStatus.new || 0} new - ${byStatus.quoted || 0} quoted`,
-                detail: `${byStatus.contacted || 0} contacted, ${byStatus.scheduled || 0} scheduled`
-              };
-            })()
-          : unavailable("Quotes");
+    async function loadQuotes() {
+      try {
+        const quotes = await fetchQuoteRequests();
+        const byStatus = countByStatus(quotes);
+        updateSummary("quotes", {
+          status: "success",
+          total: quotes.length,
+          meta: `${byStatus.new || 0} new - ${byStatus.quoted || 0} quoted`,
+          detail: `${byStatus.contacted || 0} contacted, ${byStatus.scheduled || 0} scheduled`
+        });
+      } catch {
+        updateSummary("quotes", unavailable("Quotes"));
+      }
+    }
 
-      const customers =
-        customerStatsResult.status === "fulfilled" || customerPipelineResult.status === "fulfilled"
-          ? {
-              total:
-                customerPipelineResult.status === "fulfilled"
-                  ? customerPipelineResult.value.totalCustomers
-                  : customerStatsResult.status === "fulfilled"
-                    ? customerStatsResult.value.total
-                    : "-",
-              meta:
-                customerPipelineResult.status === "fulfilled"
-                  ? `${customerPipelineResult.value.totalLeads} leads`
-                  : `${customerStatsResult.status === "fulfilled" ? customerStatsResult.value.active : 0} active`,
-              detail:
-                customerPipelineResult.status === "fulfilled"
-                  ? `${customerPipelineResult.value.conversionRate}% conversion, ${customerPipelineResult.value.newLeadsThisMonth} new leads this month`
-                  : `${customerStatsResult.status === "fulfilled" ? customerStatsResult.value.inactive : 0} inactive customers`
-            }
-          : unavailable("Customers");
+    async function loadCustomers() {
+      const [customerStatsResult, customerPipelineResult] = await Promise.allSettled([
+        fetchCustomerStats(),
+        fetchCustomerPipelineStats()
+      ]);
 
-      const invoices =
-        invoiceStatsResult.status === "fulfilled"
-          ? {
-              total: invoiceStatsResult.value.total,
-              meta: `${money(invoiceStatsResult.value.outstanding)} outstanding`,
-              detail: `${invoiceStatsResult.value.overdue} overdue, ${money(invoiceStatsResult.value.paidThisMonth)} paid this month`
-            }
-          : unavailable("Invoices");
+      if (customerStatsResult.status !== "fulfilled" && customerPipelineResult.status !== "fulfilled") {
+        updateSummary("customers", unavailable("Customers"));
+        return;
+      }
 
-      const jobs =
-        jobStatsResult.status === "fulfilled"
-          ? {
-              total: jobStatsResult.value.total,
-              meta: `${jobStatsResult.value.byStatus.pending || 0} pending - ${jobStatsResult.value.byStatus.completed || 0} completed`,
-              detail: `${money(jobStatsResult.value.totalRevenue)} scheduled revenue`
-            }
-          : unavailable("Jobs");
-
-      setDashboard({
-        quotes,
-        customers,
-        invoices,
-        jobs
+      updateSummary("customers", {
+        status: "success",
+        total:
+          customerPipelineResult.status === "fulfilled"
+            ? customerPipelineResult.value.totalCustomers
+            : customerStatsResult.status === "fulfilled"
+              ? customerStatsResult.value.total
+              : "-",
+        meta:
+          customerPipelineResult.status === "fulfilled"
+            ? `${customerPipelineResult.value.totalLeads} leads`
+            : `${customerStatsResult.status === "fulfilled" ? customerStatsResult.value.active : 0} active`,
+        detail:
+          customerPipelineResult.status === "fulfilled"
+            ? `${customerPipelineResult.value.conversionRate}% conversion, ${customerPipelineResult.value.newLeadsThisMonth} new leads this month`
+            : `${customerStatsResult.status === "fulfilled" ? customerStatsResult.value.inactive : 0} inactive customers`
       });
     }
 
-    void loadDashboard();
+    async function loadInvoices() {
+      try {
+        const stats = await fetchInvoiceStats();
+        updateSummary("invoices", {
+          status: "success",
+          total: stats.total,
+          meta: `${money(stats.outstanding)} outstanding`,
+          detail: `${stats.overdue} overdue, ${money(stats.paidThisMonth)} paid this month`
+        });
+      } catch {
+        updateSummary("invoices", unavailable("Invoices"));
+      }
+    }
+
+    async function loadJobs() {
+      try {
+        const stats = await fetchJobStats();
+        updateSummary("jobs", {
+          status: "success",
+          total: stats.total,
+          meta: `${stats.byStatus.pending || 0} pending - ${stats.byStatus.completed || 0} completed`,
+          detail: `${money(stats.totalRevenue)} scheduled revenue`
+        });
+      } catch {
+        updateSummary("jobs", unavailable("Jobs"));
+      }
+    }
+
+    void loadQuotes();
+    void loadCustomers();
+    void loadInvoices();
+    void loadJobs();
 
     return () => {
       isMounted = false;
@@ -225,7 +243,7 @@ function DashboardCard({
   tone: "blue" | "amber" | "green" | "purple";
 }) {
   return (
-    <div className={`stat-card dashboard-stat ${summary.error ? "has-error" : ""}`}>
+    <div className={`stat-card dashboard-stat ${summary.status === "error" ? "has-error" : ""}`}>
       <span>{label}</span>
       <strong>{summary.total}</strong>
       <p>{summary.meta}</p>
@@ -236,12 +254,23 @@ function DashboardCard({
 }
 
 function HealthRow({ label, summary }: { label: string; summary: Summary }) {
+  const className =
+    summary.status === "success"
+      ? "status-pill status-completed"
+      : summary.status === "error"
+        ? "status-pill status-cancelled"
+        : "status-pill status-pending";
+  const text =
+    summary.status === "success"
+      ? "Loaded"
+      : summary.status === "error"
+        ? "Error"
+        : "Loading";
+
   return (
     <div className="dashboard-health-row">
       <span>{label}</span>
-      <strong className={summary.error ? "status-pill status-cancelled" : "status-pill status-completed"}>
-        {summary.error ? "Unavailable" : "Loaded"}
-      </strong>
+      <strong className={className}>{text}</strong>
     </div>
   );
 }

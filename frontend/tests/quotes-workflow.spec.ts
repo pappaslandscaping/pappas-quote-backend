@@ -43,9 +43,9 @@ async function login(page: Page) {
   await page.getByLabel(/password/i).fill(adminPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page).toHaveURL(/\/quotes$/);
+  await expect(page).toHaveURL(/\/$/);
   await expect(
-    page.getByRole("heading", { name: "Quote Requests" })
+    page.getByRole("heading", { name: "Business Dashboard" })
   ).toBeVisible();
 }
 
@@ -79,13 +79,15 @@ test.describe("React quote workflow", () => {
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   });
 
-  test("successful login redirects to /quotes", async ({ page }) => {
+  test("successful login redirects to /", async ({ page }) => {
     await login(page);
-    await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Quotes", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
-    await expect(page.getByText("Invoices")).toBeVisible();
-    await expect(page.getByText("Scheduling/Jobs")).toBeVisible();
+    const primaryNav = page.getByRole("navigation", { name: "Primary navigation" });
+    await expect(primaryNav).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Home", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Quotes", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Invoices", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Scheduling/Jobs", exact: true })).toBeVisible();
   });
 
   test("quotes table loads", async ({ page }) => {

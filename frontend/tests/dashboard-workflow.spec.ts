@@ -47,6 +47,7 @@ test.describe("React dashboard workflow", () => {
     await openDashboard(page);
 
     await expect(page.getByRole("region", { name: "Business snapshots" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Home", exact: true })).toBeVisible();
     await expect(page.getByText("Quotes").first()).toBeVisible();
     await expect(page.getByText("Customers").first()).toBeVisible();
     await expect(page.getByText("Invoices").first()).toBeVisible();

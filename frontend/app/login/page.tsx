@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (window.localStorage.getItem("adminToken")) {
-      router.replace("/quotes");
+      router.replace("/");
     }
   }, [router]);
 
@@ -45,7 +45,7 @@ export default function LoginPage() {
         window.localStorage.removeItem("employeePermissions");
       }
 
-      router.push("/quotes");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

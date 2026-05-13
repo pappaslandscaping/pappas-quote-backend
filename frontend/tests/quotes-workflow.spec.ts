@@ -45,7 +45,7 @@ async function login(page: Page) {
 
   await expect(page).toHaveURL(/\/$/);
   await expect(
-    page.getByRole("heading", { name: "Business Dashboard" })
+    page.getByRole("heading", { name: "Daily Command Center" })
   ).toBeVisible();
 }
 
@@ -88,6 +88,8 @@ test.describe("React quote workflow", () => {
     await expect(primaryNav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Invoices", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Scheduling/Jobs", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Reports", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "AI", exact: true })).toBeVisible();
   });
 
   test("quotes table loads", async ({ page }) => {

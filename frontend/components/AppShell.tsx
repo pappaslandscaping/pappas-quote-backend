@@ -16,7 +16,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/quotes", label: "Quotes" },
   { href: "/customers", label: "Customers" },
   { href: "/invoices", label: "Invoices" },
-  { href: "/jobs", label: "Scheduling/Jobs" }
+  { href: "/jobs", label: "Scheduling/Jobs" },
+  { href: "/reports", label: "Reports" },
+  { href: "/ai", label: "AI" }
 ];
 
 function clearAuthStorage() {

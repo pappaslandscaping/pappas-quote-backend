@@ -1,18 +1,10 @@
 const assert = require('assert');
 const { buildInvoiceHistoryEvents } = require('../lib/invoice-history');
 
-let failures = 0;
+const tests = [];
 function it(name, fn) {
-  try {
-    fn();
-    console.log(`  \u2713 ${name}`);
-  } catch (error) {
-    failures += 1;
-    console.error(`  \u2717 ${name}\n    ${error.message}`);
-  }
+  tests.push({ name, fn });
 }
-
-console.log('invoice-history');
 
 it('prefers email log events over generic sent/reminder timestamps and preserves payment states', () => {
   const invoice = {
@@ -143,8 +135,8 @@ it('does not add synthetic sent/reminder events when email_log already recorded 
   assert.strictEqual(failedEvents.length, 2);
 });
 
-if (failures > 0) {
-  process.exitCode = 1;
-} else {
-  console.log('\nAll invoice history tests passed.');
-}
+describe('invoice-history', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
+  }
+});

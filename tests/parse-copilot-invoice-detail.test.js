@@ -1,5 +1,4 @@
 // Detail-page parser tests for the CopilotCRM invoice view page.
-// Runs with `node tests/parse-copilot-invoice-detail.test.js` — no Jest.
 //
 // The fixture mirrors the documented selectors from the real page
 // (#inv_id, #inv_cust_id, .table--description, .table--sub-total,
@@ -12,13 +11,10 @@ const assert = require('assert');
 const { parseInvoiceDetailHtml } = require('../scripts/parse-copilot-invoice-detail');
 const { toDbValuesFromDetail, mergeDetailIdentityFromListRow } = require('../scripts/import-copilot-invoices');
 
-let failures = 0;
+const tests = [];
 function it(name, fn) {
-  try { fn(); console.log(`  \u2713 ${name}`); }
-  catch (e) { failures++; console.error(`  \u2717 ${name}\n    ${e.message}`); }
+  tests.push({ name, fn });
 }
-
-console.log('parse-copilot-invoice-detail');
 
 // ── Fixture for invoice 10448 / Nance Gorman ────────────────────
 // Subtotal: $42.00, Tax: $3.36 (8%), Total: $45.36, Total Due: $45.36.
@@ -399,9 +395,8 @@ it('derives paid_at from Copilot activity history when the detail page lacks a p
   assert.strictEqual(detail.paid_at, '2025-11-12');
 });
 
-if (failures > 0) {
-  console.error(`\n${failures} test(s) failed.`);
-  process.exit(1);
-} else {
-  console.log('\nAll detail-parser tests passed.');
-}
+describe('parse-copilot-invoice-detail', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
+  }
+});

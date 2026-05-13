@@ -68,6 +68,13 @@ async function decodeClassPixelCounts(segmentationMaskBase64) {
   return { totalPixels, counts };
 }
 
+function toMaskDataUrl(segmentationMaskBase64) {
+  const normalized = String(segmentationMaskBase64 || '').trim();
+  if (!normalized) return null;
+  if (normalized.startsWith('data:image/')) return normalized;
+  return `data:image/png;base64,${normalized}`;
+}
+
 function firstPrediction(payload = {}) {
   if (Array.isArray(payload?.predictions)) return payload.predictions[0] || {};
   if (payload?.predictions && typeof payload.predictions === 'object') return payload.predictions;
@@ -222,6 +229,7 @@ async function runRoboflowSemanticEngine({ imageryUrl, fallbackReasons, visibleF
         imageMeta,
         prediction,
         maskRoot,
+        segmentationMaskDataUrl: toMaskDataUrl(segmentationMask),
         classMap,
         bucketCounts,
         rawLawn,

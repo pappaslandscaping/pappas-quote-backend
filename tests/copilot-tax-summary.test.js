@@ -5,18 +5,10 @@ const {
   buildDailyTaxRecommendation,
 } = require('../lib/copilot-tax-summary');
 
-let failures = 0;
+const tests = [];
 function it(name, fn) {
-  try {
-    fn();
-    console.log(`  \u2713 ${name}`);
-  } catch (error) {
-    failures += 1;
-    console.error(`  \u2717 ${name}\n    ${error.message}`);
-  }
+  tests.push({ name, fn });
 }
-
-console.log('copilot-tax-summary');
 
 const fixtureHtml = `
 <html>
@@ -180,9 +172,8 @@ it('keeps Copilot collected tax as recommendation even when backend reconstructe
   assert.strictEqual(recommendation.variance, -12.12);
 });
 
-if (failures > 0) {
-  console.error(`\n${failures} failure(s)`);
-  process.exit(1);
-} else {
-  console.log('\nAll tests passed');
-}
+describe('copilot-tax-summary', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
+  }
+});

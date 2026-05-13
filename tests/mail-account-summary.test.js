@@ -59,6 +59,24 @@ function runAssertions() {
   assert.strictEqual(sentInvoiceStandingSummary.priorBalance, 0);
   assert.strictEqual(sentInvoiceStandingSummary.thisInvoice, 41.8);
   assert.strictEqual(sentInvoiceStandingSummary.totalDueOnAccount, 41.8);
+
+  const partialCreditSummary = resolveMailAccountSummary({
+    invoiceTotal: 167.52,
+    amountPaid: 12.12,
+    metadata: {
+      prior_balance: 155.4,
+      outstanding_balance: 155.4,
+      customer_outstanding_balance: 155.4,
+      total_due_on_account: 322.92,
+    },
+    parseMoney,
+    roundMoney,
+  });
+
+  assert.strictEqual(partialCreditSummary.paymentCredit, 12.12);
+  assert.strictEqual(partialCreditSummary.priorBalance, 0);
+  assert.strictEqual(partialCreditSummary.thisInvoice, 155.4);
+  assert.strictEqual(partialCreditSummary.totalDueOnAccount, 155.4);
 }
 
 if (typeof test === 'function') {

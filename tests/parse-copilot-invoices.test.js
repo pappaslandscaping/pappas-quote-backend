@@ -1,21 +1,12 @@
 // Parser tests for the CopilotCRM invoice list HTML.
-// Runs with `node tests/parse-copilot-invoices.test.js` — no Jest needed.
 
 const assert = require('assert');
 const { parseInvoiceListHtml, _internal } = require('../scripts/parse-copilot-invoices');
 
-let failures = 0;
+const tests = [];
 function it(name, fn) {
-  try {
-    fn();
-    console.log(`  \u2713 ${name}`);
-  } catch (e) {
-    failures++;
-    console.error(`  \u2717 ${name}\n    ${e.message}`);
-  }
+  tests.push({ name, fn });
 }
-
-console.log('parse-copilot-invoices');
 
 // ─── Helper unit tests ────────────────────────────────────────
 it('parseMoney handles "$1,234.56"', () => {
@@ -294,9 +285,8 @@ it('preserves a not-sent pending invoice as pending instead of sent', () => {
   assert.strictEqual(r[0].sent_status, 'not sent');
 });
 
-if (failures > 0) {
-  console.error(`\n${failures} test(s) failed.`);
-  process.exit(1);
-} else {
-  console.log('\nAll parser tests passed.');
-}
+describe('parse-copilot-invoices', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
+  }
+});

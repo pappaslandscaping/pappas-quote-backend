@@ -56,6 +56,7 @@ const {
   runStartupMigrations,
   runStartupTableInit,
 } = require('./lib/startup-schema');
+const { buildCorsOptions } = require('./lib/cors-options');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -433,10 +434,7 @@ const PORT = process.env.PORT || 3000;
 // Required for express-rate-limit to read real client IPs instead of proxy IP
 app.set('trust proxy', 1);
 
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
-  credentials: true
-}));
+app.use(cors(buildCorsOptions()));
 
 // Security headers
 app.use((req, res, next) => {
@@ -3840,7 +3838,7 @@ app.all('/api/app/calls/connect', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   twiml.say({ voice: 'alice' }, 'Connecting your call.');
-  twiml.dial({ callerId: from }).number(to);
+  twiml.dial({ callerId: from, ringTone: 'us' }).number(to);
   res.type('text/xml');
   res.send(twiml.toString());
 });
@@ -4070,6 +4068,7 @@ app.all('/api/app/voice/connect', (req, res) => {
       callerId: TWILIO_PHONE_NUMBER,
       timeout: 30,
       answerOnBridge: true,
+      ringTone: 'us',
       action: `${baseUrl}/api/app/voice/outbound-status`,
       method: 'POST',
     });

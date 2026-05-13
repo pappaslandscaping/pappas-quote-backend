@@ -2,7 +2,6 @@ const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
 const tests = [];
-let failures = 0;
 
 function it(name, fn) {
   tests.push({ name, fn });
@@ -1151,21 +1150,8 @@ it('uses America/New_York business dates for yesterday-status around UTC midnigh
   assert.strictEqual(res.body.ui_state, 'blocked_missing_recommendation');
 });
 
-async function run() {
-  for (const test of tests) {
-    try {
-      await test.fn();
-      process.stdout.write('.');
-    } catch (error) {
-      failures += 1;
-      process.stdout.write('F');
-      process.stderr.write(`\n[${test.name}] ${error.stack}\n`);
-    }
+describe('tax-transfer-instructions-routes', () => {
+  for (const { name, fn } of tests) {
+    test(name, fn);
   }
-
-  process.stdout.write('\n');
-  if (failures > 0) process.exit(1);
-  console.log('tax-transfer-instructions-routes');
-}
-
-run();
+});

@@ -137,6 +137,38 @@ async function runAssertions() {
   }));
   assert.strictEqual(marilynPayload.invoice_date_raw, 'Apr 27, 2026');
 
+  const joanPayload = buildMailInvoicePayload(superiorIndustrialInvoice({
+    id: 14764,
+    invoice_number: '10437',
+    created_at: '2026-04-13T04:00:00.000Z',
+    customer_name: 'Joan Sapara',
+    customer_address: '11508 Linnet Avenue\nCleveland, OH 44111',
+    subtotal: '156.00',
+    tax_amount: '11.52',
+    total: '167.52',
+    amount_paid: '12.12',
+    external_metadata: {
+      invoice_date: '2026-04-13',
+      invoice_number: '10437',
+      prior_balance: 155.4,
+      outstanding_balance: 155.4,
+      customer_outstanding_balance: 155.4,
+      total_due_on_account: 322.92,
+    },
+    line_items: [
+      { description: 'Mowing (Weekly)', service_date: '2026-04-06', quantity: 1, rate: 36, line_total: 38.88, tax_percent: 8 },
+      { description: 'Mowing (Weekly)', service_date: '2026-04-13', quantity: 1, rate: 36, line_total: 38.88, tax_percent: 8 },
+      { description: 'Mowing (Weekly)', service_date: '2026-04-20', quantity: 1, rate: 36, line_total: 38.88, tax_percent: 8 },
+      { description: 'Mowing (Weekly)', service_date: '2026-04-27', quantity: 1, rate: 36, line_total: 38.88, tax_percent: 8 },
+      { description: 'Fuel Surcharge', service_date: '2026-04-28', quantity: 1, rate: 12, line_total: 12 },
+    ],
+  }));
+  assert.strictEqual(joanPayload.invoice_date_raw, 'Apr 27, 2026');
+  assert.strictEqual(joanPayload.metadata.payment_credit, 12.12);
+  assert.strictEqual(joanPayload.metadata.outstanding_balance, 0);
+  assert.strictEqual(joanPayload.metadata.this_invoice, 155.4);
+  assert.strictEqual(joanPayload.metadata.total_due_on_account, 155.4);
+
   const [matchedInvoice] = await attachMailCustomerMatches([superiorIndustrialInvoice({
     customer_id: null,
     customer_name: 'Return',

@@ -207,6 +207,50 @@
       margin-top: 12px;
     }
 
+    .debug-box {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfcfa;
+      padding: 14px 16px;
+      margin-top: 14px;
+    }
+
+    .debug-box h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      font-size: 13px;
+    }
+
+    .debug-grid code {
+      word-break: break-word;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+
+    .mask-card {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px;
+      background: #fbfcfa;
+    }
+
+    .mask-card img {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #f6f6f6;
+      min-height: 280px;
+      object-fit: contain;
+    }
+
     .hidden { display: none; }
 
     @media (max-width: 940px) {
@@ -275,6 +319,16 @@
         <div class="small">
           Use the preview image for Roboflow training only if it is clean: no pins, no labels, no UI overlays. If the result says <code>estimated</code>, the image is still useful for training, but the lawn sqft number is not a true measurement yet.
         </div>
+
+        <div id="debugBox" class="debug-box hidden">
+          <h3>Model Debug</h3>
+          <div class="debug-grid">
+            <div><strong>Engine</strong><br><code id="debugEngine">-</code></div>
+            <div><strong>Class Map</strong><br><code id="debugClassMap">-</code></div>
+            <div><strong>Bucket Counts</strong><br><code id="debugBucketCounts">-</code></div>
+            <div><strong>Raw Ratios</strong><br><code id="debugRawRatios">-</code></div>
+          </div>
+        </div>
       </section>
 
       <aside class="preview-card">
@@ -284,6 +338,10 @@
           <button id="copyImageBtn" class="secondary hidden" type="button">Copy Image URL</button>
         </div>
         <div id="previewAddress" class="small">Load an address to preview the static satellite image.</div>
+        <div id="maskCard" class="mask-card hidden">
+          <div class="small" style="margin-top:0; margin-bottom:10px;">Roboflow mask preview</div>
+          <img id="maskPreviewImage" alt="Roboflow mask preview" />
+        </div>
       </aside>
     </div>
   </div>
@@ -304,6 +362,13 @@
     const previewAddress = document.getElementById('previewAddress');
     const openImageLink = document.getElementById('openImageLink');
     const copyImageBtn = document.getElementById('copyImageBtn');
+    const debugBox = document.getElementById('debugBox');
+    const debugEngine = document.getElementById('debugEngine');
+    const debugClassMap = document.getElementById('debugClassMap');
+    const debugBucketCounts = document.getElementById('debugBucketCounts');
+    const debugRawRatios = document.getElementById('debugRawRatios');
+    const maskCard = document.getElementById('maskCard');
+    const maskPreviewImage = document.getElementById('maskPreviewImage');
 
     function fmtNumber(value) {
       if (value === null || value === undefined || value === '') return '-';
@@ -333,6 +398,16 @@
       const measurement = data.measurement || {};
       const imageryUrl = measurement.resolution?.imageryUrl || '';
       const fallbackMessages = measurement.fallback?.messages || [];
+      const debug = measurement.debug || {};
+      const engineId = measurement.engine?.id || debug.engine?.id || '-';
+      const classMap = debug.classMap || {};
+      const bucketCounts = debug.bucketCounts || {};
+      const rawRatios = {
+        lawn: debug.rawLawn,
+        mulch_bed: debug.rawBed,
+        hardscape: debug.rawHardscape,
+        total: debug.rawTotal,
+      };
 
       lawnValue.textContent = fmtNumber(result.lawnSqFt);
       lotValue.textContent = fmtNumber(result.lotSizeSqFt);
@@ -349,6 +424,12 @@
         warningBox.classList.add('hidden');
       }
 
+      debugEngine.textContent = engineId;
+      debugClassMap.textContent = JSON.stringify(classMap, null, 2);
+      debugBucketCounts.textContent = JSON.stringify(bucketCounts, null, 2);
+      debugRawRatios.textContent = JSON.stringify(rawRatios, null, 2);
+      debugBox.classList.remove('hidden');
+
       previewAddress.textContent = result.address || addressInput.value.trim();
 
       if (imageryUrl) {
@@ -361,6 +442,14 @@
         previewImage.removeAttribute('src');
         openImageLink.classList.add('hidden');
         copyImageBtn.classList.add('hidden');
+      }
+
+      if (debug.segmentationMaskDataUrl) {
+        maskPreviewImage.src = debug.segmentationMaskDataUrl;
+        maskCard.classList.remove('hidden');
+      } else {
+        maskPreviewImage.removeAttribute('src');
+        maskCard.classList.add('hidden');
       }
     }
 
@@ -403,6 +492,8 @@
       } catch (error) {
         warningText.textContent = error.message || 'Failed to load measurement';
         warningBox.classList.remove('hidden');
+        debugBox.classList.add('hidden');
+        maskCard.classList.add('hidden');
       } finally {
         measureBtn.disabled = false;
         measureBtn.textContent = 'Load Image';

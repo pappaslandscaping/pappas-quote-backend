@@ -10,10 +10,7 @@ let adminToken = "";
 
 async function fetchAdminToken(request: APIRequestContext) {
   const response = await request.post(`${apiBaseUrl}/api/auth/login`, {
-    data: {
-      email: adminEmail,
-      password: adminPassword
-    }
+    data: { email: adminEmail, password: adminPassword }
   });
 
   expect(response.ok()).toBeTruthy();
@@ -32,10 +29,96 @@ async function seedSession(page: Page) {
   }, adminToken);
 }
 
-async function openDashboard(page: Page) {
-  await seedSession(page);
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Business Dashboard" })).toBeVisible();
+async function mockDashboardApis(page: Page) {
+  await page.route("**/api/dashboard/today-summary", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        jobs_today: 4,
+        revenue_today: 1250,
+        pending_quotes: 3,
+        overdue_invoices: 2,
+        unread_messages: 0
+      }
+    });
+  });
+  await page.route("**/api/dashboard/activity-feed", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        events: [
+          { type: "quote", description: "Quote sent to Ada", timestamp: "2026-05-13" }
+        ]
+      }
+    });
+  });
+  await page.route("**/api/quotes", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        quotes: [
+          { id: 1, name: "Ada", status: "new", created_at: "2026-05-13" },
+          { id: 2, name: "Grace", status: "quoted", created_at: "2026-05-13" }
+        ]
+      }
+    });
+  });
+  await page.route("**/api/invoices/stats", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        stats: {
+          total: 10,
+          draft: 0,
+          pending: 1,
+          partial: 0,
+          sent: 4,
+          paid: 5,
+          overdue: 2,
+          void: 0,
+          outstanding: 900,
+          overdueAmount: 300,
+          paidThisMonth: 1500,
+          totalRevenue: 4500
+        }
+      }
+    });
+  });
+  await page.route("**/api/jobs/dashboard", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        stats: { today: 4, thisWeek: 12, pending: 3 },
+        upcoming: [
+          {
+            id: 101,
+            customer_name: "Ada Lovelace",
+            service_type: "Mowing",
+            crew_assigned: "North",
+            job_date: "2026-05-13",
+            status: "scheduled"
+          }
+        ]
+      }
+    });
+  });
+  await page.route("**/api/jobs/completed-uninvoiced", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: { success: true, jobs: [{ id: 201, customer_name: "Grace Hopper" }] }
+    });
+  });
+  await page.route("**/api/finance/summary", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: { success: true, revenueThisMonth: 4500 }
+    });
+  });
 }
 
 test.describe("React dashboard workflow", () => {
@@ -43,133 +126,92 @@ test.describe("React dashboard workflow", () => {
     adminToken = await fetchAdminToken(request);
   });
 
-  test("dashboard loads business snapshots", async ({ page }) => {
-    await openDashboard(page);
+  test("Home dashboard shows real daily summary numbers", async ({ page }) => {
+    await mockDashboardApis(page);
+    await seedSession(page);
+    await page.goto("/");
 
-    const snapshots = page.getByRole("region", { name: "Business snapshots" });
-    const health = page.getByRole("region", { name: "Dashboard health" });
-
-    await expect(snapshots).toBeVisible();
-    await expect(page.getByRole("link", { name: "Home", exact: true })).toBeVisible();
-    await expect(page.getByText("Quotes").first()).toBeVisible();
-    await expect(page.getByText("Customers").first()).toBeVisible();
-    await expect(page.getByText("Invoices").first()).toBeVisible();
-    await expect(page.getByText("Scheduling/Jobs").first()).toBeVisible();
-    await expect(page.getByRole("region", { name: "Dashboard quick links" })).toBeVisible();
-    await expect(health).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Daily Command Center" })).toBeVisible();
+    const today = page.getByRole("region", { name: "Today" });
+    await expect(today.locator(".stat-card", { hasText: "Jobs today" }).locator("strong")).toHaveText("4");
+    await expect(today.locator(".stat-card", { hasText: "Revenue today" }).locator("strong")).toHaveText("$1,250");
+    await expect(today.locator(".stat-card", { hasText: "Pending quotes" }).locator("strong")).toHaveText("3");
+    await expect(today.locator(".stat-card", { hasText: "Overdue invoices" }).locator("strong")).toHaveText("2");
+    await expect(today.getByText("Loading")).toHaveCount(0);
   });
 
-  test("dashboard cards and API health use matching loaded states", async ({ page }) => {
-    await page.route("**/api/quotes", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        json: {
-          success: true,
-          quotes: [
-            { id: 1, name: "One", status: "new", created_at: "2026-01-01" },
-            { id: 2, name: "Two", status: "quoted", created_at: "2026-01-02" }
-          ]
-        }
-      });
-    });
-    await page.route("**/api/customers/stats", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        json: {
-          success: true,
-          stats: { total: 12, active: 10, inactive: 2 }
-        }
-      });
-    });
-    await page.route("**/api/customers/pipeline-stats", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        json: {
-          success: true,
-          stats: {
-            totalLeads: 3,
-            totalCustomers: 12,
-            newLeadsThisMonth: 1,
-            convertedThisMonth: 1,
-            conversionRate: 25
-          }
-        }
-      });
-    });
-    await page.route("**/api/invoices/stats", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        json: {
-          success: true,
-          stats: {
-            total: 8,
-            draft: 0,
-            pending: 1,
-            partial: 0,
-            sent: 2,
-            paid: 5,
-            overdue: 1,
-            void: 0,
-            outstanding: 1200,
-            overdueAmount: 200,
-            paidThisMonth: 900,
-            totalRevenue: 5000
-          }
-        }
-      });
-    });
-    await page.route("**/api/jobs/stats", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        json: {
-          success: true,
-          stats: {
-            total: 6,
-            byStatus: { pending: 2, completed: 4 },
-            totalRevenue: 1800,
-            byCrew: {}
-          }
-        }
-      });
-    });
+  test("Needs Attention panels render success and API health matches", async ({ page }) => {
+    await mockDashboardApis(page);
+    await seedSession(page);
+    await page.goto("/");
 
-    await openDashboard(page);
+    const attention = page.getByRole("region", { name: "Needs Attention" });
+    await expect(attention.getByText("New quote requests")).toBeVisible();
+    await expect(attention.getByText("Overdue invoices")).toBeVisible();
+    await expect(attention.getByText("Completed-uninvoiced jobs")).toBeVisible();
+    await expect(attention.getByText("High-priority follow-ups")).toBeVisible();
 
-    const snapshots = page.getByRole("region", { name: "Business snapshots" });
-    const health = page.getByRole("region", { name: "Dashboard health" });
-
-    await expect(snapshots.getByText("Loading")).toHaveCount(0);
-    await expect(snapshots.locator("strong", { hasText: "-" })).toHaveCount(0);
-    await expect(snapshots.locator(".stat-card", { hasText: "Quotes" }).locator("strong")).toHaveText("2");
-    await expect(snapshots.locator(".stat-card", { hasText: "Customers" }).locator("strong")).toHaveText("12");
-    await expect(snapshots.locator(".stat-card", { hasText: "Invoices" }).locator("strong")).toHaveText("8");
-    await expect(snapshots.locator(".stat-card", { hasText: "Scheduling/Jobs" }).locator("strong")).toHaveText("6");
-    await expect(health.getByText("Loaded")).toHaveCount(4);
+    const health = page.getByRole("region", { name: "API Health" });
+    await expect(health.getByText("Loaded")).toHaveCount(7);
     await expect(health.getByText("Loading")).toHaveCount(0);
     await expect(health.getByText("Error")).toHaveCount(0);
   });
 
+  test("Needs Attention shows empty and error states distinctly", async ({ page }) => {
+    await page.route("**/api/dashboard/today-summary", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true } });
+    });
+    await page.route("**/api/dashboard/activity-feed", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, events: [] } });
+    });
+    await page.route("**/api/quotes", async (route) => {
+      await route.fulfill({ status: 500, contentType: "application/json", json: { error: "Quotes offline" } });
+    });
+    await page.route("**/api/invoices/stats", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, stats: { overdue: 0 } } });
+    });
+    await page.route("**/api/jobs/dashboard", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, upcoming: [] } });
+    });
+    await page.route("**/api/jobs/completed-uninvoiced", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [] } });
+    });
+    await page.route("**/api/finance/summary", async (route) => {
+      await route.fulfill({ contentType: "application/json", json: { success: true } });
+    });
+
+    await seedSession(page);
+    await page.goto("/");
+
+    await expect(page.getByRole("region", { name: "Needs Attention" }).getByText("API failed: Quotes offline")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Upcoming Work" }).getByText("No upcoming jobs found.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "API Health" }).getByText("Error")).toBeVisible();
+    await expect(page.getByRole("region", { name: "API Health" }).getByText("Empty")).toHaveCount(3);
+  });
+
   test("dashboard quick links navigate to converted areas", async ({ page }) => {
-    await openDashboard(page);
+    await mockDashboardApis(page);
+    await seedSession(page);
+    await page.goto("/");
 
-    const quickLinks = page.getByRole("region", { name: "Dashboard quick links" });
+    const quickLinks = page.getByRole("region", { name: "Quick Actions" });
 
-    await quickLinks.getByRole("link", { name: "Quotes" }).click();
+    await quickLinks.getByRole("link", { name: "New quote" }).click();
     await expect(page).toHaveURL(/\/quotes$/);
     await expect(page.getByRole("heading", { name: "Quote Requests" })).toBeVisible();
 
     await page.goto("/");
-    await quickLinks.getByRole("link", { name: "Customers" }).click();
+    await quickLinks.getByRole("link", { name: "View customers" }).click();
     await expect(page).toHaveURL(/\/customers$/);
     await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
 
     await page.goto("/");
-    await quickLinks.getByRole("link", { name: "Invoices" }).click();
+    await quickLinks.getByRole("link", { name: "View invoices" }).click();
     await expect(page).toHaveURL(/\/invoices$/);
     await expect(page.getByRole("heading", { name: "Invoices", exact: true })).toBeVisible();
 
     await page.goto("/");
-    await quickLinks.getByRole("link", { name: "Scheduling/Jobs" }).click();
+    await quickLinks.getByRole("link", { name: "View jobs" }).click();
     await expect(page).toHaveURL(/\/jobs$/);
     await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible();
   });

@@ -32,6 +32,33 @@ import type {
   JobListResponse,
   JobStatsResponse
 } from "../types/jobs";
+import type {
+  ActivityFeedResponse,
+  CompletedUninvoicedJobsResponse,
+  FinanceSummaryResponse,
+  JobsDashboardResponse,
+  TodaySummaryResponse
+} from "../types/dashboard";
+import type {
+  BusinessSummaryResponse,
+  CashFlowForecastResponse,
+  CrewPerformanceResponse,
+  CustomerAcquisitionResponse,
+  CustomerValueRow,
+  InvoiceAgingResponse,
+  JobCostingRow,
+  KpiDashboardResponse,
+  SalesTaxReportResponse,
+  TaxSweepReportResponse
+} from "../types/reports";
+import type {
+  AiCampaignSegmentsResponse,
+  AiChurnRiskResponse,
+  AiDraftResponse,
+  AiLeadScoresResponse,
+  AiRevenueForecastResponse,
+  AiScheduleSuggestionsResponse
+} from "../types/ai";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
@@ -149,7 +176,9 @@ function customerQuery(params: CustomerListParams = {}) {
   return query.toString();
 }
 
-function searchQuery(params: Record<string, string | number | undefined> = {}) {
+function searchQuery(
+  params: Record<string, string | number | null | undefined> = {}
+) {
   const query = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
@@ -326,4 +355,231 @@ export async function fetchJob(id: string | number) {
   }
 
   return data.job;
+}
+
+export async function fetchTodaySummary() {
+  const data = await apiFetch<TodaySummaryResponse>("/api/dashboard/today-summary");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load today's summary");
+  }
+  return data;
+}
+
+export async function fetchActivityFeed() {
+  const data = await apiFetch<ActivityFeedResponse>("/api/dashboard/activity-feed");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load activity feed");
+  }
+  return data.events || [];
+}
+
+export async function fetchJobsDashboard() {
+  const data = await apiFetch<JobsDashboardResponse>("/api/jobs/dashboard");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load jobs dashboard");
+  }
+
+  return data.dashboard || {
+    stats: data.stats,
+    upcoming: data.upcoming || []
+  };
+}
+
+export async function fetchCompletedUninvoicedJobs() {
+  const data = await apiFetch<CompletedUninvoicedJobsResponse>(
+    "/api/jobs/completed-uninvoiced"
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load completed uninvoiced jobs");
+  }
+  return data.jobs || [];
+}
+
+export async function fetchFinanceSummary() {
+  const data = await apiFetch<FinanceSummaryResponse>("/api/finance/summary");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load finance summary");
+  }
+  return data.summary || data;
+}
+
+export async function fetchBusinessSummary() {
+  const data = await apiFetch<BusinessSummaryResponse>("/api/reports/business-summary");
+  if (!data.success || !data.summary) {
+    throw new Error(data.error || "Failed to load business summary");
+  }
+  return data.summary;
+}
+
+export async function fetchKpiDashboard() {
+  const data = await apiFetch<KpiDashboardResponse>("/api/kpi/dashboard");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load KPI dashboard");
+  }
+  return data;
+}
+
+export async function fetchCashFlowForecast() {
+  const data = await apiFetch<CashFlowForecastResponse>(
+    "/api/finance/cash-flow-forecast"
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load cash-flow forecast");
+  }
+  return data;
+}
+
+export async function fetchJobCostingReport() {
+  const data = await apiFetch<JobCostingRow[] | { success?: boolean; rows?: JobCostingRow[]; error?: string }>(
+    "/api/reports/job-costing"
+  );
+  if (Array.isArray(data)) return data;
+  if (data.success === false) {
+    throw new Error(data.error || "Failed to load job costing");
+  }
+  return data.rows || [];
+}
+
+export async function fetchCustomerValueReport() {
+  const data = await apiFetch<CustomerValueRow[] | { success?: boolean; rows?: CustomerValueRow[]; error?: string }>(
+    "/api/reports/customer-value"
+  );
+  if (Array.isArray(data)) return data;
+  if (data.success === false) {
+    throw new Error(data.error || "Failed to load customer value");
+  }
+  return data.rows || [];
+}
+
+export async function fetchCrewPerformanceReport() {
+  const data = await apiFetch<CrewPerformanceResponse>("/api/reports/crew-performance");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load crew performance");
+  }
+  return data.crews || [];
+}
+
+export async function fetchCustomerAcquisitionReport() {
+  const data = await apiFetch<CustomerAcquisitionResponse>(
+    "/api/reports/customer-acquisition"
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load customer acquisition");
+  }
+  return data.months || [];
+}
+
+export async function fetchSalesTaxReport(params: {
+  start_date: string;
+  end_date: string;
+  type?: string;
+}) {
+  const query = searchQuery({ type: "all", ...params });
+  const data = await apiFetch<SalesTaxReportResponse>(
+    `/api/reports/sales-tax?${query}`
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load sales tax report");
+  }
+  return data;
+}
+
+export async function fetchTaxSweepReport(params: {
+  start_date: string;
+  end_date: string;
+}) {
+  const query = searchQuery(params);
+  const data = await apiFetch<TaxSweepReportResponse>(
+    `/api/reports/tax-sweep?${query}`
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load tax sweep report");
+  }
+  return data;
+}
+
+export async function fetchInvoiceAging() {
+  const data = await apiFetch<InvoiceAgingResponse>("/api/invoices/aging");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load invoice aging");
+  }
+  return data;
+}
+
+export async function fetchAiLeadScores() {
+  const data = await apiFetch<AiLeadScoresResponse>("/api/ai/lead-scores");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load lead scores");
+  }
+  return data.customers || [];
+}
+
+export async function fetchAiChurnRisk() {
+  const data = await apiFetch<AiChurnRiskResponse>("/api/ai/churn-risk");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load churn risk");
+  }
+  return data.customers || [];
+}
+
+export async function fetchAiRevenueForecast() {
+  const data = await apiFetch<AiRevenueForecastResponse>("/api/ai/revenue-forecast");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load revenue forecast");
+  }
+  return data.forecast || [];
+}
+
+export async function fetchAiCampaignSegments() {
+  const data = await apiFetch<AiCampaignSegmentsResponse>("/api/ai/campaign-segments");
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load campaign segments");
+  }
+  return data.segments || [];
+}
+
+export async function fetchAiScheduleSuggestions(date: string) {
+  const query = searchQuery({ date });
+  const data = await apiFetch<AiScheduleSuggestionsResponse>(
+    `/api/ai/schedule-suggestions?${query}`
+  );
+  if (!data.success) {
+    throw new Error(data.error || "Failed to load schedule suggestions");
+  }
+  return data.suggestions || [];
+}
+
+export async function generateAiQuote(payload: Record<string, unknown>) {
+  return apiFetch<AiDraftResponse>("/api/ai/generate-quote", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function generateAiFollowup(payload: Record<string, unknown>) {
+  return apiFetch<AiDraftResponse>("/api/ai/generate-followup", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function generateAiTemplate(payload: Record<string, unknown>) {
+  return apiFetch<AiDraftResponse>("/api/ai/generate-template", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function chatWithAi(payload: Record<string, unknown>) {
+  return apiFetch<AiDraftResponse>("/api/ai/chat", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function suggestAiService(payload: Record<string, unknown>) {
+  return apiFetch<AiDraftResponse>("/api/ai/suggest-service", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }

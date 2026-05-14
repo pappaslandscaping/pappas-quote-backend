@@ -454,9 +454,9 @@ export default function HomePage() {
         <PanelHeader title="API Health" subtitle="Dashboard panels load independently." />
         <div className="dashboard-health-list health-grid">
           <HealthRow label="Today" state={today} />
-          <HealthRow label="Quotes" state={quotes} />
+          <HealthRow label="Leads & Estimates" state={quotes} />
           <HealthRow label="Invoices" state={invoices} />
-          <HealthRow label="Scheduling/Jobs" state={jobs} />
+          <HealthRow label="Crew Schedule" state={jobs} />
           <HealthRow label="Completed-uninvoiced" state={uninvoiced} />
           <HealthRow label="True payments" state={payments} />
           <HealthRow label="Finance" state={finance} />

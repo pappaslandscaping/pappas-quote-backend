@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchCopilotLiveJobs,
-  fetchFinanceSummary,
   fetchWorkRequests,
   generateAiFollowup
 } from "../../lib/api";
@@ -27,7 +26,6 @@ function shortError(error: unknown) {
 export default function AiPage() {
   const [workRequests, setWorkRequests] = useState<LoadState<WorkRequestsResponse>>(loading());
   const [liveJobs, setLiveJobs] = useState<LoadState<Job[]>>(loading());
-  const [finance, setFinance] = useState<LoadState<Record<string, unknown>>>(loading());
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draft, setDraft] = useState<LoadState<string> | null>(null);
 
@@ -52,7 +50,6 @@ export default function AiPage() {
 
     void load(() => fetchWorkRequests({ limit: 25 }), setWorkRequests, (data) => (data.requests || []).length === 0);
     void load(() => fetchCopilotLiveJobs(date), setLiveJobs, (data) => data.length === 0);
-    void load(fetchFinanceSummary, setFinance, () => false);
 
     return () => {
       active = false;
@@ -60,7 +57,10 @@ export default function AiPage() {
   }, []);
 
   const requests = workRequests.data?.requests || [];
-  const requestSources = useMemo(() => buildSourceSegments(requests), [requests]);
+  const draftCandidates = useMemo(
+    () => requests.filter((request) => request.customer_name || request.work_requested).slice(0, 6),
+    [requests]
+  );
 
   async function prepareFollowup() {
     setDraft({ status: "loading" });
@@ -84,26 +84,26 @@ export default function AiPage() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">AI</p>
-          <h1>CopilotCRM Intelligence</h1>
+          <p className="eyebrow">Assistant</p>
+          <h1>Assistant</h1>
           <p className="muted">
-            Live CopilotCRM signals, honest recommendations, and prepared drafts only. Nothing sends automatically.
+            Draft and recommendation workspace for landscaping follow-ups. It prepares text only; it never sends, charges, deletes, or updates records automatically.
           </p>
         </div>
       </header>
 
       <section className="dashboard-grid command-grid">
         <SuggestionPanel
-          title="Live Copilot work requests"
-          helper={sourceHelper(workRequests.data)}
+          title="Follow-up draft candidates"
+          helper="Live work requests that may need a response. Use one as context for a manual draft."
           state={workRequests}
         >
-          {(data) => <WorkRequestCards rows={(data.requests || []).slice(0, 8)} />}
+          {() => <WorkRequestCards rows={draftCandidates} />}
         </SuggestionPanel>
 
         <SuggestionPanel
-          title="Live Copilot route"
-          helper="Pulled from CopilotCRM live jobs for today."
+          title="Schedule recommendations"
+          helper="Live route context for possible customer updates, delay notices, or crew questions."
           state={liveJobs}
         >
           {(rows) => <LiveJobCards rows={rows.slice(0, 8)} />}
@@ -111,29 +111,11 @@ export default function AiPage() {
       </section>
 
       <section className="dashboard-grid command-grid">
-        <SuggestionPanel
-          title="Collected revenue"
-          helper="Uses CopilotCRM collected revenue when the backend has a live or persisted Copilot snapshot."
-          state={finance}
-        >
-          {(data) => <RevenueSignal data={data} />}
-        </SuggestionPanel>
-
-        <SuggestionPanel
-          title="Copilot request sources"
-          helper="Live audience signals from CopilotCRM work request sources."
-          state={workRequests}
-        >
-          {() => <SimpleCards rows={requestSources} />}
-        </SuggestionPanel>
-      </section>
-
-      <section className="dashboard-grid command-grid">
         <section className="table-card dashboard-panel" aria-label="AI scope">
           <div className="table-toolbar">
             <div>
-              <h2>What is AI here</h2>
-              <p>Only the draft generator is generative AI. The other panels are live CopilotCRM business signals.</p>
+              <h2>Assistant Guardrails</h2>
+              <p>Recommendations are read-only. Drafts require manual review before any customer action.</p>
             </div>
           </div>
           <div className="compact-list">
@@ -145,8 +127,8 @@ export default function AiPage() {
             </div>
             <div className="compact-row">
               <div>
-                <strong>Live signal panels</strong>
-                <span>Work requests, route activity, collected revenue, and request sources come from CopilotCRM-backed APIs.</span>
+                <strong>Live context panels</strong>
+                <span>Work requests and route activity come from existing backend APIs and are shown as context, not automated decisions.</span>
               </div>
             </div>
             <div className="compact-row">
@@ -254,81 +236,6 @@ function LiveJobCards({ rows }: { rows: Job[] }) {
       ))}
     </div>
   );
-}
-
-function RevenueSignal({ data }: { data: Record<string, unknown> }) {
-  const month = asRecord(data.thisMonth);
-  const source = String(month?.revenue_source || data.revenue_source || "unknown");
-  const revenue = month?.revenue ?? data.revenue;
-  const asOf = month?.revenue_as_of || data.revenue_as_of;
-  return (
-    <div className="compact-list">
-      <div className="compact-row">
-        <div>
-          <strong>{money(revenue)}</strong>
-          <span>Source: {sourceLabel(source)}{asOf ? ` - as of ${formatDate(asOf)}` : ""}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SimpleCards({ rows }: { rows: Array<Record<string, unknown>> }) {
-  if (!rows.length) return <div className="empty-state">Nothing to show.</div>;
-
-  return (
-    <div className="compact-list">
-      {rows.map((row, index) => (
-        <div className="compact-row" key={index}>
-          <div>
-            <strong>{String(row.name || "Source")}</strong>
-            <span>{String(row.count || 0)} work request{Number(row.count || 0) === 1 ? "" : "s"}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function buildSourceSegments(rows: WorkRequest[]) {
-  const counts = new Map<string, number>();
-  rows.forEach((row) => {
-    const source = String(row.source || "Unknown").trim() || "Unknown";
-    counts.set(source, (counts.get(source) || 0) + 1);
-  });
-  return Array.from(counts.entries())
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-}
-
-function sourceHelper(data?: WorkRequestsResponse) {
-  if (!data) return "Pulled from CopilotCRM work requests.";
-  const source = sourceLabel(data.source || data.mode || "");
-  const asOf = data.as_of ? ` - as of ${formatDate(data.as_of)}` : "";
-  return `${source}${asOf}.`;
-}
-
-function sourceLabel(source: unknown) {
-  const value = String(source || "").toLowerCase();
-  if (value.includes("live_copilot")) return "Live CopilotCRM";
-  if (value.includes("persisted_copilot")) return "Recent CopilotCRM snapshot";
-  if (value.includes("copilot")) return "CopilotCRM";
-  if (value.includes("database")) return "Database fallback";
-  return "Unknown source";
-}
-
-function money(value: unknown) {
-  return Number(value || 0).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0
-  });
-}
-
-function asRecord(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
 }
 
 function formatDate(value: unknown) {

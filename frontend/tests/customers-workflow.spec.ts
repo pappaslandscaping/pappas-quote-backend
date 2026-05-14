@@ -36,7 +36,7 @@ async function openCustomers(page: Page) {
   await seedSession(page);
   await page.goto("/customers");
   await expect(page.getByRole("heading", { name: "Clients" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Quotes" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Leads & Estimates" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Customers" })).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
   await expect(page.locator("tbody tr").first()).toBeVisible();
@@ -178,10 +178,10 @@ test.describe("React customer workflow", () => {
     await expect(page).toHaveURL(/\/customers\/\d+$/);
     await expect(page.getByRole("heading", { name: customerName })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Contact Information" })
+      page.getByRole("heading", { name: "Contact / Property / Services" })
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Customer 360 Timeline" })
+      page.getByRole("heading", { name: "Chronological Timeline" })
     ).toBeVisible();
     await expect(page.locator('[aria-label="Customer 360 sources"]')).toContainText("quotes: live");
     await expect(page.getByText("Quote #Q-1")).toBeVisible();

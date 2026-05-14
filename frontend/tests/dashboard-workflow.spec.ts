@@ -283,7 +283,7 @@ test.describe("React dashboard workflow", () => {
 
     await quickLinks.getByRole("link", { name: "New quote" }).click();
     await expect(page).toHaveURL(/\/quotes$/);
-    await expect(page.getByRole("heading", { name: "Quote Requests" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Leads & Estimates" })).toBeVisible();
 
     await page.goto("/");
     await quickLinks.getByRole("link", { name: "View customers" }).click();
@@ -298,6 +298,6 @@ test.describe("React dashboard workflow", () => {
     await page.goto("/");
     await quickLinks.getByRole("link", { name: "View jobs" }).click();
     await expect(page).toHaveURL(/\/jobs$/);
-    await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Crew Schedule" })).toBeVisible();
   });
 });

@@ -173,7 +173,7 @@ export default function QuoteDetailPage() {
           <h1>Quote not found</h1>
           <p>{error || "The quote request could not be loaded."}</p>
           <Link className="btn btn-primary" href="/quotes">
-            Back to Quotes
+            Back to Leads & Estimates
           </Link>
         </div>
       </main>
@@ -197,9 +197,9 @@ export default function QuoteDetailPage() {
       <header className="topbar">
         <div>
           <Link className="back-link" href="/quotes">
-            Back to Quotes
+            Back to Leads & Estimates
           </Link>
-          <p className="eyebrow">Quote Details</p>
+          <p className="eyebrow">Lead / Estimate Details</p>
           <h1>{quote.name || "Unknown Customer"}</h1>
           <p className="muted">Submitted {formatDateTime(quote.created_at)}</p>
         </div>

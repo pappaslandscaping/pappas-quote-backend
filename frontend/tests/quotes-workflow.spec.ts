@@ -83,20 +83,29 @@ test.describe("React quote workflow", () => {
     await login(page);
     const primaryNav = page.getByRole("navigation", { name: "Primary navigation" });
     await expect(primaryNav).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Home", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Quotes", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Command Center", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Leads & Estimates", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Customers", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Invoices", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Payments", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Scheduling/Jobs", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Communications", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Crew Schedule", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
     await expect(primaryNav.getByRole("link", { name: "Reports", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "AI", exact: true })).toBeVisible();
+    await expect(primaryNav.getByRole("link", { name: "Assistant", exact: true })).toBeVisible();
   });
 
-  test("quotes table loads", async ({ page }) => {
+  test("leads and estimates pipeline loads", async ({ page }) => {
     await seedSession(page);
     await page.goto("/quotes");
+    await expect(page.getByRole("heading", { name: "Leads & Estimates" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "New request" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Needs response" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Estimate needed" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Estimate sent" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Follow-up due" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Won" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Lost" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open" }).first()).toBeVisible();
     await expectQuotesTable(page);
   });
 
@@ -150,13 +159,13 @@ test.describe("React quote workflow", () => {
     await expect(
       page.getByRole("heading", { name: "Contact Information" })
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Back to Quotes" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to Leads & Estimates" })).toBeVisible();
   });
 
   test("logout clears the session and returns to /login", async ({ page }) => {
     await seedSession(page);
     await page.goto("/quotes");
-    await expect(page.getByRole("heading", { name: "Quote Requests" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Leads & Estimates" })).toBeVisible();
     await expect(page.getByText("Tim Pappas")).toBeVisible();
     await expect(page.getByText("tim@pappaslandscaping.com")).toBeVisible();
     await expect(

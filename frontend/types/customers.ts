@@ -103,6 +103,7 @@ export type CustomerJob = {
 export type CustomerQuote = {
   id: number;
   quote_number?: string | null;
+  services?: string[] | string | null;
   total?: string | number | null;
   status?: string | null;
   created_at?: string | null;

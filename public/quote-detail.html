@@ -207,16 +207,19 @@ async function loadQuote() {
 
 function renderQuote() {
     const q = currentQuote;
-    const questions = q.questions || {};
+    const questions = parseQuestions(q.questions);
     
     // Map both camelCase and snake_case field names for compatibility
     const getField = (camel, snake) => questions[camel] || questions[snake] || null;
+    const city = getField('city', 'city');
+    const propertyType = getField('propertyType', 'property_type');
     const gate = getField('gate', 'gate');
     const dogs = getField('dogs', 'dogs');
     const overgrown = getField('lawnHeight', 'overgrown'); // lawnHeight in DB = overgrown display
     const backyardAccess = getField('backyardAccess', 'backyard_access');
     const contactMethod = getField('contactMethod', 'contact_method');
     const startTiming = getField('startTime', 'start_timing'); // startTime in DB
+    const smsConsent = questions.smsConsent || questions.sms_consent || {};
     
     document.getElementById('pageTitle').textContent = q.name;
     document.getElementById('topbarActions').innerHTML = `
@@ -241,6 +244,7 @@ function renderQuote() {
                         <div class="info-row"><span class="info-label">Phone</span><span class="info-value"><a href="tel:${q.phone.replace(/\D/g, '')}">${esc(q.phone)}</a></span></div>
                         <div class="info-row"><span class="info-label">Email</span><span class="info-value"><a href="mailto:${esc(q.email)}">${esc(q.email)}</a></span></div>
                         <div class="info-row"><span class="info-label">Address</span><span class="info-value"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q.address)}" target="_blank">${esc(q.address)}</a></span></div>
+                        <div class="info-row"><span class="info-label">City</span><span class="info-value">${esc(city) || '—'}</span></div>
                         <div class="info-row"><span class="info-label">Source</span><span class="info-value">${esc(q.source) || '—'}</span></div>
                     </div>
                 </div>
@@ -260,6 +264,7 @@ function renderQuote() {
                 <div class="detail-card" style="margin-top: 20px;">
                     <div class="detail-card-header"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Property Details</h3></div>
                     <div class="detail-card-body">
+                        <div class="info-row"><span class="info-label">Property Type</span><span class="info-value">${esc(propertyType) || '—'}</span></div>
                         <div class="property-tags">
                             ${renderTag('Gate', gate)}
                             ${renderTag('Dogs', dogs)}
@@ -274,6 +279,9 @@ function renderQuote() {
                     <div class="detail-card-body">
                         <div class="info-row"><span class="info-label">Contact Via</span><span class="info-value">${capitalize(contactMethod) || '—'}</span></div>
                         <div class="info-row"><span class="info-label">Start Timing</span><span class="info-value">${capitalize(startTiming) || '—'}</span></div>
+                        <div class="info-row"><span class="info-label">Transactional SMS</span><span class="info-value">${formatBoolean(smsConsent.transactional)}</span></div>
+                        <div class="info-row"><span class="info-label">Marketing SMS</span><span class="info-value">${formatBoolean(smsConsent.marketing)}</span></div>
+                        <div class="info-row"><span class="info-label">Terms Accepted</span><span class="info-value">${formatBoolean(smsConsent.termsAccepted)}</span></div>
                     </div>
                 </div>
 
@@ -330,6 +338,20 @@ function renderTag(label, value) {
     if (isYes) return `<span class="property-tag yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>${label}</span>`;
     if (isNo) return `<span class="property-tag no"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>No ${label}</span>`;
     return `<span class="property-tag unknown">${label}: ${value || '—'}</span>`;
+}
+
+function parseQuestions(value) {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try { return JSON.parse(value); } catch (e) { return {}; }
+    }
+    return value;
+}
+
+function formatBoolean(value) {
+    if (value === true || value === 'true' || value === 'yes') return 'Yes';
+    if (value === false || value === 'false' || value === 'no') return 'No';
+    return '—';
 }
 
 async function updateStatus() {

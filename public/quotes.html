@@ -671,12 +671,15 @@
 
     function exportToCSV() {
         if (!allQuotes.length) return showToast('No quotes to export');
-        const headers = ['Date','Name','Phone','Email','Address','Package','Services','Status','Source','Gate','Dogs','Overgrown','Contact Method','Start Timing','Backyard Access','Notes'];
+        const headers = ['Date','Name','Phone','Email','Address','City','Property Type','Package','Services','Status','Source','Gate','Dogs','Overgrown','Contact Method','Start Timing','Backyard Access','Transactional SMS','Marketing SMS','Terms Accepted','Notes'];
         const rows = allQuotes.map(q => {
-            const questions = q.questions || {};
+            const questions = parseQuestions(q.questions);
+            const smsConsent = questions.smsConsent || questions.sms_consent || {};
             return [
                 new Date(q.created_at).toLocaleDateString(),
                 q.name, q.phone, q.email, q.address,
+                questions.city || '',
+                questions.propertyType || questions.property_type || '',
                 q.package || 'Individual',
                 Array.isArray(q.services) ? q.services.join('; ') : '',
                 q.status, q.source || '',
@@ -686,6 +689,9 @@
                 questions.contactMethod || questions.contact_method || '',
                 questions.startTime || questions.start_timing || '',
                 questions.backyardAccess || questions.backyard_access || '',
+                formatBoolean(smsConsent.transactional),
+                formatBoolean(smsConsent.marketing),
+                formatBoolean(smsConsent.termsAccepted),
                 q.notes || ''
             ];
         });
@@ -697,6 +703,20 @@
         a.download = `pappas-quotes-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         showToast('CSV exported');
+    }
+
+    function parseQuestions(value) {
+        if (!value) return {};
+        if (typeof value === 'string') {
+            try { return JSON.parse(value); } catch (e) { return {}; }
+        }
+        return value;
+    }
+
+    function formatBoolean(value) {
+        if (value === true || value === 'true' || value === 'yes') return 'Yes';
+        if (value === false || value === 'false' || value === 'no') return 'No';
+        return '';
     }
 
     function showToast(msg) {

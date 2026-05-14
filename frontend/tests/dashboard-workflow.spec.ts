@@ -168,12 +168,10 @@ test.describe("React dashboard workflow", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "Command Center" })).toBeVisible();
-    const today = page.getByRole("region", { name: "Today's priorities" });
-    await expect(today.locator(".stat-card", { hasText: "Jobs to run" }).locator("strong")).toHaveText("4");
-    await expect(today.locator(".stat-card", { hasText: "Payments received" }).locator("strong")).toHaveText("$1,250");
-    await expect(today.locator(".stat-card", { hasText: "Leads pending" }).locator("strong")).toHaveText("3");
-    await expect(today.locator(".stat-card", { hasText: "Overdue invoices" }).locator("strong")).toHaveText("2");
-    await expect(today.getByText("Loading")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Today's Route" })).toContainText("Open dispatch");
+    await expect(page.getByRole("region", { name: "Sales Desk" })).toContainText("new leads");
+    await expect(page.getByRole("region", { name: "Office Desk" })).toContainText("unread messages");
+    await expect(page.getByRole("region", { name: "Money Desk" })).toContainText("paid today");
   });
 
   test("Command Center panels render daily actions and API health matches", async ({ page }) => {
@@ -181,11 +179,11 @@ test.describe("React dashboard workflow", () => {
     await seedSession(page);
     await page.goto("/");
 
-    const leadQueue = page.getByRole("region", { name: "Lead follow-up queue" });
+    const leadQueue = page.getByRole("region", { name: "Falling Through the Cracks" });
     await expect(leadQueue).toContainText("Ada");
     await expect(leadQueue.getByRole("link", { name: "Draft follow-up" })).toBeVisible();
 
-    const attention = page.getByRole("region", { name: "Follow-ups needed" });
+    const attention = page.getByRole("region", { name: "Today's priorities" });
     await expect(attention.getByText("New quote requests")).toBeVisible();
     await expect(attention.getByText("Overdue invoices")).toBeVisible();
     await expect(attention.getByText("Completed-uninvoiced jobs")).toBeVisible();
@@ -233,7 +231,7 @@ test.describe("React dashboard workflow", () => {
     await seedSession(page);
     await page.goto("/");
 
-    await expect(page.getByRole("region", { name: "Follow-ups needed" }).getByText("Some data failed: Quotes offline")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Today's priorities" }).getByText("Some data failed: Quotes offline")).toBeVisible();
     await expect(page.getByRole("region", { name: "Crew/job readiness" }).getByText("No upcoming jobs found.")).toBeVisible();
     await expect(page.getByRole("region", { name: "True payment activity" }).getByText("No payments with paid_at recorded today.")).toBeVisible();
     await expect(page.getByRole("region", { name: "API Health" }).getByText("Error")).toBeVisible();
@@ -269,7 +267,7 @@ test.describe("React dashboard workflow", () => {
     await seedSession(page);
     await page.goto("/");
 
-    const attention = page.getByRole("region", { name: "Follow-ups needed" });
+    const attention = page.getByRole("region", { name: "Today's priorities" });
     await expect(attention.getByText("New quote requests")).toBeVisible();
     await expect(attention.getByText("Some data is still loading.")).toBeVisible();
   });

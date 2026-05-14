@@ -27,6 +27,7 @@ export default function AiPage() {
   const [workRequests, setWorkRequests] = useState<LoadState<WorkRequestsResponse>>(loading());
   const [liveJobs, setLiveJobs] = useState<LoadState<Job[]>>(loading());
   const [draftPrompt, setDraftPrompt] = useState("");
+  const [selectedDraftTitle, setSelectedDraftTitle] = useState("Lead follow-up draft");
   const [draft, setDraft] = useState<LoadState<string> | null>(null);
 
   useEffect(() => {
@@ -62,6 +63,49 @@ export default function AiPage() {
     [requests]
   );
 
+  const assistantActions = [
+    {
+      draftTitle: "Lead follow-up draft",
+      title: "Draft follow-up for this lead",
+      prompt: "Draft a concise follow-up for a landscaping lead who requested service but has not responded yet. Ask one clear question and offer the next step."
+    },
+    {
+      draftTitle: "Customer summary draft",
+      title: "Summarize this customer",
+      prompt: "Summarize this customer history in plain language: what they asked for, what happened next, what is open, and what I should do before contacting them."
+    },
+    {
+      draftTitle: "Rain delay draft",
+      title: "Write rain delay text",
+      prompt: "Write a short rain delay text for today's landscaping route. Be specific, apologetic, and include that we will reschedule as soon as conditions allow."
+    },
+    {
+      draftTitle: "Payment reminder draft",
+      title: "Write payment reminder",
+      prompt: "Write a polite payment reminder for an overdue landscaping invoice. Keep it firm, helpful, and manual-send only."
+    },
+    {
+      draftTitle: "Spring cleanup campaign draft",
+      title: "Create spring cleanup campaign",
+      prompt: "Draft spring cleanup campaign copy for existing landscaping customers. Include mulch, bed cleanup, pruning, and weed control."
+    },
+    {
+      draftTitle: "Today’s priorities summary",
+      title: "Explain today's priorities",
+      prompt: "Explain today's priorities for a landscaping admin: leads needing response, crew route issues, work completed not billed, and overdue money."
+    },
+    {
+      draftTitle: "Mulch / weed control candidate summary",
+      title: "Find mulch / weed control candidates",
+      prompt: "Describe how to identify customers likely to need mulch or weed control based on recent jobs, season, and customer history. Do not change data."
+    },
+    {
+      draftTitle: "Voicemail task draft",
+      title: "Turn voicemail into task",
+      prompt: "Turn this voicemail into a clear office task with customer, request, urgency, and suggested reply."
+    }
+  ];
+
   async function prepareFollowup() {
     setDraft({ status: "loading" });
     try {
@@ -92,22 +136,22 @@ export default function AiPage() {
         </div>
       </header>
 
-      <section className="dashboard-grid command-grid">
-        <SuggestionPanel
-          title="Follow-up draft candidates"
-          helper="Live work requests that may need a response. Use one as context for a manual draft."
-          state={workRequests}
-        >
-          {() => <WorkRequestCards rows={draftCandidates} />}
-        </SuggestionPanel>
-
-        <SuggestionPanel
-          title="Schedule recommendations"
-          helper="Live route context for possible customer updates, delay notices, or crew questions."
-          state={liveJobs}
-        >
-          {(rows) => <LiveJobCards rows={rows.slice(0, 8)} />}
-        </SuggestionPanel>
+      <section className="assistant-action-grid" aria-label="Assistant actions">
+        {assistantActions.map((action) => (
+          <button
+            className="assistant-action-card"
+            type="button"
+            key={action.title}
+            onClick={() => {
+              setSelectedDraftTitle(action.draftTitle);
+              setDraftPrompt(action.prompt);
+              setDraft(null);
+            }}
+          >
+            <strong>{action.title}</strong>
+            <span>{action.prompt}</span>
+          </button>
+        ))}
       </section>
 
       <section className="dashboard-grid command-grid">
@@ -143,13 +187,13 @@ export default function AiPage() {
         <section className="table-card dashboard-panel" aria-label="Prepared Actions">
           <div className="table-toolbar">
             <div>
-              <h2>Prepare Actions</h2>
-              <p>Draft text for review. Sending stays manual.</p>
+              <h2>{selectedDraftTitle}</h2>
+              <p>Selected action: {selectedDraftTitle}. Draft text for review; sending stays manual.</p>
             </div>
           </div>
           <div className="form-panel">
             <label>
-              Draft context
+              Context for {selectedDraftTitle}
               <textarea
                 placeholder="Example: Follow up with a CopilotCRM work request about a patio quote."
                 value={draftPrompt}
@@ -157,7 +201,7 @@ export default function AiPage() {
               />
             </label>
             <button className="btn btn-primary" type="button" onClick={prepareFollowup}>
-              Prepare follow-up draft
+              Prepare {selectedDraftTitle}
             </button>
             {draft?.status === "loading" ? <div className="state-block">Loading</div> : null}
             {draft?.status === "error" ? (
@@ -165,13 +209,31 @@ export default function AiPage() {
             ) : null}
             {draft?.status === "success" ? (
               <div className="draft-preview">
-                <strong>Draft preview</strong>
+                <strong>{selectedDraftTitle}</strong>
                 <p>{draft.data}</p>
                 <small>No message was sent.</small>
               </div>
             ) : null}
           </div>
         </section>
+      </section>
+
+      <section className="dashboard-grid command-grid">
+        <SuggestionPanel
+          title="Work items AI can help with right now"
+          helper="Real work requests from existing APIs. Select one, then draft manually."
+          state={workRequests}
+        >
+          {() => <WorkRequestCards rows={draftCandidates} />}
+        </SuggestionPanel>
+
+        <SuggestionPanel
+          title="Route context for drafts"
+          helper="Use this for rain delay, prep notes, and customer schedule updates."
+          state={liveJobs}
+        >
+          {(rows) => <LiveJobCards rows={rows.slice(0, 8)} />}
+        </SuggestionPanel>
       </section>
     </main>
   );

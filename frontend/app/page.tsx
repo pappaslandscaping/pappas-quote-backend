@@ -176,6 +176,12 @@ export default function HomePage() {
   }, [invoices, quotes, uninvoiced]);
 
   const newLeads = (quotes.data || []).filter(isNewQuote).slice(0, 6);
+  const estimateNeeded = (quotes.data || []).filter((quote) =>
+    ["contacted", "needs_estimate", "estimate_needed"].includes(String(quote.status || "").toLowerCase())
+  );
+  const estimatesSent = (quotes.data || []).filter((quote) =>
+    ["quoted", "sent", "estimate_sent"].includes(String(quote.status || "").toLowerCase())
+  );
   const paymentTotal = (payments.data || []).reduce(
     (sum, payment) => sum + Number(payment.amount_paid || payment.amount || 0),
     0
@@ -201,36 +207,118 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="stats-grid stats-grid-five" aria-label="Today's priorities">
-        <TodayCard label="Jobs to run" state={today} value={(data) => data.jobs_today || 0} />
-        <TodayCard
-          label="Payments received"
-          state={today}
-          value={(data) => money(data.revenue_today)}
-        />
-        <TodayCard
-          label="Leads pending"
-          state={today}
-          value={(data) => data.pending_quotes || 0}
-        />
-        <TodayCard
-          label="Overdue invoices"
-          state={today}
-          value={(data) => data.overdue_invoices || 0}
-        />
-        <TodayCard
-          label="Unread messages"
-          state={today}
-          value={(data) => data.unread_messages || 0}
-        />
+      <section className="desk-grid" aria-label="Daily operating desks">
+        <section className="desk-card" aria-label="Today's Route">
+          <PanelHeader
+            title="Today's Route"
+            subtitle="What crews need to run today, what is done, and what may need delay handling."
+            states={[jobs]}
+          />
+          <Panel state={jobs} emptyText="No route work found for today.">
+            {(data) => (
+              <div className="desk-stack">
+                {(data.upcoming || []).slice(0, 4).map((job) => (
+                  <Link className="work-card" href={`/jobs/${job.id}`} key={job.id}>
+                    <strong>{job.crew_assigned || "Crew TBD"}</strong>
+                    <span>{job.customer_name || "Unknown customer"}</span>
+                    <small>{[job.service_type, job.address, job.status || "pending"].filter(Boolean).join(" - ")}</small>
+                  </Link>
+                ))}
+                <div className="sticky-action-bar">
+                  <Link className="quick-action-btn primary" href="/jobs">Open dispatch</Link>
+                  <Link className="quick-action-btn" href="/ai?draft=rain-delay">Draft rain delay</Link>
+                </div>
+              </div>
+            )}
+          </Panel>
+        </section>
+
+        <section className="desk-card" aria-label="Sales Desk">
+          <PanelHeader
+            title="Sales Desk"
+            subtitle="Which lead needs a response, estimate, or follow-up next."
+            states={[quotes]}
+          />
+          <Panel state={quotes} emptyText="No active sales work right now.">
+            {() => (
+              <div className="desk-stack">
+                <div className="desk-metrics">
+                  <Link href="/quotes" className="desk-metric"><strong>{newLeads.length}</strong><span>new leads</span></Link>
+                  <Link href="/quotes" className="desk-metric"><strong>{estimateNeeded.length}</strong><span>estimates needed</span></Link>
+                  <Link href="/quotes" className="desk-metric"><strong>{estimatesSent.length}</strong><span>sent estimates</span></Link>
+                </div>
+                {newLeads.length ? (
+                  <div className="compact-list">
+                    {newLeads.slice(0, 3).map((quote) => (
+                      <Link className="compact-row" href={`/quotes/${quote.id}`} key={quote.id}>
+                        <div>
+                          <strong>{quote.name || "New lead"}</strong>
+                          <span>{[quote.address, quote.phone].filter(Boolean).join(" - ")}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : <div className="empty-state">No new leads waiting.</div>}
+                <div className="sticky-action-bar">
+                  <Link className="quick-action-btn primary" href="/quotes">Open sales queue</Link>
+                  <Link className="quick-action-btn" href="/ai?draft=lead-followup">Draft lead reply</Link>
+                </div>
+              </div>
+            )}
+          </Panel>
+        </section>
+
+        <section className="desk-card" aria-label="Office Desk">
+          <PanelHeader
+            title="Office Desk"
+            subtitle="Communication work that can lose jobs if it waits."
+            states={[today]}
+          />
+          <Panel state={today} emptyText="No office queue loaded.">
+            {(data) => (
+              <div className="desk-stack">
+                <div className="desk-metrics">
+                  <Link href="/communications" className="desk-metric"><strong>{data.unread_messages || 0}</strong><span>unread messages</span></Link>
+                </div>
+                <p className="desk-note">Missed calls, voicemails, emails/texts, quote replies, and payment questions live in Inbox.</p>
+                <div className="sticky-action-bar">
+                  <Link className="quick-action-btn primary" href="/communications">Open inbox</Link>
+                  <Link className="quick-action-btn" href="/communications">Open callback queue</Link>
+                  <Link className="quick-action-btn" href="/ai?draft=voicemail-task">Turn voicemail into task</Link>
+                </div>
+              </div>
+            )}
+          </Panel>
+        </section>
+
+        <section className="desk-card" aria-label="Money Desk">
+          <PanelHeader
+            title="Money Desk"
+            subtitle="Done work, owed money, payments, and tax set-aside awareness."
+            states={[invoices, uninvoiced, payments, finance]}
+          />
+          <Stateful state={[invoices, uninvoiced, payments]} emptyText="No money actions right now.">
+            <div className="desk-stack">
+              <div className="desk-metrics">
+                <Link href="/payments" className="desk-metric"><strong>{money(paymentTotal)}</strong><span>paid today</span></Link>
+                <Link href="/invoices" className="desk-metric"><strong>{invoices.data?.overdue || 0}</strong><span>overdue</span></Link>
+                <Link href="/jobs" className="desk-metric"><strong>{uninvoiced.data?.length || 0}</strong><span>not billed</span></Link>
+              </div>
+              <div className="sticky-action-bar">
+                <Link className="quick-action-btn primary" href="/invoices">Open billing</Link>
+                <Link className="quick-action-btn" href="/ai?draft=payment-reminder">Draft reminder</Link>
+              </div>
+            </div>
+          </Stateful>
+        </section>
       </section>
 
       <section className="dashboard-grid command-grid">
-        <section className="table-card dashboard-panel" aria-label="Lead follow-up queue">
+        <section className="table-card dashboard-panel" aria-label="Falling Through the Cracks">
           <PanelHeader
-            title="Lead follow-up queue"
-            subtitle="New quote/work requests that need first response. Draft buttons only prepare wording."
-            states={[quotes]}
+            title="Falling Through the Cracks"
+            subtitle="Specific items that should not wait until tomorrow."
+            states={[quotes, invoices, uninvoiced]}
           />
           <Panel state={quotes} emptyText="No new leads right now.">
             {() =>
@@ -260,7 +348,7 @@ export default function HomePage() {
           </Panel>
         </section>
 
-        <section className="table-card dashboard-panel" aria-label="Follow-ups needed">
+        <section className="table-card dashboard-panel" aria-label="Today's priorities">
           <PanelHeader
             title="Today's priorities"
             subtitle="Action counts derived from open quote, invoice, and job signals."

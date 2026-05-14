@@ -184,7 +184,7 @@ test.describe("React customer workflow", () => {
       page.getByRole("heading", { name: "Chronological Timeline" })
     ).toBeVisible();
     await expect(page.locator('[aria-label="Customer 360 sources"]')).toContainText("quotes: live");
-    await expect(page.getByText("Quote #Q-1")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Quote #Q-1/ })).toBeVisible();
     await expect(page.getByText("[object Object]")).toHaveCount(0);
     await expect(page.getByText(/do not send email, SMS, payments, or job updates/i)).toBeVisible();
     expect(draftCalls).toBe(0);

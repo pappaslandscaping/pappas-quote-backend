@@ -173,16 +173,20 @@ test.describe("React reports and AI workflow", () => {
     await page.goto("/ai");
 
     await expect(page.getByRole("heading", { name: "Assistant", exact: true })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Follow-up draft candidates" })).toContainText("Ada Customer");
-    await expect(page.getByRole("region", { name: "Schedule recommendations" })).toContainText("Grace Route");
+    await expect(page.getByRole("region", { name: "Assistant actions" })).toContainText("Write rain delay text");
+    await expect(page.getByRole("region", { name: "Work items AI can help with right now" })).toContainText("Ada Customer");
+    await expect(page.getByRole("region", { name: "Route context for drafts" })).toContainText("Grace Route");
     await expect(page.getByRole("region", { name: "AI scope" })).toContainText("Drafts require manual review");
     await expect(page.getByRole("region", { name: "AI scope" })).toContainText("No automatic actions");
     await expect(page.locator("body")).not.toContainText("Collected revenue");
     await expect(page.locator("body")).not.toContainText("[object Object]");
     expect(postCalls).toHaveLength(0);
 
-    await page.getByRole("button", { name: "Prepare follow-up draft" }).click();
+    await page.getByRole("button", { name: "Write rain delay text" }).click();
+    await expect(page.getByRole("region", { name: "Prepared Actions" })).toContainText("Rain delay draft");
+    await page.getByRole("button", { name: "Prepare Rain delay draft" }).click();
     await expect(page.getByText("Prepared draft", { exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Prepared Actions" }).getByText("Rain delay draft", { exact: true })).toHaveCount(2);
     await expect(page.getByText("No message was sent.")).toBeVisible();
     expect(postCalls).toHaveLength(1);
   });

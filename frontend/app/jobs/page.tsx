@@ -9,10 +9,9 @@ import {
   fetchCompletedUninvoicedJobs,
   fetchCopilotLiveJobs,
   fetchCrewAvailability,
-  fetchJobs,
-  fetchJobStats
+  fetchJobs
 } from "../../lib/api";
-import type { Job, JobStats } from "../../types/jobs";
+import type { Job } from "../../types/jobs";
 
 type LoadState<T> = { status: "loading" | "success" | "empty" | "error"; data?: T; error?: string };
 const loading = <T,>(): LoadState<T> => ({ status: "loading" });
@@ -54,8 +53,17 @@ function dateInputValue(date: string) {
   return date ? date.slice(0, 10) : "";
 }
 
+function todayKey() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function jobDateValue(job: Job) {
+  return job.job_date || job.service_date || null;
+}
+
 function dateKey(value?: string | null) {
   if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
@@ -68,7 +76,6 @@ function isSkipped(job: Job) {
 export default function JobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [stats, setStats] = useState<JobStats | null>(null);
   const [date, setDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [crewFilter, setCrewFilter] = useState("");
@@ -98,24 +105,12 @@ export default function JobsPage() {
     }
   }
 
-  async function loadStats() {
-    try {
-      setStats(await fetchJobStats({ date: date || undefined }));
-    } catch {
-      setStats(null);
-    }
-  }
-
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void loadJobs();
     }, 250);
     return () => window.clearTimeout(timeout);
   }, [crewFilter, date, search, statusFilter]);
-
-  useEffect(() => {
-    void loadStats();
-  }, [date]);
 
   useEffect(() => {
     let active = true;
@@ -165,49 +160,32 @@ export default function JobsPage() {
     return [...values];
   }, [jobs]);
 
-  const visibleSummary = useMemo(() => {
-    const byStatus = jobs.reduce<Record<string, number>>((acc, job) => {
-      const status = String(job.status || "pending");
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
-
-    return {
-      total: jobs.length,
-      pending: byStatus.pending || 0,
-      completed: (byStatus.completed || 0) + (byStatus.done || 0),
-      skipped: jobs.filter(isSkipped).length,
-      revenue: jobs.reduce((sum, job) => sum + Number(job.service_price || 0), 0)
-    };
-  }, [jobs]);
-
-  const summary = {
-    total: stats?.total ?? visibleSummary.total,
-    pending: stats?.byStatus?.pending ?? visibleSummary.pending,
-    completed:
-      (stats?.byStatus?.completed ?? 0) ||
-      (stats?.byStatus?.done ?? 0) ||
-      visibleSummary.completed,
-    skipped:
-      (stats?.byStatus?.skipped ?? 0) ||
-      (stats?.byStatus?.cancelled ?? 0) ||
-      visibleSummary.skipped,
-    revenue: stats?.totalRevenue ?? visibleSummary.revenue
-  };
-
-  const targetDate = date || new Date().toISOString().slice(0, 10);
-  const todaysJobs = useMemo(
-    () => jobs.filter((job) => dateKey(job.job_date) === targetDate || (!date && jobs.length <= 25)),
-    [date, jobs, targetDate]
+  const targetDate = date || todayKey();
+  const liveRouteJobs = liveJobs.status === "success" && liveJobs.data?.length ? liveJobs.data : [];
+  const scheduledRouteJobs = useMemo(
+    () => jobs.filter((job) => dateKey(jobDateValue(job)) === targetDate),
+    [jobs, targetDate]
   );
+  const routeJobs = liveRouteJobs.length ? liveRouteJobs : scheduledRouteJobs;
+  const routeSource = liveRouteJobs.length ? "Live CopilotCRM route" : "Scheduled jobs";
+  const routeSummary = {
+    total: routeJobs.length,
+    pending: routeJobs.filter((job) => {
+      const status = String(job.status || "pending").toLowerCase();
+      return !["completed", "done", "skipped", "cancelled", "canceled"].includes(status);
+    }).length,
+    completed: routeJobs.filter((job) => ["completed", "done"].includes(String(job.status || "").toLowerCase())).length,
+    unassigned: routeJobs.filter((job) => !job.crew_assigned).length,
+    skipped: routeJobs.filter(isSkipped).length
+  };
   const jobsByCrew = useMemo(() => {
     const grouped = new Map<string, Job[]>();
-    todaysJobs.forEach((job) => {
+    routeJobs.forEach((job) => {
       const crew = job.crew_assigned || "Unassigned";
       grouped.set(crew, [...(grouped.get(crew) || []), job]);
     });
     return Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [todaysJobs]);
+  }, [routeJobs]);
   const blockers = useMemo(
     () =>
       jobs.filter(
@@ -242,17 +220,17 @@ export default function JobsPage() {
       </header>
 
       <section className="workflow-summary" aria-label="Crew schedule summary">
-        <StatCard label="Route Jobs" value={summary.total} tone="blue" />
-        <StatCard label="Pending" value={summary.pending} tone="amber" />
-        <StatCard label="Completed" value={summary.completed} tone="green" />
-        <StatCard label="Skipped" value={summary.skipped} tone="purple" />
+        <StatCard label="Today's route" value={routeSummary.total} tone="blue" />
+        <StatCard label="Still pending" value={routeSummary.pending} tone="amber" />
+        <StatCard label="Completed" value={routeSummary.completed} tone="green" />
+        <StatCard label="Unassigned" value={routeSummary.unassigned} tone="purple" />
       </section>
 
       <section className="table-card" aria-label="Today by Crew">
         <div className="table-toolbar">
           <div>
             <h2>Today by Crew</h2>
-            <p>{targetDate} route cards grouped by crew.</p>
+            <p>{targetDate} route cards grouped by crew. Source: {routeSource}.</p>
           </div>
           <div className="workflow-actions">
             <button className="quick-action-btn" type="button" disabled>
@@ -276,22 +254,35 @@ export default function JobsPage() {
                   <span>{crewJobs.length} jobs</span>
                 </header>
                 <div className="workflow-stack">
-                  {crewJobs.map((job) => (
-                    <Link className="route-card" href={`/jobs/${job.id}`} key={job.id}>
+                  {crewJobs.map((job) => {
+                    const isReadOnlyLiveJob = job.is_read_only || typeof job.id === "string";
+                    const card = (
                       <div>
-                        <strong>{job.customer_name || "Unknown customer"}</strong>
-                        <span>{jobTitle(job)}</span>
+                        <div>
+                          <strong>{job.customer_name || "Unknown customer"}</strong>
+                          <span>{jobTitle(job)}</span>
+                        </div>
+                        <p>{job.address || "Missing address"}</p>
+                        <div className="timeline-row-meta">
+                          <span>{job.estimated_duration || 30} min</span>
+                          <span>{money(job.service_price)}</span>
+                          <span className={`status-pill status-${statusClass(job.status)}`}>
+                            {statusLabel(job.status)}
+                          </span>
+                        </div>
                       </div>
-                      <p>{job.address || "Missing address"}</p>
-                      <div className="timeline-row-meta">
-                        <span>{job.estimated_duration || 30} min</span>
-                        <span>{money(job.service_price)}</span>
-                        <span className={`status-pill status-${statusClass(job.status)}`}>
-                          {statusLabel(job.status)}
-                        </span>
+                    );
+
+                    return isReadOnlyLiveJob ? (
+                      <div className="route-card" key={job.id}>
+                        {card}
                       </div>
-                    </Link>
-                  ))}
+                    ) : (
+                      <Link className="route-card" href={`/jobs/${job.id}`} key={job.id}>
+                        {card}
+                      </Link>
+                    );
+                  })}
                 </div>
               </section>
             ))}

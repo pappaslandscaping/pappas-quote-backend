@@ -100,7 +100,7 @@ test.describe("React jobs workflow", () => {
 
   test("operations panels load crew availability and completed-uninvoiced work", async ({ page }) => {
     await page.route("**/api/jobs?**", async (route) => {
-      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: 10, customer_name: "Ada", service_type: "Mowing", status: "pending", job_date: "2026-05-13" }] } });
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: 10, customer_name: "Ada", service_type: "Mowing", status: "pending", job_date: "2026-05-14" }] } });
     });
     await page.route("**/api/jobs/stats?**", async (route) => {
       await route.fulfill({ contentType: "application/json", json: { success: true, stats: { total: 1, byStatus: { pending: 1 }, byCrew: { North: 1 }, totalRevenue: 50 } } });
@@ -115,13 +115,14 @@ test.describe("React jobs workflow", () => {
       await route.fulfill({ contentType: "application/json", json: { success: true, stages: { scheduled: [{ id: 10 }] } } });
     });
     await page.route("**/api/copilot/live-jobs?**", async (route) => {
-      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: 12, customer_name: "Live Customer", service_type: "Mowing", crew_assigned: "North" }] } });
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: "live-12", customer_name: "Live Customer", service_type: "Mowing", crew_assigned: "North", service_date: "2026-05-14", is_read_only: true }] } });
     });
 
     await seedSession(page);
     await page.goto("/jobs");
 
-    await expect(page.getByRole("region", { name: "Today by Crew" })).toContainText("Ada");
+    await expect(page.getByRole("region", { name: "Today by Crew" })).toContainText("Live Customer");
+    await expect(page.getByRole("region", { name: "Crew schedule summary" })).toContainText("Today's route");
     await expect(page.getByRole("region", { name: "Crew Readiness" })).toContainText("North");
     await expect(page.getByRole("region", { name: "Completed Not Invoiced" })).toContainText("Grace");
     await expect(page.getByRole("region", { name: "Missing info and blockers" })).toContainText("Ada");

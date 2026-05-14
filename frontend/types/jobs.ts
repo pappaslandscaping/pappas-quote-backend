@@ -1,6 +1,7 @@
 export type Job = {
-  id: number;
+  id: number | string;
   job_date?: string | null;
+  service_date?: string | null;
   customer_name?: string | null;
   customer_id?: number | null;
   service_type?: string | null;
@@ -11,6 +12,8 @@ export type Job = {
   special_notes?: string | null;
   property_notes?: string | null;
   status?: string | null;
+  is_read_only?: boolean | null;
+  freshness_source?: string | null;
   route_order?: number | null;
   estimated_duration?: number | string | null;
   crew_assigned?: string | null;

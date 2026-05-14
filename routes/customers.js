@@ -6,6 +6,7 @@
 
 const express = require('express');
 const { validate, schemas } = require('../lib/validate');
+const { getCustomer360 } = require('../services/copilot/integration');
 
 module.exports = function createCustomerRoutes({ pool, serverError, authenticateToken, nextCustomerNumber, upload }) {
   const router = express.Router();
@@ -776,6 +777,19 @@ router.get('/api/customers/:id/properties', async (req, res) => {
     const result = await pool.query('SELECT * FROM properties WHERE customer_id = $1', [req.params.id]);
     res.json({ success: true, properties: result.rows });
   } catch (error) { serverError(res, error); }
+});
+
+router.get('/api/customers/:id/360', async (req, res) => {
+  try {
+    const customer360 = await getCustomer360({ pool, customerId: req.params.id });
+    if (!customer360) {
+      return res.status(404).json({ success: false, error: 'Customer not found' });
+    }
+    return res.json({ success: true, customer360 });
+  } catch (error) {
+    console.error('Error fetching customer 360:', error);
+    serverError(res, error);
+  }
 });
 
 router.patch('/api/customers/:id', async (req, res) => {

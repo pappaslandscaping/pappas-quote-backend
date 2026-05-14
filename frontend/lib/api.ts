@@ -20,6 +20,7 @@ import type {
   CustomerRelatedResponse,
   CustomerStatsResponse
 } from "../types/customers";
+import type { Customer360Response } from "../types/customer360";
 import type {
   InvoiceDetailResponse,
   InvoiceListParams,
@@ -307,6 +308,16 @@ export async function fetchCustomerInvoices(id: string | number) {
   }
 
   return data.invoices || [];
+}
+
+export async function fetchCustomer360(id: string | number) {
+  const data = await apiFetch<Customer360Response>(`/api/customers/${id}/360`);
+
+  if (!data.success || !data.customer360) {
+    throw new Error(data.error || "Failed to load customer 360");
+  }
+
+  return data.customer360;
 }
 
 export type { Customer };

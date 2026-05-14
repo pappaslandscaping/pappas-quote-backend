@@ -90,6 +90,79 @@ test.describe("React customer workflow", () => {
 
   test("clicking a customer row opens /customers/[id]", async ({ page }) => {
     await openCustomers(page);
+    let draftCalls = 0;
+    await page.route("**/api/customers/*/360", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        json: {
+          success: true,
+          customer360: {
+            customer: { id: 7, name: "Ada Customer" },
+            summary: {
+              quote_count: 1,
+              signed_quote_count: 0,
+              job_count: 1,
+              completed_job_count: 0,
+              invoice_count: 1,
+              open_invoice_balance: 250,
+              payment_count: 1,
+              communication_count: 1,
+              note_count: 1
+            },
+            sources: {
+              quotes: { status: "live", source: "local_database" },
+              jobs: { status: "live", source: "local_database" },
+              invoices: { status: "live", source: "local_database" },
+              payments: { status: "live", source: "local_database" },
+              communications: { status: "live", source: "local_database" },
+              notes: { status: "live", source: "local_database" }
+            },
+            records: {
+              quotes: [],
+              jobs: [],
+              invoices: [],
+              payments: [],
+              communications: [],
+              notes: []
+            },
+            timeline: [
+              {
+                id: "quote-1",
+                type: "quote",
+                title: "Quote #Q-1",
+                detail: "mowing: Weekly mowing",
+                status: "sent",
+                date: "2026-05-12T12:00:00.000Z",
+                amount: 250,
+                href: "/quotes/1",
+                source: "local_database"
+              },
+              {
+                id: "message-1",
+                type: "communication",
+                title: "Inbound message",
+                detail: "Can you send an update?",
+                status: "received",
+                date: "2026-05-13T12:00:00.000Z",
+                source: "local_database"
+              }
+            ],
+            ai: {
+              mode: "draft_only",
+              allowed_actions: ["prepare_followup_draft"],
+              blocked_actions: ["send_email", "send_sms", "collect_payment"]
+            }
+          }
+        }
+      });
+    });
+    await page.route("**/api/ai/generate-followup", async (route) => {
+      draftCalls += 1;
+      await route.fulfill({
+        contentType: "application/json",
+        json: { success: true, draft: "Prepared customer follow-up draft" }
+      });
+    });
 
     const customerLink = page
       .locator("tbody tr")
@@ -107,6 +180,18 @@ test.describe("React customer workflow", () => {
     await expect(
       page.getByRole("heading", { name: "Contact Information" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Customer 360 Timeline" })
+    ).toBeVisible();
+    await expect(page.locator('[aria-label="Customer 360 sources"]')).toContainText("quotes: live");
+    await expect(page.getByText("Quote #Q-1")).toBeVisible();
+    await expect(page.getByText("[object Object]")).toHaveCount(0);
+    await expect(page.getByText(/do not send email, SMS, payments, or job updates/i)).toBeVisible();
+    expect(draftCalls).toBe(0);
+    await page.getByRole("button", { name: "Prepare follow-up draft" }).click();
+    await expect(page.getByText("Prepared customer follow-up draft")).toBeVisible();
+    await expect(page.getByText("No email or SMS was sent.")).toBeVisible();
+    expect(draftCalls).toBe(1);
     await expect(
       page.getByRole("link", { name: "Back to Customers" })
     ).toBeVisible();

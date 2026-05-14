@@ -101,6 +101,24 @@ export default function CommunicationsPage() {
     return items.sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || "")).slice(0, 40);
   }, [calls.data, messages.data, voicemails.data]);
 
+  const inboxQueues = useMemo(() => {
+    const allMessages = messages.data || [];
+    const allCalls = calls.data || [];
+    const allVoicemails = voicemails.data || [];
+    return {
+      missedCalls: allCalls.filter((call) =>
+        ["missed", "no-answer", "no_answer", "voicemail"].includes(
+          String(call.status || "").toLowerCase()
+        )
+      ),
+      voicemails: allVoicemails,
+      unreadMessages: allMessages.filter(
+        (message) => message.direction === "inbound" && message.read !== true
+      ),
+      customerReplies: allMessages.filter((message) => message.direction === "inbound")
+    };
+  }, [calls.data, messages.data, voicemails.data]);
+
   async function prepareDraft() {
     setDraft({ status: "loading" });
     try {
@@ -120,21 +138,32 @@ export default function CommunicationsPage() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Communications</p>
-          <h1>Communication Center</h1>
-          <p className="muted">Recent email/SMS/call activity with AI drafts only. Nothing sends automatically.</p>
+          <p className="eyebrow">Inbox</p>
+          <h1>Inbox</h1>
+          <p className="muted">Missed calls, voicemails, unread messages, and customer replies. AI drafts only; nothing sends automatically.</p>
         </div>
       </header>
 
-      <section className="stats-grid" aria-label="Communication stats">
-        <StatCard label="Messages" state={messages} />
-        <StatCard label="Calls" state={calls} />
-        <StatCard label="Voicemails" state={voicemails} />
+      <section className="workflow-summary" aria-label="Inbox queues">
+        <QueueCard label="Missed Calls" count={inboxQueues.missedCalls.length} state={calls.status} />
+        <QueueCard label="Voicemails" count={inboxQueues.voicemails.length} state={voicemails.status} />
+        <QueueCard label="Unread Messages" count={inboxQueues.unreadMessages.length} state={messages.status} />
+        <QueueCard label="Customer Replies" count={inboxQueues.customerReplies.length} state={messages.status} />
       </section>
 
       <section className="dashboard-grid command-grid">
-        <section className="table-card dashboard-panel" aria-label="Communication Timeline">
-          <PanelHeader title="Communication Timeline" subtitle="Latest customer touches across available channels." />
+        <InboxQueue title="Missed Calls" state={calls} rows={inboxQueues.missedCalls} emptyText="No missed calls found." />
+        <InboxQueue title="Voicemails" state={voicemails} rows={inboxQueues.voicemails} emptyText="No voicemails found." />
+      </section>
+
+      <section className="dashboard-grid command-grid">
+        <InboxQueue title="Unread Messages" state={messages} rows={inboxQueues.unreadMessages} emptyText="No unread messages." />
+        <InboxQueue title="Customer Replies" state={messages} rows={inboxQueues.customerReplies.slice(0, 8)} emptyText="No customer replies." />
+      </section>
+
+      <section className="dashboard-grid command-grid">
+        <section className="table-card dashboard-panel" aria-label="Inbox Timeline">
+          <PanelHeader title="Inbox Timeline" subtitle="Latest customer touches across available channels." />
           {messages.status === "loading" && calls.status === "loading" && voicemails.status === "loading" ? <div className="state-block">Loading</div> : null}
           {timeline.length ? (
             <div className="compact-list">
@@ -156,8 +185,8 @@ export default function CommunicationsPage() {
           ) : null}
         </section>
 
-        <section className="table-card dashboard-panel" aria-label="AI Communication Drafts">
-          <PanelHeader title="AI Communication Drafts" subtitle="Prepare only. Sending stays manual." />
+        <section className="table-card dashboard-panel" aria-label="AI Reply Drafts">
+          <PanelHeader title="AI Reply Drafts" subtitle="Prepare only. Sending stays manual." />
           <div className="form-panel">
             <label>
               Draft context
@@ -178,8 +207,73 @@ function PanelHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return <div className="table-toolbar"><div><h2>{title}</h2><p>{subtitle}</p></div></div>;
 }
 
-function StatCard<T extends unknown[]>({ label, state }: { label: string; state: LoadState<T> }) {
-  const value = state.status === "success" || state.status === "empty" ? state.data?.length || 0 : state.status === "error" ? "Error" : "-";
-  const meta = state.status === "success" ? "Loaded" : state.status === "empty" ? "Empty" : state.status === "error" ? state.error || "Error" : "Loading";
-  return <div className={`stat-card dashboard-stat ${state.status === "error" ? "has-error" : ""}`}><span>{label}</span><strong>{value}</strong><p>{meta}</p><i className="stat-dot green" aria-hidden="true" /></div>;
+function QueueCard({ label, count, state }: { label: string; count: number; state: LoadState<unknown>["status"] }) {
+  const value = state === "loading" ? "-" : state === "error" ? "Error" : count;
+  return (
+    <div className={`stat-card dashboard-stat ${state === "error" ? "has-error" : ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{state === "success" ? "Live" : state === "empty" ? "Empty" : state === "error" ? "API failed" : "Loading"}</p>
+      <i className="stat-dot green" aria-hidden="true" />
+    </div>
+  );
+}
+
+function InboxQueue<T extends CallRow | MessageRow | VoicemailRow>({
+  title,
+  state,
+  rows,
+  emptyText
+}: {
+  title: string;
+  state: LoadState<T[]>;
+  rows: T[];
+  emptyText: string;
+}) {
+  return (
+    <section className="table-card dashboard-panel" aria-label={title}>
+      <PanelHeader title={title} subtitle="Action queue from existing communication records." />
+      {state.status === "loading" ? <div className="state-block">Loading</div> : null}
+      {state.status === "error" ? <div className="state-block error">API failed: {state.error}</div> : null}
+      {state.status !== "loading" && state.status !== "error" && !rows.length ? (
+        <div className="empty-state">{emptyText}</div>
+      ) : null}
+      {rows.length ? (
+        <div className="compact-list">
+          {rows.slice(0, 6).map((row, index) => (
+            <div className="compact-row" key={String(row.id || index)}>
+              <div>
+                <strong>{queueTitle(row)}</strong>
+                <span>{queueDetail(row)}</span>
+              </div>
+              <small>{formatDate(queueDate(row))}</small>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function queueTitle(row: CallRow | MessageRow | VoicemailRow) {
+  if ("customerName" in row && row.customerName) return row.customerName;
+  if ("customer_name" in row && row.customer_name) return row.customer_name;
+  if ("direction" in row && row.direction) return `${row.direction} message`;
+  if ("transcript" in row || "transcription" in row) return "Voicemail";
+  return "Call";
+}
+
+function queueDetail(row: CallRow | MessageRow | VoicemailRow) {
+  if ("body" in row && row.body) return row.body;
+  if ("transcript" in row && row.transcript) return row.transcript;
+  if ("transcription" in row && row.transcription) return row.transcription;
+  if ("summary" in row && row.summary) return row.summary;
+  if ("status" in row && row.status) return row.status;
+  return "No detail";
+}
+
+function queueDate(row: CallRow | MessageRow | VoicemailRow) {
+  if ("created_at" in row && row.created_at) return row.created_at;
+  if ("timestamp" in row && row.timestamp) return row.timestamp;
+  return null;
 }

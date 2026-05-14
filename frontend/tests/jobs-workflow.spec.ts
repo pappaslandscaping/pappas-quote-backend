@@ -35,8 +35,8 @@ async function seedSession(page: Page) {
 async function openJobs(page: Page) {
   await seedSession(page);
   await page.goto("/jobs");
-  await expect(page.getByRole("heading", { name: "Schedule", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Scheduling/Jobs", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Crew Schedule", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Crew Schedule", exact: true })).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
   await expect(page.locator("tbody tr").first()).toBeVisible();
 }
@@ -121,8 +121,11 @@ test.describe("React jobs workflow", () => {
     await seedSession(page);
     await page.goto("/jobs");
 
-    await expect(page.getByRole("region", { name: "Crew Availability" })).toContainText("North");
-    await expect(page.getByRole("region", { name: "Completed Uninvoiced" })).toContainText("Grace");
+    await expect(page.getByRole("region", { name: "Today by Crew" })).toContainText("Ada");
+    await expect(page.getByRole("region", { name: "Crew Readiness" })).toContainText("North");
+    await expect(page.getByRole("region", { name: "Completed Not Invoiced" })).toContainText("Grace");
+    await expect(page.getByRole("region", { name: "Missing info and blockers" })).toContainText("Ada");
+    await expect(page.getByRole("region", { name: "Missing info and blockers" })).toContainText("missing address");
     await expect(page.getByRole("region", { name: "Copilot Live Jobs" })).toContainText("Live Customer");
   });
 });

@@ -117,8 +117,10 @@ test.describe("Payments and communications workflows", () => {
     await seedSession(page);
     await page.goto("/communications");
 
-    await expect(page.getByRole("heading", { name: "Communication Center" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Communication Timeline" })).toContainText("Can you call me?");
+    await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Unread Messages" })).toContainText("Can you call me?");
+    await expect(page.getByRole("region", { name: "Customer Replies" })).toContainText("Can you call me?");
+    await expect(page.getByRole("region", { name: "AI Reply Drafts" })).toContainText("Sending stays manual");
     expect(postCalls).toHaveLength(0);
 
     await page.getByRole("button", { name: "Prepare reply draft" }).click();

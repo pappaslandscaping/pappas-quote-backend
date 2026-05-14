@@ -15,6 +15,44 @@ const STATUS_OPTIONS = [
   "cancelled"
 ];
 
+const PIPELINE_STAGES = [
+  {
+    key: "new_request",
+    label: "New request",
+    helper: "Fresh intake that needs triage."
+  },
+  {
+    key: "needs_response",
+    label: "Needs response",
+    helper: "No customer contact has been logged yet."
+  },
+  {
+    key: "estimate_needed",
+    label: "Estimate needed",
+    helper: "Customer has been contacted; price or scope is next."
+  },
+  {
+    key: "estimate_sent",
+    label: "Estimate sent",
+    helper: "Estimate is out for review."
+  },
+  {
+    key: "follow_up_due",
+    label: "Follow-up due",
+    helper: "Sent estimates older than three days."
+  },
+  {
+    key: "won",
+    label: "Won",
+    helper: "Approved, scheduled, or completed work."
+  },
+  {
+    key: "lost",
+    label: "Lost",
+    helper: "Cancelled or declined requests."
+  }
+];
+
 const PACKAGE_LABELS: Record<string, string> = {
   essential: "Essential",
   complete: "Complete",
@@ -41,6 +79,28 @@ function normalizeQuestions(quote: QuoteRequest) {
     }
   }
   return quote.questions;
+}
+
+function servicesText(quote: QuoteRequest) {
+  if (Array.isArray(quote.services)) return quote.services.filter(Boolean).join(", ");
+  return quote.services || "Service not specified";
+}
+
+function stageForQuote(quote: QuoteRequest) {
+  const status = String(quote.status || "new").toLowerCase();
+  const created = new Date(quote.created_at);
+  const daysOld = Number.isNaN(created.getTime())
+    ? 0
+    : (Date.now() - created.getTime()) / 86400000;
+
+  if (["cancelled", "lost", "declined"].includes(status)) return "lost";
+  if (["completed", "scheduled", "won", "approved", "accepted"].includes(status)) return "won";
+  if (["quoted", "sent", "estimate_sent"].includes(status)) {
+    return daysOld >= 3 ? "follow_up_due" : "estimate_sent";
+  }
+  if (["contacted", "needs_estimate", "estimate_needed"].includes(status)) return "estimate_needed";
+  if (quote.phone || quote.email) return status === "new" ? "needs_response" : "estimate_needed";
+  return "new_request";
 }
 
 export default function QuotesPage() {
@@ -76,20 +136,6 @@ export default function QuotesPage() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const weekAgo = new Date(now);
-    weekAgo.setDate(now.getDate() - 7);
-
-    return {
-      total: quotes.length,
-      new: quotes.filter((quote) => quote.status === "new").length,
-      week: quotes.filter((quote) => new Date(quote.created_at) >= weekAgo)
-        .length,
-      completed: quotes.filter((quote) => quote.status === "completed").length
-    };
-  }, [quotes]);
-
   const visibleQuotes = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return quotes.filter((quote) => {
@@ -103,6 +149,16 @@ export default function QuotesPage() {
       return matchesStatus && matchesSearch;
     });
   }, [quotes, searchTerm, statusFilter]);
+
+  const pipeline = useMemo(() => {
+    const grouped = new Map<string, QuoteRequest[]>();
+    PIPELINE_STAGES.forEach((stage) => grouped.set(stage.key, []));
+    visibleQuotes.forEach((quote) => {
+      const stage = stageForQuote(quote);
+      grouped.get(stage)?.push(quote);
+    });
+    return grouped;
+  }, [visibleQuotes]);
 
   function showToast(message: string) {
     setToast(message);
@@ -204,8 +260,8 @@ export default function QuotesPage() {
       <header className="topbar">
         <div>
           <p className="eyebrow">YardDesk</p>
-          <h1>Quote Requests</h1>
-          <p className="muted">Incoming requests, sent quotes, and conversion pipeline.</p>
+          <h1>Leads & Estimates</h1>
+          <p className="muted">Turn new landscaping requests into estimated, won, or intentionally closed work.</p>
         </div>
         <div className="topbar-actions">
           <button className="icon-button" type="button" onClick={loadQuotes} aria-label="Refresh quotes">
@@ -215,10 +271,10 @@ export default function QuotesPage() {
             <DownloadIcon />
           </button>
           <a className="btn btn-secondary" href={backendUrl("/sent-quotes.html")}>
-            Sent Quotes
+            Legacy Estimates
           </a>
           <a className="btn btn-secondary" href={backendUrl("/quote-generator.html")}>
-            Generator
+            Estimate Builder
           </a>
           <button className="btn btn-primary" type="button" onClick={() => setIsModalOpen(true)}>
             New Request
@@ -226,17 +282,10 @@ export default function QuotesPage() {
         </div>
       </header>
 
-      <section className="stats-grid" aria-label="Quote request stats">
-        <StatCard label="Total Requests" value={stats.total} tone="blue" onClick={() => setStatusFilter("")} />
-        <StatCard label="New Leads" value={stats.new} tone="amber" onClick={() => setStatusFilter("new")} />
-        <StatCard label="This Week" value={stats.week} tone="purple" onClick={() => setStatusFilter("")} />
-        <StatCard label="Completed" value={stats.completed} tone="green" onClick={() => setStatusFilter("completed")} />
-      </section>
-
       <section className="table-card">
         <div className="table-toolbar">
           <div>
-            <h2>All Requests</h2>
+            <h2>Pipeline Controls</h2>
             <p>{visibleQuotes.length} visible</p>
           </div>
           <div className="filters">
@@ -256,6 +305,48 @@ export default function QuotesPage() {
             />
           </div>
         </div>
+      </section>
+
+      <section className="workflow-board" aria-label="Leads and estimates pipeline">
+        {loading ? (
+          <div className="state-block">Loading leads and estimates...</div>
+        ) : error ? (
+          <div className="state-block error">{error}</div>
+        ) : (
+          PIPELINE_STAGES.map((stage) => (
+            <section className="workflow-lane" key={stage.key} aria-label={stage.label}>
+              <header>
+                <div>
+                  <h2>{stage.label}</h2>
+                  <p>{stage.helper}</p>
+                </div>
+                <strong>{pipeline.get(stage.key)?.length || 0}</strong>
+              </header>
+              <div className="workflow-stack">
+                {(pipeline.get(stage.key) || []).length ? (
+                  (pipeline.get(stage.key) || []).map((quote) => (
+                    <QuotePipelineCard
+                      key={quote.id}
+                      quote={quote}
+                      onOpen={() => router.push(`/quotes/${quote.id}`)}
+                    />
+                  ))
+                ) : (
+                  <div className="empty-state">No items</div>
+                )}
+              </div>
+            </section>
+          ))
+        )}
+      </section>
+
+      <section className="table-card">
+        <div className="table-toolbar">
+          <div>
+            <h2>Lead Index</h2>
+            <p>CSV export and fast scanning.</p>
+          </div>
+        </div>
 
         {loading ? (
           <div className="state-block">Loading quotes...</div>
@@ -270,7 +361,7 @@ export default function QuotesPage() {
                   <th>Customer</th>
                   <th>Phone</th>
                   <th>Address</th>
-                  <th>Package</th>
+                  <th>Services</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -303,7 +394,7 @@ export default function QuotesPage() {
                         )}
                       </td>
                       <td className="truncate">{quote.address || ""}</td>
-                      <td>{quote.package ? PACKAGE_LABELS[quote.package] || quote.package : "Individual"}</td>
+                      <td>{servicesText(quote)}</td>
                       <td>
                         <span className={`status-pill status-${quote.status || "new"}`}>
                           {quote.status || "new"}
@@ -397,23 +488,50 @@ export default function QuotesPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  tone,
-  onClick
+function QuotePipelineCard({
+  quote,
+  onOpen
 }: {
-  label: string;
-  value: number;
-  tone: "blue" | "amber" | "purple" | "green";
-  onClick: () => void;
+  quote: QuoteRequest;
+  onOpen: () => void;
 }) {
+  const questions = normalizeQuestions(quote);
   return (
-    <button className="stat-card" type="button" onClick={onClick}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <i className={`stat-dot ${tone}`} aria-hidden="true" />
-    </button>
+    <article className="workflow-card" onClick={onOpen}>
+      <div className="workflow-card-top">
+        <strong>{quote.name || "Unknown lead"}</strong>
+        <span className={`status-pill status-${quote.status || "new"}`}>
+          {quote.status || "new"}
+        </span>
+      </div>
+      <p>{servicesText(quote)}</p>
+      <div className="workflow-fields">
+        <span>{quote.address || "No address"}</span>
+        <span>{[quote.phone, quote.email].filter(Boolean).join(" · ") || "No contact info"}</span>
+        <span>Source: {quote.source || "Unknown"}</span>
+        <span>Package: {quote.package ? PACKAGE_LABELS[quote.package] || quote.package : "Individual"}</span>
+        {quote.notes ? <span>Notes: {quote.notes}</span> : null}
+        {questions.contactMethod ? <span>Prefers: {questions.contactMethod}</span> : null}
+      </div>
+      <div className="workflow-actions" onClick={(event) => event.stopPropagation()}>
+        <Link className="quick-action-btn" href={`/quotes/${quote.id}`}>
+          Open
+        </Link>
+        {quote.phone ? (
+          <a className="quick-action-btn" href={`tel:${quote.phone}`}>
+            Call
+          </a>
+        ) : null}
+        {quote.email ? (
+          <a className="quick-action-btn" href={`mailto:${quote.email}`}>
+            Email
+          </a>
+        ) : null}
+        <a className="quick-action-btn primary" href={backendUrl(`/quote-generator.html?quote_id=${quote.id}`)}>
+          Build Estimate
+        </a>
+      </div>
+    </article>
   );
 }
 

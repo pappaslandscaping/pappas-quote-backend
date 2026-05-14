@@ -172,13 +172,12 @@ test.describe("React reports and AI workflow", () => {
     await seedSession(page);
     await page.goto("/ai");
 
-    await expect(page.getByRole("heading", { name: "CopilotCRM Intelligence" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Live Copilot work requests" })).toContainText("Ada Customer");
-    await expect(page.getByRole("region", { name: "Live Copilot route" })).toContainText("Grace Route");
-    await expect(page.getByRole("region", { name: "Collected revenue" })).toContainText("Live CopilotCRM");
-    await expect(page.getByRole("region", { name: "Copilot request sources" })).toContainText("Website");
-    await expect(page.getByRole("region", { name: "AI scope" })).toContainText("Only the draft generator is generative AI");
+    await expect(page.getByRole("heading", { name: "Assistant", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Follow-up draft candidates" })).toContainText("Ada Customer");
+    await expect(page.getByRole("region", { name: "Schedule recommendations" })).toContainText("Grace Route");
+    await expect(page.getByRole("region", { name: "AI scope" })).toContainText("Drafts require manual review");
     await expect(page.getByRole("region", { name: "AI scope" })).toContainText("No automatic actions");
+    await expect(page.locator("body")).not.toContainText("Collected revenue");
     await expect(page.locator("body")).not.toContainText("[object Object]");
     expect(postCalls).toHaveLength(0);
 

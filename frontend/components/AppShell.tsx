@@ -12,15 +12,15 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Home" },
-  { href: "/quotes", label: "Quotes" },
+  { href: "/", label: "Command Center" },
+  { href: "/quotes", label: "Leads & Estimates" },
   { href: "/customers", label: "Customers" },
   { href: "/invoices", label: "Invoices" },
   { href: "/payments", label: "Payments" },
-  { href: "/jobs", label: "Scheduling/Jobs" },
-  { href: "/communications", label: "Communications" },
+  { href: "/jobs", label: "Crew Schedule" },
+  { href: "/communications", label: "Inbox" },
   { href: "/reports", label: "Reports" },
-  { href: "/ai", label: "AI" }
+  { href: "/ai", label: "Assistant" }
 ];
 
 function clearAuthStorage() {
@@ -101,7 +101,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
             ) : (
               <Link
                 className={
-                  pathname === item.href || pathname.startsWith(`${item.href}/`)
+                  pathname === item.href ||
+                  (item.href !== "/" && pathname.startsWith(`${item.href}/`))
                     ? "nav-item active"
                     : "nav-item"
                 }

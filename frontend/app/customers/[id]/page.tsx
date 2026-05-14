@@ -205,10 +205,10 @@ export default function CustomerDetailPage() {
           <Link className="back-link" href="/customers">
             Back to Customers
           </Link>
-          <p className="eyebrow">Client Details</p>
+          <p className="eyebrow">Customer 360</p>
           <h1>{name}</h1>
           <p className="muted">
-            {customer.customer_number ? `#${customer.customer_number}` : "Customer record"}
+            {customer.customer_number ? `#${customer.customer_number}` : "Complete customer record"}
             {customer.customer_company_name ? ` · ${customer.customer_company_name}` : ""}
           </p>
         </div>
@@ -226,7 +226,7 @@ export default function CustomerDetailPage() {
         </div>
       </header>
 
-      <div className="customer-profile-card">
+      <section className="customer-summary-band" aria-label="Customer summary">
         <div className="profile-avatar" aria-hidden="true">
           {name.charAt(0).toUpperCase()}
         </div>
@@ -242,11 +242,17 @@ export default function CustomerDetailPage() {
             {customer.tax_exempt ? <span className="tag">Tax Exempt</span> : null}
           </div>
         </div>
-      </div>
+        <div className="summary-metrics compact">
+          <Metric label="Open Balance" value={currency(customer360?.summary.open_invoice_balance ?? balance)} />
+          <Metric label="Active Jobs" value={jobs.filter((job) => !["completed", "done", "cancelled"].includes(String(job.status || "").toLowerCase())).length} />
+          <Metric label="Estimates" value={customer360?.summary.quote_count ?? quotes.length} />
+          <Metric label="Messages" value={customer360?.summary.communication_count ?? 0} />
+        </div>
+      </section>
 
       <div className="detail-grid">
         <section className="detail-main">
-          <DetailCard title="Customer 360 Timeline">
+          <DetailCard title="Chronological Timeline">
             <Customer360Panel
               data={customer360}
               loading={customer360Loading}
@@ -254,7 +260,7 @@ export default function CustomerDetailPage() {
             />
           </DetailCard>
 
-          <DetailCard title="Contact Information">
+          <DetailCard title="Contact / Property / Services">
             <InfoRow label="Phone">
               {phone && phoneHref(phone) ? <a href={phoneHref(phone)}>{phone}</a> : "-"}
             </InfoRow>
@@ -275,6 +281,16 @@ export default function CustomerDetailPage() {
               )}
             </InfoRow>
             <InfoRow label="Created">{formatDate(customer.created_at) || "-"}</InfoRow>
+            <InfoRow label="Services">
+              {[
+                ...new Set([
+                  ...jobs.map((job) => job.service_type).filter(Boolean),
+                  ...quotes.flatMap((quote) =>
+                    Array.isArray(quote.services) ? quote.services : quote.services ? [quote.services] : []
+                  )
+                ])
+              ].slice(0, 3).join(", ") || "-"}
+            </InfoRow>
           </DetailCard>
 
           <DetailCard title="Properties">
@@ -288,15 +304,26 @@ export default function CustomerDetailPage() {
             />
           </DetailCard>
 
-          <DetailCard title="Recent Jobs">
+          <DetailCard title="Active Jobs">
             <RelatedList
-              empty="No jobs scheduled."
-              items={jobs.slice(0, 5).map((job) => ({
+              empty="No active jobs."
+              items={jobs.filter((job) => !["completed", "done", "cancelled"].includes(String(job.status || "").toLowerCase())).slice(0, 5).map((job) => ({
                 title: job.service_type || `Job #${job.id}`,
                 subtitle: [formatDate(job.job_date || job.scheduled_date), job.address]
                   .filter(Boolean)
                   .join(" · "),
                 meta: job.status || ""
+              }))}
+            />
+          </DetailCard>
+
+          <DetailCard title="Communications">
+            <RelatedList
+              empty="No messages, calls, or voicemails found."
+              items={(customer360?.records.communications || []).slice(0, 5).map((item) => ({
+                title: item.record_type === "call" ? "Call" : "Message",
+                subtitle: item.body || item.transcription || formatDate(item.created_at),
+                meta: item.status || item.direction || ""
               }))}
             />
           </DetailCard>
@@ -359,9 +386,9 @@ export default function CustomerDetailPage() {
             />
           </DetailCard>
 
-          <DetailCard title="Recent Quotes">
+          <DetailCard title="Quotes / Estimates">
             <RelatedList
-              empty="No quotes yet."
+              empty="No estimates yet."
               items={quotes.slice(0, 4).map((quote) => ({
                 title: `Quote #${quote.quote_number || quote.id}`,
                 subtitle: formatDate(quote.created_at),

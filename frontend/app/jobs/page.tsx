@@ -10,7 +10,6 @@ import {
   fetchCopilotLiveJobs,
   fetchCrewAvailability,
   fetchJobs,
-  fetchJobsPipeline,
   fetchJobStats
 } from "../../lib/api";
 import type { Job, JobStats } from "../../types/jobs";
@@ -55,6 +54,17 @@ function dateInputValue(date: string) {
   return date ? date.slice(0, 10) : "";
 }
 
+function dateKey(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function isSkipped(job: Job) {
+  return ["skipped", "cancelled", "canceled"].includes(String(job.status || "").toLowerCase());
+}
+
 export default function JobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -67,7 +77,6 @@ export default function JobsPage() {
   const [error, setError] = useState("");
   const [completedUninvoiced, setCompletedUninvoiced] = useState<LoadState<Job[]>>(loading());
   const [crewAvailability, setCrewAvailability] = useState<LoadState<Array<Record<string, unknown>>>>(loading());
-  const [pipeline, setPipeline] = useState<LoadState<Record<string, unknown>>>(loading());
   const [liveJobs, setLiveJobs] = useState<LoadState<Job[]>>(loading());
 
   async function loadJobs() {
@@ -133,7 +142,6 @@ export default function JobsPage() {
       setCrewAvailability,
       (data) => data.length === 0
     );
-    void load(fetchJobsPipeline, setPipeline);
     void load(() => fetchCopilotLiveJobs(targetDate), setLiveJobs, (data) => data.length === 0);
 
     return () => {
@@ -168,6 +176,7 @@ export default function JobsPage() {
       total: jobs.length,
       pending: byStatus.pending || 0,
       completed: (byStatus.completed || 0) + (byStatus.done || 0),
+      skipped: jobs.filter(isSkipped).length,
       revenue: jobs.reduce((sum, job) => sum + Number(job.service_price || 0), 0)
     };
   }, [jobs]);
@@ -179,39 +188,121 @@ export default function JobsPage() {
       (stats?.byStatus?.completed ?? 0) ||
       (stats?.byStatus?.done ?? 0) ||
       visibleSummary.completed,
+    skipped:
+      (stats?.byStatus?.skipped ?? 0) ||
+      (stats?.byStatus?.cancelled ?? 0) ||
+      visibleSummary.skipped,
     revenue: stats?.totalRevenue ?? visibleSummary.revenue
   };
+
+  const targetDate = date || new Date().toISOString().slice(0, 10);
+  const todaysJobs = useMemo(
+    () => jobs.filter((job) => dateKey(job.job_date) === targetDate || (!date && jobs.length <= 25)),
+    [date, jobs, targetDate]
+  );
+  const jobsByCrew = useMemo(() => {
+    const grouped = new Map<string, Job[]>();
+    todaysJobs.forEach((job) => {
+      const crew = job.crew_assigned || "Unassigned";
+      grouped.set(crew, [...(grouped.get(crew) || []), job]);
+    });
+    return Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [todaysJobs]);
+  const blockers = useMemo(
+    () =>
+      jobs.filter(
+        (job) =>
+          !job.address ||
+          !job.crew_assigned ||
+          !job.service_type ||
+          String(job.status || "").toLowerCase().includes("blocked")
+      ),
+    [jobs]
+  );
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
           <p className="eyebrow">YardDesk</p>
-          <h1>Schedule</h1>
-          <p className="muted">Jobs, route work, and crew assignments.</p>
+          <h1>Crew Schedule</h1>
+          <p className="muted">Today’s landscaping route work, blockers, and completed jobs that still need invoicing.</p>
         </div>
         <div className="topbar-actions">
           <a className="btn btn-secondary" href={backendUrl("/dispatch.html")}>
-            Dispatch
+            Dispatch Board
           </a>
           <a className="btn btn-secondary" href={backendUrl("/import-scheduling.html")}>
             Legacy Import
           </a>
           <a className="btn btn-primary" href={backendUrl("/new-job.html")}>
-            Local Job
+            New Job
           </a>
         </div>
       </header>
 
-      <section className="stats-grid" aria-label="Job stats">
-        <StatCard label="Total Jobs" value={summary.total} tone="blue" />
+      <section className="workflow-summary" aria-label="Crew schedule summary">
+        <StatCard label="Route Jobs" value={summary.total} tone="blue" />
         <StatCard label="Pending" value={summary.pending} tone="amber" />
         <StatCard label="Completed" value={summary.completed} tone="green" />
-        <StatCard label="Revenue" value={money(summary.revenue)} tone="purple" />
+        <StatCard label="Skipped" value={summary.skipped} tone="purple" />
+      </section>
+
+      <section className="table-card" aria-label="Today by Crew">
+        <div className="table-toolbar">
+          <div>
+            <h2>Today by Crew</h2>
+            <p>{targetDate} route cards grouped by crew.</p>
+          </div>
+          <div className="workflow-actions">
+            <button className="quick-action-btn" type="button" disabled>
+              Rain delay placeholder
+            </button>
+            <button className="quick-action-btn" type="button" disabled>
+              Notify crew placeholder
+            </button>
+          </div>
+        </div>
+        {isLoadingJobs ? (
+          <div className="state-block">Loading route cards...</div>
+        ) : error ? (
+          <div className="state-block error">{error}</div>
+        ) : jobsByCrew.length ? (
+          <div className="crew-board">
+            {jobsByCrew.map(([crew, crewJobs]) => (
+              <section className="crew-lane" key={crew} aria-label={`${crew} jobs`}>
+                <header>
+                  <h3>{crew}</h3>
+                  <span>{crewJobs.length} jobs</span>
+                </header>
+                <div className="workflow-stack">
+                  {crewJobs.map((job) => (
+                    <Link className="route-card" href={`/jobs/${job.id}`} key={job.id}>
+                      <div>
+                        <strong>{job.customer_name || "Unknown customer"}</strong>
+                        <span>{jobTitle(job)}</span>
+                      </div>
+                      <p>{job.address || "Missing address"}</p>
+                      <div className="timeline-row-meta">
+                        <span>{job.estimated_duration || 30} min</span>
+                        <span>{money(job.service_price)}</span>
+                        <span className={`status-pill status-${statusClass(job.status)}`}>
+                          {statusLabel(job.status)}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">No jobs found for this route date.</div>
+        )}
       </section>
 
       <section className="dashboard-grid command-grid">
-        <OperationsPanel title="Crew Availability" state={crewAvailability} emptyText="No crew workload found for this date.">
+        <OperationsPanel title="Crew Readiness" state={crewAvailability} emptyText="No crew workload found for this date.">
           {(rows) => (
             <div className="compact-list">
               {rows.slice(0, 6).map((crew, index) => (
@@ -226,7 +317,7 @@ export default function JobsPage() {
           )}
         </OperationsPanel>
 
-        <OperationsPanel title="Completed Uninvoiced" state={completedUninvoiced} emptyText="No completed-uninvoiced jobs.">
+        <OperationsPanel title="Completed Not Invoiced" state={completedUninvoiced} emptyText="No completed-uninvoiced jobs.">
           {(rows) => (
             <div className="compact-list">
               {rows.slice(0, 6).map((job) => (
@@ -244,15 +335,35 @@ export default function JobsPage() {
       </section>
 
       <section className="dashboard-grid command-grid">
-        <OperationsPanel title="Pipeline" state={pipeline} emptyText="No pipeline data found.">
-          {(data) => {
-            const stages = Object.entries(data.stages && typeof data.stages === "object" ? data.stages as Record<string, unknown[]> : data)
-              .filter(([, value]) => Array.isArray(value));
-            return <div className="compact-list">{stages.slice(0, 6).map(([stage, rows]) => (
-              <div className="compact-row" key={stage}><strong>{stage.replaceAll("_", " ")}</strong><span>{(rows as unknown[]).length} jobs</span></div>
-            ))}</div>;
-          }}
-        </OperationsPanel>
+        <section className="table-card dashboard-panel" aria-label="Missing info and blockers">
+          <div className="table-toolbar">
+            <div>
+              <h2>Missing Info / Blockers</h2>
+              <p>Jobs needing cleanup before a crew can execute confidently.</p>
+            </div>
+          </div>
+          {blockers.length ? (
+            <div className="compact-list">
+              {blockers.slice(0, 8).map((job) => (
+                <Link className="compact-row" href={`/jobs/${job.id}`} key={job.id}>
+                  <div>
+                    <strong>{job.customer_name || "Unknown customer"}</strong>
+                    <span>
+                      {[
+                        !job.address ? "missing address" : null,
+                        !job.crew_assigned ? "missing crew" : null,
+                        !job.service_type ? "missing service" : null,
+                        job.status
+                      ].filter(Boolean).join(" - ")}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">No obvious blockers found.</div>
+          )}
+        </section>
 
         <OperationsPanel title="Copilot Live Jobs" state={liveJobs} emptyText="No live Copilot jobs available.">
           {(rows) => (

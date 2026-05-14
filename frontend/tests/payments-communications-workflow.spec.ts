@@ -118,6 +118,10 @@ test.describe("Payments and communications workflows", () => {
     await page.goto("/communications");
 
     await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Needs attention first" })).toContainText("Grace");
+    await expect(page.getByRole("region", { name: "Needs attention first" })).toContainText("Draft a customer reply");
+    await page.getByRole("button", { name: "AI draft reply" }).first().click();
+    await expect(page.getByLabel("Draft context")).toHaveValue(/Draft a manual customer reply/);
     await expect(page.getByRole("region", { name: "Unread Messages" })).toContainText("Can you call me?");
     await expect(page.getByRole("region", { name: "Customer Replies" })).toContainText("Can you call me?");
     await expect(page.getByRole("region", { name: "AI Reply Drafts" })).toContainText("Sending stays manual");

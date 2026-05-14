@@ -136,59 +136,34 @@ export default function AiPage() {
         </div>
       </header>
 
-      <section className="assistant-action-grid" aria-label="Assistant actions">
-        {assistantActions.map((action) => (
-          <button
-            className="assistant-action-card"
-            type="button"
-            key={action.title}
-            onClick={() => {
-              setSelectedDraftTitle(action.draftTitle);
-              setDraftPrompt(action.prompt);
-              setDraft(null);
-            }}
-          >
-            <strong>{action.title}</strong>
-            <span>{action.prompt}</span>
-          </button>
-        ))}
-      </section>
-
-      <section className="dashboard-grid command-grid">
-        <section className="table-card dashboard-panel" aria-label="AI scope">
-          <div className="table-toolbar">
-            <div>
-              <h2>Assistant Guardrails</h2>
-              <p>Recommendations are read-only. Drafts require manual review before any customer action.</p>
-            </div>
+      <section className="assistant-workspace" aria-label="Assistant workspace">
+        <section className="assistant-action-rail" aria-label="Assistant actions">
+          <div className="rail-heading">
+            <h2>What can I draft?</h2>
+            <p>Pick the work item. YardDesk prepares text for manual review only.</p>
           </div>
-          <div className="compact-list">
-            <div className="compact-row">
-              <div>
-                <strong>Generative AI drafts</strong>
-                <span>Creates follow-up wording from the context you provide. You review before anything is sent.</span>
-              </div>
-            </div>
-            <div className="compact-row">
-              <div>
-                <strong>Live context panels</strong>
-                <span>Work requests and route activity come from existing backend APIs and are shown as context, not automated decisions.</span>
-              </div>
-            </div>
-            <div className="compact-row">
-              <div>
-                <strong>No automatic actions</strong>
-                <span>No emails, texts, payment actions, tax transfers, or job changes run without a manual click and review.</span>
-              </div>
-            </div>
-          </div>
+          {assistantActions.map((action) => (
+            <button
+              className={selectedDraftTitle === action.draftTitle ? "assistant-action-card active" : "assistant-action-card"}
+              type="button"
+              key={action.title}
+              onClick={() => {
+                setSelectedDraftTitle(action.draftTitle);
+                setDraftPrompt(action.prompt);
+                setDraft(null);
+              }}
+            >
+              <strong>{action.title}</strong>
+              <span>{action.prompt}</span>
+            </button>
+          ))}
         </section>
 
         <section className="table-card dashboard-panel" aria-label="Prepared Actions">
           <div className="table-toolbar">
             <div>
               <h2>{selectedDraftTitle}</h2>
-              <p>Selected action: {selectedDraftTitle}. Draft text for review; sending stays manual.</p>
+              <p>Draft text for review. No email, text, payment, transfer, delete, or job update is sent automatically.</p>
             </div>
           </div>
           <div className="form-panel">

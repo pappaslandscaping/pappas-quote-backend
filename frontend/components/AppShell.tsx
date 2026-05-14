@@ -11,16 +11,39 @@ type NavItem = {
   disabled?: boolean;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Command Center" },
-  { href: "/quotes", label: "Leads & Estimates" },
-  { href: "/customers", label: "Customers" },
-  { href: "/invoices", label: "Invoices" },
-  { href: "/payments", label: "Payments" },
-  { href: "/jobs", label: "Crew Schedule" },
-  { href: "/communications", label: "Inbox" },
-  { href: "/reports", label: "Reports" },
-  { href: "/ai", label: "Assistant" }
+const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: "Today",
+    items: [{ href: "/", label: "Command Center" }]
+  },
+  {
+    label: "Sales",
+    items: [
+      { href: "/quotes", label: "Leads & Estimates" },
+      { href: "/customers", label: "Customers" }
+    ]
+  },
+  {
+    label: "Money",
+    items: [
+      { href: "/invoices", label: "Invoices" },
+      { href: "/payments", label: "Payments" }
+    ]
+  },
+  {
+    label: "Operations",
+    items: [
+      { href: "/jobs", label: "Crew Schedule" },
+      { href: "/communications", label: "Inbox" }
+    ]
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { href: "/reports", label: "Reports" },
+      { href: "/ai", label: "Assistant" }
+    ]
+  }
 ];
 
 function clearAuthStorage() {
@@ -92,27 +115,32 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </Link>
 
         <nav className="sidebar-nav" aria-label="Primary navigation">
-          {NAV_ITEMS.map((item) =>
-            item.disabled ? (
-              <span className="nav-item disabled" key={item.label} aria-disabled="true">
-                {item.label}
-                <small>Soon</small>
-              </span>
-            ) : (
-              <Link
-                className={
-                  pathname === item.href ||
-                  (item.href !== "/" && pathname.startsWith(`${item.href}/`))
-                    ? "nav-item active"
-                    : "nav-item"
-                }
-                href={item.href}
-                key={item.href}
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+          {NAV_GROUPS.map((group) => (
+            <div className="nav-section" key={group.label}>
+              <div className="nav-section-label">{group.label}</div>
+              {group.items.map((item) =>
+                item.disabled ? (
+                  <span className="nav-item disabled" key={item.label} aria-disabled="true">
+                    {item.label}
+                    <small>Soon</small>
+                  </span>
+                ) : (
+                  <Link
+                    className={
+                      pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(`${item.href}/`))
+                        ? "nav-item active"
+                        : "nav-item"
+                    }
+                    href={item.href}
+                    key={item.href}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              )}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-account">

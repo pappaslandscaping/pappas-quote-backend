@@ -98,14 +98,12 @@ test.describe("React quote workflow", () => {
     await seedSession(page);
     await page.goto("/quotes");
     await expect(page.getByRole("heading", { name: "Leads & Estimates" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "New request" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Sales queue" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Needs response" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Estimate needed" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Estimate sent" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Follow-up due" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Won" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Lost" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open" }).first()).toBeVisible();
+    await expect(page.getByRole("region", { name: "Selected lead detail" })).toContainText("Next best action");
+    await expect(page.getByRole("link", { name: "AI email draft" }).first()).toBeVisible();
     await expectQuotesTable(page);
   });
 

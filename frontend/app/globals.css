@@ -1416,6 +1416,231 @@ tbody tr:last-child td {
   margin-bottom: 22px;
 }
 
+.desk-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(230px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.desk-card {
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  overflow: hidden;
+}
+
+.desk-stack {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.desk-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.desk-metric {
+  border-radius: 8px;
+  background: var(--gray-50);
+  padding: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.desk-metric strong {
+  display: block;
+  color: var(--forest);
+  font-size: 18px;
+}
+
+.desk-metric span,
+.desk-note {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.work-card {
+  display: grid;
+  gap: 4px;
+  border-radius: 8px;
+  background: var(--gray-50);
+  padding: 10px 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.work-card strong {
+  color: var(--forest);
+}
+
+.work-card span,
+.work-card small {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.split-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.sales-queue,
+.selected-detail {
+  min-width: 0;
+}
+
+.queue-group,
+.sales-detail-card,
+.customer-story {
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.queue-group + .queue-group {
+  margin-top: 12px;
+}
+
+.queue-group header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--gray-100);
+  padding: 12px 14px;
+}
+
+.queue-group h2,
+.sales-detail-card h2,
+.customer-story h2 {
+  margin: 0;
+  color: var(--gray-700);
+  font-size: 15px;
+}
+
+.queue-group p,
+.customer-story p {
+  margin: 4px 0 0;
+  color: var(--gray-500);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.queue-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.queue-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+  background: var(--gray-50);
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-item.active,
+.queue-item:hover {
+  border-color: var(--forest);
+  background: var(--white);
+}
+
+.queue-item strong {
+  color: var(--forest);
+}
+
+.queue-item span,
+.queue-item small {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sales-detail-card,
+.customer-story {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.sales-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sales-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.assistant-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.assistant-action-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistant-action-card:hover {
+  border-color: var(--forest);
+}
+
+.assistant-action-card strong {
+  color: var(--forest);
+}
+
+.assistant-action-card span {
+  color: var(--gray-500);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.next-action-callout {
+  display: grid;
+  gap: 5px;
+  border-left: 4px solid var(--lime);
+  border-radius: 8px;
+  background: var(--green-bg);
+  padding: 12px 14px;
+}
+
+.next-action-callout span {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.next-action-callout strong {
+  color: var(--forest);
+  font-size: 16px;
+}
+
 .workflow-board {
   display: grid;
   grid-template-columns: repeat(7, minmax(240px, 1fr));
@@ -1829,7 +2054,10 @@ tbody tr:last-child td {
 
 @media (max-width: 900px) {
   .workflow-summary,
-  .customer-summary-band {
+  .customer-summary-band,
+  .desk-grid,
+  .split-workspace,
+  .assistant-action-grid {
     grid-template-columns: 1fr;
   }
 

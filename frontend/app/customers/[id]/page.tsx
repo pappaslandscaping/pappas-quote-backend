@@ -250,6 +250,24 @@ export default function CustomerDetailPage() {
         </div>
       </section>
 
+      <section className="table-card customer-story" aria-label="What to know before contacting this customer">
+        <div>
+          <h2>What to know before contacting this customer</h2>
+          <p>
+            {customer360?.timeline.length
+              ? buildCustomerStory(name, customer360)
+              : `${name} has limited activity in YardDesk so far. Confirm contact details, property needs, and whether there is any open estimate or scheduled work before reaching out.`}
+          </p>
+        </div>
+        <div className="sticky-action-bar">
+          {phoneHref(phone) ? <a className="quick-action-btn primary" href={phoneHref(phone)}>Call</a> : null}
+          {customer.email ? <a className="quick-action-btn" href={`mailto:${customer.email}`}>Email</a> : null}
+          <button className="quick-action-btn" type="button" onClick={prepareCustomerFollowup} disabled={draftLoading}>
+            AI draft follow-up
+          </button>
+        </div>
+      </section>
+
       <div className="detail-grid">
         <section className="detail-main">
           <DetailCard title="Chronological Timeline">
@@ -467,6 +485,15 @@ function Customer360Panel({
       )}
     </div>
   );
+}
+
+function buildCustomerStory(name: string, data: Customer360) {
+  const summary = data.summary;
+  const latest = data.timeline[0];
+  const balance = summary.open_invoice_balance > 0
+    ? `Open balance is ${currency(summary.open_invoice_balance)}.`
+    : "No open balance is visible.";
+  return `${name} has ${summary.quote_count} estimate record${summary.quote_count === 1 ? "" : "s"}, ${summary.job_count} job${summary.job_count === 1 ? "" : "s"}, and ${summary.communication_count} communication touch${summary.communication_count === 1 ? "" : "es"}. Latest activity: ${latest?.title || "none recorded"}. ${balance} Suggested next step: review the timeline, then call or prepare a manual follow-up draft.`;
 }
 
 function Metric({ label, value }: { label: string; value: ReactNode }) {

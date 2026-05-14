@@ -113,6 +113,7 @@ export default function QuotesPage() {
   const [toast, setToast] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<number | null>(null);
 
   async function loadQuotes() {
     setLoading(true);
@@ -159,6 +160,24 @@ export default function QuotesPage() {
     });
     return grouped;
   }, [visibleQuotes]);
+
+  const urgencyGroups = useMemo(() => {
+    const response = visibleQuotes.filter((quote) => stageForQuote(quote) === "needs_response" || stageForQuote(quote) === "new_request");
+    const estimate = visibleQuotes.filter((quote) => stageForQuote(quote) === "estimate_needed");
+    const followUp = visibleQuotes.filter((quote) => stageForQuote(quote) === "follow_up_due" || stageForQuote(quote) === "estimate_sent");
+    const closed = visibleQuotes.filter((quote) => ["won", "lost"].includes(stageForQuote(quote)));
+    return [
+      { key: "response", label: "Needs response", helper: "Call or draft a reply first.", rows: response },
+      { key: "estimate", label: "Estimate needed", helper: "Scope and price the work.", rows: estimate },
+      { key: "follow-up", label: "Follow-up due", helper: "Sent estimates that need a nudge.", rows: followUp },
+      { key: "closed", label: "Won / Lost", helper: "Recently closed sales work.", rows: closed }
+    ];
+  }, [visibleQuotes]);
+
+  const selectedQuote = useMemo(() => {
+    const fallback = urgencyGroups.find((group) => group.rows.length)?.rows[0] || visibleQuotes[0] || null;
+    return visibleQuotes.find((quote) => quote.id === selectedQuoteId) || fallback;
+  }, [selectedQuoteId, urgencyGroups, visibleQuotes]);
 
   function showToast(message: string) {
     setToast(message);
@@ -307,40 +326,52 @@ export default function QuotesPage() {
         </div>
       </section>
 
-      <section className="workflow-board" aria-label="Leads and estimates pipeline">
+      <section className="split-workspace" aria-label="Sales queue">
         {loading ? (
           <div className="state-block">Loading leads and estimates...</div>
         ) : error ? (
           <div className="state-block error">{error}</div>
         ) : (
-          PIPELINE_STAGES.map((stage) => (
-            <section className="workflow-lane" key={stage.key} aria-label={stage.label}>
-              <header>
-                <div>
-                  <h2>{stage.label}</h2>
-                  <p>{stage.helper}</p>
-                </div>
-                <strong>{pipeline.get(stage.key)?.length || 0}</strong>
-              </header>
-              <div className="workflow-stack">
-                {(pipeline.get(stage.key) || []).length ? (
-                  (pipeline.get(stage.key) || []).map((quote) => (
-                    <QuotePipelineCard
-                      key={quote.id}
-                      quote={quote}
-                      onOpen={() => router.push(`/quotes/${quote.id}`)}
-                    />
-                  ))
-                ) : (
-                  <div className="empty-state">No items</div>
-                )}
-              </div>
+          <>
+            <aside className="sales-queue">
+              {urgencyGroups.map((group) => (
+                <section className="queue-group" key={group.key} aria-label={group.label}>
+                  <header>
+                    <div>
+                      <h2>{group.label}</h2>
+                      <p>{group.helper}</p>
+                    </div>
+                    <strong>{group.rows.length}</strong>
+                  </header>
+                  <div className="queue-list">
+                    {group.rows.length ? group.rows.slice(0, 12).map((quote) => (
+                      <button
+                        className={selectedQuote?.id === quote.id ? "queue-item active" : "queue-item"}
+                        type="button"
+                        key={quote.id}
+                        onClick={() => setSelectedQuoteId(quote.id)}
+                      >
+                        <strong>{quote.name || "Unknown lead"}</strong>
+                        <span>{servicesText(quote)}</span>
+                        <small>{[quote.address, quote.phone || quote.email].filter(Boolean).join(" - ") || "No contact details"}</small>
+                      </button>
+                    )) : <div className="empty-state">Clear</div>}
+                  </div>
+                </section>
+              ))}
+            </aside>
+            <section className="selected-detail" aria-label="Selected lead detail">
+              {selectedQuote ? (
+                <SelectedLeadDetail quote={selectedQuote} onOpen={() => router.push(`/quotes/${selectedQuote.id}`)} />
+              ) : (
+                <div className="empty-state">No lead selected.</div>
+              )}
             </section>
-          ))
+          </>
         )}
       </section>
 
-      <section className="table-card">
+      <section className="table-card secondary-index">
         <div className="table-toolbar">
           <div>
             <h2>Lead Index</h2>
@@ -532,6 +563,60 @@ function QuotePipelineCard({
         </a>
       </div>
     </article>
+  );
+}
+
+function SelectedLeadDetail({
+  quote,
+  onOpen
+}: {
+  quote: QuoteRequest;
+  onOpen: () => void;
+}) {
+  const questions = normalizeQuestions(quote);
+  const stage = PIPELINE_STAGES.find((item) => item.key === stageForQuote(quote));
+  return (
+    <article className="sales-detail-card">
+      <div className="sales-detail-header">
+        <div>
+          <p className="eyebrow">Selected Lead</p>
+          <h2>{quote.name || "Unknown lead"}</h2>
+          <span className={`status-pill status-${quote.status || "new"}`}>{stage?.label || quote.status || "new"}</span>
+        </div>
+        <button className="btn btn-secondary" type="button" onClick={onOpen}>Open record</button>
+      </div>
+      <div className="sales-detail-grid">
+        <InfoTile label="Services" value={servicesText(quote)} />
+        <InfoTile label="Address" value={quote.address || "No address"} />
+        <InfoTile label="Phone / Email" value={[quote.phone, quote.email].filter(Boolean).join(" / ") || "No contact info"} />
+        <InfoTile label="Source" value={quote.source || "Unknown"} />
+        <InfoTile label="Submitted" value={formatDate(quote.created_at)} />
+        <InfoTile label="Notes" value={quote.notes || "No notes yet."} />
+      </div>
+      <div className="next-action-callout">
+        <span>Next best action</span>
+        <strong>{stageForQuote(quote) === "estimate_needed" ? "Build the estimate while the scope is fresh." : stageForQuote(quote) === "follow_up_due" ? "Send a follow-up draft before this estimate goes cold." : "Respond to the customer and confirm the requested work."}</strong>
+      </div>
+      <div className="sticky-action-bar">
+        {quote.phone ? <a className="quick-action-btn primary" href={`tel:${quote.phone}`}>Call</a> : null}
+        {quote.email ? <a className="quick-action-btn" href={`mailto:${quote.email}`}>Email</a> : null}
+        <Link className="quick-action-btn" href={`/ai?draft=lead&quote_id=${quote.id}`}>AI email draft</Link>
+        <Link className="quick-action-btn" href={`/ai?draft=text&quote_id=${quote.id}`}>AI text draft</Link>
+        <a className="quick-action-btn primary" href={backendUrl(`/quote-generator.html?quote_id=${quote.id}`)}>Build estimate</a>
+      </div>
+      {questions.contactMethod || questions.lawnHeight ? (
+        <p className="subtle">Context: {[questions.contactMethod, questions.lawnHeight].filter(Boolean).join(" - ")}</p>
+      ) : null}
+    </article>
+  );
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 

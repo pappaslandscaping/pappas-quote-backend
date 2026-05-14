@@ -217,7 +217,7 @@ export default function HomePage() {
           <Panel state={jobs} emptyText="No route work found for today.">
             {(data) => (
               <div className="desk-stack">
-                {(data.upcoming || []).slice(0, 4).map((job) => (
+                {(data.upcoming || []).slice(0, 3).map((job) => (
                   <Link className="work-card" href={`/jobs/${job.id}`} key={job.id}>
                     <strong>{job.crew_assigned || "Crew TBD"}</strong>
                     <span>{job.customer_name || "Unknown customer"}</span>

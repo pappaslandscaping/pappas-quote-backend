@@ -176,8 +176,7 @@ test.describe("React reports and AI workflow", () => {
     await expect(page.getByRole("region", { name: "Assistant actions" })).toContainText("Write rain delay text");
     await expect(page.getByRole("region", { name: "Work items AI can help with right now" })).toContainText("Ada Customer");
     await expect(page.getByRole("region", { name: "Route context for drafts" })).toContainText("Grace Route");
-    await expect(page.getByRole("region", { name: "AI scope" })).toContainText("Drafts require manual review");
-    await expect(page.getByRole("region", { name: "AI scope" })).toContainText("No automatic actions");
+    await expect(page.getByRole("region", { name: "Prepared Actions" })).toContainText("No email, text, payment, transfer, delete, or job update is sent automatically");
     await expect(page.locator("body")).not.toContainText("Collected revenue");
     await expect(page.locator("body")).not.toContainText("[object Object]");
     expect(postCalls).toHaveLength(0);

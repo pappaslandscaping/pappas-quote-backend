@@ -18,6 +18,15 @@ type TimelineItem = {
   date: string | null;
   status: string;
 };
+type PriorityItem = {
+  id: string;
+  customer: string;
+  type: string;
+  date: string | null;
+  preview: string;
+  suggestedAction: string;
+  draftContext: string;
+};
 
 const loading = <T,>(): LoadState<T> => ({ status: "loading" });
 
@@ -105,6 +114,11 @@ export default function CommunicationsPage() {
     const allMessages = messages.data || [];
     const allCalls = calls.data || [];
     const allVoicemails = voicemails.data || [];
+    const paymentQuestions = allMessages.filter(
+      (message) =>
+        message.direction === "inbound" &&
+        /payment|invoice|bill|balance|paid|charge/i.test(message.body || "")
+    );
     return {
       missedCalls: allCalls.filter((call) =>
         ["missed", "no-answer", "no_answer", "voicemail"].includes(
@@ -115,9 +129,50 @@ export default function CommunicationsPage() {
       unreadMessages: allMessages.filter(
         (message) => message.direction === "inbound" && message.read !== true
       ),
-      customerReplies: allMessages.filter((message) => message.direction === "inbound")
+      customerReplies: allMessages.filter((message) => message.direction === "inbound"),
+      paymentQuestions
     };
   }, [calls.data, messages.data, voicemails.data]);
+
+  const priorityItems = useMemo<PriorityItem[]>(() => {
+    const items: PriorityItem[] = [
+      ...inboxQueues.missedCalls.map((call) => ({
+        id: `call-${call.id}`,
+        customer: call.customer_name || call.from_number || "Unknown caller",
+        type: "Needs callback",
+        date: call.created_at || null,
+        preview: call.transcription || call.summary || call.option_selected || call.from_number || "Missed call",
+        suggestedAction: "Call back or draft a short callback text.",
+        draftContext: `Draft a callback reply for ${call.customer_name || call.from_number || "this caller"}. Context: ${call.transcription || call.summary || call.option_selected || "missed call"}`
+      })),
+      ...inboxQueues.voicemails.map((voicemail) => ({
+        id: `voicemail-${voicemail.id}`,
+        customer: voicemail.customer_name || voicemail.from || voicemail.from_number || "Voicemail",
+        type: "Voicemail",
+        date: voicemail.created_at || voicemail.timestamp || null,
+        preview: voicemail.transcript || voicemail.transcription || "No voicemail transcript",
+        suggestedAction: "Turn the voicemail into a task and reply draft.",
+        draftContext: `Turn this voicemail into a task and draft reply. Customer: ${voicemail.customer_name || voicemail.from || voicemail.from_number || "unknown"}. Transcript: ${voicemail.transcript || voicemail.transcription || ""}`
+      })),
+      ...inboxQueues.unreadMessages.map((message) => ({
+        id: `message-${message.id || message.sid}`,
+        customer: message.customerName || message.from || "Customer reply",
+        type: inboxQueues.paymentQuestions.some((payment) => (payment.id || payment.sid) === (message.id || message.sid))
+          ? "Payment question"
+          : "Unread reply",
+        date: message.timestamp || null,
+        preview: message.body || "No message body",
+        suggestedAction: /payment|invoice|bill|balance|paid|charge/i.test(message.body || "")
+          ? "Draft a billing reply after checking the invoice."
+          : "Draft a customer reply and keep the conversation moving.",
+        draftContext: `Draft a manual customer reply for ${message.customerName || message.from || "this customer"}. Message: ${message.body || ""}`
+      }))
+    ];
+
+    return items
+      .sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || ""))
+      .slice(0, 10);
+  }, [inboxQueues]);
 
   async function prepareDraft() {
     setDraft({ status: "loading" });
@@ -145,10 +200,48 @@ export default function CommunicationsPage() {
       </header>
 
       <section className="workflow-summary" aria-label="Inbox queues">
-        <QueueCard label="Missed Calls" count={inboxQueues.missedCalls.length} state={calls.status} />
+        <QueueCard label="Needs callback" count={inboxQueues.missedCalls.length} state={calls.status} />
         <QueueCard label="Voicemails" count={inboxQueues.voicemails.length} state={voicemails.status} />
-        <QueueCard label="Unread Messages" count={inboxQueues.unreadMessages.length} state={messages.status} />
-        <QueueCard label="Customer Replies" count={inboxQueues.customerReplies.length} state={messages.status} />
+        <QueueCard label="Replies" count={inboxQueues.customerReplies.length} state={messages.status} />
+        <QueueCard label="Payment questions" count={inboxQueues.paymentQuestions.length} state={messages.status} />
+      </section>
+
+      <section className="table-card priority-inbox" aria-label="Needs attention first">
+        <PanelHeader title="Needs attention first" subtitle="Prioritized callbacks, voicemails, replies, and payment questions." />
+        {messages.status === "loading" && calls.status === "loading" && voicemails.status === "loading" ? (
+          <div className="state-block">Loading</div>
+        ) : null}
+        {priorityItems.length ? (
+          <div className="priority-list">
+            {priorityItems.map((item) => (
+              <article className="priority-item" key={item.id}>
+                <div>
+                  <div className="priority-item-heading">
+                    <strong>{item.customer}</strong>
+                    <span className="status-pill status-pending">{item.type}</span>
+                  </div>
+                  <p>{item.preview}</p>
+                  <small>{formatDate(item.date)}</small>
+                </div>
+                <div className="priority-action">
+                  <span>{item.suggestedAction}</span>
+                  <button
+                    className="quick-action-btn"
+                    type="button"
+                    onClick={() => {
+                      setDraftPrompt(item.draftContext);
+                      setDraft(null);
+                    }}
+                  >
+                    AI draft reply
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : messages.status !== "loading" || calls.status !== "loading" || voicemails.status !== "loading" ? (
+          <div className="empty-state">No callback, voicemail, reply, or payment-question items need attention right now.</div>
+        ) : null}
       </section>
 
       <section className="dashboard-grid command-grid">

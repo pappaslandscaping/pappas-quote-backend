@@ -104,19 +104,34 @@ a {
 
 .sidebar-nav {
   display: grid;
-  gap: 6px;
-  margin-top: 28px;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.nav-section {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-section-label {
+  padding: 0 8px;
+  color: var(--gray-400);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 40px;
-  border-radius: 8px;
+  min-height: 34px;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
   color: var(--gray-600);
-  padding: 0 12px;
-  font-size: 14px;
+  padding: 0 10px;
+  font-size: 13px;
   font-weight: 800;
   text-decoration: none;
 }
@@ -127,8 +142,9 @@ a {
 }
 
 .nav-item.active {
-  background: var(--forest);
-  color: var(--white);
+  border-left-color: var(--lime);
+  background: var(--gray-50);
+  color: var(--forest);
 }
 
 .nav-item.disabled {
@@ -1418,7 +1434,7 @@ tbody tr:last-child td {
 
 .desk-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(230px, 1fr));
+  grid-template-columns: minmax(420px, 1.55fr) minmax(280px, 0.85fr);
   gap: 16px;
   margin-bottom: 22px;
 }
@@ -1428,6 +1444,25 @@ tbody tr:last-child td {
   border-radius: 8px;
   background: var(--white);
   overflow: hidden;
+}
+
+.desk-card:first-child {
+  grid-row: span 3;
+  border-color: rgba(46, 64, 61, 0.24);
+  box-shadow: 0 16px 36px rgba(31, 43, 41, 0.08);
+}
+
+.desk-card:first-child .table-toolbar {
+  background: linear-gradient(180deg, #ffffff 0%, #f6faf5 100%);
+}
+
+.desk-card:first-child .desk-stack {
+  gap: 14px;
+  min-height: 420px;
+}
+
+.desk-card:first-child .work-card {
+  padding: 14px;
 }
 
 .desk-stack {
@@ -1483,6 +1518,56 @@ tbody tr:last-child td {
   color: var(--gray-500);
   font-size: 12px;
   font-weight: 700;
+}
+
+.priority-inbox {
+  margin-bottom: 22px;
+}
+
+.priority-list {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.priority-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 0.34fr);
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+  background: var(--gray-50);
+  padding: 14px;
+}
+
+.priority-item-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.priority-item strong {
+  color: var(--forest);
+}
+
+.priority-item p {
+  margin: 6px 0;
+  color: var(--gray-600);
+  font-size: 13px;
+}
+
+.priority-item small,
+.priority-action span {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.priority-action {
+  display: grid;
+  gap: 8px;
 }
 
 .split-workspace {
@@ -1576,6 +1661,11 @@ tbody tr:last-child td {
   padding: 18px;
 }
 
+.sales-detail-card {
+  border-color: rgba(46, 64, 61, 0.22);
+  box-shadow: 0 16px 34px rgba(31, 43, 41, 0.07);
+}
+
 .sales-detail-header {
   display: flex;
   justify-content: space-between;
@@ -1588,11 +1678,37 @@ tbody tr:last-child td {
   gap: 10px;
 }
 
-.assistant-action-grid {
+.assistant-workspace {
   display: grid;
-  grid-template-columns: repeat(4, minmax(190px, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 18px;
   margin-bottom: 22px;
+}
+
+.assistant-action-rail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.rail-heading {
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--white);
+  padding: 14px;
+}
+
+.rail-heading h2 {
+  margin: 0;
+  color: var(--forest);
+  font-size: 16px;
+}
+
+.rail-heading p {
+  margin: 4px 0 0;
+  color: var(--gray-500);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .assistant-action-card {
@@ -1608,6 +1724,11 @@ tbody tr:last-child td {
 
 .assistant-action-card:hover {
   border-color: var(--forest);
+}
+
+.assistant-action-card.active {
+  border-color: var(--forest);
+  background: var(--green-bg);
 }
 
 .assistant-action-card strong {
@@ -2057,7 +2178,8 @@ tbody tr:last-child td {
   .customer-summary-band,
   .desk-grid,
   .split-workspace,
-  .assistant-action-grid {
+  .assistant-workspace,
+  .priority-item {
     grid-template-columns: 1fr;
   }
 
@@ -2075,6 +2197,10 @@ tbody tr:last-child td {
   .sidebar-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 16px;
+  }
+
+  .nav-section {
+    align-content: start;
   }
 
   .sidebar-account {

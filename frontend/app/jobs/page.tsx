@@ -253,9 +253,9 @@ export default function JobsPage() {
               value={dateInputValue(targetDate)}
               onChange={(event) => setDate(event.target.value)}
             />
-            <button className="quick-action-btn" type="button" disabled>
+            <Link className="quick-action-btn" href="/ai?draft=rain-delay">
               Rain delay draft
-            </button>
+            </Link>
           </div>
         </div>
         {isLoadingJobs ? (

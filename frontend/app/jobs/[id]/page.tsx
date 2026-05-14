@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { fetchJob } from "../../../lib/api";
+import { backendUrl, fetchJob } from "../../../lib/api";
 import type { Job } from "../../../types/jobs";
 
 function money(value?: string | number | null) {
@@ -111,7 +111,7 @@ export default function JobDetailPage() {
               View Invoice
             </Link>
           ) : null}
-          <a className="btn btn-secondary" href={`http://localhost:3000/job-detail.html?id=${job.id}`}>
+          <a className="btn btn-secondary" href={backendUrl(`/job-detail.html?id=${job.id}`)}>
             Legacy View
           </a>
         </div>
@@ -208,7 +208,7 @@ export default function JobDetailPage() {
 
           <DetailCard title="Safe Actions">
             <div className="quick-actions-list">
-              <a className="quick-action-btn primary" href={`http://localhost:3000/new-job.html?job_id=${job.id}`}>
+              <a className="quick-action-btn primary" href={backendUrl(`/new-job.html?job_id=${job.id}`)}>
                 Open Legacy Editor
               </a>
               {job.customer_id ? (
@@ -216,7 +216,7 @@ export default function JobDetailPage() {
                   View Customer
                 </Link>
               ) : null}
-              <a className="quick-action-btn" href="http://localhost:3000/dispatch.html">
+              <a className="quick-action-btn" href={backendUrl("/dispatch.html")}>
                 Open Dispatch
               </a>
             </div>

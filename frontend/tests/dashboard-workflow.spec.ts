@@ -167,19 +167,23 @@ test.describe("React dashboard workflow", () => {
     await seedSession(page);
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "Daily Brief" })).toBeVisible();
-    const today = page.getByRole("region", { name: "Today" });
-    await expect(today.locator(".stat-card", { hasText: "Jobs today" }).locator("strong")).toHaveText("4");
-    await expect(today.locator(".stat-card", { hasText: "Paid today" }).locator("strong")).toHaveText("$1,250");
-    await expect(today.locator(".stat-card", { hasText: "Pending quotes" }).locator("strong")).toHaveText("3");
+    await expect(page.getByRole("heading", { name: "Command Center" })).toBeVisible();
+    const today = page.getByRole("region", { name: "Today's priorities" });
+    await expect(today.locator(".stat-card", { hasText: "Jobs to run" }).locator("strong")).toHaveText("4");
+    await expect(today.locator(".stat-card", { hasText: "Payments received" }).locator("strong")).toHaveText("$1,250");
+    await expect(today.locator(".stat-card", { hasText: "Leads pending" }).locator("strong")).toHaveText("3");
     await expect(today.locator(".stat-card", { hasText: "Overdue invoices" }).locator("strong")).toHaveText("2");
     await expect(today.getByText("Loading")).toHaveCount(0);
   });
 
-  test("Daily Brief panels render success and API health matches", async ({ page }) => {
+  test("Command Center panels render daily actions and API health matches", async ({ page }) => {
     await mockDashboardApis(page);
     await seedSession(page);
     await page.goto("/");
+
+    const leadQueue = page.getByRole("region", { name: "Lead follow-up queue" });
+    await expect(leadQueue).toContainText("Ada");
+    await expect(leadQueue.getByRole("link", { name: "Draft follow-up" })).toBeVisible();
 
     const attention = page.getByRole("region", { name: "Follow-ups needed" });
     await expect(attention.getByText("New quote requests")).toBeVisible();
@@ -188,8 +192,10 @@ test.describe("React dashboard workflow", () => {
     await expect(attention.getByText("Follow-up draft candidates")).toBeVisible();
     await expect(page.getByRole("region", { name: "Recent Activity" })).toContainText("2026");
 
+    await expect(page.getByRole("region", { name: "Money needing action" })).toContainText("Invoice reminder");
     await expect(page.getByRole("region", { name: "True payment activity" })).toContainText("Paid Today Customer");
     await expect(page.getByRole("region", { name: "True payment activity" })).not.toContainText("Updated Only Customer");
+    await expect(page.getByRole("region", { name: "Crew/job readiness" })).toContainText("Draft prep note");
 
     const health = page.getByRole("region", { name: "API Health" });
     await expect(health.getByText("Loaded")).toHaveCount(8);
@@ -198,7 +204,7 @@ test.describe("React dashboard workflow", () => {
     await expect(health.getByText("Error")).toHaveCount(0);
   });
 
-  test("Daily Brief shows empty and error states distinctly", async ({ page }) => {
+  test("Command Center shows empty and error states distinctly", async ({ page }) => {
     await page.route("**/api/dashboard/today-summary", async (route) => {
       await route.fulfill({ contentType: "application/json", json: { success: true } });
     });
@@ -228,13 +234,13 @@ test.describe("React dashboard workflow", () => {
     await page.goto("/");
 
     await expect(page.getByRole("region", { name: "Follow-ups needed" }).getByText("Some data failed: Quotes offline")).toBeVisible();
-    await expect(page.getByRole("region", { name: "Upcoming Work" }).getByText("No upcoming jobs found.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Crew/job readiness" }).getByText("No upcoming jobs found.")).toBeVisible();
     await expect(page.getByRole("region", { name: "True payment activity" }).getByText("No payments with paid_at recorded today.")).toBeVisible();
     await expect(page.getByRole("region", { name: "API Health" }).getByText("Error")).toBeVisible();
     await expect(page.getByRole("region", { name: "API Health" }).getByText("Empty")).toHaveCount(4);
   });
 
-  test("Daily Brief renders partial results while one source is still loading", async ({ page }) => {
+  test("Command Center renders partial results while one source is still loading", async ({ page }) => {
     await page.route("**/api/dashboard/today-summary", async (route) => {
       await route.fulfill({ contentType: "application/json", json: { success: true } });
     });

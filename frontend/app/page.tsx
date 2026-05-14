@@ -186,9 +186,9 @@ export default function HomePage() {
       <header className="topbar">
         <div>
           <p className="eyebrow">YardDesk</p>
-          <h1>Daily Brief</h1>
+          <h1>Command Center</h1>
           <p className="muted">
-            Live work, follow-up, invoice, payment, and schedule signals from the existing backend APIs.
+            Daily landscaping actions from live lead, crew, job, invoice, and payment signals.
           </p>
         </div>
         <div className="topbar-actions">
@@ -201,15 +201,15 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="stats-grid stats-grid-five" aria-label="Today">
-        <TodayCard label="Jobs today" state={today} value={(data) => data.jobs_today || 0} />
+      <section className="stats-grid stats-grid-five" aria-label="Today's priorities">
+        <TodayCard label="Jobs to run" state={today} value={(data) => data.jobs_today || 0} />
         <TodayCard
-          label="Paid today"
+          label="Payments received"
           state={today}
           value={(data) => money(data.revenue_today)}
         />
         <TodayCard
-          label="Pending quotes"
+          label="Leads pending"
           state={today}
           value={(data) => data.pending_quotes || 0}
         />
@@ -226,10 +226,10 @@ export default function HomePage() {
       </section>
 
       <section className="dashboard-grid command-grid">
-        <section className="table-card dashboard-panel" aria-label="New leads">
+        <section className="table-card dashboard-panel" aria-label="Lead follow-up queue">
           <PanelHeader
-            title="New leads"
-            subtitle="New quote/work requests that need first response."
+            title="Lead follow-up queue"
+            subtitle="New quote/work requests that need first response. Draft buttons only prepare wording."
             states={[quotes]}
           />
           <Panel state={quotes} emptyText="No new leads right now.">
@@ -237,13 +237,20 @@ export default function HomePage() {
               newLeads.length ? (
                 <div className="compact-list">
                   {newLeads.map((quote) => (
-                    <Link className="compact-row" href={`/quotes/${quote.id}`} key={quote.id}>
+                    <div className="compact-row" key={quote.id}>
                       <div>
-                        <strong>{quote.name || "Quote request"}</strong>
+                        <Link className="row-link" href={`/quotes/${quote.id}`}>
+                          {quote.name || "Quote request"}
+                        </Link>
                         <span>{[quote.package, quote.address, quote.phone].filter(Boolean).join(" - ")}</span>
                       </div>
-                      <small>{formatFullDate(quote.created_at)}</small>
-                    </Link>
+                      <div className="compact-row-meta">
+                        <small>{formatFullDate(quote.created_at)}</small>
+                        <Link className="quick-action-btn" href={`/ai?draft=lead&quote_id=${quote.id}`}>
+                          Draft follow-up
+                        </Link>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -255,8 +262,8 @@ export default function HomePage() {
 
         <section className="table-card dashboard-panel" aria-label="Follow-ups needed">
           <PanelHeader
-            title="Follow-ups needed"
-            subtitle="Counts derived from open quote and invoice signals."
+            title="Today's priorities"
+            subtitle="Action counts derived from open quote, invoice, and job signals."
             states={[quotes, invoices, uninvoiced]}
           />
           <Stateful state={[quotes, invoices, uninvoiced]} emptyText="Nothing urgent right now.">
@@ -277,31 +284,38 @@ export default function HomePage() {
         <section className="table-card dashboard-panel" aria-label="Completed-uninvoiced jobs">
           <PanelHeader
             title="Completed-uninvoiced jobs"
-            subtitle="Completed work that still needs invoice review."
+            subtitle="Completed work that still needs invoice review. Draft buttons do not create invoices."
             states={[uninvoiced]}
           />
           <Panel state={uninvoiced} emptyText="No completed-uninvoiced jobs.">
             {(rows) => (
               <div className="compact-list">
                 {rows.slice(0, 6).map((job) => (
-                  <Link className="compact-row" href={`/jobs/${job.id}`} key={job.id}>
+                  <div className="compact-row" key={job.id}>
                     <div>
-                      <strong>{job.customer_name || "Completed job"}</strong>
+                      <Link className="row-link" href={`/jobs/${job.id}`}>
+                        {job.customer_name || "Completed job"}
+                      </Link>
                       <span>{[job.service_type, job.address].filter(Boolean).join(" - ")}</span>
                     </div>
-                    <small>{money(job.service_price)}</small>
-                  </Link>
+                    <div className="compact-row-meta">
+                      <small>{money(job.service_price)}</small>
+                      <Link className="quick-action-btn" href={`/ai?draft=billing&job_id=${job.id}`}>
+                        Draft billing note
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </Panel>
         </section>
 
-        <section className="table-card dashboard-panel" aria-label="Overdue invoices">
+        <section className="table-card dashboard-panel" aria-label="Money needing action">
           <PanelHeader
-            title="Overdue invoices"
-            subtitle="Invoice stats from the backend, not estimated from activity dates."
-            states={[invoices]}
+            title="Money needing action"
+            subtitle="Overdue and outstanding invoice signals; payment activity uses paid_at only."
+            states={[invoices, payments]}
           />
           <Panel state={invoices} emptyText="No overdue invoices.">
             {(stats) => (
@@ -315,6 +329,11 @@ export default function HomePage() {
                   <strong>{money(stats.outstanding)}</strong>
                   <span>Outstanding</span>
                   <small>{stats.total || 0} invoices in the current list.</small>
+                </Link>
+                <Link className="attention-item tone-green" href="/ai?draft=invoice-reminder">
+                  <strong>Draft</strong>
+                  <span>Invoice reminder</span>
+                  <small>Prepare wording only. No email or text is sent.</small>
                 </Link>
               </div>
             )}
@@ -359,15 +378,17 @@ export default function HomePage() {
           </Panel>
         </section>
 
-        <section className="table-card dashboard-panel" aria-label="Upcoming Work">
-          <PanelHeader title="Upcoming Work" subtitle="Next scheduled jobs." states={[jobs]} />
+        <section className="table-card dashboard-panel" aria-label="Crew/job readiness">
+          <PanelHeader title="Crew/job readiness" subtitle="Next jobs, customer context, crew assignment, and schedule status." states={[jobs]} />
           <Panel state={jobs} emptyText="No upcoming jobs found.">
             {(data) => (
               <div className="compact-list">
                 {(data.upcoming || []).slice(0, 5).map((job) => (
-                  <Link className="compact-row" href={`/jobs/${job.id}`} key={job.id}>
+                  <div className="compact-row" key={job.id}>
                     <div>
-                      <strong>{job.customer_name || "Unknown customer"}</strong>
+                      <Link className="row-link" href={`/jobs/${job.id}`}>
+                        {job.customer_name || "Unknown customer"}
+                      </Link>
                       <span>{job.service_type || "Service"} - {job.crew_assigned || "Crew TBD"}</span>
                     </div>
                     <div className="compact-row-meta">
@@ -375,8 +396,11 @@ export default function HomePage() {
                       <span className={`status-pill status-${String(job.status || "pending").toLowerCase()}`}>
                         {job.status || "pending"}
                       </span>
+                      <Link className="quick-action-btn" href={`/ai?draft=job-prep&job_id=${job.id}`}>
+                        Draft prep note
+                      </Link>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}

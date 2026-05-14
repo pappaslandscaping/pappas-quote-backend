@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  backendUrl,
   fetchCustomer,
   fetchCustomerInvoices,
   fetchCustomerJobs,
@@ -268,13 +269,13 @@ export default function CustomerDetailPage() {
 
           <DetailCard title="Quick Actions">
             <div className="quick-actions-list">
-              <a className="quick-action-btn primary" href={`http://localhost:3000/quote-generator.html?customer_id=${customer.id}`}>
+              <a className="quick-action-btn primary" href={backendUrl(`/quote-generator.html?customer_id=${customer.id}`)}>
                 Create Quote
               </a>
-              <a className="quick-action-btn" href={`http://localhost:3000/new-job.html?customer_id=${customer.id}`}>
+              <a className="quick-action-btn" href={backendUrl(`/new-job.html?customer_id=${customer.id}`)}>
                 Create Job
               </a>
-              <a className="quick-action-btn" href={`http://localhost:3000/new-invoice.html?customer_id=${customer.id}`}>
+              <a className="quick-action-btn" href={backendUrl(`/new-invoice.html?customer_id=${customer.id}`)}>
                 Create Invoice
               </a>
             </div>

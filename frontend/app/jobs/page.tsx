@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  backendUrl,
   fetchCompletedUninvoicedJobs,
   fetchCopilotLiveJobs,
   fetchCrewAvailability,
@@ -190,13 +191,13 @@ export default function JobsPage() {
           <p className="muted">Jobs, route work, and crew assignments.</p>
         </div>
         <div className="topbar-actions">
-          <a className="btn btn-secondary" href="http://localhost:3000/dispatch.html">
+          <a className="btn btn-secondary" href={backendUrl("/dispatch.html")}>
             Dispatch
           </a>
-          <a className="btn btn-secondary" href="http://localhost:3000/import-scheduling.html">
+          <a className="btn btn-secondary" href={backendUrl("/import-scheduling.html")}>
             Legacy Import
           </a>
-          <a className="btn btn-primary" href="http://localhost:3000/new-job.html">
+          <a className="btn btn-primary" href={backendUrl("/new-job.html")}>
             Local Job
           </a>
         </div>

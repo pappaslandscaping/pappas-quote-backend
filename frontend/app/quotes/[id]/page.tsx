@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  backendUrl,
   deleteQuoteRequest,
   fetchQuoteRequest,
   updateQuoteStatus
@@ -180,7 +181,7 @@ export default function QuoteDetailPage() {
   }
 
   const generatorUrl =
-    `http://localhost:3000/quote-generator.html?from_request=${quote.id}` +
+    backendUrl(`/quote-generator.html?from_request=${quote.id}`) +
     `&name=${encodeURIComponent(quote.name || "")}` +
     `&email=${encodeURIComponent(quote.email || "")}` +
     `&phone=${encodeURIComponent(quote.phone || "")}` +
@@ -188,7 +189,7 @@ export default function QuoteDetailPage() {
     `&package=${encodeURIComponent(quote.package || "")}` +
     `&services=${encodeURIComponent(JSON.stringify(details.services))}`;
   const calculatorUrl =
-    `http://localhost:3000/quote-calculator.html?name=${encodeURIComponent(quote.name || "")}` +
+    backendUrl(`/quote-calculator.html?name=${encodeURIComponent(quote.name || "")}`) +
     `&address=${encodeURIComponent(quote.address || "")}`;
 
   return (

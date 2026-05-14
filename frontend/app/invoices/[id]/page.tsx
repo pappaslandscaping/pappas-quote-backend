@@ -4,12 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { fetchInvoice } from "../../../lib/api";
+import { backendUrl, fetchInvoice } from "../../../lib/api";
 import type { Invoice, InvoiceLineItem } from "../../../types/invoices";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://localhost:3000";
 
 function money(value?: string | number | null) {
   return Number(value || 0).toLocaleString("en-US", {
@@ -112,7 +108,7 @@ export default function InvoiceDetailPage() {
   async function copyPayLink() {
     if (!invoice?.payment_token) return;
     await navigator.clipboard.writeText(
-      `${API_BASE_URL}/pay-invoice.html?token=${invoice.payment_token}`
+      backendUrl(`/pay-invoice.html?token=${invoice.payment_token}`)
     );
     setToast("Pay link copied");
   }
@@ -155,10 +151,10 @@ export default function InvoiceDetailPage() {
           </p>
         </div>
         <div className="topbar-actions">
-          <a className="btn btn-secondary" href={`${API_BASE_URL}/api/invoices/${invoice.id}/pdf`}>
+          <a className="btn btn-secondary" href={backendUrl(`/api/invoices/${invoice.id}/pdf`)}>
             Download PDF
           </a>
-          <a className="btn btn-secondary" href={`${API_BASE_URL}/invoice-detail.html?id=${invoice.id}`}>
+          <a className="btn btn-secondary" href={backendUrl(`/invoice-detail.html?id=${invoice.id}`)}>
             Legacy View
           </a>
         </div>
@@ -265,7 +261,7 @@ export default function InvoiceDetailPage() {
 
           <DetailCard title="Safe Actions">
             <div className="quick-actions-list">
-              <a className="quick-action-btn primary" href={`${API_BASE_URL}/api/invoices/${invoice.id}/pdf`}>
+              <a className="quick-action-btn primary" href={backendUrl(`/api/invoices/${invoice.id}/pdf`)}>
                 Download PDF
               </a>
               {invoice.payment_token ? (
@@ -273,7 +269,7 @@ export default function InvoiceDetailPage() {
                   Copy Pay Link
                 </button>
               ) : null}
-              <a className="quick-action-btn" href={`${API_BASE_URL}/pay-invoice.html${invoice.payment_token ? `?token=${invoice.payment_token}` : ""}`}>
+              <a className="quick-action-btn" href={backendUrl(`/pay-invoice.html${invoice.payment_token ? `?token=${invoice.payment_token}` : ""}`)}>
                 Customer Pay Page
               </a>
             </div>

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createQuoteRequest, fetchQuoteRequests } from "../../lib/api";
+import { backendUrl, createQuoteRequest, fetchQuoteRequests } from "../../lib/api";
 import type { QuoteCreatePayload, QuoteRequest } from "../../types/quotes";
 
 const STATUS_OPTIONS = [
@@ -214,10 +214,10 @@ export default function QuotesPage() {
           <button className="icon-button" type="button" onClick={exportToCSV} aria-label="Export CSV">
             <DownloadIcon />
           </button>
-          <a className="btn btn-secondary" href="http://localhost:3000/sent-quotes.html">
+          <a className="btn btn-secondary" href={backendUrl("/sent-quotes.html")}>
             Sent Quotes
           </a>
-          <a className="btn btn-secondary" href="http://localhost:3000/quote-generator.html">
+          <a className="btn btn-secondary" href={backendUrl("/quote-generator.html")}>
             Generator
           </a>
           <button className="btn btn-primary" type="button" onClick={() => setIsModalOpen(true)}>

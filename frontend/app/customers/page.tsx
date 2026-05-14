@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  backendUrl,
   fetchCustomerPipelineStats,
   fetchCustomers,
   fetchCustomerStats
@@ -133,10 +134,10 @@ export default function CustomersPage() {
           <p className="muted">Customer records, leads, and pipeline.</p>
         </div>
         <div className="topbar-actions">
-          <Link className="btn btn-secondary" href="http://localhost:3000/properties.html">
+          <Link className="btn btn-secondary" href={backendUrl("/properties.html")}>
             Properties
           </Link>
-          <Link className="btn btn-primary" href="http://localhost:3000/new-customer.html">
+          <Link className="btn btn-primary" href={backendUrl("/new-customer.html")}>
             Add Client
           </Link>
         </div>

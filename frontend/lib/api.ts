@@ -20,6 +20,7 @@ import type {
   CustomerRelatedResponse,
   CustomerStatsResponse
 } from "../types/customers";
+import type { Customer360Response } from "../types/customer360";
 import type {
   InvoiceDetailResponse,
   InvoiceListParams,
@@ -76,9 +77,16 @@ import type {
 } from "../types/communications";
 import type { WorkRequestsResponse } from "../types/work-requests";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://localhost:3000";
+export function backendBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+  if (configured) return configured;
+  return "http://localhost:3000";
+}
+
+export function backendUrl(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${backendBaseUrl()}${normalizedPath}`;
+}
 
 function getAdminToken() {
   if (typeof window === "undefined") return null;
@@ -97,7 +105,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(backendUrl(path), {
     ...init,
     headers
   });
@@ -300,6 +308,16 @@ export async function fetchCustomerInvoices(id: string | number) {
   }
 
   return data.invoices || [];
+}
+
+export async function fetchCustomer360(id: string | number) {
+  const data = await apiFetch<Customer360Response>(`/api/customers/${id}/360`);
+
+  if (!data.success || !data.customer360) {
+    throw new Error(data.error || "Failed to load customer 360");
+  }
+
+  return data.customer360;
 }
 
 export type { Customer };

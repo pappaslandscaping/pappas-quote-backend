@@ -45,7 +45,7 @@ async function login(page: Page) {
 
   await expect(page).toHaveURL(/\/$/);
   await expect(
-    page.getByRole("heading", { name: "Daily Brief" })
+    page.getByRole("heading", { name: "Command Center" })
   ).toBeVisible();
 }
 

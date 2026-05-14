@@ -5,12 +5,16 @@ import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  backendUrl,
   fetchCustomer,
+  fetchCustomer360,
   fetchCustomerInvoices,
   fetchCustomerJobs,
   fetchCustomerProperties,
-  fetchCustomerQuotes
+  fetchCustomerQuotes,
+  generateAiFollowup
 } from "../../../lib/api";
+import type { Customer360, Customer360TimelineItem } from "../../../types/customer360";
 import type {
   Customer,
   CustomerInvoice,
@@ -65,6 +69,12 @@ export default function CustomerDetailPage() {
   const [jobs, setJobs] = useState<CustomerJob[]>([]);
   const [quotes, setQuotes] = useState<CustomerQuote[]>([]);
   const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
+  const [customer360, setCustomer360] = useState<Customer360 | null>(null);
+  const [customer360Loading, setCustomer360Loading] = useState(true);
+  const [customer360Error, setCustomer360Error] = useState("");
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftError, setDraftError] = useState("");
+  const [draftText, setDraftText] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -95,7 +105,23 @@ export default function CustomerDetailPage() {
       }
     }
 
+    async function loadCustomer360() {
+      setCustomer360Loading(true);
+      setCustomer360Error("");
+      try {
+        const nextCustomer360 = await fetchCustomer360(customerId);
+        setCustomer360(nextCustomer360);
+      } catch (err) {
+        setCustomer360Error(
+          err instanceof Error ? err.message : "Failed to load Customer 360"
+        );
+      } finally {
+        setCustomer360Loading(false);
+      }
+    }
+
     void loadCustomer();
+    void loadCustomer360();
   }, [customerId]);
 
   const balance = useMemo(
@@ -134,6 +160,43 @@ export default function CustomerDetailPage() {
 
   const name = customerName(customer);
   const phone = customer.phone || customer.mobile || "";
+
+  async function prepareCustomerFollowup() {
+    if (!customer) return;
+
+    setDraftLoading(true);
+    setDraftError("");
+    setDraftText("");
+
+    try {
+      const response = await generateAiFollowup({
+        type: "customer_followup",
+        instructions:
+          "Draft a concise, helpful customer follow-up for a landscaping admin. Do not send anything.",
+        customer: {
+          id: customer.id,
+          name,
+          email: customer.email,
+          phone
+        },
+        customer360: {
+          summary: customer360?.summary,
+          recent_timeline: customer360?.timeline.slice(0, 8)
+        }
+      });
+      const text =
+        response.draft ||
+        response.text ||
+        response.message ||
+        response.response ||
+        "Draft prepared. Review before sending.";
+      setDraftText(String(text));
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : "Failed to prepare draft");
+    } finally {
+      setDraftLoading(false);
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -183,6 +246,14 @@ export default function CustomerDetailPage() {
 
       <div className="detail-grid">
         <section className="detail-main">
+          <DetailCard title="Customer 360 Timeline">
+            <Customer360Panel
+              data={customer360}
+              loading={customer360Loading}
+              error={customer360Error}
+            />
+          </DetailCard>
+
           <DetailCard title="Contact Information">
             <InfoRow label="Phone">
               {phone && phoneHref(phone) ? <a href={phoneHref(phone)}>{phone}</a> : "-"}
@@ -238,6 +309,39 @@ export default function CustomerDetailPage() {
         </section>
 
         <aside className="detail-side">
+          <DetailCard title="AI Customer Summary">
+            <div className="ai-customer-summary">
+              <p>
+                This summary uses live Customer 360 records. Draft actions are
+                manual review only and do not send email, SMS, payments, or job updates.
+              </p>
+              {customer360 ? (
+                <div className="summary-metrics compact">
+                  <Metric label="Quotes" value={customer360.summary.quote_count} />
+                  <Metric label="Jobs" value={customer360.summary.job_count} />
+                  <Metric label="Invoices" value={customer360.summary.invoice_count} />
+                  <Metric label="Open Balance" value={currency(customer360.summary.open_invoice_balance)} />
+                </div>
+              ) : null}
+              <button
+                className="quick-action-btn primary"
+                type="button"
+                onClick={prepareCustomerFollowup}
+                disabled={draftLoading || customer360Loading}
+              >
+                {draftLoading ? "Preparing draft..." : "Prepare follow-up draft"}
+              </button>
+              {draftError ? <div className="inline-error">{draftError}</div> : null}
+              {draftText ? (
+                <div className="draft-preview">
+                  <strong>Draft preview</strong>
+                  <p>{draftText}</p>
+                  <span>No email or SMS was sent.</span>
+                </div>
+              ) : null}
+            </div>
+          </DetailCard>
+
           <DetailCard title="Billing">
             <InfoRow label="Open Balance">{currency(balance)}</InfoRow>
             <InfoRow label="Invoices">{invoices.length}</InfoRow>
@@ -268,13 +372,13 @@ export default function CustomerDetailPage() {
 
           <DetailCard title="Quick Actions">
             <div className="quick-actions-list">
-              <a className="quick-action-btn primary" href={`http://localhost:3000/quote-generator.html?customer_id=${customer.id}`}>
+              <a className="quick-action-btn primary" href={backendUrl(`/quote-generator.html?customer_id=${customer.id}`)}>
                 Create Quote
               </a>
-              <a className="quick-action-btn" href={`http://localhost:3000/new-job.html?customer_id=${customer.id}`}>
+              <a className="quick-action-btn" href={backendUrl(`/new-job.html?customer_id=${customer.id}`)}>
                 Create Job
               </a>
-              <a className="quick-action-btn" href={`http://localhost:3000/new-invoice.html?customer_id=${customer.id}`}>
+              <a className="quick-action-btn" href={backendUrl(`/new-invoice.html?customer_id=${customer.id}`)}>
                 Create Invoice
               </a>
             </div>
@@ -282,6 +386,100 @@ export default function CustomerDetailPage() {
         </aside>
       </div>
     </main>
+  );
+}
+
+function Customer360Panel({
+  data,
+  loading,
+  error
+}: {
+  data: Customer360 | null;
+  loading: boolean;
+  error: string;
+}) {
+  if (loading) {
+    return <div className="empty-list">Loading Customer 360...</div>;
+  }
+
+  if (error) {
+    return <div className="inline-error">Customer 360 failed: {error}</div>;
+  }
+
+  if (!data) {
+    return <div className="empty-list">No Customer 360 data found.</div>;
+  }
+
+  return (
+    <div className="customer-360">
+      <div className="source-strip" aria-label="Customer 360 sources">
+        {Object.entries(data.sources).map(([key, source]) => (
+          <span className={`source-pill source-${source.status}`} key={key}>
+            {key}: {source.status}
+          </span>
+        ))}
+      </div>
+
+      <div className="summary-metrics">
+        <Metric label="Quotes" value={data.summary.quote_count} />
+        <Metric label="Jobs" value={data.summary.job_count} />
+        <Metric label="Invoices" value={data.summary.invoice_count} />
+        <Metric label="Payments" value={data.summary.payment_count} />
+        <Metric label="Messages" value={data.summary.communication_count} />
+        <Metric label="Notes" value={data.summary.note_count} />
+      </div>
+
+      {data.timeline.length ? (
+        <div className="customer-timeline">
+          {data.timeline.slice(0, 20).map((item) => (
+            <TimelineRow item={item} key={item.id} />
+          ))}
+        </div>
+      ) : (
+        <div className="empty-list">No customer activity found yet.</div>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="metric-tile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TimelineRow({ item }: { item: Customer360TimelineItem }) {
+  const content = (
+    <>
+      <div className="timeline-row-main">
+        <span className={`type-chip type-${item.type}`}>{item.type}</span>
+        <strong>{item.title}</strong>
+      </div>
+      {item.detail ? <p>{item.detail}</p> : null}
+      <div className="timeline-row-meta">
+        <span>{formatDate(item.date)}</span>
+        {item.status ? <span>{item.status}</span> : null}
+        {item.amount ? <span>{currency(item.amount)}</span> : null}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="timeline-row">
+      <div className="timeline-dot" aria-hidden="true" />
+      <div className="timeline-row-body">
+        {item.href ? (
+          <Link href={item.href} className="timeline-link">
+            {content}
+          </Link>
+        ) : (
+          content
+        )}
+      </div>
+    </div>
   );
 }
 

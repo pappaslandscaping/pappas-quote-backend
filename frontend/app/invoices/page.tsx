@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { fetchInvoices, fetchInvoiceStats } from "../../lib/api";
+import { backendUrl, fetchInvoices, fetchInvoiceStats } from "../../lib/api";
 import type { Invoice, InvoiceStats } from "../../types/invoices";
 
 const STATUS_OPTIONS = [
@@ -125,13 +125,13 @@ export default function InvoicesPage() {
           <p className="muted">Receivables, payment status, and collections workflow.</p>
         </div>
         <div className="topbar-actions">
-          <a className="btn btn-secondary" href="http://localhost:3000/payments.html">
+          <a className="btn btn-secondary" href={backendUrl("/payments.html")}>
             Payments
           </a>
-          <a className="btn btn-secondary" href="http://localhost:3000/reports.html">
+          <a className="btn btn-secondary" href={backendUrl("/reports.html")}>
             Reports
           </a>
-          <a className="btn btn-primary" href="http://localhost:3000/new-invoice.html">
+          <a className="btn btn-primary" href={backendUrl("/new-invoice.html")}>
             New Invoice
           </a>
         </div>

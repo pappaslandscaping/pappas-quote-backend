@@ -517,7 +517,7 @@ export async function fetchCompletedUninvoicedJobs() {
 
 export async function fetchFinanceSummary() {
   const data = await apiFetch<FinanceSummaryResponse>("/api/finance/summary");
-  if (!data.success) {
+  if (data.success === false) {
     throw new Error(data.error || "Failed to load finance summary");
   }
   return data.summary || data;

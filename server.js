@@ -7995,6 +7995,7 @@ app.get('/api/finance/summary', async (req, res) => {
     }
 
     res.json({
+      success: true,
       thisMonth: {
         revenue: revenueSummary.revenue,
         expenses: expensesMonth,

@@ -9,12 +9,14 @@ import {
   fetchFinanceSummary,
   fetchInvoiceStats,
   fetchJobsDashboard,
+  fetchPayments,
   fetchQuoteRequests,
   fetchTodaySummary
 } from "../lib/api";
 import type { ActivityEvent, JobsDashboard, TodaySummary } from "../types/dashboard";
 import type { InvoiceStats } from "../types/invoices";
 import type { Job } from "../types/jobs";
+import type { PaymentRow } from "../types/payments";
 import type { QuoteRequest } from "../types/quotes";
 
 type LoadStatus = "loading" | "success" | "empty" | "error";
@@ -27,7 +29,7 @@ type LoadState<T> = {
 
 type NeedItem = {
   label: string;
-  value: number;
+  value: number | string;
   href: string;
   detail: string;
   tone: "blue" | "amber" | "red" | "green";
@@ -72,12 +74,18 @@ function isNewQuote(quote: QuoteRequest) {
   );
 }
 
+function isTruePaymentToday(payment: PaymentRow) {
+  if (!payment.paid_at) return false;
+  return new Date(payment.paid_at).toDateString() === new Date().toDateString();
+}
+
 export default function HomePage() {
   const [today, setToday] = useState<LoadState<TodaySummary>>(loading());
   const [quotes, setQuotes] = useState<LoadState<QuoteRequest[]>>(loading());
   const [invoices, setInvoices] = useState<LoadState<InvoiceStats>>(loading());
   const [jobs, setJobs] = useState<LoadState<JobsDashboard>>(loading());
   const [uninvoiced, setUninvoiced] = useState<LoadState<Job[]>>(loading());
+  const [payments, setPayments] = useState<LoadState<PaymentRow[]>>(loading());
   const [activity, setActivity] = useState<LoadState<ActivityEvent[]>>(loading());
   const [finance, setFinance] = useState<LoadState<Record<string, unknown>>>(loading());
 
@@ -104,6 +112,14 @@ export default function HomePage() {
     void load(fetchInvoiceStats, setInvoices, () => false);
     void load(fetchJobsDashboard, setJobs, (data) => (data.upcoming || []).length === 0);
     void load(fetchCompletedUninvoicedJobs, setUninvoiced, (data) => data.length === 0);
+    void load(
+      async () => {
+        const response = await fetchPayments({ limit: 100 });
+        return (response.payments || []).filter(isTruePaymentToday);
+      },
+      setPayments,
+      (data) => data.length === 0
+    );
     void load(fetchActivityFeed, setActivity, (data) => data.length === 0);
     void load(fetchFinanceSummary, setFinance, () => false);
 
@@ -139,7 +155,7 @@ export default function HomePage() {
         label: "Overdue invoices",
         value: overdueInvoices,
         href: "/invoices",
-        detail: "Send reminders or check payment status.",
+        detail: "Use paid_at/payment records before treating invoices as paid.",
         tone: "red"
       },
       {
@@ -150,23 +166,29 @@ export default function HomePage() {
         tone: "amber"
       },
       {
-        label: "High-priority follow-ups",
+        label: "Follow-up draft candidates",
         value: followUps,
         href: "/ai",
-        detail: "Use AI drafts for quote or invoice follow-up.",
+        detail: "Prepare draft wording only. Nothing sends automatically.",
         tone: "green"
       }
     ];
   }, [invoices, quotes, uninvoiced]);
+
+  const newLeads = (quotes.data || []).filter(isNewQuote).slice(0, 6);
+  const paymentTotal = (payments.data || []).reduce(
+    (sum, payment) => sum + Number(payment.amount_paid || payment.amount || 0),
+    0
+  );
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
           <p className="eyebrow">YardDesk</p>
-          <h1>Daily Command Center</h1>
+          <h1>Daily Brief</h1>
           <p className="muted">
-            Today&apos;s work, money, and follow-ups from the existing backend APIs.
+            Live work, follow-up, invoice, payment, and schedule signals from the existing backend APIs.
           </p>
         </div>
         <div className="topbar-actions">
@@ -182,7 +204,7 @@ export default function HomePage() {
       <section className="stats-grid stats-grid-five" aria-label="Today">
         <TodayCard label="Jobs today" state={today} value={(data) => data.jobs_today || 0} />
         <TodayCard
-          label="Revenue today"
+          label="Paid today"
           state={today}
           value={(data) => money(data.revenue_today)}
         />
@@ -204,46 +226,141 @@ export default function HomePage() {
       </section>
 
       <section className="dashboard-grid command-grid">
-        <section className="table-card dashboard-panel" aria-label="Needs Attention">
-          <PanelHeader title="Needs Attention" subtitle="Work that can change today's outcome." />
+        <section className="table-card dashboard-panel" aria-label="New leads">
+          <PanelHeader
+            title="New leads"
+            subtitle="New quote/work requests that need first response."
+            states={[quotes]}
+          />
+          <Panel state={quotes} emptyText="No new leads right now.">
+            {() =>
+              newLeads.length ? (
+                <div className="compact-list">
+                  {newLeads.map((quote) => (
+                    <Link className="compact-row" href={`/quotes/${quote.id}`} key={quote.id}>
+                      <div>
+                        <strong>{quote.name || "Quote request"}</strong>
+                        <span>{[quote.package, quote.address, quote.phone].filter(Boolean).join(" - ")}</span>
+                      </div>
+                      <small>{formatFullDate(quote.created_at)}</small>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No new leads right now.</div>
+              )
+            }
+          </Panel>
+        </section>
+
+        <section className="table-card dashboard-panel" aria-label="Follow-ups needed">
+          <PanelHeader
+            title="Follow-ups needed"
+            subtitle="Counts derived from open quote and invoice signals."
+            states={[quotes, invoices, uninvoiced]}
+          />
           <Stateful state={[quotes, invoices, uninvoiced]} emptyText="Nothing urgent right now.">
             <div className="attention-list">
               {needsAttention.map((item) => (
                 <Link className={`attention-item tone-${item.tone}`} href={item.href} key={item.label}>
                   <strong>{item.value}</strong>
                   <span>{item.label}</span>
-                  <small>{item.value > 0 ? item.detail : "No current items."}</small>
+                  <small>{Number(item.value) > 0 ? item.detail : "No current items."}</small>
                 </Link>
               ))}
             </div>
           </Stateful>
         </section>
+      </section>
 
-        <section className="table-card dashboard-panel" aria-label="Quick Actions">
-          <PanelHeader title="Quick Actions" subtitle="Jump straight into common admin work." />
-          <div className="quick-links-grid quick-links-vertical">
-            <Link className="quick-action-btn primary" href="/quotes">
-              New quote
-            </Link>
-            <Link className="quick-action-btn" href="/invoices">
-              View invoices
-            </Link>
-            <Link className="quick-action-btn" href="/jobs">
-              View jobs
-            </Link>
-            <Link className="quick-action-btn" href="/customers">
-              View customers
-            </Link>
-            <Link className="quick-action-btn" href="/ai">
-              Start AI assistant
-            </Link>
-          </div>
+      <section className="dashboard-grid command-grid">
+        <section className="table-card dashboard-panel" aria-label="Completed-uninvoiced jobs">
+          <PanelHeader
+            title="Completed-uninvoiced jobs"
+            subtitle="Completed work that still needs invoice review."
+            states={[uninvoiced]}
+          />
+          <Panel state={uninvoiced} emptyText="No completed-uninvoiced jobs.">
+            {(rows) => (
+              <div className="compact-list">
+                {rows.slice(0, 6).map((job) => (
+                  <Link className="compact-row" href={`/jobs/${job.id}`} key={job.id}>
+                    <div>
+                      <strong>{job.customer_name || "Completed job"}</strong>
+                      <span>{[job.service_type, job.address].filter(Boolean).join(" - ")}</span>
+                    </div>
+                    <small>{money(job.service_price)}</small>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </section>
+
+        <section className="table-card dashboard-panel" aria-label="Overdue invoices">
+          <PanelHeader
+            title="Overdue invoices"
+            subtitle="Invoice stats from the backend, not estimated from activity dates."
+            states={[invoices]}
+          />
+          <Panel state={invoices} emptyText="No overdue invoices.">
+            {(stats) => (
+              <div className="attention-list">
+                <Link className="attention-item tone-red" href="/invoices">
+                  <strong>{stats.overdue || 0}</strong>
+                  <span>Overdue invoices</span>
+                  <small>{money(stats.overdueAmount)} overdue balance</small>
+                </Link>
+                <Link className="attention-item tone-amber" href="/invoices">
+                  <strong>{money(stats.outstanding)}</strong>
+                  <span>Outstanding</span>
+                  <small>{stats.total || 0} invoices in the current list.</small>
+                </Link>
+              </div>
+            )}
+          </Panel>
         </section>
       </section>
 
       <section className="dashboard-grid command-grid">
+        <section className="table-card dashboard-panel" aria-label="True payment activity">
+          <PanelHeader
+            title="True payment activity"
+            subtitle="Shows payments only when a real paid_at timestamp exists for today."
+            states={[payments]}
+          />
+          <Panel state={payments} emptyText="No payments with paid_at recorded today.">
+            {(rows) => (
+              <div className="compact-list">
+                <div className="compact-row">
+                  <div>
+                    <strong>{money(paymentTotal)}</strong>
+                    <span>{rows.length} payment{rows.length === 1 ? "" : "s"} with paid_at today.</span>
+                  </div>
+                </div>
+                {rows.slice(0, 6).map((payment) => (
+                  <Link
+                    className="compact-row"
+                    href={`/invoices/${payment.invoice_id || payment.id}`}
+                    key={payment.id || payment.invoice_id}
+                  >
+                    <div>
+                      <strong>{payment.customer_name || "Payment"}</strong>
+                      <span>{[payment.display_invoice_number || payment.invoice_number, payment.method, payment.status].filter(Boolean).join(" - ")}</span>
+                    </div>
+                    <div className="compact-row-meta">
+                      <strong>{money(payment.amount_paid || payment.amount)}</strong>
+                      <small>{formatFullDate(payment.paid_at)}</small>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </section>
+
         <section className="table-card dashboard-panel" aria-label="Upcoming Work">
-          <PanelHeader title="Upcoming Work" subtitle="Next scheduled jobs." />
+          <PanelHeader title="Upcoming Work" subtitle="Next scheduled jobs." states={[jobs]} />
           <Panel state={jobs} emptyText="No upcoming jobs found.">
             {(data) => (
               <div className="compact-list">
@@ -265,9 +382,11 @@ export default function HomePage() {
             )}
           </Panel>
         </section>
+      </section>
 
+      <section className="dashboard-grid command-grid">
         <section className="table-card dashboard-panel" aria-label="Recent Activity">
-          <PanelHeader title="Recent Activity" subtitle="Latest business activity, not limited to today." />
+          <PanelHeader title="Recent Activity" subtitle="Latest business activity, not limited to today." states={[activity]} />
           <Panel state={activity} emptyText="No recent activity yet.">
             {(events) => (
               <div className="compact-list">
@@ -284,6 +403,27 @@ export default function HomePage() {
             )}
           </Panel>
         </section>
+
+        <section className="table-card dashboard-panel" aria-label="Quick Actions">
+          <PanelHeader title="Quick Actions" subtitle="Jump straight into common admin work." />
+          <div className="quick-links-grid quick-links-vertical">
+            <Link className="quick-action-btn primary" href="/quotes">
+              New quote
+            </Link>
+            <Link className="quick-action-btn" href="/invoices">
+              View invoices
+            </Link>
+            <Link className="quick-action-btn" href="/jobs">
+              View jobs
+            </Link>
+            <Link className="quick-action-btn" href="/customers">
+              View customers
+            </Link>
+            <Link className="quick-action-btn" href="/ai">
+              Draft follow-up
+            </Link>
+          </div>
+        </section>
       </section>
 
       <section className="table-card dashboard-panel" aria-label="API Health">
@@ -294,6 +434,7 @@ export default function HomePage() {
           <HealthRow label="Invoices" state={invoices} />
           <HealthRow label="Scheduling/Jobs" state={jobs} />
           <HealthRow label="Completed-uninvoiced" state={uninvoiced} />
+          <HealthRow label="True payments" state={payments} />
           <HealthRow label="Finance" state={finance} />
           <HealthRow label="Activity" state={activity} />
         </div>
@@ -323,8 +464,8 @@ function TodayCard({
       : state.status === "error"
         ? state.error || "API failed"
         : Number(cardValue) === 0
-          ? "Nothing to show"
-          : "Loaded";
+          ? "Empty"
+          : "Live";
 
   return (
     <div className={`stat-card dashboard-stat ${state.status === "error" ? "has-error" : ""}`}>
@@ -336,13 +477,22 @@ function TodayCard({
   );
 }
 
-function PanelHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function PanelHeader({
+  title,
+  subtitle,
+  states
+}: {
+  title: string;
+  subtitle: string;
+  states?: Array<LoadState<unknown>>;
+}) {
   return (
     <div className="table-toolbar">
       <div>
         <h2>{title}</h2>
         <p>{subtitle}</p>
       </div>
+      {states ? <SourceBadge states={states} /> : null}
     </div>
   );
 }
@@ -390,6 +540,23 @@ function Stateful({
       {children}
     </>
   );
+}
+
+function SourceBadge({ states }: { states: Array<LoadState<unknown>> }) {
+  const failed = states.some((state) => state.status === "error");
+  const loadingSource = states.some((state) => state.status === "loading");
+  const empty = states.every((state) => state.status === "empty");
+  const text = failed ? "error" : loadingSource ? "loading" : empty ? "empty" : "live";
+  const className =
+    failed
+      ? "status-pill status-cancelled"
+      : loadingSource
+        ? "status-pill status-pending"
+        : empty
+          ? "status-pill status-draft"
+          : "status-pill status-completed";
+
+  return <span className={className}>{text}</span>;
 }
 
 function HealthRow({ label, state }: { label: string; state: LoadState<unknown> }) {

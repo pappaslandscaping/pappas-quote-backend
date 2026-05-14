@@ -85,9 +85,9 @@ export default function AiPage() {
       <header className="topbar">
         <div>
           <p className="eyebrow">AI</p>
-          <h1>CopilotCRM Assistant</h1>
+          <h1>CopilotCRM Intelligence</h1>
           <p className="muted">
-            Live CopilotCRM signals and prepared drafts only. Nothing sends automatically.
+            Live CopilotCRM signals, honest recommendations, and prepared drafts only. Nothing sends automatically.
           </p>
         </div>
       </header>
@@ -129,24 +129,30 @@ export default function AiPage() {
       </section>
 
       <section className="dashboard-grid command-grid">
-        <section className="table-card dashboard-panel" aria-label="Not live yet">
+        <section className="table-card dashboard-panel" aria-label="AI scope">
           <div className="table-toolbar">
             <div>
-              <h2>Not live yet</h2>
-              <p>These old local AI stats are hidden until we have real CopilotCRM endpoints for them.</p>
+              <h2>What is AI here</h2>
+              <p>Only the draft generator is generative AI. The other panels are live CopilotCRM business signals.</p>
             </div>
           </div>
           <div className="compact-list">
             <div className="compact-row">
               <div>
-                <strong>Churn risk</strong>
-                <span>Needs live Copilot service history and customer activity before it should be trusted.</span>
+                <strong>Generative AI drafts</strong>
+                <span>Creates follow-up wording from the context you provide. You review before anything is sent.</span>
               </div>
             </div>
             <div className="compact-row">
               <div>
-                <strong>Revenue forecast</strong>
-                <span>Use collected revenue and live route/work request data for now. Forecasts should not be shown as hard stats.</span>
+                <strong>Live signal panels</strong>
+                <span>Work requests, route activity, collected revenue, and request sources come from CopilotCRM-backed APIs.</span>
+              </div>
+            </div>
+            <div className="compact-row">
+              <div>
+                <strong>No automatic actions</strong>
+                <span>No emails, texts, payment actions, tax transfers, or job changes run without a manual click and review.</span>
               </div>
             </div>
           </div>

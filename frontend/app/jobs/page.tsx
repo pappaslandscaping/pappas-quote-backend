@@ -114,7 +114,7 @@ export default function JobsPage() {
 
   useEffect(() => {
     let active = true;
-    const targetDate = date || new Date().toISOString().slice(0, 10);
+    const targetDate = date || todayKey();
 
     async function load<T>(
       request: () => Promise<T>,
@@ -186,16 +186,30 @@ export default function JobsPage() {
     });
     return Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [routeJobs]);
+  const routeWorkload = useMemo(
+    () =>
+      jobsByCrew.map(([crew, crewJobs]) => ({
+        crew,
+        count: crewJobs.length,
+        completed: crewJobs.filter((job) => ["completed", "done"].includes(String(job.status || "").toLowerCase())).length,
+        pending: crewJobs.filter((job) => {
+          const status = String(job.status || "pending").toLowerCase();
+          return !["completed", "done", "skipped", "cancelled", "canceled"].includes(status);
+        }).length,
+        minutes: crewJobs.reduce((sum, job) => sum + Number(job.estimated_duration || 30), 0)
+      })),
+    [jobsByCrew]
+  );
   const blockers = useMemo(
     () =>
-      jobs.filter(
+      routeJobs.filter(
         (job) =>
           !job.address ||
-          !job.crew_assigned ||
           !job.service_type ||
+          job.hold_from_dispatch ||
           String(job.status || "").toLowerCase().includes("blocked")
       ),
-    [jobs]
+    [routeJobs]
   );
 
   return (
@@ -233,11 +247,14 @@ export default function JobsPage() {
             <p>{targetDate} route cards grouped by crew. Source: {routeSource}.</p>
           </div>
           <div className="workflow-actions">
+            <input
+              aria-label="Route date"
+              type="date"
+              value={dateInputValue(targetDate)}
+              onChange={(event) => setDate(event.target.value)}
+            />
             <button className="quick-action-btn" type="button" disabled>
-              Rain delay placeholder
-            </button>
-            <button className="quick-action-btn" type="button" disabled>
-              Notify crew placeholder
+              Rain delay draft
             </button>
           </div>
         </div>
@@ -293,20 +310,35 @@ export default function JobsPage() {
       </section>
 
       <section className="dashboard-grid command-grid">
-        <OperationsPanel title="Crew Readiness" state={crewAvailability} emptyText="No crew workload found for this date.">
-          {(rows) => (
+        <section className="table-card dashboard-panel" aria-label="Crew Readiness">
+          <div className="table-toolbar">
+            <div>
+              <h2>Crew Readiness</h2>
+              <p>Built from today&apos;s visible route.</p>
+            </div>
+          </div>
+          {routeWorkload.length ? (
             <div className="compact-list">
-              {rows.slice(0, 6).map((crew, index) => (
-                <div className="compact-row" key={String(crew.crew_name || index)}>
+              {routeWorkload.map((crew) => (
+                <div className="compact-row" key={crew.crew}>
                   <div>
-                    <strong>{String(crew.crew_name || "Unassigned")}</strong>
-                    <span>{String(crew.job_count || 0)} jobs - {String(crew.total_hours || 0)} hours</span>
+                    <strong>{crew.crew}</strong>
+                    <span>
+                      {crew.count} jobs - {crew.completed} completed - {crew.pending} pending
+                    </span>
                   </div>
+                  <small>{Math.round(crew.minutes / 60 * 10) / 10} hrs</small>
                 </div>
               ))}
             </div>
+          ) : crewAvailability.status === "loading" ? (
+            <div className="state-block">Loading</div>
+          ) : crewAvailability.status === "error" ? (
+            <div className="state-block error">API failed: {crewAvailability.error}</div>
+          ) : (
+            <div className="empty-state">No crew workload found for this date.</div>
           )}
-        </OperationsPanel>
+        </section>
 
         <OperationsPanel title="Completed Not Invoiced" state={completedUninvoiced} emptyText="No completed-uninvoiced jobs.">
           {(rows) => (
@@ -330,25 +362,25 @@ export default function JobsPage() {
           <div className="table-toolbar">
             <div>
               <h2>Missing Info / Blockers</h2>
-              <p>Jobs needing cleanup before a crew can execute confidently.</p>
+              <p>Only flags issues on today&apos;s visible route.</p>
             </div>
           </div>
           {blockers.length ? (
             <div className="compact-list">
               {blockers.slice(0, 8).map((job) => (
-                <Link className="compact-row" href={`/jobs/${job.id}`} key={job.id}>
+                <div className="compact-row" key={job.id}>
                   <div>
                     <strong>{job.customer_name || "Unknown customer"}</strong>
                     <span>
                       {[
                         !job.address ? "missing address" : null,
-                        !job.crew_assigned ? "missing crew" : null,
                         !job.service_type ? "missing service" : null,
+                        job.hold_from_dispatch ? "held from dispatch" : null,
                         job.status
                       ].filter(Boolean).join(" - ")}
                     </span>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (
@@ -356,28 +388,37 @@ export default function JobsPage() {
           )}
         </section>
 
-        <OperationsPanel title="Copilot Live Jobs" state={liveJobs} emptyText="No live Copilot jobs available.">
-          {(rows) => (
-            <div className="compact-list">
-              {rows.slice(0, 6).map((job) => (
-                <div className="compact-row" key={job.id || `${job.customer_name}-${job.job_date}`}>
-                  <div>
-                    <strong>{job.customer_name || "Live job"}</strong>
-                    <span>{job.service_type || job.address || "Copilot job"}</span>
-                  </div>
-                  <small>{job.crew_assigned || job.status || "Live"}</small>
-                </div>
-              ))}
+        <section className="table-card dashboard-panel" aria-label="Route source">
+          <div className="table-toolbar">
+            <div>
+              <h2>Route Source</h2>
+              <p>Where today&apos;s board is coming from.</p>
             </div>
-          )}
-        </OperationsPanel>
+          </div>
+          <div className="compact-list">
+            <div className="compact-row">
+              <div>
+                <strong>{routeSource}</strong>
+                <span>{targetDate} - {routeSummary.total} visible route jobs</span>
+              </div>
+              <small>{liveJobs.status === "error" ? "Error" : liveRouteJobs.length ? "Live" : "Fallback"}</small>
+            </div>
+          </div>
+        </section>
       </section>
 
-      <section className="table-card">
+      <details className="table-card disclosure-card">
+        <summary>
+          <span>
+            <strong>All Scheduled Jobs</strong>
+            <small>{jobs.length} visible from the local schedule table</small>
+          </span>
+          <span>Open</span>
+        </summary>
         <div className="table-toolbar">
           <div>
-            <h2>Jobs</h2>
-            <p>{jobs.length} visible</p>
+            <h2>Scheduled Job Archive</h2>
+            <p>Use this for search and cleanup. Today&apos;s route board above uses {routeSource}.</p>
           </div>
           <div className="filters">
             <input
@@ -480,7 +521,7 @@ export default function JobsPage() {
             </table>
           </div>
         )}
-      </section>
+      </details>
     </main>
   );
 }

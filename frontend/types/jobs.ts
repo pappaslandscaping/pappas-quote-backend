@@ -14,6 +14,7 @@ export type Job = {
   status?: string | null;
   is_read_only?: boolean | null;
   freshness_source?: string | null;
+  hold_from_dispatch?: boolean | null;
   route_order?: number | null;
   estimated_duration?: number | string | null;
   crew_assigned?: string | null;

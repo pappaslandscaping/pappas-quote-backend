@@ -37,6 +37,7 @@ async function openJobs(page: Page) {
   await page.goto("/jobs");
   await expect(page.getByRole("heading", { name: "Crew Schedule", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Crew Schedule", exact: true })).toBeVisible();
+  await page.getByText("All Scheduled Jobs").click();
   await expect(page.getByRole("table")).toBeVisible();
   await expect(page.locator("tbody tr").first()).toBeVisible();
 }
@@ -115,7 +116,7 @@ test.describe("React jobs workflow", () => {
       await route.fulfill({ contentType: "application/json", json: { success: true, stages: { scheduled: [{ id: 10 }] } } });
     });
     await page.route("**/api/copilot/live-jobs?**", async (route) => {
-      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: "live-12", customer_name: "Live Customer", service_type: "Mowing", crew_assigned: "North", service_date: "2026-05-14", is_read_only: true }] } });
+      await route.fulfill({ contentType: "application/json", json: { success: true, jobs: [{ id: "live-12", customer_name: "Live Customer", service_type: "Mowing", crew_assigned: "North", address: "123 Live St", service_date: "2026-05-14", is_read_only: true }] } });
     });
 
     await seedSession(page);
@@ -125,8 +126,7 @@ test.describe("React jobs workflow", () => {
     await expect(page.getByRole("region", { name: "Crew schedule summary" })).toContainText("Today's route");
     await expect(page.getByRole("region", { name: "Crew Readiness" })).toContainText("North");
     await expect(page.getByRole("region", { name: "Completed Not Invoiced" })).toContainText("Grace");
-    await expect(page.getByRole("region", { name: "Missing info and blockers" })).toContainText("Ada");
-    await expect(page.getByRole("region", { name: "Missing info and blockers" })).toContainText("missing address");
-    await expect(page.getByRole("region", { name: "Copilot Live Jobs" })).toContainText("Live Customer");
+    await expect(page.getByRole("region", { name: "Missing info and blockers" })).toContainText("No obvious blockers found.");
+    await expect(page.getByRole("region", { name: "Route source" })).toContainText("Live CopilotCRM route");
   });
 });

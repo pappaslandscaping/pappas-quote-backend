@@ -24,6 +24,77 @@ module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serve
     }
   }
 
+  function normalizeQuoteQuestions(body, fullName, servicesArray) {
+    const existing = body.questions && typeof body.questions === 'object' && !Array.isArray(body.questions)
+      ? { ...body.questions }
+      : {};
+    const smsConsent = existing.smsConsent && typeof existing.smsConsent === 'object' && !Array.isArray(existing.smsConsent)
+      ? { ...existing.smsConsent }
+      : {};
+
+    const copyIfPresent = (target, source) => {
+      if (body[source] !== undefined && body[source] !== null && body[source] !== '') {
+        existing[target] = body[source];
+      }
+    };
+
+    copyIfPresent('city', 'city');
+    copyIfPresent('propertyType', 'propertyType');
+    copyIfPresent('gate', 'gate');
+    copyIfPresent('dogs', 'dogs');
+    copyIfPresent('lawnHeight', 'lawnHeight');
+    copyIfPresent('contactMethod', 'contactMethod');
+    copyIfPresent('startTime', 'startTime');
+    copyIfPresent('backyardAccess', 'backyardAccess');
+
+    if (body.package !== undefined && body.package !== null && body.package !== '') {
+      existing.selectedPackage = body.package;
+    }
+    if (servicesArray) {
+      existing.selectedServices = servicesArray;
+    }
+    if (body.notes !== undefined && body.notes !== null && body.notes !== '') {
+      existing.notes = body.notes;
+    }
+
+    if (body.consentTransactional !== undefined) smsConsent.transactional = body.consentTransactional === true || body.consentTransactional === 'yes';
+    if (body.consentMarketing !== undefined) smsConsent.marketing = body.consentMarketing === true || body.consentMarketing === 'yes';
+    if (body.consentTerms !== undefined) smsConsent.termsAccepted = body.consentTerms === true || body.consentTerms === 'yes';
+    if (Object.keys(smsConsent).length > 0) existing.smsConsent = smsConsent;
+
+    if (fullName) existing.customerName = existing.customerName || fullName;
+
+    return existing;
+  }
+
+  function formatBooleanAnswer(value) {
+    if (value === true || value === 'true' || value === 'yes') return 'Yes';
+    if (value === false || value === 'false' || value === 'no') return 'No';
+    return '';
+  }
+
+  function buildQuoteQuestionEmailRows(questions) {
+    const smsConsent = questions.smsConsent || questions.sms_consent || {};
+    const rows = [
+      ['City', questions.city],
+      ['Property Type', questions.propertyType || questions.property_type],
+      ['Gate', questions.gate],
+      ['Dogs', questions.dogs],
+      ['Lawn over 6 inches', questions.lawnHeight || questions.overgrown],
+      ['Preferred Contact Method', questions.contactMethod || questions.contact_method],
+      ['Start Timing', questions.startTime || questions.start_timing],
+      ['Backyard Access', questions.backyardAccess || questions.backyard_access],
+      ['Transactional SMS Consent', formatBooleanAnswer(smsConsent.transactional)],
+      ['Marketing SMS Consent', formatBooleanAnswer(smsConsent.marketing)],
+      ['Terms Accepted', formatBooleanAnswer(smsConsent.termsAccepted)],
+    ];
+
+    return rows
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`)
+      .join('');
+  }
+
 // ═══════════════════════════════════════════════════════════
 // SENT QUOTES ENDPOINTS - For tracking quotes sent to customers
 // ═══════════════════════════════════════════════════════════
@@ -173,7 +244,49 @@ router.get('/api/sent-quotes/:id', async (req, res) => {
 
 router.post('/api/quotes', async (req, res) => {
   try {
-    const { name, firstName, lastName, email, phone, address, package: pkg, services, questions, notes, source, recaptchaToken } = req.body;
+    const { name, firstName, lastName, email, phone, address, package: pkg, services, notes, source, recaptchaToken } = req.body;
+    const quoteTestMode = process.env.QUOTE_TEST_MODE === 'true';
+    const fullName = name || ((firstName || '') + ' ' + (lastName || '')).trim();
+    let servicesArray = null;
+    if (services) {
+      if (Array.isArray(services)) servicesArray = services;
+      else if (typeof services === 'string' && services.length > 0) servicesArray = services.split(',').map(s => s.trim());
+    }
+    const normalizedQuestions = normalizeQuoteQuestions(req.body, fullName, servicesArray);
+
+    if (quoteTestMode) {
+      if (!fullName || !email || !phone || !address) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+      }
+
+      const testQuote = {
+        id: `test_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        name: fullName,
+        email,
+        phone,
+        address,
+        package: pkg || null,
+        services: servicesArray,
+        questions: normalizedQuestions,
+        notes: notes || null,
+        source: source || null,
+        status: 'test',
+        created_at: new Date().toISOString(),
+      };
+
+      console.log('[QUOTE_TEST_MODE] Test quote submission received. No database insert, email, or external integrations will run.', {
+        id: testQuote.id,
+        name: fullName,
+        email,
+        phone,
+        address,
+        package: pkg || null,
+        services: servicesArray,
+        source: source || null,
+      });
+
+      return res.json({ success: true, testMode: true, quote: testQuote });
+    }
     
     // Verify reCAPTCHA if token provided
     if (recaptchaToken) {
@@ -189,24 +302,19 @@ router.post('/api/quotes', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Security verification required' });
     }
     
-    const fullName = name || ((firstName || '') + ' ' + (lastName || '')).trim();
     if (!fullName || !email || !phone || !address) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
-    let servicesArray = null;
-    if (services) {
-      if (Array.isArray(services)) servicesArray = services;
-      else if (typeof services === 'string' && services.length > 0) servicesArray = services.split(',').map(s => s.trim());
-    }
     const result = await pool.query(
       `INSERT INTO quotes (name, email, phone, address, package, services, questions, notes, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [fullName, email, phone, address, pkg || null, servicesArray, JSON.stringify(questions || {}), notes || null, source || null]
+      [fullName, email, phone, address, pkg || null, servicesArray, JSON.stringify(normalizedQuestions), notes || null, source || null]
     );
     res.json({ success: true, quote: result.rows[0] });
     
     // Send detailed notification email
     const servicesText = servicesArray ? servicesArray.join(', ') : 'None specified';
     const dashboardUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/quote-requests.html';
+    const questionRows = buildQuoteQuestionEmailRows(normalizedQuestions);
     
     const emailHtml = `
       <h2>New Quote Request</h2>
@@ -217,6 +325,7 @@ router.post('/api/quotes', async (req, res) => {
       <p><strong>Package:</strong> ${escapeHtml(pkg || 'None')}</p>
       <p><strong>Services:</strong> ${escapeHtml(servicesText)}</p>
       <p><strong>Notes:</strong> ${escapeHtml(notes || 'No notes provided')}</p>
+      ${questionRows ? `<h3>Quote Form Answers</h3>${questionRows}` : ''}
       <br>
       <p><a href="${dashboardUrl}">View Dashboard</a></p>
     `;

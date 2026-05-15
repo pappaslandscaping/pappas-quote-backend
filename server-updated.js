@@ -45,6 +45,9 @@ const COMPANY_NAME = 'Pappas & Co. Landscaping';
 // TwilioConnect App Config
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_API_KEY_SID = process.env.TWILIO_API_KEY_SID;
+const TWILIO_API_KEY_SECRET = process.env.TWILIO_API_KEY_SECRET;
+const TWILIO_TWIML_APP_SID = process.env.TWILIO_TWIML_APP_SID;
 // Multi-number support - both business lines
 const TWILIO_NUMBERS = {
   '4408867318': '+14408867318',  // Primary (440) 886-7318
@@ -53,6 +56,27 @@ const TWILIO_NUMBERS = {
 const TWILIO_PHONE_NUMBER = '+14408867318'; // Default for backward compatibility
 const JWT_SECRET = process.env.JWT_SECRET || 'pappas-twilioconnect-secret-2026';
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
+function getMissingVoiceConfig() {
+  return [
+    ['TWILIO_ACCOUNT_SID', TWILIO_ACCOUNT_SID],
+    ['TWILIO_API_KEY_SID', TWILIO_API_KEY_SID],
+    ['TWILIO_API_KEY_SECRET', TWILIO_API_KEY_SECRET],
+    ['TWILIO_TWIML_APP_SID', TWILIO_TWIML_APP_SID],
+  ]
+    .filter(([, value]) => !value || !String(value).trim())
+    .map(([key]) => key);
+}
+
+function requireVoiceConfig(res) {
+  const missing = getMissingVoiceConfig();
+  if (missing.length === 0) return true;
+  res.status(503).json({
+    message: 'Twilio Voice SDK is not configured on this server',
+    missing,
+  });
+  return false;
+}
 
 // ═══════════════════════════════════════════════════════════
 // SERVICE DESCRIPTIONS - From CopilotCRM for quotes and customer-facing displays
@@ -3785,6 +3809,82 @@ app.post('/api/app/login', async (req, res) => {
   if (!user) return res.status(401).json({ message: 'Invalid email or password' });
   const token = jwt.sign({ email: user.email, name: user.name, phone: user.phone }, JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, name: user.name, email: user.email });
+});
+
+// Twilio Voice SDK access token for app-based calling
+app.get('/api/app/voice/token', authenticateToken, (req, res) => {
+  if (!requireVoiceConfig(res)) return;
+
+  try {
+    const identity = String(req.user.email || req.user.id || '').trim().toLowerCase();
+    if (!identity) {
+      return res.status(400).json({ message: 'Authenticated user is missing a voice identity' });
+    }
+
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
+    const accessToken = new AccessToken(
+      TWILIO_ACCOUNT_SID,
+      TWILIO_API_KEY_SID,
+      TWILIO_API_KEY_SECRET,
+      { identity }
+    );
+
+    accessToken.addGrant(new VoiceGrant({
+      outgoingApplicationSid: TWILIO_TWIML_APP_SID,
+      incomingAllow: true,
+    }));
+
+    res.json({
+      token: accessToken.toJwt(),
+      identity,
+      ttlSeconds: 3600,
+    });
+  } catch (error) {
+    console.error('Voice token error:', error);
+    res.status(500).json({ message: 'Failed to create voice token' });
+  }
+});
+
+// Lightweight diagnostics sink from the mobile app's Voice SDK lifecycle
+app.post('/api/app/voice/debug', authenticateToken, async (req, res) => {
+  const status = String(req.body?.status || 'unknown').slice(0, 80);
+  const error = req.body?.error ? String(req.body.error).slice(0, 500) : '';
+  const to = req.body?.to ? String(req.body.to).slice(0, 40) : '';
+
+  console.log('TwilioConnect voice diagnostic:', {
+    email: req.user.email,
+    status,
+    to,
+    error,
+    at: new Date().toISOString(),
+  });
+
+  res.json({ success: true });
+});
+
+// TwiML App webhook used by Twilio Voice SDK outgoing calls
+app.all('/api/voice/twiml', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const to = String(req.body.To || req.query.To || req.body.to || req.query.to || '').trim();
+  const requestedFrom = String(req.body.From || req.query.From || req.body.from || req.query.from || '').trim();
+  const normalizedFrom = requestedFrom.replace(/\D/g, '').slice(-10);
+  const callerId = TWILIO_NUMBERS[normalizedFrom] || TWILIO_PHONE_NUMBER;
+
+  if (!to) {
+    twiml.say({ voice: 'alice' }, 'No destination specified.');
+  } else {
+    const dial = twiml.dial({ callerId });
+    if (to.startsWith('client:')) {
+      dial.client(to.replace(/^client:/, ''));
+    } else {
+      dial.number(to);
+    }
+  }
+
+  res.type('text/xml');
+  res.send(twiml.toString());
 });
 
 // Initiate outbound call

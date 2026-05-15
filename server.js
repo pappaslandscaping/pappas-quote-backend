@@ -599,6 +599,7 @@ const PUBLIC_ROUTE_EXACT = new Set([
   '/api/app/calls/status-callback', // Twilio callback
   '/api/app/calls/connect',         // Twilio TwiML connect
   '/api/app/voice/connect',         // Twilio TwiML voice connect
+  '/api/voice/twiml',               // Twilio Voice SDK outgoing TwiML
   '/api/app/calls/hold-music',      // Twilio hold music
   '/api/unsubscribe',               // Customer unsubscribe
   '/api/config/maps-key',           // Public config

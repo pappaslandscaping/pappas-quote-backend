@@ -10385,11 +10385,19 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
 app.all('/api/voice/twiml', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
-  const to = req.body.To || req.query.To;
+  let to = String(req.body.To || req.query.To || '').trim();
+  if (to && !to.startsWith('+') && !to.startsWith('client:')) to = '+' + to;
+
+  const requestedFrom = String(req.body.From || req.query.From || '').trim();
+  const normalizedFrom = requestedFrom.replace(/\D/g, '').slice(-10);
+  const callerId = TWILIO_NUMBERS[normalizedFrom] || TWILIO_PHONE_NUMBER;
 
   if (to) {
     const dial = twiml.dial({
-      callerId: req.body.From || TWILIO_PHONE_NUMBER,
+      callerId,
+      timeout: 30,
+      answerOnBridge: true,
+      ringTone: 'us',
     });
 
     if (to.startsWith('client:')) {

@@ -5,13 +5,71 @@ import { useEffect, useMemo, useState } from "react";
 import {
   fetchCopilotLiveJobs,
   fetchWorkRequests,
-  generateAiFollowup
+  generateAiTemplate
 } from "../../lib/api";
 import type { Job } from "../../types/jobs";
 import type { WorkRequest, WorkRequestsResponse } from "../../types/work-requests";
 
 type LoadStatus = "loading" | "success" | "empty" | "error";
 type LoadState<T> = { status: LoadStatus; data?: T; error?: string };
+
+type AssistantAction = {
+  draftTitle: string;
+  queryKeys: string[];
+  title: string;
+  prompt: string;
+};
+
+const assistantActions: AssistantAction[] = [
+  {
+    draftTitle: "Lead follow-up draft",
+    queryKeys: ["lead", "lead-followup", "email", "text"],
+    title: "Draft follow-up for this lead",
+    prompt: "Draft a concise follow-up for a landscaping lead who requested service but has not responded yet. Ask one clear question and offer the next step."
+  },
+  {
+    draftTitle: "Customer summary draft",
+    queryKeys: ["customer", "summary", "customer-summary"],
+    title: "Summarize this customer",
+    prompt: "Summarize this customer history in plain language: what they asked for, what happened next, what is open, and what I should do before contacting them."
+  },
+  {
+    draftTitle: "Rain delay draft",
+    queryKeys: ["rain-delay", "weather"],
+    title: "Write rain delay text",
+    prompt: "Write a short rain delay text for today's landscaping route. Be specific, apologetic, and include that we will reschedule as soon as conditions allow."
+  },
+  {
+    draftTitle: "Payment reminder draft",
+    queryKeys: ["payment", "payment-reminder", "invoice-reminder"],
+    title: "Write payment reminder",
+    prompt: "Write a polite payment reminder for an overdue landscaping invoice. Keep it firm, helpful, and manual-send only."
+  },
+  {
+    draftTitle: "Spring cleanup campaign draft",
+    queryKeys: ["spring-cleanup", "campaign"],
+    title: "Create spring cleanup campaign",
+    prompt: "Draft spring cleanup campaign copy for existing landscaping customers. Include mulch, bed cleanup, pruning, and weed control."
+  },
+  {
+    draftTitle: "Today’s priorities summary",
+    queryKeys: ["priorities", "daily-brief"],
+    title: "Explain today's priorities",
+    prompt: "Explain today's priorities for a landscaping admin: leads needing response, crew route issues, work completed not billed, and overdue money."
+  },
+  {
+    draftTitle: "Mulch / weed control candidate summary",
+    queryKeys: ["mulch", "weed-control", "candidates"],
+    title: "Find mulch / weed control candidates",
+    prompt: "Describe how to identify customers likely to need mulch or weed control based on recent jobs, season, and customer history. Do not change data."
+  },
+  {
+    draftTitle: "Voicemail task draft",
+    queryKeys: ["voicemail", "voicemail-task"],
+    title: "Turn voicemail into task",
+    prompt: "Turn this voicemail into a clear office task with customer, request, urgency, and suggested reply."
+  }
+];
 
 const loading = <T,>(): LoadState<T> => ({ status: "loading" });
 
@@ -21,6 +79,47 @@ function today() {
 
 function shortError(error: unknown) {
   return error instanceof Error ? error.message : "API request failed";
+}
+
+function textFromBlocks(blocks: unknown) {
+  if (!Array.isArray(blocks)) return "";
+  return blocks
+    .map((block) => {
+      if (!block || typeof block !== "object") return "";
+      const item = block as Record<string, unknown>;
+      if (Array.isArray(item.content)) return item.content.join("\n");
+      return [item.content, item.url].filter(Boolean).join(" ");
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function readableDraft(response: Record<string, unknown>) {
+  const result = response.result;
+  const payload =
+    result && typeof result === "object" && !Array.isArray(result)
+      ? (result as Record<string, unknown>)
+      : response;
+  const campaign =
+    payload.campaign && typeof payload.campaign === "object" && !Array.isArray(payload.campaign)
+      ? (payload.campaign as Record<string, unknown>)
+      : null;
+  const source = campaign || payload;
+  const subject = typeof source.subject === "string" ? `Subject: ${source.subject}` : "";
+  const sms = typeof source.sms === "string" ? `SMS: ${source.sms}` : "";
+  const message = typeof source.message === "string" ? source.message : "";
+  const blocks = textFromBlocks(source.blocks);
+  const name = campaign && typeof campaign.name === "string" ? campaign.name : "";
+  const description = campaign && typeof campaign.description === "string" ? campaign.description : "";
+  const text =
+    typeof payload.draft === "string" ? payload.draft :
+    typeof payload.text === "string" ? payload.text :
+    typeof payload.response === "string" ? payload.response :
+    "";
+
+  return [name, description, subject, blocks, sms, text, message]
+    .filter(Boolean)
+    .join("\n\n") || "Draft prepared. Review before sending.";
 }
 
 export default function AiPage() {
@@ -57,68 +156,38 @@ export default function AiPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const requestedDraft = new URLSearchParams(window.location.search).get("draft");
+    if (!requestedDraft) return;
+    const action = assistantActions.find((item) => item.queryKeys.includes(requestedDraft));
+    if (!action) return;
+    setSelectedDraftTitle(action.draftTitle);
+    setDraftPrompt(action.prompt);
+    setDraft(null);
+  }, []);
+
   const requests = workRequests.data?.requests || [];
   const draftCandidates = useMemo(
     () => requests.filter((request) => request.customer_name || request.work_requested).slice(0, 6),
     [requests]
   );
 
-  const assistantActions = [
-    {
-      draftTitle: "Lead follow-up draft",
-      title: "Draft follow-up for this lead",
-      prompt: "Draft a concise follow-up for a landscaping lead who requested service but has not responded yet. Ask one clear question and offer the next step."
-    },
-    {
-      draftTitle: "Customer summary draft",
-      title: "Summarize this customer",
-      prompt: "Summarize this customer history in plain language: what they asked for, what happened next, what is open, and what I should do before contacting them."
-    },
-    {
-      draftTitle: "Rain delay draft",
-      title: "Write rain delay text",
-      prompt: "Write a short rain delay text for today's landscaping route. Be specific, apologetic, and include that we will reschedule as soon as conditions allow."
-    },
-    {
-      draftTitle: "Payment reminder draft",
-      title: "Write payment reminder",
-      prompt: "Write a polite payment reminder for an overdue landscaping invoice. Keep it firm, helpful, and manual-send only."
-    },
-    {
-      draftTitle: "Spring cleanup campaign draft",
-      title: "Create spring cleanup campaign",
-      prompt: "Draft spring cleanup campaign copy for existing landscaping customers. Include mulch, bed cleanup, pruning, and weed control."
-    },
-    {
-      draftTitle: "Today’s priorities summary",
-      title: "Explain today's priorities",
-      prompt: "Explain today's priorities for a landscaping admin: leads needing response, crew route issues, work completed not billed, and overdue money."
-    },
-    {
-      draftTitle: "Mulch / weed control candidate summary",
-      title: "Find mulch / weed control candidates",
-      prompt: "Describe how to identify customers likely to need mulch or weed control based on recent jobs, season, and customer history. Do not change data."
-    },
-    {
-      draftTitle: "Voicemail task draft",
-      title: "Turn voicemail into task",
-      prompt: "Turn this voicemail into a clear office task with customer, request, urgency, and suggested reply."
-    }
-  ];
-
   async function prepareFollowup() {
+    const prompt = draftPrompt || "Draft a polite follow-up for a CopilotCRM work request.";
     setDraft({ status: "loading" });
     try {
-      const response = await generateAiFollowup({
-        context: draftPrompt || "Draft a polite follow-up for a CopilotCRM work request."
+      const response = await generateAiTemplate({
+        type: "assistant_draft",
+        action: selectedDraftTitle,
+        prompt: [
+          `Prepare this ${selectedDraftTitle.toLowerCase()} for Pappas & Co. Landscaping.`,
+          "Return clear draft text for manual review only.",
+          "Do not say anything was sent, scheduled, charged, deleted, or updated.",
+          "",
+          prompt
+        ].join("\n")
       });
-      const text =
-        response.draft ||
-        response.text ||
-        response.message ||
-        response.response ||
-        "Draft prepared. Review before sending.";
-      setDraft({ status: "success", data: text });
+      setDraft({ status: "success", data: readableDraft(response) });
     } catch (error) {
       setDraft({ status: "error", error: shortError(error) });
     }

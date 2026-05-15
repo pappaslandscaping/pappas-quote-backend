@@ -451,6 +451,8 @@ const endpoints = [
   ['GET', '/api/app/calls/recent'],
   ['GET', '/api/app/twilio-numbers'],
   ['GET', '/api/app/voice/token'],
+  ['POST', '/api/app/voice/debug', { status: 'smoke_test' }],
+  ['POST', '/api/voice/twiml', { To: FAKE_PHONE }],
   ['POST', '/api/app/devices/register', {}],
   // SKIP: sends real SMS — ['POST', '/api/app/messages/send', { to: FAKE_PHONE, body: '' }],
 ];

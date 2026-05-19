@@ -4062,12 +4062,15 @@ app.all('/api/app/voice/connect', (req, res) => {
   const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
   let to = (req.body.To || req.query.To || '').trim();
   if (to && !to.startsWith('+')) to = '+' + to;
+  const requestedFrom = String(req.body.From || req.query.From || '').trim();
+  const normalizedFrom = requestedFrom.replace(/\D/g, '').slice(-10);
+  const callerId = TWILIO_NUMBERS[normalizedFrom] || TWILIO_PHONE_NUMBER;
 
-  console.log('📞 Voice connect TwiML for:', to);
+  console.log('📞 Voice connect TwiML for:', to, 'from:', callerId);
 
   if (to) {
     const dial = twiml.dial({
-      callerId: TWILIO_PHONE_NUMBER,
+      callerId,
       timeout: 30,
       answerOnBridge: true,
       ringTone: 'us',

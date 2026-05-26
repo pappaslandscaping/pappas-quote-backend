@@ -741,10 +741,12 @@ const TWILIO_PHONE_NUMBER = '+14408867318'; // Default for backward compatibilit
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) { console.error('❌ FATAL: JWT_SECRET environment variable is required'); process.exit(1); }
 let twilioClient = null;
+let twilioAppMessagingClient = null;
 try {
   if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
     twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     disableClientSmsCreate(twilioClient);
+    twilioAppMessagingClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     console.log('Twilio client initialized');
   } else {
     console.log('Twilio credentials not set - SMS/voice features disabled');
@@ -5597,6 +5599,10 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
     return res.status(400).json({ message: 'Phone number and message body or image required' });
   }
 
+  if (!twilioAppMessagingClient) {
+    return res.status(503).json({ success: false, error: 'Twilio messaging is not configured.' });
+  }
+
   try {
     // Format recipient phone number
     let formattedTo = to.replace(/\D/g, '');
@@ -5623,7 +5629,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
       messageOptions.mediaUrl = mediaUrls;
     }
 
-    const twilioMessage = await twilioClient.messages.create(messageOptions);
+    const twilioMessage = await twilioAppMessagingClient.messages.create(messageOptions);
 
     // Find customer
     const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
@@ -5665,7 +5671,12 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Send SMS error:', error);
-    serverError(res, error, 'Failed to send message');
+    res.status(502).json({
+      success: false,
+      error: error.message || 'Failed to send message',
+      code: error.code || null,
+      moreInfo: error.moreInfo || null,
+    });
   }
 });
 

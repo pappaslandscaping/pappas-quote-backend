@@ -8,6 +8,7 @@ const multer = require('multer');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
+const { CLIENT_COMMUNICATIONS_DISABLED_MESSAGE } = require('./lib/client-communications');
 const OAuthClient = require('intuit-oauth');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
@@ -690,6 +691,43 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFICATION_EMAIL = process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
 const FROM_EMAIL = 'Pappas & Co. Landscaping <hello@pappaslandscaping.com>';
 const COMPANY_NAME = 'Pappas & Co. Landscaping';
+const ADMIN_EMAILS = new Set([
+  'hello@pappaslandscaping.com',
+  String(NOTIFICATION_EMAIL || '').trim().toLowerCase(),
+].filter(Boolean));
+
+function normalizeEmailAddress(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  const match = raw.match(/<([^>]+)>/);
+  return (match ? match[1] : raw).trim();
+}
+
+function isAdminRecipient(to) {
+  const recipients = Array.isArray(to) ? to : [to];
+  return recipients.some((recipient) => ADMIN_EMAILS.has(normalizeEmailAddress(recipient)));
+}
+
+function isAllowedClientEmail(meta = {}) {
+  return meta && meta.type === 'contract';
+}
+
+function isCustomerFacingEmail(to, meta = {}) {
+  if (isAdminRecipient(to)) return false;
+  if (isAllowedClientEmail(meta)) return false;
+  return true;
+}
+
+function disableClientSmsCreate(client) {
+  if (!client?.messages?.create || client.messages.create.__clientCommunicationGuarded) return client;
+  const blockedCreate = async () => {
+    const err = new Error(CLIENT_COMMUNICATIONS_DISABLED_MESSAGE);
+    err.code = 'CLIENT_COMMUNICATIONS_DISABLED';
+    throw err;
+  };
+  blockedCreate.__clientCommunicationGuarded = true;
+  client.messages.create = blockedCreate;
+  return client;
+}
 
 // TwilioConnect App Config
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
@@ -706,6 +744,7 @@ let twilioClient = null;
 try {
   if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
     twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    disableClientSmsCreate(twilioClient);
     console.log('Twilio client initialized');
   } else {
     console.log('Twilio credentials not set - SMS/voice features disabled');
@@ -1149,6 +1188,17 @@ app.get('/api/season-kickoff/track/:token', async (req, res) => {
 
 async function sendEmail(to, subject, html, attachments = null, meta = {}) {
   if (!RESEND_API_KEY) return;
+  if (isCustomerFacingEmail(to, meta)) {
+    console.warn(`Client email blocked: ${subject} -> ${to}. ${CLIENT_COMMUNICATIONS_DISABLED_MESSAGE}`);
+    try {
+      await pool.query(
+        `INSERT INTO email_log (recipient_email, subject, email_type, customer_id, customer_name, invoice_id, quote_id, status, error_message, html_body)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'blocked',$8,$9)`,
+        [to, subject, meta.type || 'general', meta.customer_id || null, meta.customer_name || null, meta.invoice_id || null, meta.quote_id || null, CLIENT_COMMUNICATIONS_DISABLED_MESSAGE, html]
+      );
+    } catch (e) {}
+    return { blocked: true, reason: CLIENT_COMMUNICATIONS_DISABLED_MESSAGE };
+  }
   try {
     const payload = { from: FROM_EMAIL, to: [to], subject, html };
     if (attachments) {
@@ -13372,8 +13422,7 @@ app.post('/api/morning-briefing', authenticateToken, async (req, res) => {
           for (const msg of smsMessages) {
             const body = new URLSearchParams({ To: phone, From: twilioFrom, Body: msg });
             try {
-              const r = await fetch(twilioUrl, { method: 'POST', headers: twilioHeaders, body: body.toString() });
-              allResults.push(await r.json());
+              allResults.push({ error_code: 'CLIENT_COMMUNICATIONS_DISABLED', message: CLIENT_COMMUNICATIONS_DISABLED_MESSAGE });
             } catch (e) {
               allResults.push({ error_code: true, message: e.message });
             }

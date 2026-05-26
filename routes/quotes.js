@@ -7,6 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
+const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 
 module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serverError, authenticateToken, verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS, getServiceDescription, nextCustomerNumber, anthropicClient, ensureQuoteEventsTable: _ensureQuoteEventsTable, generateQuotePDF, emailTemplate }) {
   const router = express.Router();
@@ -532,6 +533,7 @@ router.put('/api/sent-quotes/:id', async (req, res) => {
 
 // POST /api/sent-quotes/:id/send - Send quote via email
 router.post('/api/sent-quotes/:id/send', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const { id } = req.params;
     
@@ -638,6 +640,7 @@ router.post('/api/sent-quotes/:id/send', async (req, res) => {
 
 // POST /api/sent-quotes/:id/send-sms - Send quote via text message
 router.post('/api/sent-quotes/:id/send-sms', authenticateToken, async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const { id } = req.params;
 
@@ -1263,8 +1266,8 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       };
     }
 
-    // Email to customer with contract signed confirmation
-    if (updatedQuote.customer_email) {
+    // Backend client communications are disabled; CopilotCRM remains the customer-facing system.
+    if (false && updatedQuote.customer_email) {
       const firstName = (updatedQuote.customer_name || '').split(' ')[0] || 'there';
       const customerContent = `
         <div style="text-align:center;margin:0 0 28px;">
@@ -1294,6 +1297,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
       `;
       await sendEmail(updatedQuote.customer_email, `You're All Set! Welcome to Pappas & Co. Landscaping`, emailTemplate(customerContent), [contractAttachment], { type: 'welcome', customer_id: updatedQuote.customer_id, customer_name: updatedQuote.customer_name, quote_id: updatedQuote.id });
     }
+    console.log(`Client welcome email skipped for signed contract ${quoteNumber}; backend client communications are disabled.`);
 
     // Email to admin - matches Quote Accepted style
     const adminContent = `
@@ -1443,8 +1447,9 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
               }
             }
 
-            // Step 6: Send customer portal invite email
-            try {
+            // Step 6: Customer portal invites must be sent from CopilotCRM, not YardDesk.
+            console.log('CopilotCRM portal invite skipped; backend client communications are disabled.');
+            if (false) try {
               const portalUrl = 'https://secure.copilotcrm.com/client/forget?co=5261';
               const customerFirstName = (updatedQuote.customer_name || '').split(' ')[0] || 'there';
               const portalEmailContent = `

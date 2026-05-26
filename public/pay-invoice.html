@@ -497,11 +497,13 @@
                 }
 
                 invoiceData = invoiceResult.invoice;
+                invoiceData.backend_payments_enabled = config.paymentsEnabled === true;
+                invoiceData.backend_payments_disabled_reason = config.disabledReason || 'Online payments are handled through CopilotCRM.';
                 feeConfig = invoiceData.processing_fee_config || null;
                 renderInvoice(invoiceData);
 
                 // Initialize Square if invoice is not fully paid
-                if (invoiceData.status !== 'paid') {
+                if (invoiceData.status !== 'paid' && invoiceData.backend_payments_enabled) {
                     await initSquare(config.appId, config.locationId);
                 }
             } catch (err) {
@@ -528,6 +530,7 @@
             const lineItems = typeof invoice.line_items === 'string' ? JSON.parse(invoice.line_items) : (invoice.line_items || []);
             const invoiceNumber = invoice.invoice_number || `INV-${invoice.id}`;
             const isPaid = invoice.status === 'paid';
+            const paymentsEnabled = invoice.backend_payments_enabled === true;
             const isOverdue = !isPaid && invoice.due_date && new Date(invoice.due_date) < new Date();
             const balanceDue = parseFloat(invoice.balance_due || invoice.total || 0);
 
@@ -623,7 +626,16 @@
                         </a>
                     </div>
 
-                    ${!isPaid ? `
+                    ${!isPaid && !paymentsEnabled ? `
+                        <div class="payment-section">
+                            <h3>Payment</h3>
+                            <p style="font-size:14px;line-height:1.6;color:#475569;margin:0;">
+                                ${invoice.backend_payments_disabled_reason || 'Online payments are handled through CopilotCRM.'}
+                            </p>
+                        </div>
+                    ` : ''}
+
+                    ${!isPaid && paymentsEnabled ? `
                         <div class="payment-section" id="paymentSection">
                             <h3>Make a Payment</h3>
 
@@ -763,7 +775,7 @@
                 </div>
             `;
 
-            document.getElementById('poweredBy').style.display = 'block';
+            document.getElementById('poweredBy').style.display = paymentsEnabled ? 'block' : 'none';
         }
 
         function switchTab(tab) {

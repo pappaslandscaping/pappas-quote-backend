@@ -77,7 +77,7 @@ describe('communications inbox email send route', () => {
     jest.clearAllMocks();
   });
 
-  test('resolves recipient from phone-linked customer context and sends via email log path', async () => {
+  test('blocks backend customer email sends before resolving recipient context', async () => {
     const pool = {
       query: jest.fn().mockResolvedValue({
         rows: [{ id: 42, name: 'Jane Smith', email: 'jane@example.com' }],
@@ -110,28 +110,18 @@ describe('communications inbox email send route', () => {
       },
     });
 
-    expect(pool.query).toHaveBeenCalledWith(
-      expect.stringContaining('SELECT id, name, email, phone, mobile'),
-      ['%4405550100']
-    );
-    expect(emailTemplate).toHaveBeenCalledWith('Thanks for reaching out.<br>We will follow up tomorrow.');
-    expect(sendEmail).toHaveBeenCalledWith(
-      'jane@example.com',
-      'Service follow-up',
-      'WRAPPED:Thanks for reaching out.<br>We will follow up tomorrow.',
-      null,
-      { type: 'communication', customer_id: 42, customer_name: 'Jane Smith' }
-    );
-    expect(res.statusCode).toBe(200);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(emailTemplate).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
     expect(res.body).toMatchObject({
-      success: true,
-      recipient_email: 'jane@example.com',
-      customer: { id: 42, name: 'Jane Smith', email: 'jane@example.com' },
+      success: false,
+      clientCommunicationsDisabled: true,
     });
     expect(serverError).not.toHaveBeenCalled();
   });
 
-  test('fails cleanly when no recipient email can be resolved', async () => {
+  test('blocks backend customer email sends before validating recipient availability', async () => {
     const pool = {
       query: jest.fn().mockResolvedValue({ rows: [{ id: 7, name: 'No Email', email: null }] }),
     };
@@ -156,11 +146,8 @@ describe('communications inbox email send route', () => {
       },
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({
-      success: false,
-      error: 'No recipient email available for this contact',
-    });
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ success: false, clientCommunicationsDisabled: true });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });

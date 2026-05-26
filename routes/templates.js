@@ -11,6 +11,7 @@ const {
   isCompiledCopilotTemplateSlug,
   renderCompiledCopilotTemplate
 } = require('../lib/compiled-copilot-templates');
+const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 
 module.exports = function createTemplateRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, serverError, getTemplate, replaceTemplateVars }) {
   const router = express.Router();
@@ -125,6 +126,7 @@ router.post('/api/templates/preview', async (req, res) => {
 });
 
 router.post('/api/templates/send-preview', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const { template_id, slug, subject: directSubject, html_content: directHtml, to, wrapper, options } = req.body;
     const sampleVars = {

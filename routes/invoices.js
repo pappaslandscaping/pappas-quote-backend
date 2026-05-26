@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const { resolveMailAccountSummary } = require('../lib/mail-account-summary');
 const { validate, schemas } = require('../lib/validate');
+const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 const {
   normalizeStoredInvoiceStatus,
   isOutstandingInvoice,
@@ -138,6 +139,8 @@ const COPILOT_TAX_SUMMARY_PERSISTED_READ_SOURCES = [
   LIVE_COPILOT_SOURCE,
   'copilotcrm',
 ];
+const BACKEND_PAYMENT_PROCESSING_ENABLED = false;
+const BACKEND_PAYMENTS_DISABLED_MESSAGE = 'Online payments are handled through CopilotCRM. YardDesk payment processing is disabled.';
 
 function outstandingBalance(inv) {
   const total = parseFloat(inv.total) || 0;
@@ -147,6 +150,13 @@ function outstandingBalance(inv) {
 
 function generateToken() {
   return crypto.randomBytes(24).toString('hex');
+}
+
+function backendPaymentsDisabledResponse(res) {
+  return res.status(403).json({
+    success: false,
+    error: BACKEND_PAYMENTS_DISABLED_MESSAGE,
+  });
 }
 
 function getFirstName(name) {
@@ -2893,59 +2903,75 @@ async function fetchCopilotAccountStanding() {
   return value;
 }
 
-// GET /api/payments - List received payments (paid/partial invoices)
+// GET /api/payments - List true received payment records
 router.get('/api/payments', async (req, res) => {
   try {
     const { search, year, month, limit = 200, offset = 0 } = req.query;
 
     const params = [];
-    const where = ['amount_paid > 0'];
-    let p = 1;
-
-    if (search) {
-      where.push(`(customer_name ILIKE $${p} OR invoice_number ILIKE $${p})`);
-      params.push('%' + search + '%'); p++;
-    }
-    if (year) {
-      where.push(`EXTRACT(YEAR FROM COALESCE(paid_at, updated_at)) = $${p}`);
-      params.push(parseInt(year)); p++;
-    }
-    if (month) {
-      where.push(`EXTRACT(MONTH FROM COALESCE(paid_at, updated_at)) = $${p}`);
-      params.push(parseInt(month)); p++;
-    }
-
-    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
-    params.push(parseInt(limit)); params.push(parseInt(offset));
+    const where = buildPaymentRecordWhere({ search, year, month }, params);
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    params.push(parseInt(limit, 10));
+    params.push(parseInt(offset, 10));
 
     const [result, countResult, monthly] = await Promise.all([
       pool.query(
-        `SELECT id, invoice_number, external_source, external_invoice_id, external_metadata,
-                customer_id, customer_name, customer_email,
-                total, amount_paid, status, paid_at, due_date, created_at, updated_at,
-                COALESCE(paid_at, updated_at, created_at) AS payment_date,
-                qb_invoice_id, payment_token
-         FROM invoices ${whereClause}
-         ORDER BY COALESCE(paid_at, updated_at, created_at) DESC, id DESC
-         LIMIT $${p} OFFSET $${p+1}`,
+        `SELECT
+                p.id AS payment_record_id,
+                p.payment_id,
+                p.invoice_id AS id,
+                p.invoice_id,
+                p.customer_id,
+                p.customer_name,
+                p.amount,
+                p.tip_amount,
+                p.method,
+                p.status,
+                p.details,
+                p.notes,
+                p.paid_at,
+                p.created_at,
+                p.source_date_raw,
+                p.external_source,
+                p.external_payment_key,
+                p.external_metadata,
+                p.imported_at,
+                COALESCE(p.paid_at, p.created_at) AS payment_date,
+                i.invoice_number,
+                i.customer_email,
+                i.total,
+                i.amount_paid,
+                i.due_date,
+                i.qb_invoice_id,
+                i.external_source AS invoice_external_source,
+                i.external_invoice_id
+           FROM payments p
+           LEFT JOIN invoices i ON p.invoice_id = i.id
+           ${whereClause}
+          ORDER BY COALESCE(p.paid_at, p.created_at) DESC, p.id DESC
+          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params
       ),
       pool.query(
-        `SELECT COUNT(*) as cnt, COALESCE(SUM(amount_paid),0) as total_received
-         FROM invoices ${whereClause}`,
+        `SELECT COUNT(*) as cnt, COALESCE(SUM(p.amount),0) as total_received
+           FROM payments p
+           LEFT JOIN invoices i ON p.invoice_id = i.id
+           ${whereClause}`,
         params.slice(0, -2)
       ),
       pool.query(`
-        SELECT to_char(COALESCE(paid_at, updated_at),'YYYY-MM') as month,
-               COUNT(*) as count, SUM(amount_paid) as total
-        FROM invoices
-        WHERE amount_paid > 0 AND COALESCE(paid_at, updated_at) >= NOW() - INTERVAL '12 months'
+        SELECT to_char(COALESCE(paid_at, created_at),'YYYY-MM') as month,
+               COUNT(*) as count, SUM(amount) as total
+        FROM payments
+        WHERE COALESCE(paid_at, created_at) >= NOW() - INTERVAL '12 months'
         GROUP BY month ORDER BY month
       `)
     ]);
 
     const payments = result.rows.map((row) => ({
       ...row,
+      method: String(row.method || '').trim().toLowerCase() || null,
+      status: String(row.status || '').trim().toLowerCase() === 'completed' ? 'paid' : row.status,
       display_invoice_number: getDisplayInvoiceNumberForPaymentRow(row),
     }));
 
@@ -4232,38 +4258,23 @@ router.patch('/api/invoices/:id', async (req, res) => {
 
 // POST /api/invoices/:id/send - Email invoice to customer
 router.post('/api/invoices/:id/send', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const r = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
     const inv = r.rows[0];
     if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
 
-    // Generate payment token if needed
-    let paymentToken = inv.payment_token;
-    if (!paymentToken) {
-      paymentToken = generateToken();
-      await pool.query('UPDATE invoices SET payment_token = $1, payment_token_created_at = CURRENT_TIMESTAMP WHERE id = $2', [paymentToken, inv.id]);
-    }
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
-
     const firstName = (inv.customer_name || '').split(' ')[0] || 'there';
-    const totalFormatted = '$' + parseFloat(inv.total).toFixed(2);
     const content = `
       <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Hi ${firstName},</p>
       <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 16px;">Thank you for allowing <strong>Pappas & Co. Landscaping</strong> to care for your property!</p>
-      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 24px;"><strong>Your latest invoice is ready for review and payment.</strong> You can access your invoice and make an online payment by clicking the secure button below:</p>
-
-      <div style="text-align:center;margin:28px 0 32px;">
-        <a href="${payUrl}" style="display:inline-block;padding:16px 48px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
-          View &amp; Pay Invoice &mdash; ${totalFormatted}
-        </a>
-      </div>
+      <p style="color:#1e293b;font-size:15px;line-height:1.7;margin:0 0 24px;"><strong>Your latest invoice is attached for review.</strong> Online payments are handled through CopilotCRM only.</p>
 
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 24px;">
         <p style="font-weight:700;color:#1e293b;font-size:14px;margin:0 0 12px;">Payment Reminders:</p>
         <ul style="margin:0;padding:0 0 0 20px;color:#475569;font-size:14px;line-height:1.8;">
-          <li><strong>Online Payment:</strong> The fastest and easiest way to pay is directly through the secure invoice link above. We accept <strong>credit/debit cards</strong>, <strong>Apple Pay</strong>, and <strong>bank transfers (ACH)</strong>.</li>
+          <li><strong>Online Payment:</strong> Please use the secure CopilotCRM invoice link.</li>
           <li><strong>Mail a Check:</strong> Checks can be made payable to <strong>Pappas & Co. Landscaping</strong> and mailed to our secure payment box: <strong>PO Box 770057, Lakewood, OH 44107</strong>.</li>
           <li><strong>Zelle Payments:</strong> If you prefer to pay via Zelle, please ensure you are sending funds to: <strong>hello@pappaslandscaping.com</strong>.</li>
         </ul>
@@ -4296,6 +4307,7 @@ router.post('/api/invoices/:id/send', async (req, res) => {
 
 // POST /api/invoices/:id/send-sms - Send invoice via SMS through backend Twilio path
 router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     if (!isTwilioConfigured()) {
       return res.status(400).json({ success: false, error: 'SMS is not configured' });
@@ -4312,9 +4324,6 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
     }
 
-    const paymentToken = await ensureInvoicePaymentToken(pool, invoice);
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const payUrl = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
     const firstName = getFirstName(invoice.customer_name);
     const balance = outstandingBalance(invoice);
     const invoiceNumber = invoice.invoice_number || `#${invoice.id}`;
@@ -4322,7 +4331,7 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
     const smsBody =
       `Hi ${firstName}, this is Tim with Pappas & Co. Landscaping.\n\n` +
       `Your invoice #${invoiceNumber} is ready. Amount due: ${formatMoney(balance)}.\n\n` +
-      `View and pay online:\n${payUrl}\n\n` +
+      `Please pay through the secure CopilotCRM invoice link.\n\n` +
       `Questions? Text me back here or call (440) 886-7318.`;
 
     const twilioMessage = await sendSms({
@@ -4457,9 +4466,11 @@ router.delete('/api/invoices/:id', async (req, res) => {
 // GET /api/pay/config - Public - Square frontend config
 router.get('/api/pay/config', (req, res) => {
   res.json({
-    appId: SQUARE_APP_ID || '',
-    locationId: SQUARE_LOCATION_ID || '',
-    environment: process.env.SQUARE_ENVIRONMENT || 'sandbox'
+    paymentsEnabled: false,
+    disabledReason: BACKEND_PAYMENTS_DISABLED_MESSAGE,
+    appId: '',
+    locationId: '',
+    environment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
   });
 });
 
@@ -4537,6 +4548,8 @@ router.get('/api/pay/:token', async (req, res) => {
 // POST /api/pay/:token/card - Process card/Apple Pay payment
 router.post('/api/pay/:token/card', async (req, res) => {
   try {
+    if (!BACKEND_PAYMENT_PROCESSING_ENABLED) return backendPaymentsDisabledResponse(res);
+
     if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
 
     const { sourceId, verificationToken, save_card } = req.body;
@@ -4713,6 +4726,8 @@ router.post('/api/pay/:token/card', async (req, res) => {
 // POST /api/pay/:token/saved-card - Pay invoice with saved card on file
 router.post('/api/pay/:token/saved-card', async (req, res) => {
   try {
+    if (!BACKEND_PAYMENT_PROCESSING_ENABLED) return backendPaymentsDisabledResponse(res);
+
     if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
     const { card_id } = req.body;
     if (!card_id) return res.status(400).json({ success: false, error: 'card_id required' });
@@ -4818,6 +4833,8 @@ router.post('/api/pay/:token/saved-card', async (req, res) => {
 // POST /api/pay/:token/ach - Process ACH bank transfer
 router.post('/api/pay/:token/ach', async (req, res) => {
   try {
+    if (!BACKEND_PAYMENT_PROCESSING_ENABLED) return backendPaymentsDisabledResponse(res);
+
     if (!squareClient) return res.status(503).json({ success: false, error: 'Square payments not configured' });
 
     const { sourceId } = req.body;
@@ -5098,6 +5115,7 @@ router.post('/api/invoices/:id/record-payment', validate(schemas.recordPayment),
 
 // POST /api/invoices/:id/send-reminder - Send payment reminder email
 router.post('/api/invoices/:id/send-reminder', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const invResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
     if (invResult.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
@@ -5105,21 +5123,12 @@ router.post('/api/invoices/:id/send-reminder', async (req, res) => {
     if (!inv.customer_email) return res.status(400).json({ success: false, error: 'No customer email' });
 
     const balance = parseFloat(inv.total) - parseFloat(inv.amount_paid || 0);
-    const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
-    const payUrl = inv.payment_token ? `${baseUrl}/pay-invoice.html?token=${inv.payment_token}` : '';
 
     const content = `
       <h2 style="color:#2e403d;margin:0 0 16px;">Payment Reminder</h2>
       <p>Hi ${(inv.customer_name || '').split(' ')[0]},</p>
       <p>This is a friendly reminder that your invoice <strong>${inv.invoice_number}</strong> has a balance of <strong>$${balance.toFixed(2)}</strong>${inv.due_date ? ' due by <strong>' + new Date(inv.due_date).toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) + '</strong>' : ''}.</p>
-      ${payUrl ? `
-        <div style="text-align:center;margin:28px 0;">
-          <a href="${payUrl}" style="display:inline-block;padding:16px 40px;background:#2e403d;color:white;border-radius:8px;font-weight:700;font-size:16px;text-decoration:none;">
-            Pay Now — $${balance.toFixed(2)}
-          </a>
-        </div>
-        <p style="text-align:center;font-size:12px;color:#9ca09c;">Secure payment powered by Square</p>
-      ` : ''}
+      <p>Please pay through the secure CopilotCRM invoice link.</p>
       <p>If you've already sent payment, please disregard this reminder.</p>
     `;
     await sendEmail(inv.customer_email, `Reminder: Invoice ${inv.invoice_number} — $${balance.toFixed(2)} due`, emailTemplate(content), null, { type: 'invoice_reminder', customer_id: inv.customer_id, customer_name: inv.customer_name, invoice_id: inv.id });

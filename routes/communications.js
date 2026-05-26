@@ -14,6 +14,7 @@ const {
 const {
   getCopilotLiveJobs,
 } = require('../services/copilot/live-jobs');
+const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -1006,19 +1007,6 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
     };
 
     if (invoice) {
-      let paymentToken = invoice.payment_token;
-      if (!paymentToken) {
-        paymentToken = generateToken();
-        await pool.query(
-          `UPDATE invoices
-              SET payment_token = $1,
-                  payment_token_created_at = COALESCE(payment_token_created_at, CURRENT_TIMESTAMP),
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2`,
-          [paymentToken, invoice.id]
-        );
-      }
-      const paymentLink = `${baseUrl}/pay-invoice.html?token=${paymentToken}`;
       const total = parseFloat(invoice.total || 0);
       const amountPaid = parseFloat(invoice.amount_paid || 0);
       const balanceDue = Math.max(0, total - amountPaid);
@@ -1027,9 +1015,9 @@ function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithB
       contextVars.amount_paid = formatMoney(invoice.amount_paid || 0);
       contextVars.balance_due = formatMoney(balanceDue);
       contextVars.invoice_due_date = formatDateForTemplate(invoice.due_date);
-      contextVars.payment_link = paymentLink;
-      contextVars.invoice_link = paymentLink;
-      contextVars.invoices_links = paymentLink;
+      contextVars.payment_link = '';
+      contextVars.invoice_link = '';
+      contextVars.invoices_links = '';
     }
 
     if (quote) {
@@ -1326,6 +1314,7 @@ router.get('/api/customers/:customerId/communications', async (req, res) => {
 });
 
 router.post('/api/customers/:customerId/send-message', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   const customerId = parseInt(req.params.customerId, 10);
   const body = String(req.body?.body || '').trim();
 
@@ -1372,6 +1361,7 @@ router.post('/api/customers/:customerId/send-message', async (req, res) => {
 
   // POST /api/copilotcrm/yard-sign/send - Render and send yard sign request emails through Copilot sendMail
   router.post('/api/copilotcrm/yard-sign/send', async (req, res) => {
+    return clientCommunicationsDisabledResponse(res);
     try {
       const { customerIds, emails } = getYardSignSendTargets(req.body);
       const dryRun = req.body.dry_run === true;
@@ -1553,6 +1543,7 @@ router.get('/api/messages', async (req, res) => {
 
 // Send SMS from web dashboard
 router.post('/api/messages/send', validate(schemas.sendMessage), async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   const { to, body } = req.body;
 
   try {
@@ -1588,6 +1579,7 @@ router.post('/api/messages/send', validate(schemas.sendMessage), async (req, res
 });
 
 router.post('/api/messages/send-template', validate(schemas.sendTemplateSms), async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   const {
     slug,
     template_id: templateId,
@@ -1662,6 +1654,7 @@ router.post('/api/messages/send-template', validate(schemas.sendTemplateSms), as
 });
 
 router.post('/api/communications/email/send', validate(schemas.sendOperationalEmail), async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const {
       to,
@@ -2039,6 +2032,7 @@ router.post('/api/broadcasts/preview', async (req, res) => {
 // POST /api/broadcasts/send - Send broadcast email and/or SMS
 // requireAdmin middleware blocks employees at the /api/broadcasts/send mount
 router.post('/api/broadcasts/send', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   // Auth already verified by global middleware
   try {
     const { channel, template_id, sms_body, customer_ids, campaign_id, job_date } = req.body;

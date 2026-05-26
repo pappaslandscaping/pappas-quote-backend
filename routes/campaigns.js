@@ -11,6 +11,7 @@ const {
   isCompiledCopilotTemplateSlug,
   renderCompiledCopilotTemplate
 } = require('../lib/compiled-copilot-templates');
+const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
 
 function buildCampaignCustomerActivityCondition({ liveDateClause, scheduledDateClause }) {
   return `(
@@ -293,6 +294,7 @@ router.delete('/api/campaigns/submissions/:id', async (req, res) => {
 });
 
 router.post('/api/campaigns/:id/send', async (req, res) => {
+  return clientCommunicationsDisabledResponse(res);
   try {
     const { template_id, customer_ids, segment } = req.body;
     if (!template_id) return res.status(400).json({ success: false, error: 'template_id required' });

@@ -333,14 +333,13 @@
                 ? `<span class="badge badge-paid">Paid</span>`
                 : `<span class="badge badge-partial">Partial</span>`;
             const custUrl = p.customer_id ? `customer-detail.html?id=${p.customer_id}` : '#';
-            const copyBtn = p.payment_token
-                ? `<button class="copy-link-btn" onclick="copyPayLink('${p.payment_token}')" title="Copy payment link">Copy Link</button>`
-                : '';
+            const copyBtn = '';
             const invoiceDisplay = getInvoiceDisplay(p);
+            const invoiceUrl = p.invoice_id ? `invoice-detail.html?id=${p.invoice_id}` : '#';
             return `<tr>
                 <td>${date}</td>
                 <td><a href="${custUrl}" class="customer-link">${p.customer_name || '—'}</a></td>
-                <td><a href="invoice-detail.html?id=${p.id}" class="customer-link">${invoiceDisplay}</a></td>
+                <td><a href="${invoiceUrl}" class="customer-link">${invoiceDisplay}</a></td>
                 <td>${methodLabel[p.method] || '<span class="method-badge method-manual">' + (p.method || 'Invoice') + '</span>'}</td>
                 <td class="amount-col">${fmt(p.amount || p.amount_paid)}</td>
                 <td>${badge}</td>
@@ -368,23 +367,6 @@
         }
         // Default to current year
         sel.value = thisYear;
-    }
-
-    // ── COPY PAY LINK ──────────────────────────
-    function copyPayLink(token) {
-        const url = window.location.origin + '/pay-invoice.html?token=' + token;
-        navigator.clipboard.writeText(url).then(() => {
-            showToast('Payment link copied!');
-        }).catch(() => {
-            // Fallback
-            const ta = document.createElement('textarea');
-            ta.value = url;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            showToast('Payment link copied!');
-        });
     }
 
     function showToast(msg) {

@@ -1698,11 +1698,6 @@
             const date = inv.date || inv.created_at || inv.invoice_date;
 
             let payButton = '';
-            if (showPay && inv.payment_token) {
-                payButton = `<a href="/pay-invoice.html?token=${inv.payment_token}" class="pay-btn">Pay Now</a>`;
-            } else if (showPay) {
-                payButton = `<a href="/pay-invoice.html?token=${inv.payment_token || ''}" class="pay-btn">Pay Now</a>`;
-            }
 
             return `
                 <div class="invoice-card">

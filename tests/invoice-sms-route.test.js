@@ -106,7 +106,7 @@ async function invokeRoute(router, path, method, reqOverrides = {}) {
   return res;
 }
 
-it('sends invoice SMS through backend Twilio path and logs the outbound message', async () => {
+it('blocks backend invoice SMS sends', async () => {
   const sent = [];
   const inserts = [];
   const updates = [];
@@ -148,23 +148,15 @@ it('sends invoice SMS through backend Twilio path and logs the outbound message'
     params: { id: '17' },
   });
 
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.success, true);
-  assert.strictEqual(res.body.sid, 'SM123');
-  assert.strictEqual(sent.length, 1);
-  assert.strictEqual(sent[0].to, '(440) 555-0100');
-  assert(sent[0].body.includes('Hi Theresa, this is Tim with Pappas & Co. Landscaping.'));
-  assert(sent[0].body.includes('Your invoice #10528 is ready. Amount due: $48.60.'));
-  assert(sent[0].body.includes('https://app.pappaslandscaping.com/pay-invoice.html?token=paytok123'));
-  assert.strictEqual(inserts.length, 1);
-  assert.strictEqual(inserts[0][0], 'SM123');
-  assert.strictEqual(inserts[0][2], '+14405550100');
-  assert.strictEqual(inserts[0][5], 44);
-  assert.strictEqual(updates.length, 1);
-  assert.strictEqual(updates[0][0], 17);
+  assert.strictEqual(res.statusCode, 403);
+  assert.strictEqual(res.body.success, false);
+  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
+  assert.strictEqual(sent.length, 0);
+  assert.strictEqual(inserts.length, 0);
+  assert.strictEqual(updates.length, 0);
 });
 
-it('returns 400 when no invoice SMS phone number can be resolved', async () => {
+it('blocks invoice SMS before resolving customer phone numbers', async () => {
   const pool = createPool(async (sql) => {
     if (sql === 'SELECT * FROM invoices WHERE id = $1') {
       return {
@@ -191,12 +183,12 @@ it('returns 400 when no invoice SMS phone number can be resolved', async () => {
     params: { id: '18' },
   });
 
-  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(res.statusCode, 403);
   assert.strictEqual(res.body.success, false);
-  assert.strictEqual(res.body.error, 'No phone number on file for this customer');
+  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
 });
 
-it('generates a payment token before sending when the invoice does not have one', async () => {
+it('does not generate payment tokens when backend invoice SMS is blocked', async () => {
   let generatedToken = null;
   let sentBody = null;
   const pool = createPool(async (sql, params) => {
@@ -235,11 +227,9 @@ it('generates a payment token before sending when the invoice does not have one'
     params: { id: '19' },
   });
 
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(typeof generatedToken, 'string');
-  assert.strictEqual(generatedToken.length, 48);
-  assert(sentBody.includes(`pay-invoice.html?token=${generatedToken}`));
-  assert(sentBody.includes('Amount due: $100.00.'));
+  assert.strictEqual(res.statusCode, 403);
+  assert.strictEqual(generatedToken, null);
+  assert.strictEqual(sentBody, null);
 });
 
 describe('invoice-sms-route', () => {

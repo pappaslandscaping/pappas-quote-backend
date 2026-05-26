@@ -95,7 +95,7 @@ function createRouter({ pool, getTemplate, twilioCreate } = {}) {
   });
 }
 
-it('sends a backend template SMS with invoice context and generates a payment token when needed', async () => {
+it('blocks backend template SMS sends before generating YardDesk payment links', async () => {
   const sent = [];
   const messageInserts = [];
   let generatedToken = null;
@@ -156,21 +156,15 @@ it('sends a backend template SMS with invoice context and generates a payment to
     body: { slug: 'invoice_sms', invoice_id: 91 },
   });
 
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.success, true);
-  assert.strictEqual(res.body.template, 'invoice_sms');
-  assert.strictEqual(typeof generatedToken, 'string');
-  assert.strictEqual(generatedToken.length, 48);
-  assert.strictEqual(sent.length, 1);
-  assert.strictEqual(sent[0].to, '+14405550100');
-  assert(sent[0].body.includes('Hi Theresa, your invoice #10528 is ready.'));
-  assert(sent[0].body.includes(`pay-invoice.html?token=${generatedToken}`));
-  assert.strictEqual(messageInserts.length, 1);
-  assert.strictEqual(messageInserts[0][0], 'SM123');
-  assert.strictEqual(messageInserts[0][2], '+14405550100');
+  assert.strictEqual(res.statusCode, 403);
+  assert.strictEqual(res.body.success, false);
+  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
+  assert.strictEqual(generatedToken, null);
+  assert.strictEqual(sent.length, 0);
+  assert.strictEqual(messageInserts.length, 0);
 });
 
-it('renders Copilot-style uppercase double-brace tags for quote templates', async () => {
+it('blocks backend quote template SMS sends', async () => {
   const sent = [];
   const pool = {
     async query(sql, params = []) {
@@ -219,14 +213,10 @@ it('renders Copilot-style uppercase double-brace tags for quote templates', asyn
     body: { template_id: 77, quote_id: 12 },
   });
 
-  assert.strictEqual(res.statusCode, 200);
-  assert.strictEqual(res.body.success, true);
-  assert.strictEqual(sent.length, 1);
-  assert.strictEqual(sent[0].to, '+12165550111');
-  assert.strictEqual(
-    sent[0].body,
-    'Hi Jane, your estimate 5678 is ready: https://app.pappaslandscaping.com/sign-quote.html?token=quote-token-abc'
-  );
+  assert.strictEqual(res.statusCode, 403);
+  assert.strictEqual(res.body.success, false);
+  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
+  assert.strictEqual(sent.length, 0);
 });
 
 it('returns 400 when a rendered template has no phone destination', async () => {
@@ -258,9 +248,9 @@ it('returns 400 when a rendered template has no phone destination', async () => 
     body: { slug: 'quote_sms', quote_id: 99 },
   });
 
-  assert.strictEqual(res.statusCode, 400);
+  assert.strictEqual(res.statusCode, 403);
   assert.strictEqual(res.body.success, false);
-  assert.strictEqual(res.body.error, 'No phone number available for this message');
+  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
 });
 
 describe('template-sms-route', () => {

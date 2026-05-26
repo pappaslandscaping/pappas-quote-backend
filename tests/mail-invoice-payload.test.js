@@ -7,7 +7,13 @@ createInvoiceRoutes({
       rows: [{
         id: 2384,
         display_name: 'Superior Industrial',
+        customer_number: '2384',
         address_fingerprint: '3855west150thstreetclevelandoh44111',
+      }, {
+        id: 2385,
+        display_name: 'Monta Demchak',
+        customer_number: '1054031',
+        address_fingerprint: '14015saintjamesavenueclevelandoh44135',
       }],
     }),
   },
@@ -185,6 +191,22 @@ async function runAssertions() {
   assert.strictEqual(matchedPayload.customer_id, 2384);
   assert.strictEqual(matchedPayload.customer_name, 'Superior Industrial');
   assert.strictEqual(matchedPayload.metadata.customer_name, 'Superior Industrial');
+
+  const [copilotCustomerMatchedInvoice] = await attachMailCustomerMatches([superiorIndustrialInvoice({
+    customer_id: null,
+    customer_name: 'Return',
+    customer_address: '6237 Vandemark Rd\nMedina, OH 44256',
+    external_metadata: {
+      customer_name: 'Return',
+      copilot_customer_id: '1054031',
+      property_address: '14015 Saint James Avenue',
+    },
+  })]);
+  const copilotCustomerMatchedPayload = buildMailInvoicePayload(copilotCustomerMatchedInvoice);
+
+  assert.strictEqual(copilotCustomerMatchedPayload.customer_id, 2385);
+  assert.strictEqual(copilotCustomerMatchedPayload.customer_name, 'Monta Demchak');
+  assert.strictEqual(copilotCustomerMatchedPayload.metadata.customer_name, 'Monta Demchak');
 
   const listQuery = buildInvoiceListQuery({
     search: '10300',

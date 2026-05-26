@@ -588,31 +588,50 @@ async function attachMailCustomerMatches(rows) {
     .filter((row) => isPlaceholderMailCustomerName(row.customer_name))
     .map((row) => mailAddressFingerprint(row.customer_address))
     .filter(Boolean))];
-  if (!fingerprints.length) return list;
+  const copilotCustomerIds = [...new Set(list
+    .filter((row) => isPlaceholderMailCustomerName(row.customer_name))
+    .map((row) => parseJsonObject(row.external_metadata || row.metadata).copilot_customer_id)
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+  if (!fingerprints.length && !copilotCustomerIds.length) return list;
 
   const result = await pool.query(
     `SELECT id,
+            customer_number,
             COALESCE(NULLIF(name, ''), NULLIF(customer_company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)), '')) AS display_name,
             regexp_replace(lower(concat_ws(' ', street, street2, city, state, postal_code)), '[^a-z0-9]', '', 'g') AS address_fingerprint
        FROM customers
-      WHERE regexp_replace(lower(concat_ws(' ', street, street2, city, state, postal_code)), '[^a-z0-9]', '', 'g') = ANY($1::text[])`,
-    [fingerprints]
+      WHERE regexp_replace(lower(concat_ws(' ', street, street2, city, state, postal_code)), '[^a-z0-9]', '', 'g') = ANY($1::text[])
+         OR customer_number = ANY($2::text[])`,
+    [fingerprints, copilotCustomerIds]
   );
   const byAddress = new Map();
+  const byCopilotCustomerId = new Map();
   for (const customer of result.rows) {
     const displayName = firstUsableMailCustomerName(customer.display_name);
-    if (!displayName || byAddress.has(customer.address_fingerprint)) continue;
-    byAddress.set(customer.address_fingerprint, {
-      id: customer.id,
-      displayName,
-    });
+    if (!displayName) continue;
+    if (customer.address_fingerprint && !byAddress.has(customer.address_fingerprint)) {
+      byAddress.set(customer.address_fingerprint, {
+        id: customer.id,
+        displayName,
+      });
+    }
+    const customerNumber = String(customer.customer_number || '').trim();
+    if (customerNumber && !byCopilotCustomerId.has(customerNumber)) {
+      byCopilotCustomerId.set(customerNumber, {
+        id: customer.id,
+        displayName,
+      });
+    }
   }
 
   return list.map((row) => {
     if (!isPlaceholderMailCustomerName(row.customer_name)) return row;
-    const match = byAddress.get(mailAddressFingerprint(row.customer_address));
-    if (!match) return row;
     const metadata = parseJsonObject(row.external_metadata || row.metadata);
+    const copilotCustomerId = String(metadata.copilot_customer_id || '').trim();
+    const match = byCopilotCustomerId.get(copilotCustomerId)
+      || byAddress.get(mailAddressFingerprint(row.customer_address));
+    if (!match) return row;
     return {
       ...row,
       customer_id: row.customer_id || match.id,

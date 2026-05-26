@@ -169,6 +169,41 @@ describe('CopilotCRM sync in quote-signing handler', () => {
   });
 });
 
+describe('CopilotCRM accepted-estimate contract webhook', () => {
+  test('public webhook endpoint exists outside the admin /api/copilotcrm gate', () => {
+    expect(quotesCode).toContain("'/api/webhooks/copilotcrm/estimate-accepted'");
+    expect(serverCode).toContain("'/api/webhooks/'");
+  });
+
+  test('webhook endpoint requires a shared secret before sending a contract', () => {
+    const webhookLine = findLine(quotesLines, "'/api/webhooks/copilotcrm/estimate-accepted'");
+    expect(webhookLine).toBeGreaterThan(0);
+    const handlerBlock = quotesLines.slice(webhookLine - 20, webhookLine + 60).join('\n');
+    expect(handlerBlock).toContain('verifyCopilotEstimateAcceptedWebhook');
+    expect(quotesCode).toContain('COPILOTCRM_WEBHOOK_SECRET');
+    expect(handlerBlock).not.toContain('authenticateToken');
+  });
+});
+
+describe('CopilotCRM accepted-estimate payload compatibility', () => {
+  test('accepted-estimate handler only requires customer_name and estimate_number', () => {
+    const estimateAcceptedLine = findLine(quotesLines, 'handleCopilotEstimateAccepted');
+    expect(estimateAcceptedLine).toBeGreaterThan(0);
+    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 240).join('\n');
+    expect(handlerBlock).toContain('Missing required fields: customer_name, estimate_number');
+    expect(handlerBlock).not.toContain('Missing required fields: customer_name, estimate_number, estimate_amount');
+  });
+
+  test('accepted-estimate handler fetches missing services and total from CopilotCRM', () => {
+    const estimateAcceptedLine = findLine(quotesLines, 'handleCopilotEstimateAccepted');
+    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 240).join('\n');
+    expect(handlerBlock).toContain('needsCopilotLookup');
+    expect(handlerBlock).toContain('finances/estimates/getEstimatesListAjax');
+    expect(handlerBlock).toContain('finances/estimates/view/');
+    expect(handlerBlock).toContain('Could not parse line items');
+  });
+});
+
 // ─────────────────────────────────────────────
 // GOTCHA 3: Customer name fallback chain
 // (Patterns now span server.js + route files)

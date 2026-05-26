@@ -60,6 +60,7 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 | `GOOGLE_MAPS_API_KEY` | Geocoding, route optimization | Falls back to Nominatim (free, slower) |
 | `COPILOTCRM_USERNAME` | CopilotCRM contract sync | Sync skipped if not set |
 | `COPILOTCRM_PASSWORD` | CopilotCRM auth | Paired with username |
+| `COPILOTCRM_WEBHOOK_SECRET` | Shared secret for CopilotCRM accepted-estimate automation webhook | Webhook returns 503 if not set |
 | `QB_CLIENT_ID` | QuickBooks OAuth | QB sync disabled if not set |
 | `QB_CLIENT_SECRET` | QuickBooks OAuth | Paired with client ID |
 | `QB_REDIRECT_URI` | QuickBooks OAuth callback | Defaults to `http://localhost:3000/api/quickbooks/callback` |

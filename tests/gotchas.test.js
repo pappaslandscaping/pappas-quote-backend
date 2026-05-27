@@ -178,7 +178,7 @@ describe('CopilotCRM accepted-estimate contract webhook', () => {
   test('webhook endpoint requires a shared secret before sending a contract', () => {
     const webhookLine = findLine(quotesLines, "'/api/webhooks/copilotcrm/estimate-accepted'");
     expect(webhookLine).toBeGreaterThan(0);
-    const handlerBlock = quotesLines.slice(webhookLine - 20, webhookLine + 60).join('\n');
+    const handlerBlock = quotesLines.slice(webhookLine - 1, webhookLine + 8).join('\n');
     expect(handlerBlock).toContain('verifyCopilotEstimateAcceptedWebhook');
     expect(quotesCode).toContain('COPILOTCRM_WEBHOOK_SECRET');
     expect(handlerBlock).not.toContain('authenticateToken');
@@ -201,6 +201,21 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(handlerBlock).toContain('finances/estimates/getEstimatesListAjax');
     expect(handlerBlock).toContain('finances/estimates/view/');
     expect(handlerBlock).toContain('Could not parse line items');
+  });
+});
+
+describe('CopilotCRM accepted-estimate auth compatibility', () => {
+  test('original accepted-estimate URL is allowed through global auth for route-level authorization', () => {
+    expect(serverCode).toContain("'POST /api/copilotcrm/estimate-accepted': true");
+    expect(serverCode).toContain("req.path === '/estimate-accepted'");
+  });
+
+  test('original accepted-estimate URL accepts either admin JWT or shared webhook secret', () => {
+    expect(quotesCode).toContain('authorizeEstimateAcceptedRequest');
+    expect(quotesCode).toContain('hasBearerToken');
+    expect(quotesCode).toContain('verifyEstimateAcceptedAdmin');
+    expect(quotesCode).toContain('verifyCopilotEstimateAcceptedWebhook');
+    expect(quotesCode).toContain("router.post('/api/copilotcrm/estimate-accepted', authorizeEstimateAcceptedRequest, handleCopilotEstimateAccepted)");
   });
 });
 

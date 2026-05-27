@@ -617,6 +617,7 @@ const PUBLIC_ROUTE_EXACT = new Set([
 const PUBLIC_ROUTE_METHODS = {
   'POST /api/quotes': true,              // Public quote request form
   'POST /api/campaigns/submissions': true, // Public campaign form
+  'POST /api/copilotcrm/estimate-accepted': true, // CopilotCRM accepted-estimate automation uses its own shared-secret/JWT guard
 };
 
 function isPublicRoute(method, path) {
@@ -680,7 +681,10 @@ app.use('/api/quickbooks', (req, res, next) => {
   return requireAdmin(req, res, next);
 });
 app.use('/api/copilot', requireAdmin);
-app.use('/api/copilotcrm', requireAdmin);
+app.use('/api/copilotcrm', (req, res, next) => {
+  if (req.method === 'POST' && req.path === '/estimate-accepted') return next();
+  return requireAdmin(req, res, next);
+});
 app.use('/api/import-customers', requireAdmin);
 app.use('/api/import-scheduling', requireAdmin);
 app.use('/api/import-properties', requireAdmin);

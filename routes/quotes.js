@@ -1685,6 +1685,28 @@ function verifyCopilotEstimateAcceptedWebhook(req, res) {
   return true;
 }
 
+function hasBearerToken(req) {
+  return /^Bearer\s+\S+/i.test(req.get('authorization') || '');
+}
+
+function verifyEstimateAcceptedAdmin(req, res, next) {
+  authenticateToken(req, res, () => {
+    if (!req.user || !req.user.isAdmin || req.user.isEmployee) {
+      return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
+    return next();
+  });
+}
+
+function authorizeEstimateAcceptedRequest(req, res, next) {
+  if (hasBearerToken(req)) {
+    return verifyEstimateAcceptedAdmin(req, res, next);
+  }
+
+  if (!verifyCopilotEstimateAcceptedWebhook(req, res)) return;
+  return next();
+}
+
 // POST /api/webhooks/copilotcrm/estimate-accepted - Public webhook: CopilotCRM estimate accepted → send YardDesk contract
 router.post('/api/webhooks/copilotcrm/estimate-accepted', async (req, res) => {
   if (!verifyCopilotEstimateAcceptedWebhook(req, res)) return;
@@ -1934,7 +1956,7 @@ async function handleCopilotEstimateAccepted(req, res) {
   }
 }
 
-router.post('/api/copilotcrm/estimate-accepted', authenticateToken, handleCopilotEstimateAccepted);
+router.post('/api/copilotcrm/estimate-accepted', authorizeEstimateAcceptedRequest, handleCopilotEstimateAccepted);
 
 // GET /api/sent-quotes/:id/contract-status - Check contract status
 router.get('/api/sent-quotes/:id/contract-status', async (req, res) => {

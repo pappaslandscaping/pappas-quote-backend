@@ -595,6 +595,7 @@ const PUBLIC_ROUTE_EXACT = new Set([
   '/api/auth/reset-password',
   '/api/services',                  // Public service list
   '/api/sms/webhook',               // Twilio inbound
+  '/api/email/sms-reply',           // Resend inbound email-to-SMS replies
   '/api/app/login',                 // Mobile app login
   '/api/app/voice/debug',           // Twilio debug
   '/api/app/calls/status-callback', // Twilio callback
@@ -740,6 +741,12 @@ const TWILIO_NUMBERS = {
 const TWILIO_PHONE_NUMBER = '+14408867318'; // Default for backward compatibility
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) { console.error('❌ FATAL: JWT_SECRET environment variable is required'); process.exit(1); }
+const SMS_REPLY_DOMAIN = process.env.SMS_REPLY_DOMAIN || process.env.RESEND_INBOUND_DOMAIN || '';
+const SMS_REPLY_SECRET = process.env.SMS_REPLY_SECRET || JWT_SECRET;
+const SMS_REPLY_ALLOWED_SENDERS = (process.env.SMS_REPLY_ALLOWED_SENDERS || `hello@pappaslandscaping.com,${NOTIFICATION_EMAIL}`)
+  .split(',')
+  .map((value) => normalizeEmailAddress(value))
+  .filter(Boolean);
 let twilioClient = null;
 let twilioAppMessagingClient = null;
 try {
@@ -1203,6 +1210,7 @@ async function sendEmail(to, subject, html, attachments = null, meta = {}) {
   }
   try {
     const payload = { from: FROM_EMAIL, to: [to], subject, html };
+    if (meta.replyTo) payload.reply_to = meta.replyTo;
     if (attachments) {
       payload.attachments = attachments;
       console.log(`📎 Email attachments: ${attachments.length} file(s), sizes: ${attachments.map(a => a.content ? Math.round(a.content.length * 0.75 / 1024) + 'KB' : 'unknown').join(', ')}`);
@@ -2899,7 +2907,8 @@ app.use(campaignRoutes);
 // ═══════════════════════════════════════════════════════════
 const communicationRoutes = require('./routes/communications')({
   pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
-  twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars, sendPushToAllDevices,
+  twilioClient, smsReplyClient: twilioAppMessagingClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS, replaceTemplateVars, sendPushToAllDevices,
+  RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET,
 });
 app.use(communicationRoutes);
 

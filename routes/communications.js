@@ -15,6 +15,10 @@ const {
   getCopilotLiveJobs,
 } = require('../services/copilot/live-jobs');
 const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
+const {
+  buildSmsReplyAddress,
+  handleSmsEmailReplyWebhook,
+} = require('../lib/sms-email-replies');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -560,7 +564,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET }) {
   const router = express.Router();
 
   async function refreshBroadcastLiveJobsForDate(jobDate) {
@@ -1756,6 +1760,12 @@ router.post('/api/sms/webhook', async (req, res) => {
     // Send email notification (fire-and-forget)
     const smsDisplayName = customerName !== 'Unknown' ? escapeHtml(customerName) : From;
     const smsTimestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
+    const smsReplyTo = buildSmsReplyAddress({
+      customerPhone: From,
+      businessPhone: To,
+      domain: SMS_REPLY_DOMAIN,
+      secret: SMS_REPLY_SECRET,
+    });
     sendEmail(NOTIFICATION_EMAIL, `💬 New text from ${customerName !== 'Unknown' ? customerName : From}`, emailTemplate(`
       <h2 style="color:#1e293b;margin:0 0 16px;">New Text Message</h2>
       <table style="width:100%;border-collapse:collapse;">
@@ -1766,13 +1776,31 @@ router.post('/api/sms/webhook', async (req, res) => {
       <div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #2e403d;">
         <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(Body || 'No message content')}</p>
       </div>
-    `, { showSignature: false })).catch(err => console.error('SMS notification email error:', err));
+    `, { showSignature: false }), null, { type: 'sms_notification', replyTo: smsReplyTo }).catch(err => console.error('SMS notification email error:', err));
 
     // Send TwiML response (empty - don't auto-reply)
     res.type('text/xml').send('<Response></Response>');
   } catch (error) {
     console.error('SMS webhook error:', error);
     res.type('text/xml').send('<Response></Response>');
+  }
+});
+
+router.post('/api/email/sms-reply', async (req, res) => {
+  try {
+    const result = await handleSmsEmailReplyWebhook({
+      event: req.body,
+      pool,
+      twilioClient: smsReplyClient,
+      resendApiKey: RESEND_API_KEY,
+      replySecret: SMS_REPLY_SECRET,
+      allowedSenders: SMS_REPLY_ALLOWED_SENDERS,
+      fetchImpl,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('SMS email reply webhook error:', error);
+    res.status(500).json({ success: false, error: 'Failed to process email reply' });
   }
 });
 

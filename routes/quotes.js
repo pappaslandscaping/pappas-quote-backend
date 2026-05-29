@@ -1657,6 +1657,34 @@ function getCopilotEstimateAcceptedWebhookSecret() {
   return process.env.COPILOTCRM_WEBHOOK_SECRET || process.env.COPILOT_WEBHOOK_SECRET || '';
 }
 
+function parseCopilotEstimateAcceptedTextPayload(text) {
+  const parsed = {};
+  if (!text) return parsed;
+
+  for (const line of String(text).split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*:\s*(.*?)\s*$/);
+    if (!match) continue;
+    const key = match[1].toLowerCase();
+    parsed[key] = match[2].trim();
+  }
+
+  return parsed;
+}
+
+function getCopilotEstimateAcceptedPayload(req) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const rawText = [
+    body.text,
+    body.body,
+    body.html,
+    body.plain,
+    body.raw,
+    body.email_body,
+    body.message
+  ].filter(Boolean).join('\n');
+  return { ...parseCopilotEstimateAcceptedTextPayload(rawText), ...body };
+}
+
 function verifyCopilotEstimateAcceptedWebhook(req, res) {
   const expectedSecret = getCopilotEstimateAcceptedWebhookSecret();
   if (!expectedSecret) {
@@ -1664,10 +1692,13 @@ function verifyCopilotEstimateAcceptedWebhook(req, res) {
     return false;
   }
 
+  const payload = getCopilotEstimateAcceptedPayload(req);
   const providedSecret =
     req.get('x-copilot-webhook-secret') ||
     req.get('x-webhook-secret') ||
-    req.body?.webhook_secret ||
+    payload.webhook_secret ||
+    payload.WEBHOOK_SECRET ||
+    payload.webhookSecret ||
     req.query?.secret;
 
   if (!providedSecret) {
@@ -1718,7 +1749,29 @@ router.post('/api/webhooks/copilotcrm/estimate-accepted', async (req, res) => {
 // Optional overrides: email, phone, address, services, estimate_amount.
 async function handleCopilotEstimateAccepted(req, res) {
   try {
-    let { customer_name, phone, address, email, estimate_number, estimate_amount, services } = req.body;
+    const payload = getCopilotEstimateAcceptedPayload(req);
+    let {
+      customer_name,
+      CUSTOMER_NAME,
+      phone,
+      PHONE,
+      address,
+      PROPERTY_ADDRESS,
+      email,
+      CUSTOMER_EMAIL,
+      estimate_number,
+      ESTIMATE_NUMBER,
+      estimate_amount,
+      ESTIMATE_AMOUNT,
+      services
+    } = payload;
+    customer_name = customer_name || CUSTOMER_NAME;
+    phone = phone || PHONE;
+    address = address || PROPERTY_ADDRESS;
+    email = email || CUSTOMER_EMAIL;
+    estimate_number = estimate_number || ESTIMATE_NUMBER;
+    estimate_amount = estimate_amount || ESTIMATE_AMOUNT;
+
     if (!customer_name || !estimate_number) {
       return res.status(400).json({ success: false, error: 'Missing required fields: customer_name, estimate_number' });
     }

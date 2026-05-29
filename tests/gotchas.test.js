@@ -202,6 +202,15 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(handlerBlock).toContain('finances/estimates/view/');
     expect(handlerBlock).toContain('Could not parse line items');
   });
+
+  test('accepted-estimate handler accepts legacy email-bridge ZAP DATA payloads', () => {
+    expect(quotesCode).toContain('parseCopilotEstimateAcceptedTextPayload');
+    expect(quotesCode).toContain('CUSTOMER_NAME');
+    expect(quotesCode).toContain('ESTIMATE_NUMBER');
+    expect(quotesCode).toContain('ESTIMATE_AMOUNT');
+    expect(quotesCode).toContain('CUSTOMER_EMAIL');
+    expect(quotesCode).toContain('WEBHOOK_SECRET');
+  });
 });
 
 describe('CopilotCRM accepted-estimate auth compatibility', () => {

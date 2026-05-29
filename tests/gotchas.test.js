@@ -159,6 +159,13 @@ describe('CopilotCRM sync in quote-signing handler', () => {
     expect(handlerBlock).toContain('COPILOTCRM_PASSWORD');
   });
 
+  test('quote routes receive the contract PDF generator dependency', () => {
+    const routeInitLine = findLine(serverLines, "require('./routes/quotes')");
+    const routeInitBlock = serverLines.slice(routeInitLine - 1, routeInitLine + 10).join('\n');
+    expect(quotesCode).toContain('generateContractPDF');
+    expect(routeInitBlock).toContain('generateContractPDF');
+  });
+
   test('CopilotCRM sync failure does not block contract signing', () => {
     const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
     expect(handlerBlock).toContain('copilotSyncResult');

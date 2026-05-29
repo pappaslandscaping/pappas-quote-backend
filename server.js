@@ -2851,7 +2851,7 @@ const quoteRoutes = require('./routes/quotes')({
   verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL,
   LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS,
   getServiceDescription, nextCustomerNumber, anthropicClient,
-  ensureQuoteEventsTable: () => _ensureQuoteEventsTable(pool), generateQuotePDF, emailTemplate,
+  ensureQuoteEventsTable: () => _ensureQuoteEventsTable(pool), generateQuotePDF, generateContractPDF, emailTemplate,
 });
 app.use(quoteRoutes);
 

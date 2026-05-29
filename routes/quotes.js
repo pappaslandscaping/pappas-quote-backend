@@ -1803,6 +1803,30 @@ async function loginToCopilotCrmForEstimates() {
   };
 }
 
+function encodeCopilotFormValue(params, key, value) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      encodeCopilotFormValue(params, `${key}[]`, item);
+    }
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [childKey, childValue] of Object.entries(value)) {
+      encodeCopilotFormValue(params, `${key}[${childKey}]`, childValue);
+    }
+    return;
+  }
+  params.append(key, value == null ? '' : String(value));
+}
+
+function encodeCopilotForm(data) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(data)) {
+    encodeCopilotFormValue(params, key, value);
+  }
+  return params.toString();
+}
+
 function parseRecentAcceptedCopilotEstimateRows(html, maxAgeDays) {
   const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
   const rows = String(html || '').match(/<tr[\s\S]*?<\/tr>/gi) || [];
@@ -2176,11 +2200,17 @@ async function createContractFromAcceptedEstimatePayload(payload) {
 
 async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 10 } = {}) {
   const copilotHeaders = await loginToCopilotCrmForEstimates();
-  const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates', {
-    method: 'GET',
-    headers: copilotHeaders
+  const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+    method: 'POST',
+    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: encodeCopilotForm({
+      postData: { estimate_status: [2] },
+      pagination: '',
+      sort: 'datedesc'
+    })
   });
-  const listHtml = await listRes.text();
+  const listData = await listRes.json().catch(() => null);
+  const listHtml = listData?.html || '';
   const acceptedRows = parseRecentAcceptedCopilotEstimateRows(listHtml, maxAgeDays).slice(0, limit);
   const results = [];
 

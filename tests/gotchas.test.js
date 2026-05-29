@@ -223,6 +223,8 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain("'/api/cron/copilot-accepted-estimates'");
     expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_POLLING');
     expect(quotesCode).toContain('runCopilotAcceptedEstimatePoll');
+    expect(quotesCode).toContain('getEstimatesListAjax');
+    expect(quotesCode).toContain('estimate_status: [2]');
     expect(quotesCode).toContain('contract_exists');
   });
 });

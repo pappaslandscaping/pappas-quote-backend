@@ -1738,6 +1738,8 @@ function isLikelyCopilotCustomerName(value) {
   const name = String(value || '').trim();
   return Boolean(name) &&
     !/[=;{}<>]/.test(name) &&
+    !/^\/\*/.test(name) &&
+    !/\*\/$/.test(name) &&
     !/^window\./i.test(name) &&
     !/\b(function|const|let|var|return|false|true|null|undefined)\b/i.test(name) &&
     !/pappaslandscaping\.com|@/.test(name);

@@ -222,6 +222,7 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
   test('accepted-estimate detail parser rejects Copilot script text as customer names', () => {
     expect(quotesCode).toContain('isLikelyCopilotCustomerName');
     expect(quotesCode).toContain('window\\.');
+    expect(quotesCode).toContain('^\\/\\*');
     expect(quotesCode).toContain("email.split('@')[0]");
   });
 

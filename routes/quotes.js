@@ -68,6 +68,12 @@ module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serve
     return existing;
   }
 
+  function quoteServiceAmount(service) {
+    const raw = service?.amount ?? service?.price ?? service?.total ?? service?.rate ?? 0;
+    const amount = parseFloat(raw);
+    return Number.isFinite(amount) ? amount : 0;
+  }
+
   function formatBooleanAnswer(value) {
     if (value === true || value === 'true' || value === 'yes') return 'Yes';
     if (value === false || value === 'false' || value === 'no') return 'No';
@@ -1036,7 +1042,7 @@ router.post('/api/sent-quotes/:id/sign-contract', async (req, res) => {
       services = typeof updatedQuote.services === 'string' ? JSON.parse(updatedQuote.services) : updatedQuote.services;
       if (Array.isArray(services)) {
         servicesText = services.map(s => s.name || s).join(', ');
-        servicesHtml = services.map(s => `<li style="margin:6px 0;">${s.name} - $${parseFloat(s.amount).toFixed(2)}</li>`).join('');
+        servicesHtml = services.map(s => `<li style="margin:6px 0;">${s.name} - $${quoteServiceAmount(s).toFixed(2)}</li>`).join('');
       } else {
         services = [];
       }

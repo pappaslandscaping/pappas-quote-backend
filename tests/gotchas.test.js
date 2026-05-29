@@ -148,6 +148,14 @@ describe('CopilotCRM sync in quote-signing handler', () => {
     expect(quotesCode).toContain('uploadSignedContractPdfToCopilotEstimate');
   });
 
+  test('signed contract PDFs support Copilot service price fields without NaN amounts', () => {
+    expect(serverCode).toContain('function serviceAmount(service)');
+    expect(serverCode).toContain('service?.amount ?? service?.price');
+    expect(serverCode).toContain('Number.isFinite(amount) ? amount : 0');
+    expect(serverCode).not.toContain('parseFloat(svc.amount).toFixed(2)');
+    expect(quotesCode).toContain('function quoteServiceAmount(service)');
+  });
+
   test('CopilotCRM portal invite email exists inside the handler', () => {
     const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
     expect(handlerBlock).toContain('emails/sendMail');

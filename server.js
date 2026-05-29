@@ -1383,6 +1383,12 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
       
       return currentY;
     }
+
+    function serviceAmount(service) {
+      const raw = service?.amount ?? service?.price ?? service?.total ?? service?.rate ?? 0;
+      const amount = parseFloat(raw);
+      return Number.isFinite(amount) ? amount : 0;
+    }
     
     // ========== PAGE 1 ==========
     let page = addPage();
@@ -1486,14 +1492,14 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
         // Left column: services[row]
         const svc1 = services[row];
         page.drawText(pdfSafe(svc1.name), { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
-        page.drawText(`$${parseFloat(svc1.amount).toFixed(2)}`, { x: margin + svcColWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
+        page.drawText(`$${serviceAmount(svc1).toFixed(2)}`, { x: margin + svcColWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
 
         // Right column: services[row + halfLen]
         const rightIdx = row + halfLen;
         if (rightIdx < services.length) {
           const svc2 = services[rightIdx];
           page.drawText(pdfSafe(svc2.name), { x: margin + svcColWidth + 10, y: y, size: 9, font: helvetica, color: black });
-          page.drawText(`$${parseFloat(svc2.amount).toFixed(2)}`, { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
+          page.drawText(`$${serviceAmount(svc2).toFixed(2)}`, { x: margin + contentWidth - 50, y: y, size: 9, font: helveticaBold, color: black });
         }
 
         page.drawLine({ start: { x: margin + svcColWidth, y: y + 7 }, end: { x: margin + svcColWidth, y: y - svcRowHeight + 15 }, thickness: 1, color: rgb(0.9, 0.9, 0.9) });
@@ -1512,7 +1518,7 @@ async function generateContractPDF(quote, signatureData, signedBy, signedDate) {
 
         const svc = services[i];
         page.drawText(pdfSafe(svc.name), { x: margin + 10, y: y, size: 9, font: helvetica, color: black });
-        page.drawText(`$${parseFloat(svc.amount).toFixed(2)}`, { x: pageWidth - margin - 60, y: y, size: 9, font: helveticaBold, color: black });
+        page.drawText(`$${serviceAmount(svc).toFixed(2)}`, { x: pageWidth - margin - 60, y: y, size: 9, font: helveticaBold, color: black });
         y -= svcRowHeight;
       }
     }

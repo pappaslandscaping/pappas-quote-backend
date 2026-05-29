@@ -1993,6 +1993,21 @@ async function handleCopilotEstimateAccepted(req, res) {
           address = address || detailPayload.address;
           estimate_amount = estimate_amount || detailPayload.estimate_amount;
           services = Array.isArray(services) && services.length > 0 ? services : detailPayload.services;
+
+          if (payload.debug_parse === true || payload.debug_parse === 'true') {
+            const detailLines = htmlToCopilotEstimateText(detailHtml)
+              .split(/\n+/)
+              .map(line => line.trim())
+              .filter(Boolean)
+              .slice(0, 120);
+            return res.json({
+              success: true,
+              debug: true,
+              acceptedEstimate,
+              parsed: detailPayload,
+              detail_lines: detailLines
+            });
+          }
         }
       } catch (lookupError) {
         console.error('CopilotCRM accepted estimate direct lookup failed:', lookupError.message);

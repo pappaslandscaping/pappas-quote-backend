@@ -192,6 +192,7 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 300).join('\n');
     expect(handlerBlock).toContain('Missing required field: estimate_number');
     expect(handlerBlock).toContain('findAcceptedCopilotEstimateByNumber');
+    expect(handlerBlock).toContain('debug_parse');
     expect(handlerBlock).not.toContain('Missing required fields: customer_name, estimate_number, estimate_amount');
   });
 

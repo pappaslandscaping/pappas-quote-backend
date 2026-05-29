@@ -227,6 +227,12 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('estimate_status: [2]');
     expect(quotesCode).toContain('contract_exists');
   });
+
+  test('accepted-estimate handler can resend/update an existing contract explicitly', () => {
+    expect(quotesCode).toContain('force_resend_contract');
+    expect(quotesCode).toContain('Existing contract resent to');
+    expect(quotesCode).toContain('Existing CopilotCRM contract resent');
+  });
 });
 
 describe('CopilotCRM accepted-estimate auth compatibility', () => {

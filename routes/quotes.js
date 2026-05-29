@@ -1941,12 +1941,74 @@ async function handleCopilotEstimateAccepted(req, res) {
 
     // Dedupe check — don't create duplicate contracts for the same estimate
     const existing = await pool.query(
-      `SELECT id, sign_token FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
+      `SELECT * FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
       [estimate_number]
     );
     if (existing.rows.length > 0) {
       const ex = existing.rows[0];
       const contractUrl = `${process.env.BASE_URL || 'https://app.pappaslandscaping.com'}/sign-contract.html?token=${ex.sign_token}`;
+      if (payload.force_resend_contract === true || payload.force_resend_contract === 'true') {
+        const resendEmail = email || ex.customer_email;
+        const resendName = customer_name || ex.customer_name;
+        const resendCustomerId = ex.customer_id || null;
+        const serviceItems = Array.isArray(services) && services.length > 0
+          ? services.map(s => ({ name: s.name, amount: s.price || s.amount, price: s.price || s.amount }))
+          : ex.services;
+        const resendTotal = estimate_amount ? Number(estimate_amount) : Number(ex.total || 0);
+
+        if (!resendEmail) {
+          return res.status(400).json({ success: false, error: 'No customer email available for existing contract resend.' });
+        }
+
+        await pool.query(
+          `UPDATE sent_quotes
+           SET customer_name = COALESCE($1, customer_name),
+               customer_email = COALESCE($2, customer_email),
+               customer_phone = COALESCE($3, customer_phone),
+               customer_address = COALESCE($4, customer_address),
+               services = COALESCE($5, services),
+               subtotal = COALESCE($6, subtotal),
+               total = COALESCE($6, total),
+               sent_at = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $7`,
+          [
+            resendName || null,
+            resendEmail || null,
+            phone || null,
+            address || null,
+            Array.isArray(serviceItems) ? JSON.stringify(serviceItems) : null,
+            Number.isFinite(resendTotal) && resendTotal > 0 ? resendTotal : null,
+            ex.id
+          ]
+        );
+
+        const firstName = escapeHtml((resendName || '').split(' ')[0] || 'there');
+        const emailContent = `
+          <div style="text-align:center;margin:0 0 28px;">
+            <h2 style="font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#2e403d;font-size:24px;font-weight:600;margin:0;">Your Service Agreement is Ready</h2>
+          </div>
+          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Hi ${firstName},</p>
+          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">Thank you for accepting your estimate with Pappas & Co. Landscaping! Before we get started, please take a moment to review and sign your service agreement.</p>
+          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">This agreement covers the scope of work, terms, and pricing for your accepted estimate.</p>
+          <div style="text-align:center;margin:28px 0 20px;">
+            <a href="${contractUrl}" style="background:#c9dd80;color:#2e403d;padding:16px 52px;text-decoration:none;border-radius:50px;font-weight:700;font-size:15px;display:inline-block;letter-spacing:0.3px;">Review & Sign Agreement &#8594;</a>
+          </div>
+          <p style="font-size:14px;color:#94a3b8;text-align:center;margin:0 0 24px;">Or just reply to this email with any questions</p>
+          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0 0 18px;">If you have any questions, feel free to call or text us at <strong>440-886-7318</strong>. We're always happy to help!</p>
+          <p style="font-size:15px;color:#4a5568;line-height:1.8;margin:0;">We look forward to working with you!</p>
+        `;
+
+        await sendEmail(
+          resendEmail,
+          'Your Service Agreement from ' + COMPANY_NAME,
+          emailTemplate(emailContent),
+          null,
+          { type: 'contract', customer_id: resendCustomerId, customer_name: resendName, quote_id: ex.id }
+        );
+        await logQuoteEvent(ex.id, 'resent', 'Existing CopilotCRM contract resent to ' + resendEmail, { email: resendEmail, source: 'copilotcrm', estimate_number });
+        return res.json({ success: true, message: 'Existing contract resent to ' + resendEmail, quote_id: ex.id, contract_url: contractUrl });
+      }
       return res.json({ success: true, message: 'Contract already exists for this estimate', quote_id: ex.id, contract_url: contractUrl });
     }
 

@@ -1764,7 +1764,6 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
 
   const websiteIndex = lines.findIndex(line => /pappaslandscaping\.com/i.test(line));
   if (websiteIndex >= 0) {
-    customerName = customerName || lines.slice(websiteIndex + 1, websiteIndex + 8).find(isLikelyCopilotCustomerName);
     const addressParts = [];
     for (let i = websiteIndex + 2; i < lines.length; i += 1) {
       if (/^Estimate #$/i.test(lines[i]) || /^\d+$/.test(lines[i])) break;

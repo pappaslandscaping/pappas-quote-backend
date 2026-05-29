@@ -224,6 +224,7 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('window\\.');
     expect(quotesCode).toContain('^\\/\\*');
     expect(quotesCode).toContain("email.split('@')[0]");
+    expect(quotesCode).not.toContain('lines.slice(websiteIndex + 1, websiteIndex + 8).find(isLikelyCopilotCustomerName)');
   });
 
   test('accepted-estimate polling backstop exists for missed CopilotCRM automation triggers', () => {

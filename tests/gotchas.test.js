@@ -222,10 +222,16 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
 
   test('accepted-estimate detail parser rejects Copilot script text as customer names', () => {
     expect(quotesCode).toContain('isLikelyCopilotCustomerName');
+    expect(quotesCode).toContain('isLikelyCopilotAddressLine');
     expect(quotesCode).toContain('window\\.');
     expect(quotesCode).toContain('^\\/\\*');
     expect(quotesCode).toContain("email.split('@')[0]");
     expect(quotesCode).not.toContain('lines.slice(websiteIndex + 1, websiteIndex + 8).find(isLikelyCopilotCustomerName)');
+  });
+
+  test('accepted-estimate detail parser supports labeled Copilot totals', () => {
+    expect(quotesCode).toContain('Cost\\/Rate');
+    expect(quotesCode).toContain('Total:\\s*([\\d,]+\\.\\d{2})');
   });
 
   test('accepted-estimate polling backstop exists for missed CopilotCRM automation triggers', () => {

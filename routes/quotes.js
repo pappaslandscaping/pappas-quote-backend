@@ -1722,10 +1722,10 @@ function parseCopilotEstimateServicesFromText(html) {
 
       const numericAfterHeading = lines
         .slice(i + 1, i + 16)
-        .map(line => line.match(/^\$?\s*([\d,]+(?:\.\d{2})?)$/))
+        .map(line => line.match(/^(?:Total|Cost\/Rate)?\s*:?\s*\$?\s*([\d,]+(?:\.\d{2})?)$/i))
         .filter(Boolean)
         .map(match => parseFloat(match[1].replace(/,/g, '')));
-      const price = numericAfterHeading.find(value => value > 0) || 0;
+      const price = numericAfterHeading.length > 0 ? numericAfterHeading[numericAfterHeading.length - 1] : 0;
       parsedServices.push({ name: candidate, price });
       break;
     }
@@ -1745,6 +1745,15 @@ function isLikelyCopilotCustomerName(value) {
     !/pappaslandscaping\.com|@/.test(name);
 }
 
+function isLikelyCopilotAddressLine(value) {
+  const line = String(value || '').trim();
+  return Boolean(line) &&
+    /\d/.test(line) &&
+    !/[{}<>]/.test(line) &&
+    !/^\/\*/.test(line) &&
+    !/\b(import|function|const|let|var|return|window|display|width|height|margin|padding)\b/i.test(line);
+}
+
 function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
   const lines = htmlToCopilotEstimateText(html)
     .split(/\n+/)
@@ -1754,6 +1763,7 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
   const estimateNumber = fallback.estimate_number || text.match(/Estimate #\s*\n?\s*(\d+)/i)?.[1];
   const total = Number(
     (text.match(/Total Estimated Cost\s*\n?\s*([\d,]+\.\d{2})/i)?.[1] ||
+      Array.from(text.matchAll(/Total:\s*([\d,]+\.\d{2})/gi)).pop()?.[1] ||
       text.match(/Total\s*\n?\s*([\d,]+\.\d{2})/i)?.[1] ||
       fallback.estimate_amount ||
       '0').replace(/,/g, '')
@@ -1767,6 +1777,7 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
     const addressParts = [];
     for (let i = websiteIndex + 2; i < lines.length; i += 1) {
       if (/^Estimate #$/i.test(lines[i]) || /^\d+$/.test(lines[i])) break;
+      if (!isLikelyCopilotAddressLine(lines[i])) continue;
       addressParts.push(lines[i]);
       if (addressParts.length >= 2) break;
     }

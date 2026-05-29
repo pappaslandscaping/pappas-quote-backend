@@ -143,7 +143,9 @@ describe('CopilotCRM sync in quote-signing handler', () => {
 
   test('CopilotCRM contract upload exists inside the handler', () => {
     const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('estimates/uploadImage');
+    expect(handlerBlock).toContain('syncSignedQuoteContractToCopilot');
+    expect(quotesCode).toContain('estimates/uploadImage');
+    expect(quotesCode).toContain('uploadSignedContractPdfToCopilotEstimate');
   });
 
   test('CopilotCRM portal invite email exists inside the handler', () => {
@@ -159,13 +161,21 @@ describe('CopilotCRM sync in quote-signing handler', () => {
 
   test('CopilotCRM sync failure does not block contract signing', () => {
     const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
-    expect(handlerBlock).toContain('CopilotCRM sync failed');
-    expect(handlerBlock).toMatch(/copilotErr[\s\S]*?res\.json/);
+    expect(handlerBlock).toContain('copilotSyncResult');
+    expect(handlerBlock).toContain('CopilotCRM signed contract sync failed');
+    expect(handlerBlock).toMatch(/copilotSyncResult[\s\S]*?res\.json/);
   });
 
   test('backfill endpoint also exists in routes/quotes.js', () => {
     const backfillLine = findLine(quotesLines, "'/api/copilotcrm/backfill-contract'");
     expect(backfillLine).toBeGreaterThan(0);
+  });
+
+  test('signed CopilotCRM contract PDF sync can be backfilled with webhook auth', () => {
+    expect(quotesCode).toContain("'/api/webhooks/copilotcrm/signed-contract-sync'");
+    expect(quotesCode).toContain('handleSignedContractCopilotSync');
+    expect(quotesCode).toContain('verifyCopilotEstimateAcceptedWebhook');
+    expect(quotesCode).toContain('contract_signed_at IS NOT NULL');
   });
 });
 
@@ -253,6 +263,7 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_ALERT_EMAIL');
     expect(quotesCode).toContain('copilotAcceptedEstimateFailureAlerts');
     expect(quotesCode).toContain('Could not parse required accepted estimate detail');
+    expect(quotesCode).toContain('signed-contract-');
   });
 
   test('accepted-estimate handler can resend/update an existing contract explicitly', () => {

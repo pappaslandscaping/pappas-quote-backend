@@ -219,6 +219,12 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('parsedServices.push(...parseCopilotEstimateServicesFromText(estDetailHtml))');
   });
 
+  test('accepted-estimate detail parser rejects Copilot script text as customer names', () => {
+    expect(quotesCode).toContain('isLikelyCopilotCustomerName');
+    expect(quotesCode).toContain('window\\.');
+    expect(quotesCode).toContain("email.split('@')[0]");
+  });
+
   test('accepted-estimate polling backstop exists for missed CopilotCRM automation triggers', () => {
     expect(quotesCode).toContain('processRecentAcceptedCopilotEstimates');
     expect(quotesCode).toContain("'/api/cron/copilot-accepted-estimates'");

@@ -1734,6 +1734,15 @@ function parseCopilotEstimateServicesFromText(html) {
   return parsedServices;
 }
 
+function isLikelyCopilotCustomerName(value) {
+  const name = String(value || '').trim();
+  return Boolean(name) &&
+    !/[=;{}<>]/.test(name) &&
+    !/^window\./i.test(name) &&
+    !/\b(function|const|let|var|return|false|true|null|undefined)\b/i.test(name) &&
+    !/pappaslandscaping\.com|@/.test(name);
+}
+
 function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
   const lines = htmlToCopilotEstimateText(html)
     .split(/\n+/)
@@ -1753,7 +1762,7 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
 
   const websiteIndex = lines.findIndex(line => /pappaslandscaping\.com/i.test(line));
   if (websiteIndex >= 0) {
-    customerName = customerName || lines[websiteIndex + 1];
+    customerName = customerName || lines.slice(websiteIndex + 1, websiteIndex + 8).find(isLikelyCopilotCustomerName);
     const addressParts = [];
     for (let i = websiteIndex + 2; i < lines.length; i += 1) {
       if (/^Estimate #$/i.test(lines[i]) || /^\d+$/.test(lines[i])) break;
@@ -1761,6 +1770,10 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
       if (addressParts.length >= 2) break;
     }
     if (!address && addressParts.length > 0) address = addressParts.join(', ');
+  }
+
+  if (!isLikelyCopilotCustomerName(customerName)) {
+    customerName = email ? email.split('@')[0].replace(/[._-]+/g, ' ').trim() : '';
   }
 
   return {

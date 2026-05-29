@@ -1999,7 +1999,7 @@ async function handleCopilotEstimateAccepted(req, res) {
               .split(/\n+/)
               .map(line => line.trim())
               .filter(Boolean)
-              .slice(0, 120);
+              .slice(0, 800);
             return res.json({
               success: true,
               debug: true,

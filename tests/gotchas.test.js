@@ -191,8 +191,8 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(estimateAcceptedLine).toBeGreaterThan(0);
     const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 300).join('\n');
     expect(handlerBlock).toContain('Missing required field: estimate_number');
-    expect(handlerBlock).toContain('findAcceptedCopilotEstimateByNumber');
-    expect(handlerBlock).toContain('debug_parse');
+    expect(handlerBlock).toContain('resolveAcceptedCopilotEstimatePayload');
+    expect(handlerBlock).not.toContain('debug_parse');
     expect(handlerBlock).not.toContain('Missing required fields: customer_name, estimate_number, estimate_amount');
   });
 
@@ -224,7 +224,9 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('isLikelyCopilotCustomerName');
     expect(quotesCode).toContain('isLikelyCopilotAddressLine');
     expect(quotesCode).toContain('window\\.');
+    expect(quotesCode).toContain('currentPath');
     expect(quotesCode).toContain('^\\/\\*');
+    expect(quotesCode).toContain('Customer:\\s*([^\\n]+)');
     expect(quotesCode).toContain("email.split('@')[0]");
     expect(quotesCode).not.toContain('lines.slice(websiteIndex + 1, websiteIndex + 8).find(isLikelyCopilotCustomerName)');
   });
@@ -242,6 +244,15 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('getEstimatesListAjax');
     expect(quotesCode).toContain('estimate_status: [2]');
     expect(quotesCode).toContain('contract_exists');
+    expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_POLL_MS || 60_000');
+    expect(quotesCode).toContain('resolveAcceptedCopilotEstimatePayload');
+  });
+
+  test('accepted-estimate polling sends owner alerts for parse or send failures', () => {
+    expect(quotesCode).toContain('alertCopilotAcceptedEstimateFailure');
+    expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_ALERT_EMAIL');
+    expect(quotesCode).toContain('copilotAcceptedEstimateFailureAlerts');
+    expect(quotesCode).toContain('Could not parse required accepted estimate detail');
   });
 
   test('accepted-estimate handler can resend/update an existing contract explicitly', () => {

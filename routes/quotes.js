@@ -1740,6 +1740,8 @@ function isLikelyCopilotCustomerName(value) {
     !/[=;{}<>]/.test(name) &&
     !/^\/\*/.test(name) &&
     !/\*\/$/.test(name) &&
+    !/^\|[-| ]+$/.test(name) &&
+    !/^currentPath\b/i.test(name) &&
     !/^window\./i.test(name) &&
     !/\b(function|const|let|var|return|false|true|null|undefined)\b/i.test(name) &&
     !/pappaslandscaping\.com|@/.test(name);
@@ -1749,9 +1751,26 @@ function isLikelyCopilotAddressLine(value) {
   const line = String(value || '').trim();
   return Boolean(line) &&
     /\d/.test(line) &&
-    !/[{}<>]/.test(line) &&
+    !/[{}<>;=]/.test(line) &&
     !/^\/\*/.test(line) &&
-    !/\b(import|function|const|let|var|return|window|display|width|height|margin|padding)\b/i.test(line);
+    !/^currentPath\b/i.test(line) &&
+    !/\b(import|function|const|let|var|return|window|display|width|height|margin|padding|replace)\b/i.test(line);
+}
+
+function titleCaseName(value) {
+  return String(value || '')
+    .trim()
+    .split(/\s+/)
+    .map(part => part ? part[0].toUpperCase() + part.slice(1).toLowerCase() : '')
+    .join(' ');
+}
+
+function firstLikelyCopilotCustomerName(values) {
+  for (const value of values) {
+    const name = String(value || '').trim();
+    if (isLikelyCopilotCustomerName(name)) return name;
+  }
+  return '';
 }
 
 function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
@@ -1769,13 +1788,19 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
       '0').replace(/,/g, '')
   );
   const email = fallback.email || text.match(/Sent to Email:\s*([^\s]+)/i)?.[1];
-  let customerName = fallback.customer_name || text.match(/Accepted by Customer:\s*([^\n]+)/i)?.[1];
+  const customerHistoryNames = Array.from(text.matchAll(/\bCustomer:\s*([^\n]+)/gi)).map(match => match[1]);
+  const acceptedByName = text.match(/Accepted by Customer:\s*([^\n]+)/i)?.[1];
+  let customerName = firstLikelyCopilotCustomerName([
+    fallback.customer_name,
+    acceptedByName,
+    ...customerHistoryNames
+  ]);
   let address = fallback.address || '';
 
-  const websiteIndex = lines.findIndex(line => /pappaslandscaping\.com/i.test(line));
-  if (websiteIndex >= 0) {
+  const nameIndex = customerName ? lines.findIndex(line => line.trim() === customerName) : -1;
+  if (!address && nameIndex >= 0) {
     const addressParts = [];
-    for (let i = websiteIndex + 2; i < lines.length; i += 1) {
+    for (let i = nameIndex + 1; i < Math.min(lines.length, nameIndex + 5); i += 1) {
       if (/^Estimate #$/i.test(lines[i]) || /^\d+$/.test(lines[i])) break;
       if (!isLikelyCopilotAddressLine(lines[i])) continue;
       addressParts.push(lines[i]);
@@ -1785,7 +1810,7 @@ function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
   }
 
   if (!isLikelyCopilotCustomerName(customerName)) {
-    customerName = email ? email.split('@')[0].replace(/[._-]+/g, ' ').trim() : '';
+    customerName = email ? titleCaseName(email.split('@')[0].replace(/[._-]+/g, ' ')) : '';
   }
 
   return {
@@ -1844,6 +1869,29 @@ async function findAcceptedCopilotEstimateByNumber(copilotHeaders, estimateNumbe
   const normalizedEstimateNumber = String(estimateNumber || '').replace(/^0+/, '');
 
   return acceptedRows.find(row => String(row.estimate_number || '').replace(/^0+/, '') === normalizedEstimateNumber) || null;
+}
+
+async function resolveAcceptedCopilotEstimatePayload(copilotHeaders, estimateNumber, fallback = {}) {
+  const acceptedEstimate = await findAcceptedCopilotEstimateByNumber(copilotHeaders, estimateNumber);
+  if (!acceptedEstimate?.copilot_id) {
+    return {
+      payload: { ...fallback, estimate_number: estimateNumber },
+      acceptedEstimate: null
+    };
+  }
+
+  const detailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${acceptedEstimate.copilot_id}`, {
+    method: 'GET',
+    headers: copilotHeaders
+  });
+  const detailHtml = await detailRes.text();
+  return {
+    payload: parseCopilotAcceptedEstimateDetail(detailHtml, {
+      ...fallback,
+      estimate_number: estimateNumber
+    }),
+    acceptedEstimate
+  };
 }
 
 function encodeCopilotFormValue(params, key, value) {
@@ -1985,43 +2033,18 @@ async function handleCopilotEstimateAccepted(req, res) {
     if ((!customer_name || !email || !services?.length || !estimate_amount) && process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
       try {
         const copilotHeaders = await loginToCopilotCrmForEstimates();
-        const acceptedEstimate = await findAcceptedCopilotEstimateByNumber(copilotHeaders, estimate_number);
-        if (acceptedEstimate?.copilot_id) {
-          const detailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${acceptedEstimate.copilot_id}`, {
-            method: 'GET',
-            headers: copilotHeaders
-          });
-          const detailHtml = await detailRes.text();
-          const detailPayload = parseCopilotAcceptedEstimateDetail(detailHtml, {
-            customer_name,
-            email,
-            address,
-            estimate_number,
-            estimate_amount
-          });
+        const { payload: detailPayload } = await resolveAcceptedCopilotEstimatePayload(copilotHeaders, estimate_number, {
+          customer_name,
+          email,
+          address,
+          estimate_amount
+        });
+        if (detailPayload) {
           customer_name = customer_name || detailPayload.customer_name;
           email = email || detailPayload.email;
           address = address || detailPayload.address;
           estimate_amount = estimate_amount || detailPayload.estimate_amount;
           services = Array.isArray(services) && services.length > 0 ? services : detailPayload.services;
-
-          if (payload.debug_parse === true || payload.debug_parse === 'true') {
-            const allDetailLines = htmlToCopilotEstimateText(detailHtml)
-              .split(/\n+/)
-              .map(line => line.trim())
-              .filter(Boolean);
-            const detailLines = allDetailLines
-              .filter(line => /estimate|accepted|customer|email|total|cost|rate|price|amount|included|shrubs?|mowing|mulch|\$|montague|theresa|pappas/i.test(line))
-              .slice(0, 250);
-            return res.json({
-              success: true,
-              debug: true,
-              acceptedEstimate,
-              parsed: detailPayload,
-              line_count: allDetailLines.length,
-              detail_lines: detailLines
-            });
-          }
         }
       } catch (lookupError) {
         console.error('CopilotCRM accepted estimate direct lookup failed:', lookupError.message);
@@ -2353,6 +2376,40 @@ async function createContractFromAcceptedEstimatePayload(payload) {
   });
 }
 
+const copilotAcceptedEstimateFailureAlerts = new Set();
+
+function copilotAcceptedEstimateAlertKey({ estimate_number, error }) {
+  return `${estimate_number || 'unknown'}:${String(error || '').slice(0, 160)}`;
+}
+
+async function alertCopilotAcceptedEstimateFailure({ estimate_number, source, error, parsed }) {
+  const alertKey = copilotAcceptedEstimateAlertKey({ estimate_number, error });
+  if (copilotAcceptedEstimateFailureAlerts.has(alertKey)) return;
+  copilotAcceptedEstimateFailureAlerts.add(alertKey);
+
+  const recipient = process.env.COPILOT_ACCEPTED_ESTIMATE_ALERT_EMAIL || NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
+  const safeParsed = parsed ? JSON.stringify(parsed, null, 2) : '{}';
+  const content = `
+    <p><strong>Estimate:</strong> ${escapeHtml(estimate_number || 'unknown')}</p>
+    <p><strong>Source:</strong> ${escapeHtml(source || 'accepted-estimate automation')}</p>
+    <p><strong>Error:</strong> ${escapeHtml(error || 'Unknown error')}</p>
+    <p><strong>Parsed fields:</strong></p>
+    <pre style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;color:#334155;">${escapeHtml(safeParsed)}</pre>
+  `;
+
+  try {
+    await sendEmail(
+      recipient,
+      `Copilot accepted estimate contract failed${estimate_number ? `: #${estimate_number}` : ''}`,
+      emailTemplate(content, { showSignature: false }),
+      null,
+      { type: 'admin_notification', source: 'copilotcrm_accepted_estimate', estimate_number }
+    );
+  } catch (alertError) {
+    console.error('CopilotCRM accepted estimate failure alert failed:', alertError.message);
+  }
+}
+
 async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 10 } = {}) {
   const copilotHeaders = await loginToCopilotCrmForEstimates();
   const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
@@ -2379,31 +2436,41 @@ async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 1
       continue;
     }
 
-    const detailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${row.copilot_id}`, {
-      method: 'GET',
-      headers: copilotHeaders
-    });
-    const detailHtml = await detailRes.text();
-    const payload = parseCopilotAcceptedEstimateDetail(detailHtml, {
+    const { payload } = await resolveAcceptedCopilotEstimatePayload(copilotHeaders, row.estimate_number, {
       estimate_number: row.estimate_number
     });
 
     if (!payload.customer_name || !payload.email || !payload.estimate_number || !payload.estimate_amount || !payload.services?.length) {
+      const parsed = {
+        customer_name: payload.customer_name || null,
+        email: payload.email || null,
+        estimate_amount: payload.estimate_amount || null,
+        services_count: payload.services?.length || 0
+      };
+      await alertCopilotAcceptedEstimateFailure({
+        estimate_number: row.estimate_number,
+        source: 'poll',
+        error: 'Could not parse required accepted estimate detail',
+        parsed
+      });
       results.push({
         estimate_number: row.estimate_number,
         success: false,
         error: 'Could not parse required accepted estimate detail',
-        parsed: {
-          customer_name: payload.customer_name || null,
-          email: payload.email || null,
-          estimate_amount: payload.estimate_amount || null,
-          services_count: payload.services?.length || 0
-        }
+        parsed
       });
       continue;
     }
 
     const result = await createContractFromAcceptedEstimatePayload(payload);
+    if (result.data?.success === false) {
+      await alertCopilotAcceptedEstimateFailure({
+        estimate_number: row.estimate_number,
+        source: 'poll',
+        error: result.data.error || 'Contract creation failed',
+        parsed: payload
+      });
+    }
     results.push({ estimate_number: row.estimate_number, ...result.data, statusCode: result.statusCode });
   }
 
@@ -2448,7 +2515,7 @@ router.post('/api/cron/copilot-accepted-estimates', handleCopilotAcceptedEstimat
 router.get('/api/cron/copilot-accepted-estimates', handleCopilotAcceptedEstimateCron);
 
 if (process.env.NODE_ENV !== 'test' && process.env.COPILOT_ACCEPTED_ESTIMATE_POLLING !== 'false') {
-  const intervalMs = Math.max(60_000, Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_MS || 300_000));
+  const intervalMs = Math.max(60_000, Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_MS || 60_000));
   setTimeout(() => runCopilotAcceptedEstimatePoll('startup'), 30_000).unref?.();
   setInterval(() => runCopilotAcceptedEstimatePoll('interval'), intervalMs).unref?.();
 }

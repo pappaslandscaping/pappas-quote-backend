@@ -1995,16 +1995,19 @@ async function handleCopilotEstimateAccepted(req, res) {
           services = Array.isArray(services) && services.length > 0 ? services : detailPayload.services;
 
           if (payload.debug_parse === true || payload.debug_parse === 'true') {
-            const detailLines = htmlToCopilotEstimateText(detailHtml)
+            const allDetailLines = htmlToCopilotEstimateText(detailHtml)
               .split(/\n+/)
               .map(line => line.trim())
-              .filter(Boolean)
-              .slice(0, 800);
+              .filter(Boolean);
+            const detailLines = allDetailLines
+              .filter(line => /estimate|accepted|customer|email|total|cost|rate|price|amount|included|shrubs?|mowing|mulch|\$|montague|theresa|pappas/i.test(line))
+              .slice(0, 250);
             return res.json({
               success: true,
               debug: true,
               acceptedEstimate,
               parsed: detailPayload,
+              line_count: allDetailLines.length,
               detail_lines: detailLines
             });
           }

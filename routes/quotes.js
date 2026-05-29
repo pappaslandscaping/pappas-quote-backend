@@ -1685,6 +1685,55 @@ function getCopilotEstimateAcceptedPayload(req) {
   return { ...parseCopilotEstimateAcceptedTextPayload(rawText), ...body };
 }
 
+function htmlToCopilotEstimateText(html) {
+  return String(html || '')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/(?:p|div|td|th|tr|li|h[1-6])\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .trim();
+}
+
+function parseCopilotEstimateServicesFromText(html) {
+  const lines = htmlToCopilotEstimateText(html)
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean);
+  const parsedServices = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/^WHAT'?S INCLUDED$/i.test(lines[i])) continue;
+
+    for (let j = i - 1; j >= 0; j -= 1) {
+      const candidate = lines[j];
+      if (
+        !candidate ||
+        /^(Description|Calc|Cost\/Rate|Qty\/Hr|Visits|M\.Rate|BH|T\.BH|T\.B\.Cost|Margin %|Taxes %|Total|Visit)$/i.test(candidate) ||
+        /^\$?[\d,]+(?:\.\d{2})?$/.test(candidate)
+      ) {
+        continue;
+      }
+
+      const numericAfterHeading = lines
+        .slice(i + 1, i + 16)
+        .map(line => line.match(/^\$?\s*([\d,]+(?:\.\d{2})?)$/))
+        .filter(Boolean)
+        .map(match => parseFloat(match[1].replace(/,/g, '')));
+      const price = numericAfterHeading.find(value => value > 0) || 0;
+      parsedServices.push({ name: candidate, price });
+      break;
+    }
+  }
+
+  return parsedServices;
+}
+
 function verifyCopilotEstimateAcceptedWebhook(req, res) {
   const expectedSecret = getCopilotEstimateAcceptedWebhookSecret();
   if (!expectedSecret) {
@@ -1888,6 +1937,7 @@ async function handleCopilotEstimateAccepted(req, res) {
             allTds.push(tdMatch[1].replace(/<[^>]+>/g, '').trim());
           }
           console.log(`⚠️ CopilotCRM: item-row pattern found 0 items. Total tds in page: ${allTds.length}`);
+          parsedServices.push(...parseCopilotEstimateServicesFromText(estDetailHtml));
         }
 
         const totalMatch = estDetailHtml.match(/(?:Total|Grand\s*Total)[^$]*\$\s*([\d,]+\.?\d*)/i)

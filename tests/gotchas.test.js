@@ -211,6 +211,12 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain('CUSTOMER_EMAIL');
     expect(quotesCode).toContain('WEBHOOK_SECRET');
   });
+
+  test('accepted-estimate handler has a text fallback for current CopilotCRM estimate HTML', () => {
+    expect(quotesCode).toContain('parseCopilotEstimateServicesFromText');
+    expect(quotesCode).toContain("WHAT'?S INCLUDED");
+    expect(quotesCode).toContain('parsedServices.push(...parseCopilotEstimateServicesFromText(estDetailHtml))');
+  });
 });
 
 describe('CopilotCRM accepted-estimate auth compatibility', () => {

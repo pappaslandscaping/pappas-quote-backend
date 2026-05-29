@@ -1734,6 +1734,96 @@ function parseCopilotEstimateServicesFromText(html) {
   return parsedServices;
 }
 
+function parseCopilotAcceptedEstimateDetail(html, fallback = {}) {
+  const lines = htmlToCopilotEstimateText(html)
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean);
+  const text = lines.join('\n');
+  const estimateNumber = fallback.estimate_number || text.match(/Estimate #\s*\n?\s*(\d+)/i)?.[1];
+  const total = Number(
+    (text.match(/Total Estimated Cost\s*\n?\s*([\d,]+\.\d{2})/i)?.[1] ||
+      text.match(/Total\s*\n?\s*([\d,]+\.\d{2})/i)?.[1] ||
+      fallback.estimate_amount ||
+      '0').replace(/,/g, '')
+  );
+  const email = fallback.email || text.match(/Sent to Email:\s*([^\s]+)/i)?.[1];
+  let customerName = fallback.customer_name || text.match(/Accepted by Customer:\s*([^\n]+)/i)?.[1];
+  let address = fallback.address || '';
+
+  const websiteIndex = lines.findIndex(line => /pappaslandscaping\.com/i.test(line));
+  if (websiteIndex >= 0) {
+    customerName = customerName || lines[websiteIndex + 1];
+    const addressParts = [];
+    for (let i = websiteIndex + 2; i < lines.length; i += 1) {
+      if (/^Estimate #$/i.test(lines[i]) || /^\d+$/.test(lines[i])) break;
+      addressParts.push(lines[i]);
+      if (addressParts.length >= 2) break;
+    }
+    if (!address && addressParts.length > 0) address = addressParts.join(', ');
+  }
+
+  return {
+    customer_name: customerName,
+    email,
+    address,
+    estimate_number: estimateNumber,
+    estimate_amount: total || fallback.estimate_amount,
+    services: parseCopilotEstimateServicesFromText(html)
+  };
+}
+
+function assertQuoteCronSecret(req, res) {
+  const configuredSecret = process.env.CRON_SECRET || process.env.CRON_API_KEY || '';
+  if (!configuredSecret) return true;
+
+  const provided = req.get('x-cron-secret') || req.query.key || req.query.token || req.body?.key || req.body?.token || '';
+  if (provided === configuredSecret) return true;
+
+  res.status(401).json({ success: false, error: 'Invalid cron secret' });
+  return false;
+}
+
+async function loginToCopilotCrmForEstimates() {
+  if (!process.env.COPILOTCRM_USERNAME || !process.env.COPILOTCRM_PASSWORD) {
+    throw new Error('CopilotCRM credentials not configured');
+  }
+  const copilotLogin = await fetch('https://api.copilotcrm.com/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Origin': 'https://secure.copilotcrm.com' },
+    body: JSON.stringify({ username: process.env.COPILOTCRM_USERNAME, password: process.env.COPILOTCRM_PASSWORD })
+  });
+  const copilotAuth = await copilotLogin.json();
+  if (!copilotAuth.accessToken) throw new Error('CopilotCRM login failed');
+  return {
+    'Cookie': `copilotApiAccessToken=${copilotAuth.accessToken}`,
+    'Origin': 'https://secure.copilotcrm.com',
+    'Referer': 'https://secure.copilotcrm.com/',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+}
+
+function parseRecentAcceptedCopilotEstimateRows(html, maxAgeDays) {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  const rows = String(html || '').match(/<tr[\s\S]*?<\/tr>/gi) || [];
+  const accepted = [];
+
+  for (const row of rows) {
+    if (!/\bAccepted\b/i.test(row)) continue;
+    const linkMatch = row.match(/\/finances\/estimates\/view\/(\d+)[^>]*>\s*(\d+)\s*</i);
+    if (!linkMatch) continue;
+    const rowText = htmlToCopilotEstimateText(row);
+    const dateMatch = rowText.match(/\b([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4})\b/);
+    if (dateMatch) {
+      const timestamp = Date.parse(dateMatch[1]);
+      if (Number.isFinite(timestamp) && timestamp < cutoff) continue;
+    }
+    accepted.push({ copilot_id: linkMatch[1], estimate_number: linkMatch[2], date: dateMatch?.[1] || null });
+  }
+
+  return accepted;
+}
+
 function verifyCopilotEstimateAcceptedWebhook(req, res) {
   const expectedSecret = getCopilotEstimateAcceptedWebhookSecret();
   if (!expectedSecret) {
@@ -2060,6 +2150,123 @@ async function handleCopilotEstimateAccepted(req, res) {
 }
 
 router.post('/api/copilotcrm/estimate-accepted', authorizeEstimateAcceptedRequest, handleCopilotEstimateAccepted);
+
+async function createContractFromAcceptedEstimatePayload(payload) {
+  return new Promise((resolve) => {
+    const req = { body: payload };
+    const res = {
+      statusCode: 200,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(data) {
+        resolve({ statusCode: this.statusCode, data });
+      }
+    };
+
+    handleCopilotEstimateAccepted(req, res).catch(error => {
+      resolve({
+        statusCode: 500,
+        data: { success: false, error: error.message || 'Error creating contract from CopilotCRM estimate' }
+      });
+    });
+  });
+}
+
+async function processRecentAcceptedCopilotEstimates({ maxAgeDays = 3, limit = 10 } = {}) {
+  const copilotHeaders = await loginToCopilotCrmForEstimates();
+  const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates', {
+    method: 'GET',
+    headers: copilotHeaders
+  });
+  const listHtml = await listRes.text();
+  const acceptedRows = parseRecentAcceptedCopilotEstimateRows(listHtml, maxAgeDays).slice(0, limit);
+  const results = [];
+
+  for (const row of acceptedRows) {
+    const existing = await pool.query(
+      `SELECT id, sign_token FROM sent_quotes WHERE quote_number = $1 AND status NOT IN ('declined') LIMIT 1`,
+      [row.estimate_number]
+    );
+    if (existing.rows.length > 0) {
+      results.push({ estimate_number: row.estimate_number, skipped: true, reason: 'contract_exists', quote_id: existing.rows[0].id });
+      continue;
+    }
+
+    const detailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${row.copilot_id}`, {
+      method: 'GET',
+      headers: copilotHeaders
+    });
+    const detailHtml = await detailRes.text();
+    const payload = parseCopilotAcceptedEstimateDetail(detailHtml, {
+      estimate_number: row.estimate_number
+    });
+
+    if (!payload.customer_name || !payload.email || !payload.estimate_number || !payload.estimate_amount || !payload.services?.length) {
+      results.push({
+        estimate_number: row.estimate_number,
+        success: false,
+        error: 'Could not parse required accepted estimate detail',
+        parsed: {
+          customer_name: payload.customer_name || null,
+          email: payload.email || null,
+          estimate_amount: payload.estimate_amount || null,
+          services_count: payload.services?.length || 0
+        }
+      });
+      continue;
+    }
+
+    const result = await createContractFromAcceptedEstimatePayload(payload);
+    results.push({ estimate_number: row.estimate_number, ...result.data, statusCode: result.statusCode });
+  }
+
+  return {
+    checked: acceptedRows.length,
+    sent: results.filter(result => result.success && !result.skipped && /Contract sent/i.test(result.message || '')).length,
+    skipped: results.filter(result => result.skipped || /already exists/i.test(result.message || '')).length,
+    failed: results.filter(result => result.success === false).length,
+    results
+  };
+}
+
+let copilotAcceptedEstimatePollInProgress = false;
+
+async function runCopilotAcceptedEstimatePoll(trigger = 'interval') {
+  if (copilotAcceptedEstimatePollInProgress) {
+    return { success: true, skipped: true, reason: 'poll_already_running' };
+  }
+  copilotAcceptedEstimatePollInProgress = true;
+  try {
+    const result = await processRecentAcceptedCopilotEstimates({
+      maxAgeDays: Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_DAYS || 3),
+      limit: Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_LIMIT || 10)
+    });
+    console.log(`✅ CopilotCRM accepted-estimate poll (${trigger}): checked=${result.checked}, sent=${result.sent}, skipped=${result.skipped}, failed=${result.failed}`);
+    return { success: true, trigger, ...result };
+  } catch (error) {
+    console.error(`CopilotCRM accepted-estimate poll failed (${trigger}):`, error);
+    return { success: false, trigger, error: error.message || 'CopilotCRM accepted-estimate poll failed' };
+  } finally {
+    copilotAcceptedEstimatePollInProgress = false;
+  }
+}
+
+async function handleCopilotAcceptedEstimateCron(req, res) {
+  if (!assertQuoteCronSecret(req, res)) return;
+  const result = await runCopilotAcceptedEstimatePoll('cron');
+  res.status(result.success ? 200 : 500).json(result);
+}
+
+router.post('/api/cron/copilot-accepted-estimates', handleCopilotAcceptedEstimateCron);
+router.get('/api/cron/copilot-accepted-estimates', handleCopilotAcceptedEstimateCron);
+
+if (process.env.NODE_ENV !== 'test' && process.env.COPILOT_ACCEPTED_ESTIMATE_POLLING !== 'false') {
+  const intervalMs = Math.max(60_000, Number(process.env.COPILOT_ACCEPTED_ESTIMATE_POLL_MS || 300_000));
+  setTimeout(() => runCopilotAcceptedEstimatePoll('startup'), 30_000).unref?.();
+  setInterval(() => runCopilotAcceptedEstimatePoll('interval'), intervalMs).unref?.();
+}
 
 // GET /api/sent-quotes/:id/contract-status - Check contract status
 router.get('/api/sent-quotes/:id/contract-status', async (req, res) => {

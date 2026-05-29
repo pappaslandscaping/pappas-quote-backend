@@ -217,6 +217,14 @@ describe('CopilotCRM accepted-estimate payload compatibility', () => {
     expect(quotesCode).toContain("WHAT'?S INCLUDED");
     expect(quotesCode).toContain('parsedServices.push(...parseCopilotEstimateServicesFromText(estDetailHtml))');
   });
+
+  test('accepted-estimate polling backstop exists for missed CopilotCRM automation triggers', () => {
+    expect(quotesCode).toContain('processRecentAcceptedCopilotEstimates');
+    expect(quotesCode).toContain("'/api/cron/copilot-accepted-estimates'");
+    expect(quotesCode).toContain('COPILOT_ACCEPTED_ESTIMATE_POLLING');
+    expect(quotesCode).toContain('runCopilotAcceptedEstimatePoll');
+    expect(quotesCode).toContain('contract_exists');
+  });
 });
 
 describe('CopilotCRM accepted-estimate auth compatibility', () => {

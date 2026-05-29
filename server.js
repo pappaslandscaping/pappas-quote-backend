@@ -4484,7 +4484,10 @@ app.get('/api/app/devices', authenticateToken, async (req, res) => {
 // FIX: Now properly groups by last 10 digits to prevent duplicate conversations
 app.get('/api/app/messages/conversations', authenticateToken, async (req, res) => {
   try {
-    const { twilio_number } = req.query;
+    const { twilio_number, search, q } = req.query;
+    const searchTerm = String(search || q || '').trim();
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const conversationLimit = Math.min(Math.max(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 500, 1), 2000);
     
     // Normalize the twilio_number filter if provided (for multi-number support)
     const twilioFilter = twilio_number 
@@ -4518,19 +4521,46 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
     `;
     
     const params = [];
+    const filters = [];
     
     // Add filter for specific Twilio number if provided
     if (twilioFilter) {
-      query += `
-        WHERE (
-          (m.direction = 'inbound' AND RIGHT(REGEXP_REPLACE(m.to_number, '[^0-9]', '', 'g'), 10) = $1)
-          OR 
-          (m.direction = 'outbound' AND RIGHT(REGEXP_REPLACE(m.from_number, '[^0-9]', '', 'g'), 10) = $1)
-        )
-      `;
       params.push(twilioFilter);
+      filters.push(`(
+        (m.direction = 'inbound' AND RIGHT(REGEXP_REPLACE(m.to_number, '[^0-9]', '', 'g'), 10) = $${params.length})
+        OR 
+        (m.direction = 'outbound' AND RIGHT(REGEXP_REPLACE(m.from_number, '[^0-9]', '', 'g'), 10) = $${params.length})
+      )`);
+    }
+
+    if (filters.length > 0) {
+      query += ` WHERE ${filters.join(' AND ')}`;
     }
     
+    query += `
+      ),
+      matching_conversations AS (
+        SELECT DISTINCT nm.normalized_phone
+        FROM normalized_messages nm
+        LEFT JOIN customers c
+          ON nm.customer_id = c.id
+          OR RIGHT(REGEXP_REPLACE(COALESCE(c.mobile, ''), '[^0-9]', '', 'g'), 10) = nm.normalized_phone
+          OR RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '', 'g'), 10) = nm.normalized_phone
+    `;
+
+    if (searchTerm) {
+      params.push(`%${searchTerm}%`);
+      const searchParam = `$${params.length}`;
+      query += `
+        WHERE (
+          nm.body ILIKE ${searchParam}
+          OR nm.contact_number ILIKE ${searchParam}
+          OR nm.normalized_phone ILIKE ${searchParam}
+          OR c.name ILIKE ${searchParam}
+        )
+      `;
+    }
+
     query += `
       ),
       latest_per_conversation AS (
@@ -4539,6 +4569,7 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
           media_urls, status, customer_id, read, created_at,
           normalized_phone, twilio_number_used, contact_number
         FROM normalized_messages
+        WHERE normalized_phone IN (SELECT normalized_phone FROM matching_conversations)
         ORDER BY normalized_phone, created_at DESC
       ),
       unread_counts AS (
@@ -4575,8 +4606,9 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
       LEFT JOIN customers c ON lpc.customer_id = c.id
       LEFT JOIN unread_counts uc ON lpc.normalized_phone = uc.normalized_phone
       ORDER BY lpc.created_at DESC
-      LIMIT 100
     `;
+    params.push(conversationLimit);
+    query += ` LIMIT $${params.length}`;
 
     const result = await pool.query(query, params);
 
@@ -4605,17 +4637,31 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
 // FIX: Now uses normalized phone matching (last 10 digits)
 app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, res) => {
   const { phoneNumber } = req.params;
+  const { search, q } = req.query;
+  const searchTerm = String(search || q || '').trim();
   // Normalize to last 10 digits
   const normalizedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
   
   try {
-    const result = await pool.query(`
+    const params = [normalizedPhone];
+    let query = `
       SELECT * FROM messages 
-      WHERE RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1 
-         OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
+      WHERE (
+        RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1 
+        OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
+      )
+    `;
+
+    if (searchTerm) {
+      params.push(`%${searchTerm}%`);
+      query += ` AND body ILIKE $${params.length}`;
+    }
+
+    query += `
       ORDER BY created_at ASC
-      LIMIT 100
-    `, [normalizedPhone]);
+    `;
+
+    const result = await pool.query(query, params);
 
     // Mark messages as read
     await pool.query(`
@@ -10494,13 +10540,17 @@ const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
 app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
   try {
     const filter = req.query.filter || 'active';
+    const { search, q } = req.query;
+    const searchTerm = String(search || q || '').trim().toLowerCase();
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const voicemailLimit = Math.min(Math.max(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 500, 1), 1000);
     let url;
     if (filter === 'handled') {
-      url = `${WEBHOOK_BASE}/api/calls?status=handled&limit=100`;
+      url = `${WEBHOOK_BASE}/api/calls?status=handled&limit=${voicemailLimit}`;
     } else if (filter === 'archived') {
-      url = `${WEBHOOK_BASE}/api/calls?status=archived&limit=100`;
+      url = `${WEBHOOK_BASE}/api/calls?status=archived&limit=${voicemailLimit}`;
     } else {
-      url = `${WEBHOOK_BASE}/api/calls?status=voicemail&limit=100`;
+      url = `${WEBHOOK_BASE}/api/calls?status=voicemail&limit=${voicemailLimit}`;
     }
     const response = await fetch(url);
     if (!response.ok) throw new Error('Webhook fetch failed');
@@ -10516,7 +10566,14 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
       listened: c.read || false,
       status: c.status || 'voicemail',
     }));
-    res.json({ voicemails });
+    const filteredVoicemails = searchTerm
+      ? voicemails.filter((vm) => (
+          String(vm.contactName || '').toLowerCase().includes(searchTerm)
+          || String(vm.phoneNumber || '').includes(searchTerm)
+          || String(vm.transcription || '').toLowerCase().includes(searchTerm)
+        ))
+      : voicemails;
+    res.json({ voicemails: filteredVoicemails });
   } catch (err) {
     console.error('Voicemails proxy error:', err);
     res.status(500).json({ error: 'Failed to fetch voicemails' });

@@ -1803,6 +1803,24 @@ async function loginToCopilotCrmForEstimates() {
   };
 }
 
+async function findAcceptedCopilotEstimateByNumber(copilotHeaders, estimateNumber, { maxAgeDays = 30 } = {}) {
+  const listRes = await fetch('https://secure.copilotcrm.com/finances/estimates/getEstimatesListAjax', {
+    method: 'POST',
+    headers: { ...copilotHeaders, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: encodeCopilotForm({
+      postData: { estimate_status: [2] },
+      pagination: '',
+      sort: 'datedesc'
+    })
+  });
+  const listData = await listRes.json().catch(() => null);
+  const listHtml = listData?.html || '';
+  const acceptedRows = parseRecentAcceptedCopilotEstimateRows(listHtml, maxAgeDays);
+  const normalizedEstimateNumber = String(estimateNumber || '').replace(/^0+/, '');
+
+  return acceptedRows.find(row => String(row.estimate_number || '').replace(/^0+/, '') === normalizedEstimateNumber) || null;
+}
+
 function encodeCopilotFormValue(params, key, value) {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -1935,8 +1953,40 @@ async function handleCopilotEstimateAccepted(req, res) {
     estimate_number = estimate_number || ESTIMATE_NUMBER;
     estimate_amount = estimate_amount || ESTIMATE_AMOUNT;
 
-    if (!customer_name || !estimate_number) {
-      return res.status(400).json({ success: false, error: 'Missing required fields: customer_name, estimate_number' });
+    if (!estimate_number) {
+      return res.status(400).json({ success: false, error: 'Missing required field: estimate_number' });
+    }
+
+    if ((!customer_name || !email || !services?.length || !estimate_amount) && process.env.COPILOTCRM_USERNAME && process.env.COPILOTCRM_PASSWORD) {
+      try {
+        const copilotHeaders = await loginToCopilotCrmForEstimates();
+        const acceptedEstimate = await findAcceptedCopilotEstimateByNumber(copilotHeaders, estimate_number);
+        if (acceptedEstimate?.copilot_id) {
+          const detailRes = await fetch(`https://secure.copilotcrm.com/finances/estimates/view/${acceptedEstimate.copilot_id}`, {
+            method: 'GET',
+            headers: copilotHeaders
+          });
+          const detailHtml = await detailRes.text();
+          const detailPayload = parseCopilotAcceptedEstimateDetail(detailHtml, {
+            customer_name,
+            email,
+            address,
+            estimate_number,
+            estimate_amount
+          });
+          customer_name = customer_name || detailPayload.customer_name;
+          email = email || detailPayload.email;
+          address = address || detailPayload.address;
+          estimate_amount = estimate_amount || detailPayload.estimate_amount;
+          services = Array.isArray(services) && services.length > 0 ? services : detailPayload.services;
+        }
+      } catch (lookupError) {
+        console.error('CopilotCRM accepted estimate direct lookup failed:', lookupError.message);
+      }
+    }
+
+    if (!customer_name) {
+      return res.status(400).json({ success: false, error: 'Missing required field: customer_name' });
     }
 
     // Dedupe check — don't create duplicate contracts for the same estimate

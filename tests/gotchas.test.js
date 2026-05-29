@@ -186,17 +186,18 @@ describe('CopilotCRM accepted-estimate contract webhook', () => {
 });
 
 describe('CopilotCRM accepted-estimate payload compatibility', () => {
-  test('accepted-estimate handler only requires customer_name and estimate_number', () => {
+  test('accepted-estimate handler can resolve an accepted estimate from estimate_number only', () => {
     const estimateAcceptedLine = findLine(quotesLines, 'handleCopilotEstimateAccepted');
     expect(estimateAcceptedLine).toBeGreaterThan(0);
-    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 240).join('\n');
-    expect(handlerBlock).toContain('Missing required fields: customer_name, estimate_number');
+    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 300).join('\n');
+    expect(handlerBlock).toContain('Missing required field: estimate_number');
+    expect(handlerBlock).toContain('findAcceptedCopilotEstimateByNumber');
     expect(handlerBlock).not.toContain('Missing required fields: customer_name, estimate_number, estimate_amount');
   });
 
   test('accepted-estimate handler fetches missing services and total from CopilotCRM', () => {
     const estimateAcceptedLine = findLine(quotesLines, 'handleCopilotEstimateAccepted');
-    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 240).join('\n');
+    const handlerBlock = quotesLines.slice(estimateAcceptedLine - 1, estimateAcceptedLine + 300).join('\n');
     expect(handlerBlock).toContain('needsCopilotLookup');
     expect(handlerBlock).toContain('finances/estimates/getEstimatesListAjax');
     expect(handlerBlock).toContain('finances/estimates/view/');

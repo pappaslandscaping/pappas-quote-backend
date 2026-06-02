@@ -77,6 +77,10 @@ function generateToken() {
   return crypto.randomBytes(24).toString('hex');
 }
 
+function getPublicBaseUrl() {
+  return (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+}
+
 function formatMoney(value) {
   const num = parseFloat(value);
   return Number.isFinite(num) ? num.toFixed(2) : value;
@@ -566,6 +570,45 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
 
 function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET }) {
   const router = express.Router();
+  const fetchFn = fetchImpl || global.fetch;
+
+  async function storeInboundMedia(mediaUrl, contentTypeHint) {
+    if (!mediaUrl) return null;
+    if (!fetchFn) return mediaUrl;
+
+    try {
+      const headers = {};
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+        const token = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+        headers.Authorization = `Basic ${token}`;
+      }
+
+      const mediaResponse = await fetchFn(mediaUrl, { headers });
+      if (!mediaResponse.ok) {
+        throw new Error(`Twilio media fetch failed with ${mediaResponse.status}`);
+      }
+
+      const buffer = Buffer.from(await mediaResponse.arrayBuffer());
+      const mimeType = mediaResponse.headers.get('content-type') || contentTypeHint || 'application/octet-stream';
+
+      await pool.query(`CREATE TABLE IF NOT EXISTS mms_uploads (
+        id SERIAL PRIMARY KEY,
+        mime_type VARCHAR(100) NOT NULL,
+        data TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+
+      const result = await pool.query(
+        'INSERT INTO mms_uploads (mime_type, data) VALUES ($1, $2) RETURNING id',
+        [mimeType.split(';')[0], buffer.toString('base64')]
+      );
+
+      return `${getPublicBaseUrl()}/api/mms-image/${result.rows[0].id}`;
+    } catch (error) {
+      console.warn('Inbound MMS media copy failed, storing Twilio URL fallback:', error.message);
+      return mediaUrl;
+    }
+  }
 
   async function refreshBroadcastLiveJobsForDate(jobDate) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(jobDate || ''))) return false;
@@ -1729,7 +1772,8 @@ router.post('/api/sms/webhook', async (req, res) => {
     const numMedia = parseInt(NumMedia) || 0;
     for (let i = 0; i < numMedia; i++) {
       if (req.body[`MediaUrl${i}`]) {
-        mediaUrls.push(req.body[`MediaUrl${i}`]);
+        const storedMediaUrl = await storeInboundMedia(req.body[`MediaUrl${i}`], req.body[`MediaContentType${i}`]);
+        if (storedMediaUrl) mediaUrls.push(storedMediaUrl);
       }
     }
 

@@ -5659,8 +5659,9 @@ app.get('/api/mms-image/:id', async (req, res) => {
 // Send SMS - for app (with multi-number support)
 app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
   const { to, body, mediaUrls, fromNumber } = req.body;
+  const messageBody = String(body || '');
 
-  if (!to || (!body && (!mediaUrls || mediaUrls.length === 0))) {
+  if (!to || (!messageBody && (!mediaUrls || mediaUrls.length === 0))) {
     return res.status(400).json({ message: 'Phone number and message body or image required' });
   }
 
@@ -5685,7 +5686,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
 
     // Send via Twilio
     const messageOptions = {
-      body: body || '',
+      body: messageBody,
       from: sendFromNumber,
       to: formattedTo
     };
@@ -5713,13 +5714,13 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
       twilioMessage.sid,
       sendFromNumber,
       formattedTo,
-      body,
+      messageBody,
       mediaUrls || [],
       twilioMessage.status,
       customerResult.rows[0]?.id || null
     ]);
 
-    console.log(`📤 Sent SMS from ${sendFromNumber} to ${formattedTo}: ${body.substring(0, 50)}...`);
+    console.log(`📤 Sent ${mediaUrls?.length ? 'MMS' : 'SMS'} from ${sendFromNumber} to ${formattedTo}: ${messageBody.substring(0, 50)}...`);
 
     res.json({ 
       success: true, 
@@ -5729,7 +5730,9 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
         direction: 'outbound',
         from_number: sendFromNumber,
         to_number: formattedTo,
-        body,
+        body: messageBody,
+        media_urls: mediaUrls || [],
+        mediaUrls: mediaUrls || [],
         status: twilioMessage.status,
         created_at: new Date().toISOString()
       }

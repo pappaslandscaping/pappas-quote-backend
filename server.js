@@ -5656,6 +5656,111 @@ app.get('/api/mms-image/:id', async (req, res) => {
   }
 });
 
+function isBackfillableMmsUrl(url) {
+  const baseUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+  return typeof url === 'string'
+    && url.length > 0
+    && !url.startsWith(`${baseUrl}/api/mms-image/`)
+    && !url.includes('/api/mms-image/');
+}
+
+async function copyLegacyMmsMediaUrl(mediaUrl) {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+    throw new Error('Twilio credentials are not configured');
+  }
+
+  const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
+  const mediaResponse = await fetch(mediaUrl, { headers: { Authorization: `Basic ${auth}` } });
+  if (!mediaResponse.ok) {
+    throw new Error(`Twilio media fetch failed with ${mediaResponse.status}`);
+  }
+
+  const buffer = Buffer.from(await mediaResponse.arrayBuffer());
+  const mimeType = (mediaResponse.headers.get('content-type') || 'application/octet-stream').split(';')[0];
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS mms_uploads (
+    id SERIAL PRIMARY KEY,
+    mime_type VARCHAR(100) NOT NULL,
+    data TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  const result = await pool.query(
+    'INSERT INTO mms_uploads (mime_type, data) VALUES ($1, $2) RETURNING id',
+    [mimeType, buffer.toString('base64')]
+  );
+
+  const baseUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+  return `${baseUrl}/api/mms-image/${result.rows[0].id}`;
+}
+
+// Backfill older MMS records that stored Twilio media URLs before app-hosted copies existed.
+app.post('/api/app/messages/backfill-mms', authenticateToken, requireAdmin, async (req, res) => {
+  const execute = req.body?.execute === true;
+  const requestedLimit = parseInt(req.body?.limit || req.query.limit, 10);
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 100, 1), 500);
+
+  if (execute && (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN)) {
+    return res.status(503).json({ success: false, error: 'Twilio credentials are not configured' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, media_urls
+       FROM messages
+       WHERE media_urls IS NOT NULL
+         AND array_length(media_urls, 1) > 0
+       ORDER BY created_at ASC
+       LIMIT $1`,
+      [limit]
+    );
+
+    const candidates = result.rows.filter((row) => (row.media_urls || []).some(isBackfillableMmsUrl));
+    let updated = 0;
+    const failures = [];
+
+    if (execute) {
+      for (const row of candidates) {
+        const nextUrls = [];
+        let rowFailed = false;
+
+        for (const url of row.media_urls || []) {
+          if (!isBackfillableMmsUrl(url)) {
+            nextUrls.push(url);
+            continue;
+          }
+
+          try {
+            nextUrls.push(await copyLegacyMmsMediaUrl(url));
+          } catch (error) {
+            rowFailed = true;
+            nextUrls.push(url);
+            failures.push({ messageId: row.id, error: error.message });
+          }
+        }
+
+        if (!rowFailed) {
+          await pool.query('UPDATE messages SET media_urls = $1 WHERE id = $2', [nextUrls, row.id]);
+          updated += 1;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      mode: execute ? 'execute' : 'dry-run',
+      checked: result.rows.length,
+      candidates: candidates.length,
+      updated,
+      failures,
+      limit,
+    });
+  } catch (error) {
+    console.error('MMS backfill error:', error);
+    serverError(res, error, 'MMS backfill failed');
+  }
+});
+
 // Send SMS - for app (with multi-number support)
 app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
   const { to, body, mediaUrls, fromNumber } = req.body;

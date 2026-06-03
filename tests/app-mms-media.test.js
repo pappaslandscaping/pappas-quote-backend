@@ -7,6 +7,7 @@ const appTransformsSource = fs.readFileSync(
   path.join(__dirname, '..', '..', 'TwilioConnect-main', 'src', 'utils', 'transforms.ts'),
   'utf8'
 );
+const backfillSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'backfill-mms-media.js'), 'utf8');
 
 describe('TwilioConnect MMS media handling', () => {
   test('inbound Twilio MMS media is copied to app-hosted media URLs', () => {
@@ -33,5 +34,23 @@ describe('TwilioConnect MMS media handling', () => {
     expect(appTransformsSource).toContain('const mediaUrls = c.media_urls || c.mediaUrls || []');
     expect(appTransformsSource).toContain("mediaUrls.length > 0 ? 'Photo message' : ''");
     expect(appTransformsSource).toContain('mediaUrls,');
+  });
+
+  test('old MMS backfill runs dry by default and only rewrites external media URLs', () => {
+    expect(backfillSource).toContain("const execute = process.argv.includes('--execute')");
+    expect(backfillSource).toContain("mode: execute ? 'execute' : 'dry-run'");
+    expect(backfillSource).toContain('!url.includes(\'/api/mms-image/\')');
+    expect(backfillSource).toContain('TWILIO_ACCOUNT_SID');
+    expect(backfillSource).toContain('TWILIO_AUTH_TOKEN');
+    expect(backfillSource).toContain('UPDATE messages SET media_urls = $1 WHERE id = $2');
+  });
+
+  test('production MMS backfill endpoint is admin protected and dry-run capable', () => {
+    expect(serverSource).toContain("app.post('/api/app/messages/backfill-mms', authenticateToken, requireAdmin");
+    expect(serverSource).toContain('const execute = req.body?.execute === true');
+    expect(serverSource).toContain("mode: execute ? 'execute' : 'dry-run'");
+    expect(serverSource).toContain('const candidates = result.rows.filter((row) => (row.media_urls || []).some(isBackfillableMmsUrl))');
+    expect(serverSource).toContain('copyLegacyMmsMediaUrl(url)');
+    expect(serverSource).toContain('UPDATE messages SET media_urls = $1 WHERE id = $2');
   });
 });

@@ -8,6 +8,7 @@ const multer = require('multer');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const jwt = require('jsonwebtoken');
 const twilio = require('twilio');
+const Anthropic = require('@anthropic-ai/sdk');
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -38,6 +39,9 @@ const pool = new Pool({
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFICATION_EMAIL = process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
 const FROM_EMAIL = 'Pappas & Co. Landscaping <hello@pappaslandscaping.com>';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
+const anthropic = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
 // CopilotCRM-hosted logo (green leaf with text)
 const LOGO_URL = 'https://prod-beefree-images.s3.amazonaws.com/images/copilot-template-builder-5261/Your%20paragraph%20text%20%284.75%20x%202%20in%29%20%28800%20x%20400%20px%29%20%282%29.png';
 const COMPANY_NAME = 'Pappas & Co. Landscaping';
@@ -3864,7 +3868,7 @@ app.post('/api/app/voice/debug', authenticateToken, async (req, res) => {
 });
 
 // TwiML App webhook used by Twilio Voice SDK outgoing calls
-app.all('/api/voice/twiml', (req, res) => {
+app.all(['/api/voice/twiml', '/api/app/voice/connect'], (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
   const to = String(req.body.To || req.query.To || req.body.to || req.query.to || '').trim();
@@ -3875,7 +3879,12 @@ app.all('/api/voice/twiml', (req, res) => {
   if (!to) {
     twiml.say({ voice: 'alice' }, 'No destination specified.');
   } else {
-    const dial = twiml.dial({ callerId });
+    const dial = twiml.dial({
+      callerId,
+      timeout: 30,
+      answerOnBridge: true,
+      ringTone: 'us',
+    });
     if (to.startsWith('client:')) {
       dial.client(to.replace(/^client:/, ''));
     } else {
@@ -4439,6 +4448,212 @@ app.get('/api/app/twilio-numbers', authenticateToken, async (req, res) => {
     }));
     res.json({ numbers });
   } catch (error) { res.status(500).json({ numbers: [] });
+  }
+});
+
+function requireAnthropic(res) {
+  if (anthropic) return true;
+  res.status(503).json({
+    message: 'AI is not configured on this server',
+    missing: ['ANTHROPIC_API_KEY'],
+  });
+  return false;
+}
+
+function plainText(value, fallback = '') {
+  return String(value || fallback).replace(/\s+/g, ' ').trim();
+}
+
+function extractClaudeText(message) {
+  const blocks = Array.isArray(message?.content) ? message.content : [];
+  return blocks
+    .filter((block) => block && block.type === 'text' && block.text)
+    .map((block) => block.text)
+    .join('\n')
+    .trim();
+}
+
+async function generateAiText({ system, prompt, maxTokens = 700 }) {
+  const message = await anthropic.messages.create({
+    model: ANTHROPIC_MODEL,
+    max_tokens: maxTokens,
+    temperature: 0.3,
+    system,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = extractClaudeText(message);
+  if (!text) throw new Error('AI returned an empty response');
+  return text;
+}
+
+function formatRefinements(refinements = []) {
+  if (!Array.isArray(refinements) || refinements.length === 0) return '';
+  return refinements
+    .map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${plainText(msg.content)}`)
+    .join('\n');
+}
+
+app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
+  if (!requireAnthropic(res)) return;
+
+  try {
+    const messages = Array.isArray(req.body.messages) ? req.body.messages.slice(-15) : [];
+    const contactName = plainText(req.body.contactName, 'the customer');
+    const refinements = formatRefinements(req.body.refinements);
+    const transcript = messages
+      .map((msg) => `${msg.direction === 'outbound' ? 'Pappas' : contactName}: ${plainText(msg.body)}`)
+      .join('\n');
+
+    if (!transcript) {
+      return res.status(400).json({ message: 'Messages are required to draft a reply' });
+    }
+
+    const suggestion = await generateAiText({
+      system: 'You write concise, helpful SMS replies for Pappas & Co. Landscaping. Sound professional, warm, and direct. Return only the text message body.',
+      prompt: [
+        `Customer: ${contactName}`,
+        'Recent conversation:',
+        transcript,
+        refinements ? `Refinements:\n${refinements}` : '',
+        'Draft the next SMS reply. Keep it short enough for texting.',
+      ].filter(Boolean).join('\n\n'),
+      maxTokens: 450,
+    });
+
+    res.json({ suggestion });
+  } catch (error) {
+    console.error('AI reply error:', error);
+    res.status(500).json({ message: 'Failed to generate AI reply', error: error.message });
+  }
+});
+
+app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
+  if (!requireAnthropic(res)) return;
+
+  try {
+    const contactName = plainText(req.body.contactName, 'the customer');
+    const prompt = plainText(req.body.prompt);
+    const refinements = formatRefinements(req.body.refinements);
+
+    if (!prompt && !refinements) {
+      return res.status(400).json({ message: 'Describe what you want to say' });
+    }
+
+    const draft = await generateAiText({
+      system: 'You write concise, helpful SMS drafts for Pappas & Co. Landscaping. Return only the text message body.',
+      prompt: [
+        `Recipient: ${contactName}`,
+        prompt ? `Request: ${prompt}` : '',
+        refinements ? `Refinements:\n${refinements}` : '',
+        'Draft the SMS. Be clear, friendly, and specific.',
+      ].filter(Boolean).join('\n\n'),
+      maxTokens: 450,
+    });
+
+    res.json({ draft });
+  } catch (error) {
+    console.error('AI draft error:', error);
+    res.status(500).json({ message: 'Failed to generate AI draft', error: error.message });
+  }
+});
+
+app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) => {
+  if (!requireAnthropic(res)) return;
+
+  try {
+    const contactName = plainText(req.body.contactName, 'the customer');
+    const transcription = plainText(req.body.transcription);
+    const refinements = formatRefinements(req.body.refinements);
+
+    if (!transcription) {
+      return res.status(400).json({ message: 'Voicemail transcription is required' });
+    }
+
+    const suggestion = await generateAiText({
+      system: 'You turn customer voicemails into concise SMS replies for Pappas & Co. Landscaping. Return only the text message body.',
+      prompt: [
+        `Customer: ${contactName}`,
+        `Voicemail transcription: ${transcription}`,
+        refinements ? `Refinements:\n${refinements}` : '',
+        'Draft a text response that acknowledges the voicemail and gives a useful next step.',
+      ].filter(Boolean).join('\n\n'),
+      maxTokens: 450,
+    });
+
+    res.json({ suggestion });
+  } catch (error) {
+    console.error('AI voicemail text error:', error);
+    res.status(500).json({ message: 'Failed to draft text from voicemail', error: error.message });
+  }
+});
+
+app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) => {
+  if (!requireAnthropic(res)) return;
+
+  try {
+    const contactName = plainText(req.body.contactName, 'the caller');
+    const transcription = plainText(req.body.transcription);
+
+    if (!transcription) {
+      return res.status(400).json({ message: 'Voicemail transcription is required' });
+    }
+
+    const summary = await generateAiText({
+      system: 'Summarize landscaping customer voicemails in one short sentence. Return only the summary.',
+      prompt: `Caller: ${contactName}\nVoicemail transcription: ${transcription}`,
+      maxTokens: 180,
+    });
+
+    res.json({ summary });
+  } catch (error) {
+    console.error('AI voicemail summary error:', error);
+    res.status(500).json({ message: 'Failed to summarize voicemail', error: error.message });
+  }
+});
+
+app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
+  if (!requireAnthropic(res)) return;
+
+  try {
+    const question = plainText(req.body.question);
+    const conversationHistory = Array.isArray(req.body.conversationHistory)
+      ? req.body.conversationHistory.slice(-12)
+      : [];
+
+    if (!question) {
+      return res.status(400).json({ message: 'Question is required' });
+    }
+
+    const [customersResult, messagesResult, callsResult] = await Promise.all([
+      pool.query(`SELECT name, mobile, phone, email, street, city, state FROM customers ORDER BY id DESC LIMIT 25`).catch(() => ({ rows: [] })),
+      pool.query(`SELECT direction, from_number, to_number, body, created_at FROM messages ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] })),
+      pool.query(`SELECT from_number, to_number, call_type, status, duration, created_at FROM calls ORDER BY created_at DESC LIMIT 20`).catch(() => ({ rows: [] })),
+    ]);
+
+    const context = JSON.stringify({
+      recentCustomers: customersResult.rows,
+      recentMessages: messagesResult.rows,
+      recentCalls: callsResult.rows,
+    }, null, 2);
+
+    const history = conversationHistory
+      .map((msg) => `${msg.role === 'assistant' ? 'Assistant' : 'User'}: ${plainText(msg.content)}`)
+      .join('\n');
+
+    const answer = await generateAiText({
+      system: 'You are the internal assistant for Pappas & Co. Landscaping. Answer questions using the provided CRM context. If the context is not enough, say what is missing and suggest the next practical step.',
+      prompt: [
+        `CRM context:\n${context}`,
+        history ? `Conversation history:\n${history}` : '',
+        `Current question: ${question}`,
+      ].filter(Boolean).join('\n\n'),
+      maxTokens: 900,
+    });
+
+    res.json({ answer });
+  } catch (error) {
+    console.error('AI assistant error:', error);
+    res.status(500).json({ message: 'Failed to answer assistant question', error: error.message });
   }
 });
 

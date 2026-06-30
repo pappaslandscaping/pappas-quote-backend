@@ -39,6 +39,8 @@ const pool = new Pool({
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFICATION_EMAIL = process.env.NOTIFICATION_EMAIL || 'hello@pappaslandscaping.com';
 const FROM_EMAIL = 'Pappas & Co. Landscaping <hello@pappaslandscaping.com>';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-latest';
 const anthropic = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
@@ -4451,11 +4453,11 @@ app.get('/api/app/twilio-numbers', authenticateToken, async (req, res) => {
   }
 });
 
-function requireAnthropic(res) {
-  if (anthropic) return true;
+function requireAiProvider(res) {
+  if (OPENAI_API_KEY || anthropic) return true;
   res.status(503).json({
     message: 'AI is not configured on this server',
-    missing: ['ANTHROPIC_API_KEY'],
+    missing: ['OPENAI_API_KEY'],
   });
   return false;
 }
@@ -4474,6 +4476,35 @@ function extractClaudeText(message) {
 }
 
 async function generateAiText({ system, prompt, maxTokens = 700 }) {
+  if (OPENAI_API_KEY) {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        max_tokens: maxTokens,
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = data?.error?.message || data?.message || `OpenAI returned ${response.status}`;
+      throw new Error(detail);
+    }
+
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    if (!text) throw new Error('AI returned an empty response');
+    return text;
+  }
+
   const message = await anthropic.messages.create({
     model: ANTHROPIC_MODEL,
     max_tokens: maxTokens,
@@ -4494,7 +4525,7 @@ function formatRefinements(refinements = []) {
 }
 
 app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
-  if (!requireAnthropic(res)) return;
+  if (!requireAiProvider(res)) return;
 
   try {
     const messages = Array.isArray(req.body.messages) ? req.body.messages.slice(-15) : [];
@@ -4528,7 +4559,7 @@ app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
-  if (!requireAnthropic(res)) return;
+  if (!requireAiProvider(res)) return;
 
   try {
     const contactName = plainText(req.body.contactName, 'the customer');
@@ -4558,7 +4589,7 @@ app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) => {
-  if (!requireAnthropic(res)) return;
+  if (!requireAiProvider(res)) return;
 
   try {
     const contactName = plainText(req.body.contactName, 'the customer');
@@ -4588,7 +4619,7 @@ app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) 
 });
 
 app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) => {
-  if (!requireAnthropic(res)) return;
+  if (!requireAiProvider(res)) return;
 
   try {
     const contactName = plainText(req.body.contactName, 'the caller');
@@ -4612,7 +4643,7 @@ app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) =>
 });
 
 app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
-  if (!requireAnthropic(res)) return;
+  if (!requireAiProvider(res)) return;
 
   try {
     const question = plainText(req.body.question);

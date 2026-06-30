@@ -4462,6 +4462,34 @@ function requireAiProvider(res) {
   return false;
 }
 
+function getAiProviderLabel() {
+  if (OPENAI_API_KEY) return 'openai';
+  if (anthropic) return 'anthropic';
+  return 'none';
+}
+
+function getAiModelLabel() {
+  if (OPENAI_API_KEY) return OPENAI_MODEL;
+  if (anthropic) return ANTHROPIC_MODEL;
+  return null;
+}
+
+function aiErrorResponse(res, label, error) {
+  const provider = getAiProviderLabel();
+  const message = error?.message || 'AI request failed';
+  console.error(`${label}:`, {
+    provider,
+    model: getAiModelLabel(),
+    message,
+  });
+  res.status(500).json({
+    message: label,
+    provider,
+    model: getAiModelLabel(),
+    error: message,
+  });
+}
+
 function plainText(value, fallback = '') {
   return String(value || fallback).replace(/\s+/g, ' ').trim();
 }
@@ -4524,6 +4552,14 @@ function formatRefinements(refinements = []) {
     .join('\n');
 }
 
+app.get('/api/app/ai/status', authenticateToken, async (req, res) => {
+  res.json({
+    configured: getAiProviderLabel() !== 'none',
+    provider: getAiProviderLabel(),
+    model: getAiModelLabel(),
+  });
+});
+
 app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
   if (!requireAiProvider(res)) return;
 
@@ -4553,8 +4589,7 @@ app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
 
     res.json({ suggestion });
   } catch (error) {
-    console.error('AI reply error:', error);
-    res.status(500).json({ message: 'Failed to generate AI reply', error: error.message });
+    aiErrorResponse(res, 'Failed to generate AI reply', error);
   }
 });
 
@@ -4583,8 +4618,7 @@ app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
 
     res.json({ draft });
   } catch (error) {
-    console.error('AI draft error:', error);
-    res.status(500).json({ message: 'Failed to generate AI draft', error: error.message });
+    aiErrorResponse(res, 'Failed to generate AI draft', error);
   }
 });
 
@@ -4613,8 +4647,7 @@ app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) 
 
     res.json({ suggestion });
   } catch (error) {
-    console.error('AI voicemail text error:', error);
-    res.status(500).json({ message: 'Failed to draft text from voicemail', error: error.message });
+    aiErrorResponse(res, 'Failed to draft text from voicemail', error);
   }
 });
 
@@ -4637,8 +4670,7 @@ app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) =>
 
     res.json({ summary });
   } catch (error) {
-    console.error('AI voicemail summary error:', error);
-    res.status(500).json({ message: 'Failed to summarize voicemail', error: error.message });
+    aiErrorResponse(res, 'Failed to summarize voicemail', error);
   }
 });
 
@@ -4683,8 +4715,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
 
     res.json({ answer });
   } catch (error) {
-    console.error('AI assistant error:', error);
-    res.status(500).json({ message: 'Failed to answer assistant question', error: error.message });
+    aiErrorResponse(res, 'Failed to answer assistant question', error);
   }
 });
 

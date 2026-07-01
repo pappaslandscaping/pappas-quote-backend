@@ -628,6 +628,7 @@ const PUBLIC_ROUTE_EXACT = new Set([
   '/api/app/calls/status-callback', // Twilio callback
   '/api/app/calls/connect',         // Twilio TwiML connect
   '/api/app/voice/connect',         // Twilio TwiML voice connect
+  '/api/app/voice/outbound-status', // Twilio Voice SDK dial result callback
   '/api/voice/twiml',               // Twilio Voice SDK outgoing TwiML
   '/api/app/calls/hold-music',      // Twilio hold music
   '/api/unsubscribe',               // Customer unsubscribe
@@ -4186,7 +4187,14 @@ app.all('/api/app/voice/outbound-status', (req, res) => {
   const twiml = new VoiceResponse();
   const dialStatus = (req.body.DialCallStatus || req.query.DialCallStatus || '').toLowerCase();
 
-  console.log(`📞 Outbound voice dial status: ${dialStatus || 'unknown'}`);
+  console.log('📞 Outbound voice dial result:', {
+    dialStatus: dialStatus || 'unknown',
+    callSid: req.body.CallSid || req.query.CallSid,
+    dialCallSid: req.body.DialCallSid || req.query.DialCallSid,
+    dialCallDuration: req.body.DialCallDuration || req.query.DialCallDuration || 0,
+    from: req.body.From || req.query.From,
+    to: req.body.To || req.query.To,
+  });
 
   if (dialStatus === 'busy') {
     twiml.say({ voice: 'alice' }, 'The line is busy.');
@@ -4261,8 +4269,31 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
 
 // Status callback (no auth - called by Twilio)
 app.post('/api/app/calls/status-callback', (req, res) => {
-  const { CallSid, CallStatus, CallDuration, From, To } = req.body;
-  console.log(`📞 Call ${CallSid}: ${CallStatus} (${CallDuration || 0}s) From: ${From} To: ${To}`);
+  const {
+    CallSid,
+    ParentCallSid,
+    CallStatus,
+    DialCallStatus,
+    CallDuration,
+    From,
+    To,
+    Direction,
+    AnsweredBy,
+    SipResponseCode,
+  } = req.body;
+
+  console.log('📞 Twilio call status:', {
+    callSid: CallSid,
+    parentCallSid: ParentCallSid,
+    callStatus: CallStatus,
+    dialCallStatus: DialCallStatus,
+    duration: CallDuration || 0,
+    from: From,
+    to: To,
+    direction: Direction,
+    answeredBy: AnsweredBy,
+    sipResponseCode: SipResponseCode,
+  });
   res.sendStatus(200);
 });
 
@@ -10657,6 +10688,7 @@ app.get('/api/app/voice/token', authenticateToken, (req, res) => {
 app.all('/api/voice/twiml', (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const twiml = new VoiceResponse();
+  const baseUrl = process.env.BASE_URL || 'https://app.pappaslandscaping.com';
   let to = String(req.body.To || req.query.To || '').trim();
   if (to && !to.startsWith('+') && !to.startsWith('client:')) to = '+' + to;
 
@@ -10664,18 +10696,32 @@ app.all('/api/voice/twiml', (req, res) => {
   const normalizedFrom = requestedFrom.replace(/\D/g, '').slice(-10);
   const callerId = TWILIO_NUMBERS[normalizedFrom] || TWILIO_PHONE_NUMBER;
 
+  console.log('📞 Voice SDK TwiML:', {
+    to,
+    requestedFrom,
+    callerId,
+    callSid: req.body.CallSid || req.query.CallSid,
+    parentCallSid: req.body.ParentCallSid || req.query.ParentCallSid,
+  });
+
   if (to) {
     const dial = twiml.dial({
       callerId,
       timeout: 30,
       answerOnBridge: true,
       ringTone: 'us',
+      action: `${baseUrl}/api/app/voice/outbound-status`,
+      method: 'POST',
     });
 
     if (to.startsWith('client:')) {
       dial.client(to.replace('client:', ''));
     } else {
-      dial.number(to);
+      dial.number({
+        statusCallback: `${baseUrl}/api/app/calls/status-callback`,
+        statusCallbackMethod: 'POST',
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+      }, to);
     }
   } else {
     twiml.say('No destination specified.');

@@ -170,8 +170,8 @@ try {
 
 const DEFAULT_ANTHROPIC_MODEL = process.env.AI_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
 const DEFAULT_WRITING_PROVIDER = (process.env.AI_WRITING_PROVIDER || '').trim().toLowerCase();
-const DEFAULT_WRITING_OPENAI_MODEL = process.env.AI_WRITING_OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';
-const DEFAULT_WRITING_OPENAI_FALLBACK_MODEL = process.env.AI_WRITING_OPENAI_FALLBACK_MODEL || 'gpt-5-mini';
+const DEFAULT_WRITING_OPENAI_MODEL = process.env.AI_WRITING_OPENAI_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+const DEFAULT_WRITING_OPENAI_FALLBACK_MODEL = process.env.AI_WRITING_OPENAI_FALLBACK_MODEL || 'gpt-4.1-mini';
 
 function getWritingAiProvider() {
   if (DEFAULT_WRITING_PROVIDER === 'openai' || DEFAULT_WRITING_PROVIDER === 'anthropic') {
@@ -367,6 +367,33 @@ async function generateWritingText(options) {
     return createAnthropicWritingResponse(options);
   }
   throw new Error('No AI provider configured for writing surfaces');
+}
+
+async function generateAppAiText({ systemPrompt, prompt, maxOutputTokens = 512 }) {
+  const response = await generateWritingText({
+    systemPrompt,
+    messages: [{ role: 'user', content: prompt }],
+    maxOutputTokens
+  });
+
+  const text = String(response.text || '').trim();
+  if (!text) {
+    throw new Error('AI returned an empty response');
+  }
+
+  console.log(`[App AI] Generated response with ${response.provider}/${response.model}`);
+  return text;
+}
+
+function formatAppAiRefinements(refinements) {
+  if (!Array.isArray(refinements) || refinements.length === 0) return '';
+  return refinements
+    .map((item) => {
+      const role = item?.role === 'assistant' ? 'Assistant' : 'User';
+      return `${role}: ${String(item?.content || '').trim()}`;
+    })
+    .filter((line) => !line.endsWith(':'))
+    .join('\n');
 }
 
 async function generateWritingJson(options) {
@@ -4699,7 +4726,7 @@ app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, 
 
 // AI reply suggestion - for app
 app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
-  if (!anthropicClient) {
+  if (!isWritingAiConfigured()) {
     return res.status(503).json({ success: false, error: 'AI service not configured' });
   }
   const { messages, contactName, refinements } = req.body;
@@ -4720,19 +4747,12 @@ ${conversationContext}
 
 Write a short, friendly, professional text message reply as Tim. Keep it under 300 characters. Be helpful and personable — this is a small local business. Don't use emojis excessively. Just return the message text, nothing else.`;
 
-    const apiMessages = [{ role: 'user', content: systemPrompt }];
-    if (refinements && Array.isArray(refinements)) {
-      for (const r of refinements) {
-        apiMessages.push({ role: r.role, content: r.content });
-      }
-    }
-
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      messages: apiMessages,
+    const refinementText = formatAppAiRefinements(refinements);
+    const suggestion = await generateAppAiText({
+      systemPrompt,
+      prompt: refinementText ? `Apply these refinements:\n${refinementText}` : 'Draft the reply now.',
+      maxOutputTokens: 256
     });
-    const suggestion = message.content[0].text.trim();
     res.json({ success: true, suggestion });
   } catch (error) {
     console.error('AI reply error:', error);
@@ -4742,7 +4762,7 @@ Write a short, friendly, professional text message reply as Tim. Keep it under 3
 
 // AI voicemail summary - for app
 app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) => {
-  if (!anthropicClient) {
+  if (!isWritingAiConfigured()) {
     return res.status(503).json({ success: false, error: 'AI service not configured' });
   }
   const { transcription, contactName } = req.body;
@@ -4750,12 +4770,11 @@ app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) =>
     return res.status(400).json({ success: false, error: 'transcription is required' });
   }
   try {
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 100,
-      messages: [{ role: 'user', content: `Summarize this voicemail in one short sentence (under 80 characters). Focus on what the caller wants or needs. No quotes, no "The caller..." prefix — just state what they want directly.\n\nCaller: ${contactName || 'Unknown'}\nTranscription: ${transcription}` }],
+    const summary = await generateAppAiText({
+      systemPrompt: 'Summarize landscaping customer voicemails in one short sentence. Return only the summary.',
+      prompt: `Summarize this voicemail in one short sentence (under 80 characters). Focus on what the caller wants or needs. No quotes, no "The caller..." prefix — just state what they want directly.\n\nCaller: ${contactName || 'Unknown'}\nTranscription: ${transcription}`,
+      maxOutputTokens: 100
     });
-    const summary = message.content[0].text.trim();
     res.json({ success: true, summary });
   } catch (error) {
     console.error('AI voicemail summary error:', error);
@@ -4765,7 +4784,7 @@ app.post('/api/app/ai/voicemail-summary', authenticateToken, async (req, res) =>
 
 // AI text-from-voicemail draft - for app
 app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) => {
-  if (!anthropicClient) {
+  if (!isWritingAiConfigured()) {
     return res.status(503).json({ success: false, error: 'AI service not configured' });
   }
   const { transcription, contactName, refinements } = req.body;
@@ -4775,19 +4794,12 @@ app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) 
   try {
     const systemPrompt = `You are Tim from Pappas & Co. Landscaping in Cleveland, OH. A customer left a voicemail and you need to text them back.\n\nCustomer name: ${contactName || 'Unknown'}\nVoicemail transcription: ${transcription}\n\nWrite a short, friendly, professional text message reply. Acknowledge what they said in the voicemail and address their needs. Keep it under 300 characters. Be helpful and personable. Just return the message text, nothing else.`;
 
-    const apiMessages = [{ role: 'user', content: systemPrompt }];
-    if (refinements && Array.isArray(refinements)) {
-      for (const r of refinements) {
-        apiMessages.push({ role: r.role, content: r.content });
-      }
-    }
-
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      messages: apiMessages,
+    const refinementText = formatAppAiRefinements(refinements);
+    const draft = await generateAppAiText({
+      systemPrompt,
+      prompt: refinementText ? `Apply these refinements:\n${refinementText}` : 'Draft the text response now.',
+      maxOutputTokens: 256
     });
-    const draft = message.content[0].text.trim();
     res.json({ success: true, draft });
   } catch (error) {
     console.error('AI text-from-voicemail error:', error);
@@ -4797,7 +4809,7 @@ app.post('/api/app/ai/text-from-voicemail', authenticateToken, async (req, res) 
 
 // AI Business Assistant - for app
 app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
-  if (!anthropicClient) {
+  if (!isWritingAiConfigured()) {
     return res.status(503).json({ success: false, error: 'AI service not configured' });
   }
   const { question, conversationHistory } = req.body;
@@ -4805,6 +4817,36 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
     return res.status(400).json({ success: false, error: 'question is required' });
   }
   try {
+    if (getWritingAiProvider() === 'openai') {
+      const [customersResult, messagesResult, callsResult] = await Promise.all([
+        pool.query(`SELECT name, mobile, phone, email, street, city, state FROM customers ORDER BY id DESC LIMIT 25`).catch(() => ({ rows: [] })),
+        pool.query(`SELECT direction, from_number, to_number, body, created_at FROM messages ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] })),
+        pool.query(`SELECT from_number, to_number, call_type, status, duration, created_at FROM calls ORDER BY created_at DESC LIMIT 20`).catch(() => ({ rows: [] })),
+      ]);
+
+      const context = JSON.stringify({
+        recentCustomers: customersResult.rows,
+        recentMessages: messagesResult.rows,
+        recentCalls: callsResult.rows,
+      }, null, 2);
+
+      const history = Array.isArray(conversationHistory)
+        ? conversationHistory.slice(-12).map((msg) => `${msg.role === 'assistant' ? 'Assistant' : 'User'}: ${String(msg.content || '').trim()}`).join('\n')
+        : '';
+
+      const answer = await generateAppAiText({
+        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer questions using the provided CRM context. If the context is not enough, say what is missing and suggest the next practical step.',
+        prompt: [
+          `CRM context:\n${context}`,
+          history ? `Conversation history:\n${history}` : '',
+          `Current question: ${question}`,
+        ].filter(Boolean).join('\n\n'),
+        maxOutputTokens: 900
+      });
+
+      return res.json({ success: true, answer });
+    }
+
     // ─── Tool-use AI Assistant: Claude can query the database dynamically ───
     const DB_SCHEMA = `
 DATABASE SCHEMA (PostgreSQL) — use these tables to answer questions:
@@ -5583,7 +5625,7 @@ END OF OLD ASSISTANT */
 
 // AI freeform draft - for app (new message compose)
 app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
-  if (!anthropicClient) {
+  if (!isWritingAiConfigured()) {
     return res.status(503).json({ success: false, error: 'AI service not configured' });
   }
   const { contactName, prompt, refinements } = req.body;
@@ -5593,19 +5635,15 @@ app.post('/api/app/ai/draft', authenticateToken, async (req, res) => {
   try {
     const systemPrompt = `You are Tim from Pappas & Co. Landscaping in Cleveland, OH. Draft a text message based on the user's description.${contactName ? `\n\nRecipient: ${contactName}` : ''}\n\nKeep it under 300 characters. Be friendly, professional, and personable. Just return the message text, nothing else.`;
 
-    const apiMessages = [{ role: 'user', content: prompt ? `${systemPrompt}\n\nUser wants to say: ${prompt}` : systemPrompt }];
-    if (refinements && Array.isArray(refinements)) {
-      for (const r of refinements) {
-        apiMessages.push({ role: r.role, content: r.content });
-      }
-    }
-
-    const message = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
-      messages: apiMessages,
+    const refinementText = formatAppAiRefinements(refinements);
+    const draft = await generateAppAiText({
+      systemPrompt,
+      prompt: [
+        prompt ? `User wants to say: ${prompt}` : '',
+        refinementText ? `Apply these refinements:\n${refinementText}` : '',
+      ].filter(Boolean).join('\n\n') || 'Draft the text message now.',
+      maxOutputTokens: 256
     });
-    const draft = message.content[0].text.trim();
     res.json({ success: true, draft });
   } catch (error) {
     console.error('AI draft error:', error);

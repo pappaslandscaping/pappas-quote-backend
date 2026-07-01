@@ -4198,13 +4198,15 @@ app.all('/api/app/voice/outbound-status', (req, res) => {
 
   if (dialStatus === 'busy') {
     twiml.say({ voice: 'alice' }, 'The line is busy.');
+    twiml.hangup();
   } else if (dialStatus === 'no-answer') {
     twiml.say({ voice: 'alice' }, 'There was no answer.');
+    twiml.hangup();
   } else if (dialStatus && dialStatus !== 'completed' && dialStatus !== 'answered') {
     twiml.say({ voice: 'alice' }, 'The call could not be completed.');
+    twiml.hangup();
   }
 
-  twiml.hangup();
   res.type('text/xml');
   res.send(twiml.toString());
 });

@@ -19,6 +19,10 @@ const {
   buildSmsReplyAddress,
   handleSmsEmailReplyWebhook,
 } = require('../lib/sms-email-replies');
+const {
+  getOutOfAreaZip,
+  buildOutOfAreaAutoReply,
+} = require('../lib/service-area-auto-reply');
 
 function getBroadcastEligibility(customer, prefs, channel) {
   const emailEligible = !!(customer.email && customer.email.trim()) && (!prefs || prefs.email_marketing !== false);
@@ -1800,6 +1804,30 @@ router.post('/api/sms/webhook', async (req, res) => {
 
     // Send push notification
     await sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });
+
+    const outOfAreaZip = getOutOfAreaZip(Body);
+    if (outOfAreaZip && smsReplyClient) {
+      try {
+        const replyBody = buildOutOfAreaAutoReply('sms');
+        const twilioMessage = await smsReplyClient.messages.create({
+          body: replyBody,
+          from: To || TWILIO_PHONE_NUMBER,
+          to: From,
+        });
+
+        await pool.query(`
+          INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
+          VALUES ($1, 'outbound', $2, $3, $4, '{}', $5, $6, true)
+          ON CONFLICT (twilio_sid) DO NOTHING
+        `, [twilioMessage.sid, To || TWILIO_PHONE_NUMBER, From, replyBody, twilioMessage.status || 'sent', customerId]);
+
+        console.log(`📍 Auto-replied out-of-area SMS to ${From} for ZIP ${outOfAreaZip}`);
+      } catch (autoReplyError) {
+        console.error('Out-of-area SMS auto-reply error:', autoReplyError);
+      }
+    } else if (!outOfAreaZip) {
+      console.log('📍 No explicit out-of-area ZIP found in inbound SMS; no service-area auto-reply sent.');
+    }
 
     // Send email notification (fire-and-forget)
     const smsDisplayName = customerName !== 'Unknown' ? escapeHtml(customerName) : From;

@@ -59,6 +59,10 @@ const {
 } = require('./lib/startup-schema');
 const { buildCorsOptions } = require('./lib/cors-options');
 const { buildDashboardActivityFeedQuery } = require('./lib/dashboard-activity-feed-query');
+const {
+  getOutOfAreaZip,
+  buildOutOfAreaAutoReply,
+} = require('./lib/service-area-auto-reply');
 
 // ═══════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -3091,6 +3095,30 @@ app.post('/api/calls', async (req, res) => {
           <p style="margin:0;color:#1e293b;line-height:1.6;">${transcription ? escapeHtml(transcription) : '<em style="color:#94a3b8;">No transcription available</em>'}</p>
         </div>
       `, { showSignature: false })).catch(err => console.error('Voicemail notification email error:', err));
+
+      const outOfAreaZip = getOutOfAreaZip(transcription);
+      if (outOfAreaZip && twilioAppMessagingClient) {
+        try {
+          const replyBody = buildOutOfAreaAutoReply('voicemail');
+          const twilioMessage = await twilioAppMessagingClient.messages.create({
+            body: replyBody,
+            from: to_number || TWILIO_PHONE_NUMBER,
+            to: from_number,
+          });
+
+          await pool.query(`
+            INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
+            VALUES ($1, 'outbound', $2, $3, $4, '{}', $5, NULL, true)
+            ON CONFLICT (twilio_sid) DO NOTHING
+          `, [twilioMessage.sid, to_number || TWILIO_PHONE_NUMBER, from_number, replyBody, twilioMessage.status || 'sent']);
+
+          console.log(`📍 Auto-replied out-of-area voicemail to ${from_number} for ZIP ${outOfAreaZip}`);
+        } catch (autoReplyError) {
+          console.error('Out-of-area voicemail auto-reply error:', autoReplyError);
+        }
+      } else if (!outOfAreaZip) {
+        console.log('📍 No explicit out-of-area ZIP found in voicemail transcription; no service-area auto-reply sent.');
+      }
     }
   } catch (error) { serverError(res, error); }
 });

@@ -22,6 +22,7 @@ const {
 const {
   getOutOfAreaZip,
   buildOutOfAreaAutoReply,
+  reviewAddressServiceArea,
 } = require('../lib/service-area-auto-reply');
 
 function getBroadcastEligibility(customer, prefs, channel) {
@@ -1794,10 +1795,11 @@ router.post('/api/sms/webhook', async (req, res) => {
     const customerName = customerResult.rows[0]?.name || 'Unknown';
 
     // Store message
-    await pool.query(`
+    const inboundMessageResult = await pool.query(`
       INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
       VALUES ($1, 'inbound', $2, $3, $4, $5, 'received', $6, false)
       ON CONFLICT (twilio_sid) DO NOTHING
+      RETURNING id
     `, [MessageSid, From, To, Body, mediaUrls, customerId]);
 
     console.log(`📨 Incoming SMS from ${customerName} (${From}): ${Body?.substring(0, 50)}...`);
@@ -1827,6 +1829,47 @@ router.post('/api/sms/webhook', async (req, res) => {
       }
     } else if (!outOfAreaZip) {
       console.log('📍 No explicit out-of-area ZIP found in inbound SMS; no service-area auto-reply sent.');
+
+      const addressReview = await reviewAddressServiceArea(Body, { fetchImpl });
+      if (addressReview?.status === 'review' && addressReview.zip && !addressReview.inServiceArea) {
+        const reviewBody = [
+          'Review-only service area check.',
+          `Resolved ZIP: ${addressReview.zip}`,
+          addressReview.formattedAddress ? `Resolved address: ${addressReview.formattedAddress}` : '',
+          `Customer: ${customerName}`,
+          `Phone: ${From}`,
+          `Message: ${Body || ''}`,
+          'No automatic customer text was sent.',
+        ].filter(Boolean).join('\n');
+
+        await sendPushToAllDevices(
+          '📍 Service area review',
+          `${customerName !== 'Unknown' ? customerName : From}: possible out-of-area ZIP ${addressReview.zip}`,
+          { type: 'service_area_review', phoneNumber: cleanedPhone, contactName: customerName, zip: addressReview.zip }
+        ).catch(err => console.error('Service area review push error:', err));
+
+        sendEmail(NOTIFICATION_EMAIL, `📍 Review service area: ${customerName !== 'Unknown' ? customerName : From}`, emailTemplate(`
+          <h2 style="color:#1e293b;margin:0 0 16px;">Review Service Area</h2>
+          <p style="margin:0 0 12px;color:#1e293b;">A customer text included an address without an explicit ZIP. Google resolved it to an out-of-area ZIP. No automatic customer text was sent.</p>
+          <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:8px 0;color:#64748b;width:130px;">Resolved ZIP</td><td style="padding:8px 0;color:#1e293b;font-weight:600;">${escapeHtml(addressReview.zip)}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;">Resolved Address</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(addressReview.formattedAddress || 'Unknown')}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;">Customer</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(customerName)}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(From)}</td></tr>
+          </table>
+          <div style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #c9dd80;">
+            <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(Body || '')}</p>
+          </div>
+        `, { showSignature: false })).catch(err => console.error('Service area review email error:', err));
+
+        const messageId = inboundMessageResult.rows[0]?.id || null;
+        if (messageId) {
+          await pool.query(`
+            INSERT INTO internal_notes (entity_type, entity_id, author_name, content, pinned)
+            VALUES ('message', $1, 'System', $2, true)
+          `, [messageId, reviewBody]).catch(err => console.error('Service area review note error:', err));
+        }
+      }
     }
 
     // Send email notification (fire-and-forget)

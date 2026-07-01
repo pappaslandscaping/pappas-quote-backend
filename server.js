@@ -62,6 +62,7 @@ const { buildDashboardActivityFeedQuery } = require('./lib/dashboard-activity-fe
 const {
   getOutOfAreaZip,
   buildOutOfAreaAutoReply,
+  reviewAddressServiceArea,
 } = require('./lib/service-area-auto-reply');
 
 // ═══════════════════════════════════════════════════════════
@@ -3118,6 +3119,44 @@ app.post('/api/calls', async (req, res) => {
         }
       } else if (!outOfAreaZip) {
         console.log('📍 No explicit out-of-area ZIP found in voicemail transcription; no service-area auto-reply sent.');
+
+        const addressReview = await reviewAddressServiceArea(transcription);
+        if (addressReview?.status === 'review' && addressReview.zip && !addressReview.inServiceArea) {
+          const reviewBody = [
+            'Review-only service area check.',
+            `Resolved ZIP: ${addressReview.zip}`,
+            addressReview.formattedAddress ? `Resolved address: ${addressReview.formattedAddress}` : '',
+            `Caller: ${vmSubjectName}`,
+            `Phone: ${from_number}`,
+            `Voicemail transcription: ${transcription || ''}`,
+            'No automatic customer text was sent.',
+          ].filter(Boolean).join('\n');
+
+          await sendPushToAllDevices(
+            '📍 Service area review',
+            `${vmSubjectName}: voicemail may be out-of-area ZIP ${addressReview.zip}`,
+            { type: 'service_area_review', phoneNumber: cleanedVmPhone, contactName: vmSubjectName, zip: addressReview.zip }
+          ).catch(err => console.error('Service area voicemail review push error:', err));
+
+          sendEmail(NOTIFICATION_EMAIL, `📍 Review voicemail service area: ${vmSubjectName}`, emailTemplate(`
+            <h2 style="color:#1e293b;margin:0 0 16px;">Review Voicemail Service Area</h2>
+            <p style="margin:0 0 12px;color:#1e293b;">A voicemail transcription included an address without an explicit ZIP. Google resolved it to an out-of-area ZIP. No automatic customer text was sent.</p>
+            <table style="width:100%;border-collapse:collapse;">
+              <tr><td style="padding:8px 0;color:#64748b;width:130px;">Resolved ZIP</td><td style="padding:8px 0;color:#1e293b;font-weight:600;">${escapeHtml(addressReview.zip)}</td></tr>
+              <tr><td style="padding:8px 0;color:#64748b;">Resolved Address</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(addressReview.formattedAddress || 'Unknown')}</td></tr>
+              <tr><td style="padding:8px 0;color:#64748b;">Caller</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(vmSubjectName)}</td></tr>
+              <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(from_number)}</td></tr>
+            </table>
+            <div style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #c9dd80;">
+              <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(transcription || '')}</p>
+            </div>
+          `, { showSignature: false })).catch(err => console.error('Service area voicemail review email error:', err));
+
+          await pool.query(`
+            INSERT INTO internal_notes (entity_type, entity_id, author_name, content, pinned)
+            VALUES ('call', $1, 'System', $2, true)
+          `, [result.rows[0].id, reviewBody]).catch(err => console.error('Service area voicemail review note error:', err));
+        }
       }
     }
   } catch (error) { serverError(res, error); }

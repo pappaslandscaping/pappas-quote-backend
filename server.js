@@ -635,6 +635,7 @@ const PUBLIC_ROUTE_EXACT = new Set([
   '/api/app/voice/connect',         // Twilio TwiML voice connect
   '/api/app/voice/outbound-status', // Twilio Voice SDK dial result callback
   '/api/voice/twiml',               // Twilio Voice SDK outgoing TwiML
+  '/api/service-area-review/send',  // Signed one-click approval to send reviewed out-of-area text
   '/api/app/calls/hold-music',      // Twilio hold music
   '/api/unsubscribe',               // Customer unsubscribe
   '/api/config/maps-key',           // Public config
@@ -797,6 +798,68 @@ try {
   }
 } catch (err) {
   console.log('Twilio init failed:', err.message);
+}
+
+function buildServiceAreaReviewSendLink({ source, from, to, zip, entityType, entityId, customerId }) {
+  if (!from || !to) return null;
+
+  const replySource = source === 'voicemail' ? 'voicemail' : 'sms';
+  const body = buildOutOfAreaAutoReply(replySource);
+  const baseUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com').replace(/\/$/, '');
+  const token = jwt.sign(
+    {
+      action: 'send_out_of_area_reply',
+      source: replySource,
+      from,
+      to,
+      body,
+      zip: zip || null,
+      entityType: entityType || null,
+      entityId: entityId || null,
+      customerId: customerId || null,
+    },
+    JWT_SECRET,
+    {
+      expiresIn: '7d',
+      jwtid: crypto.randomBytes(18).toString('hex'),
+    }
+  );
+
+  return `${baseUrl}/api/service-area-review/send?token=${encodeURIComponent(token)}`;
+}
+
+async function ensureServiceAreaReviewActionsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS service_area_review_actions (
+      id SERIAL PRIMARY KEY,
+      token_id VARCHAR(80) UNIQUE NOT NULL,
+      payload JSONB NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      sent_at TIMESTAMP,
+      sent_twilio_sid VARCHAR(100),
+      error TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+function renderServiceAreaActionPage(title, message, status = 'ok') {
+  const color = status === 'error' ? '#b91c1c' : status === 'sent' ? '#2e403d' : '#64748b';
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(title)}</title>
+  </head>
+  <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#f8fafc;color:#1e293b;">
+    <main style="max-width:560px;margin:48px auto;padding:28px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;">
+      <h1 style="margin:0 0 12px;font-size:24px;color:${color};">${escapeHtml(title)}</h1>
+      <p style="margin:0;font-size:16px;line-height:1.6;">${escapeHtml(message)}</p>
+    </main>
+  </body>
+</html>`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2951,9 +3014,112 @@ app.use(campaignRoutes);
 const communicationRoutes = require('./routes/communications')({
   pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
   twilioClient, smsReplyClient: twilioAppMessagingClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS, replaceTemplateVars, sendPushToAllDevices,
-  RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET,
+  RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink,
 });
 app.use(communicationRoutes);
+
+app.get('/api/service-area-review/send', async (req, res) => {
+  const { token } = req.query;
+  if (!token || typeof token !== 'string') {
+    return res.status(400).send(renderServiceAreaActionPage('Missing link token', 'This review link is missing its approval token.', 'error'));
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return res.status(400).send(renderServiceAreaActionPage('Review link expired', 'This approval link is invalid or expired. Open the latest review email to send the text.', 'error'));
+  }
+
+  if (decoded.action !== 'send_out_of_area_reply' || !decoded.jti || !decoded.from || !decoded.to || !decoded.body) {
+    return res.status(400).send(renderServiceAreaActionPage('Invalid review link', 'This approval link is not valid for sending a service-area text.', 'error'));
+  }
+
+  if (!twilioAppMessagingClient) {
+    return res.status(503).send(renderServiceAreaActionPage('Text not sent', 'Twilio messaging is not configured on the server right now.', 'error'));
+  }
+
+  try {
+    await ensureServiceAreaReviewActionsTable();
+
+    const insertResult = await pool.query(`
+      INSERT INTO service_area_review_actions (token_id, payload, status)
+      VALUES ($1, $2, 'pending')
+      ON CONFLICT (token_id) DO NOTHING
+      RETURNING id
+    `, [decoded.jti, decoded]);
+
+    let actionId = insertResult.rows[0]?.id || null;
+    if (!actionId) {
+      const existing = await pool.query(
+        'SELECT id, status, sent_at, error FROM service_area_review_actions WHERE token_id = $1',
+        [decoded.jti]
+      );
+      const row = existing.rows[0];
+      if (row?.status === 'sent') {
+        return res.send(renderServiceAreaActionPage('Already sent', 'This review text was already sent. Duplicate clicks do not send another message.', 'ok'));
+      }
+      if (row?.status === 'pending') {
+        return res.send(renderServiceAreaActionPage('Already processing', 'This review text is already being sent. Duplicate clicks do not send another message.', 'ok'));
+      }
+      if (row?.status === 'failed') {
+        const retry = await pool.query(`
+          UPDATE service_area_review_actions
+          SET status = 'pending', error = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE token_id = $1
+          RETURNING id
+        `, [decoded.jti]);
+        actionId = retry.rows[0]?.id || null;
+      }
+    }
+    if (!actionId) {
+      throw new Error('Could not reserve service-area review action.');
+    }
+
+    const twilioMessage = await twilioAppMessagingClient.messages.create({
+      body: decoded.body,
+      from: decoded.from,
+      to: decoded.to,
+    });
+
+    await pool.query(`
+      UPDATE service_area_review_actions
+      SET status = 'sent', sent_at = CURRENT_TIMESTAMP, sent_twilio_sid = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [actionId, twilioMessage.sid]);
+
+    await pool.query(`
+      INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
+      VALUES ($1, 'outbound', $2, $3, $4, '{}', $5, $6, true)
+      ON CONFLICT (twilio_sid) DO NOTHING
+    `, [twilioMessage.sid, decoded.from, decoded.to, decoded.body, twilioMessage.status || 'sent', decoded.customerId || null])
+      .catch(err => console.error('Service area approved text message log error:', err));
+
+    if (decoded.entityType && decoded.entityId) {
+      await pool.query(`
+        INSERT INTO internal_notes (entity_type, entity_id, author_name, content, pinned)
+        VALUES ($1, $2, 'System', $3, true)
+      `, [
+        decoded.entityType,
+        decoded.entityId,
+        `Approved service-area review text sent to ${decoded.to}${decoded.zip ? ` for ZIP ${decoded.zip}` : ''}.`,
+      ]).catch(err => console.error('Service area approval note error:', err));
+    }
+
+    console.log(`📍 Approved service-area review text sent to ${decoded.to}${decoded.zip ? ` for ZIP ${decoded.zip}` : ''}`);
+    return res.send(renderServiceAreaActionPage('Text sent', `The service-area text was sent to ${decoded.to}.`, 'sent'));
+  } catch (error) {
+    console.error('Service area review send error:', error);
+    if (decoded?.jti) {
+      await pool.query(`
+        UPDATE service_area_review_actions
+        SET status = 'failed', error = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE token_id = $1
+      `, [decoded.jti, error.message || 'Unknown error']).catch(() => {});
+    }
+    return res.status(500).send(renderServiceAreaActionPage('Text not sent', 'The text could not be sent. Please try the link again or send it manually from the app.', 'error'));
+  }
+});
 
 // ═══════════════════════════════════════════════════════════
 // COPILOTCRM SYNC — routes/copilot.js + services/copilot/client.js
@@ -3122,6 +3288,15 @@ app.post('/api/calls', async (req, res) => {
 
         const addressReview = await reviewAddressServiceArea(transcription);
         if (addressReview?.status === 'review' && addressReview.zip && !addressReview.inServiceArea) {
+          const approvalLink = buildServiceAreaReviewSendLink({
+            source: 'voicemail',
+            from: to_number || TWILIO_PHONE_NUMBER,
+            to: from_number,
+            zip: addressReview.zip,
+            entityType: 'call',
+            entityId: result.rows[0].id,
+          });
+          const proposedReplyBody = buildOutOfAreaAutoReply('voicemail');
           const reviewBody = [
             'Review-only service area check.',
             `Resolved ZIP: ${addressReview.zip}`,
@@ -3129,6 +3304,7 @@ app.post('/api/calls', async (req, res) => {
             `Caller: ${vmSubjectName}`,
             `Phone: ${from_number}`,
             `Voicemail transcription: ${transcription || ''}`,
+            approvalLink ? `Send approval link: ${approvalLink}` : '',
             'No automatic customer text was sent.',
           ].filter(Boolean).join('\n');
 
@@ -3150,6 +3326,16 @@ app.post('/api/calls', async (req, res) => {
             <div style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #c9dd80;">
               <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(transcription || '')}</p>
             </div>
+            <div style="margin-top:16px;padding:16px;background:#fff7ed;border-radius:8px;border-left:4px solid #f59e0b;">
+              <p style="margin:0 0 6px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Proposed customer text</p>
+              <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(proposedReplyBody)}</p>
+            </div>
+            ${approvalLink ? `
+              <div style="margin-top:20px;">
+                <a href="${escapeHtml(approvalLink)}" style="display:inline-block;background:#2e403d;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">Send this text</a>
+                <p style="margin:10px 0 0;color:#64748b;font-size:13px;line-height:1.5;">Clicking this sends the text once. If you do nothing, the customer is not texted.</p>
+              </div>
+            ` : ''}
           `, { showSignature: false })).catch(err => console.error('Service area voicemail review email error:', err));
 
           await pool.query(`

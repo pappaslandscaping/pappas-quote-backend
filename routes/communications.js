@@ -573,7 +573,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
   const router = express.Router();
   const fetchFn = fetchImpl || global.fetch;
 
@@ -1832,6 +1832,19 @@ router.post('/api/sms/webhook', async (req, res) => {
 
       const addressReview = await reviewAddressServiceArea(Body, { fetchImpl });
       if (addressReview?.status === 'review' && addressReview.zip && !addressReview.inServiceArea) {
+        const messageId = inboundMessageResult.rows[0]?.id || null;
+        const approvalLink = typeof buildServiceAreaReviewSendLink === 'function'
+          ? buildServiceAreaReviewSendLink({
+              source: 'sms',
+              from: To || TWILIO_PHONE_NUMBER,
+              to: From,
+              zip: addressReview.zip,
+              entityType: messageId ? 'message' : null,
+              entityId: messageId,
+              customerId,
+            })
+          : null;
+        const proposedReplyBody = buildOutOfAreaAutoReply('sms');
         const reviewBody = [
           'Review-only service area check.',
           `Resolved ZIP: ${addressReview.zip}`,
@@ -1839,6 +1852,7 @@ router.post('/api/sms/webhook', async (req, res) => {
           `Customer: ${customerName}`,
           `Phone: ${From}`,
           `Message: ${Body || ''}`,
+          approvalLink ? `Send approval link: ${approvalLink}` : '',
           'No automatic customer text was sent.',
         ].filter(Boolean).join('\n');
 
@@ -1860,9 +1874,18 @@ router.post('/api/sms/webhook', async (req, res) => {
           <div style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px;border-left:4px solid #c9dd80;">
             <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(Body || '')}</p>
           </div>
+          <div style="margin-top:16px;padding:16px;background:#fff7ed;border-radius:8px;border-left:4px solid #f59e0b;">
+            <p style="margin:0 0 6px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Proposed customer text</p>
+            <p style="margin:0;color:#1e293b;line-height:1.6;">${escapeHtml(proposedReplyBody)}</p>
+          </div>
+          ${approvalLink ? `
+            <div style="margin-top:20px;">
+              <a href="${escapeHtml(approvalLink)}" style="display:inline-block;background:#2e403d;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;">Send this text</a>
+              <p style="margin:10px 0 0;color:#64748b;font-size:13px;line-height:1.5;">Clicking this sends the text once. If you do nothing, the customer is not texted.</p>
+            </div>
+          ` : ''}
         `, { showSignature: false })).catch(err => console.error('Service area review email error:', err));
 
-        const messageId = inboundMessageResult.rows[0]?.id || null;
         if (messageId) {
           await pool.query(`
             INSERT INTO internal_notes (entity_type, entity_id, author_name, content, pinned)

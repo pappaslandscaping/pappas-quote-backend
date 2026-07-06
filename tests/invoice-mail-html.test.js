@@ -48,10 +48,10 @@ function runAssertions() {
   assert(!html.includes('<div class="eyebrow">Mail To</div>'));
   assert(html.includes('left: 0.40in;'));
   assert(html.includes('top: 2.16in;'));
-  assert(html.includes('height: 0.88in;'));
+  assert(html.includes('height: 1.04in;'));
   assert(html.includes('height: 11in;'));
   assert(html.includes('overflow: hidden;'));
-  assert(html.includes('bottom: 0.42in;'));
+  assert(html.includes('margin-top: 0.14in;'));
   assert(html.includes('class="stub-panel"'));
   assert(html.includes('height: 3.875in;'));
   assert(html.includes('padding-bottom: 0.08in;'));

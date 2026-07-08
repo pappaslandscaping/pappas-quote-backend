@@ -4421,7 +4421,8 @@ app.all('/api/app/voice/connect', (req, res) => {
     const dial = twiml.dial({
       callerId: TWILIO_PHONE_NUMBER,
       timeout: 30,
-      answerOnBridge: true,
+      // Let the Voice SDK leg connect immediately so voicemail/IVR answer timing
+      // does not tear down the mobile call before the user can hear/respond.
       ringTone: 'us',
       action: `${baseUrl}/api/app/voice/outbound-status`,
       method: 'POST',
@@ -4447,6 +4448,8 @@ app.all('/api/app/voice/outbound-status', (req, res) => {
     dialCallDuration: req.body.DialCallDuration || req.query.DialCallDuration || 0,
     from: req.body.From || req.query.From,
     to: req.body.To || req.query.To,
+    answeredBy: req.body.AnsweredBy || req.query.AnsweredBy,
+    sipResponseCode: req.body.SipResponseCode || req.query.SipResponseCode,
   });
 
   if (dialStatus === 'busy') {
@@ -10963,7 +10966,8 @@ app.all('/api/voice/twiml', (req, res) => {
     const dial = twiml.dial({
       callerId,
       timeout: 30,
-      answerOnBridge: true,
+      // Let the Voice SDK leg connect immediately so voicemail/IVR answer timing
+      // does not tear down the mobile call before the user can hear/respond.
       ringTone: 'us',
       action: `${baseUrl}/api/app/voice/outbound-status`,
       method: 'POST',

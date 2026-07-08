@@ -63,6 +63,7 @@ const {
   getOutOfAreaZip,
   buildOutOfAreaAutoReply,
   reviewAddressServiceArea,
+  extractAddressLead,
 } = require('./lib/service-area-auto-reply');
 
 // ═══════════════════════════════════════════════════════════
@@ -800,7 +801,7 @@ try {
   console.log('Twilio init failed:', err.message);
 }
 
-function buildServiceAreaReviewSendLink({ source, from, to, zip, entityType, entityId, customerId }) {
+function buildServiceAreaReviewSendLink({ source, from, to, zip, entityType, entityId, customerId, sourceText }) {
   if (!from || !to) return null;
 
   const replySource = source === 'voicemail' ? 'voicemail' : 'sms';
@@ -817,6 +818,7 @@ function buildServiceAreaReviewSendLink({ source, from, to, zip, entityType, ent
       entityType: entityType || null,
       entityId: entityId || null,
       customerId: customerId || null,
+      sourceText: sourceText || null,
     },
     JWT_SECRET,
     {
@@ -842,6 +844,44 @@ async function ensureServiceAreaReviewActionsTable() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+}
+
+async function findCustomerByPhoneNumber(phoneNumber) {
+  const cleanedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10);
+  if (!cleanedPhone) return null;
+
+  const result = await pool.query(`
+    SELECT id, name
+    FROM customers
+    WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+       OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+    LIMIT 1
+  `, [`%${cleanedPhone}`]);
+
+  return result.rows[0] || null;
+}
+
+async function findCustomerByAddressLead(text) {
+  const addressLead = extractAddressLead(text);
+  if (!addressLead) return null;
+
+  const result = await pool.query(`
+    SELECT id, name
+    FROM (
+      SELECT id, name, street
+      FROM customers
+      WHERE street IS NOT NULL AND TRIM(street) <> ''
+      UNION ALL
+      SELECT c.id, c.name, p.street
+      FROM properties p
+      JOIN customers c ON c.id = p.customer_id
+      WHERE p.street IS NOT NULL AND TRIM(p.street) <> ''
+    ) matched_addresses
+    WHERE REGEXP_REPLACE(LOWER(COALESCE(street, '')), '[^a-z0-9]+', ' ', 'g') LIKE $1
+    LIMIT 1
+  `, [`%${addressLead}%`]);
+
+  return result.rows[0] || null;
 }
 
 function renderServiceAreaActionPage(title, message, status = 'ok') {
@@ -3076,6 +3116,23 @@ app.get('/api/service-area-review/send', async (req, res) => {
       throw new Error('Could not reserve service-area review action.');
     }
 
+    const existingCustomer = await findCustomerByPhoneNumber(decoded.to)
+      || await findCustomerByAddressLead(decoded.sourceText);
+    if (existingCustomer) {
+      await pool.query(`
+        UPDATE service_area_review_actions
+        SET status = 'blocked', error = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [actionId, `Matched existing customer ${existingCustomer.id}`]);
+
+      console.log(`📍 Blocked approved service-area text to existing customer ${existingCustomer.id} (${decoded.to})`);
+      return res.send(renderServiceAreaActionPage(
+        'Text not sent',
+        `This phone number matches existing customer ${existingCustomer.name || existingCustomer.id}, so the out-of-area text was blocked.`,
+        'ok'
+      ));
+    }
+
     const twilioMessage = await twilioAppMessagingClient.messages.create({
       body: decoded.body,
       from: decoded.from,
@@ -3241,10 +3298,23 @@ app.post('/api/calls', async (req, res) => {
       sendPushToAllDevices(vmPushTitle, vmPushBody, { type: 'voicemail' }).catch(err => console.error('Voicemail push error:', err));
       const cleanedVmPhone = from_number.replace(/\D/g, '').slice(-10);
       let vmContactName = null;
+      let vmCustomerId = null;
       try {
-        const vmCustomer = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedVmPhone}`]);
+        const vmCustomer = await pool.query(`SELECT id, name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedVmPhone}`]);
         vmContactName = vmCustomer.rows[0]?.name || null;
+        vmCustomerId = vmCustomer.rows[0]?.id || null;
       } catch (e) {}
+      if (!vmCustomerId) {
+        const addressCustomer = await findCustomerByAddressLead(transcription).catch(err => {
+          console.error('Voicemail address customer lookup error:', err);
+          return null;
+        });
+        if (addressCustomer) {
+          vmCustomerId = addressCustomer.id;
+          vmContactName = addressCustomer.name || vmContactName;
+          console.log(`📍 Existing customer matched by address for voicemail (${from_number}): ${vmContactName || vmCustomerId}`);
+        }
+      }
       const vmDisplayName = vmContactName ? escapeHtml(vmContactName) : escapeHtml(from_number);
       const vmSubjectName = vmContactName || from_number;
       const vmTimestamp = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short' });
@@ -3263,6 +3333,9 @@ app.post('/api/calls', async (req, res) => {
         </div>
       `, { showSignature: false })).catch(err => console.error('Voicemail notification email error:', err));
 
+      if (vmCustomerId) {
+        console.log(`📍 Existing customer matched for voicemail (${from_number}); skipping service-area auto-reply/review.`);
+      } else {
       const outOfAreaZip = getOutOfAreaZip(transcription);
       if (outOfAreaZip && twilioAppMessagingClient) {
         try {
@@ -3295,6 +3368,8 @@ app.post('/api/calls', async (req, res) => {
             zip: addressReview.zip,
             entityType: 'call',
             entityId: result.rows[0].id,
+            customerId: vmCustomerId,
+            sourceText: transcription,
           });
           const proposedReplyBody = buildOutOfAreaAutoReply('voicemail');
           const reviewBody = [
@@ -3305,6 +3380,7 @@ app.post('/api/calls', async (req, res) => {
             `Phone: ${from_number}`,
             `Voicemail transcription: ${transcription || ''}`,
             approvalLink ? `Send approval link: ${approvalLink}` : '',
+            'No customer record matched this phone number or address.',
             'No automatic customer text was sent.',
           ].filter(Boolean).join('\n');
 
@@ -3343,6 +3419,7 @@ app.post('/api/calls', async (req, res) => {
             VALUES ('call', $1, 'System', $2, true)
           `, [result.rows[0].id, reviewBody]).catch(err => console.error('Service area voicemail review note error:', err));
         }
+      }
       }
     }
   } catch (error) { serverError(res, error); }

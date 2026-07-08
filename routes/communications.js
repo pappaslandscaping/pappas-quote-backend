@@ -23,6 +23,7 @@ const {
   getOutOfAreaZip,
   buildOutOfAreaAutoReply,
   reviewAddressServiceArea,
+  extractAddressLead,
 } = require('../lib/service-area-auto-reply');
 
 function getBroadcastEligibility(customer, prefs, channel) {
@@ -69,6 +70,30 @@ function getBroadcastEligibility(customer, prefs, channel) {
     channel_label: channelLabel,
     channel_blocked_reason: channelBlockedReason
   };
+}
+
+async function findCustomerByAddressLead(pool, text) {
+  const addressLead = extractAddressLead(text);
+  if (!addressLead) return null;
+
+  const likePattern = `%${addressLead}%`;
+  const result = await pool.query(`
+    SELECT id, name
+    FROM (
+      SELECT id, name, street
+      FROM customers
+      WHERE street IS NOT NULL AND TRIM(street) <> ''
+      UNION ALL
+      SELECT c.id, c.name, p.street
+      FROM properties p
+      JOIN customers c ON c.id = p.customer_id
+      WHERE p.street IS NOT NULL AND TRIM(p.street) <> ''
+    ) matched_addresses
+    WHERE REGEXP_REPLACE(LOWER(COALESCE(street, '')), '[^a-z0-9]+', ' ', 'g') LIKE $1
+    LIMIT 1
+  `, [likePattern]);
+
+  return result.rows[0] || null;
 }
 
 function extractFirstName(customer = {}) {
@@ -1791,8 +1816,20 @@ router.post('/api/sms/webhook', async (req, res) => {
       LIMIT 1
     `, [`%${cleanedPhone}`]);
     
-    const customerId = customerResult.rows[0]?.id || null;
-    const customerName = customerResult.rows[0]?.name || 'Unknown';
+    let customerId = customerResult.rows[0]?.id || null;
+    let customerName = customerResult.rows[0]?.name || 'Unknown';
+
+    if (!customerId) {
+      const addressCustomer = await findCustomerByAddressLead(pool, Body).catch(err => {
+        console.error('Address customer lookup error:', err);
+        return null;
+      });
+      if (addressCustomer) {
+        customerId = addressCustomer.id;
+        customerName = addressCustomer.name || customerName;
+        console.log(`📍 Existing customer matched by address for inbound SMS (${From}): ${customerName}`);
+      }
+    }
 
     // Store message
     const inboundMessageResult = await pool.query(`
@@ -1807,54 +1844,59 @@ router.post('/api/sms/webhook', async (req, res) => {
     // Send push notification
     await sendPushToAllDevices(`💬 ${customerName}`, Body?.substring(0, 100) || 'New message', { type: 'sms', phoneNumber: cleanedPhone, contactName: customerName });
 
-    const outOfAreaZip = getOutOfAreaZip(Body);
-    if (outOfAreaZip && smsReplyClient) {
-      try {
-        const replyBody = buildOutOfAreaAutoReply('sms');
-        const twilioMessage = await smsReplyClient.messages.create({
-          body: replyBody,
-          from: To || TWILIO_PHONE_NUMBER,
-          to: From,
-        });
+    if (customerId) {
+      console.log(`📍 Existing customer matched for inbound SMS (${From}); skipping service-area auto-reply/review.`);
+    } else {
+      const outOfAreaZip = getOutOfAreaZip(Body);
+      if (outOfAreaZip && smsReplyClient) {
+        try {
+          const replyBody = buildOutOfAreaAutoReply('sms');
+          const twilioMessage = await smsReplyClient.messages.create({
+            body: replyBody,
+            from: To || TWILIO_PHONE_NUMBER,
+            to: From,
+          });
 
-        await pool.query(`
-          INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
-          VALUES ($1, 'outbound', $2, $3, $4, '{}', $5, $6, true)
-          ON CONFLICT (twilio_sid) DO NOTHING
-        `, [twilioMessage.sid, To || TWILIO_PHONE_NUMBER, From, replyBody, twilioMessage.status || 'sent', customerId]);
+          await pool.query(`
+            INSERT INTO messages (twilio_sid, direction, from_number, to_number, body, media_urls, status, customer_id, read)
+            VALUES ($1, 'outbound', $2, $3, $4, '{}', $5, $6, true)
+            ON CONFLICT (twilio_sid) DO NOTHING
+          `, [twilioMessage.sid, To || TWILIO_PHONE_NUMBER, From, replyBody, twilioMessage.status || 'sent', customerId]);
 
-        console.log(`📍 Auto-replied out-of-area SMS to ${From} for ZIP ${outOfAreaZip}`);
-      } catch (autoReplyError) {
-        console.error('Out-of-area SMS auto-reply error:', autoReplyError);
-      }
-    } else if (!outOfAreaZip) {
-      console.log('📍 No explicit out-of-area ZIP found in inbound SMS; no service-area auto-reply sent.');
+          console.log(`📍 Auto-replied out-of-area SMS to ${From} for ZIP ${outOfAreaZip}`);
+        } catch (autoReplyError) {
+          console.error('Out-of-area SMS auto-reply error:', autoReplyError);
+        }
+      } else if (!outOfAreaZip) {
+        console.log('📍 No explicit out-of-area ZIP found in inbound SMS; no service-area auto-reply sent.');
 
-      const addressReview = await reviewAddressServiceArea(Body, { fetchImpl });
-      if (addressReview?.status === 'review' && addressReview.zip && !addressReview.inServiceArea) {
-        const messageId = inboundMessageResult.rows[0]?.id || null;
-        const approvalLink = typeof buildServiceAreaReviewSendLink === 'function'
-          ? buildServiceAreaReviewSendLink({
-              source: 'sms',
-              from: To || TWILIO_PHONE_NUMBER,
-              to: From,
-              zip: addressReview.zip,
-              entityType: messageId ? 'message' : null,
-              entityId: messageId,
-              customerId,
-            })
-          : null;
-        const proposedReplyBody = buildOutOfAreaAutoReply('sms');
-        const reviewBody = [
-          'Review-only service area check.',
-          `Resolved ZIP: ${addressReview.zip}`,
-          addressReview.formattedAddress ? `Resolved address: ${addressReview.formattedAddress}` : '',
-          `Customer: ${customerName}`,
-          `Phone: ${From}`,
-          `Message: ${Body || ''}`,
-          approvalLink ? `Send approval link: ${approvalLink}` : '',
-          'No automatic customer text was sent.',
-        ].filter(Boolean).join('\n');
+        const addressReview = await reviewAddressServiceArea(Body, { fetchImpl });
+        if (addressReview?.status === 'review' && addressReview.zip && !addressReview.inServiceArea) {
+          const messageId = inboundMessageResult.rows[0]?.id || null;
+          const approvalLink = typeof buildServiceAreaReviewSendLink === 'function'
+            ? buildServiceAreaReviewSendLink({
+                source: 'sms',
+                from: To || TWILIO_PHONE_NUMBER,
+                to: From,
+                zip: addressReview.zip,
+                entityType: messageId ? 'message' : null,
+                entityId: messageId,
+                customerId,
+                sourceText: Body,
+              })
+            : null;
+          const proposedReplyBody = buildOutOfAreaAutoReply('sms');
+          const reviewBody = [
+            'Review-only service area check.',
+            `Resolved ZIP: ${addressReview.zip}`,
+            addressReview.formattedAddress ? `Resolved address: ${addressReview.formattedAddress}` : '',
+            `Customer: ${customerName}`,
+            `Phone: ${From}`,
+            `Message: ${Body || ''}`,
+            approvalLink ? `Send approval link: ${approvalLink}` : '',
+            'No customer record matched this phone number or address.',
+            'No automatic customer text was sent.',
+          ].filter(Boolean).join('\n');
 
         await sendPushToAllDevices(
           '📍 Service area review',
@@ -1893,6 +1935,7 @@ router.post('/api/sms/webhook', async (req, res) => {
           `, [messageId, reviewBody]).catch(err => console.error('Service area review note error:', err));
         }
       }
+    }
     }
 
     // Send email notification (fire-and-forget)

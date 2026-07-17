@@ -5293,22 +5293,62 @@ app.patch('/api/app/ai/tasks/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
+    const [taskResult, insightResult, messageResult, callResult] = await Promise.all([
+      pool.query(`
       SELECT title, details, priority, task_type, phone_number, due_at, metadata, created_at
       FROM app_ai_tasks
       WHERE status = 'open'
         AND (
-          (task_type = 'quote_lead' AND COALESCE(metadata->>'serviceAreaStatus', '') = 'in_area')
-          OR task_type = 'callback'
+          ((task_type = 'quote_lead' AND COALESCE(metadata->>'serviceAreaStatus', '') = 'in_area')
+            AND (created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date)
+          OR (task_type = 'callback'
+            AND (created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date)
           OR (task_type = 'follow_up' AND (due_at IS NULL OR due_at <= CURRENT_TIMESTAMP))
         )
-        AND (created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
       ORDER BY CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, created_at ASC
       LIMIT 30
-    `);
-    const quoteLeads = result.rows.filter((item) => item.task_type === 'quote_lead');
-    const callbacks = result.rows.filter((item) => item.task_type === 'callback');
-    const followUps = result.rows.filter((item) => item.task_type === 'follow_up');
+      `),
+      pool.query(`
+        SELECT COALESCE('Check quote request from ' || NULLIF(c.name, ''), 'Check quote request') AS title,
+          i.summary AS details, CASE WHEN i.urgency IN ('urgent','high') THEN i.urgency ELSE 'high' END AS priority,
+          'quote_lead' AS task_type, i.phone_number, NULL::timestamptz AS due_at,
+          COALESCE(i.extracted_data, '{}'::jsonb) || jsonb_build_object('serviceAreaStatus', i.service_area_status) AS metadata,
+          i.analyzed_at AS created_at
+        FROM app_ai_insights i LEFT JOIN customers c ON c.id = i.customer_id
+        WHERE i.is_quote_request = true AND i.is_spam = false AND i.service_area_status = 'in_area'
+          AND (i.analyzed_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
+      `).catch(() => ({ rows: [] })),
+      pool.query(`
+        SELECT COALESCE('Check quote text from ' || NULLIF(c.name, ''), 'Check quote text') AS title,
+          LEFT(m.body, 240) AS details, 'high' AS priority, 'quote_lead' AS task_type,
+          RIGHT(REGEXP_REPLACE(m.from_number, '[^0-9]', '', 'g'), 10) AS phone_number,
+          NULL::timestamptz AS due_at,
+          jsonb_build_object('serviceAreaStatus', 'in_area', 'zip', COALESCE(NULLIF(substring(m.body from '[0-9]{5}'), ''), c.postal_code)) AS metadata,
+          m.created_at
+        FROM messages m LEFT JOIN customers c ON c.id = m.customer_id
+        WHERE m.direction = 'inbound'
+          AND (m.created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
+          AND m.body ~* '(quote|estimate|pricing|price|cost|how much|yard work|landscap)'
+          AND COALESCE(NULLIF(substring(m.body from '[0-9]{5}'), ''), c.postal_code) = ANY($1::text[])
+      `, [[...SERVICE_AREA_ZIPS]]).catch(() => ({ rows: [] })),
+      pool.query(`
+        SELECT COALESCE('Return missed call from ' || NULLIF(c.name, ''), 'Return missed call') AS title,
+          'Missed inbound call' AS details, 'high' AS priority, 'callback' AS task_type,
+          RIGHT(REGEXP_REPLACE(ca.from_number, '[^0-9]', '', 'g'), 10) AS phone_number,
+          NULL::timestamptz AS due_at, jsonb_build_object('status', ca.status) AS metadata, ca.created_at
+        FROM calls ca LEFT JOIN customers c ON
+          RIGHT(REGEXP_REPLACE(COALESCE(c.mobile, c.phone, ''), '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(ca.from_number, '[^0-9]', '', 'g'), 10)
+        WHERE LOWER(COALESCE(ca.call_type, '')) LIKE '%inbound%'
+          AND LOWER(COALESCE(ca.status, '')) IN ('no-answer','busy','failed','canceled','cancelled')
+          AND (ca.created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
+      `).catch(() => ({ rows: [] })),
+    ]);
+    const dedupeByTypeAndPhone = (items) => Array.from(new Map(items.map((item) => [`${item.task_type}:${item.phone_number || item.title}`, item])).values());
+    const taskRows = taskResult.rows;
+    const quoteLeads = dedupeByTypeAndPhone([...taskRows.filter((item) => item.task_type === 'quote_lead'), ...insightResult.rows, ...messageResult.rows]);
+    const callbacks = dedupeByTypeAndPhone([...taskRows.filter((item) => item.task_type === 'callback'), ...callResult.rows]);
+    const followUps = taskRows.filter((item) => item.task_type === 'follow_up');
+    const allItems = [...quoteLeads, ...callbacks, ...followUps];
     const formatItem = (item) => {
       const service = item.metadata?.service ? ` — ${item.metadata.service}` : '';
       const zip = item.metadata?.zip ? ` (${item.metadata.zip})` : '';
@@ -5327,8 +5367,8 @@ app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) =
       success: true,
       recipient: process.env.TIM_PHONE_NUMBER || '+12169057395',
       body,
-      counts: { quoteLeads: quoteLeads.length, callbacks: callbacks.length, followUps: followUps.length, total: result.rows.length },
-      items: result.rows,
+      counts: { quoteLeads: quoteLeads.length, callbacks: callbacks.length, followUps: followUps.length, total: allItems.length },
+      items: allItems,
       generatedAt: new Date().toISOString(),
       sent: false
     });

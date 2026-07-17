@@ -730,12 +730,80 @@ router.post('/api/customers', validate(schemas.createCustomer), async (req, res)
     const finalPostalCode = postal_code || zip || postalCode || null;
     const finalStatus = status || 'Active';
 
-    // Check for duplicates by email or customer_number
+    // Copilot/Zapier can send the same customer more than once as details are
+    // completed. Treat those deliveries as an upsert so an existing local row
+    // with only an email is enriched with the phone number TwilioConnect needs
+    // to display it as a contact.
+    const normalizedPhone = String(mobile || phone || '').replace(/\D/g, '').slice(-10);
+    const existingParams = [];
+    const existingClauses = [];
+    if (customer_number) {
+      existingParams.push(String(customer_number));
+      existingClauses.push(`customer_number = $${existingParams.length}`);
+    }
     if (email) {
-      const existing = await pool.query('SELECT id FROM customers WHERE email = $1', [email]);
+      existingParams.push(String(email).trim().toLowerCase());
+      existingClauses.push(`LOWER(TRIM(COALESCE(email, ''))) = $${existingParams.length}`);
+    }
+    if (normalizedPhone) {
+      existingParams.push(normalizedPhone);
+      existingClauses.push(`(
+        RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $${existingParams.length}
+        OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $${existingParams.length}
+      )`);
+    }
+
+    if (existingClauses.length) {
+      const existing = await pool.query(
+        `SELECT id FROM customers WHERE ${existingClauses.join(' OR ')} ORDER BY id ASC LIMIT 1`,
+        existingParams
+      );
       if (existing.rows.length > 0) {
-        console.log('⚠️ Customer already exists with email:', email);
-        return res.json({ success: true, message: 'Customer already exists', customer_id: existing.rows[0].id });
+        const updated = await pool.query(`
+          UPDATE customers SET
+            customer_number = COALESCE(NULLIF($2, ''), customer_number),
+            name = COALESCE(NULLIF($3, ''), name),
+            email = COALESCE(NULLIF($4, ''), email),
+            status = COALESCE(NULLIF($5, ''), status),
+            customer_type = COALESCE(NULLIF($6, ''), customer_type),
+            street = COALESCE(NULLIF($7, ''), street),
+            city = COALESCE(NULLIF($8, ''), city),
+            state = COALESCE(NULLIF($9, ''), state),
+            postal_code = COALESCE(NULLIF($10, ''), postal_code),
+            phone = COALESCE(NULLIF($11, ''), phone),
+            mobile = COALESCE(NULLIF($12, ''), mobile),
+            first_name = COALESCE(NULLIF($13, ''), first_name),
+            last_name = COALESCE(NULLIF($14, ''), last_name),
+            tags = COALESCE($15, tags),
+            notes = COALESCE(NULLIF($16, ''), notes),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          RETURNING *
+        `, [
+          existing.rows[0].id,
+          customer_number || '',
+          finalName,
+          email || '',
+          finalStatus,
+          type || 'customer',
+          street || '',
+          city || '',
+          state || '',
+          finalPostalCode || '',
+          phone || '',
+          mobile || '',
+          finalFirstName || '',
+          finalLastName || '',
+          tags || null,
+          notes || '',
+        ]);
+        console.log('👤 Customer updated from CopilotCRM sync:', finalName, email || normalizedPhone);
+        return res.json({
+          success: true,
+          message: 'Customer synchronized',
+          customer_id: updated.rows[0].id,
+          customer: updated.rows[0],
+        });
       }
     }
 

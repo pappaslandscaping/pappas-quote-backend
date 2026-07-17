@@ -5492,11 +5492,37 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
         const phone = String(focusCustomer.mobile || focusCustomer.phone || '').replace(/\D/g, '').slice(-10);
         const liveInvoicePromise = getCopilotToken().then(async (tokenInfo) => {
           if (!tokenInfo?.cookieHeader) return { connected: false, rows: [] };
-          const page = await fetchCopilotInvoicePage({ cookieHeader: tokenInfo.cookieHeader, page: 1, pageSize: 250, sort: 'datedesc' });
           const customerName = String(focusCustomer.name || '').trim().toLowerCase();
+          const copilotHeaders = {
+            'Cookie': tokenInfo.cookieHeader,
+            'Origin': 'https://secure.copilotcrm.com',
+            'Referer': 'https://secure.copilotcrm.com/',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          };
+          const searchResponse = await fetch('https://secure.copilotcrm.com/customers/filter', {
+            method: 'POST',
+            headers: copilotHeaders,
+            body: `query=${encodeURIComponent(focusCustomer.name || '')}`,
+          });
+          const searchRows = searchResponse.ok ? await searchResponse.json().catch(() => []) : [];
+          const copilotCustomer = Array.isArray(searchRows)
+            ? searchRows.find((customer) => String(customer.name || customer.label || '').trim().toLowerCase() === customerName)
+              || searchRows.find((customer) => customer.id && String(customer.id) !== '0')
+            : null;
+          const copilotCustomerId = String(copilotCustomer?.id || '');
+          const rows = [];
+          for (let pageNumber = 1; pageNumber <= 12 && rows.length < 3; pageNumber += 1) {
+            const page = await fetchCopilotInvoicePage({ cookieHeader: tokenInfo.cookieHeader, page: pageNumber, pageSize: 100, sort: 'datedesc' });
+            if (!page.invoices.length) break;
+            rows.push(...page.invoices.filter((invoice) =>
+              (copilotCustomerId && String(invoice.copilot_customer_id || '') === copilotCustomerId)
+              || String(invoice.customer_name || '').trim().toLowerCase() === customerName
+            ));
+          }
           return {
             connected: true,
-            rows: page.invoices.filter((invoice) => String(invoice.customer_name || '').trim().toLowerCase() === customerName),
+            rows,
           };
         }).catch(() => ({ connected: false, rows: [] }));
         const [historyMessages, historyCalls, historyJobs, historyLiveJobs, historyInvoices, historyQuotes, historyTasks, historyLiveInvoices] = await Promise.all([

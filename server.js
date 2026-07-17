@@ -5436,7 +5436,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
   try {
     if (getWritingAiProvider() === 'openai') {
       const conversationText = [question, ...(Array.isArray(conversationHistory) ? conversationHistory.map((message) => message?.content || '') : [])].join(' ').toLowerCase();
-      const needsFreshSchedule = /schedule|opening|appointment|customer history|review.{0,20}history/.test(conversationText);
+      const needsFreshSchedule = /schedule|opening|appointment|dispatch|crew route/.test(conversationText);
       let scheduleRefresh = { requested: needsFreshSchedule, connected: false, refreshedDays: 0, failedDays: 0 };
       if (needsFreshSchedule) {
         const tokenInfo = await getCopilotToken();
@@ -5511,15 +5511,15 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
               || searchRows.find((customer) => customer.id && String(customer.id) !== '0')
             : null;
           const copilotCustomerId = String(copilotCustomer?.id || '');
-          const rows = [];
-          for (let pageNumber = 1; pageNumber <= 12 && rows.length < 3; pageNumber += 1) {
-            const page = await fetchCopilotInvoicePage({ cookieHeader: tokenInfo.cookieHeader, page: pageNumber, pageSize: 100, sort: 'datedesc' });
-            if (!page.invoices.length) break;
-            rows.push(...page.invoices.filter((invoice) =>
+          const invoicePages = await Promise.allSettled(Array.from({ length: 8 }, (_, index) =>
+            fetchCopilotInvoicePage({ cookieHeader: tokenInfo.cookieHeader, page: index + 1, pageSize: 100, sort: 'datedesc' })
+          ));
+          const rows = invoicePages.flatMap((result) => result.status === 'fulfilled' ? result.value.invoices : [])
+            .filter((invoice) =>
               (copilotCustomerId && String(invoice.copilot_customer_id || '') === copilotCustomerId)
               || String(invoice.customer_name || '').trim().toLowerCase() === customerName
-            ));
-          }
+            )
+            .sort((a, b) => String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')));
           return {
             connected: true,
             rows,

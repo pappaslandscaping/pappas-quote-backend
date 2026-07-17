@@ -5434,16 +5434,25 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
   }
   try {
     if (getWritingAiProvider() === 'openai') {
-      const [customersResult, messagesResult, callsResult, tasksResult, insightsResult, scheduleResult] = await Promise.all([
+      const [customersResult, messagesResult, callsResult, tasksResult, insightsResult, liveScheduleResult, yardDeskScheduleResult] = await Promise.all([
         pool.query(`SELECT id, name, first_name, last_name, mobile, phone, email, street, city, state, postal_code FROM customers ORDER BY name LIMIT 1000`).catch(() => ({ rows: [] })),
         pool.query(`SELECT direction, from_number, to_number, body, created_at FROM messages ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] })),
         pool.query(`SELECT from_number, to_number, call_type, status, duration, created_at FROM calls ORDER BY created_at DESC LIMIT 20`).catch(() => ({ rows: [] })),
         pool.query(`SELECT title, details, priority, task_type, phone_number, due_at, metadata, created_at FROM app_ai_tasks WHERE status = 'open' ORDER BY due_at ASC NULLS LAST, created_at DESC LIMIT 50`).catch(() => ({ rows: [] })),
         pool.query(`SELECT phone_number, intent, urgency, is_spam, is_quote_request, service_area_status, extracted_data, summary, next_step, analyzed_at FROM app_ai_insights ORDER BY analyzed_at DESC LIMIT 50`).catch(() => ({ rows: [] })),
-        pool.query(`SELECT service_date, customer_name, job_title AS service_type, source_crew_name AS crew_name, address_raw AS address, source_status AS status FROM copilot_live_jobs WHERE service_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' AND source_deleted_at IS NULL ORDER BY service_date, source_crew_name, source_stop_order LIMIT 300`).catch(async () =>
-          pool.query(`SELECT job_date AS service_date, customer_name, service_type, crew_assigned AS crew_name, address, status FROM scheduled_jobs WHERE job_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' ORDER BY job_date, crew_assigned LIMIT 300`).catch(() => ({ rows: [] }))
-        ),
+        pool.query(`SELECT service_date, customer_name, job_title AS service_type, source_crew_name AS crew_name, address_raw AS address, source_status AS status, 'copilot' AS schedule_source FROM copilot_live_jobs WHERE service_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' AND source_deleted_at IS NULL ORDER BY service_date, source_crew_name, source_stop_order LIMIT 300`).catch(() => ({ rows: [] })),
+        pool.query(`SELECT job_date AS service_date, customer_name, service_type, crew_assigned AS crew_name, address, status, 'yarddesk' AS schedule_source FROM scheduled_jobs WHERE job_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' AND LOWER(COALESCE(status, '')) NOT IN ('completed', 'done', 'cancelled', 'canceled') ORDER BY job_date, crew_assigned LIMIT 300`).catch(() => ({ rows: [] })),
       ]);
+
+      // Copilot and YardDesk are both valid schedule sources. An empty live mirror is
+      // not an error, so always include the canonical YardDesk schedule as well.
+      const scheduleRows = [...liveScheduleResult.rows, ...yardDeskScheduleResult.rows]
+        .filter((job, index, rows) => index === rows.findIndex((candidate) =>
+          String(candidate.service_date) === String(job.service_date)
+          && String(candidate.customer_name || '').toLowerCase() === String(job.customer_name || '').toLowerCase()
+          && String(candidate.address || '').toLowerCase() === String(job.address || '').toLowerCase()
+        ))
+        .sort((a, b) => new Date(a.service_date).getTime() - new Date(b.service_date).getTime());
 
       const normalizedQuestion = String(question).toLowerCase();
       const focusCustomer = customersResult.rows.find((customer) => {
@@ -5456,21 +5465,33 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
       let customerHistory = null;
       if (focusCustomer) {
         const phone = String(focusCustomer.mobile || focusCustomer.phone || '').replace(/\D/g, '').slice(-10);
-        const [historyMessages, historyCalls, historyJobs, historyInvoices, historyQuotes, historyTasks] = await Promise.all([
+        const [historyMessages, historyCalls, historyJobs, historyLiveJobs, historyInvoices, historyQuotes, historyTasks] = await Promise.all([
           pool.query(`SELECT direction, body, created_at FROM messages WHERE customer_id = $1 OR RIGHT(REGEXP_REPLACE(CASE WHEN direction='inbound' THEN from_number ELSE to_number END, '[^0-9]', '', 'g'), 10) = $2 ORDER BY created_at DESC LIMIT 50`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
           pool.query(`SELECT direction, status, duration, transcription, created_at FROM calls WHERE customer_id = $1 OR RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $2 OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
           pool.query(`SELECT job_date, service_type, status, crew_assigned, service_price, address FROM scheduled_jobs WHERE customer_id = $1 OR customer_name ILIKE $2 ORDER BY job_date DESC LIMIT 50`, [focusCustomer.id, `%${focusCustomer.name || ''}%`]).catch(() => ({ rows: [] })),
+          pool.query(`SELECT service_date AS job_date, job_title AS service_type, source_status AS status, source_crew_name AS crew_assigned, NULL::numeric AS service_price, address_raw AS address FROM copilot_live_jobs WHERE source_deleted_at IS NULL AND customer_name ILIKE $1 ORDER BY service_date DESC LIMIT 50`, [`%${focusCustomer.name || ''}%`]).catch(() => ({ rows: [] })),
           pool.query(`SELECT invoice_number, status, total, amount_paid, due_date, created_at FROM invoices WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id]).catch(() => ({ rows: [] })),
           pool.query(`SELECT quote_number, status, services, total, created_at FROM sent_quotes WHERE customer_id = $1 OR customer_name ILIKE $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, `%${focusCustomer.name || ''}%`]).catch(() => ({ rows: [] })),
           pool.query(`SELECT title, details, status, priority, task_type, due_at FROM app_ai_tasks WHERE customer_id = $1 OR phone_number = $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
         ]);
-        customerHistory = { customer: focusCustomer, messages: historyMessages.rows, calls: historyCalls.rows, jobs: historyJobs.rows, invoices: historyInvoices.rows, quotes: historyQuotes.rows, tasks: historyTasks.rows };
+        const allCustomerJobs = [...historyLiveJobs.rows, ...historyJobs.rows];
+        const today = new Date().toISOString().slice(0, 10);
+        customerHistory = {
+          customer: focusCustomer,
+          messages: historyMessages.rows,
+          calls: historyCalls.rows,
+          upcomingJobs: allCustomerJobs.filter((job) => String(job.job_date).slice(0, 10) >= today && !['completed', 'done', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase())),
+          pastJobs: allCustomerJobs.filter((job) => String(job.job_date).slice(0, 10) < today || ['completed', 'done'].includes(String(job.status || '').toLowerCase())),
+          invoices: historyInvoices.rows,
+          quotes: historyQuotes.rows,
+          tasks: historyTasks.rows
+        };
       }
 
       const context = JSON.stringify({
         customerDirectory: customersResult.rows.map((customer) => ({ id: customer.id, name: customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim(), phone: customer.mobile || customer.phone, email: customer.email })),
         matchedCustomerHistory: customerHistory,
-        upcomingLiveSchedule: scheduleResult.rows,
+        upcomingLiveSchedule: scheduleRows,
         recentMessages: messagesResult.rows,
         recentCalls: callsResult.rows,
         openFollowUpTasks: tasksResult.rows,
@@ -5482,7 +5503,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
         : '';
 
       const answer = await generateAppAiText({
-        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer using the provided CRM context. You may suggest scheduling windows, prepare an estimate checklist, summarize customer history, and prioritize follow-ups. Never claim you created, scheduled, quoted, called, or sent anything; all recommendations require user review.',
+        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer using the provided CRM context. You may suggest scheduling windows, prepare an estimate checklist, summarize customer history, and prioritize follow-ups. Treat upcomingLiveSchedule as the authoritative merged schedule. For customer history, clearly separate upcomingJobs from pastJobs and always state dates; never describe a past date as pending or upcoming. Never claim you created, scheduled, quoted, called, or sent anything; all recommendations require user review.',
         prompt: [
           `CRM context:\n${context}`,
           history ? `Conversation history:\n${history}` : '',

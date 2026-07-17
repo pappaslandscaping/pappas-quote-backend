@@ -5293,7 +5293,7 @@ app.patch('/api/app/ai/tasks/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) => {
   try {
-    const [taskResult, insightResult, messageResult, callResult] = await Promise.all([
+    const [taskResult, insightResult, messageResult, callResult, twilioCalls] = await Promise.all([
       pool.query(`
       SELECT title, details, priority, task_type, phone_number, due_at, metadata, created_at
       FROM app_ai_tasks
@@ -5323,14 +5323,13 @@ app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) =
           LEFT(m.body, 240) AS details, 'high' AS priority, 'quote_lead' AS task_type,
           RIGHT(REGEXP_REPLACE(m.from_number, '[^0-9]', '', 'g'), 10) AS phone_number,
           NULL::timestamptz AS due_at,
-          jsonb_build_object('serviceAreaStatus', 'in_area', 'zip', COALESCE(NULLIF(substring(m.body from '[0-9]{5}'), ''), c.postal_code)) AS metadata,
+          jsonb_build_object('serviceAreaStatus', 'unverified', 'zip', COALESCE(NULLIF(substring(m.body from '[0-9]{5}'), ''), c.postal_code)) AS metadata,
           m.created_at
         FROM messages m LEFT JOIN customers c ON c.id = m.customer_id
         WHERE m.direction = 'inbound'
           AND (m.created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
           AND m.body ~* '(quote|estimate|pricing|price|cost|how much|yard work|landscap)'
-          AND COALESCE(NULLIF(substring(m.body from '[0-9]{5}'), ''), c.postal_code) = ANY($1::text[])
-      `, [[...SERVICE_AREA_ZIPS]]).catch(() => ({ rows: [] })),
+      `).catch(() => ({ rows: [] })),
       pool.query(`
         SELECT COALESCE('Return missed call from ' || NULLIF(c.name, ''), 'Return missed call') AS title,
           'Missed inbound call' AS details, 'high' AS priority, 'callback' AS task_type,
@@ -5342,11 +5341,28 @@ app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) =
           AND LOWER(COALESCE(ca.status, '')) IN ('no-answer','busy','failed','canceled','cancelled')
           AND (ca.created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
       `).catch(() => ({ rows: [] })),
+      twilioClient.calls.list({ limit: 200 }).catch(() => []),
     ]);
     const dedupeByTypeAndPhone = (items) => Array.from(new Map(items.map((item) => [`${item.task_type}:${item.phone_number || item.title}`, item])).values());
     const taskRows = taskResult.rows;
-    const quoteLeads = dedupeByTypeAndPhone([...taskRows.filter((item) => item.task_type === 'quote_lead'), ...insightResult.rows, ...messageResult.rows]);
-    const callbacks = dedupeByTypeAndPhone([...taskRows.filter((item) => item.task_type === 'callback'), ...callResult.rows]);
+    const messageCandidates = messageResult.rows.filter((item) => {
+      const zip = extractExplicitZip(item.metadata?.zip || item.details || '');
+      if (zip && !SERVICE_AREA_ZIPS.has(zip)) return false;
+      item.metadata = { ...(item.metadata || {}), serviceAreaStatus: zip ? 'in_area' : 'needs_review', zip: zip || null };
+      return true;
+    });
+    const todayNy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const liveMissedCalls = twilioCalls
+      .filter((call) => call.direction === 'inbound'
+        && (!Number(call.duration) || ['no-answer', 'busy', 'failed', 'canceled', 'cancelled'].includes(String(call.status || '').toLowerCase()))
+        && new Date(call.startTime || call.dateCreated).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) === todayNy)
+      .map((call) => ({
+        title: 'Return missed call', details: 'Missed inbound call', priority: 'high', task_type: 'callback',
+        phone_number: String(call.from || '').replace(/\D/g, '').slice(-10), due_at: null,
+        metadata: { status: call.status, source: 'twilio' }, created_at: call.startTime || call.dateCreated,
+      }));
+    const quoteLeads = dedupeByTypeAndPhone([...taskRows.filter((item) => item.task_type === 'quote_lead'), ...insightResult.rows, ...messageCandidates]);
+    const callbacks = dedupeByTypeAndPhone([...taskRows.filter((item) => item.task_type === 'callback'), ...callResult.rows, ...liveMissedCalls]);
     const followUps = taskRows.filter((item) => item.task_type === 'follow_up');
     const allItems = [...quoteLeads, ...callbacks, ...followUps];
     const formatItem = (item) => {

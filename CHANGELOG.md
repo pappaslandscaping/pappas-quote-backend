@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-17
+
+- Added a shared internal AI insight and follow-up task foundation for the mobile app.
+- AI tasks support priorities, due dates, source links, deduplication, completion, and dismissal.
+- This foundation does not send messages or modify customer records automatically.
+- Message threads can now show an AI summary, next step, urgency, spam warning, quote intent, extracted service details, and service-area qualification.
+- High-confidence quote requests inside the supported service area create a deduplicated internal follow-up task; they do not send a text automatically.
+- The mobile Messages inbox now surfaces analyzed quote, priority, spam, and service-area indicators without opening each thread.
+- Missed inbound calls now create one deduplicated internal callback task and show a follow-up indicator in Recents.
+- Voicemails now receive structured AI summaries, next steps, quote and priority signals, spam warnings, and service-area qualification.
+- The mobile business assistant now includes focused actions for daily priorities, proposed scheduling openings, estimate-preparation checklists, and complete customer-history review.
+- Assistant recommendations remain read-only and clearly avoid claiming that jobs, quotes, calls, or messages were created or sent.
+- Added a review-first end-of-day briefing containing today’s qualified in-area quote opportunities, missed-call callbacks, and due follow-ups.
+- The briefing opens as a draft text to Tim and is never sent automatically.
+
 ## 2026-04-18
 
 ### Production Hotfix

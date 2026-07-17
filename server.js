@@ -60,6 +60,8 @@ const {
 const { buildCorsOptions } = require('./lib/cors-options');
 const { buildDashboardActivityFeedQuery } = require('./lib/dashboard-activity-feed-query');
 const {
+  SERVICE_AREA_ZIPS,
+  extractExplicitZip,
   getOutOfAreaZip,
   buildOutOfAreaAutoReply,
   reviewAddressServiceArea,
@@ -4567,6 +4569,14 @@ if (customerResult.rows.length > 0) contactName = customerResult.rows[0].name;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayCalls = enrichedCalls.filter(c => new Date(c.timestamp) >= today).length;
     const missedCalls = enrichedCalls.filter(c => c.status === 'no-answer' || c.status === 'busy' || c.status === 'canceled').length;
+    for (const call of enrichedCalls.filter((item) => item.direction === 'inbound' && (!item.duration || item.status !== 'completed'))) {
+      await pool.query(`
+        INSERT INTO app_ai_tasks (title, details, priority, task_type, source_type, source_id, phone_number, dedupe_key, metadata, created_by)
+        VALUES ($1,$2,'high','callback','call',$3,$4,$5,$6::jsonb,'System') ON CONFLICT (dedupe_key) DO NOTHING
+      `, [`Return missed call${call.contactName ? ` from ${call.contactName}` : ''}`, `Missed inbound call ${call.timestamp || ''}`.trim(), call.id,
+        call.phoneNumber.replace(/\D/g, '').slice(-10), `callback:${call.id}`, JSON.stringify({ status: call.status, duration: call.duration })]);
+      call.needsCallback = true;
+    }
     res.json({ calls: enrichedCalls, todayCalls, missedCalls });
   } catch (error) {
     console.error('Recent calls error:', error);
@@ -5003,10 +5013,20 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
       SELECT 
         lpc.*,
         c.name as customer_name,
-        COALESCE(uc.unread_count, 0) AS unread_count
+        COALESCE(uc.unread_count, 0) AS unread_count,
+        ai.intent AS ai_intent,
+        ai.urgency AS ai_urgency,
+        ai.confidence AS ai_confidence,
+        ai.is_spam AS ai_is_spam,
+        ai.is_quote_request AS ai_is_quote_request,
+        ai.service_area_status AS ai_service_area_status,
+        ai.summary AS ai_summary,
+        ai.next_step AS ai_next_step,
+        ai.extracted_data AS ai_extracted_data
       FROM latest_per_conversation lpc
       LEFT JOIN customers c ON lpc.customer_id = c.id
       LEFT JOIN unread_counts uc ON lpc.normalized_phone = uc.normalized_phone
+      LEFT JOIN app_ai_insights ai ON ai.source_type = 'conversation' AND ai.source_id = lpc.id::text
       ORDER BY lpc.created_at DESC
     `;
     params.push(conversationLimit);
@@ -5093,12 +5113,236 @@ app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, 
   }
 });
 
+app.post('/api/app/ai/analyze-conversation', authenticateToken, async (req, res) => {
+  if (!isWritingAiConfigured()) return res.status(503).json({ success: false, error: 'AI service not configured' });
+  const normalizedPhone = String(req.body.phoneNumber || '').replace(/\D/g, '').slice(-10);
+  if (normalizedPhone.length !== 10) return res.status(400).json({ success: false, error: 'Valid phoneNumber is required' });
+  try {
+    const messageResult = await pool.query(`
+      SELECT id, direction, body, created_at FROM messages
+      WHERE RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1
+         OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
+      ORDER BY created_at DESC LIMIT 15
+    `, [normalizedPhone]);
+    if (!messageResult.rows.length) return res.status(404).json({ success: false, error: 'Conversation not found' });
+
+    const latestId = String(messageResult.rows[0].id);
+    const cached = await pool.query(`SELECT * FROM app_ai_insights WHERE source_type = 'conversation' AND source_id = $1`, [latestId]);
+    if (cached.rows[0] && !req.body.refresh) return res.json({ success: true, insight: cached.rows[0], cached: true });
+
+    const customerResult = await pool.query(`
+      SELECT id, name, street, city, state, postal_code FROM customers
+      WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1
+         OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1 LIMIT 1
+    `, [normalizedPhone]);
+    const customer = customerResult.rows[0] || null;
+    const chronological = messageResult.rows.slice().reverse();
+    const conversation = chronological.map((m) => `${m.direction === 'outbound' ? 'Tim' : 'Customer'}: ${m.body || ''}`).join('\n');
+    const response = await generateWritingJsonWithTextFallback({
+      systemPrompt: 'Analyze landscaping customer conversations for an internal business phone app. Do not draft a reply. Return only valid JSON.',
+      messages: [{ role: 'user', content: `Analyze this conversation and return JSON with exactly these fields:\nintent (quote_request, scheduling, billing, service_question, complaint, cancellation, sales_spam, other), urgency (low, normal, high, urgent), confidence (0 to 1), isSpam (boolean), isQuoteRequest (boolean), summary (one short sentence), nextStep (one short action), service (string or null), address (string or null), zip (5-digit string or null), requestedDate (string or null), reminderDate (ISO date/time or null).\n\nKnown customer: ${customer?.name || 'Unknown'}\nKnown address: ${[customer?.street, customer?.city, customer?.state, customer?.postal_code].filter(Boolean).join(', ') || 'Unknown'}\n\n${conversation}` }],
+      maxOutputTokens: 600,
+      schemaName: 'conversation_insight',
+      schemaDescription: 'Structured operational analysis of a customer text conversation.',
+      jsonSchema: {
+        type: 'object', additionalProperties: false,
+        properties: {
+          intent: { type: 'string', enum: ['quote_request','scheduling','billing','service_question','complaint','cancellation','sales_spam','other'] },
+          urgency: { type: 'string', enum: ['low','normal','high','urgent'] }, confidence: { type: 'number', minimum: 0, maximum: 1 },
+          isSpam: { type: 'boolean' }, isQuoteRequest: { type: 'boolean' }, summary: { type: 'string' }, nextStep: { type: 'string' },
+          service: { type: ['string','null'] }, address: { type: ['string','null'] }, zip: { type: ['string','null'] },
+          requestedDate: { type: ['string','null'] }, reminderDate: { type: ['string','null'] }
+        }, required: ['intent','urgency','confidence','isSpam','isQuoteRequest','summary','nextStep','service','address','zip','requestedDate','reminderDate']
+      }
+    });
+    const data = response.json;
+    const explicitZip = extractExplicitZip(data.zip || customer?.postal_code || conversation);
+    let serviceAreaStatus = explicitZip ? (SERVICE_AREA_ZIPS.has(explicitZip) ? 'in_area' : 'out_of_area') : 'unknown';
+    if (!explicitZip && data.address) {
+      const review = await reviewAddressServiceArea(data.address);
+      if (review?.zip) serviceAreaStatus = review.inServiceArea ? 'in_area' : 'out_of_area';
+    }
+    const insightResult = await pool.query(`
+      INSERT INTO app_ai_insights (source_type, source_id, phone_number, customer_id, intent, urgency, confidence, is_spam, is_quote_request, service_area_status, extracted_data, summary, next_step)
+      VALUES ('conversation',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12)
+      ON CONFLICT (source_type, source_id) DO UPDATE SET intent=EXCLUDED.intent, urgency=EXCLUDED.urgency, confidence=EXCLUDED.confidence,
+        is_spam=EXCLUDED.is_spam, is_quote_request=EXCLUDED.is_quote_request, service_area_status=EXCLUDED.service_area_status,
+        extracted_data=EXCLUDED.extracted_data, summary=EXCLUDED.summary, next_step=EXCLUDED.next_step, analyzed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+      RETURNING *
+    `, [latestId, normalizedPhone, customer?.id || null, data.intent, data.urgency, data.confidence, data.isSpam, data.isQuoteRequest,
+      serviceAreaStatus, JSON.stringify({ service: data.service, address: data.address, zip: explicitZip, requestedDate: data.requestedDate, reminderDate: data.reminderDate }), data.summary, data.nextStep]);
+    const insight = insightResult.rows[0];
+    if (insight.is_quote_request && Number(insight.confidence) >= 0.8 && serviceAreaStatus === 'in_area') {
+      await pool.query(`
+        INSERT INTO app_ai_tasks (title, details, priority, task_type, source_type, source_id, phone_number, customer_id, due_at, dedupe_key, metadata, created_by)
+        VALUES ($1,$2,$3,'quote_lead','conversation',$4,$5,$6,$7,$8,$9::jsonb,'AI') ON CONFLICT (dedupe_key) DO NOTHING
+      `, [`Check quote request${customer?.name ? ` from ${customer.name}` : ''}`, data.summary, data.urgency === 'urgent' ? 'urgent' : 'high', latestId,
+        normalizedPhone, customer?.id || null, data.reminderDate || null, `quote:${normalizedPhone}:${latestId}`, JSON.stringify({ serviceAreaStatus, zip: explicitZip, service: data.service })]);
+    }
+    res.json({ success: true, insight, cached: false });
+  } catch (error) {
+    console.error('Conversation analysis error:', error);
+    serverError(res, error, 'Conversation analysis failed');
+  }
+});
+
+app.post('/api/app/ai/analyze-voicemail', authenticateToken, async (req, res) => {
+  if (!isWritingAiConfigured()) return res.status(503).json({ success: false, error: 'AI service not configured' });
+  const { voicemailId, phoneNumber, transcription, contactName } = req.body;
+  if (!voicemailId || !String(transcription || '').trim()) return res.status(400).json({ success: false, error: 'voicemailId and transcription are required' });
+  const sourceId = String(voicemailId);
+  const normalizedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10) || null;
+  try {
+    const cached = await pool.query(`SELECT * FROM app_ai_insights WHERE source_type = 'voicemail' AND source_id = $1`, [sourceId]);
+    if (cached.rows[0] && !req.body.refresh) return res.json({ success: true, insight: cached.rows[0], cached: true });
+    const response = await generateWritingJsonWithTextFallback({
+      systemPrompt: 'Analyze a landscaping customer voicemail for internal follow-up. Do not draft a reply. Return only valid JSON.',
+      messages: [{ role: 'user', content: `Caller: ${contactName || 'Unknown'}\nVoicemail: ${String(transcription).trim()}\n\nReturn JSON with: intent, urgency (low, normal, high, urgent), confidence (0 to 1), isSpam, isQuoteRequest, summary, nextStep, service, address, zip, requestedDate, reminderDate.` }],
+      maxOutputTokens: 600
+    });
+    const data = response.json;
+    const explicitZip = extractExplicitZip(data.zip || transcription);
+    let serviceAreaStatus = explicitZip ? (SERVICE_AREA_ZIPS.has(explicitZip) ? 'in_area' : 'out_of_area') : 'unknown';
+    if (!explicitZip && data.address) {
+      const review = await reviewAddressServiceArea(data.address);
+      if (review?.zip) serviceAreaStatus = review.inServiceArea ? 'in_area' : 'out_of_area';
+    }
+    const result = await pool.query(`
+      INSERT INTO app_ai_insights (source_type, source_id, phone_number, intent, urgency, confidence, is_spam, is_quote_request, service_area_status, extracted_data, summary, next_step)
+      VALUES ('voicemail',$1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)
+      ON CONFLICT (source_type, source_id) DO UPDATE SET intent=EXCLUDED.intent, urgency=EXCLUDED.urgency, confidence=EXCLUDED.confidence,
+        is_spam=EXCLUDED.is_spam, is_quote_request=EXCLUDED.is_quote_request, service_area_status=EXCLUDED.service_area_status,
+        extracted_data=EXCLUDED.extracted_data, summary=EXCLUDED.summary, next_step=EXCLUDED.next_step, analyzed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP RETURNING *
+    `, [sourceId, normalizedPhone, data.intent || 'other', data.urgency || 'normal', Number(data.confidence || 0), !!data.isSpam, !!data.isQuoteRequest,
+      serviceAreaStatus, JSON.stringify({ service: data.service || null, address: data.address || null, zip: explicitZip, requestedDate: data.requestedDate || null, reminderDate: data.reminderDate || null }), data.summary || '', data.nextStep || 'Review voicemail']);
+    const insight = result.rows[0];
+    if (insight.is_quote_request && Number(insight.confidence) >= 0.8 && serviceAreaStatus === 'in_area') {
+      await pool.query(`
+        INSERT INTO app_ai_tasks (title, details, priority, task_type, source_type, source_id, phone_number, due_at, dedupe_key, metadata, created_by)
+        VALUES ($1,$2,'high','quote_lead','voicemail',$3,$4,$5,$6,$7::jsonb,'AI') ON CONFLICT (dedupe_key) DO NOTHING
+      `, [`Check voicemail quote request${contactName ? ` from ${contactName}` : ''}`, data.summary || '', sourceId, normalizedPhone,
+        data.reminderDate || null, `quote:voicemail:${sourceId}`, JSON.stringify({ serviceAreaStatus, zip: explicitZip, service: data.service || null })]);
+    }
+    res.json({ success: true, insight, cached: false });
+  } catch (error) {
+    console.error('Voicemail analysis error:', error);
+    serverError(res, error, 'Voicemail analysis failed');
+  }
+});
+
+// Shared AI follow-up tasks - internal only; these routes never send messages.
+app.get('/api/app/ai/tasks', authenticateToken, async (req, res) => {
+  const status = String(req.query.status || 'open');
+  if (!['open', 'completed', 'dismissed', 'all'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid task status' });
+  }
+  try {
+    const params = status === 'all' ? [] : [status];
+    const where = status === 'all' ? '' : 'WHERE status = $1';
+    const result = await pool.query(`
+      SELECT * FROM app_ai_tasks ${where}
+      ORDER BY CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+        due_at ASC NULLS LAST, created_at DESC
+      LIMIT 200
+    `, params);
+    res.json({ success: true, tasks: result.rows });
+  } catch (error) {
+    console.error('AI task list error:', error);
+    serverError(res, error, 'Failed to load AI tasks');
+  }
+});
+
+app.post('/api/app/ai/tasks', authenticateToken, async (req, res) => {
+  const { title, details, priority = 'normal', taskType = 'follow_up', sourceType, sourceId, phoneNumber, customerId, dueAt, dedupeKey, metadata = {} } = req.body;
+  if (!String(title || '').trim()) return res.status(400).json({ success: false, error: 'title is required' });
+  if (!['low', 'normal', 'high', 'urgent'].includes(priority)) return res.status(400).json({ success: false, error: 'Invalid priority' });
+  try {
+    const result = await pool.query(`
+      INSERT INTO app_ai_tasks (title, details, priority, task_type, source_type, source_id, phone_number, customer_id, due_at, dedupe_key, metadata, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12)
+      ON CONFLICT (dedupe_key) DO UPDATE SET title = EXCLUDED.title, details = EXCLUDED.details,
+        priority = EXCLUDED.priority, due_at = EXCLUDED.due_at, metadata = EXCLUDED.metadata,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [String(title).trim(), details || null, priority, taskType, sourceType || null, sourceId || null,
+      phoneNumber || null, customerId || null, dueAt || null, dedupeKey || null, JSON.stringify(metadata), req.user?.email || 'app']);
+    res.status(201).json({ success: true, task: result.rows[0] });
+  } catch (error) {
+    console.error('AI task create error:', error);
+    serverError(res, error, 'Failed to create AI task');
+  }
+});
+
+app.patch('/api/app/ai/tasks/:id', authenticateToken, async (req, res) => {
+  const status = String(req.body.status || '');
+  if (!['open', 'completed', 'dismissed'].includes(status)) return res.status(400).json({ success: false, error: 'Invalid task status' });
+  try {
+    const result = await pool.query(`
+      UPDATE app_ai_tasks SET status = $1,
+        completed_at = CASE WHEN $1 = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+        updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *
+    `, [status, req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ success: false, error: 'Task not found' });
+    res.json({ success: true, task: result.rows[0] });
+  } catch (error) {
+    console.error('AI task update error:', error);
+    serverError(res, error, 'Failed to update AI task');
+  }
+});
+
+app.get('/api/app/ai/end-of-day-briefing', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT title, details, priority, task_type, phone_number, due_at, metadata, created_at
+      FROM app_ai_tasks
+      WHERE status = 'open'
+        AND (
+          (task_type = 'quote_lead' AND COALESCE(metadata->>'serviceAreaStatus', '') = 'in_area')
+          OR task_type = 'callback'
+          OR (task_type = 'follow_up' AND (due_at IS NULL OR due_at <= CURRENT_TIMESTAMP))
+        )
+        AND (created_at AT TIME ZONE 'America/New_York')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
+      ORDER BY CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END, created_at ASC
+      LIMIT 30
+    `);
+    const quoteLeads = result.rows.filter((item) => item.task_type === 'quote_lead');
+    const callbacks = result.rows.filter((item) => item.task_type === 'callback');
+    const followUps = result.rows.filter((item) => item.task_type === 'follow_up');
+    const formatItem = (item) => {
+      const service = item.metadata?.service ? ` — ${item.metadata.service}` : '';
+      const zip = item.metadata?.zip ? ` (${item.metadata.zip})` : '';
+      const phone = item.phone_number ? ` — ${item.phone_number}` : '';
+      return `• ${item.title}${service}${zip}${phone}`;
+    };
+    const sections = [];
+    if (quoteLeads.length) sections.push(`QUOTE OPPORTUNITIES (${quoteLeads.length})\n${quoteLeads.map(formatItem).join('\n')}`);
+    if (callbacks.length) sections.push(`MISSED CALLS (${callbacks.length})\n${callbacks.map(formatItem).join('\n')}`);
+    if (followUps.length) sections.push(`FOLLOW-UPS (${followUps.length})\n${followUps.map(formatItem).join('\n')}`);
+    const dateLabel = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+    const body = sections.length
+      ? `End-of-day check — ${dateLabel}\n\n${sections.join('\n\n')}\n\nPlease review these when you can.`
+      : `End-of-day check — ${dateLabel}\n\nNo new qualified quote opportunities, missed-call callbacks, or due follow-ups today.`;
+    res.json({
+      success: true,
+      recipient: process.env.TIM_PHONE_NUMBER || '+12169057395',
+      body,
+      counts: { quoteLeads: quoteLeads.length, callbacks: callbacks.length, followUps: followUps.length, total: result.rows.length },
+      items: result.rows,
+      generatedAt: new Date().toISOString(),
+      sent: false
+    });
+  } catch (error) {
+    console.error('End-of-day briefing error:', error);
+    serverError(res, error, 'Failed to prepare end-of-day briefing');
+  }
+});
+
 // AI reply suggestion - for app
 app.post('/api/app/ai/reply', authenticateToken, async (req, res) => {
   if (!isWritingAiConfigured()) {
     return res.status(503).json({ success: false, error: 'AI service not configured' });
   }
-  const { messages, contactName, refinements } = req.body;
+  const { messages, contactName, prompt, refinements } = req.body;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ success: false, error: 'messages array is required' });
   }
@@ -5119,7 +5363,10 @@ Write a short, friendly, professional text message reply as Tim. Keep it under 3
     const refinementText = formatAppAiRefinements(refinements);
     const suggestion = await generateAppAiText({
       systemPrompt,
-      prompt: refinementText ? `Apply these refinements:\n${refinementText}` : 'Draft the reply now.',
+      prompt: [
+        prompt ? `Follow this instruction from the user:\n${String(prompt).trim()}` : '',
+        refinementText ? `Apply these refinements:\n${refinementText}` : '',
+      ].filter(Boolean).join('\n\n') || 'Draft the reply now.',
       maxOutputTokens: 256
     });
     res.json({ success: true, suggestion });
@@ -5187,16 +5434,47 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
   }
   try {
     if (getWritingAiProvider() === 'openai') {
-      const [customersResult, messagesResult, callsResult] = await Promise.all([
-        pool.query(`SELECT name, mobile, phone, email, street, city, state FROM customers ORDER BY id DESC LIMIT 25`).catch(() => ({ rows: [] })),
+      const [customersResult, messagesResult, callsResult, tasksResult, insightsResult, scheduleResult] = await Promise.all([
+        pool.query(`SELECT id, name, first_name, last_name, mobile, phone, email, street, city, state, postal_code FROM customers ORDER BY name LIMIT 1000`).catch(() => ({ rows: [] })),
         pool.query(`SELECT direction, from_number, to_number, body, created_at FROM messages ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] })),
         pool.query(`SELECT from_number, to_number, call_type, status, duration, created_at FROM calls ORDER BY created_at DESC LIMIT 20`).catch(() => ({ rows: [] })),
+        pool.query(`SELECT title, details, priority, task_type, phone_number, due_at, metadata, created_at FROM app_ai_tasks WHERE status = 'open' ORDER BY due_at ASC NULLS LAST, created_at DESC LIMIT 50`).catch(() => ({ rows: [] })),
+        pool.query(`SELECT phone_number, intent, urgency, is_spam, is_quote_request, service_area_status, extracted_data, summary, next_step, analyzed_at FROM app_ai_insights ORDER BY analyzed_at DESC LIMIT 50`).catch(() => ({ rows: [] })),
+        pool.query(`SELECT service_date, customer_name, job_title AS service_type, source_crew_name AS crew_name, address_raw AS address, source_status AS status FROM copilot_live_jobs WHERE service_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' AND source_deleted_at IS NULL ORDER BY service_date, source_crew_name, source_stop_order LIMIT 300`).catch(async () =>
+          pool.query(`SELECT job_date AS service_date, customer_name, service_type, crew_assigned AS crew_name, address, status FROM scheduled_jobs WHERE job_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '14 days' ORDER BY job_date, crew_assigned LIMIT 300`).catch(() => ({ rows: [] }))
+        ),
       ]);
 
+      const normalizedQuestion = String(question).toLowerCase();
+      const focusCustomer = customersResult.rows.find((customer) => {
+        const fullName = String(customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`).trim().toLowerCase();
+        if (!fullName) return false;
+        if (normalizedQuestion.includes(fullName)) return true;
+        const parts = fullName.split(/\s+/).filter((part) => part.length > 2);
+        return parts.length >= 2 && parts.every((part) => normalizedQuestion.includes(part));
+      });
+      let customerHistory = null;
+      if (focusCustomer) {
+        const phone = String(focusCustomer.mobile || focusCustomer.phone || '').replace(/\D/g, '').slice(-10);
+        const [historyMessages, historyCalls, historyJobs, historyInvoices, historyQuotes, historyTasks] = await Promise.all([
+          pool.query(`SELECT direction, body, created_at FROM messages WHERE customer_id = $1 OR RIGHT(REGEXP_REPLACE(CASE WHEN direction='inbound' THEN from_number ELSE to_number END, '[^0-9]', '', 'g'), 10) = $2 ORDER BY created_at DESC LIMIT 50`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
+          pool.query(`SELECT direction, status, duration, transcription, created_at FROM calls WHERE customer_id = $1 OR RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $2 OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
+          pool.query(`SELECT job_date, service_type, status, crew_assigned, service_price, address FROM scheduled_jobs WHERE customer_id = $1 OR customer_name ILIKE $2 ORDER BY job_date DESC LIMIT 50`, [focusCustomer.id, `%${focusCustomer.name || ''}%`]).catch(() => ({ rows: [] })),
+          pool.query(`SELECT invoice_number, status, total, amount_paid, due_date, created_at FROM invoices WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id]).catch(() => ({ rows: [] })),
+          pool.query(`SELECT quote_number, status, services, total, created_at FROM sent_quotes WHERE customer_id = $1 OR customer_name ILIKE $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, `%${focusCustomer.name || ''}%`]).catch(() => ({ rows: [] })),
+          pool.query(`SELECT title, details, status, priority, task_type, due_at FROM app_ai_tasks WHERE customer_id = $1 OR phone_number = $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
+        ]);
+        customerHistory = { customer: focusCustomer, messages: historyMessages.rows, calls: historyCalls.rows, jobs: historyJobs.rows, invoices: historyInvoices.rows, quotes: historyQuotes.rows, tasks: historyTasks.rows };
+      }
+
       const context = JSON.stringify({
-        recentCustomers: customersResult.rows,
+        customerDirectory: customersResult.rows.map((customer) => ({ id: customer.id, name: customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim(), phone: customer.mobile || customer.phone, email: customer.email })),
+        matchedCustomerHistory: customerHistory,
+        upcomingLiveSchedule: scheduleResult.rows,
         recentMessages: messagesResult.rows,
         recentCalls: callsResult.rows,
+        openFollowUpTasks: tasksResult.rows,
+        recentAiInsights: insightsResult.rows,
       }, null, 2);
 
       const history = Array.isArray(conversationHistory)
@@ -5204,7 +5482,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
         : '';
 
       const answer = await generateAppAiText({
-        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer questions using the provided CRM context. If the context is not enough, say what is missing and suggest the next practical step.',
+        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer using the provided CRM context. You may suggest scheduling windows, prepare an estimate checklist, summarize customer history, and prioritize follow-ups. Never claim you created, scheduled, quoted, called, or sent anything; all recommendations require user review.',
         prompt: [
           `CRM context:\n${context}`,
           history ? `Conversation history:\n${history}` : '',
@@ -5245,6 +5523,8 @@ internal_notes: id, entity_type, entity_id, author_name, content, pinned, create
 automations: id, name, trigger_type, actions, enabled, created_at
 social_media_posts: id, platform, content, tone, created_at
 service_items: id, name, default_rate, duration_minutes, category, active, created_at
+app_ai_insights: id, source_type, source_id, phone_number, customer_id, intent, urgency, confidence, is_spam, is_quote_request, service_area_status, extracted_data (JSONB), summary, next_step, analyzed_at
+app_ai_tasks: id, title, details, status, priority, task_type, source_type, source_id, phone_number, customer_id, due_at, metadata (JSONB), created_at
 
 NOTES:
 - Customer name fallback: use COALESCE(name, TRIM(CONCAT(first_name, ' ', last_name)), 'Unknown')
@@ -5490,7 +5770,11 @@ Guidelines:
 - Be friendly, concise, and professional
 - Format numbers as currency ($X,XXX.XX) when showing money
 - When listing items, use clear formatting
-- If a query returns no results, say so clearly — don't make up data`;
+- If a query returns no results, say so clearly — don't make up data
+- For scheduling help, compare requested timing with live Copilot schedule and label suggestions as proposed, not booked
+- For estimate preparation, return a review-ready checklist: customer, property, requested service, scope clues, missing information, and relevant past pricing; never invent a price
+- For customer history, combine messages, calls, jobs, estimates, invoices, and open follow-up tasks
+- Never claim you created, scheduled, quoted, called, texted, emailed, or changed anything; this assistant is read-only`;
 
     // Build messages with conversation history
     const messages = [];

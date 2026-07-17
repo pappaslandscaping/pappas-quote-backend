@@ -27,6 +27,7 @@ const {
   getCopilotToken: getCopilotTokenFromService,
   parseCopilotRouteHtml,
 } = require('./services/copilot/client');
+const { fetchLiveCopilotScheduleDate } = require('./services/copilot/live-jobs');
 const {
   normalizeStoredInvoiceStatus,
   isOutstandingInvoice,
@@ -5434,6 +5435,30 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
   }
   try {
     if (getWritingAiProvider() === 'openai') {
+      const conversationText = [question, ...(Array.isArray(conversationHistory) ? conversationHistory.map((message) => message?.content || '') : [])].join(' ').toLowerCase();
+      const needsFreshSchedule = /schedule|opening|appointment|customer history|review.{0,20}history/.test(conversationText);
+      let scheduleRefresh = { requested: needsFreshSchedule, connected: false, refreshedDays: 0, failedDays: 0 };
+      if (needsFreshSchedule) {
+        const tokenInfo = await getCopilotToken();
+        if (tokenInfo?.cookieHeader) {
+          scheduleRefresh.connected = true;
+          const today = new Date();
+          const dates = Array.from({ length: 14 }, (_, offset) => {
+            const date = new Date(today);
+            date.setDate(today.getDate() + offset);
+            return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+          });
+          const refreshResults = await Promise.allSettled(dates.map((syncDate) => fetchLiveCopilotScheduleDate({
+            poolClient: pool,
+            syncDate,
+            cookieHeader: tokenInfo.cookieHeader,
+            timeoutMs: 8000,
+          })));
+          scheduleRefresh.refreshedDays = refreshResults.filter((result) => result.status === 'fulfilled').length;
+          scheduleRefresh.failedDays = refreshResults.length - scheduleRefresh.refreshedDays;
+        }
+      }
+
       const [customersResult, messagesResult, callsResult, tasksResult, insightsResult, liveScheduleResult, yardDeskScheduleResult] = await Promise.all([
         pool.query(`SELECT id, name, first_name, last_name, mobile, phone, email, street, city, state, postal_code FROM customers ORDER BY name LIMIT 1000`).catch(() => ({ rows: [] })),
         pool.query(`SELECT direction, from_number, to_number, body, created_at FROM messages ORDER BY created_at DESC LIMIT 30`).catch(() => ({ rows: [] })),
@@ -5475,13 +5500,18 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
           pool.query(`SELECT title, details, status, priority, task_type, due_at FROM app_ai_tasks WHERE customer_id = $1 OR phone_number = $2 ORDER BY created_at DESC LIMIT 30`, [focusCustomer.id, phone]).catch(() => ({ rows: [] })),
         ]);
         const allCustomerJobs = [...historyLiveJobs.rows, ...historyJobs.rows];
-        const today = new Date().toISOString().slice(0, 10);
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        const jobDate = (job) => {
+          if (!job?.job_date) return '';
+          const parsed = new Date(job.job_date);
+          return Number.isNaN(parsed.getTime()) ? String(job.job_date).slice(0, 10) : parsed.toISOString().slice(0, 10);
+        };
         customerHistory = {
           customer: focusCustomer,
           messages: historyMessages.rows,
           calls: historyCalls.rows,
-          upcomingJobs: allCustomerJobs.filter((job) => String(job.job_date).slice(0, 10) >= today && !['completed', 'done', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase())),
-          pastJobs: allCustomerJobs.filter((job) => String(job.job_date).slice(0, 10) < today || ['completed', 'done'].includes(String(job.status || '').toLowerCase())),
+          upcomingJobs: allCustomerJobs.filter((job) => jobDate(job) >= today && !['completed', 'done', 'cancelled', 'canceled'].includes(String(job.status || '').toLowerCase())),
+          pastJobs: allCustomerJobs.filter((job) => jobDate(job) < today || ['completed', 'done'].includes(String(job.status || '').toLowerCase())),
           invoices: historyInvoices.rows,
           quotes: historyQuotes.rows,
           tasks: historyTasks.rows
@@ -5492,6 +5522,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
         customerDirectory: customersResult.rows.map((customer) => ({ id: customer.id, name: customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim(), phone: customer.mobile || customer.phone, email: customer.email })),
         matchedCustomerHistory: customerHistory,
         upcomingLiveSchedule: scheduleRows,
+        scheduleRefresh,
         recentMessages: messagesResult.rows,
         recentCalls: callsResult.rows,
         openFollowUpTasks: tasksResult.rows,
@@ -5503,7 +5534,7 @@ app.post('/api/app/ai/assistant', authenticateToken, async (req, res) => {
         : '';
 
       const answer = await generateAppAiText({
-        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer using the provided CRM context. You may suggest scheduling windows, prepare an estimate checklist, summarize customer history, and prioritize follow-ups. Treat upcomingLiveSchedule as the authoritative merged schedule. For customer history, clearly separate upcomingJobs from pastJobs and always state dates; never describe a past date as pending or upcoming. Never claim you created, scheduled, quoted, called, or sent anything; all recommendations require user review.',
+        systemPrompt: 'You are the internal assistant for Pappas & Co. Landscaping. Answer using the provided CRM context. You may suggest scheduling windows, prepare an estimate checklist, summarize customer history, and prioritize follow-ups. Treat upcomingLiveSchedule as the authoritative merged schedule. If scheduleRefresh was requested but connected is false or failedDays is greater than zero and upcomingLiveSchedule is empty, say the live schedule could not be loaded; never claim the schedule is empty or fully open. For customer history, clearly separate upcomingJobs from pastJobs and always state dates; never describe a past date as pending or upcoming. Never claim you created, scheduled, quoted, called, or sent anything; all recommendations require user review.',
         prompt: [
           `CRM context:\n${context}`,
           history ? `Conversation history:\n${history}` : '',

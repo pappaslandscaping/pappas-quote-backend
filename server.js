@@ -3057,6 +3057,7 @@ app.use(campaignRoutes);
 const communicationRoutes = require('./routes/communications')({
   pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
   twilioClient, smsReplyClient: twilioAppMessagingClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS, replaceTemplateVars, sendPushToAllDevices,
+  lookupCustomerByPhone: lookupAppCustomerByPhone,
   RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink,
 });
 app.use(communicationRoutes);
@@ -3281,9 +3282,13 @@ app.post('/api/calls', async (req, res) => {
     }
     const sid = twilio_sid || call_sid;
     const option = option_selected || call_type;
+    const matchedCallCustomer = await lookupAppCustomerByPhone(from_number).catch((error) => {
+      console.warn('Incoming call customer resolution failed:', error.message);
+      return null;
+    });
     const result = await pool.query(
-      `INSERT INTO calls (twilio_sid, from_number, to_number, option_selected, status, duration, recording_url, transcription) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [sid, from_number, to_number, option || 'Unknown', status || 'new', duration, recording_url, transcription]
+      `INSERT INTO calls (twilio_sid, from_number, to_number, option_selected, status, duration, recording_url, transcription, customer_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [sid, from_number, to_number, option || 'Unknown', status || 'new', duration, recording_url, transcription, matchedCallCustomer?.id || null]
     );
     res.json({ success: true, call: result.rows[0] });
 
@@ -4219,7 +4224,7 @@ const APP_CONFIRMED_PHONE_CONTACTS = Object.freeze({
   '2167894542': 'Adrienne Miller',
   '8313469299': 'Garvit Mantri',
 });
-const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.4';
+const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.5';
 
 async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } = {}) {
   const normalizedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10);
@@ -5215,6 +5220,19 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
       if (!conv.customer_name) {
         const matchedCustomer = await lookupAppCustomerByPhone(conv.normalized_phone);
         conv.customer_name = matchedCustomer?.name || null;
+        if (matchedCustomer?.id) {
+          await pool.query(`
+            UPDATE messages
+            SET customer_id = $2
+            WHERE customer_id IS NULL
+              AND (
+                RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1
+                OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
+              )
+          `, [conv.normalized_phone, matchedCustomer.id]).catch((error) => {
+            console.warn('Conversation contact backfill failed:', error.message);
+          });
+        }
       }
       return conv;
     }));
@@ -6808,14 +6826,10 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
 
     const twilioMessage = await twilioAppMessagingClient.messages.create(messageOptions);
 
-    // Find customer
-    const cleanedPhone = formattedTo.replace(/\D/g, '').slice(-10);
-    const customerResult = await pool.query(`
-      SELECT id FROM customers 
-      WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1 
-         OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1 
-      LIMIT 1
-    `, [cleanedPhone]);
+    const matchedCustomer = await lookupAppCustomerByPhone(formattedTo).catch((error) => {
+      console.warn('Outbound SMS customer resolution failed:', error.message);
+      return null;
+    });
 
     // Store in database
     await pool.query(`
@@ -6828,7 +6842,7 @@ app.post('/api/app/messages/send', authenticateToken, async (req, res) => {
       messageBody,
       mediaUrls || [],
       twilioMessage.status,
-      customerResult.rows[0]?.id || null
+      matchedCustomer?.id || null
     ]);
 
     console.log(`📤 Sent ${mediaUrls?.length ? 'MMS' : 'SMS'} from ${sendFromNumber} to ${formattedTo}: ${messageBody.substring(0, 50)}...`);

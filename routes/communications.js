@@ -598,7 +598,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, lookupCustomerByPhone, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
   const router = express.Router();
   const fetchFn = fetchImpl || global.fetch;
 
@@ -1807,17 +1807,33 @@ router.post('/api/sms/webhook', async (req, res) => {
       }
     }
 
-    // Find customer by phone number
+    // Resolve and persist a Copilot customer as soon as a text arrives.
     const cleanedPhone = From.replace(/\D/g, '').slice(-10);
-    const customerResult = await pool.query(`
-      SELECT id, name FROM customers 
-      WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 
-         OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 
-      LIMIT 1
-    `, [`%${cleanedPhone}`]);
-    
-    let customerId = customerResult.rows[0]?.id || null;
-    let customerName = customerResult.rows[0]?.name || 'Unknown';
+    let matchedCustomer = null;
+    if (typeof lookupCustomerByPhone === 'function') {
+      matchedCustomer = await lookupCustomerByPhone(From).catch((error) => {
+        console.warn('Incoming SMS customer resolution failed:', error.message);
+        return null;
+      });
+    }
+    if (!matchedCustomer) {
+      const customerResult = await pool.query(`
+        SELECT
+          id,
+          COALESCE(
+            NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+            NULLIF(TRIM(COALESCE(name, '')), '')
+          ) AS name
+        FROM customers
+        WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1
+           OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1
+        LIMIT 1
+      `, [`%${cleanedPhone}`]);
+      matchedCustomer = customerResult.rows[0] || null;
+    }
+
+    let customerId = matchedCustomer?.id || null;
+    let customerName = matchedCustomer?.name || 'Unknown';
 
     if (!customerId) {
       const addressCustomer = await findCustomerByAddressLead(pool, Body).catch(err => {

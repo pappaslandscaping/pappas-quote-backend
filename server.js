@@ -4270,15 +4270,28 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
           },
           body: `query=${encodeURIComponent(normalizedPhone)}`,
         });
-        const rows = response.ok ? await response.json().catch(() => []) : [];
-        const match = Array.isArray(rows) ? rows.find((row) => {
+        const payload = response.ok ? await response.json().catch(() => []) : [];
+        const rows = Array.isArray(payload)
+          ? payload
+          : (payload?.customers || payload?.results || payload?.data || []);
+        const phoneMatch = Array.isArray(rows) ? rows.find((row) => {
           const phones = [row.phone, row.mobile, row.phone_number, row.mobile_number]
             .map((value) => String(value || '').replace(/\D/g, ''));
           return phones.some((value) => value.includes(normalizedPhone));
         }) : null;
-        const name = String(match?.name || match?.label || [match?.first_name, match?.last_name].filter(Boolean).join(' ')).trim();
+        // Copilot's exact phone search often returns only an id and display
+        // label, without repeating the phone in the result. In that case the
+        // first real customer is the authoritative exact-search match.
+        const match = phoneMatch || (Array.isArray(rows)
+          ? rows.find((row) => row && row.id && String(row.id) !== '0')
+          : null);
+        const displayLabel = String(match?.name || match?.customer_name || match?.label || match?.text || match?.value || '').trim();
+        const name = String(
+          displayLabel.replace(/\s*\([^)]*\)\s*$/, '')
+          || [match?.first_name, match?.last_name].filter(Boolean).join(' ')
+        ).trim();
         if (name) {
-          const customer = {
+          let customer = {
             id: match.id || null,
             name,
             email: match.email || null,
@@ -4286,6 +4299,51 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
             mobile: match.mobile || match.mobile_number || null,
             source: 'copilot',
           };
+          try {
+            const inserted = await pool.query(`
+              INSERT INTO customers (
+                customer_number, name, email, status, customer_type,
+                phone, mobile, created_at, updated_at
+              )
+              SELECT $1, $2, $3, 'Active', 'customer', $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+              WHERE NOT EXISTS (
+                SELECT 1 FROM customers
+                WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE '%' || $6 || '%'
+                   OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $6 || '%'
+              )
+              RETURNING id, name, email, phone, mobile
+            `, [
+              await nextCustomerNumber(),
+              name,
+              match.email || null,
+              match.phone || match.phone_number || normalizedPhone,
+              match.mobile || match.mobile_number || null,
+              normalizedPhone,
+            ]);
+            if (inserted.rows[0]) {
+              customer = { ...inserted.rows[0], source: 'copilot' };
+              console.log(`[TwilioConnect] Created contact from Copilot phone match: ${name}`);
+            } else {
+              const existing = await pool.query(`
+                SELECT id, name, email, phone, mobile FROM customers
+                WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+                   OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+                ORDER BY id DESC LIMIT 1
+              `, [normalizedPhone]);
+              if (existing.rows[0]) customer = { ...existing.rows[0], source: 'copilot' };
+            }
+          } catch (saveError) {
+            // Another concurrent lookup may have inserted the same customer.
+            const saved = await pool.query(`
+              SELECT id, name, email, phone, mobile
+              FROM customers
+              WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+                 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+              ORDER BY id DESC LIMIT 1
+            `, [normalizedPhone]).catch(() => ({ rows: [] }));
+            if (saved.rows[0]) customer = { ...saved.rows[0], source: 'copilot' };
+            else console.warn('[TwilioConnect] Could not save Copilot phone match:', saveError.message);
+          }
           appCustomerPhoneCache.set(normalizedPhone, { customer, expiresAt: Date.now() + APP_CUSTOMER_PHONE_CACHE_MS });
           return customer;
         }

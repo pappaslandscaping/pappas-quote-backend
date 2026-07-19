@@ -4213,6 +4213,92 @@ app.get('/api/services', (req, res) => {
 // TWILIOCONNECT APP API
 // ═══════════════════════════════════════════════════════════
 
+const appCustomerPhoneCache = new Map();
+const APP_CUSTOMER_PHONE_CACHE_MS = 10 * 60 * 1000;
+
+async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } = {}) {
+  const normalizedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10);
+  if (normalizedPhone.length !== 10) return null;
+
+  const cached = appCustomerPhoneCache.get(normalizedPhone);
+  if (cached && cached.expiresAt > Date.now()) return cached.customer;
+
+  const localResult = await pool.query(`
+    SELECT id, name, email, phone, mobile, 'customer' AS source
+    FROM customers
+    WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+       OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+    ORDER BY updated_at DESC NULLS LAST, id DESC
+    LIMIT 1
+  `, [normalizedPhone]);
+  if (localResult.rows[0]?.name) {
+    const customer = localResult.rows[0];
+    appCustomerPhoneCache.set(normalizedPhone, { customer, expiresAt: Date.now() + APP_CUSTOMER_PHONE_CACHE_MS });
+    return customer;
+  }
+
+  const activityResult = await pool.query(`
+    SELECT customer_name AS name, customer_email AS email, customer_phone AS phone, NULL::text AS mobile, 'quote' AS source
+    FROM sent_quotes
+    WHERE REGEXP_REPLACE(COALESCE(customer_phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+      AND NULLIF(TRIM(COALESCE(customer_name, '')), '') IS NOT NULL
+    UNION ALL
+    SELECT customer_name AS name, NULL::text AS email, phone, NULL::text AS mobile, 'job' AS source
+    FROM scheduled_jobs
+    WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
+      AND NULLIF(TRIM(COALESCE(customer_name, '')), '') IS NOT NULL
+    LIMIT 1
+  `, [normalizedPhone]).catch(() => ({ rows: [] }));
+  if (activityResult.rows[0]?.name) {
+    const customer = activityResult.rows[0];
+    appCustomerPhoneCache.set(normalizedPhone, { customer, expiresAt: Date.now() + APP_CUSTOMER_PHONE_CACHE_MS });
+    return customer;
+  }
+
+  if (includeCopilot) {
+    try {
+      const tokenInfo = await getCopilotToken();
+      if (tokenInfo?.cookieHeader) {
+        const response = await fetch('https://secure.copilotcrm.com/customers/filter', {
+          method: 'POST',
+          headers: {
+            Cookie: tokenInfo.cookieHeader,
+            Origin: 'https://secure.copilotcrm.com',
+            Referer: 'https://secure.copilotcrm.com/',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `query=${encodeURIComponent(normalizedPhone)}`,
+        });
+        const rows = response.ok ? await response.json().catch(() => []) : [];
+        const match = Array.isArray(rows) ? rows.find((row) => {
+          const phones = [row.phone, row.mobile, row.phone_number, row.mobile_number]
+            .map((value) => String(value || '').replace(/\D/g, ''));
+          return phones.some((value) => value.includes(normalizedPhone));
+        }) : null;
+        const name = String(match?.name || match?.label || [match?.first_name, match?.last_name].filter(Boolean).join(' ')).trim();
+        if (name) {
+          const customer = {
+            id: match.id || null,
+            name,
+            email: match.email || null,
+            phone: match.phone || match.phone_number || normalizedPhone,
+            mobile: match.mobile || match.mobile_number || null,
+            source: 'copilot',
+          };
+          appCustomerPhoneCache.set(normalizedPhone, { customer, expiresAt: Date.now() + APP_CUSTOMER_PHONE_CACHE_MS });
+          return customer;
+        }
+      }
+    } catch (error) {
+      console.warn('[TwilioConnect] Copilot phone lookup failed:', error.message);
+    }
+  }
+
+  appCustomerPhoneCache.set(normalizedPhone, { customer: null, expiresAt: Date.now() + (2 * 60 * 1000) });
+  return null;
+}
+
 // Login for TwilioConnect app
 app.post('/api/app/login', async (req, res) => {
   const { email, password } = req.body;
@@ -4236,10 +4322,8 @@ app.post('/api/app/calls/outbound', authenticateToken, async (req, res) => {
   const { to, fromNumber } = req.body;
   const userPhone = req.user.phone;
   try {
-    let contactName = null;
-    const cleanedTo = to.replace(/\D/g, '').slice(-10);
-    const customerResult = await pool.query(`SELECT customer_name FROM sent_quotes WHERE REPLACE(REPLACE(REPLACE(customer_phone, '-', ''), '(', ''), ')', '') LIKE $1 ORDER BY created_at DESC LIMIT 1`, [`%${cleanedTo}`]);
-    if (customerResult.rows.length > 0) contactName = customerResult.rows[0].customer_name;
+    const matchedCustomer = await lookupAppCustomerByPhone(to);
+    const contactName = matchedCustomer?.name || null;
     
     // Determine which Twilio number to call from
     let callFromNumber = TWILIO_PHONE_NUMBER; // Default
@@ -4455,12 +4539,10 @@ app.all('/api/app/voice/recording-complete', async (req, res) => {
 
   console.log(`🎙️ Voicemail recording complete from ${from} (${duration}s)`);
 
-  // Look up customer name
-  const cleanedPhone = from.replace(/\D/g, '').slice(-10);
   let contactName = null;
   try {
-    const custResult = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedPhone}`]);
-    contactName = custResult.rows[0]?.name || null;
+    const matchedCustomer = await lookupAppCustomerByPhone(from);
+    contactName = matchedCustomer?.name || null;
   } catch (e) {}
 
   // Send push notification
@@ -4560,10 +4642,8 @@ app.get('/api/app/calls/recent', authenticateToken, async (req, res) => {
       const phoneNumber = call.direction === 'inbound' ? call.from : call.to;
       // Skip calls to/from client: identities (IVR app forwarding legs)
       if (phoneNumber.startsWith('client:') || call.from.startsWith('client:') || call.to.startsWith('client:')) return null;
-      const cleanedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
-      let contactName = null;
-     const customerResult = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedPhone}`]);
-if (customerResult.rows.length > 0) contactName = customerResult.rows[0].name;
+      const matchedCustomer = await lookupAppCustomerByPhone(phoneNumber);
+      const contactName = matchedCustomer?.name || null;
       const twilioNumber = call.direction === 'inbound' ? call.to : call.from;
       return { id: call.sid, phoneNumber, twilioNumber, direction: call.direction, status: call.status, duration: parseInt(call.duration) || 0, timestamp: call.startTime, contactName };
     }))).filter(Boolean).slice(0, limit);
@@ -4591,10 +4671,8 @@ app.get('/api/app/calls/history', authenticateToken, async (req, res) => {
     const calls = await twilioClient.calls.list({ limit: 100 });
     const enrichedCalls = await Promise.all(calls.map(async (call) => {
       const phoneNumber = call.direction === 'inbound' ? call.from : call.to;
-      const cleanedPhone = phoneNumber.replace(/\D/g, '').slice(-10);
-      let contactName = null;
-      const customerResult = await pool.query(`SELECT name FROM customers WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE $1 OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE $1 LIMIT 1`, [`%${cleanedPhone}`]);
-      if (customerResult.rows.length > 0) contactName = customerResult.rows[0].name;
+      const matchedCustomer = await lookupAppCustomerByPhone(phoneNumber);
+      const contactName = matchedCustomer?.name || null;
       
       // Include from/to numbers for filtering by Twilio line
       return { 
@@ -5038,13 +5116,8 @@ app.get('/api/app/messages/conversations', authenticateToken, async (req, res) =
     // Enrich with customer names where missing
     const conversations = await Promise.all(result.rows.map(async (conv) => {
       if (!conv.customer_name) {
-        const customerResult = await pool.query(`
-          SELECT name FROM customers 
-          WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1 
-             OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1 
-          LIMIT 1
-        `, [conv.normalized_phone]);
-        conv.customer_name = customerResult.rows[0]?.name || null;
+        const matchedCustomer = await lookupAppCustomerByPhone(conv.normalized_phone);
+        conv.customer_name = matchedCustomer?.name || null;
       }
       return conv;
     }));
@@ -5095,18 +5168,11 @@ app.get('/api/app/messages/thread/:phoneNumber', authenticateToken, async (req, 
       AND read = false
     `, [normalizedPhone]);
 
-    // Get customer info
-    const customerResult = await pool.query(`
-      SELECT id, name, mobile, phone, email, street, city, state 
-      FROM customers 
-      WHERE RIGHT(REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g'), 10) = $1 
-         OR RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = $1 
-      LIMIT 1
-    `, [normalizedPhone]);
+    const matchedCustomer = await lookupAppCustomerByPhone(normalizedPhone);
 
     res.json({ 
       messages: result.rows,
-      customer: customerResult.rows[0] || null
+      customer: matchedCustomer || null
     });
   } catch (error) {
     console.error('Get thread error:', error);
@@ -11527,16 +11593,19 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error('Webhook fetch failed');
     const data = await response.json();
-    const voicemails = (data.calls || []).map(c => ({
-      id: c.id,
-      phoneNumber: c.from_number || '',
-      contactName: c.customer_name || null,
-      duration: c.duration ? parseInt(c.duration) : 0,
-      transcription: c.transcription || null,
-      timestamp: c.created_at || '',
-      audioUrl: c.recording_url || null,
-      listened: c.read || false,
-      status: c.status || 'voicemail',
+    const voicemails = await Promise.all((data.calls || []).map(async (c) => {
+      const matchedCustomer = c.customer_name ? null : await lookupAppCustomerByPhone(c.from_number || '');
+      return {
+        id: c.id,
+        phoneNumber: c.from_number || '',
+        contactName: c.customer_name || matchedCustomer?.name || null,
+        duration: c.duration ? parseInt(c.duration) : 0,
+        transcription: c.transcription || null,
+        timestamp: c.created_at || '',
+        audioUrl: c.recording_url || null,
+        listened: c.read || false,
+        status: c.status || 'voicemail',
+      };
     }));
     const filteredVoicemails = searchTerm
       ? voicemails.filter((vm) => (

@@ -4219,7 +4219,7 @@ const APP_CONFIRMED_PHONE_CONTACTS = Object.freeze({
   '2167894542': 'Adrienne Miller',
   '8313469299': 'Garvit Mantri',
 });
-const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.3';
+const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.4';
 
 async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } = {}) {
   const normalizedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10);
@@ -4229,7 +4229,16 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
   if (cached && cached.expiresAt > Date.now()) return cached.customer;
 
   const localResult = await pool.query(`
-    SELECT id, name, email, phone, mobile, 'customer' AS source
+    SELECT
+      id,
+      COALESCE(
+        NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+        NULLIF(TRIM(COALESCE(name, '')), '')
+      ) AS name,
+      email,
+      phone,
+      mobile,
+      'customer' AS source
     FROM customers
     WHERE REGEXP_REPLACE(COALESCE(mobile, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
        OR REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE '%' || $1 || '%'
@@ -4805,11 +4814,22 @@ app.post('/api/app/calls/status-callback', (req, res) => {
 app.get('/api/app/customers', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, name, COALESCE(NULLIF(mobile, ''), phone) as phone, email, street as address, city, state
+      SELECT
+        id,
+        COALESCE(
+          NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+          NULLIF(TRIM(COALESCE(name, '')), ''),
+          'Unknown Customer'
+        ) AS name,
+        COALESCE(NULLIF(mobile, ''), phone) as phone,
+        email,
+        street as address,
+        city,
+        state
       FROM customers 
       WHERE (phone IS NOT NULL AND phone != '' AND TRIM(phone) != '')
          OR (mobile IS NOT NULL AND mobile != '' AND TRIM(mobile) != '')
-      ORDER BY name ASC
+      ORDER BY 2 ASC
     `);
     res.json({ customers: result.rows });
   } catch (error) {

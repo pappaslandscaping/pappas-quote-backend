@@ -4215,6 +4215,11 @@ app.get('/api/services', (req, res) => {
 
 const appCustomerPhoneCache = new Map();
 const APP_CUSTOMER_PHONE_CACHE_MS = 10 * 60 * 1000;
+const APP_CONFIRMED_PHONE_CONTACTS = Object.freeze({
+  '2167894542': 'Adrienne Miller',
+  '8313469299': 'Garvit Mantri',
+});
+const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.3';
 
 async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } = {}) {
   const normalizedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10);
@@ -4233,6 +4238,20 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
   `, [normalizedPhone]);
   if (localResult.rows[0]?.name) {
     const customer = localResult.rows[0];
+    appCustomerPhoneCache.set(normalizedPhone, { customer, expiresAt: Date.now() + APP_CUSTOMER_PHONE_CACHE_MS });
+    return customer;
+  }
+
+  const confirmedName = APP_CONFIRMED_PHONE_CONTACTS[normalizedPhone];
+  if (confirmedName) {
+    const customer = {
+      id: null,
+      name: confirmedName,
+      email: null,
+      phone: normalizedPhone,
+      mobile: null,
+      source: 'confirmed_phone_match',
+    };
     appCustomerPhoneCache.set(normalizedPhone, { customer, expiresAt: Date.now() + APP_CUSTOMER_PHONE_CACHE_MS });
     return customer;
   }
@@ -10682,7 +10701,11 @@ app.get('/api/dashboard/today-summary', async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => res.json({
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+  appContactResolverVersion: APP_CONTACT_RESOLVER_VERSION,
+}));
 app.get('/api/config/maps-key', (req, res) => res.json({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
 
 // ═══════════════════════════════════════════════════════════

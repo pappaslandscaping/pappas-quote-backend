@@ -4219,12 +4219,13 @@ app.get('/api/services', (req, res) => {
 // ═══════════════════════════════════════════════════════════
 
 const appCustomerPhoneCache = new Map();
+const appCustomerLookupInFlight = new Map();
 const APP_CUSTOMER_PHONE_CACHE_MS = 10 * 60 * 1000;
 const APP_CONFIRMED_PHONE_CONTACTS = Object.freeze({
   '2167894542': 'Adrienne Miller',
   '8313469299': 'Garvit Mantri',
 });
-const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.5';
+const APP_CONTACT_RESOLVER_VERSION = '2026-07-19.6';
 
 async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } = {}) {
   const normalizedPhone = String(phoneNumber || '').replace(/\D/g, '').slice(-10);
@@ -4289,10 +4290,14 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
   }
 
   if (includeCopilot) {
+    const inFlight = appCustomerLookupInFlight.get(normalizedPhone);
+    if (inFlight) return inFlight;
+
+    const copilotLookup = (async () => {
     try {
       const tokenInfo = await getCopilotToken();
       if (tokenInfo?.cookieHeader) {
-        const response = await fetch('https://secure.copilotcrm.com/customers/filter', {
+        const response = await fetch('https://secure.copilotcrm.com/search/global', {
           method: 'POST',
           headers: {
             Cookie: tokenInfo.cookieHeader,
@@ -4301,12 +4306,19 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
             'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: `query=${encodeURIComponent(normalizedPhone)}`,
+          body: `search=${encodeURIComponent(normalizedPhone)}`,
         });
         const payload = response.ok ? await response.json().catch(() => []) : [];
-        const rows = Array.isArray(payload)
-          ? payload
-          : (payload?.customers || payload?.results || payload?.data || []);
+        const suggestedCustomers = payload?.suggests && typeof payload.suggests === 'object'
+          ? Object.entries(payload.suggests)
+            .filter(([category]) => String(category).toLowerCase().includes('customer'))
+            .flatMap(([, entries]) => Array.isArray(entries) ? entries : [])
+          : [];
+        const rows = suggestedCustomers.length
+          ? suggestedCustomers
+          : (Array.isArray(payload)
+            ? payload
+            : (payload?.customers || payload?.results || payload?.data || []));
         const phoneMatch = Array.isArray(rows) ? rows.find((row) => {
           const phones = [row.phone, row.mobile, row.phone_number, row.mobile_number]
             .map((value) => String(value || '').replace(/\D/g, ''));
@@ -4316,16 +4328,23 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
         // label, without repeating the phone in the result. In that case the
         // first real customer is the authoritative exact-search match.
         const match = phoneMatch || (Array.isArray(rows)
-          ? rows.find((row) => row && row.id && String(row.id) !== '0')
+          ? rows.find((row) => {
+            if (!row) return false;
+            if (row.id && String(row.id) !== '0') return true;
+            return /\/customers\/details\/\d+/.test(String(row.link || row.url || ''));
+          })
           : null);
-        const displayLabel = String(match?.name || match?.customer_name || match?.label || match?.text || match?.value || '').trim();
+        const displayLabel = String(match?.name || match?.customer_name || match?.label || match?.text || match?.value || '')
+          .replace(/<[^>]+>/g, '')
+          .trim();
+        const linkedId = String(match?.link || match?.url || '').match(/\/customers\/details\/(\d+)/)?.[1] || null;
         const name = String(
           displayLabel.replace(/\s*\([^)]*\)\s*$/, '')
           || [match?.first_name, match?.last_name].filter(Boolean).join(' ')
         ).trim();
         if (name) {
           let customer = {
-            id: match.id || null,
+            id: match.id || linkedId,
             name,
             email: match.email || null,
             phone: match.phone || match.phone_number || normalizedPhone,
@@ -4384,11 +4403,75 @@ async function lookupAppCustomerByPhone(phoneNumber, { includeCopilot = true } =
     } catch (error) {
       console.warn('[TwilioConnect] Copilot phone lookup failed:', error.message);
     }
+
+    return null;
+    })();
+
+    appCustomerLookupInFlight.set(normalizedPhone, copilotLookup);
+    try {
+      const customer = await copilotLookup;
+      if (customer) return customer;
+    } finally {
+      appCustomerLookupInFlight.delete(normalizedPhone);
+    }
   }
 
   appCustomerPhoneCache.set(normalizedPhone, { customer: null, expiresAt: Date.now() + (2 * 60 * 1000) });
   return null;
 }
+
+let appContactBackfillRunning = false;
+async function backfillTwilioConnectContacts() {
+  if (appContactBackfillRunning) return;
+  appContactBackfillRunning = true;
+  try {
+    const unresolved = await pool.query(`
+      SELECT normalized_phone
+      FROM (
+        SELECT
+          RIGHT(REGEXP_REPLACE(
+          CASE WHEN direction = 'inbound' THEN from_number ELSE to_number END,
+          '[^0-9]', '', 'g'
+          ), 10) AS normalized_phone,
+          MAX(created_at) AS last_message_at
+        FROM messages
+        GROUP BY 1
+      ) phones
+      WHERE LENGTH(normalized_phone) = 10
+        AND NOT EXISTS (
+          SELECT 1 FROM customers c
+          WHERE RIGHT(REGEXP_REPLACE(COALESCE(c.mobile, ''), '[^0-9]', '', 'g'), 10) = phones.normalized_phone
+             OR RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', '', 'g'), 10) = phones.normalized_phone
+        )
+      ORDER BY last_message_at DESC
+      LIMIT 250
+    `);
+
+    let matched = 0;
+    for (const row of unresolved.rows) {
+      const customer = await lookupAppCustomerByPhone(row.normalized_phone);
+      if (customer?.id) {
+        matched += 1;
+        await pool.query(`
+          UPDATE messages SET customer_id = $2
+          WHERE customer_id IS NULL
+            AND (
+              RIGHT(REGEXP_REPLACE(from_number, '[^0-9]', '', 'g'), 10) = $1
+              OR RIGHT(REGEXP_REPLACE(to_number, '[^0-9]', '', 'g'), 10) = $1
+            )
+        `, [row.normalized_phone, customer.id]);
+      }
+    }
+    console.log(`[TwilioConnect] Contact backfill checked ${unresolved.rows.length} numbers and linked ${matched}.`);
+  } catch (error) {
+    console.warn('[TwilioConnect] Contact backfill failed:', error.message);
+  } finally {
+    appContactBackfillRunning = false;
+  }
+}
+
+setTimeout(() => backfillTwilioConnectContacts(), 15000).unref?.();
+setInterval(() => backfillTwilioConnectContacts(), 6 * 60 * 60 * 1000).unref?.();
 
 // Login for TwilioConnect app
 app.post('/api/app/login', async (req, res) => {

@@ -55,7 +55,7 @@ describe('TwilioConnect app communication search and history', () => {
 
 describe('YardDesk manual invoice text composer', () => {
   test('is visible on communications.html and cannot send without manual review', () => {
-    expect(communicationsHtml).toContain('New Invoice Text');
+    expect(communicationsHtml).toContain('Use Invoice Reminder Details');
     expect(communicationsHtml).toContain('Help Me Write It with AI');
     expect(communicationsHtml).toContain('I reviewed the customer, phone number, past-due balance, invoice link, and message.');
     expect(communicationsHtml).toContain("if (!document.getElementById('sms-reviewed').checked) return;");
@@ -67,5 +67,26 @@ describe('YardDesk manual invoice text composer', () => {
     expect(communicationsHtml).toContain("fetch('/api/app/ai/draft'");
     expect(communicationsHtml).toContain("document.getElementById('sms-compose-body').value = draft;");
     expect(communicationsHtml).toContain('AI draft prepared. Nothing was sent.');
+  });
+});
+
+
+describe('YardDesk general manual text composer', () => {
+  test('supports customer texts about topics beyond invoices', () => {
+    expect(communicationsHtml).toContain('New Text');
+    expect(communicationsHtml).toContain('General message');
+    expect(communicationsHtml).toContain('Scheduling or arrival time');
+    expect(communicationsHtml).toContain('Service update');
+    expect(communicationsHtml).toContain('Quote follow-up');
+    expect(communicationsHtml).toContain('Weather delay');
+    expect(communicationsHtml).toContain('What do you want to say?');
+  });
+
+  test('AI drafts only and every text requires review and confirmation', () => {
+    expect(communicationsHtml).toContain('AI draft prepared. Review and edit it. Nothing was sent.');
+    expect(communicationsHtml).toContain("if (!generalTextRecipient || !document.getElementById('general-sms-reviewed').checked) return;");
+    expect(communicationsHtml).toContain('I reviewed the customer, phone number, and message.');
+    expect(communicationsHtml).toContain('Send this text to');
+    expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
   });
 });

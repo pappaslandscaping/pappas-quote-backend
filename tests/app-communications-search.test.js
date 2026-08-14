@@ -80,6 +80,16 @@ describe('YardDesk invoice text selection', () => {
   });
 });
 
+describe('YardDesk current Copilot invoice data', () => {
+  test('refreshes Copilot before listing invoice text choices', () => {
+    expect(communicationsHtml).toContain("fetch('/api/copilot/invoices/sync'");
+    expect(communicationsHtml).toContain('maxPages: 25');
+    expect(communicationsHtml).toContain("detailMode: 'missing'");
+    expect(communicationsHtml).toContain("fetch('/api/invoices?limit=25000')");
+    expect(communicationsHtml).toContain("'Authorization': `Bearer ${token}`");
+  });
+});
+
 describe('YardDesk invoice text search', () => {
   test('requires a short search and filters by customer, invoice number, or amount', () => {
     expect(communicationsHtml).toContain('Find an outstanding invoice');

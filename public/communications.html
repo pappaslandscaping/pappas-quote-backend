@@ -890,7 +890,7 @@
         <div class="email-modal-body">
             <div class="email-form">
                 <div class="email-field">
-                    <label for="sms-invoice-select">Past-due invoice</label>
+                    <label for="sms-invoice-select">Outstanding invoice</label>
                     <select class="email-select" id="sms-invoice-select" onchange="resetInvoiceTextPreview()">
                         <option value="">Loading invoices...</option>
                     </select>
@@ -922,7 +922,7 @@
             </div>
         </div>
         <div class="email-modal-actions">
-            <div class="email-modal-note" id="sms-send-status">Choose a past-due invoice to begin.</div>
+            <div class="email-modal-note" id="sms-send-status">Choose an outstanding invoice to begin.</div>
             <div class="email-modal-buttons">
                 <button class="email-secondary-btn" type="button" onclick="closeInvoiceTextComposer()">Cancel</button>
                 <button class="email-primary-btn" id="sms-send-btn" type="button" onclick="sendReviewedInvoiceText()" disabled>Send This Text</button>
@@ -1516,18 +1516,16 @@ async function sendReviewedGeneralText() {
 async function openInvoiceTextComposer() {
     document.getElementById('invoice-sms-modal').classList.add('open');
     document.getElementById('invoice-sms-modal').setAttribute('aria-hidden', 'false');
-    document.getElementById('sms-send-status').textContent = 'Loading past-due invoices...';
+    document.getElementById('sms-send-status').textContent = 'Loading outstanding invoices...';
     invoiceTextPreview = null;
     try {
         const res = await fetch('/api/invoices?limit=500');
         const data = await res.json();
         if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load invoices');
         const invoices = (data.invoices || []).filter(invoice => {
-            const status = String(invoice.status || '').toLowerCase();
+            const status = String(invoice.status || '').trim().toLowerCase();
             const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
-            const due = invoice.due_date ? new Date(invoice.due_date) : null;
-            return balance > 0 && !['paid', 'void', 'draft'].includes(status)
-                && (status === 'overdue' || (due && !Number.isNaN(due.getTime()) && due < new Date()));
+            return balance > 0.005 && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
         });
         const select = document.getElementById('sms-invoice-select');
         select.innerHTML = '<option value="">Select an invoice...</option>' + invoices.map(invoice => {
@@ -1537,7 +1535,7 @@ async function openInvoiceTextComposer() {
         }).join('');
         document.getElementById('sms-send-status').textContent = invoices.length
             ? 'Choose an invoice, paste its customer-facing Copilot link, and prepare the preview.'
-            : 'No past-due invoices were found.';
+            : 'No invoices with an outstanding balance were found.';
     } catch (error) {
         document.getElementById('sms-invoice-select').innerHTML = '<option value="">Unable to load invoices</option>';
         document.getElementById('sms-send-status').textContent = error.message || 'Unable to load invoices.';
@@ -1567,7 +1565,7 @@ function invoiceTextChanged() {
 async function prepareInvoiceTextPreview() {
     const invoiceId = document.getElementById('sms-invoice-select').value;
     const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
-    if (!invoiceId) return alert('Choose a past-due invoice first.');
+    if (!invoiceId) return alert('Choose an outstanding invoice first.');
     const status = document.getElementById('sms-send-status');
     status.textContent = 'Preparing preview...';
     try {

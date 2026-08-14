@@ -71,6 +71,15 @@ describe('YardDesk manual invoice text composer', () => {
 });
 
 
+describe('YardDesk invoice text selection', () => {
+  test('shows every unpaid issued invoice without requiring an overdue date', () => {
+    expect(communicationsHtml).toContain("balance > 0.005");
+    expect(communicationsHtml).toContain("!['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status)");
+    expect(communicationsHtml).not.toContain("status === 'overdue' ||");
+    expect(communicationsHtml).toContain('No invoices with an outstanding balance were found.');
+  });
+});
+
 describe('YardDesk general manual text composer', () => {
   test('supports customer texts about topics beyond invoices', () => {
     expect(communicationsHtml).toContain('New Text');

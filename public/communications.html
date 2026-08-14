@@ -1634,10 +1634,20 @@ async function prepareInvoiceTextPreview() {
         const data = await res.json();
         if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
         invoiceTextPreview = data.preview;
+        const customerKey = String(data.preview.customer_name || '').trim().toLowerCase();
+        const seenInvoiceKeys = new Set();
+        const totalOutstanding = invoiceTextInvoices.reduce((sum, invoice) => {
+            if (String(invoice.customer_name || '').trim().toLowerCase() !== customerKey) return sum;
+            const key = String(invoice.display_invoice_number || invoice.invoice_number || invoice.id || '');
+            if (seenInvoiceKeys.has(key)) return sum;
+            seenInvoiceKeys.add(key);
+            return sum + Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+        }, 0);
+        invoiceTextPreview.total_outstanding = Math.max(totalOutstanding, Number(data.preview.balance || 0));
         document.getElementById('sms-invoice-url').value = data.preview.invoice_url || invoiceUrl;
         document.getElementById('sms-phone').value = data.preview.to || document.getElementById('sms-phone').value;
         document.getElementById('sms-compose-body').value = data.preview.body || '';
-        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(data.preview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Past-due balance: ${esc(formatCurrency(data.preview.balance))}`;
+        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(data.preview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(data.preview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = false;
         status.textContent = data.preview.invoice_url
             ? 'Preview ready. Review it or ask AI to help rewrite it.'
@@ -1665,7 +1675,7 @@ async function draftInvoiceTextWithAi() {
             },
             body: JSON.stringify({
                 contactName: invoiceTextPreview.customer_name,
-                prompt: `Write a friendly payment reminder for a past-due balance of ${formatCurrency(invoiceTextPreview.balance)}.${invoiceUrl ? ` Include this exact link unchanged: ${invoiceUrl}.` : ''} Say they can disregard it if payment was already sent. Sign it Pappas & Co. Landscaping.`
+                prompt: `Write a friendly payment reminder explaining that the customer's total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding || invoiceTextPreview.balance)}, of which ${formatCurrency(invoiceTextPreview.balance)} is currently past due.${invoiceUrl ? ` Include this exact link unchanged: ${invoiceUrl}.` : ''} Clearly distinguish the total owed from the past-due portion. Say they can disregard it if payment was already sent. Sign it Pappas & Co. Landscaping.`
             })
         });
         const data = await res.json();

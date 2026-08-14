@@ -723,9 +723,9 @@
             <h1>Communications Inbox</h1>
         </div>
         <div class="topbar-actions">
-            <button class="btn btn-primary" onclick="openInvoiceTextComposer()">
+            <button class="btn btn-primary" onclick="openGeneralTextComposer()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/></svg>
-                New Invoice Text
+                New Text
             </button>
             <button class="btn btn-secondary" onclick="loadFeed()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
@@ -809,7 +809,76 @@
     </div>
 </div>
 
-<div class="email-modal" id="sms-modal" aria-hidden="true">
+<div class="email-modal" id="general-sms-modal" aria-hidden="true">
+    <div class="email-modal-card">
+        <div class="email-modal-head">
+            <div>
+                <div class="email-modal-title">Write a new text</div>
+                <div class="email-modal-subtitle">Text a customer about scheduling, service, a quote, an invoice, or anything else. AI drafts only—nothing sends until you review and confirm.</div>
+            </div>
+            <button class="email-modal-close" type="button" onclick="closeGeneralTextComposer()">×</button>
+        </div>
+        <div class="email-modal-body">
+            <div class="email-form">
+                <div class="email-field">
+                    <label for="general-sms-purpose">What is this text about?</label>
+                    <select class="email-select" id="general-sms-purpose" onchange="generalTextChanged()">
+                        <option value="general">General message</option>
+                        <option value="scheduling">Scheduling or arrival time</option>
+                        <option value="service">Service update</option>
+                        <option value="quote">Quote follow-up</option>
+                        <option value="invoice">Invoice or payment</option>
+                        <option value="weather">Weather delay</option>
+                    </select>
+                </div>
+                <div class="email-field">
+                    <label for="general-sms-search">Customer name or phone number</label>
+                    <div class="sms-compose-actions">
+                        <input class="email-input" id="general-sms-search" type="text" placeholder="Search a customer or enter a phone number" oninput="generalRecipientSearchChanged()">
+                        <button class="email-secondary-btn" type="button" onclick="findGeneralTextRecipients()">Find Customer</button>
+                    </div>
+                </div>
+                <div class="email-field" id="general-sms-results-wrap" style="display:none">
+                    <label for="general-sms-recipient">Choose recipient</label>
+                    <select class="email-select" id="general-sms-recipient" onchange="selectGeneralTextRecipient(this.value)"></select>
+                </div>
+                <div class="email-field">
+                    <label for="general-sms-instructions">What do you want to say?</label>
+                    <textarea class="email-textarea" id="general-sms-instructions" placeholder="For example: Let Pat know the crew will arrive around 10:30 tomorrow." oninput="generalTextChanged()"></textarea>
+                </div>
+                <div class="sms-compose-actions">
+                    <button class="email-secondary-btn" id="general-sms-ai-btn" type="button" onclick="draftGeneralTextWithAi()" disabled>Help Me Write It with AI</button>
+                    <button class="email-secondary-btn" type="button" onclick="closeGeneralTextComposer(); openInvoiceTextComposer();">Use Invoice Reminder Details</button>
+                </div>
+                <div class="email-field">
+                    <label for="general-sms-body">Message</label>
+                    <textarea class="email-textarea" id="general-sms-body" placeholder="Write your message or use AI to prepare a draft." oninput="generalTextChanged()"></textarea>
+                </div>
+                <label class="sms-review-row">
+                    <input id="general-sms-reviewed" type="checkbox" onchange="updateGeneralTextSendState()">
+                    <span>I reviewed the customer, phone number, and message.</span>
+                </label>
+            </div>
+            <div class="email-preview-panel">
+                <div class="email-preview-label">Recipient preview</div>
+                <div class="sms-recipient-card" id="general-sms-recipient-preview">
+                    <strong>No recipient selected</strong>
+                    Search for a customer or enter a phone number.
+                </div>
+                <div class="email-inline-note">AI can only prepare an editable draft. This tool sends one text only after you review it, check the approval box, click Send, and confirm the recipient. It has no automatic or scheduled sending.</div>
+            </div>
+        </div>
+        <div class="email-modal-actions">
+            <div class="email-modal-note" id="general-sms-status">Choose a recipient and write instructions or a message.</div>
+            <div class="email-modal-buttons">
+                <button class="email-secondary-btn" type="button" onclick="closeGeneralTextComposer()">Cancel</button>
+                <button class="email-primary-btn" id="general-sms-send-btn" type="button" onclick="sendReviewedGeneralText()" disabled>Send This Text</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="email-modal" id="invoice-sms-modal" aria-hidden="true">
     <div class="email-modal-card">
         <div class="email-modal-head">
             <div>
@@ -946,6 +1015,8 @@ let emailComposerState = {
     body: '',
 };
 let invoiceTextPreview = null;
+let generalTextRecipients = [];
+let generalTextRecipient = null;
 
 // ─── Load ──────────────────────────────────────────────────────────────────
 async function loadFeed() {
@@ -1294,9 +1365,157 @@ async function sendReply(to) {
     }
 }
 
+
+function openGeneralTextComposer() {
+    document.getElementById('general-sms-modal').classList.add('open');
+    document.getElementById('general-sms-modal').setAttribute('aria-hidden', 'false');
+    document.getElementById('general-sms-search').focus();
+}
+
+function closeGeneralTextComposer() {
+    document.getElementById('general-sms-modal').classList.remove('open');
+    document.getElementById('general-sms-modal').setAttribute('aria-hidden', 'true');
+}
+
+function generalRecipientSearchChanged() {
+    generalTextRecipient = null;
+    generalTextRecipients = [];
+    document.getElementById('general-sms-results-wrap').style.display = 'none';
+    document.getElementById('general-sms-recipient-preview').innerHTML = '<strong>No recipient selected</strong>Click Find Customer to confirm the phone number.';
+    generalTextChanged();
+}
+
+function customerTextPhone(customer) {
+    return customer.phone || customer.mobile || customer.mobile_phone || customer.cell_phone || '';
+}
+
+async function findGeneralTextRecipients() {
+    const query = document.getElementById('general-sms-search').value.trim();
+    const status = document.getElementById('general-sms-status');
+    if (!query) return alert('Enter a customer name or phone number.');
+    status.textContent = 'Looking for the customer...';
+    try {
+        const res = await fetch(`/api/customers?search=${encodeURIComponent(query)}&limit=20`);
+        const data = await res.json();
+        const customers = (data.customers || []).filter(customer => customerTextPhone(customer));
+        const queryDigits = digitsOnly(query);
+        generalTextRecipients = customers.map(customer => ({
+            name: customer.name || [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Customer',
+            phone: customerTextPhone(customer)
+        }));
+        if (!generalTextRecipients.length && (queryDigits.length === 10 || queryDigits.length === 11)) {
+            generalTextRecipients = [{ name: 'Entered phone number', phone: query }];
+        }
+        if (!generalTextRecipients.length) throw new Error('No customer with a phone number was found.');
+        const select = document.getElementById('general-sms-recipient');
+        select.innerHTML = '<option value="">Choose a recipient...</option>' + generalTextRecipients.map((recipient, index) =>
+            `<option value="${index}">${esc(recipient.name)} · ${esc(fmtPhone(recipient.phone))}</option>`
+        ).join('');
+        document.getElementById('general-sms-results-wrap').style.display = '';
+        if (generalTextRecipients.length === 1) {
+            select.value = '0';
+            selectGeneralTextRecipient('0');
+        } else {
+            status.textContent = 'Choose the correct customer and phone number.';
+        }
+    } catch (error) {
+        generalTextRecipients = [];
+        generalTextRecipient = null;
+        status.textContent = error.message || 'Unable to find a recipient.';
+        updateGeneralTextSendState();
+    }
+}
+
+function selectGeneralTextRecipient(value) {
+    generalTextRecipient = value === '' ? null : generalTextRecipients[Number(value)] || null;
+    const preview = document.getElementById('general-sms-recipient-preview');
+    if (generalTextRecipient) {
+        preview.innerHTML = `<strong>${esc(generalTextRecipient.name)}</strong>${esc(fmtPhone(generalTextRecipient.phone))}`;
+        document.getElementById('general-sms-status').textContent = 'Recipient selected. Write the message or ask AI for a draft.';
+    } else {
+        preview.innerHTML = '<strong>No recipient selected</strong>Choose the correct customer and phone number.';
+    }
+    generalTextChanged();
+}
+
+function generalTextChanged() {
+    document.getElementById('general-sms-reviewed').checked = false;
+    const instructions = document.getElementById('general-sms-instructions').value.trim();
+    document.getElementById('general-sms-ai-btn').disabled = !(generalTextRecipient && instructions);
+    updateGeneralTextSendState();
+}
+
+async function draftGeneralTextWithAi() {
+    if (!generalTextRecipient) return alert('Choose a recipient first.');
+    const instructions = document.getElementById('general-sms-instructions').value.trim();
+    if (!instructions) return alert('Tell AI what you want the text to say.');
+    const status = document.getElementById('general-sms-status');
+    const button = document.getElementById('general-sms-ai-btn');
+    const purpose = document.getElementById('general-sms-purpose').selectedOptions[0].textContent;
+    status.textContent = 'AI is preparing a draft...';
+    button.disabled = true;
+    try {
+        const token = localStorage.getItem('adminToken');
+        const res = await fetch('/api/app/ai/draft', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+                contactName: generalTextRecipient.name,
+                prompt: `Write a concise, friendly customer text from Pappas & Co. Landscaping. Topic: ${purpose}. Instructions: ${instructions}. Do not invent dates, prices, promises, or details. Return only the text message.`
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
+        document.getElementById('general-sms-body').value = String(data.draft).trim();
+        status.textContent = 'AI draft prepared. Review and edit it. Nothing was sent.';
+    } catch (error) {
+        status.textContent = error.message || 'AI could not prepare a draft.';
+    } finally {
+        button.disabled = false;
+        generalTextChanged();
+    }
+}
+
+function updateGeneralTextSendState() {
+    const reviewed = document.getElementById('general-sms-reviewed').checked;
+    const body = document.getElementById('general-sms-body').value.trim();
+    document.getElementById('general-sms-send-btn').disabled = !(generalTextRecipient && reviewed && body);
+}
+
+async function sendReviewedGeneralText() {
+    if (!generalTextRecipient || !document.getElementById('general-sms-reviewed').checked) return;
+    const body = document.getElementById('general-sms-body').value.trim();
+    if (!body) return;
+    if (!confirm(`Send this text to ${generalTextRecipient.name} at ${fmtPhone(generalTextRecipient.phone)}?`)) return;
+    const button = document.getElementById('general-sms-send-btn');
+    const status = document.getElementById('general-sms-status');
+    button.disabled = true;
+    status.textContent = 'Sending this text...';
+    try {
+        const res = await fetch(`${API}/api/messages/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: generalTextRecipient.phone, body })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || 'Text failed to send');
+        status.textContent = 'Text sent manually.';
+        document.getElementById('general-sms-reviewed').checked = false;
+        showToast('Text sent');
+        setTimeout(closeGeneralTextComposer, 700);
+        loadFeed();
+    } catch (error) {
+        status.textContent = error.message || 'Text failed to send.';
+        updateGeneralTextSendState();
+    }
+}
+
 async function openInvoiceTextComposer() {
-    document.getElementById('sms-modal').classList.add('open');
-    document.getElementById('sms-modal').setAttribute('aria-hidden', 'false');
+    document.getElementById('invoice-sms-modal').classList.add('open');
+    document.getElementById('invoice-sms-modal').setAttribute('aria-hidden', 'false');
     document.getElementById('sms-send-status').textContent = 'Loading past-due invoices...';
     invoiceTextPreview = null;
     try {
@@ -1326,8 +1545,8 @@ async function openInvoiceTextComposer() {
 }
 
 function closeInvoiceTextComposer() {
-    document.getElementById('sms-modal').classList.remove('open');
-    document.getElementById('sms-modal').setAttribute('aria-hidden', 'true');
+    document.getElementById('invoice-sms-modal').classList.remove('open');
+    document.getElementById('invoice-sms-modal').setAttribute('aria-hidden', 'true');
 }
 
 function resetInvoiceTextPreview() {

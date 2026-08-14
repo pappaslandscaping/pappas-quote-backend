@@ -1,0 +1,44 @@
+name: CI and health checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm ci --prefix frontend
+      - run: npm --prefix frontend run typecheck
+      - run: npm --prefix frontend run build
+
+  production-health:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check configured production health endpoint
+        env:
+          HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
+        run: |
+          if [ -z "$HEALTHCHECK_URL" ]; then
+            echo "::notice::Set repository variable HEALTHCHECK_URL to enable the production probe."
+            exit 0
+          fi
+          curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 20 "$HEALTHCHECK_URL"

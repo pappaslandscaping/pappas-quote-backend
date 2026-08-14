@@ -228,16 +228,69 @@ async function ensureInvoicePaymentToken(pool, invoice) {
   return paymentToken;
 }
 
-async function resolveInvoiceSmsPhone(pool, invoice) {
+async function resolveInvoiceSmsPhone(pool, invoice, suppliedPhone = '') {
+  if (String(suppliedPhone || '').trim()) return String(suppliedPhone).trim();
+
   const directPhone = invoice.customer_phone || invoice.phone || null;
   if (directPhone) return directPhone;
-  if (!invoice.customer_id) return null;
-  const customerResult = await pool.query(
-    'SELECT mobile, phone FROM customers WHERE id = $1',
-    [invoice.customer_id]
+
+  if (invoice.customer_id) {
+    const customerResult = await pool.query(
+      'SELECT mobile, phone FROM customers WHERE id = $1',
+      [invoice.customer_id]
+    );
+    const linkedPhone = customerResult.rows[0]?.mobile || customerResult.rows[0]?.phone || null;
+    if (linkedPhone) return linkedPhone;
+  }
+
+  const metadata = parseExternalMetadata(invoice.external_metadata);
+  const copilotCustomerId = String(
+    metadata.copilot_customer_id
+    || metadata.customer_id
+    || metadata.copilot_contact_id
+    || ''
+  ).trim();
+  const customerEmail = String(invoice.customer_email || '').trim();
+  const customerName = String(invoice.customer_name || '').trim();
+  if (!copilotCustomerId && !customerEmail && !customerName) return null;
+
+  const fallbackResult = await pool.query(
+    `SELECT id, mobile, phone,
+            CASE
+              WHEN $1 <> '' AND customer_number = $1 THEN 1
+              WHEN $2 <> '' AND LOWER(TRIM(email)) = LOWER($2) THEN 2
+              ELSE 3
+            END AS match_priority
+       FROM customers
+      WHERE COALESCE(NULLIF(TRIM(mobile), ''), NULLIF(TRIM(phone), '')) IS NOT NULL
+        AND (
+          ($1 <> '' AND customer_number = $1)
+          OR ($2 <> '' AND LOWER(TRIM(email)) = LOWER($2))
+          OR (
+            $3 <> ''
+            AND LOWER(REGEXP_REPLACE(TRIM(COALESCE(
+              NULLIF(name, ''),
+              NULLIF(customer_company_name, ''),
+              NULLIF(CONCAT_WS(' ', first_name, last_name), '')
+            )), '\\s+', ' ', 'g'))
+              = LOWER(REGEXP_REPLACE(TRIM($3), '\\s+', ' ', 'g'))
+          )
+        )
+      ORDER BY match_priority, id
+      LIMIT 1`,
+    [copilotCustomerId, customerEmail, customerName]
   );
-  if (customerResult.rows.length === 0) return null;
-  return customerResult.rows[0].mobile || customerResult.rows[0].phone || null;
+  const matchedCustomer = fallbackResult.rows[0];
+  if (!matchedCustomer) return null;
+
+  if (!invoice.customer_id && matchedCustomer.id) {
+    await pool.query(
+      'UPDATE invoices SET customer_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [matchedCustomer.id, invoice.id]
+    );
+    invoice.customer_id = matchedCustomer.id;
+  }
+  return matchedCustomer.mobile || matchedCustomer.phone || null;
 }
 
 function isDateLikeInvoiceLabel(value) {
@@ -4359,7 +4412,7 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
     }
 
     const invoice = invoiceResult.rows[0];
-    const phone = await resolveInvoiceSmsPhone(pool, invoice);
+    const phone = await resolveInvoiceSmsPhone(pool, invoice, req.body?.phone);
     if (!phone) {
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
     }
@@ -4399,7 +4452,7 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
     }
 
     const invoice = invoiceResult.rows[0];
-    const phone = await resolveInvoiceSmsPhone(pool, invoice);
+    const phone = await resolveInvoiceSmsPhone(pool, invoice, req.body?.phone);
     if (!phone) {
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
     }

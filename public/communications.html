@@ -890,9 +890,13 @@
         <div class="email-modal-body">
             <div class="email-form">
                 <div class="email-field">
-                    <label for="sms-invoice-select">Outstanding invoice</label>
+                    <label for="sms-invoice-search">Find an outstanding invoice</label>
+                    <input class="email-input" id="sms-invoice-search" type="search" placeholder="Type Kevin Hopp, an invoice number, or an amount" oninput="filterInvoiceTextOptions(this.value)">
+                </div>
+                <div class="email-field">
+                    <label for="sms-invoice-select">Matching invoices</label>
                     <select class="email-select" id="sms-invoice-select" onchange="resetInvoiceTextPreview()">
-                        <option value="">Loading invoices...</option>
+                        <option value="">Type at least 2 characters above...</option>
                     </select>
                 </div>
                 <div class="email-field">
@@ -1015,6 +1019,7 @@ let emailComposerState = {
     body: '',
 };
 let invoiceTextPreview = null;
+let invoiceTextInvoices = [];
 let generalTextRecipients = [];
 let generalTextRecipient = null;
 
@@ -1527,19 +1532,43 @@ async function openInvoiceTextComposer() {
             const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
             return balance > 0.005 && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
         });
-        const select = document.getElementById('sms-invoice-select');
-        select.innerHTML = '<option value="">Select an invoice...</option>' + invoices.map(invoice => {
-            const number = invoice.display_invoice_number || invoice.invoice_number || invoice.id;
-            const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
-            return `<option value="${esc(invoice.id)}">${esc(invoice.customer_name || 'Unknown customer')} · #${esc(number)} · ${esc(formatCurrency(balance))}</option>`;
-        }).join('');
+        invoiceTextInvoices = invoices;
+        document.getElementById('sms-invoice-search').value = '';
+        filterInvoiceTextOptions('');
         document.getElementById('sms-send-status').textContent = invoices.length
-            ? 'Choose an invoice, paste its customer-facing Copilot link, and prepare the preview.'
+            ? `${invoices.length} outstanding invoices loaded. Search by customer, invoice number, or amount.`
             : 'No invoices with an outstanding balance were found.';
     } catch (error) {
         document.getElementById('sms-invoice-select').innerHTML = '<option value="">Unable to load invoices</option>';
         document.getElementById('sms-send-status').textContent = error.message || 'Unable to load invoices.';
     }
+}
+
+function filterInvoiceTextOptions(rawQuery) {
+    const query = String(rawQuery || '').trim().toLowerCase();
+    const select = document.getElementById('sms-invoice-select');
+    resetInvoiceTextPreview();
+    if (query.length < 2) {
+        select.innerHTML = '<option value="">Type at least 2 characters above...</option>';
+        return;
+    }
+    const matches = invoiceTextInvoices.filter(invoice => {
+        const number = String(invoice.display_invoice_number || invoice.invoice_number || invoice.id || '').toLowerCase();
+        const customer = String(invoice.customer_name || '').toLowerCase();
+        const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+        const amount = formatCurrency(balance).toLowerCase();
+        return customer.includes(query) || number.includes(query) || amount.includes(query);
+    }).slice(0, 50);
+    select.innerHTML = matches.length
+        ? '<option value="">Select a matching invoice...</option>' + matches.map(invoice => {
+            const number = invoice.display_invoice_number || invoice.invoice_number || invoice.id;
+            const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+            return `<option value="${esc(invoice.id)}">${esc(invoice.customer_name || 'Unknown customer')} · #${esc(number)} · ${esc(formatCurrency(balance))}</option>`;
+        }).join('')
+        : '<option value="">No matching outstanding invoices</option>';
+    document.getElementById('sms-send-status').textContent = matches.length
+        ? `${matches.length} matching invoice${matches.length === 1 ? '' : 's'} found.`
+        : 'No matching outstanding invoices were found.';
 }
 
 function closeInvoiceTextComposer() {

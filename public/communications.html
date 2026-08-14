@@ -1521,10 +1521,30 @@ async function sendReviewedGeneralText() {
 async function openInvoiceTextComposer() {
     document.getElementById('invoice-sms-modal').classList.add('open');
     document.getElementById('invoice-sms-modal').setAttribute('aria-hidden', 'false');
-    document.getElementById('sms-send-status').textContent = 'Loading outstanding invoices...';
+    document.getElementById('sms-send-status').textContent = 'Refreshing current invoices from Copilot...';
     invoiceTextPreview = null;
     try {
-        const res = await fetch('/api/invoices?limit=500');
+        const token = localStorage.getItem('adminToken');
+        if (token) {
+            try {
+                const syncRes = await fetch('/api/copilot/invoices/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ maxPages: 25, detailMode: 'missing', linkCustomers: true })
+                });
+                const syncData = await syncRes.json().catch(() => ({}));
+                if (!syncRes.ok || syncData.success === false) {
+                    console.warn('Copilot invoice refresh did not complete:', syncData.error || syncRes.status);
+                }
+            } catch (syncError) {
+                console.warn('Copilot invoice refresh failed; using saved invoices:', syncError);
+            }
+        }
+        document.getElementById('sms-send-status').textContent = 'Loading outstanding invoices...';
+        const res = await fetch('/api/invoices?limit=25000');
         const data = await res.json();
         if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load invoices');
         const invoices = (data.invoices || []).filter(invoice => {
@@ -1598,9 +1618,13 @@ async function prepareInvoiceTextPreview() {
     const status = document.getElementById('sms-send-status');
     status.textContent = 'Preparing preview...';
     try {
+        const token = localStorage.getItem('adminToken');
         const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceId)}/sms-preview`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ invoice_url: invoiceUrl })
         });
         const data = await res.json();
@@ -1672,9 +1696,13 @@ async function sendReviewedInvoiceText() {
     button.disabled = true;
     status.textContent = 'Sending this text...';
     try {
+        const token = localStorage.getItem('adminToken');
         const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceTextPreview.invoice_id)}/send-sms`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ body, invoice_url: invoiceUrl, confirm_send: true })
         });
         const data = await res.json();

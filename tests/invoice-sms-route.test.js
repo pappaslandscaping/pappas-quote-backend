@@ -233,6 +233,79 @@ it('sends exactly once after manual confirmation with a reviewed Copilot link', 
   assert.strictEqual(inserts.length, 1);
 });
 
+it('finds a phone by an exact customer match when a Copilot invoice is not linked', async () => {
+  const updates = [];
+  const pool = createPool(async (sql, params) => {
+    if (sql === 'SELECT * FROM invoices WHERE id = $1') {
+      return {
+        rows: [{
+          id: 11959,
+          invoice_number: '11959',
+          customer_id: null,
+          customer_name: 'Kevin Hopp',
+          customer_email: '',
+          total: '528.99',
+          amount_paid: '0',
+          external_metadata: {
+            copilot_customer_id: '1053401',
+            client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/1053401/example',
+          },
+          status: 'overdue',
+        }],
+      };
+    }
+    if (sql.includes('FROM customers') && sql.includes('match_priority')) {
+      assert.deepStrictEqual(params, ['1053401', '', 'Kevin Hopp']);
+      return { rows: [{ id: 77, mobile: '(440) 555-0119', phone: null, match_priority: 1 }] };
+    }
+    if (sql.startsWith('UPDATE invoices SET customer_id')) {
+      updates.push(params);
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  const router = createRouter({ pool });
+  const res = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
+    params: { id: '11959' },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.preview.to, '+14405550119');
+  assert.deepStrictEqual(updates, [[77, 11959]]);
+});
+
+it('accepts a manually reviewed phone when no customer record is linked', async () => {
+  const pool = createPool(async (sql) => {
+    if (sql === 'SELECT * FROM invoices WHERE id = $1') {
+      return {
+        rows: [{
+          id: 12000,
+          invoice_number: '12000',
+          customer_id: null,
+          customer_name: 'Manual Phone',
+          total: '25.00',
+          amount_paid: '0',
+          external_metadata: {
+            client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/12000/example',
+          },
+          status: 'overdue',
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  const router = createRouter({ pool });
+  const res = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
+    params: { id: '12000' },
+    body: { phone: '(216) 555-0123' },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.preview.to, '+12165550123');
+});
+
 describe('invoice-sms-route', () => {
   for (const { name, fn } of tests) {
     test(name, fn);

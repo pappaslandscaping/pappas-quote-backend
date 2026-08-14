@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+const communicationsHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'communications.html'), 'utf8');
 
 function routeSource(startMarker, endMarker) {
   const start = serverSource.indexOf(startMarker);
@@ -49,5 +50,22 @@ describe('TwilioConnect app communication search and history', () => {
     expect(source).toContain('filteredVoicemails');
     expect(source).toContain('transcription');
     expect(source).not.toContain('limit=100');
+  });
+});
+
+describe('YardDesk manual invoice text composer', () => {
+  test('is visible on communications.html and cannot send without manual review', () => {
+    expect(communicationsHtml).toContain('New Invoice Text');
+    expect(communicationsHtml).toContain('Help Me Write It with AI');
+    expect(communicationsHtml).toContain('I reviewed the customer, phone number, past-due balance, invoice link, and message.');
+    expect(communicationsHtml).toContain("if (!document.getElementById('sms-reviewed').checked) return;");
+    expect(communicationsHtml).toContain('confirm_send: true');
+    expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
+  });
+
+  test('AI only writes into the editable composer and never invokes the send endpoint', () => {
+    expect(communicationsHtml).toContain("fetch('/api/app/ai/draft'");
+    expect(communicationsHtml).toContain("document.getElementById('sms-compose-body').value = draft;");
+    expect(communicationsHtml).toContain('AI draft prepared. Nothing was sent.');
   });
 });

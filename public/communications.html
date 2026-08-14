@@ -903,6 +903,10 @@
                     <label for="sms-invoice-url">Copilot customer invoice link</label>
                     <input class="email-input" id="sms-invoice-url" type="url" placeholder="https://secure.copilotcrm.com/client/invoices/view/..." oninput="invoiceTextChanged()">
                 </div>
+                <div class="email-field">
+                    <label for="sms-phone">Customer phone number <span style="font-weight:400;text-transform:none">(optional if YardDesk already has it)</span></label>
+                    <input class="email-input" id="sms-phone" type="tel" placeholder="Enter the number if the customer record is not linked" oninput="invoiceTextChanged()">
+                </div>
                 <div class="sms-compose-actions">
                     <button class="email-secondary-btn" id="sms-preview-btn" type="button" onclick="prepareInvoiceTextPreview()">Prepare Preview</button>
                     <button class="email-secondary-btn" id="sms-ai-btn" type="button" onclick="draftInvoiceTextWithAi()" disabled>Help Me Write It with AI</button>
@@ -913,7 +917,7 @@
                 </div>
                 <label class="sms-review-row">
                     <input id="sms-reviewed" type="checkbox" onchange="updateInvoiceTextSendState()">
-                    <span>I reviewed the customer, phone number, past-due balance, invoice link, and message.</span>
+                    <span>I reviewed the customer, confirmed the phone number, past-due balance, invoice link, and message.</span>
                 </label>
             </div>
             <div class="email-preview-panel">
@@ -1625,12 +1629,13 @@ async function prepareInvoiceTextPreview() {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ invoice_url: invoiceUrl })
+            body: JSON.stringify({ invoice_url: invoiceUrl, phone: document.getElementById('sms-phone').value.trim() })
         });
         const data = await res.json();
         if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
         invoiceTextPreview = data.preview;
         document.getElementById('sms-invoice-url').value = data.preview.invoice_url || invoiceUrl;
+        document.getElementById('sms-phone').value = data.preview.to || document.getElementById('sms-phone').value;
         document.getElementById('sms-compose-body').value = data.preview.body || '';
         document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(data.preview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Past-due balance: ${esc(formatCurrency(data.preview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = !document.getElementById('sms-invoice-url').value.trim();
@@ -1703,7 +1708,7 @@ async function sendReviewedInvoiceText() {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ body, invoice_url: invoiceUrl, confirm_send: true })
+            body: JSON.stringify({ body, invoice_url: invoiceUrl, phone: document.getElementById('sms-phone').value.trim(), confirm_send: true })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) throw new Error(data.error || 'Text failed to send');

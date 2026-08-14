@@ -54,3 +54,27 @@ export type VoicemailsResponse = {
   voicemails?: VoicemailRow[];
   error?: string;
 };
+
+export type InvoiceSmsPreview = {
+  invoice_id: number;
+  invoice_number: string;
+  customer_name: string;
+  to: string;
+  balance: number;
+  invoice_url: string;
+  body: string;
+};
+
+export type InvoiceSmsPreviewResponse = {
+  success: boolean;
+  preview?: InvoiceSmsPreview;
+  error?: string;
+};
+
+export type InvoiceSmsSendResponse = {
+  success: boolean;
+  message?: string;
+  sid?: string;
+  preview?: string;
+  error?: string;
+};

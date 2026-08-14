@@ -168,6 +168,51 @@ function formatMoney(value) {
   return `$${(parseFloat(value) || 0).toFixed(2)}`;
 }
 
+function parseExternalMetadata(value) {
+  if (!value) return {};
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function getCopilotClientInvoiceUrl(invoice, suppliedUrl = '') {
+  const metadata = parseExternalMetadata(invoice?.external_metadata);
+  const candidates = [
+    suppliedUrl,
+    metadata.client_invoice_url,
+    metadata.public_invoice_url,
+    metadata.payment_url,
+    metadata.invoice_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(String(candidate).trim());
+      if (
+        url.protocol === 'https:'
+        && url.hostname === 'secure.copilotcrm.com'
+        && /^\/client\/invoices\/view\/[^/]+\/[^/]+\/?$/.test(url.pathname)
+      ) {
+        return url.toString();
+      }
+    } catch (_error) {
+      // Ignore malformed or non-Copilot links.
+    }
+  }
+  return '';
+}
+
+function buildInvoiceReminderSms(invoice, invoiceUrl) {
+  const firstName = getFirstName(invoice.customer_name);
+  const balance = outstandingBalance(invoice);
+  return `Hi ${firstName}! Just wanted to send a quick reminder that your invoice for ${formatMoney(balance)} is currently past due. You can view and pay it here:\n${invoiceUrl}\n\nIf you've already sent payment, you can disregard this. Thank you!\nPappas & Co. Landscaping`;
+}
+
 async function ensureInvoicePaymentToken(pool, invoice) {
   if (invoice.payment_token) return invoice.payment_token;
   const paymentToken = generateToken();
@@ -4305,10 +4350,45 @@ router.post('/api/invoices/:id/send', async (req, res) => {
   }
 });
 
-// POST /api/invoices/:id/send-sms - Send invoice via SMS through backend Twilio path
-router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) => {
-  return clientCommunicationsDisabledResponse(res);
+// POST /api/invoices/:id/sms-preview - Prepare a manual invoice reminder. Never sends.
+router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res) => {
   try {
+    const invoiceResult = await pool.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Invoice not found' });
+    }
+
+    const invoice = invoiceResult.rows[0];
+    const phone = await resolveInvoiceSmsPhone(pool, invoice);
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
+    }
+
+    const invoiceUrl = getCopilotClientInvoiceUrl(invoice, req.body?.invoice_url);
+    return res.json({
+      success: true,
+      preview: {
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number || String(invoice.id),
+        customer_name: invoice.customer_name || 'Customer',
+        to: normalizePhone(phone),
+        balance: outstandingBalance(invoice),
+        invoice_url: invoiceUrl,
+        body: invoiceUrl ? buildInvoiceReminderSms(invoice, invoiceUrl) : '',
+      },
+    });
+  } catch (error) {
+    console.error('Error preparing invoice SMS preview:', error);
+    serverError(res, error);
+  }
+});
+
+// POST /api/invoices/:id/send-sms - Manual-only invoice reminder via Twilio.
+router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) => {
+  try {
+    if (req.body?.confirm_send !== true) {
+      return res.status(400).json({ success: false, error: 'Review the message and explicitly confirm before sending' });
+    }
     if (!isTwilioConfigured()) {
       return res.status(400).json({ success: false, error: 'SMS is not configured' });
     }
@@ -4324,15 +4404,18 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
     }
 
-    const firstName = getFirstName(invoice.customer_name);
-    const balance = outstandingBalance(invoice);
-    const invoiceNumber = invoice.invoice_number || `#${invoice.id}`;
+    const invoiceUrl = getCopilotClientInvoiceUrl(invoice, req.body?.invoice_url);
+    if (!invoiceUrl) {
+      return res.status(400).json({ success: false, error: 'A valid Copilot customer invoice link is required' });
+    }
 
-    const smsBody =
-      `Hi ${firstName}, this is Tim with Pappas & Co. Landscaping.\n\n` +
-      `Your invoice #${invoiceNumber} is ready. Amount due: ${formatMoney(balance)}.\n\n` +
-      `Please pay through the secure CopilotCRM invoice link.\n\n` +
-      `Questions? Text me back here or call (440) 886-7318.`;
+    const smsBody = String(req.body?.body || '').trim() || buildInvoiceReminderSms(invoice, invoiceUrl);
+    if (!smsBody.includes(invoiceUrl)) {
+      return res.status(400).json({ success: false, error: 'The reviewed message must include the Copilot invoice link' });
+    }
+    if (smsBody.length > 1200) {
+      return res.status(400).json({ success: false, error: 'Message is too long' });
+    }
 
     const twilioMessage = await sendSms({
       to: phone,

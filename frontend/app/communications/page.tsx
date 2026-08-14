@@ -3,11 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchCalls,
+  fetchInvoices,
   fetchMessages,
   fetchVoicemails,
-  generateAiFollowup
+  generateAiFollowup,
+  previewInvoiceSms,
+  sendInvoiceSms
 } from "../../lib/api";
-import type { CallRow, MessageRow, VoicemailRow } from "../../types/communications";
+import type { CallRow, InvoiceSmsPreview, MessageRow, VoicemailRow } from "../../types/communications";
+import type { Invoice } from "../../types/invoices";
 
 type LoadState<T> = { status: "loading" | "success" | "empty" | "error"; data?: T; error?: string };
 type TimelineItem = {
@@ -41,12 +45,26 @@ function formatDate(value?: string | null) {
   return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+function money(value?: string | number | null) {
+  return Number(value || 0).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD"
+  });
+}
+
 export default function CommunicationsPage() {
   const [messages, setMessages] = useState<LoadState<MessageRow[]>>(loading());
   const [calls, setCalls] = useState<LoadState<CallRow[]>>(loading());
   const [voicemails, setVoicemails] = useState<LoadState<VoicemailRow[]>>(loading());
   const [draftPrompt, setDraftPrompt] = useState("");
   const [draft, setDraft] = useState<LoadState<string> | null>(null);
+  const [pastDueInvoices, setPastDueInvoices] = useState<LoadState<Invoice[]>>(loading());
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [invoiceUrl, setInvoiceUrl] = useState("");
+  const [smsPreview, setSmsPreview] = useState<InvoiceSmsPreview | null>(null);
+  const [smsBody, setSmsBody] = useState("");
+  const [smsStatus, setSmsStatus] = useState<LoadState<string> | null>(null);
+  const [smsReviewed, setSmsReviewed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -69,6 +87,21 @@ export default function CommunicationsPage() {
     void load(() => fetchMessages(100), setMessages, (data) => data.length === 0);
     void load(() => fetchCalls(50), setCalls, (data) => data.length === 0);
     void load(fetchVoicemails, setVoicemails, (data) => data.length === 0);
+    void load(
+      async () => {
+        const invoices = await fetchInvoices({ limit: 500 });
+        return invoices.filter((invoice) => {
+          const status = String(invoice.status || "").toLowerCase();
+          const amountDue = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+          const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+          return amountDue > 0
+            && !["paid", "void", "draft"].includes(status)
+            && (status === "overdue" || Boolean(dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date()));
+        });
+      },
+      setPastDueInvoices,
+      (data) => data.length === 0
+    );
 
     return () => {
       active = false;
@@ -189,6 +222,61 @@ export default function CommunicationsPage() {
     }
   }
 
+  async function prepareInvoiceText() {
+    if (!selectedInvoiceId) return;
+    setSmsStatus({ status: "loading" });
+    setSmsReviewed(false);
+    try {
+      const preview = await previewInvoiceSms(selectedInvoiceId, invoiceUrl);
+      setSmsPreview(preview);
+      setInvoiceUrl(preview.invoice_url || invoiceUrl);
+      setSmsBody(preview.body || "");
+      setSmsStatus({
+        status: "success",
+        data: preview.invoice_url
+          ? "Preview ready. Review and edit it before sending."
+          : "Customer found. Paste the customer-facing Copilot invoice link to create the reminder."
+      });
+    } catch (error) {
+      setSmsPreview(null);
+      setSmsStatus({ status: "error", error: shortError(error) });
+    }
+  }
+
+  async function composeInvoiceTextWithAi() {
+    if (!smsPreview || !invoiceUrl) return;
+    setSmsStatus({ status: "loading" });
+    setSmsReviewed(false);
+    try {
+      const response = await generateAiFollowup({
+        context: `Draft a concise, friendly SMS payment reminder. Customer: ${smsPreview.customer_name}. Past-due balance: ${money(smsPreview.balance)}. Include this exact invoice link unchanged: ${invoiceUrl}. Say they may disregard the message if payment was already sent. Sign it Pappas & Co. Landscaping. Do not claim the message was sent.`
+      });
+      let nextDraft = response.draft || response.text || response.message || response.response || "";
+      if (!nextDraft.includes(invoiceUrl)) nextDraft = `${nextDraft.trim()}\n${invoiceUrl}`;
+      setSmsBody(nextDraft.trim());
+      setSmsStatus({ status: "success", data: "AI draft prepared. Nothing was sent." });
+    } catch (error) {
+      setSmsStatus({ status: "error", error: shortError(error) });
+    }
+  }
+
+  async function sendReviewedInvoiceText() {
+    if (!smsPreview || !smsReviewed || !smsBody.trim() || !invoiceUrl) return;
+    if (!window.confirm(`Send this text to ${smsPreview.customer_name} at ${smsPreview.to}?`)) return;
+    setSmsStatus({ status: "loading" });
+    try {
+      await sendInvoiceSms(smsPreview.invoice_id, {
+        invoice_url: invoiceUrl,
+        body: smsBody.trim(),
+        confirm_send: true
+      });
+      setSmsStatus({ status: "success", data: "Text sent manually." });
+      setSmsReviewed(false);
+    } catch (error) {
+      setSmsStatus({ status: "error", error: shortError(error) });
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -204,6 +292,96 @@ export default function CommunicationsPage() {
         <QueueCard label="Voicemails" count={inboxQueues.voicemails.length} state={voicemails.status} />
         <QueueCard label="Replies" count={inboxQueues.customerReplies.length} state={messages.status} />
         <QueueCard label="Payment questions" count={inboxQueues.paymentQuestions.length} state={messages.status} />
+      </section>
+
+      <section className="table-card dashboard-panel" aria-label="Past-due invoice text composer">
+        <PanelHeader title="Text a Past-Due Invoice Reminder" subtitle="Choose one invoice, review the recipient and message, then send manually. Nothing sends automatically." />
+        <div className="form-panel">
+          <label>
+            Past-due invoice
+            <select
+              aria-label="Past-due invoice"
+              value={selectedInvoiceId}
+              onChange={(event) => {
+                setSelectedInvoiceId(event.target.value);
+                setSmsPreview(null);
+                setSmsBody("");
+                setInvoiceUrl("");
+                setSmsReviewed(false);
+                setSmsStatus(null);
+              }}
+            >
+              <option value="">Select an invoice...</option>
+              {(pastDueInvoices.data || []).map((invoice) => (
+                <option key={invoice.id} value={invoice.id}>
+                  {invoice.customer_name || "Unknown customer"} · #{invoice.display_invoice_number || invoice.invoice_number || invoice.id} · {money(Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0))}
+                </option>
+              ))}
+            </select>
+          </label>
+          {pastDueInvoices.status === "loading" ? <div className="state-block">Loading past-due invoices...</div> : null}
+          {pastDueInvoices.status === "error" ? <div className="state-block error">API failed: {pastDueInvoices.error}</div> : null}
+          {pastDueInvoices.status === "empty" ? <div className="empty-state">No past-due invoices found.</div> : null}
+          <label>
+            Copilot customer invoice link
+            <input
+              aria-label="Copilot customer invoice link"
+              type="url"
+              value={invoiceUrl}
+              onChange={(event) => {
+                setInvoiceUrl(event.target.value);
+                setSmsReviewed(false);
+              }}
+              placeholder="https://secure.copilotcrm.com/client/invoices/view/..."
+            />
+          </label>
+          <button className="btn btn-secondary" type="button" disabled={!selectedInvoiceId} onClick={prepareInvoiceText}>
+            Prepare preview
+          </button>
+          {smsPreview ? (
+            <div className="draft-preview">
+              <strong>Recipient</strong>
+              <p>{smsPreview.customer_name} · {smsPreview.to} · Balance {money(smsPreview.balance)}</p>
+              <label>
+                Message
+                <textarea
+                  aria-label="Invoice reminder message"
+                  value={smsBody}
+                  onChange={(event) => {
+                    setSmsBody(event.target.value);
+                    setSmsReviewed(false);
+                  }}
+                  placeholder="Prepare a standard reminder or ask AI to draft one."
+                />
+              </label>
+              <div className="topbar-actions">
+                <button className="btn btn-secondary" type="button" disabled={!invoiceUrl} onClick={composeInvoiceTextWithAi}>
+                  Help me write it with AI
+                </button>
+              </div>
+              <label>
+                <input
+                  aria-label="I reviewed the recipient, amount, link, and message"
+                  type="checkbox"
+                  checked={smsReviewed}
+                  onChange={(event) => setSmsReviewed(event.target.checked)}
+                />
+                I reviewed the recipient, amount, link, and message.
+              </label>
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={!smsReviewed || !smsBody.trim() || !invoiceUrl || smsStatus?.status === "loading"}
+                onClick={sendReviewedInvoiceText}
+              >
+                Send this text
+              </button>
+            </div>
+          ) : null}
+          {smsStatus?.status === "loading" ? <div className="state-block">Working...</div> : null}
+          {smsStatus?.status === "error" ? <div className="state-block error">{smsStatus.error}</div> : null}
+          {smsStatus?.status === "success" ? <div className="state-block">{smsStatus.data}</div> : null}
+        </div>
       </section>
 
       <section className="table-card priority-inbox" aria-label="Needs attention first">

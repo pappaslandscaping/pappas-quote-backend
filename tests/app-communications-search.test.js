@@ -57,7 +57,7 @@ describe('YardDesk manual invoice text composer', () => {
   test('is visible on communications.html and cannot send without manual review', () => {
     expect(communicationsHtml).toContain('Use Invoice Reminder Details');
     expect(communicationsHtml).toContain('Help Me Write It with AI');
-    expect(communicationsHtml).toContain('I reviewed the customer, phone number, past-due balance, invoice link, and message.');
+    expect(communicationsHtml).toContain('I reviewed the customer, confirmed the phone number, past-due balance, invoice link, and message.');
     expect(communicationsHtml).toContain("if (!document.getElementById('sms-reviewed').checked) return;");
     expect(communicationsHtml).toContain('confirm_send: true');
     expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
@@ -77,6 +77,14 @@ describe('YardDesk invoice text selection', () => {
     expect(communicationsHtml).toContain("!['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status)");
     expect(communicationsHtml).not.toContain("status === 'overdue' ||");
     expect(communicationsHtml).toContain('No invoices with an outstanding balance were found.');
+  });
+});
+
+describe('YardDesk invoice phone fallback', () => {
+  test('allows a reviewed phone number when the imported invoice is not linked', () => {
+    expect(communicationsHtml).toContain('Customer phone number');
+    expect(communicationsHtml).toContain('optional if YardDesk already has it');
+    expect(communicationsHtml).toContain("phone: document.getElementById('sms-phone').value.trim()");
   });
 });
 

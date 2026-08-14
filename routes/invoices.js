@@ -4411,7 +4411,25 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
       return res.status(404).json({ success: false, error: 'Invoice not found' });
     }
 
-    const invoice = invoiceResult.rows[0];
+    let invoice = invoiceResult.rows[0];
+    if (
+      String(invoice.external_source || '').toLowerCase() === 'copilotcrm'
+      && !getCopilotClientInvoiceUrl(invoice)
+    ) {
+      try {
+        const settings = await loadCopilotSettings(pool);
+        const refreshed = await refreshCopilotInvoiceSnapshot({
+          pool,
+          settings,
+          invoiceRow: invoice,
+          linkCustomers: true,
+        });
+        if (refreshed?.row) invoice = refreshed.row;
+      } catch (refreshError) {
+        console.warn(`Copilot invoice link refresh failed for ${invoice.invoice_number || invoice.id}:`, refreshError.message);
+      }
+    }
+
     const phone = await resolveInvoiceSmsPhone(pool, invoice, req.body?.phone);
     if (!phone) {
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });

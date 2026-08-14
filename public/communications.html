@@ -1638,10 +1638,10 @@ async function prepareInvoiceTextPreview() {
         document.getElementById('sms-phone').value = data.preview.to || document.getElementById('sms-phone').value;
         document.getElementById('sms-compose-body').value = data.preview.body || '';
         document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(data.preview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Past-due balance: ${esc(formatCurrency(data.preview.balance))}`;
-        document.getElementById('sms-ai-btn').disabled = !document.getElementById('sms-invoice-url').value.trim();
+        document.getElementById('sms-ai-btn').disabled = false;
         status.textContent = data.preview.invoice_url
-            ? 'Preview ready. Review or ask AI to help rewrite it.'
-            : 'Customer loaded. Paste the customer-facing Copilot invoice link to continue.';
+            ? 'Preview ready. Review it or ask AI to help rewrite it.'
+            : 'Customer preview ready. AI can draft now; paste the Copilot invoice link before sending.';
     } catch (error) {
         invoiceTextPreview = null;
         status.textContent = error.message || 'Unable to prepare preview.';
@@ -1652,7 +1652,6 @@ async function prepareInvoiceTextPreview() {
 async function draftInvoiceTextWithAi() {
     if (!invoiceTextPreview) return;
     const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
-    if (!invoiceUrl) return alert('Paste the Copilot invoice link first.');
     const status = document.getElementById('sms-send-status');
     status.textContent = 'AI is preparing a draft...';
     document.getElementById('sms-ai-btn').disabled = true;
@@ -1666,15 +1665,17 @@ async function draftInvoiceTextWithAi() {
             },
             body: JSON.stringify({
                 contactName: invoiceTextPreview.customer_name,
-                prompt: `Write a friendly payment reminder for a past-due balance of ${formatCurrency(invoiceTextPreview.balance)}. Include this exact link unchanged: ${invoiceUrl}. Say they can disregard it if payment was already sent. Sign it Pappas & Co. Landscaping.`
+                prompt: `Write a friendly payment reminder for a past-due balance of ${formatCurrency(invoiceTextPreview.balance)}.${invoiceUrl ? ` Include this exact link unchanged: ${invoiceUrl}.` : ''} Say they can disregard it if payment was already sent. Sign it Pappas & Co. Landscaping.`
             })
         });
         const data = await res.json();
         if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
         let draft = String(data.draft).trim();
-        if (!draft.includes(invoiceUrl)) draft += `\n${invoiceUrl}`;
+        if (invoiceUrl && !draft.includes(invoiceUrl)) draft += `\n${invoiceUrl}`;
         document.getElementById('sms-compose-body').value = draft;
-        status.textContent = 'AI draft prepared. Nothing was sent.';
+        status.textContent = invoiceUrl
+            ? 'AI draft prepared. Nothing was sent.'
+            : 'AI draft prepared. Paste the Copilot invoice link before sending. Nothing was sent.';
     } catch (error) {
         status.textContent = error.message || 'AI could not prepare a draft.';
     } finally {

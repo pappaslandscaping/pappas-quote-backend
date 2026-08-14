@@ -83,6 +83,11 @@ const fixture10448 = `
     <tr><td>Total Due</td><td>$45.36</td></tr>
   </table>
 
+  <div class="invoice-history">
+    To see this Invoice in the customer portal as your customer will see it
+    <a href="https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0?k=nlrplsnrjl">click here</a>
+  </div>
+
   <div class="inv-notes-container">Thanks for your business!</div>
 
   <table class="inv-terms-table">
@@ -148,6 +153,13 @@ it('captures customer address', () => {
   assert.strictEqual(detail.customer_address, '456 Lake Rd, Bay Village OH 44140');
 });
 
+it('captures the customer-facing Copilot invoice link', () => {
+  assert.strictEqual(
+    detail.client_invoice_url,
+    'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0?k=nlrplsnrjl'
+  );
+});
+
 it('captures notes and terms', () => {
   assert.strictEqual(detail.notes, 'Thanks for your business!');
   assert.strictEqual(detail.terms, 'Net 30. Late fees apply after 30 days.');
@@ -172,6 +184,10 @@ it('toDbValuesFromDetail builds importer-ready row', () => {
   assert.strictEqual(v.sent_status, 'not sent');
   assert.strictEqual(v.line_items.length, 2);
   assert.strictEqual(v.metadata.copilot_customer_id, '237');
+  assert.strictEqual(
+    v.metadata.client_invoice_url,
+    'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0?k=nlrplsnrjl'
+  );
   assert.strictEqual(v.metadata.terms_raw, 'Net 30. Late fees apply after 30 days.');
 });
 

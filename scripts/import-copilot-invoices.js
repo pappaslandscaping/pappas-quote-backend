@@ -155,6 +155,7 @@ function toDbValuesFromDetail(detail, customerId) {
     crew:                detail.crew                || null,
     raw_status:          detail.raw_status          || null,
     total_due:           detail.total_due           ?? null,
+    client_invoice_url:  detail.client_invoice_url  || null,
     terms_raw:           detail.terms               || null,
     detail_synced_at:    new Date().toISOString(),
     detail_line_item_count: Array.isArray(detail.line_items) ? detail.line_items.length : 0,

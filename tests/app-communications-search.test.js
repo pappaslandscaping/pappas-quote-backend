@@ -80,6 +80,16 @@ describe('YardDesk invoice text selection', () => {
   });
 });
 
+describe('YardDesk customer balance context', () => {
+  test('distinguishes total outstanding from the selected past-due invoice', () => {
+    expect(communicationsHtml).toContain('invoiceTextPreview.total_outstanding');
+    expect(communicationsHtml).toContain('Total outstanding:');
+    expect(communicationsHtml).toContain('Currently past due:');
+    expect(communicationsHtml).toContain("the customer's total outstanding balance is");
+    expect(communicationsHtml).toContain('Clearly distinguish the total owed from the past-due portion.');
+  });
+});
+
 describe('YardDesk invoice AI drafting', () => {
   test('can draft after preview even before the invoice link is pasted', () => {
     expect(communicationsHtml).toContain("document.getElementById('sms-ai-btn').disabled = false;");

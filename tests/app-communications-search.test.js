@@ -80,6 +80,16 @@ describe('YardDesk invoice text selection', () => {
   });
 });
 
+describe('YardDesk invoice text search', () => {
+  test('requires a short search and filters by customer, invoice number, or amount', () => {
+    expect(communicationsHtml).toContain('Find an outstanding invoice');
+    expect(communicationsHtml).toContain('Type Kevin Hopp, an invoice number, or an amount');
+    expect(communicationsHtml).toContain('if (query.length < 2)');
+    expect(communicationsHtml).toContain('customer.includes(query) || number.includes(query) || amount.includes(query)');
+    expect(communicationsHtml).toContain('.slice(0, 50)');
+  });
+});
+
 describe('YardDesk general manual text composer', () => {
   test('supports customer texts about topics beyond invoices', () => {
     expect(communicationsHtml).toContain('New Text');

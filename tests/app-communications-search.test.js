@@ -80,6 +80,15 @@ describe('YardDesk invoice text selection', () => {
   });
 });
 
+describe('YardDesk invoice AI drafting', () => {
+  test('can draft after preview even before the invoice link is pasted', () => {
+    expect(communicationsHtml).toContain("document.getElementById('sms-ai-btn').disabled = false;");
+    expect(communicationsHtml).not.toContain("if (!invoiceUrl) return alert('Paste the Copilot invoice link first.')");
+    expect(communicationsHtml).toContain("invoiceUrl ? \` Include this exact link unchanged:");
+    expect(communicationsHtml).toContain('AI draft prepared. Paste the Copilot invoice link before sending. Nothing was sent.');
+  });
+});
+
 describe('YardDesk invoice phone fallback', () => {
   test('allows a reviewed phone number when the imported invoice is not linked', () => {
     expect(communicationsHtml).toContain('Customer phone number');

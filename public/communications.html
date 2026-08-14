@@ -482,6 +482,18 @@
         }
         .email-primary-btn:disabled { opacity: 0.45; cursor: default; }
         .email-primary-btn:hover:not(:disabled) { background: var(--primary-dark); }
+        .sms-review-row {
+            display: flex; align-items: flex-start; gap: 9px; padding: 12px;
+            border: 1px solid var(--gray-200); border-radius: 9px; background: var(--gray-50);
+            color: var(--gray-600); font-size: 12px; line-height: 1.45;
+        }
+        .sms-review-row input { margin-top: 2px; accent-color: var(--primary); }
+        .sms-recipient-card {
+            padding: 12px 14px; border: 1px solid var(--gray-200); border-radius: 9px;
+            background: var(--gray-50); font-size: 12px; color: var(--gray-600); line-height: 1.6;
+        }
+        .sms-recipient-card strong { display: block; color: var(--gray-700); font-size: 13px; }
+        .sms-compose-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
         /* Call Detail */
         .call-detail { padding: 28px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
@@ -711,6 +723,10 @@
             <h1>Communications Inbox</h1>
         </div>
         <div class="topbar-actions">
+            <button class="btn btn-primary" onclick="openInvoiceTextComposer()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/></svg>
+                New Invoice Text
+            </button>
             <button class="btn btn-secondary" onclick="loadFeed()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                 Refresh
@@ -789,6 +805,59 @@
                 </div>
             </div>
             <div id="detail-content" style="display:none;flex:1;flex-direction:column;overflow:hidden;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="email-modal" id="sms-modal" aria-hidden="true">
+    <div class="email-modal-card">
+        <div class="email-modal-head">
+            <div>
+                <div class="email-modal-title">Text a past-due invoice reminder</div>
+                <div class="email-modal-subtitle">AI can help draft the message. Nothing sends until you review and confirm it.</div>
+            </div>
+            <button class="email-modal-close" type="button" onclick="closeInvoiceTextComposer()">×</button>
+        </div>
+        <div class="email-modal-body">
+            <div class="email-form">
+                <div class="email-field">
+                    <label for="sms-invoice-select">Past-due invoice</label>
+                    <select class="email-select" id="sms-invoice-select" onchange="resetInvoiceTextPreview()">
+                        <option value="">Loading invoices...</option>
+                    </select>
+                </div>
+                <div class="email-field">
+                    <label for="sms-invoice-url">Copilot customer invoice link</label>
+                    <input class="email-input" id="sms-invoice-url" type="url" placeholder="https://secure.copilotcrm.com/client/invoices/view/..." oninput="invoiceTextChanged()">
+                </div>
+                <div class="sms-compose-actions">
+                    <button class="email-secondary-btn" id="sms-preview-btn" type="button" onclick="prepareInvoiceTextPreview()">Prepare Preview</button>
+                    <button class="email-secondary-btn" id="sms-ai-btn" type="button" onclick="draftInvoiceTextWithAi()" disabled>Help Me Write It with AI</button>
+                </div>
+                <div class="email-field">
+                    <label for="sms-compose-body">Message</label>
+                    <textarea class="email-textarea" id="sms-compose-body" placeholder="Choose an invoice and prepare the preview first." oninput="invoiceTextChanged()"></textarea>
+                </div>
+                <label class="sms-review-row">
+                    <input id="sms-reviewed" type="checkbox" onchange="updateInvoiceTextSendState()">
+                    <span>I reviewed the customer, phone number, past-due balance, invoice link, and message.</span>
+                </label>
+            </div>
+            <div class="email-preview-panel">
+                <div class="email-preview-label">Recipient preview</div>
+                <div class="sms-recipient-card" id="sms-recipient-preview">
+                    <strong>No invoice selected</strong>
+                    Choose an invoice to load the customer and phone number.
+                </div>
+                <div class="email-inline-note">This tool only sends one text after you click Send, confirm the recipient, and approve the final browser confirmation. It has no automatic or scheduled sending.</div>
+            </div>
+        </div>
+        <div class="email-modal-actions">
+            <div class="email-modal-note" id="sms-send-status">Choose a past-due invoice to begin.</div>
+            <div class="email-modal-buttons">
+                <button class="email-secondary-btn" type="button" onclick="closeInvoiceTextComposer()">Cancel</button>
+                <button class="email-primary-btn" id="sms-send-btn" type="button" onclick="sendReviewedInvoiceText()" disabled>Send This Text</button>
+            </div>
         </div>
     </div>
 </div>
@@ -876,6 +945,7 @@ let emailComposerState = {
     subject: '',
     body: '',
 };
+let invoiceTextPreview = null;
 
 // ─── Load ──────────────────────────────────────────────────────────────────
 async function loadFeed() {
@@ -1222,6 +1292,160 @@ async function sendReply(to) {
         txt.focus();
         updateReplyComposerState();
     }
+}
+
+async function openInvoiceTextComposer() {
+    document.getElementById('sms-modal').classList.add('open');
+    document.getElementById('sms-modal').setAttribute('aria-hidden', 'false');
+    document.getElementById('sms-send-status').textContent = 'Loading past-due invoices...';
+    invoiceTextPreview = null;
+    try {
+        const res = await fetch('/api/invoices?limit=500');
+        const data = await res.json();
+        if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load invoices');
+        const invoices = (data.invoices || []).filter(invoice => {
+            const status = String(invoice.status || '').toLowerCase();
+            const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+            const due = invoice.due_date ? new Date(invoice.due_date) : null;
+            return balance > 0 && !['paid', 'void', 'draft'].includes(status)
+                && (status === 'overdue' || (due && !Number.isNaN(due.getTime()) && due < new Date()));
+        });
+        const select = document.getElementById('sms-invoice-select');
+        select.innerHTML = '<option value="">Select an invoice...</option>' + invoices.map(invoice => {
+            const number = invoice.display_invoice_number || invoice.invoice_number || invoice.id;
+            const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+            return `<option value="${esc(invoice.id)}">${esc(invoice.customer_name || 'Unknown customer')} · #${esc(number)} · ${esc(formatCurrency(balance))}</option>`;
+        }).join('');
+        document.getElementById('sms-send-status').textContent = invoices.length
+            ? 'Choose an invoice, paste its customer-facing Copilot link, and prepare the preview.'
+            : 'No past-due invoices were found.';
+    } catch (error) {
+        document.getElementById('sms-invoice-select').innerHTML = '<option value="">Unable to load invoices</option>';
+        document.getElementById('sms-send-status').textContent = error.message || 'Unable to load invoices.';
+    }
+}
+
+function closeInvoiceTextComposer() {
+    document.getElementById('sms-modal').classList.remove('open');
+    document.getElementById('sms-modal').setAttribute('aria-hidden', 'true');
+}
+
+function resetInvoiceTextPreview() {
+    invoiceTextPreview = null;
+    document.getElementById('sms-compose-body').value = '';
+    document.getElementById('sms-invoice-url').value = '';
+    document.getElementById('sms-reviewed').checked = false;
+    document.getElementById('sms-recipient-preview').innerHTML = '<strong>No preview prepared</strong>Paste the Copilot invoice link and click Prepare Preview.';
+    document.getElementById('sms-ai-btn').disabled = true;
+    updateInvoiceTextSendState();
+}
+
+function invoiceTextChanged() {
+    document.getElementById('sms-reviewed').checked = false;
+    updateInvoiceTextSendState();
+}
+
+async function prepareInvoiceTextPreview() {
+    const invoiceId = document.getElementById('sms-invoice-select').value;
+    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
+    if (!invoiceId) return alert('Choose a past-due invoice first.');
+    const status = document.getElementById('sms-send-status');
+    status.textContent = 'Preparing preview...';
+    try {
+        const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceId)}/sms-preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoice_url: invoiceUrl })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
+        invoiceTextPreview = data.preview;
+        document.getElementById('sms-invoice-url').value = data.preview.invoice_url || invoiceUrl;
+        document.getElementById('sms-compose-body').value = data.preview.body || '';
+        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(data.preview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Past-due balance: ${esc(formatCurrency(data.preview.balance))}`;
+        document.getElementById('sms-ai-btn').disabled = !document.getElementById('sms-invoice-url').value.trim();
+        status.textContent = data.preview.invoice_url
+            ? 'Preview ready. Review or ask AI to help rewrite it.'
+            : 'Customer loaded. Paste the customer-facing Copilot invoice link to continue.';
+    } catch (error) {
+        invoiceTextPreview = null;
+        status.textContent = error.message || 'Unable to prepare preview.';
+    }
+    invoiceTextChanged();
+}
+
+async function draftInvoiceTextWithAi() {
+    if (!invoiceTextPreview) return;
+    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
+    if (!invoiceUrl) return alert('Paste the Copilot invoice link first.');
+    const status = document.getElementById('sms-send-status');
+    status.textContent = 'AI is preparing a draft...';
+    document.getElementById('sms-ai-btn').disabled = true;
+    try {
+        const token = localStorage.getItem('adminToken');
+        const res = await fetch('/api/app/ai/draft', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+                contactName: invoiceTextPreview.customer_name,
+                prompt: `Write a friendly payment reminder for a past-due balance of ${formatCurrency(invoiceTextPreview.balance)}. Include this exact link unchanged: ${invoiceUrl}. Say they can disregard it if payment was already sent. Sign it Pappas & Co. Landscaping.`
+            })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
+        let draft = String(data.draft).trim();
+        if (!draft.includes(invoiceUrl)) draft += `\n${invoiceUrl}`;
+        document.getElementById('sms-compose-body').value = draft;
+        status.textContent = 'AI draft prepared. Nothing was sent.';
+    } catch (error) {
+        status.textContent = error.message || 'AI could not prepare a draft.';
+    } finally {
+        document.getElementById('sms-ai-btn').disabled = false;
+        invoiceTextChanged();
+    }
+}
+
+function updateInvoiceTextSendState() {
+    const reviewed = document.getElementById('sms-reviewed').checked;
+    const body = document.getElementById('sms-compose-body').value.trim();
+    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
+    document.getElementById('sms-send-btn').disabled = !(invoiceTextPreview && reviewed && body && invoiceUrl);
+}
+
+async function sendReviewedInvoiceText() {
+    if (!invoiceTextPreview) return;
+    const body = document.getElementById('sms-compose-body').value.trim();
+    const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
+    if (!document.getElementById('sms-reviewed').checked) return;
+    if (!confirm(`Send this text to ${invoiceTextPreview.customer_name} at ${fmtPhone(invoiceTextPreview.to)}?`)) return;
+    const button = document.getElementById('sms-send-btn');
+    const status = document.getElementById('sms-send-status');
+    button.disabled = true;
+    status.textContent = 'Sending this text...';
+    try {
+        const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceTextPreview.invoice_id)}/send-sms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body, invoice_url: invoiceUrl, confirm_send: true })
+        });
+        const data = await res.json();
+        if (!res.ok || data.success === false) throw new Error(data.error || 'Text failed to send');
+        status.textContent = 'Text sent manually.';
+        document.getElementById('sms-reviewed').checked = false;
+        showToast('Invoice reminder text sent');
+        setTimeout(closeInvoiceTextComposer, 700);
+        loadFeed();
+    } catch (error) {
+        status.textContent = error.message || 'Text failed to send.';
+        updateInvoiceTextSendState();
+    }
+}
+
+function formatCurrency(value) {
+    return Number(value || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
 function replyKey(e, to) {

@@ -74,7 +74,7 @@ async function mockPayments(page: Page) {
   });
 }
 
-async function mockCommunications(page: Page, postCalls: string[]) {
+async function mockCommunications(page: Page, postCalls: string[], sendCalls: string[]) {
   await page.route("**/api/messages?**", async (route) => {
     await route.fulfill({ contentType: "application/json", json: { success: true, messages: [{ id: 1, direction: "inbound", body: "Can you call me?", customerName: "Grace", timestamp: "2026-05-13T12:00:00Z", status: "received" }] } });
   });
@@ -83,6 +83,45 @@ async function mockCommunications(page: Page, postCalls: string[]) {
   });
   await page.route("**/api/app/voicemails", async (route) => {
     await route.fulfill({ contentType: "application/json", json: { voicemails: [{ id: "v1", customer_name: "Tim", status: "voicemail", transcript: "Need service", created_at: "2026-05-13T10:00:00Z" }] } });
+  });
+  await page.route("**/api/invoices?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        invoices: [{
+          id: 44,
+          invoice_number: "10528",
+          customer_name: "Ada Customer",
+          status: "overdue",
+          total: 222.76,
+          amount_paid: 0,
+          due_date: "2026-05-01T12:00:00Z"
+        }]
+      }
+    });
+  });
+  await page.route("**/api/invoices/44/sms-preview", async (route) => {
+    postCalls.push(route.request().url());
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        success: true,
+        preview: {
+          invoice_id: 44,
+          invoice_number: "10528",
+          customer_name: "Ada Customer",
+          to: "+14405550100",
+          balance: 222.76,
+          invoice_url: "https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0",
+          body: "Hi Ada! Your invoice for $222.76 is past due. https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0"
+        }
+      }
+    });
+  });
+  await page.route("**/api/invoices/44/send-sms", async (route) => {
+    sendCalls.push(route.request().url());
+    await route.fulfill({ contentType: "application/json", json: { success: true, message: "sent" } });
   });
   await page.route("**/api/ai/**", async (route) => {
     if (route.request().method() === "POST") {
@@ -113,7 +152,8 @@ test.describe("Payments and communications workflows", () => {
 
   test("Communications loads draft-only AI helper and does not send automatically", async ({ page }) => {
     const postCalls: string[] = [];
-    await mockCommunications(page, postCalls);
+    const sendCalls: string[] = [];
+    await mockCommunications(page, postCalls, sendCalls);
     await seedSession(page);
     await page.goto("/communications");
 
@@ -126,10 +166,23 @@ test.describe("Payments and communications workflows", () => {
     await expect(page.getByRole("region", { name: "Customer Replies" })).toContainText("Can you call me?");
     await expect(page.getByRole("region", { name: "AI Reply Drafts" })).toContainText("Sending stays manual");
     expect(postCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
+
+    await page.getByLabel("Past-due invoice").selectOption("44");
+    await page.getByLabel("Copilot customer invoice link").fill("https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0");
+    await page.getByRole("button", { name: "Prepare preview" }).click();
+    await expect(page.getByLabel("Invoice reminder message")).toHaveValue(/\$222\.76/);
+    await expect(page.getByRole("button", { name: "Send this text" })).toBeDisabled();
+    expect(sendCalls).toHaveLength(0);
+
+    await page.getByRole("button", { name: "Help me write it with AI" }).click();
+    await expect(page.getByText("AI draft prepared. Nothing was sent.")).toBeVisible();
+    expect(sendCalls).toHaveLength(0);
 
     await page.getByRole("button", { name: "Prepare reply draft" }).click();
     await expect(page.getByText("Prepared communication draft")).toBeVisible();
     await expect(page.getByText("No email or SMS was sent.")).toBeVisible();
-    expect(postCalls).toHaveLength(1);
+    expect(postCalls).toHaveLength(3);
+    expect(sendCalls).toHaveLength(0);
   });
 });

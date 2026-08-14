@@ -106,11 +106,9 @@ async function invokeRoute(router, path, method, reqOverrides = {}) {
   return res;
 }
 
-it('blocks backend invoice SMS sends', async () => {
+it('previews an invoice SMS without sending', async () => {
   const sent = [];
-  const inserts = [];
-  const updates = [];
-  const pool = createPool(async (sql, params) => {
+  const pool = createPool(async (sql) => {
     if (sql === 'SELECT * FROM invoices WHERE id = $1') {
       return {
         rows: [{
@@ -120,21 +118,13 @@ it('blocks backend invoice SMS sends', async () => {
           customer_name: 'Theresa Pappas',
           total: '48.60',
           amount_paid: '0',
-          payment_token: 'paytok123',
-          status: 'draft',
+          external_metadata: { client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0' },
+          status: 'overdue',
         }],
       };
     }
     if (sql === 'SELECT mobile, phone FROM customers WHERE id = $1') {
       return { rows: [{ mobile: '(440) 555-0100', phone: null }] };
-    }
-    if (sql.includes('INSERT INTO messages')) {
-      inserts.push(params);
-      return { rows: [] };
-    }
-    if (sql.includes('UPDATE invoices') && sql.includes('sent_status = \'sent\'')) {
-      updates.push(params);
-      return { rows: [] };
     }
     throw new Error(`Unexpected SQL: ${sql}`);
   });
@@ -144,19 +134,20 @@ it('blocks backend invoice SMS sends', async () => {
   };
 
   const router = createRouter({ pool, sendSms });
-  const res = await invokeRoute(router, '/api/invoices/:id/send-sms', 'post', {
+  const res = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
     params: { id: '17' },
   });
 
-  assert.strictEqual(res.statusCode, 403);
-  assert.strictEqual(res.body.success, false);
-  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.success, true);
+  assert.strictEqual(res.body.preview.customer_name, 'Theresa Pappas');
+  assert.match(res.body.preview.body, /\$48\.60/);
+  assert.match(res.body.preview.body, /secure\.copilotcrm\.com\/client\/invoices\/view/);
   assert.strictEqual(sent.length, 0);
-  assert.strictEqual(inserts.length, 0);
-  assert.strictEqual(updates.length, 0);
 });
 
-it('blocks invoice SMS before resolving customer phone numbers', async () => {
+it('requires an explicit manual confirmation before sending', async () => {
+  let sendCount = 0;
   const pool = createPool(async (sql) => {
     if (sql === 'SELECT * FROM invoices WHERE id = $1') {
       return {
@@ -164,33 +155,37 @@ it('blocks invoice SMS before resolving customer phone numbers', async () => {
           id: 18,
           invoice_number: '10529',
           customer_id: 45,
-          customer_name: 'No Phone Customer',
+          customer_name: 'Manual Confirmation',
           total: '99.00',
           amount_paid: '0',
-          payment_token: 'paytok456',
-          status: 'draft',
+          status: 'overdue',
         }],
       };
-    }
-    if (sql === 'SELECT mobile, phone FROM customers WHERE id = $1') {
-      return { rows: [{ mobile: null, phone: null }] };
     }
     throw new Error(`Unexpected SQL: ${sql}`);
   });
 
-  const router = createRouter({ pool });
+  const router = createRouter({ pool, sendSms: async () => {
+    sendCount += 1;
+    return { sid: 'SM-nope', status: 'queued' };
+  } });
   const res = await invokeRoute(router, '/api/invoices/:id/send-sms', 'post', {
     params: { id: '18' },
+    body: {
+      invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0',
+      body: 'Reviewed reminder https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0',
+    },
   });
 
-  assert.strictEqual(res.statusCode, 403);
+  assert.strictEqual(res.statusCode, 400);
   assert.strictEqual(res.body.success, false);
-  assert.strictEqual(res.body.clientCommunicationsDisabled, true);
+  assert.match(res.body.error, /explicitly confirm/i);
+  assert.strictEqual(sendCount, 0);
 });
 
-it('does not generate payment tokens when backend invoice SMS is blocked', async () => {
-  let generatedToken = null;
+it('sends exactly once after manual confirmation with a reviewed Copilot link', async () => {
   let sentBody = null;
+  const inserts = [];
   const pool = createPool(async (sql, params) => {
     if (sql === 'SELECT * FROM invoices WHERE id = $1') {
       return {
@@ -201,19 +196,17 @@ it('does not generate payment tokens when backend invoice SMS is blocked', async
           customer_name: 'Token Test',
           total: '120.00',
           amount_paid: '20.00',
-          payment_token: null,
-          status: 'sent',
+          status: 'overdue',
         }],
       };
-    }
-    if (sql.includes('SET payment_token = $1')) {
-      generatedToken = params[0];
-      return { rows: [] };
     }
     if (sql === 'SELECT mobile, phone FROM customers WHERE id = $1') {
       return { rows: [{ mobile: '(216) 555-0199', phone: null }] };
     }
-    if (sql.includes('INSERT INTO messages')) return { rows: [] };
+    if (sql.includes('INSERT INTO messages')) {
+      inserts.push(params);
+      return { rows: [] };
+    }
     if (sql.includes('sent_status = \'sent\'')) return { rows: [] };
     throw new Error(`Unexpected SQL: ${sql}`);
   });
@@ -223,13 +216,21 @@ it('does not generate payment tokens when backend invoice SMS is blocked', async
   };
 
   const router = createRouter({ pool, sendSms });
+  const invoiceUrl = 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0';
   const res = await invokeRoute(router, '/api/invoices/:id/send-sms', 'post', {
     params: { id: '19' },
+    body: {
+      confirm_send: true,
+      invoice_url: invoiceUrl,
+      body: `Hi Token! Your balance is $100.00. ${invoiceUrl}`,
+    },
   });
 
-  assert.strictEqual(res.statusCode, 403);
-  assert.strictEqual(generatedToken, null);
-  assert.strictEqual(sentBody, null);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.success, true);
+  assert.match(sentBody, /\$100\.00/);
+  assert.match(sentBody, /secure\.copilotcrm\.com\/client\/invoices\/view/);
+  assert.strictEqual(inserts.length, 1);
 });
 
 describe('invoice-sms-route', () => {

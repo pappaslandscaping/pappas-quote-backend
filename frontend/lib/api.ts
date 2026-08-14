@@ -72,6 +72,8 @@ import type {
 } from "../types/payments";
 import type {
   CallsResponse,
+  InvoiceSmsPreviewResponse,
+  InvoiceSmsSendResponse,
   MessagesResponse,
   VoicemailsResponse
 } from "../types/communications";
@@ -467,6 +469,28 @@ export async function fetchVoicemails() {
     throw new Error(data.error || "Failed to load voicemails");
   }
   return data.voicemails || [];
+}
+
+export async function previewInvoiceSms(id: string | number, invoiceUrl = "") {
+  const data = await apiFetch<InvoiceSmsPreviewResponse>(`/api/invoices/${id}/sms-preview`, {
+    method: "POST",
+    body: JSON.stringify({ invoice_url: invoiceUrl })
+  });
+  if (!data.success || !data.preview) {
+    throw new Error(data.error || "Failed to prepare invoice text");
+  }
+  return data.preview;
+}
+
+export async function sendInvoiceSms(id: string | number, payload: { invoice_url: string; body: string; confirm_send: true }) {
+  const data = await apiFetch<InvoiceSmsSendResponse>(`/api/invoices/${id}/send-sms`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  if (!data.success) {
+    throw new Error(data.error || "Failed to send invoice text");
+  }
+  return data;
 }
 
 export async function fetchCrewAvailability(date: string) {

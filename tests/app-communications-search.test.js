@@ -83,6 +83,8 @@ describe('YardDesk invoice text selection', () => {
 describe('YardDesk customer balance context', () => {
   test('distinguishes total outstanding from the selected past-due invoice', () => {
     expect(communicationsHtml).toContain('invoiceTextPreview.total_outstanding');
+    expect(communicationsHtml).toContain('Number(data.preview.total_outstanding)');
+    expect(communicationsHtml).toContain('Number(data.preview.balance)');
     expect(communicationsHtml).toContain('Total outstanding:');
     expect(communicationsHtml).toContain('Currently past due:');
     expect(communicationsHtml).toContain('Their total outstanding balance is');

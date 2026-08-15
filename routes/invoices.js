@@ -207,10 +207,34 @@ function getCopilotClientInvoiceUrl(invoice, suppliedUrl = '') {
   return '';
 }
 
+function parseInvoiceMoney(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const amount = Number(String(value).replace(/[$,]/g, ''));
+  return Number.isFinite(amount) ? Math.max(amount, 0) : null;
+}
+
+function getInvoiceCustomerStanding(invoice) {
+  const metadata = parseExternalMetadata(invoice?.external_metadata);
+  return {
+    pastDue: parseInvoiceMoney(
+      metadata.customer_past_due_balance
+      ?? metadata.past_due_balance
+    ),
+    totalOutstanding: parseInvoiceMoney(
+      metadata.customer_outstanding_balance
+    ),
+  };
+}
+
+function invoiceReminderBalance(invoice) {
+  const standing = getInvoiceCustomerStanding(invoice);
+  return standing.pastDue ?? outstandingBalance(invoice);
+}
+
 function buildInvoiceReminderSms(invoice, invoiceUrl) {
   const firstName = getFirstName(invoice.customer_name);
-  const balance = outstandingBalance(invoice);
-  return `Hi ${firstName}! Just wanted to send a quick reminder that your invoice for ${formatMoney(balance)} is currently past due. You can view and pay it here:\n${invoiceUrl}\n\nIf you've already sent payment, you can disregard this. Thank you!\nPappas & Co. Landscaping`;
+  const balance = invoiceReminderBalance(invoice);
+  return `Hi ${firstName}! Just wanted to send a quick reminder that ${formatMoney(balance)} is currently past due. You can view and pay your invoice here:\n${invoiceUrl}\n\nIf you've already sent payment, you can disregard this. Thank you!\nPappas & Co. Landscaping`;
 }
 
 async function ensureInvoicePaymentToken(pool, invoice) {
@@ -4412,10 +4436,7 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
     }
 
     let invoice = invoiceResult.rows[0];
-    if (
-      String(invoice.external_source || '').toLowerCase() === 'copilotcrm'
-      && !getCopilotClientInvoiceUrl(invoice)
-    ) {
+    if (String(invoice.external_source || '').toLowerCase() === 'copilotcrm') {
       try {
         const settings = await loadCopilotSettings(pool);
         const refreshed = await refreshCopilotInvoiceSnapshot({
@@ -4459,7 +4480,9 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
         invoice_number: invoice.invoice_number || String(invoice.id),
         customer_name: invoice.customer_name || 'Customer',
         to: normalizePhone(phone),
-        balance: outstandingBalance(invoice),
+        balance: invoiceReminderBalance(invoice),
+        total_outstanding: getInvoiceCustomerStanding(invoice).totalOutstanding
+          ?? invoiceReminderBalance(invoice),
         invoice_url: invoiceUrl,
         body: invoiceUrl ? buildInvoiceReminderSms(invoice, invoiceUrl) : '',
       },

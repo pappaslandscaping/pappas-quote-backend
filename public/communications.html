@@ -1818,12 +1818,16 @@ async function prepareInvoiceTextPreview() {
         const selectedBalance = selectedInvoice
             ? invoiceOutstandingAmount(selectedInvoice)
             : Number(data.preview.balance || 0);
+        const refreshedPastDue = Number(data.preview.balance);
+        const refreshedTotalOutstanding = Number(data.preview.total_outstanding);
         invoiceTextPreview = {
             ...data.preview,
             customer_name: verifiedDetail?.customerName || selectedInvoice?.customer_name || data.preview.customer_name,
             invoice_number: selectedInvoice?.display_invoice_number || selectedInvoice?.invoice_number || data.preview.invoice_number,
-            balance: selectedBalance,
-            total_outstanding: verifiedDetail?.totalOutstanding,
+            balance: verifiedDetail?.balance
+                ?? (Number.isFinite(refreshedPastDue) ? refreshedPastDue : selectedBalance),
+            total_outstanding: verifiedDetail?.totalOutstanding
+                ?? (Number.isFinite(refreshedTotalOutstanding) ? refreshedTotalOutstanding : null),
             to: verifiedDetail?.phone || data.preview.to,
             invoice_url: verifiedDetail?.invoiceUrl || data.preview.invoice_url || invoiceUrl,
         };
@@ -1836,7 +1840,8 @@ async function prepareInvoiceTextPreview() {
             seenInvoiceKeys.add(key);
             return sum + invoiceOutstandingAmount(invoice);
         }, 0);
-        invoiceTextPreview.total_outstanding = verifiedDetail?.totalOutstanding || Math.max(totalOutstanding, selectedBalance);
+        invoiceTextPreview.total_outstanding = invoiceTextPreview.total_outstanding
+            ?? Math.max(totalOutstanding, invoiceTextPreview.balance);
         document.getElementById('sms-invoice-url').value = invoiceTextPreview.invoice_url || '';
         document.getElementById('sms-phone').value = invoiceTextPreview.to || document.getElementById('sms-phone').value;
         const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');

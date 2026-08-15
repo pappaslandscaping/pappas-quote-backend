@@ -118,7 +118,11 @@ it('previews an invoice SMS without sending', async () => {
           customer_name: 'Theresa Pappas',
           total: '48.60',
           amount_paid: '0',
-          external_metadata: { client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0' },
+          external_metadata: {
+            client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0',
+            customer_past_due_balance: '417.22',
+            customer_outstanding_balance: '614.98',
+          },
           status: 'overdue',
         }],
       };
@@ -141,7 +145,10 @@ it('previews an invoice SMS without sending', async () => {
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.success, true);
   assert.strictEqual(res.body.preview.customer_name, 'Theresa Pappas');
-  assert.match(res.body.preview.body, /\$48\.60/);
+  assert.strictEqual(res.body.preview.balance, 417.22);
+  assert.strictEqual(res.body.preview.total_outstanding, 614.98);
+  assert.match(res.body.preview.body, /\$417\.22/);
+  assert.doesNotMatch(res.body.preview.body, /\$48\.60/);
   assert.match(res.body.preview.body, /secure\.copilotcrm\.com\/client\/invoices\/view/);
   assert.strictEqual(sent.length, 0);
 });

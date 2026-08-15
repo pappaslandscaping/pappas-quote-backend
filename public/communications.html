@@ -1873,10 +1873,13 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
     const signoffPattern = /\s*(?:[-–—]\s*)?Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*$/i;
     const hasSignoff = signoffPattern.test(draft);
     draft = draft.replace(signoffPattern, '').trim();
+    const closingPattern = /\s*(?:Thank you|Thanks)[!,.\s]*$/i;
+    const hasClosing = closingPattern.test(draft);
+    draft = draft.replace(closingPattern, '').trim();
 
     if (invoiceUrl) {
         draft = draft.split(invoiceUrl).join('').trim();
-        draft = draft.replace(/\s*(?:(?:You can )?(?:view|see) (?:your|the) invoice here|Invoice link):\s*/ig, ' ').trim();
+        draft = draft.replace(/\s*(?:(?:You can )?(?:view|see) (?:your|the) invoice here|Invoice(?: link)?):\s*/ig, ' ').trim();
     }
 
     if (draft && !draft.includes('\n\n')) {
@@ -1885,7 +1888,7 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
 
     const sections = [draft];
     if (invoiceUrl) sections.push(`Invoice:\n${invoiceUrl}`);
-    if (hasSignoff || draft) sections.push(signoff);
+    if (hasSignoff || draft) sections.push(`${hasClosing ? 'Thank you,\n' : ''}${signoff}`);
     return sections.filter(Boolean).join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 

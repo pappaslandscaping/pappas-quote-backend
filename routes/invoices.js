@@ -207,6 +207,68 @@ function getCopilotClientInvoiceUrl(invoice, suppliedUrl = '') {
   return '';
 }
 
+function extractCopilotCustomerInvoiceToken(value) {
+  const text = String(value || '');
+  const matches = text.matchAll(
+    /https:\/\/secure\.copilotcrm\.com\/client\/invoices\/view\/[^/\s?#]+\/([^/\s?#]+)/gi
+  );
+  for (const match of matches) {
+    const token = String(match[1] || '').replace(/[),.;!?]+$/, '').trim();
+    if (token) return token;
+  }
+  return '';
+}
+
+async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', phone = '') {
+  const directUrl = getCopilotClientInvoiceUrl(invoice, suppliedUrl);
+  if (directUrl) return directUrl;
+
+  const metadata = parseExternalMetadata(invoice?.external_metadata);
+  const externalInvoiceId = String(
+    invoice?.external_invoice_id
+    || metadata.external_invoice_id
+    || ''
+  ).trim();
+  if (!externalInvoiceId) return '';
+
+  const phoneKey = String(phone || '').replace(/\D/g, '').slice(-10);
+  const customerId = invoice?.customer_id || null;
+  if (!customerId && !phoneKey) return '';
+
+  try {
+    const historyResult = await pool.query(
+      `SELECT body
+         FROM messages
+        WHERE body ILIKE '%secure.copilotcrm.com/client/invoices/view/%'
+          AND (
+            ($1::int IS NOT NULL AND customer_id = $1)
+            OR (
+              $2 <> ''
+              AND (
+                RIGHT(REGEXP_REPLACE(COALESCE(from_number, ''), '[^0-9]', '', 'g'), 10) = $2
+                OR RIGHT(REGEXP_REPLACE(COALESCE(to_number, ''), '[^0-9]', '', 'g'), 10) = $2
+              )
+            )
+          )
+        ORDER BY created_at DESC
+        LIMIT 100`,
+      [customerId, phoneKey]
+    );
+
+    for (const row of historyResult.rows) {
+      const customerToken = extractCopilotCustomerInvoiceToken(row.body);
+      if (!customerToken) continue;
+      const reconstructed = `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(customerToken)}`;
+      const trustedUrl = getCopilotClientInvoiceUrl(invoice, reconstructed);
+      if (trustedUrl) return trustedUrl;
+    }
+  } catch (error) {
+    console.warn(`Unable to resolve a prior Copilot invoice link for ${invoice?.invoice_number || invoice?.id}:`, error.message);
+  }
+
+  return '';
+}
+
 function parseInvoiceMoney(value) {
   if (value === null || value === undefined || String(value).trim() === '') return null;
   const amount = Number(String(value).replace(/[$,]/g, ''));
@@ -4472,7 +4534,12 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
     }
 
-    const invoiceUrl = getCopilotClientInvoiceUrl(invoice, req.body?.invoice_url);
+    const invoiceUrl = await resolveTrustedCopilotInvoiceUrl(
+      pool,
+      invoice,
+      req.body?.invoice_url,
+      phone
+    );
     return res.json({
       success: true,
       preview: {
@@ -4514,7 +4581,12 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
     }
 
-    const invoiceUrl = getCopilotClientInvoiceUrl(invoice, req.body?.invoice_url);
+    const invoiceUrl = await resolveTrustedCopilotInvoiceUrl(
+      pool,
+      invoice,
+      req.body?.invoice_url,
+      phone
+    );
     if (!invoiceUrl) {
       return res.status(400).json({ success: false, error: 'A valid Copilot customer invoice link is required' });
     }

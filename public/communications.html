@@ -1158,7 +1158,38 @@ async function loadFeed() {
             fetch(`${API}/api/calls?limit=200&include_archived=true`).catch(() => null)
         ]);
 
-        const conversations = (msgRes && msgRes.ok) ? (await msgRes.json()).conversations || [] : [];
+        let conversations = (msgRes && msgRes.ok) ? (await msgRes.json()).conversations || [] : [];
+        let messageLoadError = !msgRes || !msgRes.ok;
+
+        // Fall back to the proven flat-message endpoint when the grouped query fails
+        // or unexpectedly returns no rows. Grouping here keeps the inbox usable while
+        // preserving one card per contact.
+        if (messageLoadError || conversations.length === 0) {
+            const legacyRes = await fetch(`${API}/api/messages?limit=1000`).catch(() => null);
+            if (legacyRes && legacyRes.ok) {
+                const legacyMessages = (await legacyRes.json()).messages || [];
+                const grouped = new Map();
+                legacyMessages.forEach(message => {
+                    const contactPhone = message.direction === 'inbound' ? message.from : message.to;
+                    const phoneKey = digitsOnly(contactPhone);
+                    if (!phoneKey || grouped.has(phoneKey)) return;
+                    grouped.set(phoneKey, {
+                        id: message.id,
+                        phoneNumber: contactPhone,
+                        customerName: message.customerName || null,
+                        lastMessage: message.body || '',
+                        lastMessageTime: message.timestamp,
+                        direction: message.direction,
+                        unreadCount: message.direction === 'inbound' && message.read === false ? 1 : 0,
+                        messageCount: 1,
+                        mediaUrls: message.media_urls || message.mediaUrls || []
+                    });
+                });
+                conversations = Array.from(grouped.values());
+                messageLoadError = false;
+            }
+        }
+
         const calls = (callRes && callRes.ok) ? (await callRes.json()).calls || [] : [];
 
         const msgItems = conversations.map(conv => {
@@ -2232,19 +2263,48 @@ function openCallDetail(item) {
     </div>`);
 }
 
-function playVm(url, btn) {
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-    const audio = new Audio(url);
+async function playVm(url, btn) {
+    const playIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+    const pauseIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+    }
+
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.src = url;
     currentAudio = audio;
-    audio.play();
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
-    audio.addEventListener('ended', () => {
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+    btn.disabled = true;
+
+    const resetPlayer = () => {
+        btn.disabled = false;
+        btn.innerHTML = playIcon;
+        if (currentAudio === audio) currentAudio = null;
+    };
+
+    audio.addEventListener('ended', resetPlayer);
+    audio.addEventListener('error', () => {
+        resetPlayer();
+        showToast('This voicemail recording could not be played. Please try again.');
     });
     audio.addEventListener('timeupdate', () => {
         const el = document.getElementById('vm-fill');
-        if (el) el.style.width = (audio.currentTime/audio.duration*100)+'%';
+        if (el && Number.isFinite(audio.duration) && audio.duration > 0) {
+            el.style.width = (audio.currentTime / audio.duration * 100) + '%';
+        }
     });
+
+    try {
+        await audio.play();
+        btn.disabled = false;
+        btn.innerHTML = pauseIcon;
+    } catch (error) {
+        console.error('Voicemail playback failed:', error);
+        resetPlayer();
+        showToast('This voicemail recording could not be played. Please try again.');
+    }
 }
 
 function autoCallFollowup(el) {

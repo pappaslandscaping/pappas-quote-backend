@@ -207,25 +207,44 @@ it('reconstructs the selected Copilot invoice link from this customer’s prior 
   assert.strictEqual(sent.length, 0);
 });
 
-it('builds a missing invoice link from the Copilot customer portal key', async () => {
+it('uses the selected Copilot invoice owner instead of stale customer data', async () => {
   const originalFetch = global.fetch;
   const sent = [];
   const graphqlRequests = [];
   global.fetch = async (url, options) => {
-    graphqlRequests.push({ url, options });
-    return {
-      ok: true,
-      status: 200,
-      async json() {
-        return {
-          data: {
-            customers: [{
-              portalKey: '661d81b79f4c4',
-            }],
-          },
-        };
-      },
-    };
+    const body = JSON.parse(options.body);
+    graphqlRequests.push({ url, options, body });
+    if (body.operationName === 'ResolveInvoiceOwner') {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { data: { invoice: { customerId: 1072139 } } };
+        },
+      };
+    }
+    if (body.operationName === 'ResolveInvoiceRecipient') {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            data: {
+              customers: [{
+                id: 1072139,
+                fullName: 'Donna Martin',
+                cell: '330-240-1681',
+                phone: '',
+                portalKey: '662adf33d6a27',
+                outstanding: '303.48',
+                pastDue: '251.28',
+              }],
+            },
+          };
+        },
+      };
+    }
+    throw new Error(`Unexpected GraphQL operation: ${body.operationName}`);
   };
 
   try {
@@ -233,26 +252,24 @@ it('builds a missing invoice link from the Copilot customer portal key', async (
       if (sql === 'SELECT * FROM invoices WHERE id = $1') {
         return {
           rows: [{
-            id: 16774,
-            external_invoice_id: '2891687',
-            invoice_number: '11476',
-            customer_id: 44,
-            customer_name: 'Dianne Daugherty',
-            customer_phone: '(216) 392-4969',
-            total: '174.02',
-            amount_paid: '0',
-            external_source: '',
+            id: 17001,
+            external_invoice_id: '2907095',
+            invoice_number: '11508',
+            customer_id: 88,
+            customer_name: 'Donna Martin',
+            customer_phone: '(216) 544-9095',
+            total: '128.43',
+            amount_paid: '3.64',
+            external_source: 'copilotcrm',
             external_metadata: {
-              copilot_customer_id: '1060764',
-              customer_past_due_balance: '417.22',
-              customer_outstanding_balance: '614.98',
+              copilot_customer_id: '9999999',
+              client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/2907095/69bd5e0eaf59a',
+              customer_past_due_balance: '247.64',
+              customer_outstanding_balance: '303.48',
             },
             status: 'overdue',
           }],
         };
-      }
-      if (sql.includes('SELECT body') && sql.includes('FROM messages')) {
-        return { rows: [] };
       }
       throw new Error(`Unexpected SQL: ${sql}`);
     });
@@ -268,22 +285,25 @@ it('builds a missing invoice link from the Copilot customer portal key', async (
       },
     });
     const res = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
-      params: { id: '16774' },
+      params: { id: '17001' },
+      body: {
+        phone: '+12165449095',
+        invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/2907095/69bd5e0eaf59a',
+      },
     });
 
     assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.preview.customer_name, 'Donna Martin');
+    assert.strictEqual(res.body.preview.to, '+13302401681');
+    assert.strictEqual(res.body.preview.balance, 251.28);
+    assert.strictEqual(res.body.preview.total_outstanding, 303.48);
     assert.strictEqual(
       res.body.preview.invoice_url,
-      'https://secure.copilotcrm.com/client/invoices/view/2891687/661d81b79f4c4'
+      'https://secure.copilotcrm.com/client/invoices/view/2907095/662adf33d6a27'
     );
-    assert.strictEqual(graphqlRequests.length, 1);
-    assert.strictEqual(graphqlRequests[0].url, 'https://api.copilotcrm.com/graphql');
-    assert.strictEqual(graphqlRequests[0].options.method, 'POST');
-    assert.strictEqual(graphqlRequests[0].options.headers.Authorization, 'Bearer test-access-token');
-    const graphqlBody = JSON.parse(graphqlRequests[0].options.body);
-    assert.strictEqual(graphqlBody.variables.customerId, 1060764);
-    assert.match(graphqlBody.query, /customers/);
-    assert.match(graphqlBody.query, /portalKey/);
+    assert.strictEqual(graphqlRequests.length, 2);
+    assert.strictEqual(graphqlRequests[0].body.variables.invoiceId, 2907095);
+    assert.strictEqual(graphqlRequests[1].body.variables.customerId, 1072139);
     assert.strictEqual(sent.length, 0);
   } finally {
     global.fetch = originalFetch;

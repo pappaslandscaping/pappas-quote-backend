@@ -178,3 +178,14 @@ describe('YardDesk invoice composer layout', () => {
     expect(communicationsHtml).toContain('position: sticky');
   });
 });
+
+describe('YardDesk readable invoice text formatting', () => {
+  test('puts the invoice link and sign-off in separate plain-text sections', () => {
+    expect(communicationsHtml).toContain('function formatInvoiceTextDraft');
+    expect(communicationsHtml).toContain("sections.push(`Invoice:\\n${invoiceUrl}`)");
+    expect(communicationsHtml).toContain('sections.push(signoff)');
+    expect(communicationsHtml).toContain("join('\\n\\n')");
+    expect(communicationsHtml).toContain('with the line breaks preserved');
+    expect(communicationsHtml).toContain('plain text only—no Markdown, bullets');
+  });
+});

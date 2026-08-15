@@ -4740,8 +4740,32 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
     }
 
     const invoice = invoiceResult.rows[0];
-    if (String(invoice.external_source || '').toLowerCase() === 'copilotcrm' || invoice.external_invoice_id) {
+    const invoiceMetadata = parseExternalMetadata(invoice.external_metadata);
+    const externalInvoiceId = String(
+      invoice.external_invoice_id
+      || invoiceMetadata.external_invoice_id
+      || ''
+    ).trim();
+    const requiresAuthoritativeRecipient = /^\d+$/.test(externalInvoiceId);
+
+    if (requiresAuthoritativeRecipient) {
       const authoritativeRecipient = await loadAuthoritativeCopilotInvoiceRecipient(invoice);
+      if (!authoritativeRecipient?.phone || !authoritativeRecipient?.invoiceUrl) {
+        return res.status(409).json({
+          success: false,
+          error: 'The selected invoice recipient could not be verified. Refresh the customer details before sending.',
+        });
+      }
+
+      const submittedPhone = String(req.body?.phone || '').replace(/\D/g, '').slice(-10);
+      const authoritativePhone = String(authoritativeRecipient.phone).replace(/\D/g, '').slice(-10);
+      if (submittedPhone && submittedPhone !== authoritativePhone) {
+        return res.status(409).json({
+          success: false,
+          error: 'The phone number does not match the selected invoice owner. Refresh the customer details before sending.',
+        });
+      }
+
       applyAuthoritativeCopilotInvoiceRecipient(invoice, authoritativeRecipient);
     }
 

@@ -153,6 +153,60 @@ it('previews an invoice SMS without sending', async () => {
   assert.strictEqual(sent.length, 0);
 });
 
+it('reconstructs the selected Copilot invoice link from this customer’s prior messages', async () => {
+  const sent = [];
+  const pool = createPool(async (sql, params) => {
+    if (sql === 'SELECT * FROM invoices WHERE id = $1') {
+      return {
+        rows: [{
+          id: 11476,
+          external_invoice_id: '2891687',
+          invoice_number: '11476',
+          customer_id: 44,
+          customer_name: 'Dianne Daugherty',
+          customer_phone: '(216) 392-4969',
+          total: '174.02',
+          amount_paid: '0',
+          external_source: '',
+          external_metadata: {
+            customer_past_due_balance: '417.22',
+            customer_outstanding_balance: '614.98',
+          },
+          status: 'overdue',
+        }],
+      };
+    }
+    if (sql.includes('SELECT body') && sql.includes('FROM messages')) {
+      assert.deepStrictEqual(params, [44, '2163924969']);
+      return {
+        rows: [{
+          body: 'Prior invoice: https://secure.copilotcrm.com/client/invoices/view/3030244/661d81b79f4c4',
+        }],
+      };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+
+  const router = createRouter({
+    pool,
+    sendSms: async (payload) => {
+      sent.push(payload);
+      return { sid: 'SM-never', status: 'queued' };
+    },
+  });
+  const res = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
+    params: { id: '11476' },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(
+    res.body.preview.invoice_url,
+    'https://secure.copilotcrm.com/client/invoices/view/2891687/661d81b79f4c4'
+  );
+  assert.match(res.body.preview.body, /\/client\/invoices\/view\/2891687\/661d81b79f4c4/);
+  assert.strictEqual(sent.length, 0);
+});
+
 it('requires an explicit manual confirmation before sending', async () => {
   let sendCount = 0;
   const pool = createPool(async (sql) => {

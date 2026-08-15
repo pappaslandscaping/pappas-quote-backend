@@ -146,3 +146,22 @@ describe('YardDesk general manual text composer', () => {
     expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
   });
 });
+
+
+describe('YardDesk guided invoice AI rewriting', () => {
+  test('accepts custom instructions and safe quick rewrite choices', () => {
+    expect(communicationsHtml).toContain('Tell AI what you want to change');
+    expect(communicationsHtml).toContain('Friendlier');
+    expect(communicationsHtml).toContain('Shorter');
+    expect(communicationsHtml).toContain('More Professional');
+    expect(communicationsHtml).toContain('Polite but Firm');
+    expect(communicationsHtml).toContain('applyInvoiceAiInstruction');
+    expect(communicationsHtml).toContain('AI only rewrites the editable draft. It cannot approve or send the text.');
+  });
+
+  test('keeps verified invoice facts and the exact link in AI prompts', () => {
+    expect(communicationsHtml).toContain('Do not invent amounts, dates, fees, threats, or promises.');
+    expect(communicationsHtml).toContain('Keep this exact invoice link unchanged in the message');
+    expect(communicationsHtml).toContain('Return only the finished text message.');
+  });
+});

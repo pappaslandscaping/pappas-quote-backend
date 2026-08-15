@@ -909,7 +909,18 @@
                 </div>
                 <div class="sms-compose-actions">
                     <button class="email-secondary-btn" id="sms-preview-btn" type="button" onclick="prepareInvoiceTextPreview()">Prepare Preview</button>
-                    <button class="email-secondary-btn" id="sms-ai-btn" type="button" onclick="draftInvoiceTextWithAi()" disabled>Help Me Write It with AI</button>
+                    <button class="email-secondary-btn" id="sms-ai-btn" type="button" onclick="draftInvoiceTextWithAi()" disabled>Write / Rewrite with AI</button>
+                </div>
+                <div class="email-field">
+                    <label for="sms-ai-instructions">Tell AI what you want to change</label>
+                    <textarea class="email-input" id="sms-ai-instructions" style="min-height:72px;resize:vertical" placeholder="For example: Make it friendlier, mention the total balance, but ask for only the past-due amount."></textarea>
+                    <div class="sms-compose-actions" style="margin-top:8px">
+                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it friendlier and less formal.')">Friendlier</button>
+                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it shorter while keeping the important amounts and invoice link.')">Shorter</button>
+                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it more professional.')">More Professional</button>
+                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it polite but firm and ask when payment can be expected.')">Polite but Firm</button>
+                    </div>
+                    <div class="email-inline-note">AI only rewrites the editable draft. It cannot approve or send the text.</div>
                 </div>
                 <div class="email-field">
                     <label for="sms-compose-body">Message</label>
@@ -1653,6 +1664,7 @@ function closeInvoiceTextComposer() {
 function resetInvoiceTextPreview() {
     invoiceTextPreview = null;
     document.getElementById('sms-compose-body').value = '';
+    document.getElementById('sms-ai-instructions').value = '';
     document.getElementById('sms-invoice-url').value = '';
     document.getElementById('sms-reviewed').checked = false;
     document.getElementById('sms-recipient-preview').innerHTML = '<strong>No preview prepared</strong>Paste the Copilot invoice link and click Prepare Preview.';
@@ -1730,9 +1742,18 @@ async function prepareInvoiceTextPreview() {
     invoiceTextChanged();
 }
 
+function applyInvoiceAiInstruction(instruction) {
+    const field = document.getElementById('sms-ai-instructions');
+    field.value = instruction;
+    document.getElementById('sms-reviewed').checked = false;
+    draftInvoiceTextWithAi();
+}
+
 async function draftInvoiceTextWithAi() {
     if (!invoiceTextPreview) return;
     const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
+    const aiInstruction = document.getElementById('sms-ai-instructions').value.trim();
+    const existingDraft = document.getElementById('sms-compose-body').value.trim();
     const status = document.getElementById('sms-send-status');
     status.textContent = 'AI is preparing a draft...';
     document.getElementById('sms-ai-btn').disabled = true;
@@ -1746,7 +1767,7 @@ async function draftInvoiceTextWithAi() {
             },
             body: JSON.stringify({
                 contactName: invoiceTextPreview.customer_name,
-                prompt: `Write a friendly payment reminder explaining that the customer's total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding || invoiceTextPreview.balance)}, of which ${formatCurrency(invoiceTextPreview.balance)} is currently past due.${invoiceUrl ? ` Include this exact link unchanged: ${invoiceUrl}.` : ''} Clearly distinguish the total owed from the past-due portion. Say they can disregard it if payment was already sent. Sign it Pappas & Co. Landscaping.`
+                prompt: `Write or rewrite one natural-sounding customer text message. The customer is ${invoiceTextPreview.customer_name}. Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding || invoiceTextPreview.balance)}, and ${formatCurrency(invoiceTextPreview.balance)} is currently past due. ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Here is the current editable draft to improve: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact invoice link unchanged in the message: ${invoiceUrl}.` : ''} Clearly distinguish the total owed from the past-due portion. Do not invent amounts, dates, fees, threats, or promises. Sign it Pappas & Co. Landscaping. Return only the finished text message.`
             })
         });
         const data = await res.json();

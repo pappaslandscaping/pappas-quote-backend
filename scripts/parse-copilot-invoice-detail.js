@@ -246,7 +246,11 @@ function parseInvoiceDetailHtml(html) {
     null
   );
   if (!customer_name) {
-    const $a = $('a[href*="/customers/details/"]').first();
+    const $customerLinks = $('a[href*="/customers/details/"]').filter((_, anchor) => {
+      const text = clean($(anchor).text());
+      return text && !/^(?:return|back|view|details)$/i.test(text);
+    });
+    const $a = $customerLinks.first();
     if ($a.length) customer_name = clean($a.text());
   }
 
@@ -270,12 +274,11 @@ function parseInvoiceDetailHtml(html) {
   // Customer-facing portal link shown in Copilot's Invoice History section.
   // Example: https://secure.copilotcrm.com/client/invoices/view/3254566/token?k=key
   let client_invoice_url = null;
-  $('a[href*="/client/invoices/view/"]').each((_, anchor) => {
-    if (client_invoice_url) return;
-    const href = clean($(anchor).attr('href'));
-    if (!href) return;
+  const acceptClientInvoiceUrl = (candidate) => {
+    if (client_invoice_url || !candidate) return;
     try {
-      const url = new URL(href, 'https://secure.copilotcrm.com');
+      const decoded = String(candidate).replace(/&amp;/gi, '&');
+      const url = new URL(decoded, 'https://secure.copilotcrm.com');
       if (
         url.protocol === 'https:'
         && url.hostname === 'secure.copilotcrm.com'
@@ -286,7 +289,14 @@ function parseInvoiceDetailHtml(html) {
     } catch (_error) {
       // Ignore malformed links.
     }
+  };
+  $('a[href*="/client/invoices/view/"]').each((_, anchor) => {
+    acceptClientInvoiceUrl(clean($(anchor).attr('href')));
   });
+  if (!client_invoice_url) {
+    const rawMatch = String(html).match(/(?:https:\/\/secure\.copilotcrm\.com)?\/client\/invoices\/view\/[^"'<>\\s]+/i);
+    if (rawMatch) acceptClientInvoiceUrl(rawMatch[0]);
+  }
 
   // ── Property info (mostly informational) ─────────────────
   const property_name = clean($('.property-name, .property_name').first().text()) || null;

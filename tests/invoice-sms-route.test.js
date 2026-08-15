@@ -310,6 +310,96 @@ it('uses the selected Copilot invoice owner instead of stale customer data', asy
   }
 });
 
+it('refuses to send when the submitted phone does not match the selected invoice owner', async () => {
+  const originalFetch = global.fetch;
+  let sendCount = 0;
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.operationName === 'ResolveInvoiceOwner') {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { data: { invoice: { customerId: 1053505 } } };
+        },
+      };
+    }
+    if (body.operationName === 'ResolveInvoiceRecipient') {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            data: {
+              customers: [{
+                id: 1053505,
+                fullName: 'Jennifer Wright',
+                cell: '216-702-4262',
+                phone: '',
+                portalKey: '66183bb31069b',
+                outstanding: '118.80',
+                pastDue: '118.80',
+              }],
+            },
+          };
+        },
+      };
+    }
+    throw new Error(`Unexpected GraphQL operation: ${body.operationName}`);
+  };
+
+  try {
+    const pool = createPool(async (sql) => {
+      if (sql === 'SELECT * FROM invoices WHERE id = $1') {
+        return {
+          rows: [{
+            id: 17002,
+            external_invoice_id: '3133706',
+            invoice_number: '11897',
+            customer_id: 99,
+            customer_name: 'Jennifer Wright',
+            customer_phone: '(440) 886-7318',
+            total: '118.80',
+            amount_paid: '0',
+            external_source: 'copilotcrm',
+            external_metadata: {
+              copilot_customer_id: '9999999',
+            },
+            status: 'overdue',
+          }],
+        };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const router = createRouter({
+      pool,
+      getCopilotToken: async () => ({
+        cookieHeader: 'copilotApiAccessToken=test-access-token',
+      }),
+      sendSms: async () => {
+        sendCount += 1;
+        return { sid: 'SM-never', status: 'queued' };
+      },
+    });
+    const correctUrl = 'https://secure.copilotcrm.com/client/invoices/view/3133706/66183bb31069b';
+    const res = await invokeRoute(router, '/api/invoices/:id/send-sms', 'post', {
+      params: { id: '17002' },
+      body: {
+        confirm_send: true,
+        phone: '(440) 886-7318',
+        invoice_url: correctUrl,
+        body: `Hi Jennifer! ${correctUrl}`,
+      },
+    });
+
+    assert.strictEqual(res.statusCode, 409);
+    assert.match(res.body.error, /does not match the selected invoice owner/i);
+    assert.strictEqual(sendCount, 0);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 it('requires an explicit manual confirmation before sending', async () => {
   let sendCount = 0;
   const pool = createPool(async (sql) => {

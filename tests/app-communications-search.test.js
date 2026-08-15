@@ -101,8 +101,8 @@ describe('YardDesk invoice AI drafting', () => {
 
 describe('YardDesk invoice phone fallback', () => {
   test('allows a reviewed phone number when the imported invoice is not linked', () => {
-    expect(communicationsHtml).toContain('Customer phone number');
-    expect(communicationsHtml).toContain('optional if YardDesk already has it');
+    expect(communicationsHtml).toContain('Customer phone');
+    expect(communicationsHtml).toContain('(if missing)');
     expect(communicationsHtml).toContain("phone: document.getElementById('sms-phone').value.trim()");
   });
 });
@@ -120,7 +120,7 @@ describe('YardDesk current Copilot invoice data', () => {
 describe('YardDesk invoice text search', () => {
   test('requires a short search and filters by customer, invoice number, or amount', () => {
     expect(communicationsHtml).toContain('Find an outstanding invoice');
-    expect(communicationsHtml).toContain('Type Kevin Hopp, an invoice number, or an amount');
+    expect(communicationsHtml).toContain('Customer, invoice number, or amount');
     expect(communicationsHtml).toContain('if (query.length < 2)');
     expect(communicationsHtml).toContain('customer.includes(query) || number.includes(query) || amount.includes(query)');
     expect(communicationsHtml).toContain('.slice(0, 50)');
@@ -163,5 +163,18 @@ describe('YardDesk guided invoice AI rewriting', () => {
     expect(communicationsHtml).toContain('Do not invent amounts, dates, fees, threats, or promises.');
     expect(communicationsHtml).toContain('Keep this exact invoice link unchanged in the message');
     expect(communicationsHtml).toContain('Return only the finished text message.');
+  });
+});
+
+
+describe('YardDesk invoice composer layout', () => {
+  test('keeps invoice details, AI help, and the recipient summary compact and visible', () => {
+    expect(communicationsHtml).toContain('invoice-lookup-grid');
+    expect(communicationsHtml).toContain('invoice-contact-grid');
+    expect(communicationsHtml).toContain('invoice-ai-panel');
+    expect(communicationsHtml).toContain('invoice-ai-chips');
+    expect(communicationsHtml).toContain('Refresh Customer Details');
+    expect(communicationsHtml).toContain('#invoice-sms-modal .email-preview-panel');
+    expect(communicationsHtml).toContain('position: sticky');
   });
 });

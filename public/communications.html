@@ -1569,7 +1569,32 @@ async function openInvoiceTextComposer() {
 }
 
 function invoiceOutstandingAmount(invoice) {
-    return Math.max(Number(invoice?.total || 0), 0);
+    const rowTotal = Math.max(Number(invoice?.total || 0), 0);
+    let metadata = invoice?.external_metadata || invoice?.metadata || {};
+    if (typeof metadata === 'string') {
+        try { metadata = JSON.parse(metadata); } catch (_error) { metadata = {}; }
+    }
+
+    const dueDate = new Date(invoice?.due_date || invoice?.invoice_date || '');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPastDue = !Number.isNaN(dueDate.getTime()) && dueDate < today;
+    const customerPastDue = Number(metadata.customer_past_due_balance ?? metadata.past_due_balance);
+
+    if (isPastDue && Number.isFinite(customerPastDue) && customerPastDue > 0) {
+        const customerKey = String(invoice?.customer_name || '').trim().toLowerCase();
+        const overdueForCustomer = invoiceTextInvoices.filter(candidate => {
+            if (String(candidate?.customer_name || '').trim().toLowerCase() !== customerKey) return false;
+            const candidateDue = new Date(candidate?.due_date || candidate?.invoice_date || '');
+            const status = String(candidate?.status || '').trim().toLowerCase();
+            return !Number.isNaN(candidateDue.getTime())
+                && candidateDue < today
+                && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
+        });
+        if (overdueForCustomer.length === 1) return customerPastDue;
+    }
+
+    return rowTotal;
 }
 
 function filterInvoiceTextOptions(rawQuery) {

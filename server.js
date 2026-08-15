@@ -11791,20 +11791,15 @@ app.get('/api/recordings/:sid', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid recording ID' });
   }
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!accountSid || !authToken) {
-    return res.status(503).json({ success: false, error: 'Voicemail playback is not configured' });
-  }
-
   try {
-    const headers = {
-      Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-    };
+    const headers = {};
     if (req.headers.range) headers.Range = req.headers.range;
 
+    // The phone webhook service owns these Twilio recordings and has the
+    // matching account credentials. Fetch through its audio-only endpoint
+    // instead of assuming this application's Twilio account owns the SID.
     const recordingResponse = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${sid}.mp3`,
+      `${WEBHOOK_BASE}/api/recordings/${sid}`,
       { headers }
     );
 

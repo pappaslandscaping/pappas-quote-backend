@@ -184,7 +184,7 @@ it('requires an explicit manual confirmation before sending', async () => {
 });
 
 it('sends exactly once after manual confirmation with a reviewed Copilot link', async () => {
-  let sentBody = null;
+  let sentPayload = null;
   const inserts = [];
   const pool = createPool(async (sql, params) => {
     if (sql === 'SELECT * FROM invoices WHERE id = $1') {
@@ -210,8 +210,8 @@ it('sends exactly once after manual confirmation with a reviewed Copilot link', 
     if (sql.includes('sent_status = \'sent\'')) return { rows: [] };
     throw new Error(`Unexpected SQL: ${sql}`);
   });
-  const sendSms = async ({ body }) => {
-    sentBody = body;
+  const sendSms = async (payload) => {
+    sentPayload = payload;
     return { sid: 'SM456', status: 'sent' };
   };
 
@@ -228,8 +228,9 @@ it('sends exactly once after manual confirmation with a reviewed Copilot link', 
 
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.success, true);
-  assert.match(sentBody, /\$100\.00/);
-  assert.match(sentBody, /secure\.copilotcrm\.com\/client\/invoices\/view/);
+  assert.match(sentPayload.body, /\$100\.00/);
+  assert.match(sentPayload.body, /secure\.copilotcrm\.com\/client\/invoices\/view/);
+  assert.strictEqual(sentPayload.manualReviewedSend, true);
   assert.strictEqual(inserts.length, 1);
 });
 

@@ -266,6 +266,61 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
     console.warn(`Unable to resolve a prior Copilot invoice link for ${invoice?.invoice_number || invoice?.id}:`, error.message);
   }
 
+  const copilotCustomerId = String(
+    invoice?.copilot_customer_id
+    || metadata.copilot_customer_id
+    || metadata.customer_id
+    || ''
+  ).trim();
+
+  if (/^\d+$/.test(copilotCustomerId) && typeof getCopilotToken === 'function') {
+    try {
+      const tokenInfo = await getCopilotToken();
+      const tokenMatch = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
+      const accessToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : '';
+      if (accessToken) {
+        const response = await fetch('https://api.copilotcrm.com/graphql', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            operationName: 'ResolveCustomerInvoiceLink',
+            query: `query ResolveCustomerInvoiceLink($customerId: SafeInt!) {
+              smsMessages(
+                where: { customerId: { equals: $customerId } }
+                orderBy: [{ sentAt: desc }]
+                take: 1000
+              ) {
+                text
+              }
+            }`,
+            variables: { customerId: Number(copilotCustomerId) },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Copilot GraphQL returned ${response.status}`);
+        }
+        const payload = await response.json();
+        if (payload?.errors?.length) {
+          throw new Error(payload.errors.map((item) => item.message).filter(Boolean).join('; ') || 'Copilot GraphQL query failed');
+        }
+
+        for (const message of payload?.data?.smsMessages || []) {
+          const customerToken = extractCopilotCustomerInvoiceToken(message.text);
+          if (!customerToken) continue;
+          const reconstructed = `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(customerToken)}`;
+          const trustedUrl = getCopilotClientInvoiceUrl(invoice, reconstructed);
+          if (trustedUrl) return trustedUrl;
+        }
+      }
+    } catch (error) {
+      console.warn(`Unable to resolve a Copilot invoice link from customer SMS history for ${invoice?.invoice_number || invoice?.id}:`, error.message);
+    }
+  }
+
   return '';
 }
 

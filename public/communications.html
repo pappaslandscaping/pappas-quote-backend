@@ -1888,7 +1888,7 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
 
     const sections = [draft];
     if (invoiceUrl) sections.push(`Invoice:\n${invoiceUrl}`);
-    if (hasSignoff || draft) sections.push(`${hasClosing ? 'Thank you,\\n' : ''}${signoff}`);
+    if (hasSignoff || draft) sections.push(`${hasClosing ? 'Thank you,\n' : ''}${signoff}`);
     return sections.filter(Boolean).join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 

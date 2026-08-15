@@ -1876,7 +1876,7 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
 
     if (invoiceUrl) {
         draft = draft.split(invoiceUrl).join('').trim();
-        draft = draft.replace(/(?:You can )?(?:view|see) (?:your|the) invoice here:\s*$/i, '').trim();
+        draft = draft.replace(/\s*(?:(?:You can )?(?:view|see) (?:your|the) invoice here|Invoice link):\s*/ig, ' ').trim();
     }
 
     if (draft && !draft.includes('\n\n')) {

@@ -1745,7 +1745,7 @@ function filterInvoiceTextOptions(rawQuery) {
     const select = document.getElementById('sms-invoice-select');
     resetInvoiceTextPreview();
     if (query.length < 2) {
-        select.innerHTML = '<option value="">Type at least 2 characters above...</option>';
+        select.innerHTML = '<option value="">Type at least 2 characters to search...</option>';
         return;
     }
     const matches = invoiceTextInvoices.filter(invoice => {
@@ -1778,7 +1778,7 @@ function resetInvoiceTextPreview() {
     document.getElementById('sms-ai-instructions').value = '';
     document.getElementById('sms-invoice-url').value = '';
     document.getElementById('sms-reviewed').checked = false;
-    document.getElementById('sms-recipient-preview').innerHTML = '<strong>No preview prepared</strong>Paste the Copilot invoice link and click Prepare Preview.';
+    document.getElementById('sms-recipient-preview').innerHTML = '<strong>No preview prepared</strong>Choose an invoice, then refresh the customer details.';
     document.getElementById('sms-ai-btn').disabled = true;
     updateInvoiceTextSendState();
 }

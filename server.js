@@ -11780,7 +11780,7 @@ function getRecordingSid(recordingUrl) {
 
 function getRecordingProxyUrl(recordingUrl) {
   const sid = getRecordingSid(recordingUrl);
-  return sid ? `${(process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app').replace(/\/$/, '')}/api/recordings/${sid}` : recordingUrl || null;
+  return sid ? `${WEBHOOK_BASE}/api/recordings/${sid}` : recordingUrl || null;
 }
 
 // Stream Twilio recordings through YardDesk so browsers and the mobile app

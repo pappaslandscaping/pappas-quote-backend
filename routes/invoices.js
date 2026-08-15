@@ -4508,6 +4508,7 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
       to: phone,
       body: smsBody,
       from: twilioPhoneNumber,
+      manualReviewedSend: true,
     });
 
     const normalizedTo = normalizePhone(phone);

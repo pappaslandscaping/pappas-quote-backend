@@ -895,7 +895,7 @@
                 </div>
                 <div class="email-field">
                     <label for="sms-invoice-select">Matching invoices</label>
-                    <select class="email-select" id="sms-invoice-select" onchange="resetInvoiceTextPreview()">
+                    <select class="email-select" id="sms-invoice-select" onchange="handleInvoiceTextSelection()">
                         <option value="">Type at least 2 characters above...</option>
                     </select>
                 </div>
@@ -1615,6 +1615,13 @@ function invoiceTextChanged() {
     updateInvoiceTextSendState();
 }
 
+function handleInvoiceTextSelection() {
+    resetInvoiceTextPreview();
+    if (!document.getElementById('sms-invoice-select').value) return;
+    document.getElementById('sms-send-status').textContent = 'Loading phone number and invoice details...';
+    prepareInvoiceTextPreview();
+}
+
 async function prepareInvoiceTextPreview() {
     const invoiceId = document.getElementById('sms-invoice-select').value;
     const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
@@ -1633,8 +1640,17 @@ async function prepareInvoiceTextPreview() {
         });
         const data = await res.json();
         if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
-        invoiceTextPreview = data.preview;
-        const customerKey = String(data.preview.customer_name || '').trim().toLowerCase();
+        const selectedInvoice = invoiceTextInvoices.find(invoice => String(invoice.id) === String(invoiceId));
+        const selectedBalance = selectedInvoice
+            ? Math.max(Number(selectedInvoice.total || 0) - Number(selectedInvoice.amount_paid || 0), 0)
+            : Number(data.preview.balance || 0);
+        invoiceTextPreview = {
+            ...data.preview,
+            customer_name: selectedInvoice?.customer_name || data.preview.customer_name,
+            invoice_number: selectedInvoice?.display_invoice_number || selectedInvoice?.invoice_number || data.preview.invoice_number,
+            balance: selectedBalance,
+        };
+        const customerKey = String(invoiceTextPreview.customer_name || '').trim().toLowerCase();
         const seenInvoiceKeys = new Set();
         const totalOutstanding = invoiceTextInvoices.reduce((sum, invoice) => {
             if (String(invoice.customer_name || '').trim().toLowerCase() !== customerKey) return sum;
@@ -1643,11 +1659,12 @@ async function prepareInvoiceTextPreview() {
             seenInvoiceKeys.add(key);
             return sum + Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
         }, 0);
-        invoiceTextPreview.total_outstanding = Math.max(totalOutstanding, Number(data.preview.balance || 0));
+        invoiceTextPreview.total_outstanding = Math.max(totalOutstanding, selectedBalance);
         document.getElementById('sms-invoice-url').value = data.preview.invoice_url || invoiceUrl;
         document.getElementById('sms-phone').value = data.preview.to || document.getElementById('sms-phone').value;
-        document.getElementById('sms-compose-body').value = data.preview.body || '';
-        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(data.preview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(data.preview.balance))}`;
+        const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');
+        document.getElementById('sms-compose-body').value = previewMatchesSelection ? (data.preview.body || '') : '';
+        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = false;
         status.textContent = data.preview.invoice_url
             ? 'Preview ready. Review it or ask AI to help rewrite it.'

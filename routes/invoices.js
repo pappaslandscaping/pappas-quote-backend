@@ -4424,7 +4424,23 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
           invoiceRow: invoice,
           linkCustomers: true,
         });
-        if (refreshed?.row) invoice = refreshed.row;
+        if (refreshed?.row) {
+          const refreshedNumber = String(refreshed.row.invoice_number || '').trim();
+          const selectedNumber = String(invoice.invoice_number || '').trim();
+          const refreshedExternalId = String(refreshed.row.external_invoice_id || '').trim();
+          const selectedExternalId = String(invoice.external_invoice_id || '').trim();
+          const sameInvoice = (
+            (selectedNumber && refreshedNumber === selectedNumber)
+            || (selectedExternalId && refreshedExternalId === selectedExternalId)
+          );
+          if (sameInvoice) {
+            invoice = refreshed.row;
+          } else {
+            console.warn(
+              `Ignored mismatched Copilot refresh for selected invoice ${selectedNumber || invoice.id}; received ${refreshedNumber || refreshed.row.id}`
+            );
+          }
+        }
       } catch (refreshError) {
         console.warn(`Copilot invoice link refresh failed for ${invoice.invoice_number || invoice.id}:`, refreshError.message);
       }

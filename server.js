@@ -11773,6 +11773,63 @@ app.all('/api/voice/twiml', (req, res) => {
 
 const WEBHOOK_BASE = 'https://pappas-twilio-webhook-production.up.railway.app';
 
+function getRecordingSid(recordingUrl) {
+  const match = String(recordingUrl || '').match(/Recordings\/(RE[a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+}
+
+function getRecordingProxyUrl(recordingUrl) {
+  const sid = getRecordingSid(recordingUrl);
+  return sid ? `${(process.env.BASE_URL || 'https://pappas-quote-backend-production.up.railway.app').replace(/\/$/, '')}/api/recordings/${sid}` : recordingUrl || null;
+}
+
+// Stream Twilio recordings through YardDesk so browsers and the mobile app
+// never need Twilio credentials and always receive a playable audio response.
+app.get('/api/recordings/:sid', async (req, res) => {
+  const sid = String(req.params.sid || '');
+  if (!/^RE[a-zA-Z0-9]{20,}$/.test(sid)) {
+    return res.status(400).json({ success: false, error: 'Invalid recording ID' });
+  }
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken) {
+    return res.status(503).json({ success: false, error: 'Voicemail playback is not configured' });
+  }
+
+  try {
+    const headers = {
+      Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+    };
+    if (req.headers.range) headers.Range = req.headers.range;
+
+    const recordingResponse = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${sid}.mp3`,
+      { headers }
+    );
+
+    if (!recordingResponse.ok && recordingResponse.status !== 206) {
+      console.error('Twilio recording proxy failed:', recordingResponse.status, sid);
+      return res.status(recordingResponse.status === 404 ? 404 : 502).json({
+        success: false,
+        error: 'Recording unavailable',
+      });
+    }
+
+    res.status(recordingResponse.status);
+    res.setHeader('Content-Type', recordingResponse.headers.get('content-type') || 'audio/mpeg');
+    for (const name of ['content-length', 'content-range', 'accept-ranges']) {
+      const value = recordingResponse.headers.get(name);
+      if (value) res.setHeader(name, value);
+    }
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.send(Buffer.from(await recordingResponse.arrayBuffer()));
+  } catch (error) {
+    console.error('Twilio recording proxy error:', error);
+    return res.status(502).json({ success: false, error: 'Recording unavailable' });
+  }
+});
+
 app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
   try {
     const filter = req.query.filter || 'active';
@@ -11800,7 +11857,7 @@ app.get('/api/app/voicemails', authenticateToken, async (req, res) => {
         duration: c.duration ? parseInt(c.duration) : 0,
         transcription: c.transcription || null,
         timestamp: c.created_at || '',
-        audioUrl: c.recording_url || null,
+        audioUrl: getRecordingProxyUrl(c.recording_url),
         listened: c.read || false,
         status: c.status || 'voicemail',
       };

@@ -45,12 +45,24 @@ function normalizePhone(phone) {
  * Send an SMS. Returns the Twilio message object on success, or
  * throws a normalized error on failure.
  */
-async function sendSms({ to, body, from = TWILIO_PHONE_NUMBER, mediaUrl = null }) {
+async function sendSms({
+  to,
+  body,
+  from = TWILIO_PHONE_NUMBER,
+  mediaUrl = null,
+  manualReviewedSend = false,
+}) {
   if (!_client) throw new Error('Twilio not configured');
   if (!to || !body) throw new Error('to and body are required');
-  const err = new Error(CLIENT_COMMUNICATIONS_DISABLED_MESSAGE);
-  err.code = 'CLIENT_COMMUNICATIONS_DISABLED';
-  throw err;
+
+  // Customer SMS stays locked by default. Only a route that has already
+  // enforced an explicit, manual review may opt in to one send.
+  if (manualReviewedSend !== true) {
+    const err = new Error(CLIENT_COMMUNICATIONS_DISABLED_MESSAGE);
+    err.code = 'CLIENT_COMMUNICATIONS_DISABLED';
+    throw err;
+  }
+
   const normalizedTo = normalizePhone(to);
   const opts = { to: normalizedTo, from, body };
   if (mediaUrl) opts.mediaUrl = Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl];

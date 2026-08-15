@@ -85,7 +85,7 @@ describe('YardDesk customer balance context', () => {
     expect(communicationsHtml).toContain('invoiceTextPreview.total_outstanding');
     expect(communicationsHtml).toContain('Total outstanding:');
     expect(communicationsHtml).toContain('Currently past due:');
-    expect(communicationsHtml).toContain("the customer's total outstanding balance is");
+    expect(communicationsHtml).toContain('Their total outstanding balance is');
     expect(communicationsHtml).toContain('Clearly distinguish the total owed from the past-due portion.');
   });
 });
@@ -94,7 +94,7 @@ describe('YardDesk invoice AI drafting', () => {
   test('can draft after preview even before the invoice link is pasted', () => {
     expect(communicationsHtml).toContain("document.getElementById('sms-ai-btn').disabled = false;");
     expect(communicationsHtml).not.toContain("if (!invoiceUrl) return alert('Paste the Copilot invoice link first.')");
-    expect(communicationsHtml).toContain("invoiceUrl ? \` Include this exact link unchanged:");
+    expect(communicationsHtml).toContain("invoiceUrl ? \`Keep this exact invoice link unchanged in the message:");
     expect(communicationsHtml).toContain('AI draft prepared. Paste the Copilot invoice link before sending. Nothing was sent.');
   });
 });
@@ -162,7 +162,7 @@ describe('YardDesk guided invoice AI rewriting', () => {
   test('keeps verified invoice facts and the exact link in AI prompts', () => {
     expect(communicationsHtml).toContain('Do not invent amounts, dates, fees, threats, or promises.');
     expect(communicationsHtml).toContain('Keep this exact invoice link unchanged in the message');
-    expect(communicationsHtml).toContain('Return only the finished text message.');
+    expect(communicationsHtml).toContain('Return only the finished text message with the line breaks preserved.');
   });
 });
 
@@ -183,7 +183,7 @@ describe('YardDesk readable invoice text formatting', () => {
   test('puts the invoice link and sign-off in separate plain-text sections', () => {
     expect(communicationsHtml).toContain('function formatInvoiceTextDraft');
     expect(communicationsHtml).toContain("sections.push(`Invoice:\\n${invoiceUrl}`)");
-    expect(communicationsHtml).toContain('sections.push(signoff)');
+    expect(communicationsHtml).toContain("sections.push(\`${hasClosing ? 'Thank you,\\n' : ''}${signoff}\`)");
     expect(communicationsHtml).toContain("join('\\n\\n')");
     expect(communicationsHtml).toContain('with the line breaks preserved');
     expect(communicationsHtml).toContain('plain text only—no Markdown, bullets');

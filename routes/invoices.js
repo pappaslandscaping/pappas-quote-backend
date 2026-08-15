@@ -219,9 +219,28 @@ function extractCopilotCustomerInvoiceToken(value) {
   return '';
 }
 
-async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', phone = '') {
-  const directUrl = getCopilotClientInvoiceUrl(invoice, suppliedUrl);
-  if (directUrl) return directUrl;
+async function queryCopilotGraphql(accessToken, operationName, query, variables) {
+  const response = await fetch('https://api.copilotcrm.com/graphql', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ operationName, query, variables }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Copilot GraphQL returned ${response.status}`);
+  }
+  const payload = await response.json();
+  if (payload?.errors?.length) {
+    throw new Error(payload.errors.map((item) => item.message).filter(Boolean).join('; ') || 'Copilot GraphQL query failed');
+  }
+  return payload;
+}
+
+async function loadAuthoritativeCopilotInvoiceRecipient(invoice) {
+  if (invoice?.__copilotInvoiceRecipient) return invoice.__copilotInvoiceRecipient;
 
   const metadata = parseExternalMetadata(invoice?.external_metadata);
   const externalInvoiceId = String(
@@ -229,6 +248,103 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
     || metadata.external_invoice_id
     || ''
   ).trim();
+  if (!/^\d+$/.test(externalInvoiceId) || typeof getCopilotToken !== 'function') return null;
+
+  try {
+    const tokenInfo = await getCopilotToken();
+    const tokenMatch = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
+    const accessToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : '';
+    if (!accessToken) return null;
+
+    const invoicePayload = await queryCopilotGraphql(
+      accessToken,
+      'ResolveInvoiceOwner',
+      `query ResolveInvoiceOwner($invoiceId: SafeInt!) {
+        invoice(invoiceId: $invoiceId) {
+          customerId
+        }
+      }`,
+      { invoiceId: Number(externalInvoiceId) }
+    );
+    const authoritativeCustomerId = Number(invoicePayload?.data?.invoice?.customerId);
+    if (!Number.isInteger(authoritativeCustomerId)) return null;
+
+    const customerPayload = await queryCopilotGraphql(
+      accessToken,
+      'ResolveInvoiceRecipient',
+      `query ResolveInvoiceRecipient($customerId: SafeInt!) {
+        customers(
+          where: { id: { equals: $customerId } }
+          take: 1
+        ) {
+          id
+          fullName
+          cell
+          phone
+          portalKey
+          outstanding
+          pastDue
+        }
+      }`,
+      { customerId: authoritativeCustomerId }
+    );
+    const customer = customerPayload?.data?.customers?.[0];
+    const portalKey = String(customer?.portalKey || '').trim();
+    if (!customer || !portalKey) return null;
+
+    const recipient = {
+      customerId: authoritativeCustomerId,
+      customerName: String(customer.fullName || '').trim(),
+      phone: String(customer.cell || customer.phone || '').trim(),
+      portalKey,
+      totalOutstanding: parseInvoiceMoney(customer.outstanding),
+      pastDue: parseInvoiceMoney(customer.pastDue),
+      invoiceUrl: `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(portalKey)}`,
+    };
+    invoice.__copilotInvoiceRecipient = recipient;
+    return recipient;
+  } catch (error) {
+    console.warn(`Unable to resolve the authoritative Copilot recipient for ${invoice?.invoice_number || invoice?.id}:`, error.message);
+    return null;
+  }
+}
+
+function applyAuthoritativeCopilotInvoiceRecipient(invoice, recipient) {
+  if (!invoice || !recipient) return invoice;
+  const metadata = parseExternalMetadata(invoice.external_metadata);
+  invoice.copilot_customer_id = String(recipient.customerId);
+  invoice.customer_name = recipient.customerName || invoice.customer_name;
+  invoice.customer_phone = recipient.phone || invoice.customer_phone;
+  invoice.external_metadata = {
+    ...metadata,
+    copilot_customer_id: String(recipient.customerId),
+    customer_id: String(recipient.customerId),
+    client_invoice_url: recipient.invoiceUrl,
+    customer_outstanding_balance: recipient.totalOutstanding,
+    customer_past_due_balance: recipient.pastDue,
+  };
+  invoice.__copilotInvoiceRecipient = recipient;
+  return invoice;
+}
+
+async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', phone = '') {
+  const metadata = parseExternalMetadata(invoice?.external_metadata);
+  const externalInvoiceId = String(
+    invoice?.external_invoice_id
+    || metadata.external_invoice_id
+    || ''
+  ).trim();
+
+  if (externalInvoiceId) {
+    const recipient = await loadAuthoritativeCopilotInvoiceRecipient(invoice);
+    if (recipient?.invoiceUrl) {
+      applyAuthoritativeCopilotInvoiceRecipient(invoice, recipient);
+      return recipient.invoiceUrl;
+    }
+  }
+
+  const directUrl = getCopilotClientInvoiceUrl(invoice, suppliedUrl);
+  if (directUrl) return directUrl;
   if (!externalInvoiceId) return '';
 
   const phoneKey = String(phone || '').replace(/\D/g, '').slice(-10);
@@ -266,10 +382,11 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
     console.warn(`Unable to resolve a prior Copilot invoice link for ${invoice?.invoice_number || invoice?.id}:`, error.message);
   }
 
+  const currentMetadata = parseExternalMetadata(invoice?.external_metadata);
   const copilotCustomerId = String(
     invoice?.copilot_customer_id
-    || metadata.copilot_customer_id
-    || metadata.customer_id
+    || currentMetadata.copilot_customer_id
+    || currentMetadata.customer_id
     || ''
   ).trim();
 
@@ -279,49 +396,8 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
       const tokenMatch = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
       const accessToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : '';
       if (accessToken) {
-        const queryCopilot = async (operationName, query) => {
-          const response = await fetch('https://api.copilotcrm.com/graphql', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              operationName,
-              query,
-              variables: { customerId: Number(copilotCustomerId) },
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`Copilot GraphQL returned ${response.status}`);
-          }
-          const payload = await response.json();
-          if (payload?.errors?.length) {
-            throw new Error(payload.errors.map((item) => item.message).filter(Boolean).join('; ') || 'Copilot GraphQL query failed');
-          }
-          return payload;
-        };
-
-        const customerPayload = await queryCopilot(
-          'ResolveCustomerPortalKey',
-          `query ResolveCustomerPortalKey($customerId: SafeInt!) {
-            customers(
-              where: { id: { equals: $customerId } }
-              take: 1
-            ) {
-              portalKey
-            }
-          }`
-        );
-        const portalKey = String(customerPayload?.data?.customers?.[0]?.portalKey || '').trim();
-        if (portalKey) {
-          const reconstructed = `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(portalKey)}`;
-          const trustedUrl = getCopilotClientInvoiceUrl(invoice, reconstructed);
-          if (trustedUrl) return trustedUrl;
-        }
-
-        const smsPayload = await queryCopilot(
+        const smsPayload = await queryCopilotGraphql(
+          accessToken,
           'ResolveCustomerInvoiceLink',
           `query ResolveCustomerInvoiceLink($customerId: SafeInt!) {
             smsMessages(
@@ -331,7 +407,8 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
             ) {
               text
             }
-          }`
+          }`,
+          { customerId: Number(copilotCustomerId) }
         );
 
         for (const message of smsPayload?.data?.smsMessages || []) {
@@ -349,7 +426,6 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
 
   return '';
 }
-
 function parseInvoiceMoney(value) {
   if (value === null || value === undefined || String(value).trim() === '') return null;
   const amount = Number(String(value).replace(/[$,]/g, ''));
@@ -396,6 +472,8 @@ async function ensureInvoicePaymentToken(pool, invoice) {
 }
 
 async function resolveInvoiceSmsPhone(pool, invoice, suppliedPhone = '') {
+  const authoritativePhone = String(invoice?.__copilotInvoiceRecipient?.phone || '').trim();
+  if (authoritativePhone) return authoritativePhone;
   if (String(suppliedPhone || '').trim()) return String(suppliedPhone).trim();
 
   const directPhone = invoice.customer_phone || invoice.phone || null;
@@ -4610,6 +4688,11 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
       }
     }
 
+    if (String(invoice.external_source || '').toLowerCase() === 'copilotcrm' || invoice.external_invoice_id) {
+      const authoritativeRecipient = await loadAuthoritativeCopilotInvoiceRecipient(invoice);
+      applyAuthoritativeCopilotInvoiceRecipient(invoice, authoritativeRecipient);
+    }
+
     const phone = await resolveInvoiceSmsPhone(pool, invoice, req.body?.phone);
     if (!phone) {
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });
@@ -4657,6 +4740,11 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
     }
 
     const invoice = invoiceResult.rows[0];
+    if (String(invoice.external_source || '').toLowerCase() === 'copilotcrm' || invoice.external_invoice_id) {
+      const authoritativeRecipient = await loadAuthoritativeCopilotInvoiceRecipient(invoice);
+      applyAuthoritativeCopilotInvoiceRecipient(invoice, authoritativeRecipient);
+    }
+
     const phone = await resolveInvoiceSmsPhone(pool, invoice, req.body?.phone);
     if (!phone) {
       return res.status(400).json({ success: false, error: 'No phone number on file for this customer' });

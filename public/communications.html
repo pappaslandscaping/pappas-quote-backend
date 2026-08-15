@@ -1840,7 +1840,9 @@ async function prepareInvoiceTextPreview() {
         document.getElementById('sms-invoice-url').value = invoiceTextPreview.invoice_url || '';
         document.getElementById('sms-phone').value = invoiceTextPreview.to || document.getElementById('sms-phone').value;
         const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');
-        document.getElementById('sms-compose-body').value = previewMatchesSelection ? (data.preview.body || '') : '';
+        document.getElementById('sms-compose-body').value = previewMatchesSelection
+            ? formatInvoiceTextDraft(data.preview.body || '', invoiceTextPreview.invoice_url || '')
+            : '';
         document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(invoiceTextPreview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = false;
         status.textContent = invoiceTextPreview.invoice_url
@@ -1858,6 +1860,36 @@ function applyInvoiceAiInstruction(instruction) {
     field.value = instruction;
     document.getElementById('sms-reviewed').checked = false;
     draftInvoiceTextWithAi();
+}
+
+function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
+    let draft = String(rawDraft || '')
+        .replace(/\r\n?/g, '\n')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+
+    const signoff = 'Pappas & Co. Landscaping';
+    const signoffPattern = /\s*(?:[-–—]\s*)?Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*$/i;
+    const hasSignoff = signoffPattern.test(draft);
+    draft = draft.replace(signoffPattern, '').trim();
+
+    if (invoiceUrl) {
+        draft = draft.split(invoiceUrl).join('').trim();
+        draft = draft.replace(/(?:You can )?(?:view|see) (?:your|the) invoice here:\s*$/i, '').trim();
+    }
+
+    if (draft && !draft.includes('\n\n')) {
+        const sentences = draft.match(/[^.!?]+[.!?]+(?:[”"']+)?|[^.!?]+$/g) || [draft];
+        if (sentences.length >= 3) {
+            draft = `${sentences.slice(0, 2).join(' ').trim()}\n\n${sentences.slice(2).join(' ').trim()}`;
+        }
+    }
+
+    const sections = [draft];
+    if (invoiceUrl) sections.push(`Invoice:\n${invoiceUrl}`);
+    if (hasSignoff || draft) sections.push(signoff);
+    return sections.filter(Boolean).join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 async function draftInvoiceTextWithAi() {
@@ -1878,13 +1910,12 @@ async function draftInvoiceTextWithAi() {
             },
             body: JSON.stringify({
                 contactName: invoiceTextPreview.customer_name,
-                prompt: `Write or rewrite one natural-sounding customer text message. The customer is ${invoiceTextPreview.customer_name}. Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding || invoiceTextPreview.balance)}, and ${formatCurrency(invoiceTextPreview.balance)} is currently past due. ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Here is the current editable draft to improve: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact invoice link unchanged in the message: ${invoiceUrl}.` : ''} Clearly distinguish the total owed from the past-due portion. Do not invent amounts, dates, fees, threats, or promises. Sign it Pappas & Co. Landscaping. Return only the finished text message.`
+                prompt: `Write or rewrite one natural-sounding customer text message. The customer is ${invoiceTextPreview.customer_name}. Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding || invoiceTextPreview.balance)}, and ${formatCurrency(invoiceTextPreview.balance)} is currently past due. ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Here is the current editable draft to improve: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact invoice link unchanged in the message: ${invoiceUrl}.` : ''} Clearly distinguish the total owed from the past-due portion. Format the text for easy phone reading with blank lines between short sections: greeting and balances, payment request, an Invoice section with the exact link on its own line, and the sign-off on its own line. Use plain text only—no Markdown, bullets, headings with symbols, or quotation marks. Do not invent amounts, dates, fees, threats, or promises. Sign it Pappas & Co. Landscaping. Return only the finished text message with the line breaks preserved.`
             })
         });
         const data = await res.json();
         if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
-        let draft = String(data.draft).trim();
-        if (invoiceUrl && !draft.includes(invoiceUrl)) draft += `\n${invoiceUrl}`;
+        const draft = formatInvoiceTextDraft(data.draft, invoiceUrl);
         document.getElementById('sms-compose-body').value = draft;
         status.textContent = invoiceUrl
             ? 'AI draft prepared. Nothing was sent.'

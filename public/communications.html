@@ -1880,10 +1880,7 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
     }
 
     if (draft && !draft.includes('\n\n')) {
-        const sentences = draft.match(/[^.!?]+[.!?]+(?:[”"']+)?|[^.!?]+$/g) || [draft];
-        if (sentences.length >= 3) {
-            draft = `${sentences.slice(0, 2).join(' ').trim()}\n\n${sentences.slice(2).join(' ').trim()}`;
-        }
+        draft = draft.replace(/([.!?])\s+(?=(?:Could|Please|Would|When|If you(?:'ve| have))\b)/i, '$1\n\n');
     }
 
     const sections = [draft];

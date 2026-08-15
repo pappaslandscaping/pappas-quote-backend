@@ -1553,7 +1553,7 @@ async function openInvoiceTextComposer() {
         if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load invoices');
         const invoices = (data.invoices || []).filter(invoice => {
             const status = String(invoice.status || '').trim().toLowerCase();
-            const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+            const balance = invoiceOutstandingAmount(invoice);
             return balance > 0.005 && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
         });
         invoiceTextInvoices = invoices;
@@ -1568,6 +1568,15 @@ async function openInvoiceTextComposer() {
     }
 }
 
+function invoiceOutstandingAmount(invoice) {
+    const total = Math.max(Number(invoice?.total || 0), 0);
+    const status = String(invoice?.status || '').trim().toLowerCase();
+    if (status === 'partial' || status === 'partially paid') {
+        return Math.max(total - Number(invoice?.amount_paid || 0), 0);
+    }
+    return total;
+}
+
 function filterInvoiceTextOptions(rawQuery) {
     const query = String(rawQuery || '').trim().toLowerCase();
     const select = document.getElementById('sms-invoice-select');
@@ -1579,14 +1588,14 @@ function filterInvoiceTextOptions(rawQuery) {
     const matches = invoiceTextInvoices.filter(invoice => {
         const number = String(invoice.display_invoice_number || invoice.invoice_number || invoice.id || '').toLowerCase();
         const customer = String(invoice.customer_name || '').toLowerCase();
-        const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+        const balance = invoiceOutstandingAmount(invoice);
         const amount = formatCurrency(balance).toLowerCase();
         return customer.includes(query) || number.includes(query) || amount.includes(query);
     }).slice(0, 50);
     select.innerHTML = matches.length
         ? '<option value="">Select a matching invoice...</option>' + matches.map(invoice => {
             const number = invoice.display_invoice_number || invoice.invoice_number || invoice.id;
-            const balance = Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+            const balance = invoiceOutstandingAmount(invoice);
             return `<option value="${esc(invoice.id)}">${esc(invoice.customer_name || 'Unknown customer')} · #${esc(number)} · ${esc(formatCurrency(balance))}</option>`;
         }).join('')
         : '<option value="">No matching outstanding invoices</option>';
@@ -1657,7 +1666,7 @@ async function prepareInvoiceTextPreview() {
             const key = String(invoice.display_invoice_number || invoice.invoice_number || invoice.id || '');
             if (seenInvoiceKeys.has(key)) return sum;
             seenInvoiceKeys.add(key);
-            return sum + Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+            return sum + invoiceOutstandingAmount(invoice);
         }, 0);
         invoiceTextPreview.total_outstanding = Math.max(totalOutstanding, selectedBalance);
         document.getElementById('sms-invoice-url').value = data.preview.invoice_url || invoiceUrl;

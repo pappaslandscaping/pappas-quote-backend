@@ -495,6 +495,99 @@
         .sms-recipient-card strong { display: block; color: var(--gray-700); font-size: 13px; }
         .sms-compose-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+        /* Invoice text composer */
+        #invoice-sms-modal .email-modal-card {
+            width: min(980px, 100%);
+            max-height: min(92vh, 920px);
+        }
+        #invoice-sms-modal .email-modal-head {
+            padding: 16px 20px;
+        }
+        #invoice-sms-modal .email-modal-body {
+            grid-template-columns: minmax(0, 1fr) 286px;
+            gap: 18px;
+            padding: 18px 20px;
+            align-items: start;
+        }
+        #invoice-sms-modal .email-form {
+            gap: 12px;
+        }
+        .invoice-lookup-grid,
+        .invoice-contact-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+        .invoice-contact-grid {
+            grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.75fr);
+        }
+        .invoice-preview-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .invoice-preview-hint {
+            color: var(--gray-400);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .invoice-ai-panel {
+            border: 1px solid rgba(22, 163, 74, 0.18);
+            border-radius: 14px;
+            background: rgba(22, 163, 74, 0.035);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .invoice-ai-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .invoice-ai-heading {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--gray-700);
+        }
+        .invoice-ai-copy {
+            margin-top: 2px;
+            color: var(--gray-500);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .invoice-ai-instruction {
+            min-height: 58px;
+            resize: vertical;
+            background: var(--white);
+        }
+        .invoice-ai-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .invoice-ai-chip {
+            width: auto;
+            padding: 7px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+        }
+        #invoice-sms-modal #sms-compose-body {
+            min-height: 165px;
+        }
+        #invoice-sms-modal .email-preview-panel {
+            position: sticky;
+            top: 0;
+            min-height: 0;
+            align-self: start;
+            padding: 14px;
+            gap: 12px;
+        }
+        #invoice-sms-modal .email-modal-actions {
+            padding: 13px 20px;
+        }
+
         /* Call Detail */
         .call-detail { padding: 28px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
         .call-hero {
@@ -705,6 +798,14 @@
             .email-modal-actions { flex-direction: column; align-items: stretch; }
             .email-modal-buttons { width: 100%; }
             .email-secondary-btn, .email-primary-btn { justify-content: center; width: 100%; }
+            #invoice-sms-modal .email-modal-card { max-height: 94vh; }
+            #invoice-sms-modal .email-modal-body { grid-template-columns: 1fr; padding: 16px; }
+            .invoice-lookup-grid,
+            .invoice-contact-grid { grid-template-columns: 1fr; }
+            .invoice-preview-row { align-items: stretch; flex-direction: column; }
+            .invoice-ai-header { align-items: stretch; flex-direction: column; }
+            .invoice-ai-chip { width: auto; }
+            #invoice-sms-modal .email-preview-panel { position: static; }
             .call-meta,
             .call-action-grid { grid-template-columns: 1fr; }
         }
@@ -889,42 +990,52 @@
         </div>
         <div class="email-modal-body">
             <div class="email-form">
-                <div class="email-field">
-                    <label for="sms-invoice-search">Find an outstanding invoice</label>
-                    <input class="email-input" id="sms-invoice-search" type="search" placeholder="Type Kevin Hopp, an invoice number, or an amount" oninput="filterInvoiceTextOptions(this.value)">
+                <div class="invoice-lookup-grid">
+                    <div class="email-field">
+                        <label for="sms-invoice-search">Find an outstanding invoice</label>
+                        <input class="email-input" id="sms-invoice-search" type="search" placeholder="Customer, invoice number, or amount" oninput="filterInvoiceTextOptions(this.value)">
+                    </div>
+                    <div class="email-field">
+                        <label for="sms-invoice-select">Matching invoices</label>
+                        <select class="email-select" id="sms-invoice-select" onchange="handleInvoiceTextSelection()">
+                            <option value="">Type at least 2 characters to search...</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="email-field">
-                    <label for="sms-invoice-select">Matching invoices</label>
-                    <select class="email-select" id="sms-invoice-select" onchange="handleInvoiceTextSelection()">
-                        <option value="">Type at least 2 characters above...</option>
-                    </select>
+                <div class="invoice-contact-grid">
+                    <div class="email-field">
+                        <label for="sms-invoice-url">Copilot customer invoice link</label>
+                        <input class="email-input" id="sms-invoice-url" type="url" placeholder="https://secure.copilotcrm.com/client/invoices/view/..." oninput="invoiceTextChanged()">
+                    </div>
+                    <div class="email-field">
+                        <label for="sms-phone">Customer phone <span style="font-weight:400;text-transform:none">(if missing)</span></label>
+                        <input class="email-input" id="sms-phone" type="tel" placeholder="Phone number" oninput="invoiceTextChanged()">
+                    </div>
                 </div>
-                <div class="email-field">
-                    <label for="sms-invoice-url">Copilot customer invoice link</label>
-                    <input class="email-input" id="sms-invoice-url" type="url" placeholder="https://secure.copilotcrm.com/client/invoices/view/..." oninput="invoiceTextChanged()">
+                <div class="invoice-preview-row">
+                    <button class="email-secondary-btn" id="sms-preview-btn" type="button" onclick="prepareInvoiceTextPreview()">Refresh Customer Details</button>
+                    <span class="invoice-preview-hint">Confirms the recipient and balances shown at right.</span>
                 </div>
-                <div class="email-field">
-                    <label for="sms-phone">Customer phone number <span style="font-weight:400;text-transform:none">(optional if YardDesk already has it)</span></label>
-                    <input class="email-input" id="sms-phone" type="tel" placeholder="Enter the number if the customer record is not linked" oninput="invoiceTextChanged()">
-                </div>
-                <div class="sms-compose-actions">
-                    <button class="email-secondary-btn" id="sms-preview-btn" type="button" onclick="prepareInvoiceTextPreview()">Prepare Preview</button>
-                    <button class="email-secondary-btn" id="sms-ai-btn" type="button" onclick="draftInvoiceTextWithAi()" disabled>Write / Rewrite with AI</button>
-                </div>
-                <div class="email-field">
-                    <label for="sms-ai-instructions">Tell AI what you want to change</label>
-                    <textarea class="email-input" id="sms-ai-instructions" style="min-height:72px;resize:vertical" placeholder="For example: Make it friendlier, mention the total balance, but ask for only the past-due amount."></textarea>
-                    <div class="sms-compose-actions" style="margin-top:8px">
-                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it friendlier and less formal.')">Friendlier</button>
-                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it shorter while keeping the important amounts and invoice link.')">Shorter</button>
-                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it more professional.')">More Professional</button>
-                        <button class="email-secondary-btn" type="button" onclick="applyInvoiceAiInstruction('Make it polite but firm and ask when payment can be expected.')">Polite but Firm</button>
+                <div class="invoice-ai-panel">
+                    <div class="invoice-ai-header">
+                        <div>
+                            <div class="invoice-ai-heading">AI writing help</div>
+                            <div class="invoice-ai-copy">Tell AI how to improve the editable draft.</div>
+                        </div>
+                        <button class="email-secondary-btn" id="sms-ai-btn" type="button" onclick="draftInvoiceTextWithAi()" disabled>Write / Rewrite with AI</button>
+                    </div>
+                    <textarea class="email-input invoice-ai-instruction" id="sms-ai-instructions" aria-label="Tell AI what you want to change" placeholder="Example: Make it polite but firm and ask when payment can be expected."></textarea>
+                    <div class="invoice-ai-chips">
+                        <button class="email-secondary-btn invoice-ai-chip" type="button" onclick="applyInvoiceAiInstruction('Make it friendlier and less formal.')">Friendlier</button>
+                        <button class="email-secondary-btn invoice-ai-chip" type="button" onclick="applyInvoiceAiInstruction('Make it shorter while keeping the important amounts and invoice link.')">Shorter</button>
+                        <button class="email-secondary-btn invoice-ai-chip" type="button" onclick="applyInvoiceAiInstruction('Make it more professional.')">More Professional</button>
+                        <button class="email-secondary-btn invoice-ai-chip" type="button" onclick="applyInvoiceAiInstruction('Make it polite but firm and ask when payment can be expected.')">Polite but Firm</button>
                     </div>
                     <div class="email-inline-note">AI only rewrites the editable draft. It cannot approve or send the text.</div>
                 </div>
                 <div class="email-field">
-                    <label for="sms-compose-body">Message</label>
-                    <textarea class="email-textarea" id="sms-compose-body" placeholder="Choose an invoice and prepare the preview first." oninput="invoiceTextChanged()"></textarea>
+                    <label for="sms-compose-body">Text message</label>
+                    <textarea class="email-textarea" id="sms-compose-body" placeholder="Choose an invoice and refresh the customer details first." oninput="invoiceTextChanged()"></textarea>
                 </div>
                 <label class="sms-review-row">
                     <input id="sms-reviewed" type="checkbox" onchange="updateInvoiceTextSendState()">

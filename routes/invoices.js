@@ -279,36 +279,62 @@ async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', 
       const tokenMatch = String(tokenInfo?.cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
       const accessToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : '';
       if (accessToken) {
-        const response = await fetch('https://api.copilotcrm.com/graphql', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operationName: 'ResolveCustomerInvoiceLink',
-            query: `query ResolveCustomerInvoiceLink($customerId: SafeInt!) {
-              smsMessages(
-                where: { customerId: { equals: $customerId } }
-                orderBy: [{ sentAt: desc }]
-                take: 1000
-              ) {
-                text
-              }
-            }`,
-            variables: { customerId: Number(copilotCustomerId) },
-          }),
-        });
+        const queryCopilot = async (operationName, query) => {
+          const response = await fetch('https://api.copilotcrm.com/graphql', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              operationName,
+              query,
+              variables: { customerId: Number(copilotCustomerId) },
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`Copilot GraphQL returned ${response.status}`);
-        }
-        const payload = await response.json();
-        if (payload?.errors?.length) {
-          throw new Error(payload.errors.map((item) => item.message).filter(Boolean).join('; ') || 'Copilot GraphQL query failed');
+          if (!response.ok) {
+            throw new Error(`Copilot GraphQL returned ${response.status}`);
+          }
+          const payload = await response.json();
+          if (payload?.errors?.length) {
+            throw new Error(payload.errors.map((item) => item.message).filter(Boolean).join('; ') || 'Copilot GraphQL query failed');
+          }
+          return payload;
+        };
+
+        const customerPayload = await queryCopilot(
+          'ResolveCustomerPortalKey',
+          `query ResolveCustomerPortalKey($customerId: SafeInt!) {
+            customers(
+              where: { id: { equals: $customerId } }
+              take: 1
+            ) {
+              portalKey
+            }
+          }`
+        );
+        const portalKey = String(customerPayload?.data?.customers?.[0]?.portalKey || '').trim();
+        if (portalKey) {
+          const reconstructed = `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(portalKey)}`;
+          const trustedUrl = getCopilotClientInvoiceUrl(invoice, reconstructed);
+          if (trustedUrl) return trustedUrl;
         }
 
-        for (const message of payload?.data?.smsMessages || []) {
+        const smsPayload = await queryCopilot(
+          'ResolveCustomerInvoiceLink',
+          `query ResolveCustomerInvoiceLink($customerId: SafeInt!) {
+            smsMessages(
+              where: { customerId: { equals: $customerId } }
+              orderBy: [{ sentAt: desc }]
+              take: 1000
+            ) {
+              text
+            }
+          }`
+        );
+
+        for (const message of smsPayload?.data?.smsMessages || []) {
           const customerToken = extractCopilotCustomerInvoiceToken(message.text);
           if (!customerToken) continue;
           const reconstructed = `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(customerToken)}`;

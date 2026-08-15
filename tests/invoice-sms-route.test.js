@@ -207,20 +207,20 @@ it('reconstructs the selected Copilot invoice link from this customer’s prior 
   assert.strictEqual(sent.length, 0);
 });
 
-it('loads a missing invoice link from Copilot customer SMS history', async () => {
+it('builds a missing invoice link from the Copilot customer portal key', async () => {
   const originalFetch = global.fetch;
   const sent = [];
-  let graphqlRequest = null;
+  const graphqlRequests = [];
   global.fetch = async (url, options) => {
-    graphqlRequest = { url, options };
+    graphqlRequests.push({ url, options });
     return {
       ok: true,
       status: 200,
       async json() {
         return {
           data: {
-            smsMessages: [{
-              text: 'Previous invoice https://secure.copilotcrm.com/client/invoices/view/3030244/661d81b79f4c4',
+            customers: [{
+              portalKey: '661d81b79f4c4',
             }],
           },
         };
@@ -276,12 +276,14 @@ it('loads a missing invoice link from Copilot customer SMS history', async () =>
       res.body.preview.invoice_url,
       'https://secure.copilotcrm.com/client/invoices/view/2891687/661d81b79f4c4'
     );
-    assert.strictEqual(graphqlRequest.url, 'https://api.copilotcrm.com/graphql');
-    assert.strictEqual(graphqlRequest.options.method, 'POST');
-    assert.strictEqual(graphqlRequest.options.headers.Authorization, 'Bearer test-access-token');
-    const graphqlBody = JSON.parse(graphqlRequest.options.body);
+    assert.strictEqual(graphqlRequests.length, 1);
+    assert.strictEqual(graphqlRequests[0].url, 'https://api.copilotcrm.com/graphql');
+    assert.strictEqual(graphqlRequests[0].options.method, 'POST');
+    assert.strictEqual(graphqlRequests[0].options.headers.Authorization, 'Bearer test-access-token');
+    const graphqlBody = JSON.parse(graphqlRequests[0].options.body);
     assert.strictEqual(graphqlBody.variables.customerId, 1060764);
-    assert.match(graphqlBody.query, /smsMessages/);
+    assert.match(graphqlBody.query, /customers/);
+    assert.match(graphqlBody.query, /portalKey/);
     assert.strictEqual(sent.length, 0);
   } finally {
     global.fetch = originalFetch;

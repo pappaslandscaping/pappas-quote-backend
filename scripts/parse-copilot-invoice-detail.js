@@ -271,14 +271,23 @@ function parseInvoiceDetailHtml(html) {
   const $mailto = $('a[href^="mailto:"]').first();
   if (!customer_email && $mailto.length) customer_email = clean($mailto.attr('href').replace(/^mailto:/i, ''));
 
-  // Customer-facing portal link shown in Copilot's Invoice History section.
-  // Example: https://secure.copilotcrm.com/client/invoices/view/3254566/token?k=key
+  // Customer-facing portal link shown in Copilot's Invoice History/Send controls.
+  // Copilot has rendered this as an anchor, a copy-button data attribute, and an
+  // escaped inline-script value across different page versions.
   let client_invoice_url = null;
   const acceptClientInvoiceUrl = (candidate) => {
     if (client_invoice_url || !candidate) return;
+    const decoded = String(candidate)
+      .replace(/\\\//g, '/')
+      .replace(/\\u002[fF]/g, '/')
+      .replace(/\\u0026/g, '&')
+      .replace(/&amp;/gi, '&')
+      .trim();
+    const pathIndex = decoded.indexOf('/client/invoices/view/');
+    if (pathIndex < 0) return;
+    const urlText = decoded.slice(pathIndex).split(/[\s"'<>\\)]/)[0];
     try {
-      const decoded = String(candidate).replace(/&amp;/gi, '&');
-      const url = new URL(decoded, 'https://secure.copilotcrm.com');
+      const url = new URL(urlText, 'https://secure.copilotcrm.com');
       if (
         url.protocol === 'https:'
         && url.hostname === 'secure.copilotcrm.com'
@@ -287,16 +296,15 @@ function parseInvoiceDetailHtml(html) {
         client_invoice_url = url.toString();
       }
     } catch (_error) {
-      // Ignore malformed links.
+      // Ignore malformed or non-Copilot links.
     }
   };
-  $('a[href*="/client/invoices/view/"]').each((_, anchor) => {
-    acceptClientInvoiceUrl(clean($(anchor).attr('href')));
+
+  $('*').each((_, element) => {
+    if (client_invoice_url) return;
+    Object.values(element.attribs || {}).forEach(acceptClientInvoiceUrl);
   });
-  if (!client_invoice_url) {
-    const rawMatch = String(html).match(/(?:https:\/\/secure\.copilotcrm\.com)?\/client\/invoices\/view\/[^"'<>\\s]+/i);
-    if (rawMatch) acceptClientInvoiceUrl(rawMatch[0]);
-  }
+  if (!client_invoice_url) acceptClientInvoiceUrl(html);
 
   // ── Property info (mostly informational) ─────────────────
   const property_name = clean($('.property-name, .property_name').first().text()) || null;

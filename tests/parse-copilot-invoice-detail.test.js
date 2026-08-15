@@ -160,6 +160,22 @@ it('captures the customer-facing Copilot invoice link', () => {
   );
 });
 
+it('captures a customer-facing link from Copilot copy-button data', () => {
+  const copyButtonFixture = `
+    <input type="hidden" id="inv_id" value="11476">
+    <input type="hidden" id="inv_cust_id" value="1060764">
+    <button
+      class="copy-invoice-link"
+      data-clipboard-text="https:\\/\\/secure.copilotcrm.com\\/client\\/invoices\\/view\\/1060764\\/dianne-token?k=customer-key"
+    >Copy invoice link</button>
+    <table class="table--sub-total"><tr><td>Total</td><td>$174.02</td></tr></table>`;
+  const parsed = parseInvoiceDetailHtml(copyButtonFixture);
+  assert.strictEqual(
+    parsed.client_invoice_url,
+    'https://secure.copilotcrm.com/client/invoices/view/1060764/dianne-token?k=customer-key'
+  );
+});
+
 it('captures notes and terms', () => {
   assert.strictEqual(detail.notes, 'Thanks for your business!');
   assert.strictEqual(detail.terms, 'Net 30. Late fees apply after 30 days.');

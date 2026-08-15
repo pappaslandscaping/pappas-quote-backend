@@ -30,7 +30,7 @@ function createPool(handler) {
   };
 }
 
-function createRouter({ pool, sendSms, isTwilioConfigured = () => true, normalizePhone } = {}) {
+function createRouter({ pool, sendSms, isTwilioConfigured = () => true, normalizePhone, getCopilotToken } = {}) {
   return createInvoiceRoutes({
     pool: pool || createPool(async () => ({ rows: [] })),
     sendEmail: async () => {},
@@ -47,7 +47,7 @@ function createRouter({ pool, sendSms, isTwilioConfigured = () => true, normaliz
     LOGO_URL: '',
     FROM_EMAIL: '',
     COMPANY_NAME: 'Pappas & Co. Landscaping',
-    getCopilotToken: async () => null,
+    getCopilotToken: getCopilotToken || (async () => null),
     sendSms: sendSms || (async () => ({ sid: 'SM-default', status: 'sent' })),
     isTwilioConfigured,
     normalizePhone: normalizePhone || ((value) => {
@@ -205,6 +205,87 @@ it('reconstructs the selected Copilot invoice link from this customer’s prior 
   );
   assert.match(res.body.preview.body, /\/client\/invoices\/view\/2891687\/661d81b79f4c4/);
   assert.strictEqual(sent.length, 0);
+});
+
+it('loads a missing invoice link from Copilot customer SMS history', async () => {
+  const originalFetch = global.fetch;
+  const sent = [];
+  let graphqlRequest = null;
+  global.fetch = async (url, options) => {
+    graphqlRequest = { url, options };
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          data: {
+            smsMessages: [{
+              text: 'Previous invoice https://secure.copilotcrm.com/client/invoices/view/3030244/661d81b79f4c4',
+            }],
+          },
+        };
+      },
+    };
+  };
+
+  try {
+    const pool = createPool(async (sql) => {
+      if (sql === 'SELECT * FROM invoices WHERE id = $1') {
+        return {
+          rows: [{
+            id: 16774,
+            external_invoice_id: '2891687',
+            invoice_number: '11476',
+            customer_id: 44,
+            customer_name: 'Dianne Daugherty',
+            customer_phone: '(216) 392-4969',
+            total: '174.02',
+            amount_paid: '0',
+            external_source: '',
+            external_metadata: {
+              copilot_customer_id: '1060764',
+              customer_past_due_balance: '417.22',
+              customer_outstanding_balance: '614.98',
+            },
+            status: 'overdue',
+          }],
+        };
+      }
+      if (sql.includes('SELECT body') && sql.includes('FROM messages')) {
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    });
+
+    const router = createRouter({
+      pool,
+      getCopilotToken: async () => ({
+        cookieHeader: 'copilotApiAccessToken=test-access-token; other=value',
+      }),
+      sendSms: async (payload) => {
+        sent.push(payload);
+        return { sid: 'SM-never', status: 'queued' };
+      },
+    });
+    const res = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
+      params: { id: '16774' },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(
+      res.body.preview.invoice_url,
+      'https://secure.copilotcrm.com/client/invoices/view/2891687/661d81b79f4c4'
+    );
+    assert.strictEqual(graphqlRequest.url, 'https://api.copilotcrm.com/graphql');
+    assert.strictEqual(graphqlRequest.options.method, 'POST');
+    assert.strictEqual(graphqlRequest.options.headers.Authorization, 'Bearer test-access-token');
+    const graphqlBody = JSON.parse(graphqlRequest.options.body);
+    assert.strictEqual(graphqlBody.variables.customerId, 1060764);
+    assert.match(graphqlBody.query, /smsMessages/);
+    assert.strictEqual(sent.length, 0);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 it('requires an explicit manual confirmation before sending', async () => {

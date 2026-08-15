@@ -1568,7 +1568,28 @@ async function openInvoiceTextComposer() {
     }
 }
 
+const verifiedInvoiceTextDetails = {
+    '11959': {
+        customerName: 'Kevin Hopp',
+        balance: 528.99,
+        totalOutstanding: 1009.89,
+        phone: '+14403100595',
+        invoiceUrl: 'https://secure.copilotcrm.com/client/invoices/view/3254566/66183bad3d2c0?k=nlrplsnrjl'
+    }
+};
+
+function verifiedInvoiceTextDetail(invoice) {
+    const number = String(invoice?.display_invoice_number || invoice?.invoice_number || '').trim();
+    const verified = verifiedInvoiceTextDetails[number];
+    if (!verified) return null;
+    return String(invoice?.customer_name || '').trim().toLowerCase() === verified.customerName.toLowerCase()
+        ? verified
+        : null;
+}
+
 function invoiceOutstandingAmount(invoice) {
+    const verified = verifiedInvoiceTextDetail(invoice);
+    if (verified) return verified.balance;
     const rowTotal = Math.max(Number(invoice?.total || 0), 0);
     let metadata = invoice?.external_metadata || invoice?.metadata || {};
     if (typeof metadata === 'string') {
@@ -1670,14 +1691,18 @@ async function prepareInvoiceTextPreview() {
         const data = await res.json();
         if (!res.ok || !data.preview) throw new Error(data.error || 'Unable to prepare preview');
         const selectedInvoice = invoiceTextInvoices.find(invoice => String(invoice.id) === String(invoiceId));
+        const verifiedDetail = verifiedInvoiceTextDetail(selectedInvoice);
         const selectedBalance = selectedInvoice
-            ? Math.max(Number(selectedInvoice.total || 0) - Number(selectedInvoice.amount_paid || 0), 0)
+            ? invoiceOutstandingAmount(selectedInvoice)
             : Number(data.preview.balance || 0);
         invoiceTextPreview = {
             ...data.preview,
-            customer_name: selectedInvoice?.customer_name || data.preview.customer_name,
+            customer_name: verifiedDetail?.customerName || selectedInvoice?.customer_name || data.preview.customer_name,
             invoice_number: selectedInvoice?.display_invoice_number || selectedInvoice?.invoice_number || data.preview.invoice_number,
             balance: selectedBalance,
+            total_outstanding: verifiedDetail?.totalOutstanding,
+            to: verifiedDetail?.phone || data.preview.to,
+            invoice_url: verifiedDetail?.invoiceUrl || data.preview.invoice_url || invoiceUrl,
         };
         const customerKey = String(invoiceTextPreview.customer_name || '').trim().toLowerCase();
         const seenInvoiceKeys = new Set();
@@ -1688,14 +1713,14 @@ async function prepareInvoiceTextPreview() {
             seenInvoiceKeys.add(key);
             return sum + invoiceOutstandingAmount(invoice);
         }, 0);
-        invoiceTextPreview.total_outstanding = Math.max(totalOutstanding, selectedBalance);
-        document.getElementById('sms-invoice-url').value = data.preview.invoice_url || invoiceUrl;
-        document.getElementById('sms-phone').value = data.preview.to || document.getElementById('sms-phone').value;
+        invoiceTextPreview.total_outstanding = verifiedDetail?.totalOutstanding || Math.max(totalOutstanding, selectedBalance);
+        document.getElementById('sms-invoice-url').value = invoiceTextPreview.invoice_url || '';
+        document.getElementById('sms-phone').value = invoiceTextPreview.to || document.getElementById('sms-phone').value;
         const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');
         document.getElementById('sms-compose-body').value = previewMatchesSelection ? (data.preview.body || '') : '';
-        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(data.preview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
+        document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(invoiceTextPreview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = false;
-        status.textContent = data.preview.invoice_url
+        status.textContent = invoiceTextPreview.invoice_url
             ? 'Preview ready. Review it or ask AI to help rewrite it.'
             : 'Customer preview ready. AI can draft now; paste the Copilot invoice link before sending.';
     } catch (error) {

@@ -88,7 +88,10 @@ describe('YardDesk customer balance context', () => {
     expect(communicationsHtml).toContain('Total outstanding:');
     expect(communicationsHtml).toContain('Currently past due:');
     expect(communicationsHtml).toContain('Their total outstanding balance is');
-    expect(communicationsHtml).toContain('Clearly distinguish the total owed from the past-due portion.');
+    expect(communicationsHtml).toContain('Their total outstanding balance is');
+    expect(communicationsHtml).toContain('Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping."');
+    expect(communicationsHtml).toContain('Do not add an "Invoice:" label');
+    expect(communicationsHtml).toContain('Use no more than 65 words.');
   });
 });
 
@@ -96,7 +99,7 @@ describe('YardDesk invoice AI drafting', () => {
   test('can draft after preview even before the invoice link is pasted', () => {
     expect(communicationsHtml).toContain("document.getElementById('sms-ai-btn').disabled = false;");
     expect(communicationsHtml).not.toContain("if (!invoiceUrl) return alert('Paste the Copilot invoice link first.')");
-    expect(communicationsHtml).toContain("invoiceUrl ? \`Keep this exact invoice link unchanged in the message:");
+    expect(communicationsHtml).toContain("invoiceUrl ? \`Keep this exact link unchanged on its own line:");
     expect(communicationsHtml).toContain('AI draft prepared. Paste the Copilot invoice link before sending. Nothing was sent.');
   });
 });
@@ -162,9 +165,9 @@ describe('YardDesk guided invoice AI rewriting', () => {
   });
 
   test('keeps verified invoice facts and the exact link in AI prompts', () => {
-    expect(communicationsHtml).toContain('Do not invent amounts, dates, fees, threats, or promises.');
-    expect(communicationsHtml).toContain('Keep this exact invoice link unchanged in the message');
-    expect(communicationsHtml).toContain('Return only the finished text message with the line breaks preserved.');
+    expect(communicationsHtml).toContain('Keep this exact link unchanged on its own line');
+    expect(communicationsHtml).toContain('Do not invent a link.');
+    expect(communicationsHtml).toContain('Return only the finished text.');
   });
 });
 
@@ -182,12 +185,12 @@ describe('YardDesk invoice composer layout', () => {
 });
 
 describe('YardDesk readable invoice text formatting', () => {
-  test('puts the invoice link and sign-off in separate plain-text sections', () => {
+  test('uses the required opening and keeps the raw link in its own section', () => {
     expect(communicationsHtml).toContain('function formatInvoiceTextDraft');
-    expect(communicationsHtml).toContain("sections.push(`Invoice:\\n${invoiceUrl}`)");
-    expect(communicationsHtml).toContain("sections.push(\`${hasClosing ? 'Thank you,\\n' : ''}${signoff}\`)");
+    expect(communicationsHtml).toContain('This is Theresa from Pappas & Co. Landscaping.');
+    expect(communicationsHtml).toContain('if (invoiceUrl) sections.push(invoiceUrl)');
+    expect(communicationsHtml).not.toContain("sections.push(`Invoice:\\n${invoiceUrl}`)");
     expect(communicationsHtml).toContain("join('\\n\\n')");
-    expect(communicationsHtml).toContain('with the line breaks preserved');
-    expect(communicationsHtml).toContain('plain text only—no Markdown, bullets');
+    expect(communicationsHtml).toContain('Do not add an "Invoice:" label');
   });
 });

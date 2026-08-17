@@ -983,7 +983,7 @@
     <div class="email-modal-card">
         <div class="email-modal-head">
             <div>
-                <div class="email-modal-title">Text a past-due invoice reminder</div>
+                <div class="email-modal-title">Text an invoice reminder</div>
                 <div class="email-modal-subtitle">AI can help draft the message. Nothing sends until you review and confirm it.</div>
             </div>
             <button class="email-modal-close" type="button" onclick="closeInvoiceTextComposer()">×</button>
@@ -1826,6 +1826,16 @@ function handleInvoiceTextSelection() {
     prepareInvoiceTextPreview();
 }
 
+function buildInvoiceReminderDraft(preview) {
+    const firstName = String(preview.customer_name || '').trim().split(/\s+/)[0] || 'there';
+    const amount = preview.balance > 0 ? preview.balance : preview.total_outstanding;
+    const balanceLine = preview.balance > 0
+        ? `Just a friendly reminder that ${formatCurrency(amount)} is currently past due.`
+        : `Just a friendly reminder that you have an outstanding invoice for ${formatCurrency(amount)}.`;
+    const linkLine = preview.invoice_url ? `\n\nYou can view and pay it here:\n${preview.invoice_url}` : '';
+    return `Hi ${firstName}! This is Theresa from Pappas & Co. Landscaping. ${balanceLine}${linkLine}\n\nIf you've already sent payment, please disregard this message. Thank you!`;
+}
+
 async function prepareInvoiceTextPreview() {
     const invoiceId = document.getElementById('sms-invoice-select').value;
     const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
@@ -1877,7 +1887,7 @@ async function prepareInvoiceTextPreview() {
         document.getElementById('sms-phone').value = invoiceTextPreview.to || document.getElementById('sms-phone').value;
         const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');
         document.getElementById('sms-compose-body').value = previewMatchesSelection
-            ? formatInvoiceTextDraft(data.preview.body || '', invoiceTextPreview.invoice_url || '')
+            ? buildInvoiceReminderDraft(invoiceTextPreview)
             : '';
         document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(invoiceTextPreview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = false;
@@ -1898,7 +1908,7 @@ function applyInvoiceAiInstruction(instruction) {
     draftInvoiceTextWithAi();
 }
 
-function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
+function formatInvoiceTextDraft(rawDraft, invoiceUrl = '', customerName = '') {
     let draft = String(rawDraft || '')
         .replace(/\r\n?/g, '\n')
         .replace(/[ \t]+\n/g, '\n')
@@ -1909,13 +1919,8 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
         return invoiceUrl && normalized === invoiceUrl ? invoiceUrl : '';
     }).replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
-    const signoff = 'Pappas & Co. Landscaping';
     const signoffPattern = /\s*(?:[-–—]\s*)?Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*$/i;
-    const hasSignoff = signoffPattern.test(draft);
     draft = draft.replace(signoffPattern, '').trim();
-    const closingPattern = /\s*(?:Thank you|Thanks)[!,.\s]*$/i;
-    const hasClosing = closingPattern.test(draft);
-    draft = draft.replace(closingPattern, '').trim();
 
     if (invoiceUrl) {
         draft = draft.split(invoiceUrl).join('').trim();
@@ -1926,9 +1931,11 @@ function formatInvoiceTextDraft(rawDraft, invoiceUrl = '') {
         draft = draft.replace(/([.!?])\s+(?=(?:Could|Please|Would|When|If you(?:'ve| have))\b)/i, '$1\n\n');
     }
 
-    const sections = [draft];
-    if (invoiceUrl) sections.push(`Invoice:\n${invoiceUrl}`);
-    if (hasSignoff || draft) sections.push(`${hasClosing ? 'Thank you,\n' : ''}${signoff}`);
+    const firstName = String(customerName || '').trim().split(/\s+/)[0] || 'there';
+    const requiredOpening = `Hi ${firstName}! This is Theresa from Pappas & Co. Landscaping.`;
+    draft = draft.replace(/^Hi\s+[^!\n]+[!,]?\s*(?:This is Theresa from Pappas\s*&\s*Co\.\s*Landscaping[.!]?\s*)?/i, '').trim();
+    const sections = [`${requiredOpening}${draft ? ` ${draft}` : ''}`];
+    if (invoiceUrl) sections.push(invoiceUrl);
     return sections.filter(Boolean).join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -1950,12 +1957,14 @@ async function draftInvoiceTextWithAi() {
             },
             body: JSON.stringify({
                 contactName: invoiceTextPreview.customer_name,
-                prompt: `Write or rewrite one natural-sounding customer text message. The customer is ${invoiceTextPreview.customer_name}. Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding || invoiceTextPreview.balance)}, and ${formatCurrency(invoiceTextPreview.balance)} is currently past due. ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Here is the current editable draft to improve: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact invoice link unchanged in the message: ${invoiceUrl}.` : 'Do not include, invent, or suggest any website, payment link, or invoice URL.'} Clearly distinguish the total owed from the past-due portion. Format the text for easy phone reading with blank lines between short sections: greeting and balances, payment request, an Invoice section with the exact link on its own line, and the sign-off on its own line. Use plain text only—no Markdown, bullets, headings with symbols, or quotation marks. Do not invent amounts, dates, fees, threats, or promises. Sign it Pappas & Co. Landscaping. Return only the finished text message with the line breaks preserved.`
+                prompt: invoiceTextPreview.balance > 0
+                    ? `Write a short, natural invoice reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say ${formatCurrency(invoiceTextPreview.balance)} is currently past due.${invoiceTextPreview.total_outstanding > invoiceTextPreview.balance ? ` Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding)}.` : ''} ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
+                    : `Write a short, natural reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say they have an outstanding invoice for ${formatCurrency(invoiceTextPreview.total_outstanding)}. Do not use the words "past due," "overdue," or "nothing currently past due." ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
             })
         });
         const data = await res.json();
         if (!res.ok || !data.draft) throw new Error(data.error || 'AI could not prepare a draft');
-        const draft = formatInvoiceTextDraft(data.draft, invoiceUrl);
+        const draft = formatInvoiceTextDraft(data.draft, invoiceUrl, invoiceTextPreview.customer_name);
         document.getElementById('sms-compose-body').value = draft;
         status.textContent = invoiceUrl
             ? 'AI draft prepared. Nothing was sent.'

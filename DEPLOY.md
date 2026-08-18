@@ -45,6 +45,8 @@ Database migrations are additive (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF N
 |---|---|---|
 | `RESEND_API_KEY` | Email delivery (Resend) | All transactional email stops without this |
 | `TWILIO_ACCOUNT_SID` | SMS/voice | SMS reminders, quote followups, voice calls |
+| `SERVICE_REMINDERS_ENABLED` | Day-before service texts | Set to `true` only after the reminder cron is configured |
+| `SERVICE_REMINDERS_START_DATE` | Day-before service texts | Earliest service date eligible for an automatic reminder (`2026-08-20` for initial rollout) |
 | `TWILIO_AUTH_TOKEN` | SMS/voice auth | Paired with account SID |
 | `SQUARE_ACCESS_TOKEN` | Payment processing | Card/ACH payments, webhooks |
 | `SQUARE_APPLICATION_ID` | Square app ID | Required for payment forms |

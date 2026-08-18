@@ -100,6 +100,24 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
 
+        .service-reminder-preview {
+            display: block;
+            border: 1px solid #bbdfc8;
+            background: #f4fbf6;
+        }
+
+        .service-reminder-preview .automation-desc {
+            white-space: normal;
+        }
+
+        .preview-results {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #d7eadc;
+            font-size: 12px;
+            color: var(--gray-600);
+        }
+
         /* Toggle Switch */
         .toggle-switch {
             position: relative;
@@ -838,6 +856,21 @@
 
         <!-- Automations Tab -->
         <div class="tab-content active" id="tab-automations">
+            <div class="automation-card service-reminder-preview">
+                <div class="automation-info">
+                    <div class="automation-name">Tomorrow's Service Texts</div>
+                    <div class="automation-desc">Reads tomorrow's live Homeworks schedule and sends one Twilio reminder per customer at 6:00 PM Eastern. Starts with August 20 service; August 19 is excluded.</div>
+                    <div class="automation-meta">
+                        <span class="trigger-badge">Daily at 6:00 PM</span>
+                        <span class="meta-item">Source: <strong>Homeworks</strong></span>
+                        <span class="meta-item">Delivery: <strong>Twilio</strong></span>
+                    </div>
+                    <div class="preview-results" id="serviceReminderPreview">Select Preview to check the next service day without sending anything.</div>
+                </div>
+                <div class="automation-actions">
+                    <button onclick="previewServiceReminders()" title="Preview tomorrow's reminders" style="width:auto;padding:0 12px;">Preview</button>
+                </div>
+            </div>
             <div id="automationsList"></div>
             <div class="empty-state" id="automationsEmpty" style="display:none;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -1097,6 +1130,29 @@ function loadAutomations() {
     }).catch(function() {
         automations = [];
         renderAutomations();
+    });
+}
+
+function previewServiceReminders() {
+    var output = document.getElementById('serviceReminderPreview');
+    output.textContent = 'Checking the live Homeworks schedule...';
+    fetch('/api/service-reminders/preview').then(function(r) {
+        return r.json().then(function(data) {
+            if (!r.ok) throw new Error(data.error || 'Preview failed');
+            return data;
+        });
+    }).then(function(data) {
+        if (data.skippedBeforeStart) {
+            output.textContent = data.serviceDate + ' is excluded from automatic reminders.';
+            return;
+        }
+        var candidates = data.candidates || [];
+        var ready = candidates.filter(function(item) { return item.phone; }).length;
+        var missing = candidates.length - ready;
+        output.textContent = data.serviceDate + ': ' + ready + ' customer' + (ready === 1 ? '' : 's') + ' ready' +
+            (missing ? '; ' + missing + ' missing a mobile number' : '') + '. Preview only - nothing was sent.';
+    }).catch(function(error) {
+        output.textContent = 'Could not load the preview: ' + error.message;
     });
 }
 

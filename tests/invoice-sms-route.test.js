@@ -239,6 +239,35 @@ it('uses the selected Copilot invoice owner instead of stale customer data', asy
                 outstanding: '303.48',
                 pastDue: '251.28',
               }],
+              invoices: [
+                {
+                  status: 'PAST_DUE',
+                  total: '61.64',
+                  paidAmount: '0',
+                  isSent: true,
+                  isArchived: false,
+                  isDeleted: 0,
+                  daysPastDue: 30,
+                },
+                {
+                  status: 'PARTIALLY_PAID',
+                  total: '179.63',
+                  paidAmount: '82.70',
+                  isSent: true,
+                  isArchived: false,
+                  isDeleted: 0,
+                  daysPastDue: 12,
+                },
+                {
+                  status: 'PENDING',
+                  total: '53.60',
+                  paidAmount: '0',
+                  isSent: true,
+                  isArchived: false,
+                  isDeleted: 0,
+                  daysPastDue: 0,
+                },
+              ],
             },
           };
         },
@@ -295,8 +324,8 @@ it('uses the selected Copilot invoice owner instead of stale customer data', asy
     assert.strictEqual(res.statusCode, 200);
     assert.strictEqual(res.body.preview.customer_name, 'Donna Martin');
     assert.strictEqual(res.body.preview.to, '+13302401681');
-    assert.strictEqual(res.body.preview.balance, 251.28);
-    assert.strictEqual(res.body.preview.total_outstanding, 303.48);
+    assert.strictEqual(res.body.preview.balance, 158.57);
+    assert.strictEqual(res.body.preview.total_outstanding, 212.17);
     assert.strictEqual(
       res.body.preview.invoice_url,
       'https://secure.copilotcrm.com/client/invoices/view/2907095/662adf33d6a27'

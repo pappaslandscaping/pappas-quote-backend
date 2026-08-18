@@ -239,6 +239,32 @@ async function queryCopilotGraphql(accessToken, operationName, query, variables)
   return payload;
 }
 
+function calculateCopilotCustomerBalances(invoices) {
+  if (!Array.isArray(invoices)) return null;
+
+  let outstandingCents = 0;
+  let pastDueCents = 0;
+  for (const invoice of invoices) {
+    const status = String(invoice?.status || '').trim().toUpperCase();
+    const isDeleted = Number(invoice?.isDeleted || 0) !== 0;
+    const isOutstandingStatus = ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(status);
+    if (invoice?.isArchived === true || isDeleted || invoice?.isSent !== true || !isOutstandingStatus) continue;
+
+    const totalCents = Math.round(parseInvoiceMoney(invoice.total) * 100);
+    const paidCents = Math.round(parseInvoiceMoney(invoice.paidAmount) * 100);
+    const remainingCents = Math.max(0, totalCents - paidCents);
+    outstandingCents += remainingCents;
+    if (status === 'PAST_DUE' || Number(invoice?.daysPastDue || 0) > 0) {
+      pastDueCents += remainingCents;
+    }
+  }
+
+  return {
+    totalOutstanding: outstandingCents / 100,
+    pastDue: pastDueCents / 100,
+  };
+}
+
 async function loadAuthoritativeCopilotInvoiceRecipient(invoice) {
   if (invoice?.__copilotInvoiceRecipient) return invoice.__copilotInvoiceRecipient;
 
@@ -285,20 +311,33 @@ async function loadAuthoritativeCopilotInvoiceRecipient(invoice) {
           outstanding
           pastDue
         }
+        invoices(
+          where: { customerId: { equals: $customerId } }
+          take: 5000
+        ) {
+          status
+          total
+          paidAmount
+          isSent
+          isArchived
+          isDeleted
+          daysPastDue
+        }
       }`,
       { customerId: authoritativeCustomerId }
     );
     const customer = customerPayload?.data?.customers?.[0];
     const portalKey = String(customer?.portalKey || '').trim();
     if (!customer || !portalKey) return null;
+    const calculatedBalances = calculateCopilotCustomerBalances(customerPayload?.data?.invoices);
 
     const recipient = {
       customerId: authoritativeCustomerId,
       customerName: String(customer.fullName || '').trim(),
       phone: String(customer.cell || customer.phone || '').trim(),
       portalKey,
-      totalOutstanding: parseInvoiceMoney(customer.outstanding),
-      pastDue: parseInvoiceMoney(customer.pastDue),
+      totalOutstanding: calculatedBalances?.totalOutstanding ?? parseInvoiceMoney(customer.outstanding),
+      pastDue: calculatedBalances?.pastDue ?? parseInvoiceMoney(customer.pastDue),
       invoiceUrl: `https://secure.copilotcrm.com/client/invoices/view/${encodeURIComponent(externalInvoiceId)}/${encodeURIComponent(portalKey)}`,
     };
     invoice.__copilotInvoiceRecipient = recipient;

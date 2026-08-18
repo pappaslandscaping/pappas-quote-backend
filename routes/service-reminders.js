@@ -4,7 +4,18 @@ const { getCopilotToken } = require('../services/copilot/client');
 
 const TIME_ZONE = 'America/New_York';
 const DEFAULT_START_DATE = '2026-08-20';
-const REMINDER_BODY = "This is Theresa from Pappas & Co. Landscaping. Reminder: we're scheduled to service your property tomorrow. Weather may affect arrival time. Thank you!";
+function formatServiceDate(serviceDate) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(`${serviceDate}T12:00:00.000Z`));
+}
+
+function buildReminderBody(serviceDate) {
+  return `Automated reminder from Pappas & Co. Landscaping:\n\nYour property is on our schedule for tomorrow, ${formatServiceDate(serviceDate)}.\n\nPlease note that weather or other unexpected delays may affect the schedule.\n\nQuestions? Reply to this text or email hello@pappaslandscaping.com.`;
+}
 
 function easternDateParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -121,7 +132,7 @@ function createServiceReminderRoutes({
         ...group,
         customerName: customer?.fullName || group.customerName,
         phone: normalizePhone(customer?.cell || customer?.phone),
-        body: REMINDER_BODY,
+        body: buildReminderBody(serviceDate),
         eventIds: group.jobs.map((job) => String(job.copilot_visit_id || job.visit_id)).filter(Boolean),
       });
     }
@@ -241,4 +252,4 @@ function createServiceReminderRoutes({
 }
 
 module.exports = createServiceReminderRoutes;
-module.exports._helpers = { addDays, easternDateParts, groupEligibleJobs, normalizePhone, tomorrowInEastern, REMINDER_BODY };
+module.exports._helpers = { addDays, buildReminderBody, easternDateParts, formatServiceDate, groupEligibleJobs, normalizePhone, tomorrowInEastern };

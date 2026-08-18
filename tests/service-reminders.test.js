@@ -1,7 +1,7 @@
 const assert = require('assert');
 const createServiceReminderRoutes = require('../routes/service-reminders');
 
-const { groupEligibleJobs, REMINDER_BODY, tomorrowInEastern } = createServiceReminderRoutes._helpers;
+const { buildReminderBody, groupEligibleJobs, tomorrowInEastern } = createServiceReminderRoutes._helpers;
 
 test('starts with August 20 service and computes tomorrow in Eastern time', () => {
   assert.strictEqual(tomorrowInEastern(new Date('2026-08-18T22:00:00Z')), '2026-08-19');
@@ -20,8 +20,8 @@ test('groups eligible Homeworks visits once per customer and excludes canceled w
   assert.strictEqual(groups[0].jobs.length, 2);
 });
 
-test('approved reminder stays in one GSM SMS segment', () => {
-  assert.ok(REMINDER_BODY.length <= 160);
-  assert.match(REMINDER_BODY, /^This is Theresa from Pappas & Co\. Landscaping\./);
-  assert.doesNotMatch(REMINDER_BODY, /[^\x00-\x7F]/);
+test('builds the approved automated reminder with the Homeworks service date', () => {
+  const body = buildReminderBody('2026-08-19');
+  assert.strictEqual(body, 'Automated reminder from Pappas & Co. Landscaping:\n\nYour property is on our schedule for tomorrow, Aug 19, 2026.\n\nPlease note that weather or other unexpected delays may affect the schedule.\n\nQuestions? Reply to this text or email hello@pappaslandscaping.com.');
+  assert.doesNotMatch(body, /[^\x00-\x7F]/);
 });

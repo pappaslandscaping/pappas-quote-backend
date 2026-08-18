@@ -37,6 +37,14 @@ function tomorrowInEastern(now = new Date()) {
   return addDays(`${parts.year}-${parts.month}-${parts.day}`, 1);
 }
 
+function requireNextDay(serviceDate, currentTime = new Date()) {
+  const expected = tomorrowInEastern(currentTime);
+  if (serviceDate !== expected) {
+    throw new Error(`Service reminders may only run for the next day (${expected})`);
+  }
+  return expected;
+}
+
 function normalizePhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
   if (digits.length === 10) return `+1${digits}`;
@@ -117,9 +125,13 @@ function createServiceReminderRoutes({
   }
 
   async function buildPreview(serviceDate) {
+    requireNextDay(serviceDate, now());
     const startDate = process.env.SERVICE_REMINDERS_START_DATE || DEFAULT_START_DATE;
     if (serviceDate < startDate) return { serviceDate, candidates: [], skippedBeforeStart: true };
     const schedule = await liveJobsProvider({ poolClient: pool, date: serviceDate, fetchImpl });
+    if (schedule?.freshness?.source !== 'live' || schedule?.freshness?.stale === true) {
+      throw new Error('A fresh live Homeworks schedule is unavailable; no reminders were sent');
+    }
     const groups = groupEligibleJobs(schedule.jobs);
     const tokenInfo = await tokenProvider(pool);
     const accessToken = extractAccessToken(tokenInfo?.cookieHeader);
@@ -200,7 +212,8 @@ function createServiceReminderRoutes({
 
   router.get('/api/service-reminders/preview', authenticateToken, async (req, res) => {
     try {
-      const serviceDate = String(req.query.date || tomorrowInEastern(now()));
+      if (req.query.date) return res.status(400).json({ success: false, error: 'Date overrides are not allowed' });
+      const serviceDate = tomorrowInEastern(now());
       res.json({ success: true, ...(await run(serviceDate, { dryRun: true })) });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
@@ -217,7 +230,10 @@ function createServiceReminderRoutes({
       return res.status(503).json({ success: false, error: 'Service reminders are not enabled' });
     }
     try {
-      const serviceDate = String(req.query.date || req.body?.date || tomorrowInEastern(now()));
+      if (req.query.date || req.body?.date) {
+        return res.status(400).json({ success: false, error: 'Date overrides are not allowed' });
+      }
+      const serviceDate = tomorrowInEastern(now());
       res.json({ success: true, ...(await run(serviceDate)) });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
@@ -252,4 +268,4 @@ function createServiceReminderRoutes({
 }
 
 module.exports = createServiceReminderRoutes;
-module.exports._helpers = { addDays, buildReminderBody, easternDateParts, formatServiceDate, groupEligibleJobs, normalizePhone, tomorrowInEastern };
+module.exports._helpers = { addDays, buildReminderBody, easternDateParts, formatServiceDate, groupEligibleJobs, normalizePhone, requireNextDay, tomorrowInEastern };

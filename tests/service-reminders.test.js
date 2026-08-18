@@ -1,11 +1,18 @@
 const assert = require('assert');
 const createServiceReminderRoutes = require('../routes/service-reminders');
 
-const { buildReminderBody, groupEligibleJobs, tomorrowInEastern } = createServiceReminderRoutes._helpers;
+const { buildReminderBody, groupEligibleJobs, requireNextDay, tomorrowInEastern } = createServiceReminderRoutes._helpers;
 
 test('starts with August 20 service and computes tomorrow in Eastern time', () => {
   assert.strictEqual(tomorrowInEastern(new Date('2026-08-18T22:00:00Z')), '2026-08-19');
   assert.strictEqual(tomorrowInEastern(new Date('2026-08-19T02:00:00Z')), '2026-08-19');
+});
+
+test('allows only the actual next Eastern calendar day', () => {
+  const now = new Date('2026-08-18T22:00:00Z');
+  assert.strictEqual(requireNextDay('2026-08-19', now), '2026-08-19');
+  assert.throws(() => requireNextDay('2026-08-18', now), /only run for the next day/);
+  assert.throws(() => requireNextDay('2026-08-20', now), /only run for the next day/);
 });
 
 test('groups eligible Homeworks visits once per customer and excludes canceled work', () => {

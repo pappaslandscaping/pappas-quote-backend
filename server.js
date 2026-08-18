@@ -3062,6 +3062,17 @@ const communicationRoutes = require('./routes/communications')({
 });
 app.use(communicationRoutes);
 
+// Tomorrow's Homeworks service reminders — sent through Twilio only after
+// the dedicated cron endpoint verifies the shared secret and feature flag.
+const serviceReminderRoutes = require('./routes/service-reminders')({
+  pool,
+  authenticateToken,
+  twilioClient: twilioAppMessagingClient,
+  twilioPhoneNumber: TWILIO_PHONE_NUMBER,
+});
+app.use(serviceReminderRoutes);
+serviceReminderRoutes.startScheduler();
+
 app.get('/api/service-area-review/send', async (req, res) => {
   const { token } = req.query;
   if (!token || typeof token !== 'string') {

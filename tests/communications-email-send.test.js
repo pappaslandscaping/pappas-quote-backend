@@ -89,6 +89,7 @@ describe('communications inbox email send route', () => {
 
     const router = createCommunicationRoutes({
       pool,
+      authenticateToken: (req, res, next) => next(),
       sendEmail,
       emailTemplate,
       escapeHtml: (value) => String(value)
@@ -129,6 +130,7 @@ describe('communications inbox email send route', () => {
 
     const router = createCommunicationRoutes({
       pool,
+      authenticateToken: (req, res, next) => next(),
       sendEmail,
       emailTemplate: (content) => content,
       escapeHtml: (value) => value,

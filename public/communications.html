@@ -1508,8 +1508,12 @@ async function sendReply(to) {
     if (!body) return;
     btn.disabled = true; txt.disabled = true;
     try {
+        const token = localStorage.getItem('adminToken');
         const res = await fetch(`${API}/api/messages/send`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers:{
+                'Content-Type':'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({to, body})
         });
         if (res.ok) {
@@ -1657,9 +1661,13 @@ async function sendReviewedGeneralText() {
     button.disabled = true;
     status.textContent = 'Sending this text...';
     try {
+        const token = localStorage.getItem('adminToken');
         const res = await fetch(`${API}/api/messages/send`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ to: generalTextRecipient.phone, body })
         });
         const data = await res.json().catch(() => ({}));
@@ -2349,9 +2357,13 @@ async function sendCallFollowup(callId) {
     btn.disabled = true;
     input.disabled = true;
     try {
+        const token = localStorage.getItem('adminToken');
         const res = await fetch(`${API}/api/messages/send`, {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: {
+                'Content-Type':'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ to: item.from, body })
         });
         if (!res.ok) throw new Error('Failed to send follow-up text');

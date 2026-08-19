@@ -598,7 +598,7 @@ async function lookupBroadcastJobsForCustomerOnDate(pool, customerId, jobDate, {
   return scheduledResult.rows;
 }
 
-function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, lookupCustomerByPhone, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
+function createCommunicationRoutes({ pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError, authenticateToken, twilioClient, smsReplyClient = twilioClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS = [], replaceTemplateVars, sendPushToAllDevices, lookupCustomerByPhone, liveJobsProvider = getCopilotLiveJobs, fetchImpl, RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink }) {
   const router = express.Router();
   const fetchFn = fetchImpl || global.fetch;
 
@@ -1619,11 +1619,13 @@ router.get('/api/messages', async (req, res) => {
 });
 
 // Send SMS from web dashboard
-router.post('/api/messages/send', validate(schemas.sendMessage), async (req, res) => {
-  return clientCommunicationsDisabledResponse(res);
+router.post('/api/messages/send', authenticateToken, validate(schemas.sendMessage), async (req, res) => {
   const { to, body } = req.body;
 
   try {
+    if (!twilioClient) {
+      return res.status(503).json({ success: false, error: 'Text messaging is not configured' });
+    }
     let formattedTo = to.replace(/\D/g, '');
     if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
     else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;

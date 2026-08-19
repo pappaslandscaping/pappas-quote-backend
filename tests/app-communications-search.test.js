@@ -150,6 +150,12 @@ describe('YardDesk general manual text composer', () => {
     expect(communicationsHtml).toContain('Send this text to');
     expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
   });
+
+  test('sends through the authenticated YardDesk SMS endpoint', () => {
+    expect(communicationsHtml).toContain("fetch(`${API}/api/messages/send`");
+    expect(communicationsHtml).toContain("'Authorization': `Bearer ${token}`");
+    expect(serverSource).toContain('authenticateToken, twilioClient, smsReplyClient: twilioAppMessagingClient');
+  });
 });
 
 

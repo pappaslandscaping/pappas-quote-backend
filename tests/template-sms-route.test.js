@@ -86,6 +86,7 @@ function createRouter({ pool, getTemplate, twilioCreate } = {}) {
     renderWithBaseLayout: async (html) => html,
     renderManagedEmail: async (html) => html,
     getTemplate: getTemplate || (async () => null),
+    authenticateToken: (req, res, next) => next(),
     escapeHtml: (value) => String(value ?? ''),
     serverError: (res, error) => res.status(500).json({ success: false, error: error.message }),
     twilioClient: { messages: { create: twilioCreate || (async () => ({ sid: 'SM-default', status: 'queued' })) } },
@@ -94,6 +95,42 @@ function createRouter({ pool, getTemplate, twilioCreate } = {}) {
     replaceTemplateVars,
   });
 }
+
+it('sends a manually reviewed YardDesk text through Twilio', async () => {
+  const sent = [];
+  const inserted = [];
+  const pool = {
+    async query(sql, params = []) {
+      if (sql.includes('SELECT id FROM customers')) return { rows: [{ id: 42 }] };
+      if (sql.includes('INSERT INTO messages')) {
+        inserted.push(params);
+        return { rows: [] };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const router = createRouter({
+    pool,
+    twilioCreate: async (payload) => {
+      sent.push(payload);
+      return { sid: 'SM-manual', status: 'queued' };
+    },
+  });
+
+  const res = await invokeRoute(router, '/api/messages/send', 'post', {
+    body: { to: '(813) 394-7342', body: 'Your account reminder.' },
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.success, true);
+  assert.deepStrictEqual(sent, [{
+    body: 'Your account reminder.',
+    from: '+14408867318',
+    to: '+18133947342',
+  }]);
+  assert.strictEqual(inserted.length, 1);
+  assert.strictEqual(inserted[0][5], 42);
+});
 
 it('blocks backend template SMS sends before generating YardDesk payment links', async () => {
   const sent = [];

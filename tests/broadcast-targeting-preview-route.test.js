@@ -89,6 +89,7 @@ function buildRouterWithQuerySpy({
 
   const router = createCommunicationRoutes({
     pool,
+    authenticateToken: (req, res, next) => next(),
     sendEmail,
     emailTemplate: (content) => content,
     renderManagedEmail: async (content) => content,

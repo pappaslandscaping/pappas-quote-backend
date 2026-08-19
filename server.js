@@ -3056,7 +3056,7 @@ app.use(campaignRoutes);
 // ═══════════════════════════════════════════════════════════
 const communicationRoutes = require('./routes/communications')({
   pool, sendEmail, emailTemplate, renderWithBaseLayout, renderManagedEmail, getTemplate, escapeHtml, serverError,
-  authenticateToken, twilioClient, smsReplyClient: twilioAppMessagingClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS, replaceTemplateVars, sendPushToAllDevices,
+  authenticateToken, twilioClient: twilioAppMessagingClient, smsReplyClient: twilioAppMessagingClient, TWILIO_PHONE_NUMBER, NOTIFICATION_EMAIL, SMS_REPLY_ALLOWED_SENDERS, replaceTemplateVars, sendPushToAllDevices,
   lookupCustomerByPhone: lookupAppCustomerByPhone,
   RESEND_API_KEY, SMS_REPLY_DOMAIN, SMS_REPLY_SECRET, buildServiceAreaReviewSendLink,
 });

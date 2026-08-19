@@ -154,7 +154,8 @@ describe('YardDesk general manual text composer', () => {
   test('sends through the authenticated YardDesk SMS endpoint', () => {
     expect(communicationsHtml).toContain("fetch(`${API}/api/messages/send`");
     expect(communicationsHtml).toContain("'Authorization': `Bearer ${token}`");
-    expect(serverSource).toContain('authenticateToken, twilioClient, smsReplyClient: twilioAppMessagingClient');
+    expect(serverSource).toContain('authenticateToken, twilioClient: twilioAppMessagingClient, smsReplyClient: twilioAppMessagingClient');
+    expect(communicationsHtml).toContain("data.error || data.message || 'Text failed to send'");
   });
 });
 

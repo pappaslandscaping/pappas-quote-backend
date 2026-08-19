@@ -1653,7 +1653,12 @@ router.post('/api/messages/send', authenticateToken, validate(schemas.sendMessag
     res.json({ success: true, sid: twilioMessage.sid });
   } catch (error) {
     console.error('Send SMS error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(502).json({
+      success: false,
+      error: error.message || 'Failed to send message',
+      code: error.code || null,
+      moreInfo: error.moreInfo || null,
+    });
   }
 });
 

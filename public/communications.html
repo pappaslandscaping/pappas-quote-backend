@@ -1671,7 +1671,7 @@ async function sendReviewedGeneralText() {
             body: JSON.stringify({ to: generalTextRecipient.phone, body })
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.success === false) throw new Error(data.error || 'Text failed to send');
+        if (!res.ok || data.success === false) throw new Error(data.error || data.message || 'Text failed to send');
         status.textContent = 'Text sent manually.';
         document.getElementById('general-sms-reviewed').checked = false;
         showToast('Text sent');

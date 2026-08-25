@@ -10702,6 +10702,51 @@ async function ensureAppManagedTemplates() {
         JSON.stringify({ wrapper: 'full' })
       ]
     );
+
+    const invoiceReadySms = `Hi {customer_first_name}, this is Pappas & Co. Landscaping.
+
+Your invoice #{invoice_number} is ready for review.
+
+This invoice: \${invoice_total}
+Total account balance due: \${customer_account_balance}
+
+Your total balance includes this invoice plus any other open balances or credits on your account.
+
+View and pay your invoice here:
+{invoices_links}
+
+You can also pay by Zelle using {company_email}.
+
+Questions? Call {company_phone} or email {company_email}.`;
+    await pool.query(
+      `INSERT INTO email_templates (name, slug, category, channel, subject, body, sms_body, variables, options, is_default, is_active)
+       VALUES ($1, $2, $3, $4, '', '', $5, $6, $7, false, true)
+       ON CONFLICT (slug) DO UPDATE SET
+         name = EXCLUDED.name,
+         category = EXCLUDED.category,
+         channel = EXCLUDED.channel,
+         sms_body = EXCLUDED.sms_body,
+         variables = EXCLUDED.variables,
+         options = EXCLUDED.options,
+         is_active = true`,
+      [
+        'Invoice Ready — SMS',
+        'invoice_ready_sms',
+        'invoices',
+        'sms',
+        invoiceReadySms,
+        JSON.stringify([
+          'customer_first_name',
+          'invoice_number',
+          'invoice_total',
+          'customer_account_balance',
+          'invoices_links',
+          'company_email',
+          'company_phone'
+        ]),
+        JSON.stringify({ source: 'invoice-text-composer' })
+      ]
+    );
   } catch (e) {
     console.error('App-managed template seed error:', e.message);
   }

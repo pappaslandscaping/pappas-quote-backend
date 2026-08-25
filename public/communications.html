@@ -1862,9 +1862,28 @@ function invoiceOutstandingAmount(invoice) {
     today.setHours(0, 0, 0, 0);
     const isPastDue = !Number.isNaN(dueDate.getTime()) && dueDate < today;
     const customerPastDue = Number(metadata.customer_past_due_balance ?? metadata.past_due_balance);
+    const customerAccountBalance = Number(
+        metadata.total_due_on_account
+        ?? metadata.total_due
+        ?? metadata.customer_account_balance
+        ?? metadata.customer_outstanding_balance
+    );
+    const customerKey = String(invoice?.customer_name || '').trim().toLowerCase();
+    const openInvoiceKeys = new Set(invoiceTextInvoices.filter(candidate => {
+        const status = String(candidate?.status || '').trim().toLowerCase();
+        return String(candidate?.customer_name || '').trim().toLowerCase() === customerKey
+            && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
+    }).map(candidate => String(candidate?.display_invoice_number || candidate?.invoice_number || candidate?.id || '')));
+
+    // A Copilot list row can carry a stale invoice total even though its customer
+    // standing is current. With exactly one open invoice, the authoritative account
+    // balance is also the amount of that invoice. Never use it when multiple invoices
+    // are open because that would turn an account-wide balance into a single invoice.
+    if (openInvoiceKeys.size === 1 && Number.isFinite(customerAccountBalance) && customerAccountBalance > 0) {
+        return customerAccountBalance;
+    }
 
     if (isPastDue && Number.isFinite(customerPastDue) && customerPastDue > 0) {
-        const customerKey = String(invoice?.customer_name || '').trim().toLowerCase();
         const overdueForCustomer = invoiceTextInvoices.filter(candidate => {
             if (String(candidate?.customer_name || '').trim().toLowerCase() !== customerKey) return false;
             const candidateDue = new Date(candidate?.due_date || candidate?.invoice_date || '');
@@ -1946,15 +1965,24 @@ function buildInvoiceReminderDraft(preview) {
 
 function invoiceSmsTemplateVars(preview) {
     const selectedInvoice = invoiceTextInvoices.find(invoice => String(invoice.id) === String(preview?.invoice_id));
+    const customerKey = String(preview?.customer_name || '').trim().toLowerCase();
+    const customerOpenInvoices = new Set(invoiceTextInvoices.filter(invoice => {
+        const status = String(invoice?.status || '').trim().toLowerCase();
+        return String(invoice?.customer_name || '').trim().toLowerCase() === customerKey
+            && !['paid', 'void', 'draft', 'cancelled', 'canceled'].includes(status);
+    }).map(invoice => String(invoice?.display_invoice_number || invoice?.invoice_number || invoice?.id || '')));
     const firstName = String(preview?.customer_name || '').trim().split(/\s+/)[0] || 'there';
     const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const invoiceTotal = customerOpenInvoices.size === 1
+        ? preview?.total_outstanding
+        : (selectedInvoice?.total ?? preview?.balance);
     return {
         customer_name: preview?.customer_name || '',
         customer_first_name: firstName,
         customer_phone: preview?.to || '',
         customer_account_balance: money(preview?.total_outstanding),
         invoice_number: preview?.invoice_number || '',
-        invoice_total: money(selectedInvoice?.total ?? preview?.balance),
+        invoice_total: money(invoiceTotal),
         balance_due: money(preview?.balance),
         invoices_links: preview?.invoice_url || '',
         invoice_link: preview?.invoice_url || '',

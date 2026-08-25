@@ -100,6 +100,13 @@ describe('YardDesk customer balance context', () => {
     expect(communicationsHtml).toContain('Do not add an "Invoice:" label');
     expect(communicationsHtml).toContain('Use no more than 65 words.');
   });
+
+  test('uses account balance as invoice amount only when the customer has one open invoice', () => {
+    expect(communicationsHtml).toContain('openInvoiceKeys.size === 1');
+    expect(communicationsHtml).toContain('customerOpenInvoices.size === 1');
+    expect(communicationsHtml).toContain('? preview?.total_outstanding');
+    expect(communicationsHtml).toContain('metadata.total_due_on_account');
+  });
 });
 
 describe('YardDesk invoice AI drafting', () => {

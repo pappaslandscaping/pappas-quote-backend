@@ -68,6 +68,13 @@ describe('YardDesk manual invoice text composer', () => {
     expect(communicationsHtml).toContain("document.getElementById('sms-compose-body').value = draft;");
     expect(communicationsHtml).toContain('AI draft prepared. Nothing was sent.');
   });
+
+  test('seeds the requested invoice SMS template with account balance and invoice link fields', () => {
+    expect(serverSource).toContain("'invoice_ready_sms'");
+    expect(serverSource).toContain('Total account balance due: \\${customer_account_balance}');
+    expect(serverSource).toContain('{invoices_links}');
+    expect(serverSource).toContain("'customer_account_balance'");
+  });
 });
 
 
@@ -156,6 +163,17 @@ describe('YardDesk general manual text composer', () => {
     expect(communicationsHtml).toContain("'Authorization': `Bearer ${token}`");
     expect(serverSource).toContain('authenticateToken, twilioClient: twilioAppMessagingClient, smsReplyClient: twilioAppMessagingClient');
     expect(communicationsHtml).toContain("data.error || data.message || 'Text failed to send'");
+  });
+
+  test('loads saved SMS templates and routes invoice templates through verified invoice data', () => {
+    expect(communicationsHtml).toContain('Text template');
+    expect(communicationsHtml).toContain('Choose a saved SMS template...');
+    expect(communicationsHtml).toContain("fetch('/api/templates')");
+    expect(communicationsHtml).toContain("['sms', 'both'].includes(channel)");
+    expect(communicationsHtml).toContain('applyGeneralSmsTemplate');
+    expect(communicationsHtml).toContain('invoiceSmsTemplateVars');
+    expect(communicationsHtml).toContain('customer_account_balance: money(preview?.total_outstanding)');
+    expect(communicationsHtml).toContain('invoices_links: preview?.invoice_url');
   });
 });
 

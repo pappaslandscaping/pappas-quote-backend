@@ -933,6 +933,12 @@
                     </select>
                 </div>
                 <div class="email-field">
+                    <label for="general-sms-template">Text template</label>
+                    <select class="email-select" id="general-sms-template" onchange="applyGeneralSmsTemplate(this.value)">
+                        <option value="">Choose a saved SMS template...</option>
+                    </select>
+                </div>
+                <div class="email-field">
                     <label for="general-sms-search">Customer name or phone number</label>
                     <div class="sms-compose-actions">
                         <input class="email-input" id="general-sms-search" type="text" placeholder="Search a customer or enter a phone number" oninput="generalRecipientSearchChanged()">
@@ -990,6 +996,12 @@
         </div>
         <div class="email-modal-body">
             <div class="email-form">
+                <div class="email-field">
+                    <label for="invoice-sms-template">Text template</label>
+                    <select class="email-select" id="invoice-sms-template" onchange="applyInvoiceSmsTemplate()">
+                        <option value="">Use the standard invoice reminder</option>
+                    </select>
+                </div>
                 <div class="invoice-lookup-grid">
                     <div class="email-field">
                         <label for="sms-invoice-search">Find an outstanding invoice</label>
@@ -1146,6 +1158,9 @@ let emailComposerState = {
 };
 let invoiceTextPreview = null;
 let invoiceTextInvoices = [];
+let smsTemplates = [];
+let smsTemplatesLoaded = false;
+let pendingInvoiceSmsTemplateId = '';
 let generalTextRecipients = [];
 let generalTextRecipient = null;
 
@@ -1532,9 +1547,85 @@ async function sendReply(to) {
 }
 
 
-function openGeneralTextComposer() {
+async function loadSmsTemplates() {
+    if (smsTemplatesLoaded) return smsTemplates;
+    const res = await fetch('/api/templates');
+    const data = await res.json();
+    if (!res.ok || data.success === false) throw new Error(data.error || 'Unable to load text templates');
+    smsTemplates = (data.templates || []).filter(template => {
+        const channel = String(template.channel || '').toLowerCase();
+        return template.is_active !== false
+            && String(template.sms_body || '').trim()
+            && ['sms', 'both'].includes(channel);
+    });
+    smsTemplatesLoaded = true;
+    populateSmsTemplateSelect('general-sms-template', 'Choose a saved SMS template...');
+    populateSmsTemplateSelect('invoice-sms-template', 'Use the standard invoice reminder', template => String(template.category || '').toLowerCase() === 'invoices');
+    return smsTemplates;
+}
+
+function populateSmsTemplateSelect(id, emptyLabel, filter = () => true) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    const currentValue = select.value;
+    const templates = smsTemplates.filter(filter);
+    select.innerHTML = `<option value="">${esc(emptyLabel)}</option>` + templates.map(template =>
+        `<option value="${esc(template.id)}">${esc(template.name)}</option>`
+    ).join('');
+    if (templates.some(template => String(template.id) === String(currentValue))) select.value = currentValue;
+}
+
+function findSmsTemplate(templateId) {
+    return smsTemplates.find(template => String(template.id) === String(templateId)) || null;
+}
+
+function renderSmsTemplate(templateBody, vars = {}) {
+    const values = Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, value == null ? '' : String(value)]));
+    return String(templateBody || '')
+        .replace(/\{\{([A-Z0-9_]+)\}\}/g, (match, key) => values[key.toLowerCase()] ?? match)
+        .replace(/\{([a-z0-9_]+)\}/g, (match, key) => values[key] ?? match)
+        .trim();
+}
+
+function basicSmsTemplateVars() {
+    const name = generalTextRecipient?.name || '';
+    return {
+        customer_name: name,
+        customer_first_name: name.trim().split(/\s+/)[0] || '',
+        customer_phone: generalTextRecipient?.phone || '',
+        company_name: 'Pappas & Co. Landscaping',
+        company_phone: '440-886-7318',
+        company_email: 'hello@pappaslandscaping.com',
+        company_website: 'https://www.pappaslandscaping.com',
+    };
+}
+
+async function applyGeneralSmsTemplate(templateId) {
+    const template = findSmsTemplate(templateId);
+    if (!template) return;
+    const isInvoiceTemplate = String(template.category || '').toLowerCase() === 'invoices'
+        || /\{\{?(?:INVOICE|CUSTOMER_ACCOUNT_BALANCE|INVOICES_LINKS)/i.test(template.sms_body || '');
+    if (isInvoiceTemplate) {
+        pendingInvoiceSmsTemplateId = String(template.id);
+        closeGeneralTextComposer();
+        await openInvoiceTextComposer();
+        return;
+    }
+    document.getElementById('general-sms-body').value = renderSmsTemplate(template.sms_body, basicSmsTemplateVars());
+    document.getElementById('general-sms-status').textContent = generalTextRecipient
+        ? 'Template applied. Review and edit it before sending.'
+        : 'Template applied. Choose a customer to fill customer details.';
+    generalTextChanged();
+}
+
+async function openGeneralTextComposer() {
     document.getElementById('general-sms-modal').classList.add('open');
     document.getElementById('general-sms-modal').setAttribute('aria-hidden', 'false');
+    try {
+        await loadSmsTemplates();
+    } catch (error) {
+        document.getElementById('general-sms-status').textContent = error.message || 'Unable to load text templates.';
+    }
     document.getElementById('general-sms-search').focus();
 }
 
@@ -1600,6 +1691,10 @@ function selectGeneralTextRecipient(value) {
         document.getElementById('general-sms-status').textContent = 'Recipient selected. Write the message or ask AI for a draft.';
     } else {
         preview.innerHTML = '<strong>No recipient selected</strong>Choose the correct customer and phone number.';
+    }
+    const selectedTemplate = findSmsTemplate(document.getElementById('general-sms-template').value);
+    if (selectedTemplate && String(selectedTemplate.category || '').toLowerCase() !== 'invoices') {
+        document.getElementById('general-sms-body').value = renderSmsTemplate(selectedTemplate.sms_body, basicSmsTemplateVars());
     }
     generalTextChanged();
 }
@@ -1689,6 +1784,11 @@ async function openInvoiceTextComposer() {
     document.getElementById('sms-send-status').textContent = 'Refreshing current invoices from Copilot...';
     invoiceTextPreview = null;
     try {
+        await loadSmsTemplates();
+        if (pendingInvoiceSmsTemplateId) {
+            document.getElementById('invoice-sms-template').value = pendingInvoiceSmsTemplateId;
+            pendingInvoiceSmsTemplateId = '';
+        }
         const token = localStorage.getItem('adminToken');
         if (token) {
             try {
@@ -1844,6 +1944,43 @@ function buildInvoiceReminderDraft(preview) {
     return `Hi ${firstName}! This is Theresa from Pappas & Co. Landscaping. ${balanceLine}${linkLine}\n\nIf you've already sent payment, please disregard this message. Thank you!`;
 }
 
+function invoiceSmsTemplateVars(preview) {
+    const selectedInvoice = invoiceTextInvoices.find(invoice => String(invoice.id) === String(preview?.invoice_id));
+    const firstName = String(preview?.customer_name || '').trim().split(/\s+/)[0] || 'there';
+    const money = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return {
+        customer_name: preview?.customer_name || '',
+        customer_first_name: firstName,
+        customer_phone: preview?.to || '',
+        customer_account_balance: money(preview?.total_outstanding),
+        invoice_number: preview?.invoice_number || '',
+        invoice_total: money(selectedInvoice?.total ?? preview?.balance),
+        balance_due: money(preview?.balance),
+        invoices_links: preview?.invoice_url || '',
+        invoice_link: preview?.invoice_url || '',
+        payment_link: preview?.invoice_url || '',
+        company_name: 'Pappas & Co. Landscaping',
+        company_phone: '440-886-7318',
+        company_email: 'hello@pappaslandscaping.com',
+        company_website: 'https://www.pappaslandscaping.com',
+    };
+}
+
+function applyInvoiceSmsTemplate() {
+    document.getElementById('sms-reviewed').checked = false;
+    if (!invoiceTextPreview) {
+        document.getElementById('sms-send-status').textContent = 'Template selected. Choose an invoice to fill its live customer and balance details.';
+        updateInvoiceTextSendState();
+        return;
+    }
+    const template = findSmsTemplate(document.getElementById('invoice-sms-template').value);
+    document.getElementById('sms-compose-body').value = template
+        ? renderSmsTemplate(template.sms_body, invoiceSmsTemplateVars(invoiceTextPreview))
+        : buildInvoiceReminderDraft(invoiceTextPreview);
+    document.getElementById('sms-send-status').textContent = 'Template applied with the selected invoice details. Review it before sending.';
+    updateInvoiceTextSendState();
+}
+
 async function prepareInvoiceTextPreview() {
     const invoiceId = document.getElementById('sms-invoice-select').value;
     const invoiceUrl = document.getElementById('sms-invoice-url').value.trim();
@@ -1894,8 +2031,11 @@ async function prepareInvoiceTextPreview() {
         document.getElementById('sms-invoice-url').value = invoiceTextPreview.invoice_url || '';
         document.getElementById('sms-phone').value = invoiceTextPreview.to || document.getElementById('sms-phone').value;
         const previewMatchesSelection = !selectedInvoice || String(data.preview.invoice_number || '') === String(invoiceTextPreview.invoice_number || '');
+        const selectedTemplate = findSmsTemplate(document.getElementById('invoice-sms-template').value);
         document.getElementById('sms-compose-body').value = previewMatchesSelection
-            ? buildInvoiceReminderDraft(invoiceTextPreview)
+            ? (selectedTemplate
+                ? renderSmsTemplate(selectedTemplate.sms_body, invoiceSmsTemplateVars(invoiceTextPreview))
+                : buildInvoiceReminderDraft(invoiceTextPreview))
             : '';
         document.getElementById('sms-recipient-preview').innerHTML = `<strong>${esc(invoiceTextPreview.customer_name)}</strong>${esc(fmtPhone(invoiceTextPreview.to))}<br>Total outstanding: ${esc(formatCurrency(invoiceTextPreview.total_outstanding))}<br>Currently past due: ${esc(formatCurrency(invoiceTextPreview.balance))}`;
         document.getElementById('sms-ai-btn').disabled = false;

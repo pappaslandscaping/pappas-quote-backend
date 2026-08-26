@@ -1,6 +1,8 @@
 const assert = require('assert');
 const createInvoiceRoutes = require('../routes/invoices');
 
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'invoice-sms-route-test-secret';
+
 const tests = [];
 
 function it(name, fn) {
@@ -588,6 +590,60 @@ it('accepts a manually reviewed phone when no customer record is linked', async 
 
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.preview.to, '+12165550123');
+});
+
+it('uses the signed refresh verification when the send-time Copilot lookup is unavailable', async () => {
+  const sent = [];
+  const invoice = {
+    id: 12566,
+    invoice_number: '12566',
+    external_invoice_id: '3570565',
+    customer_id: 88,
+    customer_name: 'Jeff Bentley',
+    customer_phone: '(216) 406-3306',
+    total: '38.88',
+    amount_paid: '0',
+    status: 'sent',
+    external_metadata: {
+      client_invoice_url: 'https://secure.copilotcrm.com/client/invoices/view/3570565/verified-token',
+    },
+  };
+  const pool = createPool(async (sql) => {
+    if (sql === 'SELECT * FROM invoices WHERE id = $1') return { rows: [{ ...invoice }] };
+    if (sql.includes('INSERT INTO messages')) return { rows: [] };
+    if (sql.includes('UPDATE invoices')) return { rows: [] };
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+  const router = createRouter({
+    pool,
+    getCopilotToken: async () => null,
+    sendSms: async (message) => {
+      sent.push(message);
+      return { sid: 'SM-verified-refresh', status: 'sent' };
+    },
+  });
+
+  const preview = await invokeRoute(router, '/api/invoices/:id/sms-preview', 'post', {
+    params: { id: '12566' },
+    body: {},
+  });
+  assert.strictEqual(preview.statusCode, 200);
+  assert.ok(preview.body.preview.verification_receipt);
+
+  const send = await invokeRoute(router, '/api/invoices/:id/send-sms', 'post', {
+    params: { id: '12566' },
+    body: {
+      body: preview.body.preview.body,
+      invoice_url: preview.body.preview.invoice_url,
+      phone: preview.body.preview.to,
+      verification_receipt: preview.body.preview.verification_receipt,
+      confirm_send: true,
+    },
+  });
+
+  assert.strictEqual(send.statusCode, 200);
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].to, '+12164063306');
 });
 
 describe('invoice-sms-route', () => {

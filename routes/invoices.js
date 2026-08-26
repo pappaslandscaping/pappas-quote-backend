@@ -366,6 +366,49 @@ function applyAuthoritativeCopilotInvoiceRecipient(invoice, recipient) {
   return invoice;
 }
 
+const INVOICE_SMS_VERIFICATION_TTL_MS = 30 * 60 * 1000;
+
+function createInvoiceSmsVerificationReceipt({ invoice, phone, invoiceUrl }) {
+  const secret = String(process.env.JWT_SECRET || '').trim();
+  if (!secret) return '';
+  const metadata = parseExternalMetadata(invoice?.external_metadata);
+  const payload = Buffer.from(JSON.stringify({
+    invoiceId: String(invoice?.id || ''),
+    externalInvoiceId: String(invoice?.external_invoice_id || metadata.external_invoice_id || ''),
+    phone: String(phone || '').replace(/\D/g, '').slice(-10),
+    invoiceUrl: String(invoiceUrl || '').trim(),
+    issuedAt: Date.now(),
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyInvoiceSmsVerificationReceipt(receipt, { invoice, phone, invoiceUrl }) {
+  const secret = String(process.env.JWT_SECRET || '').trim();
+  const [payload, signature, extra] = String(receipt || '').split('.');
+  if (!secret || !payload || !signature || extra) return false;
+  const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  const suppliedBytes = Buffer.from(signature);
+  const expectedBytes = Buffer.from(expectedSignature);
+  if (suppliedBytes.length !== expectedBytes.length || !crypto.timingSafeEqual(suppliedBytes, expectedBytes)) return false;
+
+  try {
+    const verified = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const metadata = parseExternalMetadata(invoice?.external_metadata);
+    const externalInvoiceId = String(invoice?.external_invoice_id || metadata.external_invoice_id || '');
+    const age = Date.now() - Number(verified.issuedAt);
+    return String(verified.invoiceId) === String(invoice?.id || '')
+      && String(verified.externalInvoiceId) === externalInvoiceId
+      && String(verified.phone) === String(phone || '').replace(/\D/g, '').slice(-10)
+      && String(verified.invoiceUrl) === String(invoiceUrl || '').trim()
+      && Number.isFinite(age)
+      && age >= -60 * 1000
+      && age <= INVOICE_SMS_VERIFICATION_TTL_MS;
+  } catch (_error) {
+    return false;
+  }
+}
+
 async function resolveTrustedCopilotInvoiceUrl(pool, invoice, suppliedUrl = '', phone = '') {
   const metadata = parseExternalMetadata(invoice?.external_metadata);
   const externalInvoiceId = String(
@@ -4743,17 +4786,23 @@ router.post('/api/invoices/:id/sms-preview', authenticateToken, async (req, res)
       req.body?.invoice_url,
       phone
     );
+    const normalizedPhone = normalizePhone(phone);
     return res.json({
       success: true,
       preview: {
         invoice_id: invoice.id,
         invoice_number: invoice.invoice_number || String(invoice.id),
         customer_name: invoice.customer_name || 'Customer',
-        to: normalizePhone(phone),
+        to: normalizedPhone,
         balance: invoiceReminderBalance(invoice),
         total_outstanding: getInvoiceCustomerStanding(invoice).totalOutstanding
           ?? invoiceReminderBalance(invoice),
         invoice_url: invoiceUrl,
+        verification_receipt: createInvoiceSmsVerificationReceipt({
+          invoice,
+          phone: normalizedPhone,
+          invoiceUrl,
+        }),
         body: invoiceUrl ? buildInvoiceReminderSms(invoice, invoiceUrl) : '',
       },
     });
@@ -4786,26 +4835,37 @@ router.post('/api/invoices/:id/send-sms', authenticateToken, async (req, res) =>
       || ''
     ).trim();
     const requiresAuthoritativeRecipient = /^\d+$/.test(externalInvoiceId);
+    const submittedPhone = String(req.body?.phone || '').replace(/\D/g, '').slice(-10);
+    const submittedInvoiceUrl = String(req.body?.invoice_url || '').trim();
 
     if (requiresAuthoritativeRecipient) {
       const authoritativeRecipient = await loadAuthoritativeCopilotInvoiceRecipient(invoice);
       if (!authoritativeRecipient?.phone || !authoritativeRecipient?.invoiceUrl) {
-        return res.status(409).json({
-          success: false,
-          error: 'The selected invoice recipient could not be verified. Refresh the customer details before sending.',
-        });
+        const hasVerifiedRefresh = verifyInvoiceSmsVerificationReceipt(
+          req.body?.verification_receipt,
+          { invoice, phone: submittedPhone, invoiceUrl: submittedInvoiceUrl }
+        );
+        if (!hasVerifiedRefresh) {
+          return res.status(409).json({
+            success: false,
+            error: 'The selected invoice recipient could not be verified. Refresh the customer details before sending.',
+          });
+        }
+        invoice.customer_phone = submittedPhone;
+        invoice.external_metadata = {
+          ...invoiceMetadata,
+          client_invoice_url: submittedInvoiceUrl,
+        };
+      } else {
+        const authoritativePhone = String(authoritativeRecipient.phone).replace(/\D/g, '').slice(-10);
+        if (submittedPhone && submittedPhone !== authoritativePhone) {
+          return res.status(409).json({
+            success: false,
+            error: 'The phone number does not match the selected invoice owner. Refresh the customer details before sending.',
+          });
+        }
+        applyAuthoritativeCopilotInvoiceRecipient(invoice, authoritativeRecipient);
       }
-
-      const submittedPhone = String(req.body?.phone || '').replace(/\D/g, '').slice(-10);
-      const authoritativePhone = String(authoritativeRecipient.phone).replace(/\D/g, '').slice(-10);
-      if (submittedPhone && submittedPhone !== authoritativePhone) {
-        return res.status(409).json({
-          success: false,
-          error: 'The phone number does not match the selected invoice owner. Refresh the customer details before sending.',
-        });
-      }
-
-      applyAuthoritativeCopilotInvoiceRecipient(invoice, authoritativeRecipient);
     }
 
     const phone = await resolveInvoiceSmsPhone(pool, invoice, req.body?.phone);

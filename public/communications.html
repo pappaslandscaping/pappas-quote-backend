@@ -2178,7 +2178,13 @@ async function sendReviewedInvoiceText() {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ body, invoice_url: invoiceUrl, phone: document.getElementById('sms-phone').value.trim(), confirm_send: true })
+            body: JSON.stringify({
+                body,
+                invoice_url: invoiceUrl,
+                phone: document.getElementById('sms-phone').value.trim(),
+                verification_receipt: invoiceTextPreview.verification_receipt,
+                confirm_send: true
+            })
         });
         const data = await res.json();
         if (!res.ok || data.success === false) throw new Error(data.error || 'Text failed to send');

@@ -222,6 +222,10 @@ function money(n) {
   if (Math.abs(num) >= 10000) return '$' + Math.round(num).toLocaleString();
   return '$' + num.toLocaleString(undefined, { minimumFractionDigits: num % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
 }
+function moneyExact(n) {
+  if (n == null || isNaN(n)) return '$0.00';
+  return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 function num(n) { return n == null ? '0' : Number(n).toLocaleString(); }
 function setText(id, value) { var el = document.getElementById(id); if (el) el.innerHTML = value; }
 function timeAgo(iso) {
@@ -332,8 +336,8 @@ async function loadStatCards() {
 
   function renderSnapshot(snapshot) {
     if (!snapshot) return false;
-    if (hasNumber(snapshot.revenue)) setText('stat-revenue', money(snapshot.revenue));
-    if (hasNumber(snapshot.outstanding)) setText('stat-outstanding', money(snapshot.outstanding));
+    if (hasNumber(snapshot.revenue)) setText('stat-revenue', moneyExact(snapshot.revenue));
+    if (hasNumber(snapshot.outstanding)) setText('stat-outstanding', moneyExact(snapshot.outstanding));
     if (hasNumber(snapshot.pipeline)) setText('stat-pipeline', money(snapshot.pipeline));
     if (hasNumber(snapshot.clients)) setText('stat-clients', num(snapshot.clients));
     renderHomeWorksMeta(snapshot);

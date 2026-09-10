@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-10
+
+- Connected qualified website quote requests to HomeWorks as Leads without overwriting existing customers.
+- Added conservative customer and property matching, manual review for conflicts, duplicate-submission protection, and visible sync failures.
+- Upgraded YardDesk quote requests with service-area status, follow-up deadlines, HomeWorks IDs, activity history, Tim handoffs, and direct text-composer links.
+- Added internal follow-up tasks for new website leads and urgent tasks plus email alerts when HomeWorks cannot connect.
+- Updated text drafting instructions to avoid em dashes.
+
 ## 2026-07-17
 
 - Added a shared internal AI insight and follow-up task foundation for the mobile app.

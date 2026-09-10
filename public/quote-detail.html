@@ -141,6 +141,12 @@
         .timeline-title { font-size: 13px; font-weight: 600; color: var(--gray-700); }
         .timeline-time { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
 
+        .integration-pill { display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:capitalize; }
+        .integration-good { background:var(--green-bg);color:var(--green); }
+        .integration-review { background:var(--amber-bg);color:var(--amber); }
+        .integration-bad { background:var(--red-bg);color:var(--red); }
+        .integration-neutral { background:var(--gray-100);color:var(--gray-600); }
+
         .loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--gray-400); }
         .loading-spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--forest); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 16px; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -231,6 +237,8 @@ function renderQuote() {
     const packageName = packageNames[q.package] || q.package || 'Individual Services';
     const services = Array.isArray(q.services) ? q.services : [];
     const submittedDate = new Date(q.created_at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const homeworksTone = ['created', 'linked'].includes(q.homeworks_sync_status) ? 'good' : ['error'].includes(q.homeworks_sync_status) ? 'bad' : ['review', 'partial'].includes(q.homeworks_sync_status) ? 'review' : 'neutral';
+    const photoNames = Array.isArray(q.photos) ? q.photos : (questions.photoFileNames || []);
 
     document.getElementById('pageContent').innerHTML = `
         <div class="detail-grid">
@@ -246,6 +254,7 @@ function renderQuote() {
                         <div class="info-row"><span class="info-label">Address</span><span class="info-value"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q.address)}" target="_blank">${esc(q.address)}</a></span></div>
                         <div class="info-row"><span class="info-label">City</span><span class="info-value">${esc(city) || '—'}</span></div>
                         <div class="info-row"><span class="info-label">Source</span><span class="info-value">${esc(q.source) || '—'}</span></div>
+                        <div class="info-row"><span class="info-label">Service Area</span><span class="info-value"><span class="integration-pill integration-${q.service_area_status === 'inside' ? 'good' : q.service_area_status === 'outside' ? 'bad' : 'review'}">${esc(q.service_area_status || 'review')}</span><br><small>${esc(q.service_area_reason || '')}</small></span></div>
                     </div>
                 </div>
 
@@ -279,6 +288,9 @@ function renderQuote() {
                     <div class="detail-card-body">
                         <div class="info-row"><span class="info-label">Contact Via</span><span class="info-value">${capitalize(contactMethod) || '—'}</span></div>
                         <div class="info-row"><span class="info-label">Start Timing</span><span class="info-value">${capitalize(startTiming) || '—'}</span></div>
+                        <div class="info-row"><span class="info-label">Frequency</span><span class="info-value">${esc(questions.frequency) || '—'}</span></div>
+                        <div class="info-row"><span class="info-label">Preferred Estimate</span><span class="info-value">${esc(questions.preferredEstimateDate) || '—'}</span></div>
+                        <div class="info-row"><span class="info-label">Alternate Date</span><span class="info-value">${esc(questions.alternateEstimateDate) || '—'}</span></div>
                         <div class="info-row"><span class="info-label">Transactional SMS</span><span class="info-value">${formatBoolean(smsConsent.transactional)}</span></div>
                         <div class="info-row"><span class="info-label">Marketing SMS</span><span class="info-value">${formatBoolean(smsConsent.marketing)}</span></div>
                         <div class="info-row"><span class="info-label">Terms Accepted</span><span class="info-value">${formatBoolean(smsConsent.termsAccepted)}</span></div>
@@ -291,6 +303,8 @@ function renderQuote() {
                         ${q.notes ? `<div class="notes-content">${esc(q.notes)}</div>` : `<div class="notes-content notes-empty">No additional notes provided</div>`}
                     </div>
                 </div>
+
+                ${photoNames.length ? `<div class="detail-card" style="margin-top:20px;"><div class="detail-card-header"><h3>Property Photos</h3></div><div class="detail-card-body"><p style="font-size:13px;color:var(--gray-600);">${photoNames.map(esc).join('<br>')}</p><p style="font-size:12px;color:var(--gray-400);margin-top:8px;">Open the matching Netlify form submission to view the uploaded files.</p></div></div>` : ''}
             </div>
 
             <div class="right-col">
@@ -303,6 +317,20 @@ function renderQuote() {
                             </select>
                             <button class="btn btn-primary" onclick="updateStatus()">Update</button>
                         </div>
+                        <div class="info-row" style="margin-top:12px;"><span class="info-label">Follow-up Due</span><span class="info-value">${q.follow_up_due_at ? new Date(q.follow_up_due_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : 'Not set'}</span></div>
+                        <div class="info-row"><span class="info-label">Assigned To</span><span class="info-value">${esc(q.assigned_to) || 'Unassigned'}</span></div>
+                        <div class="info-row"><span class="info-label">Tim Handoff</span><span class="info-value">${esc(q.tim_handoff_status || 'not sent').replace(/_/g, ' ')}</span></div>
+                    </div>
+                </div>
+
+                <div class="detail-card" style="margin-top: 20px;">
+                    <div class="detail-card-header"><h3>HomeWorks Connection</h3></div>
+                    <div class="detail-card-body">
+                        <div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="integration-pill integration-${homeworksTone}">${esc(q.homeworks_sync_status || 'pending')}</span></span></div>
+                        <div class="info-row"><span class="info-label">Customer ID</span><span class="info-value">${esc(q.homeworks_customer_id) || '—'}</span></div>
+                        <div class="info-row"><span class="info-label">Property ID</span><span class="info-value">${esc(q.homeworks_property_id) || '—'}</span></div>
+                        ${q.homeworks_sync_error ? `<div class="notes-content" style="margin-top:10px;color:var(--amber);">${esc(q.homeworks_sync_error)}</div>` : ''}
+                        <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-top:12px;" onclick="retryHomeWorks()">Check or Retry HomeWorks</button>
                     </div>
                 </div>
 
@@ -312,6 +340,10 @@ function renderQuote() {
                         <div class="quick-actions-list">
                             <a href="quote-generator.html?from_request=${quoteId}&name=${encodeURIComponent(q.name)}&email=${encodeURIComponent(q.email||'')}&phone=${encodeURIComponent(q.phone||'')}&address=${encodeURIComponent(q.address||'')}&package=${encodeURIComponent(q.package||'')}&services=${encodeURIComponent(JSON.stringify(services))}" class="quick-action-btn" style="background:var(--forest);color:var(--lime);font-weight:600;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>Create Quote</a>
                             <a href="quote-calculator.html?name=${encodeURIComponent(q.name)}&address=${encodeURIComponent(q.address||'')}" class="quick-action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg>Use Calculator</a>
+                            <a href="communications.html?compose=text&purpose=quote&phone=${encodeURIComponent(q.phone||'')}&name=${encodeURIComponent(q.name||'')}&request=${encodeURIComponent(services.join(', ') || q.package || '')}" class="quick-action-btn">Write a Text</a>
+                            <button class="quick-action-btn" onclick="copyTimHandoff()">Copy Tim Handoff</button>
+                            <button class="quick-action-btn" onclick="markTimHandoffSent()">Mark Tim Handoff Sent</button>
+                            <button class="quick-action-btn" onclick="setFollowUp()">Set Follow-up</button>
                             <button class="quick-action-btn danger" onclick="deleteQuote()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete Quote</button>
                         </div>
                     </div>
@@ -324,12 +356,87 @@ function renderQuote() {
                             <div class="timeline-dot"></div>
                             <div class="timeline-content"><div class="timeline-title">Quote request submitted</div><div class="timeline-time">${submittedDate}</div></div>
                         </div>
-                        ${q.updated_at && q.updated_at !== q.created_at ? `<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content"><div class="timeline-title">Status updated to ${q.status}</div><div class="timeline-time">${new Date(q.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div></div></div>` : ''}
+                        <div id="activityEvents">${q.updated_at && q.updated_at !== q.created_at ? `<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content"><div class="timeline-title">Record updated</div><div class="timeline-time">${new Date(q.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</div></div></div>` : ''}</div>
                     </div>
                 </div>
             </div>
         </div>
     `;
+    loadActivity();
+}
+
+function buildTimHandoff() {
+    const q = currentQuote;
+    const questions = parseQuestions(q.questions);
+    const services = Array.isArray(q.services) && q.services.length ? q.services.join(', ') : (q.package || 'Not specified');
+    return [
+        `Name: ${q.name || ''}`,
+        `Phone: ${q.phone || ''}`,
+        q.email ? `Email: ${q.email}` : null,
+        q.address ? `Address: ${q.address}` : null,
+        `Request: ${services}`,
+        questions.frequency ? `Frequency: ${questions.frequency}` : null,
+        questions.startTime ? `Timing: ${questions.startTime}` : null,
+        questions.contactMethod ? `Preferred contact: ${questions.contactMethod}` : null,
+        q.notes ? `Notes: ${q.notes}` : null,
+        q.homeworks_customer_id ? `HomeWorks customer: ${q.homeworks_customer_id}` : `HomeWorks: ${q.homeworks_sync_status || 'pending'}`,
+    ].filter(Boolean).join('\n');
+}
+
+async function copyTimHandoff() {
+    try {
+        await navigator.clipboard.writeText(buildTimHandoff());
+        await fetch(`/api/quotes/${quoteId}/tim-handoff`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sent: false }) });
+        showToast('Tim handoff copied. Nothing was sent.');
+    } catch (e) { showToast('Could not copy the handoff'); }
+}
+
+async function markTimHandoffSent() {
+    try {
+        const res = await fetch(`/api/quotes/${quoteId}/tim-handoff`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sent: true }) });
+        const data = await res.json();
+        if (!data.success) throw new Error();
+        currentQuote = data.quote;
+        renderQuote();
+        showToast('Tim handoff marked as sent');
+    } catch (e) { showToast('Could not update the Tim handoff'); }
+}
+
+async function retryHomeWorks() {
+    showToast('Checking HomeWorks...');
+    try {
+        const res = await fetch(`/api/quotes/${quoteId}/homeworks-sync`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Sync failed');
+        currentQuote = data.quote;
+        renderQuote();
+        showToast('HomeWorks check complete');
+    } catch (e) { showToast('HomeWorks needs attention'); loadQuote(); }
+}
+
+async function setFollowUp() {
+    const value = prompt('Enter the follow-up date and time, for example 2026-09-11 9:00 AM');
+    if (!value) return;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return showToast('Please enter a valid date and time');
+    try {
+        const res = await fetch(`/api/quotes/${quoteId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ followUpDueAt: date.toISOString() }) });
+        const data = await res.json();
+        if (!data.success) throw new Error();
+        currentQuote = data.quote;
+        renderQuote();
+        showToast('Follow-up saved');
+    } catch (e) { showToast('Could not save follow-up'); }
+}
+
+async function loadActivity() {
+    try {
+        const res = await fetch(`/api/quotes/${quoteId}/activity`);
+        const data = await res.json();
+        const holder = document.getElementById('activityEvents');
+        if (!holder || !data.success) return;
+        holder.innerHTML = data.events.map(event => `<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content"><div class="timeline-title">${esc(event.description)}</div><div class="timeline-time">${new Date(event.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}</div></div></div>`).join('');
+    } catch (e) { /* Base activity remains visible. */ }
 }
 
 function renderTag(label, value) {

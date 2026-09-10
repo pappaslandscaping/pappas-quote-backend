@@ -1740,7 +1740,7 @@ async function draftGeneralTextWithAi() {
             },
             body: JSON.stringify({
                 contactName: generalTextRecipient.name,
-                prompt: `Write a concise, friendly customer text from Pappas & Co. Landscaping. Topic: ${purpose}. Instructions: ${instructions}. Do not invent dates, prices, promises, or details. Return only the text message.`
+                prompt: `Write a concise, friendly customer text from Pappas & Co. Landscaping. Topic: ${purpose}. Instructions: ${instructions}. Do not invent dates, prices, promises, or details. Do not use em dashes. Return only the text message.`
             })
         });
         const data = await res.json();
@@ -2149,8 +2149,8 @@ async function draftInvoiceTextWithAi() {
             body: JSON.stringify({
                 contactName: invoiceTextPreview.customer_name,
                 prompt: invoiceTextPreview.balance > 0
-                    ? `Write a short, natural invoice reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say ${formatCurrency(invoiceTextPreview.balance)} is currently past due.${invoiceTextPreview.total_outstanding > invoiceTextPreview.balance ? ` Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding)}.` : ''} ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
-                    : `Write a short, natural reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say they have an outstanding invoice for ${formatCurrency(invoiceTextPreview.total_outstanding)}. Do not use the words "past due," "overdue," or "nothing currently past due." ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
+                    ? `Write a short, natural invoice reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say ${formatCurrency(invoiceTextPreview.balance)} is currently past due.${invoiceTextPreview.total_outstanding > invoiceTextPreview.balance ? ` Their total outstanding balance is ${formatCurrency(invoiceTextPreview.total_outstanding)}.` : ''} ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label, use em dashes, or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
+                    : `Write a short, natural reminder to ${invoiceTextPreview.customer_name}. Always begin exactly with "Hi [first name]! This is Theresa from Pappas & Co. Landscaping." Say they have an outstanding invoice for ${formatCurrency(invoiceTextPreview.total_outstanding)}. Do not use the words "past due," "overdue," or "nothing currently past due." ${aiInstruction ? `Follow this instruction from the user: ${aiInstruction}` : 'Use a friendly, concise, professional tone.'} ${existingDraft ? `Improve this editable draft: ${existingDraft}` : ''} ${invoiceUrl ? `Keep this exact link unchanged on its own line: ${invoiceUrl}.` : 'Do not invent a link.'} End by saying they can disregard the message if payment was already sent. Do not add an "Invoice:" label, use em dashes, or repeat the company name as a signature. Use no more than 65 words. Return only the finished text.`
             })
         });
         const data = await res.json();
@@ -2792,6 +2792,19 @@ function getProxiedRecordingUrl(recordingUrl) {
 document.addEventListener('DOMContentLoaded', () => {
     loadFeed();
     setInterval(loadFeed, 30000);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('compose') === 'text' && params.get('phone')) {
+        openGeneralTextComposer().then(() => {
+            document.getElementById('general-sms-purpose').value = params.get('purpose') || 'general';
+            document.getElementById('general-sms-search').value = params.get('phone');
+            const name = params.get('name') || 'this lead';
+            const request = params.get('request');
+            document.getElementById('general-sms-instructions').value = request
+                ? `Follow up with ${name} about their request for ${request}. Ask if they are still looking for service.`
+                : `Follow up with ${name} and ask if they are still looking for service.`;
+            findGeneralTextRecipients();
+        });
+    }
 });
 
 // Universal Search

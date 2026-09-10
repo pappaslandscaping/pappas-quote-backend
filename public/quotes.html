@@ -258,6 +258,16 @@
         .status-cancelled { background: var(--red-bg); color: var(--red); }
         .status-cancelled::before { background: var(--red); }
 
+        .integration-pill { display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap; }
+        .integration-created,.integration-linked { background:var(--green-bg);color:var(--green); }
+        .integration-pending,.integration-checking { background:var(--blue-bg);color:var(--blue); }
+        .integration-review,.integration-partial,.integration-error { background:var(--amber-bg);color:var(--amber); }
+        .integration-skipped,.integration-unavailable { background:var(--gray-100);color:var(--gray-500); }
+        .area-inside { color:var(--green); }
+        .area-review { color:var(--amber); }
+        .area-outside { color:var(--red); }
+        .due-now { color:var(--red);font-weight:700; }
+
         .view-arrow {
             color: var(--gray-300);
             transition: color 0.15s, transform 0.15s;
@@ -440,14 +450,14 @@
                 </div>
                 <div class="stat-value" id="weekCount">—</div>
             </div>
-            <div class="stat-card" onclick="filterByCard('completed')">
+            <div class="stat-card" onclick="filterByCard('due')">
                 <div class="stat-header">
-                    <span class="stat-label">Completed</span>
+                    <span class="stat-label">Follow-ups Due</span>
                     <div class="stat-icon icon-green">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     </div>
                 </div>
-                <div class="stat-value" id="completedCount">—</div>
+                <div class="stat-value" id="dueCount">—</div>
             </div>
         </div>
 
@@ -479,9 +489,9 @@
                     <tr>
                         <th>Date</th>
                         <th>Customer</th>
-                        <th>Phone</th>
                         <th>Address</th>
-                        <th>Package</th>
+                        <th>Follow-up</th>
+                        <th>HomeWorks</th>
                         <th>Status</th>
                         <th style="width: 40px;"></th>
                     </tr>
@@ -569,7 +579,7 @@
                 document.getElementById('totalCount').textContent = data.stats.total;
                 document.getElementById('newCount').textContent = data.stats.byStatus.new || 0;
                 document.getElementById('weekCount').textContent = data.stats.lastWeek;
-                document.getElementById('completedCount').textContent = data.stats.byStatus.completed || 0;
+                document.getElementById('dueCount').textContent = data.stats.followUpsDue || 0;
             }
         } catch (e) {
             console.error('Stats error:', e);
@@ -618,6 +628,13 @@
             const pkg = q.package
                 ? { essential: 'Essential', complete: 'Complete', premium: 'Premium' }[q.package] || q.package
                 : 'Individual';
+            const questions = parseQuestions(q.questions);
+            const request = Array.isArray(q.services) && q.services.length ? q.services.join(', ') : pkg;
+            const dueDate = q.follow_up_due_at ? new Date(q.follow_up_due_at) : null;
+            const due = dueDate ? dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Not set';
+            const overdue = dueDate && dueDate < new Date() && !['completed', 'cancelled'].includes(q.status);
+            const syncStatus = q.homeworks_sync_status || 'pending';
+            const syncLabel = { created: 'Lead created', linked: 'Connected', pending: 'Pending', checking: 'Checking', review: 'Review match', partial: 'Needs attention', error: 'Sync failed', skipped: 'Not synced', unavailable: 'Unavailable' }[syncStatus] || syncStatus;
 
             const tr = document.createElement('tr');
             tr.className = 'clickable-row';
@@ -626,11 +643,11 @@
                 <td style="color: var(--gray-400); font-size: 12px; font-weight: 500;">${date}</td>
                 <td>
                     <div class="td-name">${esc(q.name)}</div>
-                    <div class="td-sub">${esc(q.email)}</div>
+                    <div class="td-sub">${esc(q.phone)} · ${esc(request)}</div>
                 </td>
-                <td class="td-phone"><a href="tel:${q.phone}" onclick="event.stopPropagation()">${esc(q.phone)}</a></td>
-                <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(q.address)}</td>
-                <td><span style="font-size: 12px; font-weight: 600; color: var(--gray-600);">${pkg}</span></td>
+                <td style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(q.address)}<div class="td-sub area-${esc(q.service_area_status || 'review')}">${esc(q.service_area_status || 'review')}</div></td>
+                <td class="${overdue ? 'due-now' : ''}">${overdue ? 'Due ' : ''}${due}<div class="td-sub">${esc(questions.contactMethod || '')}</div></td>
+                <td><span class="integration-pill integration-${esc(syncStatus)}">${esc(syncLabel)}</span></td>
                 <td><span class="status-pill status-${q.status}">${q.status}</span></td>
                 <td>
                     <svg class="view-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
@@ -648,9 +665,10 @@
     function filterTable() {
         const term = document.getElementById('searchInput').value.toLowerCase();
         const filtered = allQuotes.filter(q =>
-            q.name.toLowerCase().includes(term) ||
-            q.address.toLowerCase().includes(term) ||
-            q.email.toLowerCase().includes(term)
+            String(q.name || '').toLowerCase().includes(term) ||
+            String(q.address || '').toLowerCase().includes(term) ||
+            String(q.email || '').toLowerCase().includes(term) ||
+            String(q.phone || '').toLowerCase().includes(term)
         );
         renderTable(filtered);
     }
@@ -663,6 +681,11 @@
             filterSelect.value = 'new';
         } else if (type === 'completed') {
             filterSelect.value = 'completed';
+        } else if (type === 'due') {
+            filterSelect.value = '';
+            const now = new Date();
+            renderTable(allQuotes.filter(q => q.follow_up_due_at && new Date(q.follow_up_due_at) <= now && !['completed', 'cancelled'].includes(q.status)));
+            return;
         } else if (type === 'week') {
             filterSelect.value = '';
         }
@@ -671,7 +694,7 @@
 
     function exportToCSV() {
         if (!allQuotes.length) return showToast('No quotes to export');
-        const headers = ['Date','Name','Phone','Email','Address','City','Property Type','Package','Services','Status','Source','Gate','Dogs','Overgrown','Contact Method','Start Timing','Backyard Access','Transactional SMS','Marketing SMS','Terms Accepted','Notes'];
+        const headers = ['Date','Name','Phone','Email','Address','City','Property Type','Package','Services','Status','Source','Service Area','HomeWorks Status','HomeWorks Customer ID','Follow Up Due','Assigned To','Tim Handoff','Frequency','Preferred Estimate Date','Alternate Estimate Date','Gate','Dogs','Overgrown','Contact Method','Start Timing','Backyard Access','Transactional SMS','Marketing SMS','Terms Accepted','Photos','Notes'];
         const rows = allQuotes.map(q => {
             const questions = parseQuestions(q.questions);
             const smsConsent = questions.smsConsent || questions.sms_consent || {};
@@ -682,7 +705,8 @@
                 questions.propertyType || questions.property_type || '',
                 q.package || 'Individual',
                 Array.isArray(q.services) ? q.services.join('; ') : '',
-                q.status, q.source || '',
+                q.status, q.source || '', q.service_area_status || '', q.homeworks_sync_status || '', q.homeworks_customer_id || '', q.follow_up_due_at || '', q.assigned_to || '', q.tim_handoff_status || '',
+                questions.frequency || '', questions.preferredEstimateDate || '', questions.alternateEstimateDate || '',
                 questions.gate || '',
                 questions.dogs || '',
                 questions.lawnHeight || questions.overgrown || '',
@@ -692,6 +716,7 @@
                 formatBoolean(smsConsent.transactional),
                 formatBoolean(smsConsent.marketing),
                 formatBoolean(smsConsent.termsAccepted),
+                Array.isArray(q.photos) ? q.photos.join('; ') : '',
                 q.notes || ''
             ];
         });

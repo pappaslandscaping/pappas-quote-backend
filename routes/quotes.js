@@ -8,6 +8,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { validate, schemas } = require('../lib/validate');
 const { clientCommunicationsDisabledResponse } = require('../lib/client-communications');
+const { classifyServiceArea, syncWebsiteLead } = require('../services/copilot/website-leads');
 
 module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serverError, authenticateToken, verifyRecaptcha, RECAPTCHA_SECRET_KEY, NOTIFICATION_EMAIL, LOGO_URL, FROM_EMAIL, COMPANY_NAME, SERVICE_DESCRIPTIONS, getServiceDescription, nextCustomerNumber, anthropicClient, ensureQuoteEventsTable: _ensureQuoteEventsTable, generateQuotePDF, generateContractPDF, emailTemplate }) {
   const router = express.Router();
@@ -47,6 +48,15 @@ module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serve
     copyIfPresent('contactMethod', 'contactMethod');
     copyIfPresent('startTime', 'startTime');
     copyIfPresent('backyardAccess', 'backyardAccess');
+    copyIfPresent('frequency', 'frequency');
+    copyIfPresent('propertyType', 'propertyType');
+    copyIfPresent('preferredEstimateDate', 'preferredEstimateDate');
+    copyIfPresent('alternateEstimateDate', 'alternateEstimateDate');
+    copyIfPresent('landingPage', 'landingPage');
+    copyIfPresent('referrer', 'referrer');
+    copyIfPresent('utmSource', 'utmSource');
+    copyIfPresent('utmMedium', 'utmMedium');
+    copyIfPresent('utmCampaign', 'utmCampaign');
 
     if (body.package !== undefined && body.package !== null && body.package !== '') {
       existing.selectedPackage = body.package;
@@ -56,6 +66,9 @@ module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serve
     }
     if (body.notes !== undefined && body.notes !== null && body.notes !== '') {
       existing.notes = body.notes;
+    }
+    if (Array.isArray(body.photos) && body.photos.length) {
+      existing.photoFileNames = body.photos.map(value => String(value)).slice(0, 3);
     }
 
     if (body.consentTransactional !== undefined) smsConsent.transactional = body.consentTransactional === true || body.consentTransactional === 'yes';
@@ -90,6 +103,15 @@ module.exports = function createQuoteRoutes({ pool, sendEmail, escapeHtml, serve
       ['Lawn over 6 inches', questions.lawnHeight || questions.overgrown],
       ['Preferred Contact Method', questions.contactMethod || questions.contact_method],
       ['Start Timing', questions.startTime || questions.start_timing],
+      ['Service Frequency', questions.frequency],
+      ['Preferred Estimate Date', questions.preferredEstimateDate || questions.preferred_estimate_date],
+      ['Alternate Estimate Date', questions.alternateEstimateDate || questions.alternate_estimate_date],
+      ['Photo Files', Array.isArray(questions.photoFileNames) ? questions.photoFileNames.join(', ') : ''],
+      ['Landing Page', questions.landingPage],
+      ['Referrer', questions.referrer],
+      ['UTM Source', questions.utmSource],
+      ['UTM Medium', questions.utmMedium],
+      ['UTM Campaign', questions.utmCampaign],
       ['Backyard Access', questions.backyardAccess || questions.backyard_access],
       ['Transactional SMS Consent', formatBooleanAnswer(smsConsent.transactional)],
       ['Marketing SMS Consent', formatBooleanAnswer(smsConsent.marketing)],
@@ -260,6 +282,7 @@ router.post('/api/quotes', async (req, res) => {
       else if (typeof services === 'string' && services.length > 0) servicesArray = services.split(',').map(s => s.trim());
     }
     const normalizedQuestions = normalizeQuoteQuestions(req.body, fullName, servicesArray);
+    const serviceArea = classifyServiceArea(address, normalizedQuestions.city);
 
     if (quoteTestMode) {
       if (!fullName || !email || !phone || !address) {
@@ -312,15 +335,95 @@ router.post('/api/quotes', async (req, res) => {
     if (!fullName || !email || !phone || !address) {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
+    const fingerprint = crypto.createHash('sha256').update([
+      String(email || '').trim().toLowerCase(),
+      String(phone || '').replace(/\D/g, ''),
+      String(address || '').trim().toLowerCase(),
+      JSON.stringify(servicesArray || []),
+      new Date().toISOString().slice(0, 13),
+    ].join('|')).digest('hex');
     const result = await pool.query(
-      `INSERT INTO quotes (name, email, phone, address, package, services, questions, notes, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [fullName, email, phone, address, pkg || null, servicesArray, JSON.stringify(normalizedQuestions), notes || null, source || null]
+      `INSERT INTO quotes (
+         name, email, phone, address, package, services, questions, notes, source,
+         service_area_status, service_area_reason, homeworks_sync_status,
+         follow_up_due_at, photos, submission_fingerprint
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP + INTERVAL '1 day', $13, $14)
+       ON CONFLICT (submission_fingerprint) WHERE submission_fingerprint IS NOT NULL
+       DO UPDATE SET submission_fingerprint = EXCLUDED.submission_fingerprint
+       RETURNING *, (xmax = 0) AS was_inserted`,
+      [
+        fullName, email, phone, address, pkg || null, servicesArray,
+        JSON.stringify(normalizedQuestions), notes || null, source || null,
+        serviceArea.status, serviceArea.reason,
+        serviceArea.status === 'inside' ? 'pending' : serviceArea.status === 'outside' ? 'skipped' : 'review',
+        JSON.stringify(normalizedQuestions.photoFileNames || []),
+        fingerprint,
+      ]
     );
-    res.json({ success: true, quote: result.rows[0] });
+    const savedQuote = result.rows[0];
+    res.json({ success: true, duplicate: !savedQuote.was_inserted, quote: savedQuote });
+
+    if (!savedQuote.was_inserted) return;
+
+    await pool.query(
+      'INSERT INTO quote_lead_events (quote_id, event_type, description, details) VALUES ($1, $2, $3, $4)',
+      [savedQuote.id, 'submitted', 'Website quote request submitted.', JSON.stringify({ serviceArea })]
+    ).catch(() => {});
+
+    if (serviceArea.status === 'inside') {
+      await pool.query(
+        `INSERT INTO app_ai_tasks (
+           title, details, priority, task_type, source_type, source_id, phone_number,
+           due_at, dedupe_key, metadata, created_by
+         ) VALUES ($1, $2, 'high', 'quote_lead', 'website_quote', $3, $4,
+           CURRENT_TIMESTAMP + INTERVAL '1 day', $5, $6::jsonb, 'Website')
+         ON CONFLICT (dedupe_key) DO NOTHING`,
+        [
+          `Follow up with ${fullName}`,
+          `${servicesArray?.join(', ') || 'Quote request'} at ${address}`,
+          String(savedQuote.id),
+          phone,
+          `website-quote:${savedQuote.id}`,
+          JSON.stringify({ quoteId: savedQuote.id, serviceAreaStatus: serviceArea.status }),
+        ]
+      ).catch(error => console.warn('Could not create website lead follow-up task:', error.message));
+    }
+
+    if (serviceArea.status === 'inside') {
+      setImmediate(() => syncWebsiteLead({ pool, quoteId: savedQuote.id }).catch(async error => {
+        console.error('HomeWorks website lead sync failed:', error);
+        await pool.query(
+          `UPDATE quotes SET homeworks_sync_status = 'error', homeworks_sync_error = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [String(error.message || error).slice(0, 1000), savedQuote.id]
+        ).catch(() => {});
+        await pool.query(
+          `INSERT INTO app_ai_tasks (
+             title, details, priority, task_type, source_type, source_id, phone_number,
+             due_at, dedupe_key, metadata, created_by
+           ) VALUES ($1, $2, 'urgent', 'integration_issue', 'website_quote', $3, $4,
+             CURRENT_TIMESTAMP, $5, $6::jsonb, 'HomeWorks Sync')
+           ON CONFLICT (dedupe_key) DO UPDATE SET details = EXCLUDED.details, status = 'open', updated_at = CURRENT_TIMESTAMP`,
+          [
+            `Fix HomeWorks connection for ${fullName}`,
+            String(error.message || error).slice(0, 1000),
+            String(savedQuote.id), phone,
+            `website-quote-homeworks-error:${savedQuote.id}`,
+            JSON.stringify({ quoteId: savedQuote.id }),
+          ]
+        ).catch(() => {});
+        try {
+          await Promise.resolve(sendEmail(
+            NOTIFICATION_EMAIL,
+            `HomeWorks lead connection needs attention: ${fullName}`,
+            `<h2>HomeWorks Lead Connection Needs Attention</h2><p>The website request was saved in YardDesk, but HomeWorks did not connect.</p><p><strong>Customer:</strong> ${escapeHtml(fullName)}</p><p><strong>Phone:</strong> ${escapeHtml(phone)}</p><p><strong>Address:</strong> ${escapeHtml(address)}</p><p><strong>Error:</strong> ${escapeHtml(String(error.message || error))}</p><p><a href="${(process.env.BASE_URL || 'https://app.pappaslandscaping.com')}/quote-detail.html?id=${savedQuote.id}">Open this lead in YardDesk</a></p>`
+          ));
+        } catch { /* YardDesk still records the failed connection. */ }
+      }));
+    }
     
     // Send detailed notification email
     const servicesText = servicesArray ? servicesArray.join(', ') : 'None specified';
-    const dashboardUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/quote-requests.html';
+    const dashboardUrl = (process.env.BASE_URL || 'https://app.pappaslandscaping.com') + '/quotes.html';
     const questionRows = buildQuoteQuestionEmailRows(normalizedQuestions);
     
     const emailHtml = `
@@ -356,9 +459,17 @@ router.post('/api/quotes/admin', authenticateToken, async (req, res) => {
       if (Array.isArray(services)) servicesArray = services;
       else if (typeof services === 'string' && services.length > 0) servicesArray = services.split(',').map(s => s.trim());
     }
+    const serviceArea = classifyServiceArea(address, questions?.city);
     const result = await pool.query(
-      `INSERT INTO quotes (name, email, phone, address, package, services, questions, notes, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [fullName, email || null, phone, address || null, pkg || null, servicesArray, JSON.stringify(questions || {}), notes || null, source || 'phone_call']
+      `INSERT INTO quotes (
+         name, email, phone, address, package, services, questions, notes, source,
+         service_area_status, service_area_reason, homeworks_sync_status, follow_up_due_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP + INTERVAL '1 day') RETURNING *`,
+      [
+        fullName, email || null, phone, address || null, pkg || null, servicesArray,
+        JSON.stringify(questions || {}), notes || null, source || 'phone_call',
+        serviceArea.status, serviceArea.reason, serviceArea.status === 'inside' ? 'pending' : 'review',
+      ]
     );
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) {
@@ -389,11 +500,78 @@ router.get('/api/quotes/:id', async (req, res) => {
   } catch (error) { serverError(res, error); }
 });
 
+router.get('/api/quotes/:id/activity', async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid quote ID' });
+    const result = await pool.query('SELECT * FROM quote_lead_events WHERE quote_id = $1 ORDER BY created_at DESC', [req.params.id]);
+    res.json({ success: true, events: result.rows });
+  } catch (error) { serverError(res, error); }
+});
+
+router.post('/api/quotes/:id/homeworks-sync', authenticateToken, async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid quote ID' });
+    await syncWebsiteLead({ pool, quoteId: Number(req.params.id), force: true });
+    const result = await pool.query('SELECT * FROM quotes WHERE id = $1', [req.params.id]);
+    res.json({ success: true, quote: result.rows[0] });
+  } catch (error) {
+    await pool.query(
+      `UPDATE quotes SET homeworks_sync_status = 'error', homeworks_sync_error = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [String(error.message || error).slice(0, 1000), req.params.id]
+    ).catch(() => {});
+    serverError(res, error);
+  }
+});
+
+router.post('/api/quotes/:id/tim-handoff', authenticateToken, async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid quote ID' });
+    const handoffStatus = req.body?.sent === true ? 'sent' : 'prepared';
+    const result = await pool.query(
+      `UPDATE quotes SET assigned_to = 'Tim', tim_handoff_status = $1,
+       tim_handoff_at = CASE WHEN $1 = 'sent' THEN CURRENT_TIMESTAMP ELSE tim_handoff_at END,
+       updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
+      [handoffStatus, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Quote not found' });
+    await pool.query(
+      'INSERT INTO quote_lead_events (quote_id, event_type, description) VALUES ($1, $2, $3)',
+      [req.params.id, `tim_handoff_${handoffStatus}`, handoffStatus === 'sent' ? 'Marked the Tim handoff as sent.' : 'Prepared the lead for Tim.']
+    ).catch(() => {});
+    res.json({ success: true, quote: result.rows[0] });
+  } catch (error) { serverError(res, error); }
+});
+
 router.patch('/api/quotes/:id', async (req, res) => {
   try {
-    const { status } = req.body;
-    const result = await pool.query('UPDATE quotes SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
+    const allowedStatuses = ['new', 'contacted', 'quoted', 'scheduled', 'completed', 'cancelled'];
+    const { status, followUpDueAt, assignedTo } = req.body;
+    if (status && !allowedStatuses.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
+    const result = await pool.query(
+      `UPDATE quotes SET
+         status = COALESCE($1, status),
+         contacted_at = CASE WHEN $1 = 'contacted' AND contacted_at IS NULL THEN CURRENT_TIMESTAMP ELSE contacted_at END,
+         follow_up_due_at = CASE WHEN $2::text IS NULL THEN follow_up_due_at ELSE $2::timestamp END,
+         assigned_to = COALESCE($3, assigned_to),
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4 RETURNING *`,
+      [status || null, followUpDueAt === undefined ? null : followUpDueAt, assignedTo || null, req.params.id]
+    );
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Quote not found' });
+    if (followUpDueAt !== undefined) {
+      await pool.query(
+        `UPDATE app_ai_tasks SET due_at = $1::timestamp, status = 'open', completed_at = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE dedupe_key = $2`,
+        [followUpDueAt, `website-quote:${req.params.id}`]
+      ).catch(() => {});
+    }
+    if (status && ['scheduled', 'completed', 'cancelled'].includes(status)) {
+      await pool.query(
+        `UPDATE app_ai_tasks SET status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE dedupe_key = $1 AND status = 'open'`,
+        [`website-quote:${req.params.id}`]
+      ).catch(() => {});
+    }
     res.json({ success: true, quote: result.rows[0] });
   } catch (error) { serverError(res, error); }
 });

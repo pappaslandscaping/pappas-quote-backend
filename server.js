@@ -3212,13 +3212,25 @@ app.use(quickbooksRoutes);
 
 app.get('/api/stats', async (req, res) => {
   try {
-    const [totalResult, statusResult] = await Promise.all([
+    const [totalResult, statusResult, workflowResult] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM quotes'),
-      pool.query('SELECT status, COUNT(*) FROM quotes GROUP BY status')
+      pool.query('SELECT status, COUNT(*) FROM quotes GROUP BY status'),
+      pool.query(`SELECT
+        COUNT(*) FILTER (WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days')::int AS last_week,
+        COUNT(*) FILTER (WHERE follow_up_due_at <= CURRENT_TIMESTAMP AND status NOT IN ('completed', 'cancelled'))::int AS follow_ups_due,
+        COUNT(*) FILTER (WHERE homeworks_sync_status IN ('error', 'partial', 'review'))::int AS homeworks_attention
+        FROM quotes`)
     ]);
     const byStatus = {};
     statusResult.rows.forEach(row => { byStatus[row.status] = parseInt(row.count); });
-    res.json({ success: true, stats: { total: parseInt(totalResult.rows[0].count), byStatus } });
+    const workflow = workflowResult.rows[0] || {};
+    res.json({ success: true, stats: {
+      total: parseInt(totalResult.rows[0].count),
+      byStatus,
+      lastWeek: Number(workflow.last_week || 0),
+      followUpsDue: Number(workflow.follow_ups_due || 0),
+      homeworksAttention: Number(workflow.homeworks_attention || 0),
+    } });
   } catch (error) { serverError(res, error); }
 });
 

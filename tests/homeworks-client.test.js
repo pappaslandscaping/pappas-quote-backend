@@ -1,9 +1,11 @@
 const {
   extractAccessToken,
+  fetchHomeWorksBusinessSummary,
   fetchHomeWorksEvents,
   fetchHomeWorksIntegrationStatus,
   mapHomeWorksEventToLiveJob,
   queryHomeWorksGraphql,
+  summarizeHomeWorksBusinessData,
 } = require('../services/homeworks/client');
 
 describe('official HomeWorks API client', () => {
@@ -122,5 +124,50 @@ describe('official HomeWorks API client', () => {
       quickbooks: { recentInvoiceFailures: 1, recentInvoiceFailureIds: [4] },
     });
   });
-});
 
+  test('summarizes official HomeWorks balances, customers, invoices, and current-month payments', () => {
+    const summary = summarizeHomeWorksBusinessData({
+      now: new Date('2026-09-10T20:00:00Z'),
+      customers: [
+        { id: 1, outstanding: '100.25', pastDue: '20.00' },
+        { id: 2, outstanding: '49.75', pastDue: '0' },
+      ],
+      invoices: [
+        { id: 11, status: 'PENDING', isSent: true, isArchived: false, isDeleted: false },
+        { id: 12, status: 'PAST_DUE', daysPastDue: 4, isSent: true, isArchived: false, isDeleted: false },
+        { id: 13, status: 'DRAFT', isSent: false, isArchived: false, isDeleted: false },
+      ],
+      payments: [
+        { id: 21, date: '2026-09-08', totalAmount: '75.50' },
+        { id: 22, date: '2026-08-30', totalAmount: '20.00' },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      source: 'official_homeworks_graphql',
+      financials: { outstanding: 150, pastDue: 20, collectedThisMonth: 75.5 },
+      counts: { customers: 2, customersPastDue: 1, outstandingInvoices: 2, pastDueInvoices: 1, paymentsThisMonth: 1 },
+    });
+  });
+
+  test('fetches the business summary from known official GraphQL fields', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: {
+        customers: [{ id: 1, outstanding: '80', pastDue: '10' }],
+        invoices: [{ id: 2, status: 'PAST_DUE', isSent: true, isArchived: false, isDeleted: false, daysPastDue: 2 }],
+        payments: [{ id: 3, date: '2026-09-10', totalAmount: '25' }],
+      } }),
+    });
+    const summary = await fetchHomeWorksBusinessSummary({
+      accessToken: 'token',
+      fetchImpl,
+      now: new Date('2026-09-10T20:00:00Z'),
+    });
+    expect(summary.financials).toMatchObject({ outstanding: 80, pastDue: 10, collectedThisMonth: 25 });
+    const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(request.operationName).toBe('YardDeskBusinessSummary');
+    expect(request.query).toContain('customers(take: 5000');
+    expect(request.query).toContain('payments(take: 5000');
+  });
+});

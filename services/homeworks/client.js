@@ -3,6 +3,19 @@ const { getCopilotToken } = require('../copilot/client');
 const HOMEWORKS_GRAPHQL_URL = 'https://api.copilotcrm.com/graphql';
 const DEFAULT_TIMEOUT_MS = 15000;
 
+function parseMoney(value) {
+  const amount = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function getMonthKey(value = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(value);
+}
+
 function extractAccessToken(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -186,9 +199,73 @@ async function fetchHomeWorksIntegrationStatus({ pool, fetchImpl = fetch, access
   };
 }
 
+function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payments = [], now = new Date() }) {
+  const monthKey = getMonthKey(now);
+  const activeInvoices = invoices.filter((invoice) => invoice?.isDeleted !== true && invoice?.isArchived !== true);
+  const outstandingInvoices = activeInvoices.filter((invoice) => (
+    invoice?.isSent === true
+    && ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(String(invoice?.status || '').toUpperCase())
+  ));
+  const pastDueInvoices = outstandingInvoices.filter((invoice) => (
+    String(invoice?.status || '').toUpperCase() === 'PAST_DUE'
+    || Number(invoice?.daysPastDue || 0) > 0
+  ));
+  const monthPayments = payments.filter((payment) => String(payment?.date || '').slice(0, 7) === monthKey);
+
+  const outstanding = customers.reduce((sum, customer) => sum + parseMoney(customer?.outstanding), 0);
+  const pastDue = customers.reduce((sum, customer) => sum + parseMoney(customer?.pastDue), 0);
+  const collectedThisMonth = monthPayments.reduce((sum, payment) => sum + parseMoney(payment?.totalAmount), 0);
+
+  return {
+    source: 'official_homeworks_graphql',
+    asOf: new Date().toISOString(),
+    financials: {
+      outstanding: Number(outstanding.toFixed(2)),
+      pastDue: Number(pastDue.toFixed(2)),
+      collectedThisMonth: Number(collectedThisMonth.toFixed(2)),
+      currency: 'USD',
+    },
+    counts: {
+      customers: customers.length,
+      customersPastDue: customers.filter((customer) => parseMoney(customer?.pastDue) > 0).length,
+      outstandingInvoices: outstandingInvoices.length,
+      pastDueInvoices: pastDueInvoices.length,
+      paymentsThisMonth: monthPayments.length,
+    },
+  };
+}
+
+async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessToken, now = new Date() }) {
+  const data = await queryHomeWorksGraphql({
+    pool,
+    accessToken,
+    fetchImpl,
+    operationName: 'YardDeskBusinessSummary',
+    query: `query YardDeskBusinessSummary {
+      customers(take: 5000, where: { isDeleted: false }) {
+        id outstanding pastDue
+      }
+      invoices(take: 5000, orderBy: [{ updatedAt: desc }, { id: desc }], where: { isDeleted: false }) {
+        id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
+      }
+      payments(take: 5000, orderBy: [{ date: desc }, { id: desc }]) {
+        id date totalAmount method methodDisplayName
+      }
+    }`,
+  });
+
+  return summarizeHomeWorksBusinessData({
+    customers: data.customers || [],
+    invoices: data.invoices || [],
+    payments: data.payments || [],
+    now,
+  });
+}
+
 module.exports = {
   HOMEWORKS_GRAPHQL_URL,
   extractAccessToken,
+  fetchHomeWorksBusinessSummary,
   fetchHomeWorksEvents,
   fetchHomeWorksIntegrationStatus,
   formatPropertyAddress,
@@ -196,4 +273,5 @@ module.exports = {
   mapHomeWorksEventToLiveJob,
   queryHomeWorksGraphql,
   stripHtml,
+  summarizeHomeWorksBusinessData,
 };

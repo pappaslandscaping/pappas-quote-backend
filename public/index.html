@@ -49,22 +49,22 @@
         <article class="dashboard-card stat-card">
           <p class="stat-card-label">Revenue This Month</p>
           <h2 class="stat-card-value" id="stat-revenue"><span class="skeleton">$0</span></h2>
-          <p class="stat-card-meta" id="stat-revenue-meta">collected to date</p>
+          <p class="stat-card-meta" id="stat-revenue-meta">HomeWorks collected payments</p>
         </article>
         <article class="dashboard-card stat-card">
           <p class="stat-card-label">Outstanding</p>
           <h2 class="stat-card-value" id="stat-outstanding"><span class="skeleton">$0</span></h2>
-          <p class="stat-card-meta">open balance</p>
+          <p class="stat-card-meta" id="stat-outstanding-meta">HomeWorks open balance</p>
         </article>
         <article class="dashboard-card stat-card">
           <p class="stat-card-label">Pipeline Value</p>
           <h2 class="stat-card-value" id="stat-pipeline"><span class="skeleton">$0</span></h2>
-          <p class="stat-card-meta">unsigned quote dollars</p>
+          <p class="stat-card-meta">YardDesk unsigned quotes</p>
         </article>
         <article class="dashboard-card stat-card">
-          <p class="stat-card-label">Active Clients</p>
+          <p class="stat-card-label">HomeWorks Customers</p>
           <h2 class="stat-card-value" id="stat-clients"><span class="skeleton">0</span></h2>
-          <p class="stat-card-meta">current season</p>
+          <p class="stat-card-meta" id="stat-clients-meta">official customer records</p>
         </article>
       </div>
 
@@ -153,7 +153,7 @@
               <a class="attention-item" href="invoices.html?status=overdue">
                 <div>
                   <p class="attention-item-meta">Billing</p>
-                  <p class="attention-item-title">Overdue invoices</p>
+                  <p class="attention-item-title">Customers past due</p>
                 </div>
                 <div class="attention-item-count urgent" id="attn-overdue">—</div>
               </a>
@@ -286,8 +286,10 @@ async function loadHeroSubtitle() {
 
 // ── Top metrics ─────────────────────────────────────────────
 async function loadStatCards() {
-  var storageKey = 'homeDashboardTopCards';
+  var storageKey = 'homeworksDashboardTopCardsV2';
   var revenueMetaEl = document.getElementById('stat-revenue-meta');
+  var outstandingMetaEl = document.getElementById('stat-outstanding-meta');
+  var clientsMetaEl = document.getElementById('stat-clients-meta');
 
   function readSnapshot() {
     try {
@@ -320,23 +322,12 @@ async function loadStatCards() {
     });
   }
 
-  function renderRevenueMeta(snapshot) {
-    if (!revenueMetaEl) return;
-    var source = snapshot && snapshot.revenue_source;
+  function renderHomeWorksMeta(snapshot) {
     var asOfText = formatAsOf(snapshot && snapshot.revenue_as_of);
-    if (source === 'live_copilot' || source === 'copilot') {
-      revenueMetaEl.textContent = asOfText ? ('collected to date • Copilot as of ' + asOfText) : 'collected to date • Copilot live';
-      return;
-    }
-    if (source === 'persisted_copilot_snapshot' || source === 'copilot_snapshot') {
-      revenueMetaEl.textContent = asOfText ? ('collected to date • Copilot snapshot as of ' + asOfText) : 'collected to date • Copilot snapshot';
-      return;
-    }
-    if (source === 'database_fallback') {
-      revenueMetaEl.textContent = 'collected to date • database fallback';
-      return;
-    }
-    revenueMetaEl.textContent = 'collected to date';
+    var sourceText = asOfText ? ('Official HomeWorks API as of ' + asOfText) : 'Official HomeWorks API';
+    if (revenueMetaEl) revenueMetaEl.textContent = 'collected this month • ' + sourceText;
+    if (outstandingMetaEl) outstandingMetaEl.textContent = 'open balance • ' + sourceText;
+    if (clientsMetaEl) clientsMetaEl.textContent = 'customer records • ' + sourceText;
   }
 
   function renderSnapshot(snapshot) {
@@ -345,7 +336,7 @@ async function loadStatCards() {
     if (hasNumber(snapshot.outstanding)) setText('stat-outstanding', money(snapshot.outstanding));
     if (hasNumber(snapshot.pipeline)) setText('stat-pipeline', money(snapshot.pipeline));
     if (hasNumber(snapshot.clients)) setText('stat-clients', num(snapshot.clients));
-    renderRevenueMeta(snapshot);
+    renderHomeWorksMeta(snapshot);
     return true;
   }
 
@@ -360,49 +351,25 @@ async function loadStatCards() {
     }
   }
 
-  function withFallback(promise, onSuccess) {
-    return promise.then(function(value) {
-      if (value) onSuccess(value);
-      return value;
-    }).catch(function() {
-      return null;
+  var summary = await getJson('/api/homeworks/summary');
+  if (summary && summary.source === 'official_homeworks_graphql') {
+    updateSnapshot({
+      revenue: Number(summary.financials && summary.financials.collectedThisMonth || 0),
+      outstanding: Number(summary.financials && summary.financials.outstanding || 0),
+      clients: Number(summary.counts && summary.counts.customers || 0),
+      revenue_as_of: summary.asOf || null
     });
+  } else if (!cached) {
+    setText('stat-revenue', 'Unavailable');
+    setText('stat-outstanding', 'Unavailable');
+    setText('stat-clients', 'Unavailable');
+    if (revenueMetaEl) revenueMetaEl.textContent = 'HomeWorks connection unavailable';
+    if (outstandingMetaEl) outstandingMetaEl.textContent = 'HomeWorks connection unavailable';
+    if (clientsMetaEl) clientsMetaEl.textContent = 'HomeWorks connection unavailable';
   }
 
-  withFallback(getJson('/api/finance/summary'), function(finance) {
-    var partial = {};
-    var revenue = finance && finance.thisMonth && finance.thisMonth.revenue;
-    if (hasNumber(revenue)) {
-      partial.revenue = Number(revenue);
-      partial.revenue_source = finance.thisMonth.revenue_source || null;
-      partial.revenue_as_of = finance.thisMonth.revenue_as_of || null;
-    }
-    var outstanding = finance && finance.outstanding && finance.outstanding.totalOutstanding;
-    if (hasNumber(outstanding)) partial.outstanding = Number(outstanding);
-    updateSnapshot(partial);
-  });
-
-  withFallback(getJson('/api/invoices/stats'), function(invStatsResponse) {
-    var invStats = invStatsResponse && (invStatsResponse.stats || invStatsResponse);
-    if (!invStats) return;
-    var partial = {};
-    if (!hasNumber((readSnapshot() || {}).revenue) && hasNumber(invStats.paidThisMonth)) {
-      partial.revenue = Number(invStats.paidThisMonth);
-    }
-    var currentOutstanding = (readSnapshot() || {}).outstanding;
-    if ((!hasNumber(currentOutstanding) || Number(currentOutstanding) <= 0) && hasNumber(invStats.outstanding) && Number(invStats.outstanding) > 0) {
-      partial.outstanding = Number(invStats.outstanding);
-    }
-    updateSnapshot(partial);
-  });
-
-  withFallback(getJson('/api/customers/stats'), function(custStatsResponse) {
-    var custStats = custStatsResponse && (custStatsResponse.stats || custStatsResponse);
-    var clients = custStats && (custStats.active != null ? custStats.active : (custStats.total_active != null ? custStats.total_active : custStats.total));
-    if (hasNumber(clients)) updateSnapshot({ clients: Number(clients) });
-  });
-
-  withFallback(getJson('/api/sent-quotes?limit=500'), function(sentQuotes) {
+  var sentQuotes = await getJson('/api/sent-quotes?limit=500');
+  if (sentQuotes) {
     if (!sentQuotes || !Array.isArray(sentQuotes.quotes)) return;
     var pipeline = 0;
     sentQuotes.quotes.forEach(function(q) {
@@ -411,7 +378,7 @@ async function loadStatCards() {
       }
     });
     updateSnapshot({ pipeline: pipeline });
-  });
+  }
 }
 var loadStats = loadStatCards;
 
@@ -481,10 +448,10 @@ async function loadOperations() {
 // ── Attention rail ──────────────────────────────────────────
 async function loadAttention() {
   var today = new Date().toISOString().slice(0, 10);
-  var [workRequestStats, sentQuotes, invStatsResponse, todayJobs] = await Promise.all([
+  var [workRequestStats, sentQuotes, homeWorksSummary, todayJobs] = await Promise.all([
     getJson('/api/work-requests/stats'),
     getJson('/api/sent-quotes?limit=1'),
-    getJson('/api/invoices/stats'),
+    getJson('/api/homeworks/summary'),
     getJson('/api/jobs?date=' + today),
   ]);
 
@@ -508,8 +475,7 @@ async function loadAttention() {
       if (q.status === 'changes_requested') changesReq++;
     });
   }
-  var invStats = invStatsResponse && (invStatsResponse.stats || invStatsResponse);
-  var overdue = Number(invStats && invStats.overdue || 0);
+  var overdue = Number(homeWorksSummary && homeWorksSummary.counts && homeWorksSummary.counts.customersPastDue || 0);
   var unassignedToday = 0;
   if (todayJobs && Array.isArray(todayJobs.jobs)) {
     todayJobs.jobs.forEach(function(j) {

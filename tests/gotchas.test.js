@@ -378,3 +378,14 @@ describe('Customer name fallback chain', () => {
     expect(portalDashboard.length).toBeGreaterThan(0);
   });
 });
+
+describe('Public quote intake safety', () => {
+  test('production can never acknowledge a quote without saving it', () => {
+    expect(quotesCode).toContain(
+      "process.env.NODE_ENV !== 'production' && process.env.QUOTE_TEST_MODE === 'true'"
+    );
+    expect(quotesCode).not.toContain(
+      "const quoteTestMode = process.env.QUOTE_TEST_MODE === 'true';"
+    );
+  });
+});

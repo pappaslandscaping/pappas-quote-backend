@@ -274,7 +274,9 @@ router.get('/api/sent-quotes/:id', async (req, res) => {
 router.post('/api/quotes', async (req, res) => {
   try {
     const { name, firstName, lastName, email, phone, address, package: pkg, services, notes, source, recaptchaToken } = req.body;
-    const quoteTestMode = process.env.QUOTE_TEST_MODE === 'true';
+    // Never allow the live website to acknowledge a real customer request
+    // without saving it. QUOTE_TEST_MODE is only for local/test environments.
+    const quoteTestMode = process.env.NODE_ENV !== 'production' && process.env.QUOTE_TEST_MODE === 'true';
     const fullName = name || ((firstName || '') + ' ' + (lastName || '')).trim();
     let servicesArray = null;
     if (services) {

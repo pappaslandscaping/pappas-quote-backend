@@ -3,6 +3,7 @@ const path = require('path');
 
 const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
 const communicationsHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'communications.html'), 'utf8');
+const communicationsRouteSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'communications.js'), 'utf8');
 
 function routeSource(startMarker, endMarker) {
   const start = serverSource.indexOf(startMarker);
@@ -160,9 +161,18 @@ describe('YardDesk general manual text composer', () => {
   test('AI drafts only and every text requires review and confirmation', () => {
     expect(communicationsHtml).toContain('AI draft prepared. Review and edit it. Nothing was sent.');
     expect(communicationsHtml).toContain("if (!generalTextRecipient || !document.getElementById('general-sms-reviewed').checked) return;");
-    expect(communicationsHtml).toContain('I reviewed the customer, phone number, and message.');
+    expect(communicationsHtml).toContain('I reviewed the recipient, phone number, permission to text, and message.');
     expect(communicationsHtml).toContain('Send this text to');
     expect(communicationsHtml).toContain('It has no automatic or scheduled sending.');
+  });
+
+  test('allows a valid standalone phone number without creating a customer', () => {
+    expect(communicationsHtml).toContain('Customer name or standalone phone number');
+    expect(communicationsHtml).toContain('Find or Use Number');
+    expect(communicationsHtml).toContain("name: 'One-time recipient', phone, isOneTime: true");
+    expect(communicationsHtml).toContain('This will not create a customer record.');
+    expect(communicationsHtml).toContain('One-time number — no customer record will be created');
+    expect(communicationsRouteSource).toContain("error: 'Enter a valid 10-digit US phone number'");
   });
 
   test('sends through the authenticated YardDesk SMS endpoint', () => {

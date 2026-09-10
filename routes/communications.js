@@ -1627,8 +1627,11 @@ router.post('/api/messages/send', authenticateToken, validate(schemas.sendMessag
       return res.status(503).json({ success: false, error: 'Text messaging is not configured' });
     }
     let formattedTo = to.replace(/\D/g, '');
+    if (formattedTo.length === 11 && formattedTo.startsWith('1')) formattedTo = formattedTo.slice(1);
+    if (formattedTo.length !== 10) {
+      return res.status(400).json({ success: false, error: 'Enter a valid 10-digit US phone number' });
+    }
     if (formattedTo.length === 10) formattedTo = '+1' + formattedTo;
-    else if (!formattedTo.startsWith('+')) formattedTo = '+' + formattedTo;
 
     const twilioMessage = await twilioClient.messages.create({
       body,

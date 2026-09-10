@@ -199,9 +199,10 @@ async function fetchHomeWorksIntegrationStatus({ pool, fetchImpl = fetch, access
   };
 }
 
-function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payments = [], now = new Date() }) {
+function summarizeHomeWorksBusinessData({ customers = [], invoices = null, payments = [], now = new Date() }) {
   const monthKey = getMonthKey(now);
-  const activeInvoices = invoices.filter((invoice) => invoice?.isDeleted !== true && invoice?.isArchived !== true);
+  const invoicesAvailable = Array.isArray(invoices);
+  const activeInvoices = (invoices || []).filter((invoice) => invoice?.isDeleted !== true && invoice?.isArchived !== true);
   const outstandingInvoices = activeInvoices.filter((invoice) => (
     invoice?.isSent === true
     && ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(String(invoice?.status || '').toUpperCase())
@@ -213,8 +214,16 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payment
   const paymentsAvailable = Array.isArray(payments);
   const monthPayments = (payments || []).filter((payment) => String(payment?.date || '').slice(0, 7) === monthKey);
 
-  const outstanding = customers.reduce((sum, customer) => sum + parseMoney(customer?.outstanding), 0);
-  const pastDue = customers.reduce((sum, customer) => sum + parseMoney(customer?.pastDue), 0);
+  const customerOutstanding = customers.reduce((sum, customer) => sum + parseMoney(customer?.outstanding), 0);
+  const customerPastDue = customers.reduce((sum, customer) => sum + parseMoney(customer?.pastDue), 0);
+  const invoiceOutstanding = outstandingInvoices.reduce((sum, invoice) => (
+    sum + Math.max(0, parseMoney(invoice?.total) - parseMoney(invoice?.paidAmount))
+  ), 0);
+  const invoicePastDue = pastDueInvoices.reduce((sum, invoice) => (
+    sum + Math.max(0, parseMoney(invoice?.total) - parseMoney(invoice?.paidAmount))
+  ), 0);
+  const outstanding = invoicesAvailable ? invoiceOutstanding : customerOutstanding;
+  const pastDue = invoicesAvailable ? invoicePastDue : customerPastDue;
   const collectedThisMonth = paymentsAvailable
     ? monthPayments.reduce((sum, payment) => sum + parseMoney(payment?.totalAmount), 0)
     : null;
@@ -227,6 +236,7 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payment
       pastDue: Number(pastDue.toFixed(2)),
       collectedThisMonth: collectedThisMonth == null ? null : Number(collectedThisMonth.toFixed(2)),
       currency: 'USD',
+      balanceBasis: invoicesAvailable ? 'homeworks_invoices' : 'homeworks_customer_balances',
     },
     counts: {
       customers: customers.length,
@@ -254,6 +264,7 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
 
   const monthStart = `${getMonthKey(now)}-01`;
   let payments = null;
+  let invoices = null;
   try {
     const paymentData = await queryHomeWorksGraphql({
       pool,
@@ -272,8 +283,26 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
     payments = null;
   }
 
+  try {
+    const invoiceData = await queryHomeWorksGraphql({
+      pool,
+      accessToken: token,
+      fetchImpl,
+      operationName: 'YardDeskInvoiceBalances',
+      query: `query YardDeskInvoiceBalances {
+        invoices(take: 5000, orderBy: [{ updatedAt: desc }, { id: desc }], where: { isDeleted: false }) {
+          id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
+        }
+      }`,
+    });
+    invoices = invoiceData.invoices || [];
+  } catch (_error) {
+    invoices = null;
+  }
+
   return summarizeHomeWorksBusinessData({
     customers: customerData.customers || [],
+    invoices,
     payments,
     now,
   });

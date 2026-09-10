@@ -284,27 +284,29 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
   }
 
   try {
-    const invoiceData = await queryHomeWorksGraphql({
-      pool,
-      accessToken: token,
-      fetchImpl,
-      operationName: 'YardDeskInvoiceBalances',
-      query: `query YardDeskInvoiceBalances {
-        invoices(
-          take: 5000
-          orderBy: [{ id: desc }]
-          where: {
-            isDeleted: false
-            isArchived: false
-            isSent: true
-            status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] }
+    const pageSize = 1000;
+    invoices = [];
+    let beforeId = null;
+    for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+      const cursorFilter = beforeId == null ? '' : `, id: { lt: ${beforeId} }`;
+      const invoiceData = await queryHomeWorksGraphql({
+        pool,
+        accessToken: token,
+        fetchImpl,
+        operationName: 'YardDeskInvoiceBalances',
+        query: `query YardDeskInvoiceBalances {
+          invoices(take: ${pageSize}, orderBy: [{ id: desc }], where: { isDeleted: false${cursorFilter} }) {
+            id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
           }
-        ) {
-          id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
-        }
-      }`,
-    });
-    invoices = invoiceData.invoices || [];
+        }`,
+      });
+      const page = invoiceData.invoices || [];
+      invoices.push(...page);
+      if (page.length < pageSize) break;
+      const lastId = Number(page[page.length - 1]?.id);
+      if (!Number.isInteger(lastId) || lastId <= 0 || lastId === beforeId) break;
+      beforeId = lastId;
+    }
   } catch (_error) {
     invoices = null;
   }

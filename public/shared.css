@@ -2,67 +2,73 @@
    YardDesk Shared Styles — Botanical / Premium Visual System (Phase 1)
    ═══════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@font-face {
+    font-family: 'Qualy';
+    src: url('/Qualy.otf') format('opentype');
+    font-weight: 400 800;
+    font-style: normal;
+    font-display: swap;
+}
 
 /* ─── Design Tokens — Light Field-Service OS (Jobber-style) ── */
 :root {
-    /* Surfaces — cool light bg, white surfaces */
-    --bg: #f7f8f6;
+    /* Surfaces — matched to pappaslandscaping.com */
+    --bg: #fbf8f1;
     --surface: #ffffff;
-    --surface-soft: #f3f5f2;
-    --surface-muted: #eef2ee;
+    --surface-soft: #f6f7f2;
+    --surface-muted: #eff3e5;
 
     /* Sidebar (white / light, dark text) */
     --sidebar: #ffffff;
-    --sidebar-deep: #f7f8f6;
-    --sidebar-text: #24323d;
-    --sidebar-muted: #7f8b94;
+    --sidebar-deep: #fbf8f1;
+    --sidebar-text: #2e403d;
+    --sidebar-muted: #78827f;
 
-    /* Brand (deep navy/charcoal for text emphasis) */
-    --brand-deep: #24323d;
-    --brand-deeper: #1f2f3a;
-    --brand-soft: #3d4f5b;
+    /* Pappas & Co. brand */
+    --brand-deep: #2e403d;
+    --brand-deeper: #1f2c2a;
+    --brand-soft: #435b56;
 
-    /* Green accent (used sparingly: primary buttons + active states) */
-    --leaf: #7fbf5b;
-    --leaf-deep: #5fa13c;
-    --leaf-soft: #eaf5e3;
+    /* Lime is an accent. Evergreen carries primary actions. */
+    --leaf: #c9dd80;
+    --leaf-deep: #aec65c;
+    --leaf-soft: #f1f6df;
 
     /* Primary action */
-    --primary: #7fbf5b;
-    --primary-deep: #5fa13c;
-    --primary-soft: #eaf5e3;
-    --primary-text: #22412a;
+    --primary: #2e403d;
+    --primary-deep: #1f2c2a;
+    --primary-soft: #f1f6df;
+    --primary-text: #ffffff;
 
     /* Text */
-    --ink: #1f2f3a;
-    --text: #33424d;
-    --text-strong: #1f2f3a;
-    --muted: #7e8a93;
+    --ink: #1f2c2a;
+    --text: #3f4b48;
+    --text-strong: #2e403d;
+    --muted: #6b7280;
 
     /* Lines (cool gray) */
-    --line: #e3e8e4;
-    --line-strong: #d8dfda;
+    --line: #e6e8df;
+    --line-strong: #d5dacd;
 
     /* Semantic states */
-    --success: #5fa13c;
+    --success: #4f7f42;
     --warning: #d09a43;
     --danger: #c8645a;
     --info: #5b7889;
 
-    --success-bg: #eaf5e3;
+    --success-bg: #edf5e8;
     --warning-bg: #faeed7;
     --danger-bg: #f6e0dd;
     --info-bg: #e7edf1;
 
     /* Geometry */
-    --radius-sm: 10px;
-    --radius-md: 14px;
-    --radius-lg: 18px;
-    --radius-xl: 24px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
 
-    --shadow-sm: 0 1px 3px rgba(18, 32, 28, 0.05);
-    --shadow-md: 0 8px 18px rgba(18, 32, 28, 0.06);
+    --shadow-sm: 0 2px 8px rgba(31, 44, 42, 0.06);
+    --shadow-md: 0 10px 30px rgba(31, 44, 42, 0.10);
     --shadow-soft: var(--shadow-sm);
     --shadow-panel: var(--shadow-md);
 
@@ -75,8 +81,8 @@
     --space-6: 32px;
     --space-7: 48px;
 
-    /* Typography (sans-only) */
-    --font-ui: 'Manrope', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* The same typeface used on the public website */
+    --font-ui: 'Qualy', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-display: var(--font-ui);
 
     --text-xs: 12px;
@@ -204,7 +210,7 @@ a { color: inherit; }
 .sidebar {
     background: var(--sidebar);
     color: var(--sidebar-text);
-    padding: 20px 14px;
+    padding: 18px 14px;
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;
@@ -219,7 +225,8 @@ a { color: inherit; }
 .sidebar.collapsed { /* width controlled by .app-shell.sidebar-collapsed grid columns */ }
 
 .sidebar-brand {
-    padding: 4px 10px 18px;
+    min-height: 74px;
+    padding: 0 8px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -227,18 +234,30 @@ a { color: inherit; }
 }
 
 .sidebar-brand img {
-    max-height: 44px;
+    height: auto;
     width: auto;
-    max-width: 150px;
+    max-width: 156px;
     /* Logo shows in original colors on the light sidebar */
     filter: none;
     transition: opacity 0.2s;
 }
 
 .sidebar.collapsed .sidebar-brand img {
-    max-width: 32px;
-    max-height: 32px;
+    display: none;
 }
+
+.sidebar-brand-lockup { min-width: 0; }
+
+.sidebar-product-name {
+    display: block;
+    margin: -5px 0 0 2px;
+    color: var(--muted);
+    font: 700 10px/1 var(--font-ui);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.sidebar.collapsed .sidebar-product-name { display: none; }
 
 .sidebar-collapse-btn {
     background: none;
@@ -271,7 +290,7 @@ a { color: inherit; }
     background: var(--primary);
     color: #ffffff;
     border: none;
-    border-radius: var(--radius-md);
+    border-radius: 8px;
     font: 700 13px/1 var(--font-ui);
     cursor: pointer;
     transition: background 0.15s;
@@ -343,11 +362,12 @@ a { color: inherit; }
 .nav-item.active,
 .nav-link.active {
     background: var(--primary-soft);
-    color: var(--primary-deep);
+    color: var(--brand-deep);
     font-weight: 700;
+    box-shadow: inset 3px 0 0 var(--leaf);
 }
 .nav-item.active svg,
-.nav-link.active svg { color: var(--primary-deep); opacity: 1; }
+.nav-link.active svg { color: var(--brand-deep); opacity: 1; }
 
 .nav-item svg,
 .nav-link svg {
@@ -372,7 +392,7 @@ a { color: inherit; }
 }
 .nav-item.active .badge {
     background: var(--primary);
-    color: #ffffff;
+    color: var(--leaf);
 }
 
 .sidebar.collapsed .nav-item span:not(.badge) { display: none; }
@@ -440,7 +460,8 @@ a { color: inherit; }
     position: sticky;
     top: 0;
     height: var(--topbar-h);
-    background: var(--surface);
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
@@ -456,7 +477,7 @@ a { color: inherit; }
 }
 
 .topbar-left h1 {
-    font: 700 18px/1.2 var(--font-ui);
+    font: 700 20px/1.2 var(--font-ui);
     color: var(--text-strong);
     letter-spacing: -0.01em;
 }
@@ -651,7 +672,7 @@ a { color: inherit; }
     height: 32px;
     border-radius: 50%;
     background: var(--primary);
-    color: var(--white);
+    color: var(--leaf);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -676,7 +697,7 @@ a { color: inherit; }
 
 /* ─── Page Content ─────────────────────────────────────────── */
 .page-content {
-    padding: var(--space-5);
+    padding: var(--space-6);
     animation: fadeIn 0.3s ease;
 }
 
@@ -699,7 +720,7 @@ a { color: inherit; }
 .card {
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
 }
@@ -1397,7 +1418,7 @@ a { color: inherit; }
     gap: var(--space-2);
     padding: 0 16px;
     min-height: 42px;
-    border-radius: var(--radius-md);
+    border-radius: 8px;
     font: 700 var(--text-sm)/1 var(--font-ui);
     border: 1px solid transparent;
     cursor: pointer;
@@ -1412,9 +1433,13 @@ a { color: inherit; }
 .btn-primary {
     background: var(--primary);
     color: #ffffff;
+    box-shadow: 0 4px 14px rgba(46, 64, 61, 0.18);
 }
 
-.btn-primary:hover { background: var(--primary-deep); }
+.btn-primary:hover {
+    background: var(--primary-deep);
+    box-shadow: 0 6px 18px rgba(46, 64, 61, 0.24);
+}
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-secondary {
@@ -1478,8 +1503,9 @@ a { color: inherit; }
 /* ─── Tables ───────────────────────────────────────────────── */
 .table-card {
     background: var(--white);
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
 }
 
@@ -1672,7 +1698,7 @@ table tbody tr:hover .table-actions { opacity: 1; }
 
 .modal {
     background: var(--white);
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     width: 100%;
     max-width: 540px;
     max-height: 90vh;
@@ -2047,8 +2073,8 @@ table tbody tr:hover .table-actions { opacity: 1; }
 
 /* ─── Card Styles (shared) ────────────────────────────────── */
 .card {
-    background: var(--white); border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); overflow: hidden;
 }
 .card-header {
     display: flex; align-items: center; justify-content: space-between;

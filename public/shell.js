@@ -203,7 +203,10 @@
 
     // Brand
     html += '<div class="sidebar-brand">';
-    html += '  <img src="/logo.png" alt="YardDesk">';
+    html += '  <div class="sidebar-brand-lockup">';
+    html += '    <img src="/logo.png" alt="Pappas &amp; Company Landscaping">';
+    html += '    <span class="sidebar-product-name">YardDesk</span>';
+    html += '  </div>';
     html += '  <button class="sidebar-collapse-btn" id="shell-collapse-btn" title="Collapse sidebar">';
     html += '    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>';
     html += '  </button>';

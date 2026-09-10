@@ -110,8 +110,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="authenticated-shell">
       <aside className="app-sidebar">
         <Link className="sidebar-brand" href="/">
-          <span>YD</span>
-          <strong>YardDesk</strong>
+          <div>
+            <img
+              className="sidebar-brand-logo"
+              src="/logo.png"
+              alt="Pappas & Company Landscaping"
+            />
+            <small className="sidebar-brand-copy">YardDesk</small>
+          </div>
         </Link>
 
         <nav className="sidebar-nav" aria-label="Primary navigation">

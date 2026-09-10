@@ -1618,7 +1618,11 @@
             if (data.source !== 'official_homeworks_graphql') throw new Error('Unexpected HomeWorks source');
             document.getElementById('pastDueStat').textContent = formatCurrency(data.financials?.pastDue || 0);
             document.getElementById('outstandingStat').textContent = formatCurrency(data.financials?.outstanding || 0);
-            document.getElementById('collectedMonthStat').textContent = formatCurrency(data.financials?.collectedThisMonth || 0);
+            document.getElementById('collectedMonthStat').textContent = data.financials?.collectedThisMonth !== null
+                && data.financials?.collectedThisMonth !== ''
+                && Number.isFinite(Number(data.financials?.collectedThisMonth))
+                ? formatCurrency(data.financials.collectedThisMonth)
+                : 'Unavailable';
             document.getElementById('customersStat').textContent = Number(data.counts?.customers || 0).toLocaleString('en-US');
             const sourceEl = document.getElementById('standingSourceSub');
             if (sourceEl) sourceEl.textContent = data.asOf

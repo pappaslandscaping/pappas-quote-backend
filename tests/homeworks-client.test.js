@@ -153,11 +153,14 @@ describe('official HomeWorks API client', () => {
   test('fetches the business summary from known official GraphQL fields', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ data: {
-        customers: [{ id: 1, outstanding: '80', pastDue: '10' }],
-        invoices: [{ id: 2, status: 'PAST_DUE', isSent: true, isArchived: false, isDeleted: false, daysPastDue: 2 }],
-        payments: [{ id: 3, date: '2026-09-10', totalAmount: '25' }],
-      } }),
+      json: async () => ({ data: { customers: [{ id: 1, outstanding: '80', pastDue: '10' }] } }),
+    });
+    fetchImpl.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { customers: [{ id: 1, outstanding: '80', pastDue: '10' }] } }),
+    }).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { payments: [{ id: 3, date: '2026-09-10', totalAmount: '25' }] } }),
     });
     const summary = await fetchHomeWorksBusinessSummary({
       accessToken: 'token',
@@ -166,8 +169,28 @@ describe('official HomeWorks API client', () => {
     });
     expect(summary.financials).toMatchObject({ outstanding: 80, pastDue: 10, collectedThisMonth: 25 });
     const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
-    expect(request.operationName).toBe('YardDeskBusinessSummary');
+    expect(request.operationName).toBe('YardDeskCustomerSummary');
     expect(request.query).toContain('customers(take: 5000');
-    expect(request.query).toContain('payments(take: 5000');
+    const paymentRequest = JSON.parse(fetchImpl.mock.calls[1][1].body);
+    expect(paymentRequest.operationName).toBe('YardDeskMonthlyPayments');
+    expect(paymentRequest.variables).toEqual({ monthStart: '2026-09-01' });
+  });
+
+  test('keeps authoritative balances available when the optional payments query fails', async () => {
+    const fetchImpl = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { customers: [{ id: 1, outstanding: '80', pastDue: '10' }] } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ errors: [{ message: 'Payment filter unavailable' }] }),
+      });
+    const summary = await fetchHomeWorksBusinessSummary({
+      accessToken: 'token',
+      fetchImpl,
+      now: new Date('2026-09-10T20:00:00Z'),
+    });
+    expect(summary.financials).toMatchObject({ outstanding: 80, pastDue: 10, collectedThisMonth: null });
   });
 });

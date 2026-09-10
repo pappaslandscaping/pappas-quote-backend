@@ -307,7 +307,7 @@ async function loadStatCards() {
   }
 
   function hasNumber(value) {
-    return Number.isFinite(Number(value));
+    return value !== null && value !== '' && Number.isFinite(Number(value));
   }
 
   function formatAsOf(value) {
@@ -353,12 +353,19 @@ async function loadStatCards() {
 
   var summary = await getJson('/api/homeworks/summary');
   if (summary && summary.source === 'official_homeworks_graphql') {
-    updateSnapshot({
-      revenue: Number(summary.financials && summary.financials.collectedThisMonth || 0),
+    var official = {
       outstanding: Number(summary.financials && summary.financials.outstanding || 0),
       clients: Number(summary.counts && summary.counts.customers || 0),
       revenue_as_of: summary.asOf || null
-    });
+    };
+    if (hasNumber(summary.financials && summary.financials.collectedThisMonth)) {
+      official.revenue = Number(summary.financials.collectedThisMonth);
+    }
+    updateSnapshot(official);
+    if (!hasNumber(summary.financials && summary.financials.collectedThisMonth)) {
+      setText('stat-revenue', 'Unavailable');
+      if (revenueMetaEl) revenueMetaEl.textContent = 'HomeWorks payments are temporarily unavailable';
+    }
   } else if (!cached) {
     setText('stat-revenue', 'Unavailable');
     setText('stat-outstanding', 'Unavailable');

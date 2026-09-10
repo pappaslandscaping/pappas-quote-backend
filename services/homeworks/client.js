@@ -210,11 +210,14 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payment
     String(invoice?.status || '').toUpperCase() === 'PAST_DUE'
     || Number(invoice?.daysPastDue || 0) > 0
   ));
-  const monthPayments = payments.filter((payment) => String(payment?.date || '').slice(0, 7) === monthKey);
+  const paymentsAvailable = Array.isArray(payments);
+  const monthPayments = (payments || []).filter((payment) => String(payment?.date || '').slice(0, 7) === monthKey);
 
   const outstanding = customers.reduce((sum, customer) => sum + parseMoney(customer?.outstanding), 0);
   const pastDue = customers.reduce((sum, customer) => sum + parseMoney(customer?.pastDue), 0);
-  const collectedThisMonth = monthPayments.reduce((sum, payment) => sum + parseMoney(payment?.totalAmount), 0);
+  const collectedThisMonth = paymentsAvailable
+    ? monthPayments.reduce((sum, payment) => sum + parseMoney(payment?.totalAmount), 0)
+    : null;
 
   return {
     source: 'official_homeworks_graphql',
@@ -222,7 +225,7 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payment
     financials: {
       outstanding: Number(outstanding.toFixed(2)),
       pastDue: Number(pastDue.toFixed(2)),
-      collectedThisMonth: Number(collectedThisMonth.toFixed(2)),
+      collectedThisMonth: collectedThisMonth == null ? null : Number(collectedThisMonth.toFixed(2)),
       currency: 'USD',
     },
     counts: {
@@ -236,28 +239,42 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = [], payment
 }
 
 async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessToken, now = new Date() }) {
-  const data = await queryHomeWorksGraphql({
+  const token = accessToken || await getHomeWorksAccessToken(pool);
+  const customerData = await queryHomeWorksGraphql({
     pool,
-    accessToken,
+    accessToken: token,
     fetchImpl,
-    operationName: 'YardDeskBusinessSummary',
-    query: `query YardDeskBusinessSummary {
+    operationName: 'YardDeskCustomerSummary',
+    query: `query YardDeskCustomerSummary {
       customers(take: 5000, where: { isDeleted: false }) {
         id outstanding pastDue
-      }
-      invoices(take: 5000, orderBy: [{ updatedAt: desc }, { id: desc }], where: { isDeleted: false }) {
-        id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
-      }
-      payments(take: 5000, orderBy: [{ date: desc }, { id: desc }]) {
-        id date totalAmount method methodDisplayName
       }
     }`,
   });
 
+  const monthStart = `${getMonthKey(now)}-01`;
+  let payments = null;
+  try {
+    const paymentData = await queryHomeWorksGraphql({
+      pool,
+      accessToken: token,
+      fetchImpl,
+      operationName: 'YardDeskMonthlyPayments',
+      query: `query YardDeskMonthlyPayments($monthStart: Date!) {
+        payments(take: 5000, orderBy: [{ date: desc }, { id: desc }], where: { date: { gte: $monthStart } }) {
+          id date totalAmount method methodDisplayName
+        }
+      }`,
+      variables: { monthStart },
+    });
+    payments = paymentData.payments || [];
+  } catch (_error) {
+    payments = null;
+  }
+
   return summarizeHomeWorksBusinessData({
-    customers: data.customers || [],
-    invoices: data.invoices || [],
-    payments: data.payments || [],
+    customers: customerData.customers || [],
+    payments,
     now,
   });
 }

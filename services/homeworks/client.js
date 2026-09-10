@@ -265,6 +265,7 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
   const monthStart = `${getMonthKey(now)}-01`;
   let payments = null;
   let invoices = null;
+  let invoiceBalanceError = null;
   try {
     const paymentData = await queryHomeWorksGraphql({
       pool,
@@ -303,16 +304,19 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
       invoices.push(...page);
       if (page.length < pageSize) break;
     }
-  } catch (_error) {
+  } catch (error) {
     invoices = null;
+    invoiceBalanceError = error.message;
   }
 
-  return summarizeHomeWorksBusinessData({
+  const summary = summarizeHomeWorksBusinessData({
     customers: customerData.customers || [],
     invoices,
     payments,
     now,
   });
+  if (invoiceBalanceError) summary.diagnostics = { invoiceBalanceError };
+  return summary;
 }
 
 module.exports = {

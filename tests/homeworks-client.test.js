@@ -181,7 +181,7 @@ describe('official HomeWorks API client', () => {
     expect(paymentRequest.variables).toEqual({ monthStart: '2026-09-01' });
     const invoiceRequest = JSON.parse(fetchImpl.mock.calls[2][1].body);
     expect(invoiceRequest.operationName).toBe('YardDeskInvoiceBalances');
-    expect(invoiceRequest.query).toContain('orderBy: [{ id: desc }]');
+    expect(invoiceRequest.query).toContain('status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] }');
   });
 
   test('keeps authoritative balances available when the optional payments query fails', async () => {

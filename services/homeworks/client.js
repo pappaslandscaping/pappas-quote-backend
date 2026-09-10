@@ -204,8 +204,7 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = null, payme
   const invoicesAvailable = Array.isArray(invoices);
   const activeInvoices = (invoices || []).filter((invoice) => invoice?.isDeleted !== true && invoice?.isArchived !== true);
   const outstandingInvoices = activeInvoices.filter((invoice) => (
-    invoice?.isSent === true
-    && ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(String(invoice?.status || '').toUpperCase())
+    ['PENDING', 'PARTIALLY_PAID', 'PAST_DUE'].includes(String(invoice?.status || '').toUpperCase())
   ));
   const pastDueInvoices = outstandingInvoices.filter((invoice) => (
     String(invoice?.status || '').toUpperCase() === 'PAST_DUE'
@@ -265,7 +264,6 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
   const monthStart = `${getMonthKey(now)}-01`;
   let payments = null;
   let invoices = null;
-  let invoiceBalanceError = null;
   try {
     const paymentData = await queryHomeWorksGraphql({
       pool,
@@ -304,19 +302,16 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
       invoices.push(...page);
       if (page.length < pageSize) break;
     }
-  } catch (error) {
+  } catch (_error) {
     invoices = null;
-    invoiceBalanceError = error.message;
   }
 
-  const summary = summarizeHomeWorksBusinessData({
+  return summarizeHomeWorksBusinessData({
     customers: customerData.customers || [],
     invoices,
     payments,
     now,
   });
-  if (invoiceBalanceError) summary.diagnostics = { invoiceBalanceError };
-  return summary;
 }
 
 module.exports = {

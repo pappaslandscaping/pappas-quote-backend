@@ -362,10 +362,6 @@ async function loadStatCards() {
       official.revenue = Number(summary.financials.collectedThisMonth);
     }
     updateSnapshot(official);
-    if (summary.financials && summary.financials.balanceBasis === 'homeworks_customer_balances' && outstandingMetaEl) {
-      outstandingMetaEl.textContent = 'HomeWorks invoice detail unavailable: '
-        + (summary.diagnostics && summary.diagnostics.invoiceBalanceError || 'using customer balance summary');
-    }
     if (!hasNumber(summary.financials && summary.financials.collectedThisMonth)) {
       setText('stat-revenue', 'Unavailable');
       if (revenueMetaEl) revenueMetaEl.textContent = 'HomeWorks payments are temporarily unavailable';

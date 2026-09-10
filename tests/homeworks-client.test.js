@@ -136,6 +136,7 @@ describe('official HomeWorks API client', () => {
         { id: 11, status: 'PENDING', total: '130', paidAmount: '0', isSent: true, isArchived: false, isDeleted: false },
         { id: 12, status: 'PAST_DUE', total: '30', paidAmount: '10', daysPastDue: 4, isSent: true, isArchived: false, isDeleted: false },
         { id: 13, status: 'DRAFT', isSent: false, isArchived: false, isDeleted: false },
+        { id: 14, status: 'PENDING', total: '25', paidAmount: '0', isSent: false, isArchived: false, isDeleted: false },
       ],
       payments: [
         { id: 21, date: '2026-09-08', totalAmount: '75.50' },
@@ -145,8 +146,8 @@ describe('official HomeWorks API client', () => {
 
     expect(summary).toMatchObject({
       source: 'official_homeworks_graphql',
-      financials: { outstanding: 150, pastDue: 20, collectedThisMonth: 75.5 },
-      counts: { customers: 2, customersPastDue: 1, outstandingInvoices: 2, pastDueInvoices: 1, paymentsThisMonth: 1 },
+      financials: { outstanding: 175, pastDue: 20, collectedThisMonth: 75.5 },
+      counts: { customers: 2, customersPastDue: 1, outstandingInvoices: 3, pastDueInvoices: 1, paymentsThisMonth: 1 },
     });
   });
 

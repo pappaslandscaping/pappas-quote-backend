@@ -164,16 +164,22 @@ describe('official HomeWorks API client', () => {
       json: async () => ({ data: { payments: [{ id: 3, date: '2026-09-10', totalAmount: '25' }] } }),
     }).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { invoices: [
-        { id: 2, status: 'PAST_DUE', total: '85', paidAmount: '5', isSent: true, isArchived: false, isDeleted: false, daysPastDue: 2 },
-      ] } }),
+      json: async () => ({ data: {
+        outstanding: [{ _sum: { total: '85', paidAmount: '5' }, _count: { id: 2 } }],
+        pastDue: [{ _sum: { total: '15', paidAmount: '5' }, _count: { id: 1 } }],
+      } }),
     });
     const summary = await fetchHomeWorksBusinessSummary({
       accessToken: 'token',
       fetchImpl,
       now: new Date('2026-09-10T20:00:00Z'),
     });
-    expect(summary.financials).toMatchObject({ outstanding: 85, pastDue: 85, collectedThisMonth: 25 });
+    expect(summary.financials).toMatchObject({
+      outstanding: 80,
+      pastDue: 10,
+      collectedThisMonth: 25,
+      balanceBasis: 'homeworks_invoice_report',
+    });
     const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
     expect(request.operationName).toBe('YardDeskCustomerSummary');
     expect(request.query).toContain('customers(take: 5000');
@@ -181,8 +187,8 @@ describe('official HomeWorks API client', () => {
     expect(paymentRequest.operationName).toBe('YardDeskMonthlyPayments');
     expect(paymentRequest.variables).toEqual({ monthStart: '2026-09-01' });
     const invoiceRequest = JSON.parse(fetchImpl.mock.calls[2][1].body);
-    expect(invoiceRequest.operationName).toBe('YardDeskInvoiceBalances');
-    expect(invoiceRequest.query).toContain('invoices(take: 1000, skip: 0');
+    expect(invoiceRequest.operationName).toBe('YardDeskInvoiceAccountStanding');
+    expect(invoiceRequest.query).toContain('invoiceReport(where: { status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] } })');
   });
 
   test('keeps authoritative balances available when the optional payments query fails', async () => {
@@ -197,7 +203,7 @@ describe('official HomeWorks API client', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ errors: [{ message: 'Invoice query unavailable' }] }),
+        json: async () => ({ errors: [{ message: 'Invoice report unavailable' }] }),
       });
     const summary = await fetchHomeWorksBusinessSummary({
       accessToken: 'token',

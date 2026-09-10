@@ -259,7 +259,7 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
 
   const monthStart = `${getMonthKey(now)}-01`;
   let payments = null;
-  let invoices = null;
+  let accountStanding = null;
   try {
     const paymentData = await queryHomeWorksGraphql({
       pool,
@@ -279,35 +279,47 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
   }
 
   try {
-    const pageSize = 1000;
-    invoices = [];
-    for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
-      const skip = pageNumber * pageSize;
-      const invoiceData = await queryHomeWorksGraphql({
-        pool,
-        accessToken: token,
-        fetchImpl,
-        operationName: 'YardDeskInvoiceBalances',
-        query: `query YardDeskInvoiceBalances {
-          invoices(take: ${pageSize}, skip: ${skip}, orderBy: [{ id: desc }]) {
-            id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
-          }
-        }`,
-      });
-      const page = invoiceData.invoices || [];
-      invoices.push(...page);
-      if (page.length < pageSize) break;
-    }
+    const invoiceData = await queryHomeWorksGraphql({
+      pool,
+      accessToken: token,
+      fetchImpl,
+      operationName: 'YardDeskInvoiceAccountStanding',
+      query: `query YardDeskInvoiceAccountStanding {
+        outstanding: invoiceReport(where: { status: { in: [PENDING, PARTIALLY_PAID, PAST_DUE] } }) {
+          _sum { total paidAmount }
+          _count { id }
+        }
+        pastDue: invoiceReport(where: { status: { equals: PAST_DUE } }) {
+          _sum { total paidAmount }
+          _count { id }
+        }
+      }`,
+    });
+    const outstanding = invoiceData.outstanding?.[0] || {};
+    const pastDue = invoiceData.pastDue?.[0] || {};
+    accountStanding = {
+      outstanding: Math.max(0, parseMoney(outstanding._sum?.total) - parseMoney(outstanding._sum?.paidAmount)),
+      pastDue: Math.max(0, parseMoney(pastDue._sum?.total) - parseMoney(pastDue._sum?.paidAmount)),
+      outstandingInvoices: Number(outstanding._count?.id || 0),
+      pastDueInvoices: Number(pastDue._count?.id || 0),
+    };
   } catch (_error) {
-    invoices = null;
+    accountStanding = null;
   }
 
-  return summarizeHomeWorksBusinessData({
+  const summary = summarizeHomeWorksBusinessData({
     customers: customerData.customers || [],
-    invoices,
     payments,
     now,
   });
+  if (accountStanding) {
+    summary.financials.outstanding = Number(accountStanding.outstanding.toFixed(2));
+    summary.financials.pastDue = Number(accountStanding.pastDue.toFixed(2));
+    summary.financials.balanceBasis = 'homeworks_invoice_report';
+    summary.counts.outstandingInvoices = accountStanding.outstandingInvoices;
+    summary.counts.pastDueInvoices = accountStanding.pastDueInvoices;
+  }
+  return summary;
 }
 
 module.exports = {

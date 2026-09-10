@@ -215,12 +215,8 @@ function summarizeHomeWorksBusinessData({ customers = [], invoices = null, payme
 
   const customerOutstanding = customers.reduce((sum, customer) => sum + parseMoney(customer?.outstanding), 0);
   const customerPastDue = customers.reduce((sum, customer) => sum + parseMoney(customer?.pastDue), 0);
-  const invoiceOutstanding = outstandingInvoices.reduce((sum, invoice) => (
-    sum + Math.max(0, parseMoney(invoice?.total) - parseMoney(invoice?.paidAmount))
-  ), 0);
-  const invoicePastDue = pastDueInvoices.reduce((sum, invoice) => (
-    sum + Math.max(0, parseMoney(invoice?.total) - parseMoney(invoice?.paidAmount))
-  ), 0);
+  const invoiceOutstanding = outstandingInvoices.reduce((sum, invoice) => sum + parseMoney(invoice?.total), 0);
+  const invoicePastDue = pastDueInvoices.reduce((sum, invoice) => sum + parseMoney(invoice?.total), 0);
   const outstanding = invoicesAvailable ? invoiceOutstanding : customerOutstanding;
   const pastDue = invoicesAvailable ? invoicePastDue : customerPastDue;
   const collectedThisMonth = paymentsAvailable

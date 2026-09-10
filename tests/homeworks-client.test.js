@@ -146,7 +146,7 @@ describe('official HomeWorks API client', () => {
 
     expect(summary).toMatchObject({
       source: 'official_homeworks_graphql',
-      financials: { outstanding: 175, pastDue: 20, collectedThisMonth: 75.5 },
+      financials: { outstanding: 185, pastDue: 30, collectedThisMonth: 75.5 },
       counts: { customers: 2, customersPastDue: 1, outstandingInvoices: 3, pastDueInvoices: 1, paymentsThisMonth: 1 },
     });
   });
@@ -173,7 +173,7 @@ describe('official HomeWorks API client', () => {
       fetchImpl,
       now: new Date('2026-09-10T20:00:00Z'),
     });
-    expect(summary.financials).toMatchObject({ outstanding: 80, pastDue: 80, collectedThisMonth: 25 });
+    expect(summary.financials).toMatchObject({ outstanding: 85, pastDue: 85, collectedThisMonth: 25 });
     const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
     expect(request.operationName).toBe('YardDeskCustomerSummary');
     expect(request.query).toContain('customers(take: 5000');

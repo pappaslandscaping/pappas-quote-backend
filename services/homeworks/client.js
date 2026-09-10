@@ -284,18 +284,24 @@ async function fetchHomeWorksBusinessSummary({ pool, fetchImpl = fetch, accessTo
   }
 
   try {
-    const invoiceData = await queryHomeWorksGraphql({
-      pool,
-      accessToken: token,
-      fetchImpl,
-      operationName: 'YardDeskInvoiceBalances',
-      query: `query YardDeskInvoiceBalances {
-        invoices(take: 5000, orderBy: [{ updatedAt: desc }, { id: desc }], where: { isDeleted: false }) {
-          id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
-        }
-      }`,
-    });
-    invoices = invoiceData.invoices || [];
+    const pageSize = 5000;
+    invoices = [];
+    for (let skip = 0; skip < 50000; skip += pageSize) {
+      const invoiceData = await queryHomeWorksGraphql({
+        pool,
+        accessToken: token,
+        fetchImpl,
+        operationName: 'YardDeskInvoiceBalances',
+        query: `query YardDeskInvoiceBalances {
+          invoices(take: ${pageSize}, skip: ${skip}, orderBy: [{ updatedAt: desc }, { id: desc }], where: { isDeleted: false }) {
+            id status total paidAmount isSent isArchived isDeleted daysPastDue updatedAt
+          }
+        }`,
+      });
+      const page = invoiceData.invoices || [];
+      invoices.push(...page);
+      if (page.length < pageSize) break;
+    }
   } catch (_error) {
     invoices = null;
   }

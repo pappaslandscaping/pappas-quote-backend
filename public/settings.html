@@ -203,6 +203,7 @@
         <!-- Settings Sidebar Navigation -->
         <nav class="settings-sidebar" id="settingsSidebar">
             <a data-tab="profile" class="active">Your Business Profile</a>
+            <a data-tab="homeworks">HomeWorks Connection</a>
             <a data-tab="preferences">Preferences</a>
             <a data-tab="invoices">Invoices, Estimates & Receipts</a>
             <a data-tab="payments">Setup & Manage Online Payments</a>
@@ -330,6 +331,48 @@
                     </div>
                     <div class="actions" style="margin-top:8px;">
                         <button class="btn btn-primary" onclick="saveTaxRate()">Save Tax Rate</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════ TAB: HomeWorks Connection ═══════════ -->
+            <div class="settings-section" id="tab-homeworks">
+                <h2><span class="section-icon" style="background:var(--primary);color:var(--white);">HW</span> HomeWorks Connection</h2>
+
+                <div class="card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;">
+                        <div>
+                            <h3 style="margin:0 0 4px;padding:0;border:none;">Official API</h3>
+                            <div style="font-size:13px;color:var(--gray-500);">Schedule, dispatch, customer details, pricing, payments, and sync health</div>
+                        </div>
+                        <span class="badge badge-disconnected" id="homeWorksBadge">Checking</span>
+                    </div>
+                    <p id="homeWorksMessage" style="font-size:13px;color:var(--gray-500);line-height:1.6;margin-bottom:18px;">
+                        Checking the official HomeWorks connection.
+                    </p>
+                    <div class="sync-stats">
+                        <div class="sync-stat"><div class="number" id="homeWorksCatalogCount">0</div><div class="label">Catalog Items</div></div>
+                        <div class="sync-stat"><div class="number" id="homeWorksPaymentCount">0</div><div class="label">Recent Payments</div></div>
+                        <div class="sync-stat"><div class="number" id="homeWorksQbFailures">0</div><div class="label">Recent QB Failures</div></div>
+                    </div>
+                    <div style="margin-top:18px;font-size:13px;color:var(--gray-600);">
+                        <strong>QuickBooks through HomeWorks:</strong> <span id="homeWorksQbStatus">Checking</span>
+                    </div>
+                    <div style="margin-top:8px;font-size:13px;color:var(--gray-600);">
+                        <strong>Recent payment types:</strong> <span id="homeWorksPaymentTypes">Checking</span>
+                    </div>
+                    <div class="actions" style="margin-top:18px;">
+                        <button class="btn btn-outline" onclick="loadHomeWorksStatus()">Refresh Connection</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>What now uses the official connection</h3>
+                    <div style="font-size:13px;color:var(--gray-600);line-height:1.8;">
+                        <div>Schedule and dispatch read official HomeWorks events.</div>
+                        <div>Website quote requests match or create HomeWorks leads.</div>
+                        <div>Payment reporting uses clear HomeWorks payment labels.</div>
+                        <div>Catalog and QuickBooks sync health can be checked here.</div>
                     </div>
                 </div>
             </div>
@@ -1346,6 +1389,34 @@ async function loadAllSettings() {
     } catch(e) { console.error('Failed to load settings:', e); }
 }
 
+async function loadHomeWorksStatus() {
+    const badge = document.getElementById('homeWorksBadge');
+    const message = document.getElementById('homeWorksMessage');
+    badge.className = 'badge badge-disconnected';
+    badge.textContent = 'Checking';
+    try {
+        const res = await fetch('/api/homeworks/status', { headers: authHeaders });
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.connected) throw new Error(data.error || 'Connection unavailable');
+
+        badge.className = 'badge badge-connected';
+        badge.textContent = 'Connected';
+        message.textContent = `Connected to ${data.company?.name || 'HomeWorks'} through the official API.`;
+        document.getElementById('homeWorksCatalogCount').textContent = data.catalog?.itemCount || 0;
+        document.getElementById('homeWorksPaymentCount').textContent = data.payments?.length || 0;
+        document.getElementById('homeWorksQbFailures').textContent = data.quickbooks?.recentInvoiceFailures || 0;
+        document.getElementById('homeWorksQbStatus').textContent = data.quickbooks?.isConnected ? 'Connected' : 'Not connected or setup is incomplete';
+        const methods = [...new Set((data.payments || []).map(payment => payment.method).filter(Boolean))];
+        document.getElementById('homeWorksPaymentTypes').textContent = methods.length ? methods.join(', ') : 'No recent payments';
+    } catch (error) {
+        badge.className = 'badge badge-disconnected';
+        badge.textContent = 'Needs attention';
+        message.textContent = error.message || 'The HomeWorks connection could not be checked.';
+        document.getElementById('homeWorksQbStatus').textContent = 'Unavailable';
+        document.getElementById('homeWorksPaymentTypes').textContent = 'Unavailable';
+    }
+}
+
 function applySettingsToUI() {
     // Late fee rules
     const lf = allSettings.late_fee_rules || {};
@@ -1787,6 +1858,7 @@ loadTaxRate();
 loadNotifPrefs();
 loadServiceItems();
 loadHomeBase();
+loadHomeWorksStatus();
 loadQBStatus();
 loadSquareStatus();
 loadAllSettings();

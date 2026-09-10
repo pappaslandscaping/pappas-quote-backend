@@ -147,3 +147,10 @@
 - Chat is now fully conversational — follow-ups refine in-place, say "new post" to start fresh
 
 B
+# 2026-09-10 - Official HomeWorks API foundation
+
+- Switched YardDesk Schedule and Dispatch reads from parsed HomeWorks web pages to the official HomeWorks GraphQL events API.
+- Preserved existing YardDesk office notes, review state, address corrections, map data, crew overrides, and route-order overrides.
+- Added an authenticated HomeWorks connection status endpoint and a Settings screen showing catalog size, readable payment methods, QuickBooks connection state, and recent invoice sync failures.
+- Centralized official HomeWorks authentication and GraphQL error handling for schedule and website lead workflows.
+- Kept the existing stored API token as a migration fallback while adding `HOMEWORKS_API_TOKEN` as the preferred runtime credential.

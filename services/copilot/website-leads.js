@@ -1,6 +1,7 @@
-const { getCopilotToken } = require('./client');
-
-const GRAPHQL_URL = 'https://api.copilotcrm.com/graphql';
+const {
+  getHomeWorksAccessToken,
+  queryHomeWorksGraphql,
+} = require('../homeworks/client');
 const SUPPORTED_CITIES = new Set([
   'lakewood', 'cleveland', 'bay village', 'brook park', 'rocky river',
   'fairview park', 'parma', 'north olmsted', 'avon', 'avon lake',
@@ -66,25 +67,6 @@ function classifyServiceArea(address, cityHint) {
     return { status: 'inside', city: parsed.city, reason: 'Address is in the current service area.' };
   }
   return { status: 'review', city: parsed.city, reason: city ? 'City needs a manual service-area check.' : 'City could not be confirmed from the address.' };
-}
-
-function tokenFromCookie(cookieHeader) {
-  const match = String(cookieHeader || '').match(/(?:^|;\s*)copilotApiAccessToken=([^;]+)/i);
-  return match ? match[1] : null;
-}
-
-async function graphql(accessToken, query, variables = {}) {
-  const response = await fetch(GRAPHQL_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables }),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.errors?.length) {
-    const message = body.errors?.map(error => error.message).join('; ') || `HomeWorks returned ${response.status}`;
-    throw new Error(message);
-  }
-  return body.data || {};
 }
 
 function splitName(fullName) {
@@ -155,8 +137,7 @@ async function syncWebsiteLead({ pool, quoteId, force = false }) {
   if (!force && ['created', 'linked'].includes(quote.homeworks_sync_status)) return quote;
 
   await updateSyncState(pool, quoteId, { homeworks_sync_status: 'checking', homeworks_sync_error: null });
-  const tokenInfo = await getCopilotToken(pool);
-  const accessToken = tokenFromCookie(tokenInfo?.cookieHeader);
+  const accessToken = await getHomeWorksAccessToken(pool);
   if (!accessToken) {
     await updateSyncState(pool, quoteId, { homeworks_sync_status: 'unavailable', homeworks_sync_error: 'HomeWorks connection is not available.' });
     return null;
@@ -178,13 +159,13 @@ async function syncWebsiteLead({ pool, quoteId, force = false }) {
     );
   }
 
-  const lookup = await graphql(accessToken, `query WebsiteLeadMatch($filters: [CustomerFilter!]!) {
+  const lookup = await queryHomeWorksGraphql({ pool, accessToken, query: `query WebsiteLeadMatch($filters: [CustomerFilter!]!) {
     customerTypes { id name }
     customers(take: 50, where: { isDeleted: false, OR: $filters }) {
       id fullName firstName lastName email phone cell customerType { id name }
       properties(where: { isActive: true }) { id name address { street1 street2 city state zip country } }
     }
-  }`, { filters });
+  }`, variables: { filters } });
 
   const matches = matchCustomers(lookup.customers || [], quote);
   if (matches.length > 1) {
@@ -222,9 +203,9 @@ async function syncWebsiteLead({ pool, quoteId, force = false }) {
   const consent = questions.smsConsent || {};
   const name = splitName(quote.name);
   const address = parseAddress(quote.address, questions.city);
-  const created = await graphql(accessToken, `mutation CreateWebsiteLead($input: CustomerInput!) {
+  const created = await queryHomeWorksGraphql({ pool, accessToken, query: `mutation CreateWebsiteLead($input: CustomerInput!) {
     createCustomer(input: $input) { id fullName email phone cell }
-  }`, { input: {
+  }`, variables: { input: {
     fullName: quote.name,
     firstName: name.firstName,
     lastName: name.lastName,
@@ -237,20 +218,20 @@ async function syncWebsiteLead({ pool, quoteId, force = false }) {
     isReceivePhone: true,
     isReceiveEmail: Boolean(quote.email),
     isReceiveText: consent.transactional === true,
-  } });
+  } } });
 
   const customer = created.createCustomer;
   let property = null;
   try {
-    const propertyData = await graphql(accessToken, `mutation CreateWebsiteLeadProperty($input: PropertyInput!) {
+    const propertyData = await queryHomeWorksGraphql({ pool, accessToken, query: `mutation CreateWebsiteLeadProperty($input: PropertyInput!) {
       createProperty(input: $input) { id name }
-    }`, { input: {
+    }`, variables: { input: {
       customerId: customer.id,
       name: address.street1 || `${quote.name} property`,
       address,
       notes: requestSummary(quote),
       tags: ['Website Lead'],
-    } });
+    } } });
     property = propertyData.createProperty;
   } catch (error) {
     await updateSyncState(pool, quoteId, {

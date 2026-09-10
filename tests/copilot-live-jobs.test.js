@@ -800,40 +800,53 @@ describe('copilot live jobs service', () => {
     expect(payload.unassigned[0].id).toBe('copilot:2026-04-18:visit-102');
   });
 
-  test('fetchLiveCopilotScheduleDate fetches and persists a selected date from schedule grid/day', async () => {
+  test('fetchLiveCopilotScheduleDate fetches and persists a selected date from the official HomeWorks API', async () => {
     const poolClient = {
       query: jest.fn()
+        .mockResolvedValueOnce({ rows: [{ key: 'copilot_token', value: 'test-token' }] })
         .mockResolvedValueOnce({ rows: [{ is_insert: true }] })
         .mockResolvedValueOnce({ rowCount: 0 }),
     };
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => singleRowScheduleGridHtml,
+      json: async () => ({ data: { events: [{
+        id: 501,
+        startDate: '2026-04-17',
+        title: 'Spring Cleanup',
+        description: 'Gate code',
+        type: 'VISIT',
+        status: 'CLOSED',
+        total: '600',
+        customerId: 9001,
+        customer: { fullName: 'Jane Smith' },
+        property: { name: '123 Main St', address: { street1: '123 Main St', city: 'Lakewood', state: 'OH' } },
+        crew: { name: 'Jobs Crew' },
+        users: [{ firstName: 'Tim', lastName: 'Pappas' }],
+      }] } }),
     });
 
     const result = await fetchLiveCopilotScheduleDate({
       poolClient,
       syncDate: '2026-04-17',
-      cookieHeader: 'copilot=abc',
       fetchImpl,
     });
 
     expect(result).toMatchObject({
       date: '2026-04-17',
       source: 'live',
-      source_surface: 'schedule_grid',
+      source_surface: 'homeworks_graphql',
       error: null,
       diagnostics: expect.objectContaining({
-        parsed_row_count_before_filtering: 1,
-        parsed_row_count_after_filtering: 1,
+        api: 'official_homeworks_graphql',
+        returned_event_count: 1,
       }),
     });
     expect(result.fetched_at).toBeTruthy();
-    expect(poolClient.query).toHaveBeenCalledTimes(2);
-    expect(poolClient.query.mock.calls[0][1][0]).toBe('copilot:2026-04-17:501');
+    expect(poolClient.query).toHaveBeenCalledTimes(3);
+    expect(poolClient.query.mock.calls[1][1][0]).toBe('copilot:2026-04-17:501');
   });
 
-  test('getCopilotLiveJobs returns live schedule payload with diagnostics when grid/day fetch succeeds', async () => {
+  test('getCopilotLiveJobs returns a live schedule payload from the official HomeWorks API', async () => {
     const poolClient = {
       query: jest.fn()
         .mockResolvedValueOnce({ rows: [{ key: 'copilot_cookies', value: 'copilot=abc' }] })
@@ -849,7 +862,7 @@ describe('copilot live jobs service', () => {
             source_customer_id: '9001',
             customer_name: 'Jane Smith',
             job_title: 'Spring Cleanup',
-            source_status: 'Closed',
+            source_status: 'CLOSED',
             visit_total: '600.00',
             source_crew_name: 'Jobs Crew',
             source_employees_text: 'Tim, Rob',
@@ -858,9 +871,9 @@ describe('copilot live jobs service', () => {
             raw_payload: {
               raw_data: {
                 property_name: '123 Main St',
-                event_type: 'Visit',
-                invoiceable: 'Invoiced',
-                frequency: 'Weekly',
+                event_type: 'VISIT',
+                invoiceable: true,
+                frequency: 'Recurring',
                 last_serviced: 'Apr 10, 2026',
                 tracked_time: '01:05',
                 budgeted_hours: '1.0',
@@ -893,7 +906,24 @@ describe('copilot live jobs service', () => {
     };
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      text: async () => singleRowScheduleGridHtml,
+      json: async () => ({ data: { events: [{
+        id: 501,
+        startDate: '2026-04-17',
+        title: 'Spring Cleanup',
+        description: 'Gate code',
+        type: 'VISIT',
+        status: 'CLOSED',
+        total: '600',
+        budgetedHours: '1.0',
+        sortOrder: 1,
+        recurringEventId: 44,
+        isInvoiceable: true,
+        customerId: 9001,
+        customer: { fullName: 'Jane Smith' },
+        property: { name: '123 Main St', address: { street1: '123 Main St', city: 'Lakewood', state: 'OH' } },
+        crew: { name: 'Jobs Crew' },
+        users: [{ firstName: 'Tim', lastName: 'Pappas' }, { firstName: 'Rob', lastName: 'Ellison' }],
+      }] } }),
     });
 
     const result = await getCopilotLiveJobs({
@@ -910,21 +940,21 @@ describe('copilot live jobs service', () => {
       crew_name: 'Jobs Crew',
       crew_members_text: 'Tim, Rob',
       status: 'completed',
-      status_raw: 'Closed',
+      status_raw: 'CLOSED',
       service_price: 600,
-      service_frequency: 'Weekly',
+      service_frequency: 'Recurring',
       property_name: '123 Main St',
-      copilot_event_type: 'Visit',
-      copilot_invoiceable_status: 'Invoiced',
+      copilot_event_type: 'VISIT',
+      copilot_invoiceable_status: true,
     });
     expect(result.freshness.per_date).toEqual([
       expect.objectContaining({
         date: '2026-04-17',
         source: 'live',
-        source_surface: 'schedule_grid',
+        source_surface: 'homeworks_graphql',
         diagnostics: expect.objectContaining({
-          parsed_row_count_before_filtering: 1,
-          parsed_row_count_after_filtering: 1,
+          api: 'official_homeworks_graphql',
+          returned_event_count: 1,
         }),
       }),
     ]);

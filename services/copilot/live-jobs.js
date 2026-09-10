@@ -1,7 +1,4 @@
-const {
-  fetchCopilotScheduleGridJobsForDate,
-  getCopilotToken,
-} = require('./client');
+const { fetchHomeWorksEvents } = require('../homeworks/client');
 
 const COPILOT_SOURCE_SYSTEM = 'copilot';
 const SCHEDULE_SOURCE_KIND = 'live_schedule';
@@ -17,6 +14,8 @@ const DISPATCH_WRITE_CAPABILITIES = Object.freeze({
 });
 
 const LIVE_JOB_STATUS_MAP = new Map([
+  ['waitlisted', 'pending'],
+  ['open', 'pending'],
   ['scheduled', 'pending'],
   ['assigned', 'pending'],
   ['not_started', 'pending'],
@@ -282,6 +281,8 @@ function normalizeResolvedRow(row) {
       ? row.service_date.toISOString().slice(0, 10)
       : row.service_date,
     source_system: COPILOT_SOURCE_SYSTEM,
+    source_provider: 'homeworks',
+    source_surface: sourceSurface,
     source: {
       event_id: row.source_event_id,
       synced_at: row.source_synced_at,
@@ -305,6 +306,7 @@ function normalizeResolvedRow(row) {
       budgeted_hours: rawData.budgeted_hours || null,
       service_date_label: rawData.service_date_label || null,
       source_surface: sourceSurface,
+      raw_data: rawData,
     },
     overlay: {
       exists: overlayExists,
@@ -791,10 +793,15 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
   const routeOrder = job.resolved.effective_route_order ?? null;
   const mapLat = job.resolved.map_lat ?? null;
   const mapLng = job.resolved.map_lng ?? null;
+  const budgetedHours = Number(job.source.budgeted_hours);
+  const estimatedDuration = Number.isFinite(budgetedHours) && budgetedHours > 0
+    ? Math.max(1, Math.round(budgetedHours * 60))
+    : 30;
 
   return {
     id: job.job_key,
     source_system: COPILOT_SOURCE_SYSTEM,
+    source_provider: job?.source_provider || 'homeworks',
     source_kind: SCHEDULE_SOURCE_KIND,
     freshness_source: freshnessSource,
     fetched_at: effectiveFetchedAt,
@@ -812,9 +819,10 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     customer_id: job.overlay.customer_link_id ?? null,
     local_customer_id: job.overlay.customer_link_id ?? null,
     property_id: job.overlay.property_link_id ?? null,
+    homeworks_property_id: job.source.raw_data?.property_id ?? null,
     customer_name: job.source.customer_name || 'Unknown',
-    phone: null,
-    email: null,
+    phone: job.source.raw_data?.customer_phone || null,
+    email: job.source.raw_data?.customer_email || null,
     address,
     service_type: job.source.job_title || 'Service',
     service_title: job.source.job_title || 'Service',
@@ -832,11 +840,11 @@ function mapResolvedLiveJobToScheduleJobWithFreshness(job, {
     last_serviced: job.source.last_serviced || null,
     route_order: routeOrder,
     stop_order: routeOrder,
-    estimated_duration: 30,
+    estimated_duration: estimatedDuration,
     tracked_time: job.source.tracked_time || null,
     budgeted_hours: job.source.budgeted_hours || null,
-    start_time: null,
-    end_time: null,
+    start_time: job.source.raw_data?.start_time || null,
+    end_time: job.source.raw_data?.end_time || null,
     special_notes: job.overlay.office_note || null,
     print_note: job.dispatch_plan.print_note || null,
     property_notes: null,
@@ -865,6 +873,7 @@ function mapScheduleJobToDispatchJob(job) {
     id: normalizedId,
     job_key: normalizedId,
     source_system: job?.source_system || COPILOT_SOURCE_SYSTEM,
+    source_provider: job?.source_provider || 'homeworks',
     source_kind: 'live_dispatch',
     is_read_only: false,
     can_assign: true,
@@ -969,9 +978,11 @@ function buildDispatchBoardPayload({
     date: targetDate,
     view,
     source_system: COPILOT_SOURCE_SYSTEM,
+    source_provider: 'homeworks',
+    source_surface: 'homeworks_graphql',
     source_kind: 'live_dispatch',
     read_only: false,
-    read_only_reason: 'Dispatch is reading the shared live Copilot-backed job set. Crew, route, and map overrides persist to the live dispatch plan; completion and add-job flows remain legacy-only.',
+    read_only_reason: 'Dispatch is reading the shared live HomeWorks job set through the official API. Crew, route, and map overrides persist to the YardDesk dispatch plan; completion and add-job flows remain unavailable here.',
     write_capabilities: { ...DISPATCH_WRITE_CAPABILITIES },
     freshness,
     crews: Object.values(crewMap),
@@ -1055,33 +1066,37 @@ function detectLiveParseMismatch(liveResult, syncDate) {
 async function fetchLiveCopilotScheduleDate({
   poolClient,
   syncDate,
-  cookieHeader,
   fetchImpl = fetch,
   timeoutMs = LIVE_JOB_FETCH_TIMEOUT_MS,
 } = {}) {
-  if (!cookieHeader) throw new Error('No CopilotCRM cookies configured');
-
-  const liveResult = await withTimeout(
-    fetchCopilotScheduleGridJobsForDate({ cookieHeader, syncDate, fetchImpl }),
+  const jobs = await withTimeout(
+    fetchHomeWorksEvents({
+      pool: poolClient,
+      startDate: syncDate,
+      endDate: syncDate,
+      fetchImpl,
+    }),
     timeoutMs,
-    `Copilot live schedule timed out for ${syncDate}`
+    `HomeWorks schedule timed out for ${syncDate}`
   );
-  detectLiveParseMismatch(liveResult, syncDate);
 
   const fetchedAt = new Date().toISOString();
   await upsertCopilotLiveJobs(poolClient, {
     serviceDate: syncDate,
-    jobs: liveResult.jobs || [],
+    jobs,
     syncedAt: new Date(fetchedAt),
   });
 
   return {
     date: syncDate,
     source: 'live',
-    source_surface: liveResult.source_surface || 'schedule_grid',
+    source_surface: 'homeworks_graphql',
     fetched_at: fetchedAt,
     error: null,
-    diagnostics: liveResult.diagnostics || null,
+    diagnostics: {
+      api: 'official_homeworks_graphql',
+      returned_event_count: jobs.length,
+    },
   };
 }
 
@@ -1103,21 +1118,47 @@ async function getCopilotLiveJobs({
     throw new Error('start_date cannot be after end_date');
   }
 
-  const tokenInfo = await getCopilotToken(poolClient).catch(() => null);
-  const cookieHeader = tokenInfo?.cookieHeader || null;
   const liveAttemptByDate = new Map();
 
-  for (const syncDate of eachDateInRange(resolvedStartDate, resolvedEndDate)) {
-    try {
-      const liveAttempt = await fetchLiveCopilotScheduleDate({
-        poolClient,
-        syncDate,
-        cookieHeader,
+  try {
+    const officialJobs = await withTimeout(
+      fetchHomeWorksEvents({
+        pool: poolClient,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
         fetchImpl,
-        timeoutMs,
+      }),
+      timeoutMs,
+      `HomeWorks schedule timed out for ${resolvedStartDate} through ${resolvedEndDate}`
+    );
+    const jobsByDate = new Map();
+    for (const job of officialJobs) {
+      const bucket = jobsByDate.get(job.service_date) || [];
+      bucket.push(job);
+      jobsByDate.set(job.service_date, bucket);
+    }
+    const fetchedAt = new Date().toISOString();
+    for (const syncDate of eachDateInRange(resolvedStartDate, resolvedEndDate)) {
+      const dateJobs = jobsByDate.get(syncDate) || [];
+      await upsertCopilotLiveJobs(poolClient, {
+        serviceDate: syncDate,
+        jobs: dateJobs,
+        syncedAt: new Date(fetchedAt),
       });
-      liveAttemptByDate.set(syncDate, liveAttempt);
-    } catch (error) {
+      liveAttemptByDate.set(syncDate, {
+        date: syncDate,
+        source: 'live',
+        source_surface: 'homeworks_graphql',
+        fetched_at: fetchedAt,
+        error: null,
+        diagnostics: {
+          api: 'official_homeworks_graphql',
+          returned_event_count: dateJobs.length,
+        },
+      });
+    }
+  } catch (error) {
+    for (const syncDate of eachDateInRange(resolvedStartDate, resolvedEndDate)) {
       liveAttemptByDate.set(syncDate, {
         date: syncDate,
         source: 'mirror',
@@ -1156,7 +1197,7 @@ async function getCopilotLiveJobs({
       perDate.push({
         date: syncDate,
         source: 'live',
-        source_surface: liveAttempt.source_surface || 'schedule_grid',
+        source_surface: liveAttempt.source_surface || 'homeworks_graphql',
         fetched_at: liveAttempt.fetched_at,
         error: null,
         diagnostics: liveAttempt.diagnostics || null,
@@ -1194,7 +1235,7 @@ async function getCopilotLiveJobs({
     perDate.push({
       date: syncDate,
       source: 'live',
-      source_surface: liveAttempt?.source_surface || 'schedule_grid',
+      source_surface: liveAttempt?.source_surface || 'homeworks_graphql',
       fetched_at: liveAttempt?.fetched_at || null,
       error: null,
       diagnostics: liveAttempt?.diagnostics || null,

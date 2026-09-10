@@ -3025,6 +3025,12 @@ const jobRoutes = require('./routes/jobs')({
 });
 app.use(jobRoutes);
 
+// Official HomeWorks API connection and integration health.
+const homeWorksRoutes = require('./routes/homeworks')({
+  pool, authenticateToken, serverError,
+});
+app.use(homeWorksRoutes);
+
 // ═══════════════════════════════════════════════════════════
 // INVOICES & PAYMENTS — routes/invoices.js
 // ═══════════════════════════════════════════════════════════

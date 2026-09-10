@@ -11,7 +11,7 @@ describe('CORS options', () => {
     ).toEqual(['https://app.example.com', 'https://preview.example.com']);
   });
 
-  test('allows configured production frontend origins only', () => {
+  test('allows the business website and configured production frontend origins only', () => {
     const env = {
       NODE_ENV: 'production',
       ALLOWED_ORIGINS: 'https://app.example.com,https://preview.example.com'
@@ -19,14 +19,21 @@ describe('CORS options', () => {
 
     expect(isCorsOriginAllowed('https://app.example.com', env)).toBe(true);
     expect(isCorsOriginAllowed('https://preview.example.com', env)).toBe(true);
+    expect(isCorsOriginAllowed('https://pappaslandscaping.com', env)).toBe(true);
+    expect(isCorsOriginAllowed('https://www.pappaslandscaping.com', env)).toBe(true);
+    expect(isCorsOriginAllowed('https://magenta-gelato-064a50.netlify.app', env)).toBe(true);
     expect(isCorsOriginAllowed('https://evil.example.com', env)).toBe(false);
     expect(isCorsOriginAllowed('http://localhost:3001', env)).toBe(false);
   });
 
-  test('does not allow all origins in production when ALLOWED_ORIGINS is missing', () => {
+  test('keeps production restricted to the known business origins when ALLOWED_ORIGINS is missing', () => {
     const env = { NODE_ENV: 'production' };
 
-    expect(buildAllowedOrigins(env)).toEqual([]);
+    expect(buildAllowedOrigins(env)).toEqual([
+      'https://pappaslandscaping.com',
+      'https://www.pappaslandscaping.com',
+      'https://magenta-gelato-064a50.netlify.app'
+    ]);
     expect(isCorsOriginAllowed('https://app.example.com', env)).toBe(false);
   });
 

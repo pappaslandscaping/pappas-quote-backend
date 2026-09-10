@@ -653,6 +653,7 @@ const PUBLIC_ROUTE_EXACT = new Set([
 
 // Routes that are public only for specific HTTP methods
 const PUBLIC_ROUTE_METHODS = {
+  'OPTIONS /api/quotes': true,           // Browser CORS preflight for the public quote form
   'POST /api/quotes': true,              // Public quote request form
   'POST /api/campaigns/submissions': true, // Public campaign form
   'POST /api/copilotcrm/estimate-accepted': true, // CopilotCRM accepted-estimate automation uses its own shared-secret/JWT guard

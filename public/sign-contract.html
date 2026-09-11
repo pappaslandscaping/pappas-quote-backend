@@ -132,8 +132,8 @@
 
         .quote-details {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 16px;
+            grid-template-columns: minmax(0, 48%) minmax(0, 52%);
+            gap: 0;
         }
 
         .quote-detail label {
@@ -955,19 +955,31 @@
 
         .quote-number {
             color: var(--ink);
-            font-size: 30px;
+            font-size: 18px;
+            line-height: 1.35;
+            margin-top: 4px;
+            margin-bottom: 18px;
         }
 
         .quote-detail {
+            padding-right: 18px;
+        }
+
+        .quote-detail + .quote-detail {
             border-left: 3px solid var(--accent);
-            padding-left: 14px;
+            padding-left: 16px;
+            padding-right: 0;
         }
 
         .quote-detail span {
             color: #425466;
             font-family: Helvetica, Arial, sans-serif;
-            font-size: 14px;
+            font-size: 12px;
             line-height: 1.6;
+        }
+
+        #serviceAddress {
+            white-space: nowrap;
         }
 
         .quote-total {
@@ -1141,7 +1153,7 @@
             }
 
             .quote-details {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 48%) minmax(0, 52%);
             }
 
             .contract-header,

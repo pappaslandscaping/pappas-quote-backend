@@ -2,6 +2,8 @@
 
 - `/Users/theresapappas/Downloads/Screenshot 2026-09-10 at 8.46.19 PM.png`
 - HomeWorks Estimate v4 email shown on an iPhone in Gmail.
+- `/Users/theresapappas/Downloads/Sign Service Agreement  Pappas & Co. Landscaping 3.png`
+- Customer-facing agreement screenshot showing the Estimate Reference card before this refinement.
 
 **Implementation evidence**
 
@@ -10,10 +12,13 @@
 - `/private/tmp/yarddesk-contract-design-comparison.png`
 - `/private/tmp/yarddesk-signature-font-gistesy-style-mobile.png`
 - `/private/tmp/agreement-email-summary-fixed.png`
+- `/private/tmp/yarddesk-estimate-reference-two-column-focused.png`
+- `/private/tmp/yarddesk-estimate-reference-comparison.png`
 
 **Viewport and normalization**
 
 - Mobile CSS viewport: 390 x 844. Browser content capture: 375 px wide at device scale 1.
+- Estimate Reference focused capture: 375 x 750 px. Source screenshot: 1320 x 2868 px. Combined comparison: 1265 x 1249 px.
 - Source image: 1320 x 2868 px, including the iPhone Gmail interface and browser chrome.
 - Final implementation full-page capture: 375 x 8965 px. The page is longer because it contains the complete legal agreement and signature form.
 - Desktop CSS viewport: 1440 x 1000. Browser content capture: 1425 x 689 px.
@@ -50,6 +55,8 @@
 - Fix: changed them to clean text labels, Draw Signature and Type Signature.
 - Agreement email P2: its summary columns stacked on mobile, so the lime divider no longer separated the summary copy from the estimate details like it does in HomeWorks Estimate v4.
 - Fix: kept the two summary cells side by side at the mobile breakpoint. The agreement summary remains left of the lime divider, with Estimate and Total on the right. Evidence: `/private/tmp/agreement-email-summary-fixed.png`.
+- Agreement page P2: Service Address and Services stacked as separate rows on mobile, while the estimate email uses a compact side-by-side summary divided by one lime rule. The estimate reference number was also visually oversized.
+- Fix: retained a 48/52 two-column grid on mobile, placed the lime divider between the columns, reduced the detail copy to 12 px, kept the formatted street and city/state/ZIP on exactly two lines, and reduced the reference number to 18 px. Post-fix evidence: `/private/tmp/yarddesk-estimate-reference-two-column-focused.png` and `/private/tmp/yarddesk-estimate-reference-comparison.png`.
 
 **Findings**
 

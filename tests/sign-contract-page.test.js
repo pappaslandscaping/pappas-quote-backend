@@ -24,6 +24,11 @@ describe('customer service agreement page', () => {
     expect(page).toContain('Accept Estimate');
     expect(page).toContain('Estimate Reference');
     expect(page).toContain('Estimate Total');
+    expect(page).toContain('font-size: 18px');
+    expect(page).toContain('grid-template-columns: minmax(0, 48%) minmax(0, 52%)');
+    expect(page).toContain('.quote-detail + .quote-detail');
+    expect(page).toContain('#serviceAddress');
+    expect(page).toContain('white-space: nowrap');
     expect(page).toContain('Associated Estimate');
     expect(page).not.toContain('Review Quote');
     expect(page).not.toContain('Accept Quote');

@@ -1,31 +1,66 @@
-# YardDesk brand alignment QA
+**Source visual truth**
 
-## Reference
+- `/Users/theresapappas/Downloads/Screenshot 2026-09-10 at 8.46.19 PM.png`
+- HomeWorks Estimate v4 email shown on an iPhone in Gmail.
 
-- Public website: https://pappaslandscaping.com/request-service
-- App: https://app.pappaslandscaping.com
-- Viewport: desktop Chrome window, approximately 1720 by 830 pixels
+**Implementation evidence**
 
-## Visual comparison
+- `/private/tmp/yarddesk-contract-mobile-final.png`
+- `/private/tmp/yarddesk-contract-desktop.png`
+- `/private/tmp/yarddesk-contract-design-comparison.png`
 
-- Logo: the same Pappas & Company Landscaping logo is used at a readable size.
-- Typography: YardDesk now uses the website's bundled Qualy typeface.
-- Color: primary actions use `#2e403d`, accents use `#c9dd80`, and the page field uses `#fbf8f1`.
-- Components: buttons, cards, navigation states, inputs, and modals follow the website's restrained radii and soft shadows.
-- Functionality: existing navigation, HomeWorks status, communications inbox, and new-text flow remain intact.
+**Viewport and normalization**
 
-## Screens checked
+- Mobile CSS viewport: 390 x 844. Browser content capture: 375 px wide at device scale 1.
+- Source image: 1320 x 2868 px, including the iPhone Gmail interface and browser chrome.
+- Final implementation full-page capture: 375 x 8965 px. The page is longer because it contains the complete legal agreement and signature form.
+- Desktop CSS viewport: 1440 x 1000. Browser content capture: 1425 x 689 px.
+- The combined comparison scales each artifact to the same column width and compares the shared top-of-content region. Device and Gmail chrome are excluded from fidelity judgments.
+- State: unsigned Estimate #1676 with Theresa Pappas, 1513 Lincoln Avenue, Mowing (Weekly), and a $1.08 total.
 
-- Home dashboard
-- Communications inbox
-- New text modal
-- HomeWorks connection settings
-- Next.js frontend production build
+**Full-view comparison evidence**
 
-## Findings
+- The implementation uses the same dark charcoal header, lime-and-white logo, pale green gradient, dark green headings, compact gray body copy, lime accents, rounded white surfaces, and generous white space as Estimate v4.
+- The agreement page keeps its additional workflow information and legal content because those are required for signing, but it no longer looks like a separate product.
+- Mobile and desktop captures show no horizontal overflow or clipped primary controls.
 
-- P0: none
-- P1: none
-- P2: none
+**Focused region comparison evidence**
 
-Final result: passed.
+- Header and hero: the logo treatment, charcoal header, pale green gradient, uppercase eyebrow, and headline hierarchy match the email system.
+- Estimate summary: the address and service use lime rules, while the total sits in the same pale green treatment used by the email.
+- Agreement and signature cards: typography, borders, radii, colors, and button styling use the same tokens as the email.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: Helvetica and Arial match the email-safe Estimate v4 stack. Headings, labels, body copy, weights, line height, and wrapping are consistent and readable at mobile and desktop sizes.
+- Spacing and layout rhythm: the 760 px content width, 16 to 30 px padding, 18 to 24 px gaps, rounded cards, and section spacing follow the email proportions without crowding the legal content.
+- Colors and visual tokens: `#1f2933`, `#2e403d`, `#c9dd80`, `#f7f9f5`, and `#edf3e6` match the Estimate v4 system and maintain readable contrast.
+- Image quality and asset fidelity: the actual YardDesk email logo asset is used. No replacement illustration, placeholder logo, or generated asset is present.
+- Copy and content: customer-facing labels now consistently say Estimate, and the agreement introduction and references use estimate language throughout.
+
+**Comparison history**
+
+- First pass P2: the fixed signing bar covered content while scrolling on mobile, and the agreement used a nested scroll area. Evidence: `/private/tmp/yarddesk-contract-mobile-v2.png`.
+- Fix: moved the signing action into the normal document flow, removed the internal agreement scrollbar, reduced bottom padding, and made the mobile action card stack cleanly.
+- Post-fix evidence: `/private/tmp/yarddesk-contract-mobile-final.png` shows the full agreement, signature form, and signing action without overlap.
+- First pass P3: signature mode labels used emoji that did not belong to the Estimate v4 system.
+- Fix: changed them to clean text labels, Draw Signature and Type Signature.
+
+**Findings**
+
+- No actionable P0, P1, or P2 visual differences remain.
+
+**Primary interactions tested**
+
+- Loaded the agreement with realistic Estimate #1676 data.
+- Switched from Draw Signature to Type Signature.
+- Entered a typed signature and checked the consent box.
+- Verified the Sign Agreement button becomes enabled.
+- Verified no visible error state or loading lock remained.
+- Verified desktop layout has no horizontal overflow.
+
+**Follow-up polish**
+
+- P3: a future pass could visually match the post-signing portal-success screen, which was outside this unsigned-agreement comparison.
+
+final result: passed

@@ -826,13 +826,368 @@
                 display: none;
             }
         }
+
+        /* Estimate v4 visual system */
+        :root {
+            --primary: #2e403d;
+            --primary-dark: #1f2933;
+            --accent: #c9dd80;
+            --ink: #2e403d;
+            --muted: #5b6773;
+            --surface: #ffffff;
+            --soft: #f7f9f5;
+            --line: #d7dfd1;
+        }
+
+        body {
+            background: #f4f6f1;
+            color: var(--ink);
+            font-family: Helvetica, Arial, sans-serif;
+        }
+
+        .header {
+            position: static;
+            background: var(--primary-dark);
+            border-bottom: 0;
+            padding: 18px 0;
+        }
+
+        .header-content {
+            max-width: 760px;
+        }
+
+        .logo {
+            width: 210px;
+            height: auto;
+            max-width: 55vw;
+        }
+
+        .header-info,
+        .header-info strong {
+            color: #ffffff;
+        }
+
+        .header-info {
+            line-height: 1.65;
+            opacity: .92;
+        }
+
+        .container {
+            max-width: 760px;
+            padding: 30px 24px 24px;
+        }
+
+        .agreement-hero {
+            background: linear-gradient(135deg, #f7f9f5 0%, #edf3e6 100%);
+            border-radius: 22px;
+            padding: 30px;
+            margin-bottom: 24px;
+        }
+
+        .agreement-eyebrow {
+            color: #6e7f6d;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            line-height: 1.6;
+            text-transform: uppercase;
+        }
+
+        .agreement-hero h1 {
+            color: var(--ink);
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 34px;
+            line-height: 1.08;
+            margin: 12px 0 14px;
+        }
+
+        .agreement-hero p {
+            color: #425466;
+            font-size: 15px;
+            line-height: 1.8;
+            margin: 0;
+            max-width: 560px;
+        }
+
+        .progress-bar {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            padding: 18px 20px;
+        }
+
+        .progress-step,
+        .progress-step.active {
+            color: var(--muted);
+        }
+
+        .progress-step.active {
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .progress-step.active .progress-dot {
+            background: var(--accent);
+            color: var(--ink);
+        }
+
+        .quote-summary {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 22px;
+            color: var(--ink);
+            padding: 28px 30px;
+        }
+
+        .quote-summary h2,
+        .quote-detail label,
+        .quote-total label {
+            color: #6e7f6d;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .8px;
+            text-transform: uppercase;
+        }
+
+        .quote-number {
+            color: var(--ink);
+            font-size: 30px;
+        }
+
+        .quote-detail {
+            border-left: 3px solid var(--accent);
+            padding-left: 14px;
+        }
+
+        .quote-detail span {
+            color: #425466;
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .quote-total {
+            background: linear-gradient(135deg, #f7f9f5 0%, #edf3e6 100%);
+            color: var(--ink);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .quote-total .amount {
+            color: var(--ink);
+            font-size: 30px;
+        }
+
+        .contract-section,
+        .signature-section {
+            border: 1px solid #e2e8f0;
+            border-radius: 22px;
+            box-shadow: 0 12px 30px rgba(31, 41, 51, .06);
+        }
+
+        .contract-header {
+            padding: 22px 28px;
+            border-bottom-color: var(--line);
+        }
+
+        .contract-header h3,
+        .signature-section h3 {
+            color: var(--ink);
+            font-family: Helvetica, Arial, sans-serif;
+            font-weight: 700;
+        }
+
+        .btn-icon,
+        .toggle-btn,
+        .form-group input,
+        .signature-pad-container {
+            border-color: var(--line);
+        }
+
+        .btn-icon:hover,
+        .btn-clear:hover {
+            background: var(--soft);
+            color: var(--ink);
+        }
+
+        .contract-content {
+            color: #425466;
+            font-family: Helvetica, Arial, sans-serif;
+            max-height: none;
+            overflow: visible;
+            padding: 30px;
+        }
+
+        .contract-content h1,
+        .contract-content h2 {
+            color: var(--ink);
+            font-family: Helvetica, Arial, sans-serif;
+        }
+
+        .contract-content h2 {
+            border-top: 1px solid #e4e9e4;
+            padding-top: 20px;
+        }
+
+        .contract-content .parties,
+        .contract-content .highlight-box,
+        .signature-preview {
+            background: var(--soft);
+        }
+
+        .contract-content .highlight-box {
+            border-left-color: var(--accent);
+        }
+
+        .signature-section {
+            padding: 28px;
+        }
+
+        .toggle-btn.active {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+
+        .consent-box {
+            background: var(--soft);
+            border-color: var(--line);
+        }
+
+        .submit-section {
+            position: static;
+            max-width: 760px;
+            margin: 0 auto 36px;
+            padding: 0 24px;
+            background: transparent;
+            border-top: 0;
+            box-shadow: none;
+        }
+
+        .submit-content {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 12px 30px rgba(31, 41, 51, .06);
+            padding: 18px 20px;
+        }
+
+        .submit-section {
+            border-top-color: var(--line);
+        }
+
+        .submit-info {
+            color: var(--muted);
+        }
+
+        .btn-submit {
+            background: var(--accent);
+            border-radius: 6px;
+            color: var(--ink);
+            font-family: Helvetica, Arial, sans-serif;
+            font-weight: 700;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            background: #bdd36c;
+        }
+
+        .btn-submit:disabled {
+            background: #e3e8de;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 640px) {
+            .header {
+                padding: 18px 10px;
+            }
+
+            .header-content {
+                align-items: flex-start;
+                padding: 0 18px;
+            }
+
+            .header-info {
+                display: none;
+            }
+
+            .container {
+                padding: 22px 16px 24px;
+            }
+
+            .agreement-hero {
+                padding: 26px 24px;
+            }
+
+            .agreement-hero h1 {
+                font-size: 31px;
+            }
+
+            .progress-bar {
+                justify-content: flex-start;
+                gap: 14px 18px;
+                padding: 16px;
+            }
+
+            .progress-step {
+                width: calc(50% - 10px);
+            }
+
+            .quote-summary {
+                padding: 24px;
+            }
+
+            .quote-details {
+                grid-template-columns: 1fr;
+            }
+
+            .contract-header,
+            .contract-content,
+            .signature-section {
+                padding-left: 22px;
+                padding-right: 22px;
+            }
+
+            .contract-content {
+                max-height: none;
+            }
+
+            .contract-content .parties {
+                gap: 20px;
+                padding: 18px;
+            }
+
+            .signature-toggle {
+                flex-direction: column;
+            }
+
+            .submit-section {
+                margin-bottom: 24px;
+                padding: 0 16px max(12px, env(safe-area-inset-bottom));
+            }
+
+            .submit-content {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn-submit {
+                justify-content: center;
+                width: 100%;
+            }
+
+            .submit-info {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
     <!-- Header -->
     <div class="header">
         <div class="header-content">
-            <img src="/logo.png" alt="Pappas & Co. Landscaping" class="logo">
+            <img src="/images/email-logo.png" alt="Pappas & Co. Landscaping" class="logo">
             <div class="header-info">
                 <strong>Service Agreement</strong>
                 pappaslandscaping.com • (440) 886-7318
@@ -842,16 +1197,22 @@
 
     <!-- Main Content -->
     <div class="container" id="mainContent">
+        <section class="agreement-hero">
+            <div class="agreement-eyebrow">Agreement Ready</div>
+            <h1>Your service agreement is ready</h1>
+            <p>Review the details below, then add your signature to complete your agreement.</p>
+        </section>
+
         <!-- Progress -->
         <div class="progress-bar" id="progressBar">
             <div class="progress-step completed" id="step1">
                 <div class="progress-dot">✓</div>
-                <span>Review Quote</span>
+                <span>Review Estimate</span>
             </div>
             <div class="progress-line" id="line1" style="background: var(--primary);"></div>
             <div class="progress-step completed" id="step2">
                 <div class="progress-dot">✓</div>
-                <span>Accept Quote</span>
+                <span>Accept Estimate</span>
             </div>
             <div class="progress-line" id="line2"></div>
             <div class="progress-step active" id="step3">
@@ -867,7 +1228,7 @@
 
         <!-- Quote Summary -->
         <div class="quote-summary">
-            <h2>Quote Reference</h2>
+            <h2>Estimate Reference</h2>
             <div class="quote-number" id="quoteNumber">Loading...</div>
             <div class="quote-details">
                 <div class="quote-detail">
@@ -880,7 +1241,7 @@
                 </div>
             </div>
             <div class="quote-total">
-                <label>Quote Total</label>
+                <label>Estimate Total</label>
                 <div class="amount" id="quoteTotal">$0.00</div>
             </div>
         </div>
@@ -910,10 +1271,10 @@
             <!-- Signature Type Toggle -->
             <div class="signature-toggle">
                 <button class="toggle-btn active" onclick="setSignatureType('draw')" id="drawToggle">
-                    ✏️ Draw Signature
+                    Draw Signature
                 </button>
                 <button class="toggle-btn" onclick="setSignatureType('type')" id="typeToggle">
-                    ⌨️ Type Signature
+                    Type Signature
                 </button>
             </div>
 
@@ -1037,7 +1398,7 @@
             const token = urlParams.get('token');
 
             if (!quoteId && !token) {
-                showError('No quote ID provided. Please go back and accept a quote first.');
+                showError('No estimate ID provided. Please go back and accept an estimate first.');
                 return;
             }
 
@@ -1057,7 +1418,7 @@
                 const data = await res.json();
 
                 if (!data.success) {
-                    showError('Quote not found. Please contact us for assistance.');
+                    showError('Estimate not found. Please contact us for assistance.');
                     return;
                 }
 
@@ -1101,7 +1462,7 @@
                 const data = await res.json();
 
                 if (!data.success) {
-                    showError('Quote not found. Please contact us for assistance.');
+                    showError('Estimate not found. Please contact us for assistance.');
                     return;
                 }
 
@@ -1144,7 +1505,7 @@
 
             const contractHTML = `
                 <h1>Service Agreement</h1>
-                <p class="effective-date">This Agreement is made effective on the date the Client accepts a quote from Pappas & Co. Landscaping (the "Effective Date").</p>
+                <p class="effective-date">This Agreement is made effective on the date the Client accepts an estimate from Pappas & Co. Landscaping (the "Effective Date").</p>
 
                 <div class="parties">
                     <div class="party">
@@ -1165,9 +1526,9 @@
                 </div>
 
                 <h2>I. Scope of Agreement</h2>
-                <p><strong>A. Associated Quote:</strong> This Agreement is directly tied to Quote/Proposal Number: <strong>${quoteData.quote_number || 'Q-' + quoteData.id}</strong>.</p>
+                <p><strong>A. Associated Estimate:</strong> This Agreement is directly tied to Estimate/Proposal Number: <strong>${quoteData.quote_number || 'Q-' + quoteData.id}</strong>.</p>
                 <p><strong>B. Scope of Services:</strong> The Contractor agrees to provide services at the Client Service Address as detailed in the Proposal, which outlines the specific services, schedule, and pricing. This Proposal is hereby incorporated into and made a part of this Agreement.</p>
-                <p><strong>C. Additional Work:</strong> Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved quote.</p>
+                <p><strong>C. Additional Work:</strong> Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved estimate.</p>
 
                 <h2>II. Terms and Renewal</h2>
                 <p><strong>A. Term:</strong> This Agreement begins on the Effective Date and remains in effect until canceled as outlined in Section IX.</p>
@@ -1241,7 +1602,7 @@
                 <p><strong>B. Dispute Resolution:</strong> Any disputes will first be subject to good-faith negotiations between the parties. If a resolution cannot be reached, the dispute may be subject to mediation or arbitration before legal action is pursued.</p>
 
                 <h2>XII. Acceptance of Agreement</h2>
-                <p>By signing below, the parties acknowledge that they have read, understand, and agree to the terms and conditions of this Landscaping Services Agreement and the incorporated Proposal/Quote.</p>
+                <p>By signing below, the parties acknowledge that they have read, understand, and agree to the terms and conditions of this Landscaping Services Agreement and the incorporated Proposal/Estimate.</p>
             `;
 
             document.getElementById('contractContent').innerHTML = contractHTML;
@@ -1655,7 +2016,7 @@
                             </div>
                         </div>
                         <div class="doc-info">
-                            <div><span class="label">Quote #</span><br><span class="value">${quoteData.quote_number || 'Q-' + quoteData.id}</span></div>
+                            <div><span class="label">Estimate #</span><br><span class="value">${quoteData.quote_number || 'Q-' + quoteData.id}</span></div>
                             <div style="margin-top: 8px;"><span class="label">Date</span><br><span class="value">${effectiveDate}</span></div>
                         </div>
                     </div>

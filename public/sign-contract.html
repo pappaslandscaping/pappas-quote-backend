@@ -219,17 +219,25 @@
         }
 
         .btn-download {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: var(--ink);
+            background: transparent !important;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            color: #425466;
             flex-shrink: 0;
-            font-weight: 700;
+            font-weight: 600;
+            padding-left: 0;
+            padding-right: 0;
+            text-decoration: underline;
+            text-decoration-color: var(--accent);
+            text-decoration-thickness: 2px;
+            text-underline-offset: 4px;
             white-space: nowrap;
         }
 
         .btn-download:hover {
-            background: #bdd36c;
-            border-color: #bdd36c;
+            background: transparent;
+            border-color: transparent;
             color: var(--ink);
         }
 
@@ -1184,7 +1192,7 @@
             }
 
             .contract-actions {
-                min-width: 96px;
+                min-width: 86px;
             }
 
             .btn-download {

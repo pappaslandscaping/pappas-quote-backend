@@ -15,6 +15,7 @@
 - `/private/tmp/yarddesk-estimate-reference-two-column-focused.png`
 - `/private/tmp/yarddesk-estimate-reference-comparison.png`
 - `/private/tmp/yarddesk-estimate-number-pdf-button-final.png`
+- `/private/tmp/yarddesk-clean-pdf-action-mobile.png`
 
 **Viewport and normalization**
 
@@ -60,6 +61,7 @@
 - Fix: retained a 48/52 two-column grid on mobile, placed the lime divider between the columns, reduced the detail copy to 12 px, kept the formatted street and city/state/ZIP on exactly two lines, and reduced the reference number to 18 px. Post-fix evidence: `/private/tmp/yarddesk-estimate-reference-two-column-focused.png` and `/private/tmp/yarddesk-estimate-reference-comparison.png`.
 - Agreement page P2: the outlined Download control looked disabled and did not accurately describe that the browser opens a printable copy rather than downloading immediately.
 - Fix: changed the control to a compact lime `Print / Save PDF` button, prevented mobile wrapping, added `#` to the displayed estimate reference, and opens the browser print/save dialog after creating the printable agreement. Evidence: `/private/tmp/yarddesk-estimate-number-pdf-button-final.png`.
+- Follow-up refinement: the solid lime PDF button was visually too heavy beside the section heading. It is now a borderless text action with a thin lime underline and no surrounding box. Evidence: `/private/tmp/yarddesk-clean-pdf-action-mobile.png`.
 
 **Findings**
 

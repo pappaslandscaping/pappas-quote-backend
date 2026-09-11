@@ -10303,7 +10303,12 @@ app.get('/api/reports/sales-tax', async (req, res) => {
 // Template variable replacement
 function replaceTemplateVars(str, data) {
   if (!str) return str;
-  return str.replace(/\{(\w+)\}/g, (match, key) => {
+  const withCurrency = str.replace(/\$\{(\w+)\}/g, (match, key) => {
+    if (data[key] === undefined) return match;
+    const value = String(data[key]);
+    return value.startsWith('$') ? value : `$${value}`;
+  });
+  return withCurrency.replace(/\{(\w+)\}/g, (match, key) => {
     return data[key] !== undefined ? data[key] : match;
   });
 }

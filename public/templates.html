@@ -2617,6 +2617,8 @@ async function refreshPreview() {
     // Replace variables with sample data
     let subj = subject;
     for (const [key, val] of Object.entries(SAMPLE_VARS)) {
+        const currencyRe = new RegExp('\\$\\{' + key + '\\}', 'g');
+        subj = subj.replace(currencyRe, String(val).startsWith('$') ? val : '$' + val);
         const re = new RegExp('\\{' + key + '\\}', 'g');
         subj = subj.replace(re, val);
     }

@@ -8,6 +8,7 @@
 - `/private/tmp/yarddesk-contract-mobile-final.png`
 - `/private/tmp/yarddesk-contract-desktop.png`
 - `/private/tmp/yarddesk-contract-design-comparison.png`
+- `/private/tmp/yarddesk-signature-font-allura.png`
 
 **Viewport and normalization**
 
@@ -37,6 +38,7 @@
 - Colors and visual tokens: `#1f2933`, `#2e403d`, `#c9dd80`, `#f7f9f5`, and `#edf3e6` match the Estimate v4 system and maintain readable contrast.
 - Image quality and asset fidelity: the actual YardDesk email logo asset is used. No replacement illustration, placeholder logo, or generated asset is present.
 - Copy and content: customer-facing labels now consistently say Estimate, and the agreement introduction and references use estimate language throughout.
+- Typed signature: Allura provides a connected, natural handwritten signature while retaining a readable fallback stack.
 
 **Comparison history**
 

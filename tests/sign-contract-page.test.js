@@ -12,6 +12,7 @@ describe('customer service agreement page', () => {
     expect(page).toContain('--accent: #c9dd80');
     expect(page).toContain('/images/email-logo.png');
     expect(page).toContain('Your service agreement is ready');
+    expect(page).toContain("font-family: 'Allura', 'Snell Roundhand'");
   });
 
   test('uses consistent estimate wording throughout the customer flow', () => {

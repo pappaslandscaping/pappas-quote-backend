@@ -16,6 +16,7 @@
 - `/private/tmp/yarddesk-estimate-reference-comparison.png`
 - `/private/tmp/yarddesk-estimate-number-pdf-button-final.png`
 - `/private/tmp/yarddesk-clean-pdf-action-mobile.png`
+- `/private/tmp/yarddesk-smaller-estimate-total-mobile.png`
 
 **Viewport and normalization**
 
@@ -62,6 +63,7 @@
 - Agreement page P2: the outlined Download control looked disabled and did not accurately describe that the browser opens a printable copy rather than downloading immediately.
 - Fix: changed the control to a compact lime `Print / Save PDF` button, prevented mobile wrapping, added `#` to the displayed estimate reference, and opens the browser print/save dialog after creating the printable agreement. Evidence: `/private/tmp/yarddesk-estimate-number-pdf-button-final.png`.
 - Follow-up refinement: the solid lime PDF button was visually too heavy beside the section heading. It is now a borderless text action with a thin lime underline and no surrounding box. Evidence: `/private/tmp/yarddesk-clean-pdf-action-mobile.png`.
+- Follow-up refinement: reduced the Estimate Total amount from 30 px to 24 px so it remains prominent without overpowering the service summary. Evidence: `/private/tmp/yarddesk-smaller-estimate-total-mobile.png`.
 
 **Findings**
 

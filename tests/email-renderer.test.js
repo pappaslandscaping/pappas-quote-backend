@@ -59,4 +59,37 @@ describe('email renderer', () => {
     expect(html).toContain('Next Steps');
     expect(html).toContain('Hi Theresa,');
   });
+
+  test('unsigned agreement reminders reuse the same Estimate v4 design', () => {
+    const reminder = buildServiceAgreementEmailV4({
+      customerFirstName: '{customer_first_name}',
+      estimateNumber: '{quote_number}',
+      total: '{quote_total}',
+      contractUrl: '{contract_link}',
+      variant: 'reminder',
+    });
+    const finalReminder = buildServiceAgreementEmailV4({
+      customerFirstName: '{customer_first_name}',
+      estimateNumber: '{quote_number}',
+      total: '{quote_total}',
+      contractUrl: '{contract_link}',
+      variant: 'final',
+    });
+
+    for (const html of [reminder, finalReminder]) {
+      expect(html).toContain('background-color:#1f2933');
+      expect(html).toContain('linear-gradient(135deg,#f7f9f5 0%,#edf3e6 100%)');
+      expect(html).toContain('/images/email-logo.png');
+      expect(html).toContain('<strong>Estimate:</strong> #{quote_number}');
+      expect(html).toContain('<strong>Total:</strong> ${quote_total}');
+      expect(html).toContain('Review &amp; Sign Agreement');
+      expect(html).toContain('href="{contract_link}"');
+      expect(html).not.toContain('—');
+    }
+
+    expect(reminder).toContain('Signature Reminder');
+    expect(reminder).toContain('One quick step left');
+    expect(finalReminder).toContain('Final Reminder');
+    expect(finalReminder).toContain('Your agreement still needs a signature');
+  });
 });

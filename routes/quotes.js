@@ -1281,7 +1281,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 </div>
 
 <h1>Service Agreement</h1>
-<p class="intro">This Agreement is made effective on the date the Client accepts a<br>quote from Pappas & Co. Landscaping (the "Effective Date") between:</p>
+<p class="intro">This Agreement is made effective on the date the Client accepts an<br>estimate from Pappas & Co. Landscaping (the "Effective Date") between:</p>
 
 <div class="parties">
   <div class="party">
@@ -1294,7 +1294,7 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
   </div>
 </div>
 
-<h2>Services & Pricing (Quote #${quoteNumber})</h2>
+<h2>Services & Pricing (Estimate #${String(quoteNumber).replace(/^#/, '')})</h2>
 <div class="section">
   <ul>${servicesHtml}</ul>
   <p><strong>Total: $${parseFloat(updatedQuote.total).toFixed(2)}</strong>${updatedQuote.monthly_payment ? ` (Monthly: $${parseFloat(updatedQuote.monthly_payment).toFixed(2)}/mo)` : ''}</p>
@@ -1302,14 +1302,14 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
 
 <h2>I. Scope of Agreement</h2>
 <div class="section">
-  <p><strong>A. Associated Quote:</strong> This Agreement is directly tied to Quote/Proposal Number: <strong>${quoteNumber}</strong>.</p>
+  <p><strong>A. Associated Estimate:</strong> This Agreement is directly tied to Estimate/Proposal Number: <strong>#${String(quoteNumber).replace(/^#/, '')}</strong>.</p>
   <p><strong>B. Scope of Services:</strong> The Contractor agrees to provide services at the Client Service Address as detailed in the Proposal, which outlines the specific services, schedule, and pricing. This Proposal is hereby incorporated into and made a part of this Agreement.</p>
-  <p><strong>C. Additional Work:</strong> Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved quote.</p>
+  <p><strong>C. Additional Work:</strong> Additional work requested by the Client outside of the scope defined in the Proposal will be performed at an additional cost, requiring a separate, pre-approved estimate.</p>
 </div>
 
 <h2>II. Terms and Renewal</h2>
 <div class="section">
-  <p><strong>A. Term:</strong> This Agreement begins on the Effective Date and remains in effect until canceled as outlined in Section IX.</p>
+  <p><strong>A. Term:</strong> This Agreement begins on the Effective Date and remains in effect until canceled as outlined in Section X.</p>
   <p><strong>B. Automatic Renewal:</strong> The Agreement automatically renews each year at the start of the new season, which begins in <strong>March</strong>, unless canceled in writing by either party at least <strong>30 days before the new season begins</strong>.</p>
 </div>
 
@@ -1370,14 +1370,25 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
   <p><strong>B. Weather Disruptions:</strong> If inclement weather prevents services, Pappas & Co. Landscaping will make <strong>reasonable efforts</strong> to complete the service the following business day. Service on the next day is <strong>not guaranteed</strong> and will be rescheduled based on availability. Refunds or credits will not be issued for weather-related delays unless the service is permanently canceled.</p>
 </div>
 
-<h2>IX. Cancellation and Termination</h2>
+<h2>IX. Customer-Requested Skips and Recurring Route Service</h2>
+<div class="section">
+  <p><strong>A. Reserved Route Position:</strong> Recurring mowing service reserves a regular position on the Contractor's route and is not an on-demand service.</p>
+  <p><strong>B. Courtesy Skips:</strong> The Client may request up to two courtesy skips per growing season by providing at least 48 hours' notice before the scheduled service.</p>
+  <p><strong>C. Additional Skips:</strong> After the two courtesy skips have been used, each additional Client-requested skip may be charged at 50% of the regular service price to retain the Client's recurring route position.</p>
+  <p><strong>D. Late Requests and Access Issues:</strong> A skip requested with less than 48 hours' notice, or a service that cannot be completed because the property is inaccessible, may be charged at the full scheduled service price.</p>
+  <p><strong>E. Weather and Contractor-Initiated Skips:</strong> Weather-related skips and skips initiated by Pappas & Co. Landscaping do not count toward the Client's courtesy skips. No per-service charge will be made for work the Contractor does not perform.</p>
+  <p><strong>F. Monthly Service Contracts:</strong> Monthly contract pricing will not be reduced or credited for Client-requested skips because the flat monthly rate reserves the Client's route position and is based on the full service season.</p>
+  <p><strong>G. Excessive Skips and Overgrowth:</strong> Three consecutive Client-requested skips may result in removal from the recurring route. Future service will be subject to availability and current pricing. If a skipped visit causes overgrowth or requires additional labor, an additional charge may apply to the next service. The Client will be notified before that additional work is performed.</p>
+</div>
+
+<h2>X. Cancellation and Termination</h2>
 <div class="section">
   <p><strong>A. Non-Renewal:</strong> To stop the automatic renewal of this Agreement, the Client must provide <strong>written notice at least 30 days before your renewal date</strong> (which occurs in March).</p>
   <p><strong>B. Mid-Season Cancellation by Client:</strong> To cancel service mid-season, the Client must provide <strong>15 days' written notice</strong> at any time. Services will continue through the notice period, and the final invoice will include any completed work. No refunds are given for prepaid services or unused portions of seasonal contracts.</p>
   <p><strong>C. Termination by Contractor:</strong> Pappas & Co. Landscaping may cancel service at any time with <strong>15 days' notice</strong>.</p>
 </div>
 
-<h2>X. Liability, Insurance, and Quality</h2>
+<h2>XI. Liability, Insurance, and Quality</h2>
 <div class="section">
   <p><strong>A. Quality of Workmanship:</strong> Pappas & Co. Landscaping will perform all services with due care and in accordance with industry standards.</p>
   <ul>
@@ -1391,15 +1402,15 @@ h2 { color: #2e403d; font-size: 13px; margin: 22px 0 10px; padding-bottom: 4px; 
   <p><strong>F. Force Majeure:</strong> Neither party shall be held liable for delays or failure in performance caused by events beyond their reasonable control.</p>
 </div>
 
-<h2>XI. Governing Law and Dispute Resolution</h2>
+<h2>XII. Governing Law and Dispute Resolution</h2>
 <div class="section">
   <p><strong>A. Jurisdiction:</strong> This agreement shall be governed by the laws of the <strong>State of Ohio</strong>. Any disputes shall be resolved in the county courts of <strong>Cuyahoga County, Ohio</strong>.</p>
   <p><strong>B. Dispute Resolution:</strong> Any disputes will first be subject to <strong>good-faith negotiations</strong> between the parties. If a resolution cannot be reached, the dispute may be subject to <strong>mediation or arbitration</strong> before legal action is pursued.</p>
 </div>
 
-<h2>XII. Acceptance of Agreement</h2>
+<h2>XIII. Acceptance of Agreement</h2>
 <div class="section">
-  <p>By signing below, the parties acknowledge that they have read, understand, and agree to the terms and conditions of this Landscaping Services Agreement and the incorporated Proposal/Quote.</p>
+  <p>By signing below, the parties acknowledge that they have read, understand, and agree to the terms and conditions of this Landscaping Services Agreement and the incorporated Proposal/Estimate.</p>
 </div>
 
 <div class="signature-section">

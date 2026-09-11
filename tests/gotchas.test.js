@@ -156,6 +156,16 @@ describe('CopilotCRM sync in quote-signing handler', () => {
     expect(quotesCode).toContain('function quoteServiceAmount(service)');
   });
 
+  test('signed PDF and HTML agreement copies include the current recurring skip policy', () => {
+    for (const code of [serverCode, quotesCode]) {
+      expect(code).toContain('IX. Customer-Requested Skips and Recurring Route Service');
+      expect(code).toContain('up to two courtesy skips per growing season');
+      expect(code).toContain('50% of the regular service price');
+      expect(code).toContain('canceled as outlined in Section X');
+      expect(code).toContain('XIII. Acceptance of Agreement');
+    }
+  });
+
   test('CopilotCRM portal invite email exists inside the handler', () => {
     const handlerBlock = quotesLines.slice(signContractLine - 1, signContractLine + 550).join('\n');
     expect(handlerBlock).toContain('emails/sendMail');
